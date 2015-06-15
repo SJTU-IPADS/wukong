@@ -1,6 +1,6 @@
 #include "graph.h"
 #include "traverser.h"
-
+#include "traverser_keeppath.h"
 int main(int argc, char * argv[])
 {
 	if(argc !=2)
@@ -39,10 +39,9 @@ int main(int argc, char * argv[])
 
 	{
 		// test
-		traverser t(g);
-		t.get_all_subtype("<ub#University>")
-			.LoadNeighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
-			.print_count();
+		//traverser_keeppath t(g);
+		//t.lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
+		//	.print_count();
 	}
 
 	{
@@ -52,6 +51,7 @@ int main(int argc, char * argv[])
 			.LoadNeighbors("in","<ub#takesCourse>")
 			.is_subclass_of("<ub#GraduateStudent>")
 			.print_count();
+
 	}
 
 	{
@@ -67,6 +67,7 @@ int main(int argc, char * argv[])
 			.LoadNeighbors("in","<ub#publicationAuthor>")
 			.is_subclass_of("<ub#Publication>")
 			.print_count();
+
 	}
 	
 	{
@@ -85,6 +86,7 @@ int main(int argc, char * argv[])
 		t.lookup("<http://www.Department0.University0.edu>")
 			.LoadNeighbors("in","<ub#memberOf>")
 			.print_count();
+
 	}
 
 	{
@@ -93,6 +95,7 @@ int main(int argc, char * argv[])
 		t.get_all_subtype("<ub#Student>")
 			.LoadNeighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
 			.print_count();
+
 	}
 
 	{
