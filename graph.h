@@ -135,14 +135,13 @@ public:
 	        string filename=string(input)+"/"+string(ptr->d_name);
 	        printf("loading %s ...\n",ptr->d_name);
 	        ifstream file(filename.c_str());
-	        while(!file.eof()){
-				// S P O .
-				string subject;
-				string predict;
-				string object;
-				string useless_dot;
+	        // S P O .
+			string subject;
+			string predict;
+			string object;
+			string useless_dot;
+	        while(file>>subject>>predict>>object>>useless_dot){
 				int id[3];
-				file>>subject>>predict>>object>>useless_dot;
 				//replace prefix
 				string prefix="<http://swat.cse.lehigh.edu/onto/univ-bench.owl";
 				if(equal(prefix.begin(), prefix.end(), subject.begin()))
@@ -163,45 +162,33 @@ public:
 					predict_to_id[predict]=size;
 					id_to_predict.push_back(predict);
 				}
+				id[0]=subject_to_id[subject];
+				id[1]=predict_to_id[predict];
 				bool object_is_vertex=true;
 				if(object[0]=='"'){
 					object_is_vertex=false;
 				}
-				if(subject_to_id.find(object)==subject_to_id.end() ){
-					int size =subject_to_id.size();
-					subject_to_id[object]=size;
-					id_to_subject.push_back(object);
-					vertex_array.push_back(vertex());
-				}
-				id[0]=subject_to_id[subject];
-				id[1]=predict_to_id[predict];
-				id[2]=subject_to_id[object];
-				if(object[0]=='"'){
-					vertex_array[id[0]].propertys.push_back(vertex_row(id[1],object));
-				}else {
+				if(object_is_vertex){
+					if(subject_to_id.find(object)==subject_to_id.end() ){
+						int size =subject_to_id.size();
+						subject_to_id[object]=size;
+						id_to_subject.push_back(object);
+						vertex_array.push_back(vertex());
+					}
+					id[2]=subject_to_id[object];
 					vertex_array[id[0]].out_edges.push_back(edge_row(id[1],id[2]));
 					vertex_array[id[2]].in_edges.push_back(edge_row(id[1],id[0]));
-				}
-				if(predict=="<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"){
-					vertex_array[id[0]].type=id[2];
-					ontology_array.insert_type(id[2]);
-				}
+					if(predict=="<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"){
+						vertex_array[id[0]].type=id[2];
+						ontology_array.insert_type(id[2]);
+					}
+				} else {
+					vertex_array[id[0]].propertys.push_back(vertex_row(id[1],object));
+				}				
 			}        
 	    }
 	    closedir(dir);
 	    timer t2;
-
-	    int count=0;
-	    for (int i=0;i<vertex_array.size();i++){
-	    	if(vertex_array[i].type==-1){
-	    		count++;
-	    		//cout<<id_to_subject[i]<<endl;
-				//for (auto j : g.vertex_array[i].propertys){
-				//	cout<<"\t"<<g.id_to_predict[j.property]<<"\t"<<j.value<<endl;
-				//}
-	    	}
-	    }
-	    printf("%d vertex in %d doesn't have type\n", count,vertex_array.size());
 	    printf("Loading in %d ms\n", t2.diff(t1));
 	    printf("sizeof vertex_array is %d\n", vertex_array.size());
 	    printf("List of propertys or predict\n", t2.diff(t1));
