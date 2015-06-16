@@ -37,12 +37,6 @@ int main(int argc, char * argv[])
 
 	g.print_ontology_tree();
 
-	{
-		// test
-		//traverser_keeppath t(g);
-		//t.lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
-		//	.print_count();
-	}
 
 	{
 		// Query 1
@@ -56,8 +50,9 @@ int main(int argc, char * argv[])
 
 	{
 		// Query 2 TODO
-		traverser t(g);
-		t.print_count();
+		cout<<"Query 2 :TODO"<<endl;
+//		traverser t(g);
+//		t.print_count();
 	}
 	
 	{
@@ -67,7 +62,6 @@ int main(int argc, char * argv[])
 			.LoadNeighbors("in","<ub#publicationAuthor>")
 			.is_subclass_of("<ub#Publication>")
 			.print_count();
-
 	}
 	
 	{
@@ -123,8 +117,9 @@ int main(int argc, char * argv[])
 
 	{
 		// Query 9 TODO
-		traverser t(g);
-		t.print_count();
+//		traverser t(g);
+//		t.print_count();
+		cout<<"Query 9 :TODO"<<endl;
 	}
 
 	{

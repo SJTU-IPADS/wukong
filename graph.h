@@ -9,6 +9,7 @@
 #include <unordered_set>
 #include <vector>
 #include <algorithm>
+#include <assert.h> 
 #include "timer.h"
 using namespace std;
 struct edge_row{
@@ -28,6 +29,8 @@ struct vertex_row{
 	string value;
 };
 struct vertex{
+	vertex():type(-1){};
+	int type;
 	vector<vertex_row> propertys;
 	vector<edge_row> in_edges;
 	vector<edge_row> out_edges;
@@ -160,7 +163,11 @@ public:
 					predict_to_id[predict]=size;
 					id_to_predict.push_back(predict);
 				}
-				if(subject_to_id.find(object)==subject_to_id.end()){
+				bool object_is_vertex=true;
+				if(object[0]=='"'){
+					object_is_vertex=false;
+				}
+				if(subject_to_id.find(object)==subject_to_id.end() ){
 					int size =subject_to_id.size();
 					subject_to_id[object]=size;
 					id_to_subject.push_back(object);
@@ -175,13 +182,26 @@ public:
 					vertex_array[id[0]].out_edges.push_back(edge_row(id[1],id[2]));
 					vertex_array[id[2]].in_edges.push_back(edge_row(id[1],id[0]));
 				}
-				if(predict=="<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
+				if(predict=="<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"){
+					vertex_array[id[0]].type=id[2];
 					ontology_array.insert_type(id[2]);
+				}
 			}        
 	    }
 	    closedir(dir);
 	    timer t2;
 
+	    int count=0;
+	    for (int i=0;i<vertex_array.size();i++){
+	    	if(vertex_array[i].type==-1){
+	    		count++;
+	    		//cout<<id_to_subject[i]<<endl;
+				//for (auto j : g.vertex_array[i].propertys){
+				//	cout<<"\t"<<g.id_to_predict[j.property]<<"\t"<<j.value<<endl;
+				//}
+	    	}
+	    }
+	    printf("%d vertex in %d doesn't have type\n", count,vertex_array.size());
 	    printf("Loading in %d ms\n", t2.diff(t1));
 	    printf("sizeof vertex_array is %d\n", vertex_array.size());
 	    printf("List of propertys or predict\n", t2.diff(t1));
