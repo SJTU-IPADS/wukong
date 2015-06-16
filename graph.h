@@ -29,8 +29,6 @@ struct vertex_row{
 	string value;
 };
 struct vertex{
-	vertex():type(-1){};
-	int type;
 	vector<vertex_row> propertys;
 	vector<edge_row> in_edges;
 	vector<edge_row> out_edges;
@@ -179,7 +177,6 @@ public:
 					vertex_array[id[0]].out_edges.push_back(edge_row(id[1],id[2]));
 					vertex_array[id[2]].in_edges.push_back(edge_row(id[1],id[0]));
 					if(predict=="<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"){
-						vertex_array[id[0]].type=id[2];
 						ontology_array.insert_type(id[2]);
 					}
 				} else {
