@@ -38,6 +38,13 @@ public:
 		std::sort(vec_to_sort.begin(), vec_to_sort.end(), path_node_less_than());
 		return *this;
 	}
+	traverser_keeppath& print_count(){
+		cout<<paths[paths.size()-1].size()<<endl;
+		return *this;
+	}
+	int count(){
+		return paths[paths.size()-1].size();
+	}
 	int get_path_length(){
 		return paths.size();
 	}
@@ -93,10 +100,7 @@ public:
 		}
 		return *this;
 	}
-	traverser_keeppath& print_count(){
-		cout<<paths[paths.size()-1].size()<<endl;
-		return *this;
-	}
+	
 	
 
 	traverser_keeppath& lookup(string subject){

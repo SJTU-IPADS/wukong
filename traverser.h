@@ -13,6 +13,9 @@ public:
 		cout<<ids.size()<<endl;
 		return *this;
 	}
+	int count(){
+		return ids.size();
+	}
 	traverser& lookup(string subject){
 		unordered_set<int> empty;
 		ids=empty;

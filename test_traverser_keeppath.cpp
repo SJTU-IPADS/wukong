@@ -48,23 +48,26 @@ int main(int argc, char * argv[])
 	}
 
 	{
-		// Query 2 TODO
-		cout<<"Query 2 :TODO"<<endl;
-		traverser_keeppath t(g);
-		t.get_all_subtype("<ub#University>")
-			.LoadNeighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
-			.print_count();
-		t.get_all_subtype("<ub#Department>")
-			.LoadNeighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
-			.print_count();
-		t.get_all_subtype("<ub#ResearchGroup>")
-			.LoadNeighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
-			.print_count();
-		t.get_all_subtype("<ub#GraduateStudent>")
-			.LoadNeighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
-			.print_count();
-//		traverser_keeppath t(g);
-//		t.print_count();
+		// Query 2 
+		cout<<"Query 2 :"<<endl;
+		cout<<"\tDepartment (subOrganizationOf)-> University <-(undergraduateDegreeFrom) GraduateStudent"<<endl;
+		cout<<"\tDepartment <-(memberOf) GraduateStudent"<<endl;
+		traverser_keeppath t1(g);
+		t1.get_all_subtype("<ub#Department>")
+			.LoadNeighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>");
+
+		traverser_keeppath t2(t1);
+		int split_length=t1.get_path_length();
+
+		int c1=	t1.LoadNeighbors("out","<ub#subOrganizationOf>")
+					.LoadNeighbors("in","<ub#undergraduateDegreeFrom>")
+					.count();
+		int c2= t2.LoadNeighbors("in","<ub#memberOf>")
+					.count();
+		int c3= t1.merge(t2,split_length)
+					.count();
+		cout<<"\t"<<c1<<" X "<< c2<<" -> "<<c3<<endl;
+
 	}
 	
 	{
@@ -131,7 +134,9 @@ int main(int argc, char * argv[])
 
 	{
 		// Query 9 
-		cout<<"Query 9 :plan 1"<<endl;
+		cout<<"Query 9 :"<<endl;
+		cout<<"\tFaculty (teacherOf)-> Course <-(takesCourse) Student"<<endl;
+		cout<<"\tFaculty <-(advisor) Student"<<endl;
 		traverser_keeppath t1(g);
 		t1.get_all_subtype("<ub#Faculty>")
 			.LoadNeighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>");
@@ -139,23 +144,22 @@ int main(int argc, char * argv[])
 		traverser_keeppath t2(t1);
 		int split_length=t1.get_path_length();
 
-		t1.LoadNeighbors("out","<ub#teacherOf>")
-			.LoadNeighbors("in","<ub#takesCourse>")
-			.print_count();
+		int c1=	t1.LoadNeighbors("out","<ub#teacherOf>")
+					.LoadNeighbors("in","<ub#takesCourse>")
+					.count();
+		int c2= t2.LoadNeighbors("in","<ub#advisor>")
+					.count();
+		int c3= t1.merge(t2,split_length)
+					.count();
+		cout<<"\t"<<c1<<" X "<< c2<<" -> "<<c3<<endl;
 
-		t2.LoadNeighbors("in","<ub#advisor>")
-			.print_count();
-
-		t1.merge(t2,split_length)
-			.print_count();
-
-
-		//cout<<"Query 9 :TODO"<<endl;
 	}
 
 	{
 		// Query 9 
-		cout<<"Query 9 :plan 2"<<endl;
+		
+		cout<<"\tFaculty <-(advisor) Student (takesCourse)-> Course"<<endl;
+		cout<<"\tFaculty (teacherOf)-> Course "<<endl;
 		traverser_keeppath t1(g);
 		t1.get_all_subtype("<ub#Faculty>")
 			.LoadNeighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>");
@@ -163,19 +167,14 @@ int main(int argc, char * argv[])
 		traverser_keeppath t2(t1);
 		int split_length=t1.get_path_length();
 
-		t1.LoadNeighbors("in","<ub#advisor>")
-			.LoadNeighbors("out","<ub#takesCourse>")
-		
-			.print_count();
-
-		t2.LoadNeighbors("out","<ub#teacherOf>")
-			.print_count();
-
-		t1.merge(t2,split_length)
-			.print_count();
-
-
-		//cout<<"Query 9 :TODO"<<endl;
+		int c1=	t1.LoadNeighbors("in","<ub#advisor>")
+					.LoadNeighbors("out","<ub#takesCourse>")
+					.count();
+		int c2= t2.LoadNeighbors("out","<ub#teacherOf>")
+					.count();
+		int c3= t1.merge(t2,split_length)
+					.count();
+		cout<<"\t"<<c1<<" X "<< c2<<" -> "<<c3<<endl;		
 	}
 
 	{
