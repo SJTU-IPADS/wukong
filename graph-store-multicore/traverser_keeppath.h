@@ -154,6 +154,8 @@ class traverser_keeppath{
 public:
 	traverser_keeppath(graph& gg):g(gg){
 	} 
+	traverser_keeppath( const traverser_keeppath& other ):g(other.g),req(other.req){
+	}
 	traverser_keeppath& lookup(string subject){
 		req.clear();
 		path_node node(g.subject_to_id[subject],-1);
@@ -190,6 +192,77 @@ public:
 		req.cmd_chains.push_back(g.subject_to_id[target]);
 		return *this;
 	}
+	traverser_keeppath& sort(){
+		int path_len=req.result_paths.size();
+		vector<path_node>& vec_to_sort=req.result_paths[path_len-1];
+		std::sort(vec_to_sort.begin(), vec_to_sort.end(), path_node_less_than());
+		return *this;
+	}
+	path_node get_node(int row,int column){
+		int current_column=req.result_paths.size()-1;
+		while(column<current_column){
+			row=req.result_paths[current_column][row].prev;
+			current_column--;
+		}
+		return req.result_paths[column][row];
+	}
+	int get_path_length(){
+		return req.result_paths.size();
+	}
+	int get_path_num(){
+		int path_len=req.result_paths.size();
+		return req.result_paths[path_len-1].size();
+	}
+
+	traverser_keeppath& merge(traverser_keeppath& other, int split_length){
+		sort();
+		other.sort();
+		int my_row=0;
+		int other_start=0;
+		vector<vector<path_node> >new_path;
+		for(int i=split_length;i<other.get_path_length();i++){
+			new_path.push_back(vector<path_node>());
+		}
+		while(my_row<get_path_num()){
+			path_node my_path_begin=get_node(my_row,split_length-1);
+			path_node my_path_end  =get_node(my_row,get_path_length()-1);
+			int other_row=other_start;
+			while(other_row<other.get_path_num()){
+				path_node other_path_begin=other.get_node(other_row,split_length-1);
+				path_node other_path_end  =other.get_node(other_row,other.get_path_length()-1);
+				if(other_path_end.id<my_path_end.id){
+					//skip this other.row forever 
+					other_row++;
+					other_start++;
+					continue;
+				} else if(other_path_end.id == my_path_end.id){
+					if(other_path_begin.id  == my_path_begin.id){
+						// this row match
+						path_node node=other.get_node(other_row,split_length);
+						node.prev=my_row;
+						new_path[0].push_back(node);
+						for(int column=split_length+1;column<other.get_path_length();column++){
+							path_node node=other.get_node(other_row,column);
+							node.prev=new_path[0].size()-1;
+							new_path[column-split_length].push_back(node);
+						}
+						other_row++;
+					} else {
+						// begin of path doesn't match
+						other_row++;
+					}
+				} else {
+					// we already check all possible other.rows for my_row
+					break;
+				}
+			}
+			my_row++;
+		}
+		for(int i=0;i<new_path.size();i++){
+			req.result_paths.push_back(new_path[i]);
+		}
+		return *this;
+	}
 	traverser_keeppath& print_count(){
 		int path_len=req.result_paths.size();
 		cout<<req.result_paths[path_len-1].size()<<endl;
@@ -216,6 +289,7 @@ public:
 		// so we can easily pop the cmd and do recursive operation
 		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 
 		do_execute(&req);
+		req.cmd_chains.clear();
 		return *this;
 	}
 
