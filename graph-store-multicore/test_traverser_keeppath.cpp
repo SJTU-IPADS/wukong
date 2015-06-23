@@ -41,6 +41,8 @@ int main(int argc, char * argv[])
 		cout<<"Query 2 :"<<endl;
 		cout<<"\tDepartment (subOrganizationOf)-> University <-(undergraduateDegreeFrom) GraduateStudent"<<endl;
 		cout<<"\tDepartment <-(memberOf) GraduateStudent"<<endl;
+		timer time1;
+
 		traverser_keeppath t1(g);
 		t1.get_subtype("<ub#Department>")
 			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
@@ -57,11 +59,15 @@ int main(int argc, char * argv[])
 					.get_path_num();
 		int c3= t1.merge(t2,split_length)
 					.get_path_num();
+
+		timer time2;
+		cout<<"query 2 spends "<<time2.diff(time1)<<" ms"<<endl;
 		cout<<"\t"<<c1<<" X "<< c2<<" -> "<<c3<<endl;
 
 	}
 
 	{
+		// Query 7 
 		traverser_keeppath t(g);
 		t.lookup("<http://www.Department0.University0.edu/AssociateProfessor0>")
 				.neighbors("out","<ub#teacherOf>")
@@ -70,6 +76,20 @@ int main(int argc, char * argv[])
 				.subclass_of("<ub#Student>")
 				.execute()
 				.print_count();
+	}
+
+	{
+		// Query 8
+		traverser_keeppath t(g);
+		timer t1;
+		t.lookup("<http://www.University0.edu>")
+			.neighbors("in","<ub#subOrganizationOf>")
+			.subclass_of("<ub#Department>")	
+			.neighbors("in","<ub#memberOf>")
+			.subclass_of("<ub#Student>")
+			.execute();
+		timer t2;
+		cout<<"query 8 spends "<<t2.diff(t1)<<" ms"<<endl;
 	}
     return 0;
 }

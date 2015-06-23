@@ -1,5 +1,5 @@
 #pragma once
-
+#include <pthread.h>
 #include "graph.h"
 struct path_node{
 	path_node(int _id,int _prev):id(_id),prev(_prev){
@@ -23,7 +23,13 @@ struct request{
 	}
 };
 
+class traverser_keeppath;
+struct pthread_helper_input{
+	traverser_keeppath* traverser_ptr;
+	request* req;
+};
 
+void * pthread_helper_func(void* input);
 
 class traverser_keeppath{
 
@@ -38,7 +44,7 @@ class traverser_keeppath{
 		para_out,
 		para_all
 	};
-
+public:
 	void do_execute(request* r){
 		if(r->cmd_chains.size()==0)
 			return;
@@ -60,9 +66,27 @@ class traverser_keeppath{
 		} else {
 			//recursive execute 
 			vector<request> sub_reqs=split_request(vec,r);
+
+			pthread_t thread[3];
+			pthread_helper_input input[3];
+			void *status;
+
 			for(int i=0;i<sub_reqs.size();i++){
-				do_execute(&sub_reqs[i]);
+				//do_execute(&sub_reqs[i]);
+				
+				input[i].traverser_ptr=this;
+				input[i].req=&sub_reqs[i];
+				int rc = pthread_create(&thread[i], NULL, pthread_helper_func ,(&input[i])); 
+				// int rc = pthread_create(&thread[i], NULL, this->do_execute, (void *)(&sub_reqs[i])); 
+				// if (rc) {
+				// 	printf("ERROR; return code from pthread_create() is %d\n", rc);
+				// 	exit(-1);
+				// }
 			}
+			for(int i=0;i<sub_reqs.size();i++){
+				int rc = pthread_join(thread[i], &status);
+			}
+
 			merge_reqs(sub_reqs,r);
 		}
 		return ;
@@ -88,7 +112,7 @@ class traverser_keeppath{
 	}
 	vector<request> split_request(vector<path_node>& vec,request* r){
 		vector<request> sub_reqs;
-		int num_sub_request=2;
+		int num_sub_request=3;
 		sub_reqs.resize(num_sub_request);
 		for(int i=0;i<sub_reqs.size();i++){
 			sub_reqs[i].cmd_chains=r->cmd_chains;
@@ -151,7 +175,6 @@ class traverser_keeppath{
 		r->result_paths[path_len-1]=new_vec;
 	}
 
-public:
 	traverser_keeppath(graph& gg):g(gg){
 	} 
 	traverser_keeppath( const traverser_keeppath& other ):g(other.g),req(other.req){
@@ -295,3 +318,9 @@ public:
 
 
 };
+
+void* pthread_helper_func(void* arg){
+	pthread_helper_input* input=(pthread_helper_input*)arg;
+	input->traverser_ptr->do_execute(input->req);
+	return 0;	
+}
