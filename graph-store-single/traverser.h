@@ -22,7 +22,7 @@ public:
 		ids.insert(g.subject_to_id[subject]);
 		return *this;
 	}
-	traverser& LoadNeighbors(string dir,string predict){
+	traverser& neighbors(string dir,string predict){
 		unordered_set<int> neighbors;
 		int	predict_id=g.predict_to_id[predict];
 
@@ -50,7 +50,7 @@ public:
 		ids=g.ontology_array.get_all_subtype(target_id);
 		return *this;
 	}
-	traverser& is_subclass_of(string target){
+	traverser& subclass_of(string target){
 		unordered_set<int> left_ids;
 
 		int predict_id=g.predict_to_id["<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"];

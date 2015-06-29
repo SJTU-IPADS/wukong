@@ -110,7 +110,7 @@ public:
 		paths.push_back(vec);
 		return *this;
 	}
-	traverser_keeppath& LoadNeighbors(string dir,string predict){
+	traverser_keeppath& neighbors(string dir,string predict){
 		vector<path_node> vec;
 		int	predict_id=g.predict_to_id[predict];
 
@@ -147,7 +147,7 @@ public:
 		paths.push_back(vec);
 		return *this;
 	}
-	traverser_keeppath& is_subclass_of(string target){
+	traverser_keeppath& subclass_of(string target){
 
 		int predict_id=g.predict_to_id["<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"];
 		int target_id=g.subject_to_id[target];

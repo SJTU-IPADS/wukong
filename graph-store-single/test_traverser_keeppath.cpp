@@ -41,8 +41,8 @@ int main(int argc, char * argv[])
 		// Query 1
 		traverser_keeppath t(g);
 		t.lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
-			.LoadNeighbors("in","<ub#takesCourse>")
-			.is_subclass_of("<ub#GraduateStudent>")
+			.neighbors("in","<ub#takesCourse>")
+			.subclass_of("<ub#GraduateStudent>")
 			.print_count();
 
 	}
@@ -53,19 +53,24 @@ int main(int argc, char * argv[])
 		cout<<"\tDepartment (subOrganizationOf)-> University <-(undergraduateDegreeFrom) GraduateStudent"<<endl;
 		cout<<"\tDepartment <-(memberOf) GraduateStudent"<<endl;
 		traverser_keeppath t1(g);
+		timer time1;
+
 		t1.get_all_subtype("<ub#Department>")
-			.LoadNeighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>");
+			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>");
 
 		traverser_keeppath t2(t1);
 		int split_length=t1.get_path_length();
 
-		int c1=	t1.LoadNeighbors("out","<ub#subOrganizationOf>")
-					.LoadNeighbors("in","<ub#undergraduateDegreeFrom>")
+		int c1=	t1.neighbors("out","<ub#subOrganizationOf>")
+					.neighbors("in","<ub#undergraduateDegreeFrom>")
 					.count();
-		int c2= t2.LoadNeighbors("in","<ub#memberOf>")
+		int c2= t2.neighbors("in","<ub#memberOf>")
 					.count();
 		int c3= t1.merge(t2,split_length)
 					.count();
+		
+		timer time2;
+		cout<<"query 2 spends "<<time2.diff(time1)<<" ms"<<endl;
 		cout<<"\t"<<c1<<" X "<< c2<<" -> "<<c3<<endl;
 
 	}
@@ -74,8 +79,8 @@ int main(int argc, char * argv[])
 		// Query 3
 		traverser_keeppath t(g);
 		t.lookup("<http://www.Department0.University0.edu/AssistantProfessor0>")
-			.LoadNeighbors("in","<ub#publicationAuthor>")
-			.is_subclass_of("<ub#Publication>")
+			.neighbors("in","<ub#publicationAuthor>")
+			.subclass_of("<ub#Publication>")
 			.print_count();
 	}
 	
@@ -83,8 +88,8 @@ int main(int argc, char * argv[])
 		// Query 4
 		traverser_keeppath t(g);
 		t.lookup("<http://www.Department0.University0.edu>")
-			.LoadNeighbors("in","<ub#worksFor>")
-			.is_subclass_of("<ub#Professor>")
+			.neighbors("in","<ub#worksFor>")
+			.subclass_of("<ub#Professor>")
 			//.print_property()
 			.print_count();
 	}
@@ -93,7 +98,7 @@ int main(int argc, char * argv[])
 		// Query 5 
 		traverser_keeppath t(g);
 		t.lookup("<http://www.Department0.University0.edu>")
-			.LoadNeighbors("in","<ub#memberOf>")
+			.neighbors("in","<ub#memberOf>")
 			.print_count();
 
 	}
@@ -102,7 +107,7 @@ int main(int argc, char * argv[])
 		// Query 6 
 		traverser_keeppath t(g);
 		t.get_all_subtype("<ub#Student>")
-			.LoadNeighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
+			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
 			.print_count();
 
 	}
@@ -111,10 +116,10 @@ int main(int argc, char * argv[])
 		// Query 7
 		traverser_keeppath t(g);
 		t.lookup("<http://www.Department0.University0.edu/AssociateProfessor0>")
-			.LoadNeighbors("out","<ub#teacherOf>")
-			.is_subclass_of("<ub#Course>")
-			.LoadNeighbors("in","<ub#takesCourse>")
-			.is_subclass_of("<ub#Student>")
+			.neighbors("out","<ub#teacherOf>")
+			.subclass_of("<ub#Course>")
+			.neighbors("in","<ub#takesCourse>")
+			.subclass_of("<ub#Student>")
 			//.sort()
 			//.print_property()
 			.print_count();
@@ -124,12 +129,16 @@ int main(int argc, char * argv[])
 	{
 		// Query 8
 		traverser_keeppath t(g);
+		timer t1;
 		t.lookup("<http://www.University0.edu>")
-			.LoadNeighbors("in","<ub#subOrganizationOf>")
-			.is_subclass_of("<ub#Department>")	
-			.LoadNeighbors("in","<ub#memberOf>")
-			.is_subclass_of("<ub#Student>")
-			.print_count();
+			.neighbors("in","<ub#subOrganizationOf>")
+			.subclass_of("<ub#Department>")	
+			.neighbors("in","<ub#memberOf>")
+			.subclass_of("<ub#Student>");
+//			.print_count();
+
+		timer t2;
+		cout<<"query 8 spends "<<t2.diff(t1)<<" ms"<<endl;
 	}
 
 	{
@@ -139,15 +148,15 @@ int main(int argc, char * argv[])
 		cout<<"\tFaculty <-(advisor) Student"<<endl;
 		traverser_keeppath t1(g);
 		t1.get_all_subtype("<ub#Faculty>")
-			.LoadNeighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>");
+			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>");
 
 		traverser_keeppath t2(t1);
 		int split_length=t1.get_path_length();
 
-		int c1=	t1.LoadNeighbors("out","<ub#teacherOf>")
-					.LoadNeighbors("in","<ub#takesCourse>")
+		int c1=	t1.neighbors("out","<ub#teacherOf>")
+					.neighbors("in","<ub#takesCourse>")
 					.count();
-		int c2= t2.LoadNeighbors("in","<ub#advisor>")
+		int c2= t2.neighbors("in","<ub#advisor>")
 					.count();
 		int c3= t1.merge(t2,split_length)
 					.count();
@@ -162,15 +171,15 @@ int main(int argc, char * argv[])
 		cout<<"\tFaculty (teacherOf)-> Course "<<endl;
 		traverser_keeppath t1(g);
 		t1.get_all_subtype("<ub#Faculty>")
-			.LoadNeighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>");
+			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>");
 
 		traverser_keeppath t2(t1);
 		int split_length=t1.get_path_length();
 
-		int c1=	t1.LoadNeighbors("in","<ub#advisor>")
-					.LoadNeighbors("out","<ub#takesCourse>")
+		int c1=	t1.neighbors("in","<ub#advisor>")
+					.neighbors("out","<ub#takesCourse>")
 					.count();
-		int c2= t2.LoadNeighbors("out","<ub#teacherOf>")
+		int c2= t2.neighbors("out","<ub#teacherOf>")
 					.count();
 		int c3= t1.merge(t2,split_length)
 					.count();
@@ -181,8 +190,8 @@ int main(int argc, char * argv[])
 		// Query 10 
 		traverser_keeppath t(g);
 		t.lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
-			.LoadNeighbors("in","<ub#takesCourse>")
-			.is_subclass_of("<ub#Student>")
+			.neighbors("in","<ub#takesCourse>")
+			.subclass_of("<ub#Student>")
 			.print_count();
 	}
 

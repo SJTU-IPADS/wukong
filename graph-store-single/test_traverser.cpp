@@ -42,8 +42,8 @@ int main(int argc, char * argv[])
 		// Query 1
 		traverser t(g);
 		t.lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
-			.LoadNeighbors("in","<ub#takesCourse>")
-			.is_subclass_of("<ub#GraduateStudent>")
+			.neighbors("in","<ub#takesCourse>")
+			.subclass_of("<ub#GraduateStudent>")
 			.print_count();
 
 	}
@@ -59,8 +59,8 @@ int main(int argc, char * argv[])
 		// Query 3
 		traverser t(g);
 		t.lookup("<http://www.Department0.University0.edu/AssistantProfessor0>")
-			.LoadNeighbors("in","<ub#publicationAuthor>")
-			.is_subclass_of("<ub#Publication>")
+			.neighbors("in","<ub#publicationAuthor>")
+			.subclass_of("<ub#Publication>")
 			.print_count();
 	}
 	
@@ -68,8 +68,8 @@ int main(int argc, char * argv[])
 		// Query 4
 		traverser t(g);
 		t.lookup("<http://www.Department0.University0.edu>")
-			.LoadNeighbors("in","<ub#worksFor>")
-			.is_subclass_of("<ub#Professor>")
+			.neighbors("in","<ub#worksFor>")
+			.subclass_of("<ub#Professor>")
 			//.print_property()
 			.print_count();
 	}
@@ -78,7 +78,7 @@ int main(int argc, char * argv[])
 		// Query 5 
 		traverser t(g);
 		t.lookup("<http://www.Department0.University0.edu>")
-			.LoadNeighbors("in","<ub#memberOf>")
+			.neighbors("in","<ub#memberOf>")
 			.print_count();
 
 	}
@@ -87,7 +87,7 @@ int main(int argc, char * argv[])
 		// Query 6 
 		traverser t(g);
 		t.get_all_subtype("<ub#Student>")
-			.LoadNeighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
+			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
 			.print_count();
 
 	}
@@ -96,10 +96,10 @@ int main(int argc, char * argv[])
 		// Query 7
 		traverser t(g);
 		t.lookup("<http://www.Department0.University0.edu/AssociateProfessor0>")
-			.LoadNeighbors("out","<ub#teacherOf>")
-			.is_subclass_of("<ub#Course>")
-			.LoadNeighbors("in","<ub#takesCourse>")
-			.is_subclass_of("<ub#Student>")
+			.neighbors("out","<ub#teacherOf>")
+			.subclass_of("<ub#Course>")
+			.neighbors("in","<ub#takesCourse>")
+			.subclass_of("<ub#Student>")
 			//.print_property()			
 			.print_count();
 	}
@@ -108,10 +108,10 @@ int main(int argc, char * argv[])
 		// Query 8
 		traverser t(g);
 		t.lookup("<http://www.University0.edu>")
-			.LoadNeighbors("in","<ub#subOrganizationOf>")
-			.is_subclass_of("<ub#Department>")	
-			.LoadNeighbors("in","<ub#memberOf>")
-			.is_subclass_of("<ub#Student>")
+			.neighbors("in","<ub#subOrganizationOf>")
+			.subclass_of("<ub#Department>")	
+			.neighbors("in","<ub#memberOf>")
+			.subclass_of("<ub#Student>")
 			.print_count();
 	}
 
@@ -126,8 +126,8 @@ int main(int argc, char * argv[])
 		// Query 10 
 		traverser t(g);
 		t.lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
-			.LoadNeighbors("in","<ub#takesCourse>")
-			.is_subclass_of("<ub#Student>")
+			.neighbors("in","<ub#takesCourse>")
+			.subclass_of("<ub#Student>")
 			.print_count();
 	}
 
