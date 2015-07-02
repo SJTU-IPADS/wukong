@@ -12,12 +12,33 @@
 #include <assert.h> 
 using namespace std;
 
+
+unordered_map<string,int> subject_to_id;
+unordered_map<string,int> predict_to_id;
+vector<string> id_to_subject;
+vector<string> id_to_predict;
+
+
+void insert_subclass(ofstream& ontology_file,string child,string parent){
+	int id[2];
+	if(subject_to_id.find(child)==subject_to_id.end()){
+		int size =subject_to_id.size();
+		subject_to_id[child]=size;
+		id_to_subject.push_back(child);
+	}
+	if(subject_to_id.find(parent)==subject_to_id.end()){
+		int size =subject_to_id.size();
+		subject_to_id[parent]=size;
+		id_to_subject.push_back(parent);
+	}
+	id[0]=subject_to_id[child];
+	id[1]=subject_to_id[parent];
+	ontology_file<<id[0]<<"\t"<<id[1]<<endl;
+}
+
 int main(int argc,char** argv){
 
-	unordered_map<string,int> subject_to_id;
-	unordered_map<string,int> predict_to_id;
-	vector<string> id_to_subject;
-	vector<string> id_to_predict;
+	
 
 	struct dirent *ptr;    
     DIR *dir;
@@ -75,6 +96,9 @@ int main(int argc,char** argv){
 		output.close();        
     }
     closedir(dir);
+
+
+
     cout<<id_to_subject.size()<<endl;
     ofstream f1("index_subject");
     for(int i=0;i<id_to_subject.size();i++){
@@ -88,5 +112,32 @@ int main(int argc,char** argv){
     	f2<<id_to_predict[i]<<endl;
     }
     f2.close();
+
+    ofstream ontology_file("index_ontology");
+    //Current I cannot correct parse the ontology file.
+	//and not all the subClass are list in the file.
+	//So I manually insert it and make it reasonable
+
+	//Course
+	insert_subclass(ontology_file,"<ub#GraduateCourse>","<ub#Course>");
+	//student
+	insert_subclass(ontology_file,"<ub#GraduateStudent>","<ub#Student>");
+	insert_subclass(ontology_file,"<ub#UndergraduateStudent>","<ub#Student>");
+	//professor
+	insert_subclass(ontology_file,"<ub#FullProfessor>","<ub#Professor>");
+	insert_subclass(ontology_file,"<ub#AssistantProfessor>","<ub#Professor>");
+	insert_subclass(ontology_file,"<ub#AssociateProfessor>","<ub#Professor>");
+	//Faculty
+	insert_subclass(ontology_file,"<ub#Professor>","<ub#Faculty>");
+	insert_subclass(ontology_file,"<ub#Lecturer>","<ub#Faculty>");
+
+	//Person
+	insert_subclass(ontology_file,"<ub#Student>","<ub#Person>");
+	insert_subclass(ontology_file,"<ub#Faculty>","<ub#Person>");
+
+	insert_subclass(ontology_file,"<ub#TeachingAssistant>","<ub#Person>");
+	insert_subclass(ontology_file,"<ub#ResearchAssistant>","<ub#Person>");
+    
+    ontology_file.close();
 }
 
