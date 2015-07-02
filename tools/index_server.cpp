@@ -49,6 +49,8 @@ int main(int argc,char** argv){
     dir=opendir(argv[1]);
     printf("files:\n");
     
+    ofstream ontology_file("index_ontology");
+
     while((ptr=readdir(dir))!=NULL){
         if(ptr->d_name[0] == '.')
             continue;
@@ -86,11 +88,15 @@ int main(int argc,char** argv){
 				int size =subject_to_id.size();
 				subject_to_id[object]=size;
 				id_to_subject.push_back(object);
+				// it means this type appears first time
+				if(predict=="<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"){
+					ontology_file<<size<<"\t"<<-1<<endl;
+				}
 			}
 			id[0]=subject_to_id[subject];
 			id[1]=predict_to_id[predict];
 			id[2]=subject_to_id[object];
-			output<<id[0]<<"\t"<<id[1]<<"\t"<<id[2]<<endl;		
+			output<<id[0]<<"\t"<<id[1]<<"\t"<<id[2]<<endl;			
 		}
 		file.close();
 		output.close();        
@@ -113,7 +119,6 @@ int main(int argc,char** argv){
     }
     f2.close();
 
-    ofstream ontology_file("index_ontology");
     //Current I cannot correct parse the ontology file.
 	//and not all the subClass are list in the file.
 	//So I manually insert it and make it reasonable
