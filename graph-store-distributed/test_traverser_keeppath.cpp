@@ -1,7 +1,10 @@
-#include "graph.h"
+
 #include <boost/mpi.hpp>
 #include <boost/serialization/string.hpp>
 #include <iostream>
+
+#include "graph.h"
+#include "index_server.h"
 
 int main(int argc, char * argv[])
 {
