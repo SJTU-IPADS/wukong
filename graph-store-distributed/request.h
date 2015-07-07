@@ -8,7 +8,8 @@ using std::vector;
 
 enum command{
 	cmd_subclass_of,
-	cmd_neighbors
+	cmd_neighbors,
+	cmd_get_subtype
 };
 enum parameter{
 	para_in,

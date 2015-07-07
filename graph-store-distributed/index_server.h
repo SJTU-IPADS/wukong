@@ -10,6 +10,8 @@
 #include <vector>
 #include <algorithm>
 #include <assert.h> 
+#include <boost/mpi.hpp>
+#include <boost/serialization/string.hpp>
 
 #include "request.h"
 #include "ontology.h"
@@ -17,7 +19,6 @@
 using std::string;
 
 class index_server{
-	request req;
 	unordered_map<string,int> subject_to_id;
 	unordered_map<string,int> predict_to_id;
 	vector<string> id_to_subject;
@@ -36,7 +37,8 @@ class index_server{
 		}
 		file.close();
 	}
-	void load_index(string filename,unordered_map<string,int>& str2id,vector<string>& id2str){
+	void load_index(string filename,unordered_map<string,int>& str2id,
+					vector<string>& id2str){
 		cout<<"index_server loading "<<filename<<endl;
 		ifstream file(filename.c_str());
 		string str;
@@ -46,8 +48,10 @@ class index_server{
 		}
 		file.close();
 	}
+	boost::mpi::communicator& world;
 public:
-	index_server(char* dir_name){
+	request req;
+	index_server(boost::mpi::communicator& para_world,char* dir_name):world(para_world){
 		struct dirent *ptr;    
 		DIR *dir;
 		dir=opendir(dir_name);
@@ -79,13 +83,18 @@ public:
 	index_server& get_subtype(string target){
 		req.clear();
 		int target_id=subject_to_id[target];
-		unordered_set<int> ids = ontology_table.get_all_subtype(target_id);
-		vector<path_node> vec;
-		for(auto id: ids){
-			vec.push_back(path_node(id,-1));
-		}
-		req.result_paths.push_back(vec);
+		req.cmd_chains.push_back(cmd_get_subtype);
+		req.cmd_chains.push_back(target_id);
 		return *this;
+		// req.clear();
+		// int target_id=subject_to_id[target];
+		// unordered_set<int> ids = ontology_table.get_all_subtype(target_id);
+		// vector<path_node> vec;
+		// for(auto id: ids){
+		// 	vec.push_back(path_node(id,-1));
+		// }
+		// req.result_paths.push_back(vec);
+		// return *this;
 	}
 	index_server& neighbors(string dir,string predict){
 		req.cmd_chains.push_back(cmd_neighbors);
@@ -104,4 +113,15 @@ public:
 		req.cmd_chains.push_back(subject_to_id[target]);
 		return *this;
 	}
+	index_server& execute(){
+		world.send(0, 1, req);
+		world.recv(boost::mpi::any_source, 1, req);
+		return *this;
+	}
+	index_server& print_count(){
+		int path_len=req.result_paths.size();
+		cout<<req.result_paths[path_len-1].size()<<endl;
+		return *this;
+	}
+
 };
