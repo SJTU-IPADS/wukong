@@ -49,9 +49,16 @@ class index_server{
 		file.close();
 	}
 	boost::mpi::communicator& world;
+	int req_id;
+	int get_id(){
+		int result=req_id;
+		req_id+=world.size();
+		return result;
+	}
 public:
 	request req;
 	index_server(boost::mpi::communicator& para_world,char* dir_name):world(para_world){
+		req_id=world.rank();
 		struct dirent *ptr;    
 		DIR *dir;
 		dir=opendir(dir_name);
@@ -114,8 +121,13 @@ public:
 		return *this;
 	}
 	index_server& execute(){
+		// reverse cmd_chains
+		// so we can easily pop the cmd and do recursive operation
+		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
+		req.parent_id=get_id();
 		world.send(0, 1, req);
 		world.recv(boost::mpi::any_source, 1, req);
+		req.cmd_chains.clear();
 		return *this;
 	}
 	index_server& print_count(){

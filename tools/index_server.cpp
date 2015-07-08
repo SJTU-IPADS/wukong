@@ -104,21 +104,6 @@ int main(int argc,char** argv){
     closedir(dir);
 
 
-
-    cout<<id_to_subject.size()<<endl;
-    ofstream f1("index_subject");
-    for(int i=0;i<id_to_subject.size();i++){
-    	f1<<id_to_subject[i]<<endl;
-    }
-    f1.close();
-
-    ofstream f2("index_predict");
-    cout<<id_to_predict.size()<<endl;
-    for(int i=0;i<id_to_predict.size();i++){
-    	f2<<id_to_predict[i]<<endl;
-    }
-    f2.close();
-
     //Current I cannot correct parse the ontology file.
 	//and not all the subClass are list in the file.
 	//So I manually insert it and make it reasonable
@@ -142,6 +127,21 @@ int main(int argc,char** argv){
 
 	insert_subclass(ontology_file,"<ub#TeachingAssistant>","<ub#Person>");
 	insert_subclass(ontology_file,"<ub#ResearchAssistant>","<ub#Person>");
+
+	
+    cout<<id_to_subject.size()<<endl;
+    ofstream f1("index_subject");
+    for(int i=0;i<id_to_subject.size();i++){
+    	f1<<id_to_subject[i]<<endl;
+    }
+    f1.close();
+
+    ofstream f2("index_predict");
+    cout<<id_to_predict.size()<<endl;
+    for(int i=0;i<id_to_predict.size();i++){
+    	f2<<id_to_predict[i]<<endl;
+    }
+    f2.close();
     
     ontology_file.close();
 }

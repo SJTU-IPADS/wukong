@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include <boost/archive/text_oarchive.hpp>
@@ -31,14 +32,31 @@ struct path_node{
 	}
 };
 struct request{
+	int req_id;
+	int parent_id;
+	bool blocking;
 	vector<int> cmd_chains;
 	vector<vector<path_node> >result_paths;
+	request(){
+		req_id=-1;
+		parent_id=-1;
+		blocking=false;
+	}
 	void clear(){
 		cmd_chains.clear();
 		result_paths.clear();
 	}
+	int path_length(){
+		return result_paths.size();
+	}
+	int path_num(){
+		int path_len=result_paths.size();
+		return result_paths[path_len-1].size();
+	}
 	template <typename Archive>
 	void serialize(Archive &ar, const unsigned int version) { 
+		ar & req_id; 
+		ar & parent_id; 
 		ar & cmd_chains; 
 		ar & result_paths; 
 	}
