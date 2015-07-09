@@ -23,6 +23,7 @@ int main(int argc, char * argv[])
 		t.run();
 	} else {
 		index_server is(world,argv[1]);
+
 		is.lookup("<http://www.Department0.University0.edu/AssociateProfessor0>")
 				.neighbors("out","<ub#teacherOf>")
 				.subclass_of("<ub#Course>")
@@ -30,6 +31,12 @@ int main(int argc, char * argv[])
 				.subclass_of("<ub#Student>")
 				.execute()
 				.print_count();
+
+		is.get_subtype("<ub#Student>")
+			//.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
+			.execute()
+			.print_count();
+
 	}
 
     return 0;

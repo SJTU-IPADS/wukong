@@ -124,6 +124,7 @@ public:
 		// reverse cmd_chains
 		// so we can easily pop the cmd and do recursive operation
 		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
+		req.req_id=-1;
 		req.parent_id=get_id();
 		world.send(0, 1, req);
 		world.recv(boost::mpi::any_source, 1, req);

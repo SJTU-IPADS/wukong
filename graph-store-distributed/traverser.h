@@ -65,6 +65,18 @@ class traverser{
 		}
 		r.result_paths[path_len-1]=new_vec;
 	}
+	vector<path_node> do_get_subtype(request& r){
+		r.cmd_chains.pop_back();
+		int parent_type_id=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
+		unordered_set<int> ids = g.ontology_table.get_all_subtype(parent_type_id);
+		vector<path_node> vec;
+		for(auto id: ids){
+			vec.push_back(path_node(id,-1));
+		}
+		return vec;
+	}
+
 	void merge_reqs(vector<request>& sub_reqs,request& r){
 		if(sub_reqs.size()>1){
 			//iterate on all sub_reqs
@@ -116,6 +128,11 @@ public:
 			return ;
 		} else if(r.cmd_chains.back() == cmd_neighbors){
 			vec=do_neighbors(r);
+		} else if(r.cmd_chains.back() == cmd_get_subtype){
+			assert(r.path_length()==0);
+			vec=do_get_subtype(r);
+		} else{
+			assert(false);
 		}
 
 		if(r.cmd_chains.size()==0){
@@ -138,12 +155,12 @@ public:
 		while(true){
 			request r;
 			boost::mpi::status s =world.recv(boost::mpi::any_source, 1, r);
-			cout<< world.rank()<<" recv a request from " <<s.source()<<endl;
+			//cout<< world.rank()<<" recv a request from " <<s.source()<<endl;
 			if(r.req_id==-1){
 				r.req_id=get_id();
 				handle_request(r);
 				if(!r.blocking){
-					cout<< "success execute, result= " <<  r.path_num() <<endl;
+					//cout<< "success execute, result= " <<  r.path_num() <<endl;
 					world.send(r.parent_id % world.size() , 1, r);
 				}
 			} else {

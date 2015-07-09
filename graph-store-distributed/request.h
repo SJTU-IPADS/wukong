@@ -51,6 +51,8 @@ struct request{
 	}
 	int path_num(){
 		int path_len=result_paths.size();
+		if(path_len==0)
+			return 0;
 		return result_paths[path_len-1].size();
 	}
 	template <typename Archive>
