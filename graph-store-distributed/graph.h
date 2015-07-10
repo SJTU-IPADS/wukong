@@ -60,8 +60,10 @@ public:
 		ifstream file(filename.c_str());
 		int s,p,o;
 		while(file>>s>>p>>o){
-			vertex_table[s].out_edges.push_back(edge_row(p,o));
-			vertex_table[o].in_edges.push_back(edge_row(p,s));
+			if(s%(world.size()-1)==world.rank())
+				vertex_table[s].out_edges.push_back(edge_row(p,o));
+			if(o%(world.size()-1)==world.rank())
+				vertex_table[o].in_edges.push_back(edge_row(p,s));
 		}
 		file.close();
 	}

@@ -55,9 +55,11 @@ class index_server{
 		req_id+=world.size();
 		return result;
 	}
+	int first_target;
 public:
 	request req;
 	index_server(boost::mpi::communicator& para_world,char* dir_name):world(para_world){
+		first_target=-1;
 		req_id=world.rank();
 		struct dirent *ptr;    
 		DIR *dir;
@@ -80,6 +82,7 @@ public:
 		}
 	}
 	index_server& lookup(string subject){
+		first_target=subject_to_id[subject]%(world.size()-1);
 		req.clear();
 		path_node node(subject_to_id[subject],-1);
 		vector<path_node> vec;
@@ -117,7 +120,7 @@ public:
 		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
 		req.req_id=-1;
 		req.parent_id=get_id();
-		world.send(0, 1, req);
+		world.send(first_target, 1, req);
 		world.recv(boost::mpi::any_source, 1, req);
 		req.cmd_chains.clear();
 		return *this;
