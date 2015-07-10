@@ -93,15 +93,6 @@ public:
 		req.cmd_chains.push_back(cmd_get_subtype);
 		req.cmd_chains.push_back(target_id);
 		return *this;
-		// req.clear();
-		// int target_id=subject_to_id[target];
-		// unordered_set<int> ids = ontology_table.get_all_subtype(target_id);
-		// vector<path_node> vec;
-		// for(auto id: ids){
-		// 	vec.push_back(path_node(id,-1));
-		// }
-		// req.result_paths.push_back(vec);
-		// return *this;
 	}
 	index_server& neighbors(string dir,string predict){
 		req.cmd_chains.push_back(cmd_neighbors);

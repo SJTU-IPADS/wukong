@@ -2,7 +2,8 @@
 #include "graph.h"
 #include "request.h"
 #include "request_queue.h"
-
+#include <list>
+using std::list;
 //traverser will remember all the paths just like
 //traverser_keeppath in single machine
 
@@ -112,6 +113,20 @@ class traverser{
 		}
 		return sub_reqs;
 	}
+	list<boost::mpi::request> boost_req_list;
+	list<request> waiting_req_list;
+	void send_request(int i,request& r){
+		waiting_req_list.push_back(r);
+		boost_req_list.push_back(world.isend(i, 1, waiting_req_list.back()));
+		while(true){
+			if(boost_req_list.size()>0 && boost_req_list.front().test() ){
+				waiting_req_list.pop_front();
+				boost_req_list.pop_front();
+			} else{
+				break;
+			}
+		}
+	}
 public:
 	traverser(boost::mpi::communicator& para_world,graph& gg):world(para_world),g(gg){
 		req_id=world.rank();
@@ -144,28 +159,31 @@ public:
 			r.blocking=true;
 			vector<request> sub_reqs=split_request(vec,r);
 			for(int i=0;i<sub_reqs.size();i++){
-				//handle_request(sub_reqs[i]);
-				world.send(i, 1, sub_reqs[i]);
+				//world.isend(i, 1, sub_reqs[i]);
+				send_request(i,sub_reqs[i]);
 			}
 			req_queue.put_req(r,sub_reqs.size());
 			//merge_reqs(sub_reqs,r);
 		}	
 	} 
-	void run(){
+	void run(){	
 		while(true){
 			request r;
 			boost::mpi::status s =world.recv(boost::mpi::any_source, 1, r);
-			//cout<< world.rank()<<" recv a request from " <<s.source()<<endl;
+			//cout<< world.rank()<<" recv req, parent_id= " <<r.parent_id<<endl;
 			if(r.req_id==-1){
 				r.req_id=get_id();
 				handle_request(r);
 				if(!r.blocking){
-					//cout<< "success execute, result= " <<  r.path_num() <<endl;
-					world.send(r.parent_id % world.size() , 1, r);
+					//cout<< "success execute, req_id= " <<r.req_id<<" parent_id= "<< r.parent_id <<endl;
+					//world.send(r.parent_id % world.size() , 1, r);
+					send_request(r.parent_id % world.size() , r);
 				}
 			} else {
-				if(req_queue.put_reply(r))
-					world.send(r.parent_id % world.size() , 1, r);
+				if(req_queue.put_reply(r)){
+					//world.send(r.parent_id % world.size() , 1, r);
+					send_request(r.parent_id % world.size() , r);
+				}
 			}
 		}
 
