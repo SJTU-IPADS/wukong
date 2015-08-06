@@ -31,6 +31,25 @@ int main(int argc, char * argv[])
 			.execute()
 			.print_count();
 
+		//query 1
+		is.lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
+			.neighbors("in","<ub#takesCourse>")
+			.subclass_of("<ub#GraduateStudent>")
+			.execute()
+			.print_count();
+		//query 1
+		is.lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
+			.neighbors("in","<ub#takesCourse>")
+			//.subclass_of("<ub#GraduateStudent>")
+			.execute()
+			.print_count();
+		//query 1
+		is.lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
+			.neighbors("in","<ub#takesCourse>")
+			//.subclass_of("<ub#GraduateStudent>")
+			.execute()
+			.print_count();
+
 		//query 2
 		//TODO
 		{

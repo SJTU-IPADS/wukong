@@ -35,7 +35,8 @@ public:
 
 	unordered_map<int,vertex> vertex_table;
 	ontology ontology_table;
-	
+	int in_edges;
+	int out_edges;
 	void load_ontology(string filename){
 		cout<<"loading "<<filename<<endl;
 		ifstream file(filename.c_str());
@@ -60,15 +61,24 @@ public:
 		ifstream file(filename.c_str());
 		int s,p,o;
 		while(file>>s>>p>>o){
-			if(s%(world.size()-1)==world.rank())
+			if(s%(world.size()-1)==world.rank()){
 				vertex_table[s].out_edges.push_back(edge_row(p,o));
-			if(o%(world.size()-1)==world.rank())
+				in_edges++;
+			}
+			if(o%(world.size()-1)==world.rank()){
 				vertex_table[o].in_edges.push_back(edge_row(p,s));
+				out_edges++;
+			}
 		}
 		file.close();
 	}
-
+	void print_graph_info(){
+		cout<<world.rank()<<" has "<<vertex_table.size()<<" vertex"<<endl;
+		cout<<world.rank()<<" has "<<in_edges<<" in_edges"<<endl;
+	}
 	graph(boost::mpi::communicator& para_world,char* dir_name):world(para_world){
+		in_edges=0;
+		out_edges=0;
 		struct dirent *ptr;    
 	    DIR *dir;
 	    dir=opendir(dir_name);
@@ -97,6 +107,7 @@ public:
 	    for(int i=0;i<filenames.size();i++){
 	    	load_data(filenames[i]);
 	    }
+	    print_graph_info();
 	}
 };
 

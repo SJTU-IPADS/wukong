@@ -15,6 +15,7 @@
 
 #include "request.h"
 #include "ontology.h"
+#include "timer.h"
 
 using std::string;
 
@@ -120,8 +121,14 @@ public:
 		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
 		req.req_id=-1;
 		req.parent_id=get_id();
+		timer t1;
 		world.send(first_target, 1, req);
 		world.recv(boost::mpi::any_source, 1, req);
+		timer t2;
+		for(int i=0;i<req.result_paths.size();i++){
+			cout<<req.result_paths[i].size()<<" -> ";
+		}
+		cout<<endl<<"request finished in "<<t2.diff(t1)<<" ms"<<endl;
 		req.cmd_chains.clear();
 		return *this;
 	}

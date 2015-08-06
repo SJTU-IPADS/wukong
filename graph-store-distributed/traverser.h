@@ -61,6 +61,7 @@ class traverser{
 				if(predict_id==row.predict && 
 							g.ontology_table.is_subtype_of(row.vid,target_id)){
 					new_vec.push_back(prev_vec[i]);
+					break;
 				}
 			}
 		}
