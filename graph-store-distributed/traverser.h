@@ -27,19 +27,32 @@ class traverser{
 		int path_len=r.result_paths.size();
 		for (int i=0;i< r.result_paths[path_len-1].size();i++){
 			int prev_id=r.result_paths[path_len-1][i].id;
+			vertex vdata=g.kstore.getVertex(prev_id);
 			if(dir ==para_in || dir == para_all){
-				for (auto row : g.vertex_table[prev_id].in_edges){
-					if(predict_id==row.predict){
-						vec.push_back(path_node(row.vid,i));
-					}
+				edge_row* edge_ptr=g.kstore.getEdgeArray(vdata.in_edge_ptr);
+				for(uint64_t k=0;k<vdata.in_degree;k++){
+					if(predict_id==edge_ptr[k].predict){
+						vec.push_back(path_node(edge_ptr[k].vid,i));
+					}					
 				}
+				// for (auto row : g.vertex_table[prev_id].in_edges){
+				// 	if(predict_id==row.predict){
+				// 		vec.push_back(path_node(row.vid,i));
+				// 	}
+				// }
 			}
 			if(dir ==para_out || dir == para_all){
-				for (auto row : g.vertex_table[prev_id].out_edges){
-					if(predict_id==row.predict){
-						vec.push_back(path_node(row.vid,i));
-					}
+				edge_row* edge_ptr=g.kstore.getEdgeArray(vdata.out_edge_ptr);
+				for(uint64_t k=0;k<vdata.out_degree;k++){
+					if(predict_id==edge_ptr[k].predict){
+						vec.push_back(path_node(edge_ptr[k].vid,i));
+					}					
 				}
+				// for (auto row : g.vertex_table[prev_id].out_edges){
+				// 	if(predict_id==row.predict){
+				// 		vec.push_back(path_node(row.vid,i));
+				// 	}
+				// }
 			}
 		}
 		return vec;
@@ -57,13 +70,22 @@ class traverser{
 		vector<path_node> new_vec;
 		for (int i=0;i<prev_vec.size();i++){
 			int prev_id=prev_vec[i].id;	
-			for (auto row : g.vertex_table[prev_id].out_edges){
-				if(predict_id==row.predict && 
-							g.ontology_table.is_subtype_of(row.vid,target_id)){
+			vertex vdata=g.kstore.getVertex(prev_id);
+			edge_row* edge_ptr=g.kstore.getEdgeArray(vdata.out_edge_ptr);
+			for(uint64_t k=0;k<vdata.out_degree;k++){
+				if(predict_id==edge_ptr[k].predict && 
+							g.ontology_table.is_subtype_of(edge_ptr[k].vid,target_id)){
 					new_vec.push_back(prev_vec[i]);
 					break;
-				}
+				}				
 			}
+			// for (auto row : g.vertex_table[prev_id].out_edges){
+			// 	if(predict_id==row.predict && 
+			// 				g.ontology_table.is_subtype_of(row.vid,target_id)){
+			// 		new_vec.push_back(prev_vec[i]);
+			// 		break;
+			// 	}
+			// }
 		}
 		r.result_paths[path_len-1]=new_vec;
 	}

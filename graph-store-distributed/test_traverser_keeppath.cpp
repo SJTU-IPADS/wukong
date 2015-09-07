@@ -87,6 +87,7 @@ int main(int argc, char * argv[])
 		//query 5
 		is.lookup("<http://www.Department0.University0.edu>")
 			.neighbors("in","<ub#memberOf>")
+			.subclass_of("<ub#Person>")
 			.execute()
 			.print_count();
 
@@ -166,6 +167,7 @@ int main(int argc, char * argv[])
 			.print_count();
 
 		cout<<"finish"<<endl;
+
 	}
 
     return 0;

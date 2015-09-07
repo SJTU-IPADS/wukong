@@ -15,39 +15,32 @@
 #include <boost/serialization/string.hpp>
 
 #include "ontology.h"
+#include "klist_store.h"
+
 using namespace std;
 
-struct edge_row{
-	edge_row(int p,int v){
-		predict=p;
-		vid=v;
-	}
-	int predict;
-	int vid;
-};
-struct vertex{
-	vector<edge_row> in_edges;
-	vector<edge_row> out_edges;
-};
 class graph{
 	boost::mpi::communicator& world;
 public:
 
-	unordered_map<int,vertex> vertex_table;
+	unordered_map<uint64_t,vertex_row> vertex_table;
+	klist_store kstore;
 	ontology ontology_table;
-	int in_edges;
-	int out_edges;
+	uint64_t in_edges;
+	uint64_t out_edges;
 	void load_ontology(string filename){
 		cout<<"loading "<<filename<<endl;
 		ifstream file(filename.c_str());
-		int child,parent;
+		uint64_t child,parent;
 		while(file>>child>>parent){
 			if(vertex_table.find(child)==vertex_table.end()){
-				vertex_table[child]=vertex();
+				if(child%(world.size()-1)==world.rank())
+					vertex_table[child]=vertex_row();
 				ontology_table.insert_type(child);				
 			}
 			if(parent!=-1 && vertex_table.find(parent)==vertex_table.end()){
-				vertex_table[parent]=vertex();
+				if(parent%(world.size()-1)==world.rank())
+					vertex_table[parent]=vertex_row();
 				ontology_table.insert_type(parent);	
 			} 
 			if(parent !=-1){
@@ -59,7 +52,7 @@ public:
 	void load_data(string filename){
 		cout<<"loading "<<filename<<endl;
 		ifstream file(filename.c_str());
-		int s,p,o;
+		uint64_t s,p,o;
 		while(file>>s>>p>>o){
 			if(s%(world.size()-1)==world.rank()){
 				vertex_table[s].out_edges.push_back(edge_row(p,o));
@@ -108,6 +101,16 @@ public:
 	    	load_data(filenames[i]);
 	    }
 	    print_graph_info();
+
+	    uint64_t store_max_size=1024*1024*1024;
+	    store_max_size=store_max_size*2;
+	    char* start_addr=(char*)malloc(store_max_size);
+	    kstore.init(start_addr,1000000,world.size()-1,store_max_size);
+	    unordered_map<uint64_t,vertex_row>::iterator iter;
+		for(iter=vertex_table.begin();iter!=vertex_table.end();iter++){
+			kstore.insert(iter->first,iter->second);
+		}
+
 	}
 };
 
