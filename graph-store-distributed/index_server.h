@@ -12,11 +12,12 @@
 #include <assert.h> 
 #include <boost/mpi.hpp>
 #include <boost/serialization/string.hpp>
+#include <boost/serialization/vector.hpp>
 
 #include "request.h"
 #include "ontology.h"
 #include "timer.h"
-
+#include "network_node.h"
 using std::string;
 
 class index_server{
@@ -25,6 +26,7 @@ class index_server{
 	vector<string> id_to_subject;
 	vector<string> id_to_predict;
 	ontology ontology_table;
+	Network_Node* node;
 	void load_ontology(string filename){
 		cout<<"index_server loading "<<filename<<endl;
 		ifstream file(filename.c_str());
@@ -59,9 +61,10 @@ class index_server{
 	int first_target;
 public:
 	request req;
-	index_server(boost::mpi::communicator& para_world,char* dir_name):world(para_world){
-		first_target=-1;
+	index_server(boost::mpi::communicator& para_world,char* dir_name,int id):world(para_world){
+		first_target=0;
 		req_id=world.rank();
+		node=new Network_Node(world.rank(),id);
 		struct dirent *ptr;    
 		DIR *dir;
 		dir=opendir(dir_name);
@@ -83,7 +86,7 @@ public:
 		}
 	}
 	index_server& lookup(string subject){
-		first_target=subject_to_id[subject]%(world.size()-1);
+		first_target=subject_to_id[subject]%(world.size());
 		req.clear();
 		path_node node(subject_to_id[subject],-1);
 		vector<path_node> vec;
@@ -120,15 +123,18 @@ public:
 		// so we can easily pop the cmd and do recursive operation
 		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
 		req.req_id=-1;
-		req.parent_id=get_id();
-		timer t1;
-		world.send(first_target, 1, req);
-		world.recv(boost::mpi::any_source, 1, req);
-		timer t2;
-		for(int i=0;i<req.result_paths.size();i++){
-			cout<<req.result_paths[i].size()<<" -> ";
-		}
-		cout<<endl<<"request finished in "<<t2.diff(t1)<<" ms"<<endl;
+		//req.parent_id=get_id();
+		req.parent_id=world.rank()-world.size();
+//		timer t1;
+		node->SendReq(first_target, 1, req);
+		req=node->RecvReq();
+		//world.send(first_target, 1, req);
+		//world.recv(boost::mpi::any_source, 100, req);
+//		timer t2;
+		// for(int i=0;i<req.result_paths.size();i++){
+		// 	cout<<req.result_paths[i].size()<<" -> ";
+		// }
+		// cout<<endl<<"request finished in "<<t2.diff(t1)<<" ms"<<endl;
 		req.cmd_chains.clear();
 		return *this;
 	}

@@ -3,11 +3,16 @@
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+
+
 #include <string>
 #include <vector>
 #include <iostream>
 #include "timer.h"
 #include "request.h"
+#include <sstream> 
 /*
 using namespace boost::archive;
 struct path_node{
@@ -38,10 +43,52 @@ struct request{
   }
 };
 */
+using namespace std;
+class person 
+{ 
+public: 
+  person() { } 
+
+  person(int age) : age_(age) {  } 
+
+  int age() const { return age_; } 
+
+private:
+  friend class boost::serialization::access;
+
+  template <typename Archive>
+  void serialize(Archive &ar, const unsigned int version)
+  {
+    ar & age_;
+    ar & fff_;
+  }
+
+  int age_;
+  int fff_;
+}; 
+string mysave(request& r)
+{
+    stringstream ss;
+    boost::archive::text_oarchive oa(ss);
+    oa << r;
+
+    return ss.str();
+}
+void myload(string str)
+{
+    stringstream s;
+    s << str;
+    boost::archive::text_iarchive ia(s);
+    request p;
+    ia >> p;
+    std::cout << p.result_paths.size() << std::endl;
+}
 int main(int argc, char *argv[])
 {
   boost::mpi::environment env(argc, argv);
   boost::mpi::communicator world;
+
+
   if (world.rank() == 0)
   {
     std::string s;
@@ -49,17 +96,22 @@ int main(int argc, char *argv[])
     request r;
     path_node p(1,2);
     world.recv(boost::mpi::any_source, 16, r);
-//    std::cout << s << '\n';
-    std::cout << r.result_paths.size()<<std::endl;
-    //for(int i=0;i<v.size();i++){
-      //std::cout << v[i]<<'\n';
-    //}
-    request r2;
-    world.send(0, 17, r);
-    world.recv(boost::mpi::any_source, 17, r2);
-    std::cout << r2.result_paths.size()<<std::endl;
+    std::cout << "r.result_paths.size:"<<r.result_paths.size()<<std::endl;
+    myload(mysave(r));
 
-    world.send(1, 17, r);
+    //convert to string
+    std::stringstream ss;
+    boost::archive::text_oarchive oa(ss); 
+    oa << r; 
+    s=ss.str();
+    std::cout<<"s.size:"<<s.size()<<std::endl;
+
+    std::stringstream ss2;
+    ss2<<s;
+    boost::archive::text_iarchive ia(ss2); 
+    request r2;
+    ia >> r2; 
+    world.send(1, 17, s);
   }
   else
   {
@@ -81,8 +133,16 @@ int main(int argc, char *argv[])
     path_node p(2,3);
 
     world.send(0, 16, r);
-    world.recv(boost::mpi::any_source, 17, r);
+    world.recv(boost::mpi::any_source, 17, s);
     timer t2;
-    std::cout << t2.diff(t1)<<std::endl;
+    std::cout<<"s.size:"<<s.size()<<std::endl;
+    std::stringstream ss;
+    ss<<s;
+    boost::archive::text_iarchive ia(ss); 
+    request r2;
+    ia >> r2; 
+
+    std::cout <<"round trip:"<< t2.diff(t1)<<" ms"<<std::endl;
+    std::cout << "r2.result_paths.size:"<<r2.result_paths.size()<<std::endl;
   }
 }

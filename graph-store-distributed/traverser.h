@@ -2,6 +2,8 @@
 #include "graph.h"
 #include "request.h"
 #include "request_queue.h"
+#include "network_node.h"
+
 #include <list>
 using std::list;
 //traverser will remember all the paths just like
@@ -11,6 +13,7 @@ class traverser{
 	graph& g;
 	boost::mpi::communicator& world;
 	request_queue req_queue;
+	Network_Node* node;
 	int req_id;
 	int get_id(){
 		int result=req_id;
@@ -122,7 +125,7 @@ class traverser{
 	}
 	vector<request> split_request(vector<path_node>& vec,request& r){
 		vector<request> sub_reqs;
-		int num_sub_request=world.size()-1;
+		int num_sub_request=world.size();
 		sub_reqs.resize(num_sub_request);
 		for(int i=0;i<sub_reqs.size();i++){
 			sub_reqs[i].parent_id=r.req_id;
@@ -151,8 +154,9 @@ class traverser{
 		}
 	}
 public:
-	traverser(boost::mpi::communicator& para_world,graph& gg):world(para_world),g(gg){
+	traverser(boost::mpi::communicator& para_world,graph& gg,int id):world(para_world),g(gg){
 		req_id=world.rank();
+		node=new Network_Node(world.rank(),id);
 	}
 	void handle_request(request& r){
 		if(r.cmd_chains.size()==0)
@@ -183,7 +187,8 @@ public:
 			vector<request> sub_reqs=split_request(vec,r);
 			for(int i=0;i<sub_reqs.size();i++){
 				//world.isend(i, 1, sub_reqs[i]);
-				send_request(i,sub_reqs[i]);
+				//send_request(i,sub_reqs[i]);
+				node->SendReq(i ,1, sub_reqs[i]);
 			}
 			req_queue.put_req(r,sub_reqs.size());
 			//merge_reqs(sub_reqs,r);
@@ -191,21 +196,31 @@ public:
 	} 
 	void run(){	
 		while(true){
-			request r;
-			boost::mpi::status s =world.recv(boost::mpi::any_source, 1, r);
+			request r=node->RecvReq();
+			//boost::mpi::status s =world.recv(boost::mpi::any_source, 1, r);
 			//cout<< world.rank()<<" recv req, parent_id= " <<r.parent_id<<endl;
 			if(r.req_id==-1){
 				r.req_id=get_id();
 				handle_request(r);
 				if(!r.blocking){
-					//cout<< "success execute, req_id= " <<r.req_id<<" parent_id= "<< r.parent_id <<endl;
-					//world.send(r.parent_id % world.size() , 1, r);
-					send_request(r.parent_id % world.size() , r);
+					if(r.parent_id<0){
+						node->SendReq(r.parent_id + world.size() ,0, r);
+						//world.send(r.parent_id + world.size() , 100, r);
+					} else {
+						node->SendReq(r.parent_id %  world.size() ,1, r);
+						//send_request(r.parent_id % world.size() , r);
+					}
 				}
 			} else {
 				if(req_queue.put_reply(r)){
 					//world.send(r.parent_id % world.size() , 1, r);
-					send_request(r.parent_id % world.size() , r);
+					if(r.parent_id<0){
+						node->SendReq(r.parent_id + world.size() ,0, r);
+						//world.send(r.parent_id + world.size() , 100, r);
+					} else {
+						node->SendReq(r.parent_id %  world.size() ,1, r);
+						//send_request(r.parent_id % world.size() , r);
+					}
 				}
 			}
 		}

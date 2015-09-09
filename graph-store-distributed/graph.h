@@ -34,12 +34,12 @@ public:
 		uint64_t child,parent;
 		while(file>>child>>parent){
 			if(vertex_table.find(child)==vertex_table.end()){
-				if(child%(world.size()-1)==world.rank())
+				if(child%(world.size())==world.rank())
 					vertex_table[child]=vertex_row();
 				ontology_table.insert_type(child);				
 			}
 			if(parent!=-1 && vertex_table.find(parent)==vertex_table.end()){
-				if(parent%(world.size()-1)==world.rank())
+				if(parent%(world.size())==world.rank())
 					vertex_table[parent]=vertex_row();
 				ontology_table.insert_type(parent);	
 			} 
@@ -54,11 +54,11 @@ public:
 		ifstream file(filename.c_str());
 		uint64_t s,p,o;
 		while(file>>s>>p>>o){
-			if(s%(world.size()-1)==world.rank()){
+			if(s%(world.size())==world.rank()){
 				vertex_table[s].out_edges.push_back(edge_row(p,o));
 				in_edges++;
 			}
-			if(o%(world.size()-1)==world.rank()){
+			if(o%(world.size())==world.rank()){
 				vertex_table[o].in_edges.push_back(edge_row(p,s));
 				out_edges++;
 			}
@@ -105,7 +105,7 @@ public:
 	    uint64_t store_max_size=1024*1024*1024;
 	    store_max_size=store_max_size*2;
 	    char* start_addr=(char*)malloc(store_max_size);
-	    kstore.init(start_addr,1000000,world.size()-1,store_max_size);
+	    kstore.init(start_addr,1000000,world.size(),store_max_size);
 	    unordered_map<uint64_t,vertex_row>::iterator iter;
 		for(iter=vertex_table.begin();iter!=vertex_table.end();iter++){
 			kstore.insert(iter->first,iter->second);
