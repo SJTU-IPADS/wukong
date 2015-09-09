@@ -59,6 +59,23 @@ class index_server{
 		return result;
 	}
 	int first_target;
+
+	void print_tree(int id,int level){
+		for(int i=0;i<level;i++)
+			cout<<"\t";
+		cout<<id_to_subject[id]<<endl;
+		for(auto child : ontology_table.id_to_children[id]){
+			print_tree(child,level+1);
+		}
+	}
+	void print_ontology_tree(){
+		cout<<"#############  print tree #############"<<endl;
+		for (auto row : ontology_table.id_to_parent){
+			if(row.second==-1)
+				print_tree(row.first,0);
+		}
+	}
+
 public:
 	request req;
 	index_server(boost::mpi::communicator& para_world,char* dir_name,int id):world(para_world){
@@ -84,11 +101,22 @@ public:
 				continue;
 			}
 		}
+		if(world.rank()==0)
+			print_ontology_tree();
 	}
 	index_server& lookup(string subject){
 		first_target=subject_to_id[subject]%(world.size());
 		req.clear();
 		path_node node(subject_to_id[subject],-1);
+		vector<path_node> vec;
+		vec.push_back(node);
+		req.result_paths.push_back(vec);
+		return *this;
+	}
+	index_server& lookup_id(int id){
+		first_target=id%(world.size());
+		req.clear();
+		path_node node(id,-1);
 		vector<path_node> vec;
 		vec.push_back(node);
 		req.result_paths.push_back(vec);
@@ -125,7 +153,10 @@ public:
 		req.req_id=-1;
 		//req.parent_id=get_id();
 		req.parent_id=world.rank()-world.size();
+		//for(int i=0;i<10;i++)
 		node->SendReq(first_target, 1, req);
+		//node->SendReq(first_target, 1+rand()%TRAVERSER_NUM, req);
+		//for(int i=0;i<10;i++)
 		req=node->RecvReq();
 		req.cmd_chains.clear();
 		return *this;

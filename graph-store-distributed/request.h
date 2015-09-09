@@ -65,6 +65,12 @@ struct request{
 			return 0;
 		return result_paths[path_len-1].size();
 	}
+	vector<path_node> * last_level(){
+		int path_len=result_paths.size();
+		if(path_len==0)
+			return NULL;
+		return &result_paths[path_len-1];
+	}
 	path_node get_node(int row,int column){
 		assert(row<path_num());
 		assert(column<path_length());

@@ -7,6 +7,7 @@
 #include "traverser.h"
 #include "index_server.h"
 #include "network_node.h"
+#include "rdma_resource.h"
 #include <pthread.h>
 struct Thread_config{
   int id;
@@ -20,19 +21,34 @@ void* Run(void *ptr) {
   if(config->id!=0){
 	config->traverser_ptr->run();
   }else {
+
 	sleep(1);	
-
-  	timer t1;
-  	for(int i=0;i<100;i++){
-  		config->index_server_ptr->lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
-			.neighbors("in","<ub#takesCourse>")
-			.subclass_of("<ub#GraduateStudent>")
-			.execute();
-
-		config->index_server_ptr->get_subtype("<ub#Student>")
+	request r=config->index_server_ptr->get_subtype("<ub#GraduateCourse>")
 			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
-			.execute();
+			.execute()
+			.req;
+	vector<path_node> * vec_ptr=r.last_level();
+	timer t1;
+	if(vec_ptr!=NULL){
+		for(int i=0;i<(*vec_ptr).size();i++){
+			config->index_server_ptr->lookup_id((*vec_ptr)[i].id)
+				.neighbors("in","<ub#takesCourse>")
+				.subclass_of("<ub#GraduateStudent>")
+				.execute();
+		}
 	}
+	
+  	
+  	// for(int i=0;i<1000;i++){
+  	// 	config->index_server_ptr->lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
+			// .neighbors("in","<ub#takesCourse>")
+			// .subclass_of("<ub#GraduateStudent>")
+			// .execute();
+
+		// config->index_server_ptr->get_subtype("<ub#Student>")
+		// 	.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
+		// 	.execute();
+	//}
 	timer t2;
 
 	cout<<endl<<"requests finished in "<<t2.diff(t1)<<" ms"<<endl;
@@ -61,12 +77,23 @@ int main(int argc, char * argv[])
 	graph g(world,argv[1]);
 	index_server is(world,argv[1],0);
 
+	uint64_t rdma_size = 1024*1024*1024;  //1G
+  	uint64_t slot_per_thread= 1024*1024*128;
+  	//rdma_size = rdma_size*20; //20G 
+  	uint64_t total_size=rdma_size+slot_per_thread*THREAD_NUM;
+	Network_Node *node = new Network_Node(world.rank(),THREAD_NUM);
+	char *buffer= (char*) malloc(total_size);
+	RdmaResource *rdma=new RdmaResource(world.size(),THREAD_NUM,world.rank(),buffer,total_size,slot_per_thread,rdma_size);
+	rdma->node = node;
+	rdma->Servicing();
+	rdma->Connect();
+
+
 	traverser* traverser_array[TRAVERSER_NUM];
 	concurrent_request_queue crq;
 	for(int i=0;i<TRAVERSER_NUM;i++){
 		traverser_array[i]=new traverser(world,g,crq,1+i);
 	}
-
 	Thread_config *configs = new Thread_config[THREAD_NUM];
   	pthread_t     *thread  = new pthread_t[THREAD_NUM];
 	for(size_t id = 0;id < THREAD_NUM;++id) {

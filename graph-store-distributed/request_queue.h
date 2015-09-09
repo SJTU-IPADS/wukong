@@ -53,7 +53,7 @@ public:
 	}	
 };
 
-const int num_request_queue=37; //use a simple prime number
+const int num_request_queue=1;//37; //use a simple prime number
 class concurrent_request_queue{
 	pthread_spinlock_t lock_array[num_request_queue];
 	request_queue queue_array[num_request_queue];

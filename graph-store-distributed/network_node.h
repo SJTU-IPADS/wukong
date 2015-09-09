@@ -1,6 +1,6 @@
 #pragma once
 
-#define TRAVERSER_NUM 2
+#define TRAVERSER_NUM 1
 #define THREAD_NUM (1+TRAVERSER_NUM)
 
 
@@ -32,13 +32,14 @@ public:
   
  Network_Node(int _pid,int _nid):nid(_nid),pid(_pid),context(1){
     
-    net_def.push_back("10.0.0.100");
     net_def.push_back("10.0.0.101");
     net_def.push_back("10.0.0.102");
     net_def.push_back("10.0.0.103");
     net_def.push_back("10.0.0.104");
     net_def.push_back("10.0.0.105");
-  
+    net_def.push_back("10.0.0.100");
+    
+
     receiver=new zmq::socket_t(context, ZMQ_PULL);
     char address[30]="";
     sprintf(address,"tcp://*:%d",5500+hash(pid,nid));
@@ -90,14 +91,14 @@ public:
   }
 
   void SendReq(int _pid,int _nid,request& r){
-    stringstream ss;
+    std::stringstream ss;
     boost::archive::text_oarchive oa(ss);
     oa << r;
     Send(_pid,_nid,ss.str());
   }
   request RecvReq(){
     std::string str=Recv();
-    stringstream s;
+    std::stringstream s;
     s << str;
     boost::archive::text_iarchive ia(s);
     request r;

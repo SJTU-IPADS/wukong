@@ -16,9 +16,10 @@ class traverser{
 	request_queue req_queue;
 	Network_Node* node;
 	int req_id;
+	int t_id;
 	int get_id(){
 		int result=req_id;
-		req_id+=world.size()*8;
+		req_id+=world.size()*TRAVERSER_NUM;
 		return result;
 	}
 	vector<path_node> do_neighbors(request& r){
@@ -129,6 +130,7 @@ public:
 			:world(para_world),g(gg),concurrent_req_queue(crq){
 		req_id=world.rank()+id*world.size();
 		node=new Network_Node(world.rank(),id);
+		t_id=id;
 	}
 	void handle_request(request& r){
 		if(r.cmd_chains.size()==0)
@@ -157,10 +159,11 @@ public:
 			//recursive execute 
 			r.blocking=true;
 			vector<request> sub_reqs=split_request(vec,r);
-			//req_queue.put_req(r,sub_reqs.size());
-			concurrent_req_queue.put_req(r,sub_reqs.size());
+			req_queue.put_req(r,sub_reqs.size());
+			//concurrent_req_queue.put_req(r,sub_reqs.size());
 			for(int i=0;i<sub_reqs.size();i++){
-				int traverser_id=1+rand()%TRAVERSER_NUM;
+				//int traverser_id=1+rand()%TRAVERSER_NUM;
+				int traverser_id=t_id;
 				node->SendReq(i ,traverser_id, sub_reqs[i]);
 			}
 			//merge_reqs(sub_reqs,r);
@@ -169,6 +172,10 @@ public:
 	void run(){	
 		while(true){
 			request r=node->RecvReq();
+			
+			//node->SendReq(r.parent_id + world.size() ,0, r);
+			//continue;
+
 			//cout<< world.rank()<<" recv req, parent_id= " <<r.parent_id<<endl;
 			if(r.req_id==-1){ //it means r is a request and shoule be executed
 				r.req_id=get_id();
@@ -177,17 +184,26 @@ public:
 					if(r.parent_id<0){
 						node->SendReq(r.parent_id + world.size() ,0, r);
 					} else {
-						int traverser_id=1+rand()%TRAVERSER_NUM;
+						int traverser_id=t_id;
+						//int traverser_id=1+rand()%TRAVERSER_NUM;
+						//r.parent_id=world.rank()+traverser_id*world.size()+ k*world.size()*TRAVERSER_NUM;
+						// int traverser_id= (r.parent_id/world.size()) % (TRAVERSER_NUM);
+						// if(traverser_id==0)
+						// 	traverser_id+=TRAVERSER_NUM;
 						node->SendReq(r.parent_id %  world.size() ,traverser_id, r);
 					}
 				}
 			} else {
-				if(concurrent_req_queue.put_reply(r)){
-				//if(req_queue.put_reply(r)){
+				//if(concurrent_req_queue.put_reply(r)){
+				if(req_queue.put_reply(r)){
 					if(r.parent_id<0){
 						node->SendReq(r.parent_id + world.size() ,0, r);
 					} else {
-						int traverser_id=1+rand()%TRAVERSER_NUM;
+						int traverser_id=t_id;
+						//int traverser_id=1+rand()%TRAVERSER_NUM;
+						// int traverser_id= (r.parent_id/world.size()) % (TRAVERSER_NUM);
+						// if(traverser_id==0)
+						// 	traverser_id+=TRAVERSER_NUM;
 						node->SendReq(r.parent_id %  world.size() ,traverser_id, r);
 					}
 				}
