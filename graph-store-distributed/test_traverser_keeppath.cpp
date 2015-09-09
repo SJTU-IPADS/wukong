@@ -10,65 +10,36 @@
 #include <pthread.h>
 struct Thread_config{
   int id;
-  boost::mpi::communicator* world_ptr;
-  graph* graph_ptr;
+  traverser* traverser_ptr;
   index_server* index_server_ptr;
 };
 
 
 void* Run(void *ptr) {
   struct Thread_config *config = (struct Thread_config*) ptr;
-  //Network_Node node(config->world_ptr->rank(),config->id);
   if(config->id!=0){
-  	//node.Send(config->world_ptr->rank(),1-config->id,"fuck");
-	traverser t(*(config->world_ptr),*(config->graph_ptr),config->id);
-	t.run();
+	config->traverser_ptr->run();
   }else {
-  	// 	//query 1
-		
-  	config->index_server_ptr->lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
-			.neighbors("in","<ub#takesCourse>")
-			.subclass_of("<ub#GraduateStudent>")
-			.execute();
+	sleep(1);	
 
-  	//string result=node.Recv();
-  	//cout<<result<<endl;
   	timer t1;
   	for(int i=0;i<100;i++){
   		config->index_server_ptr->lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
 			.neighbors("in","<ub#takesCourse>")
 			.subclass_of("<ub#GraduateStudent>")
 			.execute();
-			//.print_count();
 
 		config->index_server_ptr->get_subtype("<ub#Student>")
 			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
 			.execute();
-			//.print_count();
-  	}
-	//Query1(config->index_server_ptr);
+	}
 	timer t2;
+
 	cout<<endl<<"requests finished in "<<t2.diff(t1)<<" ms"<<endl;
 
   }
 }
 
-// void* Run(void *ptr) {
-//   struct Thread_config *config = (struct Thread_config*) ptr;
-//   if(config->id==0){
-//   	int r=100;
-//   	for(int i=0;i<1000;i++){
-// 		config->world_ptr->send(i% config->world_ptr->size() , 1, r);
-// 	}
-//   }else {
-//   	int r=1;
-//   	for(int i=0;i<1000;i++){
-// 		config->world_ptr->recv(boost::mpi::any_source, 1, r);
-// 		cout<<"id="<<config->id<<"\t"<<i<<endl;
-//   	}
-//   }
-// }
-#define THREAD_NUM 2
 int main(int argc, char * argv[])
 {
 	int provided;
@@ -89,18 +60,22 @@ int main(int argc, char * argv[])
 	boost::mpi::communicator world;
 	graph g(world,argv[1]);
 	index_server is(world,argv[1],0);
-	//id 0 is used for index_server
+
+	traverser* traverser_array[TRAVERSER_NUM];
+	concurrent_request_queue crq;
+	for(int i=0;i<TRAVERSER_NUM;i++){
+		traverser_array[i]=new traverser(world,g,crq,1+i);
+	}
 
 	Thread_config *configs = new Thread_config[THREAD_NUM];
   	pthread_t     *thread  = new pthread_t[THREAD_NUM];
 	for(size_t id = 0;id < THREAD_NUM;++id) {
       configs[id].id = id;
-      configs[id].world_ptr=&world;
-      configs[id].graph_ptr=&g;
-      configs[id].index_server_ptr=&is;
-      
+      if(id==0)
+      	configs[id].index_server_ptr=&is;
+      else
+      	configs[id].traverser_ptr=traverser_array[id-1];
       pthread_create (&(thread[id]), NULL, Run, (void *) &(configs[id]));
-      sleep(1);
     }
     for(size_t t = 0 ; t < THREAD_NUM; t++) {
       int rc = pthread_join(thread[t], NULL);

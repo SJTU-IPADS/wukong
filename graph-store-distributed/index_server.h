@@ -125,16 +125,8 @@ public:
 		req.req_id=-1;
 		//req.parent_id=get_id();
 		req.parent_id=world.rank()-world.size();
-//		timer t1;
 		node->SendReq(first_target, 1, req);
 		req=node->RecvReq();
-		//world.send(first_target, 1, req);
-		//world.recv(boost::mpi::any_source, 100, req);
-//		timer t2;
-		// for(int i=0;i<req.result_paths.size();i++){
-		// 	cout<<req.result_paths[i].size()<<" -> ";
-		// }
-		// cout<<endl<<"request finished in "<<t2.diff(t1)<<" ms"<<endl;
 		req.cmd_chains.clear();
 		return *this;
 	}

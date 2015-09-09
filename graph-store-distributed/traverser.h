@@ -12,12 +12,13 @@ using std::list;
 class traverser{
 	graph& g;
 	boost::mpi::communicator& world;
+	concurrent_request_queue& concurrent_req_queue;
 	request_queue req_queue;
 	Network_Node* node;
 	int req_id;
 	int get_id(){
 		int result=req_id;
-		req_id+=world.size();
+		req_id+=world.size()*8;
 		return result;
 	}
 	vector<path_node> do_neighbors(request& r){
@@ -38,11 +39,6 @@ class traverser{
 						vec.push_back(path_node(edge_ptr[k].vid,i));
 					}					
 				}
-				// for (auto row : g.vertex_table[prev_id].in_edges){
-				// 	if(predict_id==row.predict){
-				// 		vec.push_back(path_node(row.vid,i));
-				// 	}
-				// }
 			}
 			if(dir ==para_out || dir == para_all){
 				edge_row* edge_ptr=g.kstore.getEdgeArray(vdata.out_edge_ptr);
@@ -51,11 +47,6 @@ class traverser{
 						vec.push_back(path_node(edge_ptr[k].vid,i));
 					}					
 				}
-				// for (auto row : g.vertex_table[prev_id].out_edges){
-				// 	if(predict_id==row.predict){
-				// 		vec.push_back(path_node(row.vid,i));
-				// 	}
-				// }
 			}
 		}
 		return vec;
@@ -82,13 +73,6 @@ class traverser{
 					break;
 				}				
 			}
-			// for (auto row : g.vertex_table[prev_id].out_edges){
-			// 	if(predict_id==row.predict && 
-			// 				g.ontology_table.is_subtype_of(row.vid,target_id)){
-			// 		new_vec.push_back(prev_vec[i]);
-			// 		break;
-			// 	}
-			// }
 		}
 		r.result_paths[path_len-1]=new_vec;
 	}
@@ -139,23 +123,11 @@ class traverser{
 		}
 		return sub_reqs;
 	}
-	list<boost::mpi::request> boost_req_list;
-	list<request> waiting_req_list;
-	void send_request(int i,request& r){
-		waiting_req_list.push_back(r);
-		boost_req_list.push_back(world.isend(i, 1, waiting_req_list.back()));
-		while(true){
-			if(boost_req_list.size()>0 && boost_req_list.front().test() ){
-				waiting_req_list.pop_front();
-				boost_req_list.pop_front();
-			} else{
-				break;
-			}
-		}
-	}
 public:
-	traverser(boost::mpi::communicator& para_world,graph& gg,int id):world(para_world),g(gg){
-		req_id=world.rank();
+	traverser(boost::mpi::communicator& para_world,graph& gg,
+			concurrent_request_queue& crq,int id)
+			:world(para_world),g(gg),concurrent_req_queue(crq){
+		req_id=world.rank()+id*world.size();
 		node=new Network_Node(world.rank(),id);
 	}
 	void handle_request(request& r){
@@ -185,41 +157,38 @@ public:
 			//recursive execute 
 			r.blocking=true;
 			vector<request> sub_reqs=split_request(vec,r);
+			//req_queue.put_req(r,sub_reqs.size());
+			concurrent_req_queue.put_req(r,sub_reqs.size());
 			for(int i=0;i<sub_reqs.size();i++){
-				//world.isend(i, 1, sub_reqs[i]);
-				//send_request(i,sub_reqs[i]);
-				node->SendReq(i ,1, sub_reqs[i]);
+				int traverser_id=1+rand()%TRAVERSER_NUM;
+				node->SendReq(i ,traverser_id, sub_reqs[i]);
 			}
-			req_queue.put_req(r,sub_reqs.size());
 			//merge_reqs(sub_reqs,r);
 		}	
 	} 
 	void run(){	
 		while(true){
 			request r=node->RecvReq();
-			//boost::mpi::status s =world.recv(boost::mpi::any_source, 1, r);
 			//cout<< world.rank()<<" recv req, parent_id= " <<r.parent_id<<endl;
-			if(r.req_id==-1){
+			if(r.req_id==-1){ //it means r is a request and shoule be executed
 				r.req_id=get_id();
 				handle_request(r);
 				if(!r.blocking){
 					if(r.parent_id<0){
 						node->SendReq(r.parent_id + world.size() ,0, r);
-						//world.send(r.parent_id + world.size() , 100, r);
 					} else {
-						node->SendReq(r.parent_id %  world.size() ,1, r);
-						//send_request(r.parent_id % world.size() , r);
+						int traverser_id=1+rand()%TRAVERSER_NUM;
+						node->SendReq(r.parent_id %  world.size() ,traverser_id, r);
 					}
 				}
 			} else {
-				if(req_queue.put_reply(r)){
-					//world.send(r.parent_id % world.size() , 1, r);
+				if(concurrent_req_queue.put_reply(r)){
+				//if(req_queue.put_reply(r)){
 					if(r.parent_id<0){
 						node->SendReq(r.parent_id + world.size() ,0, r);
-						//world.send(r.parent_id + world.size() , 100, r);
 					} else {
-						node->SendReq(r.parent_id %  world.size() ,1, r);
-						//send_request(r.parent_id % world.size() , r);
+						int traverser_id=1+rand()%TRAVERSER_NUM;
+						node->SendReq(r.parent_id %  world.size() ,traverser_id, r);
 					}
 				}
 			}
