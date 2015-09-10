@@ -16,11 +16,13 @@
 
 #include "ontology.h"
 #include "klist_store.h"
+#include "rdma_resource.h"
 
 using namespace std;
 
 class graph{
 	boost::mpi::communicator& world;
+	RdmaResource* rdma;
 public:
 
 	unordered_map<uint64_t,vertex_row> vertex_table;
@@ -69,7 +71,8 @@ public:
 		cout<<world.rank()<<" has "<<vertex_table.size()<<" vertex"<<endl;
 		cout<<world.rank()<<" has "<<in_edges<<" in_edges"<<endl;
 	}
-	graph(boost::mpi::communicator& para_world,char* dir_name):world(para_world){
+	graph(boost::mpi::communicator& para_world,RdmaResource* _rdma,char* dir_name)
+			:world(para_world),rdma(_rdma){
 		in_edges=0;
 		out_edges=0;
 		struct dirent *ptr;    
@@ -102,10 +105,11 @@ public:
 	    }
 	    print_graph_info();
 
-	    uint64_t store_max_size=1024*1024*1024;
-	    store_max_size=store_max_size*2;
-	    char* start_addr=(char*)malloc(store_max_size);
-	    kstore.init(start_addr,1000000,world.size(),store_max_size);
+	    // uint64_t store_max_size=1024*1024*1024;
+	    // store_max_size=store_max_size*2;
+	    // char* start_addr=(char*)malloc(store_max_size);
+	    // kstore.init(start_addr,1000000,world.size(),store_max_size);
+	    kstore.init(rdma,1000000,world.size(),world.rank());
 	    unordered_map<uint64_t,vertex_row>::iterator iter;
 		for(iter=vertex_table.begin();iter!=vertex_table.end();iter++){
 			kstore.insert(iter->first,iter->second);

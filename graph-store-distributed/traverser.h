@@ -15,6 +15,7 @@ class traverser{
 	concurrent_request_queue& concurrent_req_queue;
 	request_queue req_queue;
 	Network_Node* node;
+	RdmaResource* rdma;
 	int req_id;
 	int t_id;
 	int get_id(){
@@ -126,8 +127,8 @@ class traverser{
 	}
 public:
 	traverser(boost::mpi::communicator& para_world,graph& gg,
-			concurrent_request_queue& crq,int id)
-			:world(para_world),g(gg),concurrent_req_queue(crq){
+			concurrent_request_queue& crq,RdmaResource* _rdma,int id)
+			:world(para_world),g(gg),concurrent_req_queue(crq),rdma(_rdma){
 		req_id=world.rank()+id*world.size();
 		node=new Network_Node(world.rank(),id);
 		t_id=id;
@@ -150,7 +151,48 @@ public:
 		} else{
 			assert(false);
 		}
-
+		//trying to execute using one-side RDMA here~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		//if(false){
+		if(r.cmd_chains.size()!=0 && vec.size()<TRAVERSER_NUM*3){
+			int dir=para_out;			
+			int cmd_type=r.cmd_chains.back();
+			r.cmd_chains.pop_back();
+			if(cmd_type==cmd_neighbors){
+				dir=r.cmd_chains.back();
+				r.cmd_chains.pop_back();
+			}
+			int target_id=r.cmd_chains.back();
+			r.cmd_chains.pop_back();
+			vector<path_node> new_vec;
+			if(cmd_type == cmd_subclass_of){
+				for(int i=0;i<vec.size();i++){
+					vector<edge_row> edges=g.kstore.readGlobal(t_id,vec[i].id,dir);
+					for(int k=0;k<edges.size();k++){
+						if(0==edges[k].predict && 
+							g.ontology_table.is_subtype_of(edges[k].vid,target_id)){
+							new_vec.push_back(vec[i]);
+							break;
+						}	
+					}
+				}
+				vec=new_vec; //replace old vec since subclass is a filter operation
+			} else if(cmd_type == cmd_neighbors){
+				for(int i=0;i<vec.size();i++){
+					vector<edge_row> edges=g.kstore.readGlobal(t_id,vec[i].id,dir);
+					for(int k=0;k<edges.size();k++){
+						if(target_id==edges[k].predict){
+							new_vec.push_back(path_node(edges[k].vid,i));
+						}
+					}
+				}
+				r.result_paths.push_back(vec);
+				vec=new_vec;
+			} else {
+				assert(false);
+			}
+		}
+		//end of trying to execute using one-side RDMA here~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		
 		if(r.cmd_chains.size()==0){
 			// end here
 			r.result_paths.push_back(vec);

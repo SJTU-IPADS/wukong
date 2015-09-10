@@ -51,7 +51,6 @@ class index_server{
 		}
 		file.close();
 	}
-	boost::mpi::communicator& world;
 	int req_id;
 	int get_id(){
 		int result=req_id;
@@ -78,6 +77,7 @@ class index_server{
 
 public:
 	request req;
+	boost::mpi::communicator& world;
 	index_server(boost::mpi::communicator& para_world,char* dir_name,int id):world(para_world){
 		first_target=0;
 		req_id=world.rank();
@@ -163,7 +163,7 @@ public:
 	}
 	index_server& print_count(){
 		int path_len=req.result_paths.size();
-		cout<<req.result_paths[path_len-1].size()<<endl;
+		//cout<<req.result_paths[path_len-1].size()<<endl;
 		return *this;
 	}
 

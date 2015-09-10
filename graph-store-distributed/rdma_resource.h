@@ -107,12 +107,14 @@ struct normal_op_req
     void init();
     
   public:
-
+    uint64_t get_size(){
+      return size;
+    }
+    char * get_buffer(){
+      return buffer;
+    }
     //rdma location hashing
-    uint64_t bufferSize;
     uint64_t slotsize;
-    uint64_t bufferEntrySize;
-    uint64_t rdma_id;
     Network_Node* node;
     
     //for testing
@@ -130,7 +132,7 @@ struct normal_op_req
 
     //TODO what if batched?    
     inline char *RdmaResource::GetMsgAddr(int t_id) {
-      return (char *)( buffer + off + t_id * bufferEntrySize);
+      return (char *)( buffer + off + t_id * slotsize);
     }
     
     static void* RecvThread(void * arg);

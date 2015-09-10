@@ -543,8 +543,6 @@ poll_completion (struct QP *res) {
    
     off = _off;
     slotsize = _slotsize;
-    bufferSize = slotsize;
-    bufferEntrySize = bufferSize ;
     init();    
   }
   

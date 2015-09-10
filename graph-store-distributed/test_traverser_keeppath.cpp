@@ -21,8 +21,9 @@ void* Run(void *ptr) {
   if(config->id!=0){
 	config->traverser_ptr->run();
   }else {
-
-	sleep(1);	
+  	//if(config->index_server_ptr->world.rank()!=0)
+  	//	return (void* )NULL;
+  	sleep(1);	
 	request r=config->index_server_ptr->get_subtype("<ub#GraduateCourse>")
 			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
 			.execute()
@@ -30,7 +31,9 @@ void* Run(void *ptr) {
 	vector<path_node> * vec_ptr=r.last_level();
 	timer t1;
 	if(vec_ptr!=NULL){
+		//int i=0;
 		for(int i=0;i<(*vec_ptr).size();i++){
+		//for(int i=0;i<5;i++){
 			config->index_server_ptr->lookup_id((*vec_ptr)[i].id)
 				.neighbors("in","<ub#takesCourse>")
 				.subclass_of("<ub#GraduateStudent>")
@@ -74,8 +77,6 @@ int main(int argc, char * argv[])
 	}
 	boost::mpi::environment env(argc, argv);
 	boost::mpi::communicator world;
-	graph g(world,argv[1]);
-	index_server is(world,argv[1],0);
 
 	uint64_t rdma_size = 1024*1024*1024;  //1G
   	uint64_t slot_per_thread= 1024*1024*128;
@@ -88,11 +89,17 @@ int main(int argc, char * argv[])
 	rdma->Servicing();
 	rdma->Connect();
 
+	uint64_t *local_buffer = (uint64_t *)rdma->GetMsgAddr(0);
+  	uint64_t start_addr=0;
+  	//rdma->RdmaRead(0,(world.rank()+1)%world.size() ,(char *)local_buffer,1024,start_addr);
+  	//cout<<"Fucking OK"<<endl;
 
+	graph g(world,rdma,argv[1]);
+	index_server is(world,argv[1],0);
 	traverser* traverser_array[TRAVERSER_NUM];
 	concurrent_request_queue crq;
 	for(int i=0;i<TRAVERSER_NUM;i++){
-		traverser_array[i]=new traverser(world,g,crq,1+i);
+		traverser_array[i]=new traverser(world,g,crq,rdma,1+i);
 	}
 	Thread_config *configs = new Thread_config[THREAD_NUM];
   	pthread_t     *thread  = new pthread_t[THREAD_NUM];
