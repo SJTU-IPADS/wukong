@@ -154,8 +154,8 @@ public:
 		//req.parent_id=get_id();
 		req.parent_id=world.rank()-world.size();
 		//for(int i=0;i<10;i++)
-		node->SendReq(first_target, 1, req);
-		//node->SendReq(first_target, 1+rand()%TRAVERSER_NUM, req);
+		//node->SendReq(first_target, 1, req);
+		node->SendReq(first_target, 1+rand()%TRAVERSER_NUM, req);
 		//for(int i=0;i<10;i++)
 		req=node->RecvReq();
 		req.cmd_chains.clear();
