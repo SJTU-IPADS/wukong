@@ -3,9 +3,7 @@
 #include "request.h"
 #include "request_queue.h"
 #include "network_node.h"
-
-#include <list>
-using std::list;
+#include "profile.h"
 //traverser will remember all the paths just like
 //traverser_keeppath in single machine
 
@@ -16,6 +14,7 @@ class traverser{
 	request_queue req_queue;
 	Network_Node* node;
 	RdmaResource* rdma;
+	profile split_profile;
 	int req_id;
 	int t_id;
 	int get_id(){
@@ -152,8 +151,16 @@ public:
 			assert(false);
 		}
 		//trying to execute using one-side RDMA here~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		if(r.cmd_chains.size()!=0){
+			split_profile.neighbor_num+=vec.size();
+			if(vec.size()<world.size()*10){
+				split_profile.split_req++;
+			} else {
+				split_profile.non_split_req++;
+			}
+		}
 		//if(false){
-		if(r.cmd_chains.size()!=0 && vec.size()<TRAVERSER_NUM*3){
+		if(r.cmd_chains.size()!=0 && vec.size()<world.size()*10){
 			int dir=para_out;			
 			int cmd_type=r.cmd_chains.back();
 			r.cmd_chains.pop_back();
@@ -224,6 +231,7 @@ public:
 				handle_request(r);
 				if(!r.blocking){
 					if(r.parent_id<0){
+						split_profile.report();
 						node->SendReq(r.parent_id + world.size() ,0, r);
 					} else {
 						int traverser_id=t_id;
@@ -239,6 +247,7 @@ public:
 				//if(concurrent_req_queue.put_reply(r)){
 				if(req_queue.put_reply(r)){
 					if(r.parent_id<0){
+						split_profile.report();
 						node->SendReq(r.parent_id + world.size() ,0, r);
 					} else {
 						int traverser_id=t_id;

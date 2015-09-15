@@ -15,6 +15,12 @@ struct Thread_config{
   index_server* index_server_ptr;
 };
 
+const int batch_factor=100;
+
+void query1(index_server* is);
+void query3(index_server* is);
+void query5(index_server* is);
+void query10(index_server* is);
 
 void* Run(void *ptr) {
   struct Thread_config *config = (struct Thread_config*) ptr;
@@ -24,38 +30,9 @@ void* Run(void *ptr) {
   	//if(config->index_server_ptr->world.rank()!=0)
   	//	return (void* )NULL;
   	sleep(1);	
-	request r=config->index_server_ptr->get_subtype("<ub#GraduateCourse>")
-			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
-			.execute()
-			.req;
-	vector<path_node> * vec_ptr=r.last_level();
-	timer t1;
-	if(vec_ptr!=NULL){
-		//int i=0;
-		for(int i=0;i<(*vec_ptr).size();i++){
-		//for(int i=0;i<5;i++){
-			config->index_server_ptr->lookup_id((*vec_ptr)[i].id)
-				.neighbors("in","<ub#takesCourse>")
-				.subclass_of("<ub#GraduateStudent>")
-				.execute();
-		}
-	}
-	
-  	
-  	// for(int i=0;i<1000;i++){
-  	// 	config->index_server_ptr->lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
-			// .neighbors("in","<ub#takesCourse>")
-			// .subclass_of("<ub#GraduateStudent>")
-			// .execute();
+  	query10(config->index_server_ptr);
 
-		// config->index_server_ptr->get_subtype("<ub#Student>")
-		// 	.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
-		// 	.execute();
-	//}
-	timer t2;
-
-	cout<<endl<<"requests finished in "<<t2.diff(t1)<<" ms"<<endl;
-
+  	cout<<"Finish all requests"<<endl;
   }
 }
 
@@ -274,4 +251,121 @@ int main(int argc, char * argv[])
 	// }
 
     return 0;
+}
+
+
+void query1(index_server* is){
+	request r=is->get_subtype("<ub#Course>")
+			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
+			.execute()
+			.req;
+	vector<path_node> * vec_ptr=r.last_level();
+	if(vec_ptr!=NULL){
+		for(int i=0;i<batch_factor;i++){
+			is->lookup_id((*vec_ptr)[0].id)
+				.neighbors("in","<ub#takesCourse>")
+				.subclass_of("<ub#GraduateStudent>")
+				.Send();
+		}
+		for(int times=0;times<100;times++){
+			for(int i=0;i<(*vec_ptr).size();i++){
+				is->Recv();
+				is->lookup_id((*vec_ptr)[i].id)
+					.neighbors("in","<ub#takesCourse>")
+					.subclass_of("<ub#GraduateStudent>")
+					.Send();
+			}
+		}
+		for(int i=0;i<batch_factor;i++){
+			is->Recv();
+		}
+	}
+}
+
+void query3(index_server* is){
+//	request r=is->get_subtype("<ub#Professor>")
+	request r=is->get_subtype("<ub#FullProfessor>")
+//	request r=is->get_subtype("<ub#AssociateProfessor>")
+//	request r=is->get_subtype("<ub#AssistantProfessor>")
+			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
+			.execute()
+			.req;
+	vector<path_node> * vec_ptr=r.last_level();
+	if(vec_ptr!=NULL){
+		for(int i=0;i<batch_factor;i++){
+			is->lookup_id((*vec_ptr)[0].id)
+				.neighbors("in","<ub#publicationAuthor>")
+				.subclass_of("<ub#Publication>")
+				.Send();
+		}
+		for(int times=0;times<100;times++){
+			for(int i=0;i<(*vec_ptr).size();i++){
+				is->Recv();
+				is->lookup_id((*vec_ptr)[i].id)
+					.neighbors("in","<ub#publicationAuthor>")
+					.subclass_of("<ub#Publication>")
+					.Send();
+			}
+		}
+		for(int i=0;i<batch_factor;i++){
+			is->Recv();
+		}
+	}
+}
+
+
+void query5(index_server* is){
+	request r=is->get_subtype("<ub#Department>")
+			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
+			.execute()
+			.req;
+	vector<path_node> * vec_ptr=r.last_level();
+	if(vec_ptr!=NULL){
+		for(int i=0;i<batch_factor;i++){
+			is->lookup_id((*vec_ptr)[0].id)
+				.neighbors("in","<ub#memberOf>")
+				.subclass_of("<ub#Person>")
+				.Send();
+		}
+		for(int times=0;times<100;times++){
+			for(int i=0;i<(*vec_ptr).size();i++){
+				is->Recv();
+				is->lookup_id((*vec_ptr)[i].id)
+					.neighbors("in","<ub#memberOf>")
+					.subclass_of("<ub#Person>")
+					.Send();
+			}
+		}
+		for(int i=0;i<batch_factor;i++){
+			is->Recv();
+		}
+	}
+}
+
+void query10(index_server* is){
+	request r=is->get_subtype("<ub#GraduateCourse>")
+			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
+			.execute()
+			.req;
+	vector<path_node> * vec_ptr=r.last_level();
+	if(vec_ptr!=NULL){
+		for(int i=0;i<batch_factor;i++){
+			is->lookup_id((*vec_ptr)[0].id)
+				.neighbors("in","<ub#takesCourse>")
+				.subclass_of("<ub#Student>")
+				.Send();
+		}
+		for(int times=0;times<100;times++){
+			for(int i=0;i<(*vec_ptr).size();i++){
+				is->Recv();
+				is->lookup_id((*vec_ptr)[i].id)
+					.neighbors("in","<ub#takesCourse>")
+					.subclass_of("<ub#Student>")
+					.Send();
+			}
+		}
+		for(int i=0;i<batch_factor;i++){
+			is->Recv();
+		}
+	}
 }

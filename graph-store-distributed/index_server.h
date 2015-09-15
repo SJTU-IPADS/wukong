@@ -151,16 +151,25 @@ public:
 		// so we can easily pop the cmd and do recursive operation
 		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
 		req.req_id=-1;
-		//req.parent_id=get_id();
 		req.parent_id=world.rank()-world.size();
 		//for(int i=0;i<10;i++)
-		//node->SendReq(first_target, 1, req);
 		node->SendReq(first_target, 1+rand()%TRAVERSER_NUM, req);
 		//for(int i=0;i<10;i++)
 		req=node->RecvReq();
 		req.cmd_chains.clear();
 		return *this;
 	}
+
+	void Send(){
+		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
+		req.req_id=-1;
+		req.parent_id=world.rank()-world.size();
+		node->SendReq(first_target, 1+rand()%TRAVERSER_NUM, req);
+	}
+	request Recv(){
+		return node->RecvReq();
+	}
+
 	index_server& print_count(){
 		int path_len=req.result_paths.size();
 		//cout<<req.result_paths[path_len-1].size()<<endl;
