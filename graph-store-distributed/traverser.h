@@ -151,16 +151,27 @@ public:
 			assert(false);
 		}
 		//trying to execute using one-side RDMA here~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-		if(r.cmd_chains.size()!=0){
+		// if(r.cmd_chains.size()!=0){
+		// 	split_profile.neighbor_num+=vec.size();
+		// 	if(vec.size()<world.size()*10){
+		// 		split_profile.split_req++;
+		// 	} else {
+		// 		split_profile.non_split_req++;
+		// 	}
+		// }
+
+		//if(false){
+		//if(r.cmd_chains.size()!=0 && vec.size()<world.size()*10){
+		while(r.cmd_chains.size()!=0 ){
 			split_profile.neighbor_num+=vec.size();
 			if(vec.size()<world.size()*10){
 				split_profile.split_req++;
 			} else {
 				split_profile.non_split_req++;
 			}
-		}
-		//if(false){
-		if(r.cmd_chains.size()!=0 && vec.size()<world.size()*10){
+			if(vec.size()>=world.size()*10)
+				break;
+
 			int dir=para_out;			
 			int cmd_type=r.cmd_chains.back();
 			r.cmd_chains.pop_back();

@@ -17,9 +17,17 @@ struct Thread_config{
 
 const int batch_factor=100;
 
+//query 2 is a patten matching query
+//query 4 is not complex , need to read attributes of every vertex
+//query 8 is not complex , need to read attributes of every vertex
+//query 9 is a patten matching query
+
 void query1(index_server* is);
 void query3(index_server* is);
 void query5(index_server* is);
+void query6(index_server* is);
+void query7(index_server* is);
+void query8(index_server* is);
 void query10(index_server* is);
 
 void* Run(void *ptr) {
@@ -30,7 +38,7 @@ void* Run(void *ptr) {
   	//if(config->index_server_ptr->world.rank()!=0)
   	//	return (void* )NULL;
   	sleep(1);	
-  	query10(config->index_server_ptr);
+  	query8(config->index_server_ptr);
 
   	cout<<"Finish all requests"<<endl;
   }
@@ -313,6 +321,33 @@ void query3(index_server* is){
 	}
 }
 
+void query4(index_server* is){
+	request r=is->get_subtype("<ub#Department>")
+			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
+			.execute()
+			.req;
+	vector<path_node> * vec_ptr=r.last_level();
+	if(vec_ptr!=NULL){
+		for(int i=0;i<batch_factor;i++){
+			is->lookup_id((*vec_ptr)[0].id)
+				.neighbors("in","<ub#worksFor>")
+				.subclass_of("<ub#Professor>")
+				.Send();
+		}
+		for(int times=0;times<100;times++){
+			for(int i=0;i<(*vec_ptr).size();i++){
+				is->Recv();
+				is->lookup_id((*vec_ptr)[i].id)
+					.neighbors("in","<ub#worksFor>")
+					.subclass_of("<ub#Professor>")
+					.Send();
+			}
+		}
+		for(int i=0;i<batch_factor;i++){
+			is->Recv();
+		}
+	}
+}
 
 void query5(index_server* is){
 	request r=is->get_subtype("<ub#Department>")
@@ -342,6 +377,91 @@ void query5(index_server* is){
 	}
 }
 
+
+void query6(index_server* is){
+	for(int i=0;i<batch_factor;i++){
+		is->get_subtype("<ub#Student>")
+			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
+			.Send();
+	}
+	for(int times=0;times<10000;times++){
+		is->Recv();
+		is->get_subtype("<ub#Student>")
+		.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
+		.Send();	
+	}
+	for(int i=0;i<batch_factor;i++){
+		is->Recv();
+	}
+}
+
+void query7(index_server* is){
+//	request r=is->get_subtype("<ub#Professor>")
+//	request r=is->get_subtype("<ub#FullProfessor>")
+//	request r=is->get_subtype("<ub#AssociateProfessor>")
+	request r=is->get_subtype("<ub#AssistantProfessor>")
+			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
+			.execute()
+			.req;
+	vector<path_node> * vec_ptr=r.last_level();
+	if(vec_ptr!=NULL){
+		for(int i=0;i<batch_factor;i++){
+			is->lookup_id((*vec_ptr)[0].id)
+				.neighbors("out","<ub#teacherOf>")
+				//.subclass_of("<ub#Course>")
+				.neighbors("in","<ub#takesCourse>")
+				.subclass_of("<ub#Student>")
+				.Send();
+		}
+		for(int times=0;times<100;times++){
+			for(int i=0;i<(*vec_ptr).size();i++){
+				is->Recv();
+				is->lookup_id((*vec_ptr)[i].id)
+					.neighbors("out","<ub#teacherOf>")
+					//.subclass_of("<ub#Course>")
+					.neighbors("in","<ub#takesCourse>")
+					.subclass_of("<ub#Student>")
+					.Send();
+			}
+		}
+		for(int i=0;i<batch_factor;i++){
+			is->Recv();
+		}
+	}
+}
+
+
+void query8(index_server* is){
+	request r=is->get_subtype("<ub#University>")
+			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
+			.execute()
+			.req;
+	vector<path_node> * vec_ptr=r.last_level();
+	if(vec_ptr!=NULL){
+		for(int i=0;i<batch_factor;i++){
+			is->lookup_id((*vec_ptr)[0].id)
+				.neighbors("in","<ub#subOrganizationOf>")
+				.subclass_of("<ub#Department>")	
+				.neighbors("in","<ub#memberOf>")
+				.subclass_of("<ub#Student>")
+				.Send();
+		}
+		for(int times=0;times<100;times++){
+			for(int i=0;i<(*vec_ptr).size();i++){
+				is->Recv();
+				is->lookup_id((*vec_ptr)[i].id)
+					.neighbors("in","<ub#subOrganizationOf>")
+					.subclass_of("<ub#Department>")	
+					.neighbors("in","<ub#memberOf>")
+					.subclass_of("<ub#Student>")
+					.Send();
+			}
+		}
+		for(int i=0;i<batch_factor;i++){
+			is->Recv();
+		}
+	}
+}
 void query10(index_server* is){
 	request r=is->get_subtype("<ub#GraduateCourse>")
 			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
