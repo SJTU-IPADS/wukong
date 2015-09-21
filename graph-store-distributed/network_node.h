@@ -15,7 +15,7 @@
 
 #include <sstream> 
 #include "request.h"
-
+#include "profile.h"
 class Network_Node {
   
 public:
@@ -89,10 +89,14 @@ public:
       return "";
   }
 
-  void SendReq(int _pid,int _nid,request& r){
+  void SendReq(int _pid,int _nid,request& r,profile* profile_ptr=NULL){
+
     std::stringstream ss;
     boost::archive::text_oarchive oa(ss);
     oa << r;
+    if(profile_ptr!=NULL){
+      profile_ptr->record(ss.str().size());
+    }
     //std::cout<<"("<<pid<<","<<nid<<")->"<<"("<<_pid<<","<<_nid<<"),size="<<ss.str().size()<<std::endl;
     Send(_pid,_nid,ss.str());
   }

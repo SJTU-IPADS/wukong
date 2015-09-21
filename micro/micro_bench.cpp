@@ -1,15 +1,15 @@
 #include <string>
 #include <vector>
 #include <iostream>
-#include "timer.h"
 
 #include <boost/mpi.hpp>
 #include <boost/serialization/string.hpp>
 #include <iostream>
-
-#include "network_node.h"
-#include "rdma_resource.h"
 #include <pthread.h>
+
+#include "../graph-store-distributed/timer.h"
+#include "../graph-store-distributed/network_node.h"
+#include "../graph-store-distributed/rdma_resource.h"
 using namespace std;
 struct Thread_config{
   int id;

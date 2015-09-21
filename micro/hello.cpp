@@ -10,8 +10,8 @@
 #include <string>
 #include <vector>
 #include <iostream>
-#include "timer.h"
-#include "request.h"
+#include "../graph-store-distributed/timer.h"
+#include "../graph-store-distributed/request.h"
 #include <sstream> 
 /*
 using namespace boost::archive;
