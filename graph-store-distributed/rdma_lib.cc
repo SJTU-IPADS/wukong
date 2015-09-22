@@ -543,6 +543,9 @@ poll_completion (struct QP *res) {
    
     off = _off;
     slotsize = _slotsize;
+    rbf_size=slotsize/(_total_threads*_total_partition);
+    rbf_size=rbf_size-(rbf_size%64);
+    
     init();    
   }
   

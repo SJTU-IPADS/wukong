@@ -115,6 +115,7 @@ struct normal_op_req
     }
     //rdma location hashing
     uint64_t slotsize;
+    uint64_t rbf_size;
     Network_Node* node;
     
     //for testing
@@ -134,8 +135,109 @@ struct normal_op_req
     inline char *RdmaResource::GetMsgAddr(int t_id) {
       return (char *)( buffer + off + t_id * slotsize);
     }
-    
     static void* RecvThread(void * arg);
+
+
+
+    inline int global_tid(int mid,int tid){
+      return mid*_total_threads+tid;
+    }
+    struct rbfMeta{
+      uint64_t local_tail; // used for polling
+      uint64_t remote_tail; // directly write to remote_tail of remote machine
+      uint64_t local_head; 
+      char padding1[64-3*sizeof(uint64_t)];
+      uint64_t copy_of_remote_head;
+      char padding2[64-1*sizeof(uint64_t)];
+    };
+    uint64_t rbfOffset(int src_mid,int src_tid,int dst_mid,int dst_tid){
+      uint64_t result=off+(_total_threads+src_tid) * slotsize;
+      result=result+rbf_size*global_tid(dst_mid,dst_tid);
+      return result;
+    }
+
+    void rbfSend(int local_tid,int remote_mid,int remote_tid,std::string& str){
+      char * rbf_ptr=buffer+rbfOffset(_current_partition,local_tid,remote_mid,remote_tid);
+      struct rbfMeta* meta=(rbfMeta*) rbf_ptr;
+      uint64_t remote_rbf_offset=rbfOffset(remote_mid,remote_tid,_current_partition,local_tid);
+      //TODO check whether we can send
+
+      //Send data 
+      uint64_t rbf_datasize=rbf_size-sizeof(rbfMeta);
+      uint64_t padding=str.size() % sizeof(uint64_t);
+      if(padding!=0)
+        padding=sizeof(uint64_t)-padding;
+      uint64_t total_write_size=sizeof(uint64_t)*2+str.size()+padding;
+      if(meta->remote_tail / rbf_datasize != (meta->remote_tail+total_write_size-1)/ rbf_datasize ){
+        //printf("send too many message\n");
+        //assert(false);
+      }
+      if(_current_partition==remote_mid){
+        // directly write
+        char * ptr=buffer+remote_rbf_offset+sizeof(rbfMeta);
+        *((uint64_t*)(ptr+(meta->remote_tail)%rbf_datasize))=str.size();
+        (meta->remote_tail)+=sizeof(uint64_t);
+        for(uint64_t i=0;i<str.size();i++){
+          *(ptr+(meta->remote_tail)%rbf_datasize)=str[i];
+          meta->remote_tail++;
+        }
+        meta->remote_tail+=padding;
+        *((uint64_t*)(ptr+(meta->remote_tail)%rbf_datasize))=str.size();
+        (meta->remote_tail)+=sizeof(uint64_t);
+        //printf("tid=%d write to (%d,%d),tail=%ld\n",local_tid,remote_mid,remote_tid,meta->remote_tail);
+      } else {
+          char* local_buffer=GetMsgAddr(local_tid);
+          *((uint64_t*)local_buffer)=str.size();
+          local_buffer+=sizeof(uint64_t);
+          memcpy(local_buffer,str.c_str(),str.size());
+          local_buffer+=str.size()+padding;
+          *((uint64_t*)local_buffer)=str.size();
+          if(meta->remote_tail / rbf_datasize == (meta->remote_tail+total_write_size-1)/ rbf_datasize ){
+            uint64_t remote_msg_offset=remote_rbf_offset+sizeof(rbfMeta)+meta->remote_tail;
+            RdmaWrite(local_tid,remote_mid,GetMsgAddr(local_tid),total_write_size,remote_msg_offset);
+          } else {
+            // we need to post 2 RdmaWrite
+            uint64_t length1=rbf_datasize - (meta->remote_tail % rbf_datasize);
+            uint64_t length2=total_write_size-length1;
+            uint64_t remote_msg_offset1=remote_rbf_offset+sizeof(rbfMeta)+meta->remote_tail;
+            uint64_t remote_msg_offset2=remote_rbf_offset+sizeof(rbfMeta);
+            RdmaWrite(local_tid,remote_mid,GetMsgAddr(local_tid),length1,remote_msg_offset1);
+            RdmaWrite(local_tid,remote_mid,GetMsgAddr(local_tid)+length1,length2,remote_msg_offset2);
+          }
+          meta->remote_tail =meta->remote_tail+total_write_size;
+      }
+    }
+    std::string rbfRecv(int local_tid){
+      while(true){
+        for(int mid=0;mid<_total_partition;mid++){
+          for(int tid=0;tid<_total_threads;tid++){
+            char * rbf_ptr=buffer+rbfOffset(_current_partition,local_tid,mid,tid);
+            char * rbf_data_ptr=rbf_ptr+ sizeof(rbfMeta);
+            uint64_t rbf_datasize=rbf_size-sizeof(rbfMeta);
+            struct rbfMeta* meta=(rbfMeta*) rbf_ptr;
+            uint64_t msg_size=*(volatile uint64_t*)(rbf_data_ptr+meta->local_tail%rbf_datasize );
+            if(msg_size==0)
+              continue;
+            *(uint64_t*)(rbf_data_ptr+meta->local_tail%rbf_datasize)=0;
+            //have message
+            uint64_t padding=msg_size % sizeof(uint64_t);
+            if(padding!=0)
+              padding=sizeof(uint64_t)-padding;
+            volatile uint64_t * msg_end_ptr=(uint64_t*)(rbf_data_ptr+ (meta->local_tail+msg_size+padding+sizeof(uint64_t))%rbf_datasize);
+            while(*msg_end_ptr !=msg_size){};
+            *msg_end_ptr=0;
+            std::string result;
+            for(uint64_t i=0;i<msg_size;i++){
+              char * tmp=rbf_data_ptr+(meta->local_tail+sizeof(uint64_t)+i)%rbf_datasize;
+              result.push_back(*tmp);
+              *tmp=0;
+            }
+            meta->local_tail+=msg_size+padding+2*sizeof(uint64_t);
+            return result;
+          }
+        }
+      }
+    }
   };
 
 

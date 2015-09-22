@@ -45,25 +45,40 @@ void* Run(void *ptr) {
   str.push_back(config->world->rank());
   str.push_back(config->id);
   str.push_back(0);
-  for(int i=0;i<97;i++){
+  //for(int i=0;i<125;i++){
+  for(int i=0;i<256;i++){
   	str.push_back('0');
   }
   if(config->id < NUM_RECVER){
   	//recv
-  	while(true){
-  		string tmp=node->Recv();
+    // while(true){
+    //   string tmp=node->Recv();
+    //   int mid=tmp[0];
+    //   int tid=tmp[1];
+    //   node->Send(mid,tid,str);
+    // }
+    
+    while(true){
+      string tmp=rdma->rbfRecv(config->id);
       int mid=tmp[0];
       int tid=tmp[1];
-      node->Send(mid,tid,str);
-  	}
+      rdma->rbfSend(config->id,mid,tid,str);
+    }
+
   } else {
   	//send
   	sleep(1);	
     timer t1;
     // for(int i=0;i<1000*10;i++){
-    //   node->Send(rand_r(&seed)%config->world->size(), rand_r(&seed)%NUM_RECVER, str);
+    //   node->Send(rand()%config->world->size(), rand()%NUM_RECVER, str);
     //   node->Recv();
     // }
+
+    for(int i=0;i<1000*10;i++){
+      rdma->rbfSend(config->id,rand()%config->world->size(), rand()%NUM_RECVER, str);
+      //rdma->rbfSend(config->id,config->world->rank(), rand()%NUM_RECVER, str);
+      rdma->rbfRecv(config->id);
+    }
 
     // for(int i=0;i<1000*10;i++){
     //   uint64_t *local_buffer = (uint64_t *)rdma->GetMsgAddr(config->id);
@@ -94,7 +109,7 @@ int main(int argc, char * argv[])
 	uint64_t rdma_size = 1024*1024*1024;  //1G
   	uint64_t slot_per_thread= 1024*1024*128;
   	//rdma_size = rdma_size*20; //20G 
-  	uint64_t total_size=rdma_size+slot_per_thread*NUM_THREAD;
+  	uint64_t total_size=rdma_size+slot_per_thread*NUM_THREAD*2;
 	Network_Node *node = new Network_Node(world.rank(),NUM_THREAD);
 	char *buffer= (char*) malloc(total_size);
 	rdma=new RdmaResource(world.size(),NUM_THREAD,world.rank(),buffer,total_size,slot_per_thread,rdma_size);
