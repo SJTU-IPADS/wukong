@@ -44,7 +44,7 @@ void query10(index_server* is);
 void* Run(void *ptr) {
   struct Thread_config *config = (struct Thread_config*) ptr;
   pin_to_core(socket_0[config->id]);
-  
+
   if(config->id!=0){
 	config->traverser_ptr->run();
   }else {

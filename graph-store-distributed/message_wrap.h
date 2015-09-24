@@ -4,7 +4,7 @@
 #include "network_node.h"
 #include "profile.h"
 
-#define USE_RBF 0
+#define USE_RBF 1
 
 #if USE_RBF
 

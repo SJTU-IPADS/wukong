@@ -194,16 +194,16 @@ struct normal_op_req
           local_buffer+=str.size()+padding;
           *((uint64_t*)local_buffer)=str.size();
           if(meta->remote_tail / rbf_datasize == (meta->remote_tail+total_write_size-1)/ rbf_datasize ){
-            uint64_t remote_msg_offset=remote_rbf_offset+sizeof(rbfMeta)+meta->remote_tail;
+            uint64_t remote_msg_offset=remote_rbf_offset+sizeof(rbfMeta)+(meta->remote_tail% rbf_datasize);
             RdmaWrite(local_tid,remote_mid,GetMsgAddr(local_tid),total_write_size,remote_msg_offset);
           } else {
             // we need to post 2 RdmaWrite
             uint64_t length1=rbf_datasize - (meta->remote_tail % rbf_datasize);
             uint64_t length2=total_write_size-length1;
-            uint64_t remote_msg_offset1=remote_rbf_offset+sizeof(rbfMeta)+meta->remote_tail;
+            uint64_t remote_msg_offset1=remote_rbf_offset+sizeof(rbfMeta)+(meta->remote_tail% rbf_datasize);
             uint64_t remote_msg_offset2=remote_rbf_offset+sizeof(rbfMeta);
             RdmaWrite(local_tid,remote_mid,GetMsgAddr(local_tid),length1,remote_msg_offset1);
-            RdmaWrite(local_tid,remote_mid,GetMsgAddr(local_tid)+length1,length2,remote_msg_offset2);
+            RdmaWrite(local_tid,remote_mid,GetMsgAddr(local_tid)+length1,length2,remote_msg_offset2);  
           }
           meta->remote_tail =meta->remote_tail+total_write_size;
       }
@@ -225,14 +225,22 @@ struct normal_op_req
             if(padding!=0)
               padding=sizeof(uint64_t)-padding;
             volatile uint64_t * msg_end_ptr=(uint64_t*)(rbf_data_ptr+ (meta->local_tail+msg_size+padding+sizeof(uint64_t))%rbf_datasize);
-            while(*msg_end_ptr !=msg_size){};
+            while(*msg_end_ptr !=msg_size){
+              uint64_t tmp=*msg_end_ptr;
+              if(tmp!=0 && tmp!=msg_size){
+                printf("waiting for %ld,but actually %ld\n",msg_size,tmp);
+                //printf("meta->local_tail=%ld,rbf_datasize=%ld\n",meta->local_tail,rbf_datasize);
+              }
+            };
             *msg_end_ptr=0;
             std::string result;
-            for(uint64_t i=0;i<msg_size;i++){
+            for(uint64_t i=0;i<msg_size+padding;i++){
               char * tmp=rbf_data_ptr+(meta->local_tail+sizeof(uint64_t)+i)%rbf_datasize;
-              result.push_back(*tmp);
+              if(i<msg_size)
+                result.push_back(*tmp);
               *tmp=0;
             }
+
             meta->local_tail+=msg_size+padding+2*sizeof(uint64_t);
             return result;
           }

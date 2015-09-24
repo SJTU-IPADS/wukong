@@ -45,6 +45,7 @@ public:
 			cout<<"average neighbor:"<<neighbor_num*1.0/(split_req+non_split_req)
 				<<"\t"<<"split-rate:"<<split_req*1.0/(split_req+non_split_req)
 				<<"\t"<<"msgsize=["<<min_msg<<","<<max_msg<<"]("<<sum_msg*1.0/count_msg<<")"
+				<<"\t"<<"total_msg="<<sum_msg/(1024*1024)<<" MB"
 				<<"\t"<<t2.diff(t)<<" ms"<<endl;
 			t.reset();
 		}
