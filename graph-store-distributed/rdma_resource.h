@@ -152,7 +152,7 @@ struct normal_op_req
     };
     uint64_t rbfOffset(int src_mid,int src_tid,int dst_mid,int dst_tid){
       uint64_t result=off+(_total_threads+src_tid) * slotsize;
-      result=result+rbf_size*global_tid(dst_mid,dst_tid);
+      result=result+rbf_size*(dst_mid*_total_threads+dst_tid);
       return result;
     }
 
@@ -172,6 +172,7 @@ struct normal_op_req
         //printf("send too many message\n");
         //assert(false);
       }
+
       if(_current_partition==remote_mid){
         // directly write
         char * ptr=buffer+remote_rbf_offset+sizeof(rbfMeta);

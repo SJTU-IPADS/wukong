@@ -74,9 +74,14 @@ void* Run(void *ptr) {
     //   node->Recv();
     // }
 
-    for(int i=0;i<1000*10;i++){
+    for(int i=0;i<batch_factor;i++){
       rdma->rbfSend(config->id,rand()%config->world->size(), rand()%NUM_RECVER, str);
-      //rdma->rbfSend(config->id,config->world->rank(), rand()%NUM_RECVER, str);
+    }
+    for(int i=0;i<1000*10;i++){
+      rdma->rbfRecv(config->id);
+      rdma->rbfSend(config->id,rand()%config->world->size(), rand()%NUM_RECVER, str);
+    }
+    for(int i=0;i<batch_factor;i++){
       rdma->rbfRecv(config->id);
     }
 

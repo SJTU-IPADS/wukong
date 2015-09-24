@@ -9,6 +9,17 @@
 #include "network_node.h"
 #include "rdma_resource.h"
 #include <pthread.h>
+
+int socket_0[] = {
+  0,2,4,6,8,10,12,14,16,18
+};
+void pin_to_core(size_t core) {
+  cpu_set_t  mask;
+  CPU_ZERO(&mask);
+  CPU_SET(core , &mask);
+  int result=sched_setaffinity(0, sizeof(mask), &mask);  
+}
+
 struct Thread_config{
   int id;
   traverser* traverser_ptr;
@@ -32,13 +43,15 @@ void query10(index_server* is);
 
 void* Run(void *ptr) {
   struct Thread_config *config = (struct Thread_config*) ptr;
+  pin_to_core(socket_0[config->id]);
+  
   if(config->id!=0){
 	config->traverser_ptr->run();
   }else {
   	//if(config->index_server_ptr->world.rank()!=0)
   	//	return (void* )NULL;
   	sleep(1);	
-  	query8(config->index_server_ptr);
+  	query1(config->index_server_ptr);
 
   	cout<<"Finish all requests"<<endl;
   }
@@ -66,7 +79,7 @@ int main(int argc, char * argv[])
 	uint64_t rdma_size = 1024*1024*1024;  //1G
   	uint64_t slot_per_thread= 1024*1024*128;
   	//rdma_size = rdma_size*20; //20G 
-  	uint64_t total_size=rdma_size+slot_per_thread*THREAD_NUM;
+  	uint64_t total_size=rdma_size+slot_per_thread*THREAD_NUM*2;
 	Network_Node *node = new Network_Node(world.rank(),THREAD_NUM);
 	char *buffer= (char*) malloc(total_size);
 	RdmaResource *rdma=new RdmaResource(world.size(),THREAD_NUM,world.rank(),buffer,total_size,slot_per_thread,rdma_size);
@@ -80,7 +93,7 @@ int main(int argc, char * argv[])
   	//cout<<"Fucking OK"<<endl;
 
 	graph g(world,rdma,argv[1]);
-	index_server is(world,argv[1],0);
+	index_server is(world,argv[1],rdma,0);
 	traverser* traverser_array[TRAVERSER_NUM];
 	concurrent_request_queue crq;
 	for(int i=0;i<TRAVERSER_NUM;i++){

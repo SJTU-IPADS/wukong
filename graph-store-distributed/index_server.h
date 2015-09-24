@@ -18,6 +18,8 @@
 #include "ontology.h"
 #include "timer.h"
 #include "network_node.h"
+#include "message_wrap.h"
+
 using std::string;
 
 class index_server{
@@ -27,6 +29,8 @@ class index_server{
 	vector<string> id_to_predict;
 	ontology ontology_table;
 	Network_Node* node;
+	RdmaResource* rdma;
+	int tid;
 	void load_ontology(string filename){
 		cout<<"index_server loading "<<filename<<endl;
 		ifstream file(filename.c_str());
@@ -78,9 +82,11 @@ class index_server{
 public:
 	request req;
 	boost::mpi::communicator& world;
-	index_server(boost::mpi::communicator& para_world,char* dir_name,int id):world(para_world){
+	index_server(boost::mpi::communicator& para_world,char* dir_name,
+						RdmaResource* _rdma,int id):world(para_world),rdma(_rdma){
 		first_target=0;
 		req_id=world.rank();
+		tid=id;
 		node=new Network_Node(world.rank(),id);
 		struct dirent *ptr;    
 		DIR *dir;
@@ -152,10 +158,10 @@ public:
 		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
 		req.req_id=-1;
 		req.parent_id=world.rank()-world.size();
-		//for(int i=0;i<10;i++)
-		node->SendReq(first_target, 1+rand()%TRAVERSER_NUM, req);
-		//for(int i=0;i<10;i++)
-		req=node->RecvReq();
+		// node->SendReq(first_target, 1+rand()%TRAVERSER_NUM, req);
+		// req=node->RecvReq();
+		SendReq(rdma,node,tid,first_target, 1+rand()%TRAVERSER_NUM, req);
+		req=RecvReq(rdma,node,tid);
 		req.cmd_chains.clear();
 		return *this;
 	}
@@ -164,10 +170,12 @@ public:
 		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
 		req.req_id=-1;
 		req.parent_id=world.rank()-world.size();
-		node->SendReq(first_target, 1+rand()%TRAVERSER_NUM, req);
+		//node->SendReq(first_target, 1+rand()%TRAVERSER_NUM, req);
+		SendReq(rdma,node,tid,first_target, 1+rand()%TRAVERSER_NUM, req);
 	}
 	request Recv(){
-		return node->RecvReq();
+		return RecvReq(rdma,node,tid);
+		//return node->RecvReq();
 	}
 
 	index_server& print_count(){

@@ -3,6 +3,7 @@
 #include "request.h"
 #include "request_queue.h"
 #include "network_node.h"
+#include "message_wrap.h"
 #include "profile.h"
 //traverser will remember all the paths just like
 //traverser_keeppath in single machine
@@ -224,26 +225,27 @@ public:
 			for(int i=0;i<sub_reqs.size();i++){
 				//int traverser_id=1+rand()%TRAVERSER_NUM;
 				int traverser_id=t_id;
-				node->SendReq(i ,traverser_id, sub_reqs[i],&split_profile);
+				//node->SendReq(i ,traverser_id, sub_reqs[i],&split_profile);
+				SendReq(rdma,node,t_id,i ,traverser_id, sub_reqs[i],&split_profile);
 			}
 			//merge_reqs(sub_reqs,r);
 		}	
 	} 
 	void run(){	
 		while(true){
-			request r=node->RecvReq();
-			
+			//request r=node->RecvReq();
+			request r=RecvReq(rdma,node,t_id);
 			//node->SendReq(r.parent_id + world.size() ,0, r);
 			//continue;
 
-			//cout<< world.rank()<<" recv req, parent_id= " <<r.parent_id<<endl;
 			if(r.req_id==-1){ //it means r is a request and shoule be executed
 				r.req_id=get_id();
 				handle_request(r);
 				if(!r.blocking){
 					if(r.parent_id<0){
 						split_profile.report();
-						node->SendReq(r.parent_id + world.size() ,0, r,&split_profile);
+						//node->SendReq(r.parent_id + world.size() ,0, r,&split_profile);
+						SendReq(rdma,node,t_id,r.parent_id + world.size() ,0, r,&split_profile);
 					} else {
 						int traverser_id=t_id;
 						//int traverser_id=1+rand()%TRAVERSER_NUM;
@@ -251,7 +253,8 @@ public:
 						// int traverser_id= (r.parent_id/world.size()) % (TRAVERSER_NUM);
 						// if(traverser_id==0)
 						// 	traverser_id+=TRAVERSER_NUM;
-						node->SendReq(r.parent_id %  world.size() ,traverser_id, r,&split_profile);
+						//node->SendReq(r.parent_id %  world.size() ,traverser_id, r,&split_profile);
+						SendReq(rdma,node,t_id,r.parent_id %  world.size() ,traverser_id, r,&split_profile);
 					}
 				}
 			} else {
@@ -259,14 +262,16 @@ public:
 				if(req_queue.put_reply(r)){
 					if(r.parent_id<0){
 						split_profile.report();
-						node->SendReq(r.parent_id + world.size() ,0, r,&split_profile);
+						//node->SendReq(r.parent_id + world.size() ,0, r,&split_profile);
+						SendReq(rdma,node,t_id,r.parent_id + world.size() ,0, r,&split_profile);
 					} else {
 						int traverser_id=t_id;
 						//int traverser_id=1+rand()%TRAVERSER_NUM;
 						// int traverser_id= (r.parent_id/world.size()) % (TRAVERSER_NUM);
 						// if(traverser_id==0)
 						// 	traverser_id+=TRAVERSER_NUM;
-						node->SendReq(r.parent_id %  world.size() ,traverser_id, r,&split_profile);
+						//node->SendReq(r.parent_id %  world.size() ,traverser_id, r,&split_profile);
+						SendReq(rdma,node,t_id,r.parent_id %  world.size() ,traverser_id, r,&split_profile);
 					}
 				}
 			}
