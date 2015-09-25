@@ -219,7 +219,6 @@ public:
 			for(int i=0;i<sub_reqs.size();i++){
 				//int traverser_id=1+rand()%TRAVERSER_NUM;
 				int traverser_id=cfg->t_id;
-				//node->SendReq(i ,traverser_id, sub_reqs[i],&split_profile);
 				SendReq(cfg,i ,traverser_id, sub_reqs[i],&split_profile);
 			}
 			//merge_reqs(sub_reqs,r);
@@ -238,16 +237,9 @@ public:
 				if(!r.blocking){
 					if(r.parent_id<0){
 						split_profile.report();
-						//node->SendReq(r.parent_id + cfg->m_num ,0, r,&split_profile);
 						SendReq(cfg,r.parent_id + cfg->m_num ,0, r,&split_profile);
 					} else {
 						int traverser_id=cfg->t_id;
-						//int traverser_id=1+rand()%TRAVERSER_NUM;
-						//r.parent_id=cfg->m_id+traverser_id*cfg->m_num+ k*cfg->m_num*TRAVERSER_NUM;
-						// int traverser_id= (r.parent_id/cfg->m_num) % (TRAVERSER_NUM);
-						// if(traverser_id==0)
-						// 	traverser_id+=TRAVERSER_NUM;
-						//node->SendReq(r.parent_id %  cfg->m_num ,traverser_id, r,&split_profile);
 						SendReq(cfg,r.parent_id %  cfg->m_num ,traverser_id, r,&split_profile);
 					}
 				}
@@ -256,15 +248,9 @@ public:
 				if(req_queue.put_reply(r)){
 					if(r.parent_id<0){
 						split_profile.report();
-						//node->SendReq(r.parent_id + cfg->m_num ,0, r,&split_profile);
 						SendReq(cfg,r.parent_id + cfg->m_num ,0, r,&split_profile);
 					} else {
 						int traverser_id=cfg->t_id;
-						//int traverser_id=1+rand()%TRAVERSER_NUM;
-						// int traverser_id= (r.parent_id/cfg->m_num) % (TRAVERSER_NUM);
-						// if(traverser_id==0)
-						// 	traverser_id+=TRAVERSER_NUM;
-						//node->SendReq(r.parent_id %  cfg->m_num ,traverser_id, r,&split_profile);
 						SendReq(cfg,r.parent_id %  cfg->m_num ,traverser_id, r,&split_profile);
 					}
 				}

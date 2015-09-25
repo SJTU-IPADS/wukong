@@ -156,7 +156,7 @@ struct normal_op_req
       return result;
     }
 
-    void rbfSend(int local_tid,int remote_mid,int remote_tid,std::string& str){
+    void rbfSend(int local_tid,int remote_mid,int remote_tid,const char * str_ptr, uint64_t str_size){
       char * rbf_ptr=buffer+rbfOffset(_current_partition,local_tid,remote_mid,remote_tid);
       struct rbfMeta* meta=(rbfMeta*) rbf_ptr;
       uint64_t remote_rbf_offset=rbfOffset(remote_mid,remote_tid,_current_partition,local_tid);
@@ -164,35 +164,31 @@ struct normal_op_req
 
       //Send data 
       uint64_t rbf_datasize=rbf_size-sizeof(rbfMeta);
-      uint64_t padding=str.size() % sizeof(uint64_t);
+      uint64_t padding=str_size % sizeof(uint64_t);
       if(padding!=0)
         padding=sizeof(uint64_t)-padding;
-      uint64_t total_write_size=sizeof(uint64_t)*2+str.size()+padding;
-      if(meta->remote_tail / rbf_datasize != (meta->remote_tail+total_write_size-1)/ rbf_datasize ){
-        //printf("send too many message\n");
-        //assert(false);
-      }
+      uint64_t total_write_size=sizeof(uint64_t)*2+str_size+padding;
 
       if(_current_partition==remote_mid){
         // directly write
         char * ptr=buffer+remote_rbf_offset+sizeof(rbfMeta);
-        *((uint64_t*)(ptr+(meta->remote_tail)%rbf_datasize))=str.size();
+        *((uint64_t*)(ptr+(meta->remote_tail)%rbf_datasize))=str_size;
         (meta->remote_tail)+=sizeof(uint64_t);
-        for(uint64_t i=0;i<str.size();i++){
-          *(ptr+(meta->remote_tail)%rbf_datasize)=str[i];
+        for(uint64_t i=0;i<str_size;i++){
+          *(ptr+(meta->remote_tail)%rbf_datasize)=str_ptr[i];
           meta->remote_tail++;
         }
         meta->remote_tail+=padding;
-        *((uint64_t*)(ptr+(meta->remote_tail)%rbf_datasize))=str.size();
+        *((uint64_t*)(ptr+(meta->remote_tail)%rbf_datasize))=str_size;
         (meta->remote_tail)+=sizeof(uint64_t);
         //printf("tid=%d write to (%d,%d),tail=%ld\n",local_tid,remote_mid,remote_tid,meta->remote_tail);
       } else {
           char* local_buffer=GetMsgAddr(local_tid);
-          *((uint64_t*)local_buffer)=str.size();
+          *((uint64_t*)local_buffer)=str_size;
           local_buffer+=sizeof(uint64_t);
-          memcpy(local_buffer,str.c_str(),str.size());
-          local_buffer+=str.size()+padding;
-          *((uint64_t*)local_buffer)=str.size();
+          memcpy(local_buffer,str_ptr,str_size);
+          local_buffer+=str_size+padding;
+          *((uint64_t*)local_buffer)=str_size;
           if(meta->remote_tail / rbf_datasize == (meta->remote_tail+total_write_size-1)/ rbf_datasize ){
             uint64_t remote_msg_offset=remote_rbf_offset+sizeof(rbfMeta)+(meta->remote_tail% rbf_datasize);
             RdmaWrite(local_tid,remote_mid,GetMsgAddr(local_tid),total_write_size,remote_msg_offset);
@@ -229,7 +225,7 @@ struct normal_op_req
               uint64_t tmp=*msg_end_ptr;
               if(tmp!=0 && tmp!=msg_size){
                 printf("waiting for %ld,but actually %ld\n",msg_size,tmp);
-                //printf("meta->local_tail=%ld,rbf_datasize=%ld\n",meta->local_tail,rbf_datasize);
+                exit(0);
               }
             };
             *msg_end_ptr=0;

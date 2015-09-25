@@ -9,4 +9,5 @@ struct thread_cfg{
 	int t_num;  // total thread number in each machine
 	Network_Node* node;
 	RdmaResource* rdma;
+	void* ptr; 
 };

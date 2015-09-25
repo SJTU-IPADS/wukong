@@ -22,12 +22,6 @@ void pin_to_core(size_t core) {
   int result=sched_setaffinity(0, sizeof(mask), &mask);  
 }
 
-struct pthread_parameter{
-  int id;
-  traverser* traverser_ptr;
-  index_server* index_server_ptr;
-};
-
 const int batch_factor=100;
 
 //query 2 is a patten matching query
@@ -43,21 +37,20 @@ void query7(index_server* is);
 void query8(index_server* is);
 void query10(index_server* is);
 
+
 void* Run(void *ptr) {
-  struct pthread_parameter *config = (struct pthread_parameter*) ptr;
-  pin_to_core(socket_0[config->id]);
+  struct thread_cfg *cfg = (struct thread_cfg*) ptr;
+  pin_to_core(socket_0[cfg->t_id]);
 
-  if(config->id!=0){
-	config->traverser_ptr->run();
+  if(cfg->t_id!=0){
+  	((traverser*)(cfg->ptr))->run();
   }else {
-  	//if(config->index_server_ptr->world.rank()!=0)
-  	//	return (void* )NULL;
   	sleep(1);	
-  	query1(config->index_server_ptr);
-
+  	query1((index_server*)(cfg->ptr));
   	cout<<"Finish all requests"<<endl;
   }
 }
+
 
 int main(int argc, char * argv[])
 {
@@ -110,15 +103,15 @@ int main(int argc, char * argv[])
 	for(int i=0;i<TRAVERSER_NUM;i++){
 		traverser_array[i]=new traverser(g,crq,&cfg_array[1+i]);
 	}
-	pthread_parameter *configs = new pthread_parameter[THREAD_NUM];
-  	pthread_t     *thread  = new pthread_t[THREAD_NUM];
+	
+	pthread_t     *thread  = new pthread_t[THREAD_NUM];
 	for(size_t id = 0;id < THREAD_NUM;++id) {
-      configs[id].id = id;
-      if(id==0)
-      	configs[id].index_server_ptr=&is;
-      else
-      	configs[id].traverser_ptr=traverser_array[id-1];
-      pthread_create (&(thread[id]), NULL, Run, (void *) &(configs[id]));
+		if(id==0){
+			cfg_array[id].ptr=&is;
+		} else {
+			cfg_array[id].ptr=traverser_array[id-1];
+		}
+		pthread_create (&(thread[id]), NULL, Run, (void *) &(cfg_array[id]));
     }
     for(size_t t = 0 ; t < THREAD_NUM; t++) {
       int rc = pthread_join(thread[t], NULL);
