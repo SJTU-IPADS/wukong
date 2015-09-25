@@ -11,7 +11,7 @@
 #include "../graph-store-distributed/network_node.h"
 #include "../graph-store-distributed/rdma_resource.h"
 using namespace std;
-struct Thread_config{
+struct pthread_parameter{
   int id;
   boost::mpi::communicator* world;
 };
@@ -34,7 +34,7 @@ int NUM_THREAD;
 int batch_factor;
 int extra_work;
 void* Run(void *ptr) {
-  struct Thread_config *config = (struct Thread_config*) ptr;
+  struct pthread_parameter *config = (struct pthread_parameter*) ptr;
   pin_to_core(socket_0[config->id]);
   
   Network_Node *node = new Network_Node(config->world->rank(),config->id);
@@ -133,7 +133,7 @@ int main(int argc, char * argv[])
   	//rdma->RdmaRead(0,(world.rank()+1)%world.size() ,(char *)local_buffer,100,start_addr);
     //cout<<"Fucking OK"<<endl;
 
-	Thread_config *configs = new Thread_config[NUM_THREAD];
+	pthread_parameter *configs = new pthread_parameter[NUM_THREAD];
   	pthread_t     *thread  = new pthread_t[NUM_THREAD];
 	for(size_t id = 0;id < NUM_THREAD;++id) {
       configs[id].id = id;

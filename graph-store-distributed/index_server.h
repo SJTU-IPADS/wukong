@@ -19,6 +19,7 @@
 #include "timer.h"
 #include "network_node.h"
 #include "message_wrap.h"
+#include "thread_cfg.h"
 
 using std::string;
 
@@ -28,9 +29,7 @@ class index_server{
 	vector<string> id_to_subject;
 	vector<string> id_to_predict;
 	ontology ontology_table;
-	Network_Node* node;
-	RdmaResource* rdma;
-	int tid;
+	thread_cfg* cfg;
 	void load_ontology(string filename){
 		cout<<"index_server loading "<<filename<<endl;
 		ifstream file(filename.c_str());
@@ -58,7 +57,7 @@ class index_server{
 	int req_id;
 	int get_id(){
 		int result=req_id;
-		req_id+=world.size();
+		req_id+=cfg->m_num;
 		return result;
 	}
 	int first_target;
@@ -81,13 +80,9 @@ class index_server{
 
 public:
 	request req;
-	boost::mpi::communicator& world;
-	index_server(boost::mpi::communicator& para_world,char* dir_name,
-						RdmaResource* _rdma,int id):world(para_world),rdma(_rdma){
+	index_server(char* dir_name,thread_cfg* _cfg):cfg(_cfg){
 		first_target=0;
-		req_id=world.rank();
-		tid=id;
-		node=new Network_Node(world.rank(),id);
+		req_id=cfg->m_id;
 		struct dirent *ptr;    
 		DIR *dir;
 		dir=opendir(dir_name);
@@ -107,11 +102,11 @@ public:
 				continue;
 			}
 		}
-		if(world.rank()==0)
+		if(cfg->m_id==0)
 			print_ontology_tree();
 	}
 	index_server& lookup(string subject){
-		first_target=subject_to_id[subject]%(world.size());
+		first_target=subject_to_id[subject]%(cfg->m_num);
 		req.clear();
 		path_node node(subject_to_id[subject],-1);
 		vector<path_node> vec;
@@ -120,7 +115,7 @@ public:
 		return *this;
 	}
 	index_server& lookup_id(int id){
-		first_target=id%(world.size());
+		first_target=id%(cfg->m_num);
 		req.clear();
 		path_node node(id,-1);
 		vector<path_node> vec;
@@ -157,11 +152,9 @@ public:
 		// so we can easily pop the cmd and do recursive operation
 		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
 		req.req_id=-1;
-		req.parent_id=world.rank()-world.size();
-		// node->SendReq(first_target, 1+rand()%TRAVERSER_NUM, req);
-		// req=node->RecvReq();
-		SendReq(rdma,node,tid,first_target, 1+rand()%TRAVERSER_NUM, req);
-		req=RecvReq(rdma,node,tid);
+		req.parent_id=cfg->m_id - cfg->m_num;
+		SendReq(cfg,first_target, 1+rand()%TRAVERSER_NUM, req);
+		req=RecvReq(cfg);
 		req.cmd_chains.clear();
 		return *this;
 	}
@@ -169,18 +162,16 @@ public:
 	void Send(){
 		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
 		req.req_id=-1;
-		req.parent_id=world.rank()-world.size();
-		//node->SendReq(first_target, 1+rand()%TRAVERSER_NUM, req);
-		SendReq(rdma,node,tid,first_target, 1+rand()%TRAVERSER_NUM, req);
+		req.parent_id=cfg->m_id - cfg->m_num;
+		SendReq(cfg,first_target, 1+rand()%TRAVERSER_NUM, req);
 	}
 	request Recv(){
-		return RecvReq(rdma,node,tid);
-		//return node->RecvReq();
+		return RecvReq(cfg);
 	}
 
 	index_server& print_count(){
 		int path_len=req.result_paths.size();
-		//cout<<req.result_paths[path_len-1].size()<<endl;
+		cout<<req.result_paths[path_len-1].size()<<endl;
 		return *this;
 	}
 

@@ -14,8 +14,6 @@
 #include <errno.h>
 
 #include <sstream> 
-#include "request.h"
-#include "profile.h"
 class Network_Node {
   
 public:
@@ -87,27 +85,6 @@ public:
       return std::string((char *)reply.data(),reply.size());
     else
       return "";
-  }
-
-  void SendReq(int _pid,int _nid,request& r,profile* profile_ptr=NULL){
-
-    std::stringstream ss;
-    boost::archive::text_oarchive oa(ss);
-    oa << r;
-    if(profile_ptr!=NULL){
-      profile_ptr->record(ss.str().size());
-    }
-    //std::cout<<"("<<pid<<","<<nid<<")->"<<"("<<_pid<<","<<_nid<<"),size="<<ss.str().size()<<std::endl;
-    Send(_pid,_nid,ss.str());
-  }
-  request RecvReq(){
-    std::string str=Recv();
-    std::stringstream s;
-    s << str;
-    boost::archive::text_iarchive ia(s);
-    request r;
-    ia >> r;
-    return r;
   }
 };
 

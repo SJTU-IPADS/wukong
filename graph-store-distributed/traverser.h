@@ -10,17 +10,14 @@
 
 class traverser{
 	graph& g;
-	boost::mpi::communicator& world;
 	concurrent_request_queue& concurrent_req_queue;
 	request_queue req_queue;
-	Network_Node* node;
-	RdmaResource* rdma;
+	thread_cfg* cfg;
 	profile split_profile;
 	int req_id;
-	int t_id;
 	int get_id(){
 		int result=req_id;
-		req_id+=world.size()*TRAVERSER_NUM;
+		req_id+=cfg->m_num*TRAVERSER_NUM;
 		return result;
 	}
 	vector<path_node> do_neighbors(request& r){
@@ -111,7 +108,7 @@ class traverser{
 	}
 	vector<request> split_request(vector<path_node>& vec,request& r){
 		vector<request> sub_reqs;
-		int num_sub_request=world.size();
+		int num_sub_request=cfg->m_num;
 		sub_reqs.resize(num_sub_request);
 		for(int i=0;i<sub_reqs.size();i++){
 			sub_reqs[i].parent_id=r.req_id;
@@ -126,12 +123,9 @@ class traverser{
 		return sub_reqs;
 	}
 public:
-	traverser(boost::mpi::communicator& para_world,graph& gg,
-			concurrent_request_queue& crq,RdmaResource* _rdma,int id)
-			:world(para_world),g(gg),concurrent_req_queue(crq),rdma(_rdma){
-		req_id=world.rank()+id*world.size();
-		node=new Network_Node(world.rank(),id);
-		t_id=id;
+	traverser(graph& gg,concurrent_request_queue& crq,thread_cfg* _cfg)
+			:g(gg),concurrent_req_queue(crq),cfg(_cfg){
+		req_id=cfg->m_id+cfg->t_id*cfg->m_num;
 	}
 	void handle_request(request& r){
 		if(r.cmd_chains.size()==0)
@@ -154,7 +148,7 @@ public:
 		//trying to execute using one-side RDMA here~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		// if(r.cmd_chains.size()!=0){
 		// 	split_profile.neighbor_num+=vec.size();
-		// 	if(vec.size()<world.size()*10){
+		// 	if(vec.size()<cfg->m_num*10){
 		// 		split_profile.split_req++;
 		// 	} else {
 		// 		split_profile.non_split_req++;
@@ -162,15 +156,15 @@ public:
 		// }
 
 		if(false){
-		//if(r.cmd_chains.size()!=0 && vec.size()<world.size()*10){
+		//if(r.cmd_chains.size()!=0 && vec.size()<cfg->m_num*10){
 		//while(r.cmd_chains.size()!=0 ){
 			split_profile.neighbor_num+=vec.size();
-			if(vec.size()<world.size()*10){
+			if(vec.size()<cfg->m_num*10){
 				split_profile.split_req++;
 			} else {
 				split_profile.non_split_req++;
 			}
-			//if(vec.size()>=world.size()*10)
+			//if(vec.size()>=cfg->m_num*10)
 			//	break;
 
 			int dir=para_out;			
@@ -185,7 +179,7 @@ public:
 			vector<path_node> new_vec;
 			if(cmd_type == cmd_subclass_of){
 				for(int i=0;i<vec.size();i++){
-					vector<edge_row> edges=g.kstore.readGlobal(t_id,vec[i].id,dir);
+					vector<edge_row> edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir);
 					for(int k=0;k<edges.size();k++){
 						if(0==edges[k].predict && 
 							g.ontology_table.is_subtype_of(edges[k].vid,target_id)){
@@ -197,7 +191,7 @@ public:
 				vec=new_vec; //replace old vec since subclass is a filter operation
 			} else if(cmd_type == cmd_neighbors){
 				for(int i=0;i<vec.size();i++){
-					vector<edge_row> edges=g.kstore.readGlobal(t_id,vec[i].id,dir);
+					vector<edge_row> edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir);
 					for(int k=0;k<edges.size();k++){
 						if(target_id==edges[k].predict){
 							new_vec.push_back(path_node(edges[k].vid,i));
@@ -224,9 +218,9 @@ public:
 			//concurrent_req_queue.put_req(r,sub_reqs.size());
 			for(int i=0;i<sub_reqs.size();i++){
 				//int traverser_id=1+rand()%TRAVERSER_NUM;
-				int traverser_id=t_id;
+				int traverser_id=cfg->t_id;
 				//node->SendReq(i ,traverser_id, sub_reqs[i],&split_profile);
-				SendReq(rdma,node,t_id,i ,traverser_id, sub_reqs[i],&split_profile);
+				SendReq(cfg,i ,traverser_id, sub_reqs[i],&split_profile);
 			}
 			//merge_reqs(sub_reqs,r);
 		}	
@@ -234,8 +228,8 @@ public:
 	void run(){	
 		while(true){
 			//request r=node->RecvReq();
-			request r=RecvReq(rdma,node,t_id);
-			//node->SendReq(r.parent_id + world.size() ,0, r);
+			request r=RecvReq(cfg);
+			//node->SendReq(r.parent_id + cfg->m_num ,0, r);
 			//continue;
 
 			if(r.req_id==-1){ //it means r is a request and shoule be executed
@@ -244,17 +238,17 @@ public:
 				if(!r.blocking){
 					if(r.parent_id<0){
 						split_profile.report();
-						//node->SendReq(r.parent_id + world.size() ,0, r,&split_profile);
-						SendReq(rdma,node,t_id,r.parent_id + world.size() ,0, r,&split_profile);
+						//node->SendReq(r.parent_id + cfg->m_num ,0, r,&split_profile);
+						SendReq(cfg,r.parent_id + cfg->m_num ,0, r,&split_profile);
 					} else {
-						int traverser_id=t_id;
+						int traverser_id=cfg->t_id;
 						//int traverser_id=1+rand()%TRAVERSER_NUM;
-						//r.parent_id=world.rank()+traverser_id*world.size()+ k*world.size()*TRAVERSER_NUM;
-						// int traverser_id= (r.parent_id/world.size()) % (TRAVERSER_NUM);
+						//r.parent_id=cfg->m_id+traverser_id*cfg->m_num+ k*cfg->m_num*TRAVERSER_NUM;
+						// int traverser_id= (r.parent_id/cfg->m_num) % (TRAVERSER_NUM);
 						// if(traverser_id==0)
 						// 	traverser_id+=TRAVERSER_NUM;
-						//node->SendReq(r.parent_id %  world.size() ,traverser_id, r,&split_profile);
-						SendReq(rdma,node,t_id,r.parent_id %  world.size() ,traverser_id, r,&split_profile);
+						//node->SendReq(r.parent_id %  cfg->m_num ,traverser_id, r,&split_profile);
+						SendReq(cfg,r.parent_id %  cfg->m_num ,traverser_id, r,&split_profile);
 					}
 				}
 			} else {
@@ -262,16 +256,16 @@ public:
 				if(req_queue.put_reply(r)){
 					if(r.parent_id<0){
 						split_profile.report();
-						//node->SendReq(r.parent_id + world.size() ,0, r,&split_profile);
-						SendReq(rdma,node,t_id,r.parent_id + world.size() ,0, r,&split_profile);
+						//node->SendReq(r.parent_id + cfg->m_num ,0, r,&split_profile);
+						SendReq(cfg,r.parent_id + cfg->m_num ,0, r,&split_profile);
 					} else {
-						int traverser_id=t_id;
+						int traverser_id=cfg->t_id;
 						//int traverser_id=1+rand()%TRAVERSER_NUM;
-						// int traverser_id= (r.parent_id/world.size()) % (TRAVERSER_NUM);
+						// int traverser_id= (r.parent_id/cfg->m_num) % (TRAVERSER_NUM);
 						// if(traverser_id==0)
 						// 	traverser_id+=TRAVERSER_NUM;
-						//node->SendReq(r.parent_id %  world.size() ,traverser_id, r,&split_profile);
-						SendReq(rdma,node,t_id,r.parent_id %  world.size() ,traverser_id, r,&split_profile);
+						//node->SendReq(r.parent_id %  cfg->m_num ,traverser_id, r,&split_profile);
+						SendReq(cfg,r.parent_id %  cfg->m_num ,traverser_id, r,&split_profile);
 					}
 				}
 			}

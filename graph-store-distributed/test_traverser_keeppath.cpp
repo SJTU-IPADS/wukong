@@ -8,7 +8,9 @@
 #include "index_server.h"
 #include "network_node.h"
 #include "rdma_resource.h"
+#include "thread_cfg.h"
 #include <pthread.h>
+
 
 int socket_0[] = {
   0,2,4,6,8,10,12,14,16,18
@@ -20,7 +22,7 @@ void pin_to_core(size_t core) {
   int result=sched_setaffinity(0, sizeof(mask), &mask);  
 }
 
-struct Thread_config{
+struct pthread_parameter{
   int id;
   traverser* traverser_ptr;
   index_server* index_server_ptr;
@@ -42,7 +44,7 @@ void query8(index_server* is);
 void query10(index_server* is);
 
 void* Run(void *ptr) {
-  struct Thread_config *config = (struct Thread_config*) ptr;
+  struct pthread_parameter *config = (struct pthread_parameter*) ptr;
   pin_to_core(socket_0[config->id]);
 
   if(config->id!=0){
@@ -79,8 +81,8 @@ int main(int argc, char * argv[])
 	uint64_t rdma_size = 1024*1024*1024;  //1G
   	uint64_t slot_per_thread= 1024*1024*128;
   	//rdma_size = rdma_size*20; //20G 
-  	uint64_t total_size=rdma_size+slot_per_thread*THREAD_NUM*2;
-	Network_Node *node = new Network_Node(world.rank(),THREAD_NUM);
+  	uint64_t total_size=rdma_size+slot_per_thread*THREAD_NUM*2; 
+	Network_Node *node = new Network_Node(world.rank(),THREAD_NUM);//[0-THREAD_NUM-1] are used
 	char *buffer= (char*) malloc(total_size);
 	RdmaResource *rdma=new RdmaResource(world.size(),THREAD_NUM,world.rank(),buffer,total_size,slot_per_thread,rdma_size);
 	rdma->node = node;
@@ -91,15 +93,24 @@ int main(int argc, char * argv[])
   	uint64_t start_addr=0;
   	//rdma->RdmaRead(0,(world.rank()+1)%world.size() ,(char *)local_buffer,1024,start_addr);
   	//cout<<"Fucking OK"<<endl;
-
+	
+	thread_cfg* cfg_array= new thread_cfg[THREAD_NUM];
+	for(int i=0;i<THREAD_NUM;i++){
+		cfg_array[i].t_id=i;
+		cfg_array[i].t_num=THREAD_NUM;
+		cfg_array[i].m_id=world.rank();
+		cfg_array[i].m_num=world.size();
+		cfg_array[i].rdma=rdma;
+		cfg_array[i].node=new Network_Node(cfg_array[i].m_id,cfg_array[i].t_id);
+	}
 	graph g(world,rdma,argv[1]);
-	index_server is(world,argv[1],rdma,0);
+	index_server is(argv[1],&cfg_array[0]);
 	traverser* traverser_array[TRAVERSER_NUM];
 	concurrent_request_queue crq;
 	for(int i=0;i<TRAVERSER_NUM;i++){
-		traverser_array[i]=new traverser(world,g,crq,rdma,1+i);
+		traverser_array[i]=new traverser(g,crq,&cfg_array[1+i]);
 	}
-	Thread_config *configs = new Thread_config[THREAD_NUM];
+	pthread_parameter *configs = new pthread_parameter[THREAD_NUM];
   	pthread_t     *thread  = new pthread_t[THREAD_NUM];
 	for(size_t id = 0;id < THREAD_NUM;++id) {
       configs[id].id = id;
@@ -117,159 +128,6 @@ int main(int argc, char * argv[])
       }
     }
 
-
-	// if(world.rank() < world.size()-1){
-	// 	graph g(world,argv[1]);
-	// 	traverser t(world,g);
-	// 	t.run();
-	// } else {
-	// 	index_server is(world,argv[1]);
-
-	// 	//query 1
-	// 	is.lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
-	// 		.neighbors("in","<ub#takesCourse>")
-	// 		.subclass_of("<ub#GraduateStudent>")
-	// 		.execute()
-	// 		.print_count();
-
-	// 	//query 1
-	// 	is.lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
-	// 		.neighbors("in","<ub#takesCourse>")
-	// 		.subclass_of("<ub#GraduateStudent>")
-	// 		.execute()
-	// 		.print_count();
-	// 	//query 1
-	// 	is.lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
-	// 		.neighbors("in","<ub#takesCourse>")
-	// 		//.subclass_of("<ub#GraduateStudent>")
-	// 		.execute()
-	// 		.print_count();
-	// 	//query 1
-	// 	is.lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
-	// 		.neighbors("in","<ub#takesCourse>")
-	// 		//.subclass_of("<ub#GraduateStudent>")
-	// 		.execute()
-	// 		.print_count();
-
-		//query 2
-		//TODO
-	// 	{
-	// 		request r1=	is.get_subtype("<ub#Department>")
-	// 						.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
-	// 						.neighbors("out","<ub#subOrganizationOf>")
-	// 						.neighbors("in","<ub#undergraduateDegreeFrom>")
-	// 						.execute()
-	// 						.req;
-	// 		request r2=	is.get_subtype("<ub#Department>")
-	// 						.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
-	// 						.neighbors("in","<ub#memberOf>")
-	// 						.execute()
-	// 						.req;
-	// 		int c1=r1.path_num();
-	// 		int c2=r2.path_num();
-	// 		r1.merge(r2,2);
-			
-	// 		cout<<c1<<"*"<<c2<<"="<<r1.path_num()<<endl;
-	// 	}
-	// 	//query 3
-	// 	is.lookup("<http://www.Department0.University0.edu/AssistantProfessor0>")
-	// 		.neighbors("in","<ub#publicationAuthor>")
-	// 		.subclass_of("<ub#Publication>")
-	// 		.execute()
-	// 		.print_count();
-
-	// 	//query 4
-	// 	is.lookup("<http://www.Department0.University0.edu>")
-	// 		.neighbors("in","<ub#worksFor>")
-	// 		.subclass_of("<ub#Professor>")
-	// 		.execute()
-	// 		.print_count();
-		
-	// 	//query 5
-	// 	is.lookup("<http://www.Department0.University0.edu>")
-	// 		.neighbors("in","<ub#memberOf>")
-	// 		.subclass_of("<ub#Person>")
-	// 		.execute()
-	// 		.print_count();
-
-	// 	//query 6
-	// 	is.get_subtype("<ub#Student>")
-	// 		.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
-	// 		.execute()
-	// 		.print_count();
-
-	// 	//query 7
-	// 	is.lookup("<http://www.Department0.University0.edu/AssociateProfessor0>")
-	// 			.neighbors("out","<ub#teacherOf>")
-	// 			.subclass_of("<ub#Course>")
-	// 			.neighbors("in","<ub#takesCourse>")
-	// 			.subclass_of("<ub#Student>")
-	// 			.execute()
-	// 			.print_count();
-
-	// 	//query 8
-				
-	// 	is.lookup("<http://www.University0.edu>")
-	// 		.neighbors("in","<ub#subOrganizationOf>")
-	// 		.subclass_of("<ub#Department>")	
-	// 		.neighbors("in","<ub#memberOf>")
-	// 		.subclass_of("<ub#Student>")
-	// 		.execute()
-	// 		.print_count();
-
-	// 	//query 9
-	// 	//TODO
-	// 	{
-	// 		cout<<"Query 9-1 :"<<endl;
-	// 		cout<<"Faculty (teacherOf)-> Course <-(takesCourse) Student"<<endl;
-	// 		cout<<"Faculty <-(advisor) Student"<<endl;
-	// 		request r1=	is.get_subtype("<ub#Faculty>")
-	// 						.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
-	// 						.neighbors("out","<ub#teacherOf>")
-	// 						.neighbors("in","<ub#takesCourse>")
-	// 						.execute()
-	// 						.req;
-	// 		request r2=	is.get_subtype("<ub#Faculty>")
-	// 						.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
-	// 						.neighbors("in","<ub#advisor>")
-	// 						.execute()
-	// 						.req;
-	// 		int c1=r1.path_num();
-	// 		int c2=r2.path_num();
-	// 		r1.merge(r2,2);
-	// 		cout<<c1<<"*"<<c2<<"="<<r1.path_num()<<endl;
-	// 	}
-	// 	{
-	// 		cout<<"Query 9-2 :"<<endl;
-	// 		cout<<"Faculty <-(advisor) Student (takesCourse)-> Course"<<endl;
-	// 		cout<<"Faculty (teacherOf)-> Course "<<endl;
-	// 		request r1=	is.get_subtype("<ub#Faculty>")
-	// 						.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
-	// 						.neighbors("in","<ub#advisor>")
-	// 						.neighbors("out","<ub#takesCourse>")
-	// 						.execute()
-	// 						.req;
-	// 		request r2=	is.get_subtype("<ub#Faculty>")
-	// 						.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
-	// 						.neighbors("out","<ub#teacherOf>")
-	// 						.execute()
-	// 						.req;
-	// 		int c1=r1.path_num();
-	// 		int c2=r2.path_num();
-	// 		r1.merge(r2,2);
-	// 		cout<<c1<<"*"<<c2<<"="<<r1.path_num()<<endl;
-	// 	}
-
-	// 	//query 10
-	// 	is.lookup("<http://www.Department0.University0.edu/GraduateCourse0>")
-	// 		.neighbors("in","<ub#takesCourse>")
-	// 		.subclass_of("<ub#Student>")
-	// 		.execute()
-	// 		.print_count();
-
-	// 	cout<<"finish"<<endl;
-
-	// }
 
     return 0;
 }
