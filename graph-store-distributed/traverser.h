@@ -155,17 +155,17 @@ public:
 		// 	}
 		// }
 
-		if(false){
+		//if(false){
 		//if(r.cmd_chains.size()!=0 && vec.size()<cfg->m_num*10){
-		//while(r.cmd_chains.size()!=0 ){
+		while(r.cmd_chains.size()!=0 ){
 			split_profile.neighbor_num+=vec.size();
 			if(vec.size()<cfg->m_num*10){
 				split_profile.split_req++;
 			} else {
 				split_profile.non_split_req++;
 			}
-			//if(vec.size()>=cfg->m_num*10)
-			//	break;
+			if(vec.size()>=cfg->m_num*10)
+				break;
 
 			int dir=para_out;			
 			int cmd_type=r.cmd_chains.back();
@@ -236,7 +236,7 @@ public:
 				handle_request(r);
 				if(!r.blocking){
 					if(r.parent_id<0){
-						split_profile.report();
+						split_profile.report_msgsize();
 						SendReq(cfg,r.parent_id + cfg->m_num ,0, r,&split_profile);
 					} else {
 						int traverser_id=cfg->t_id;
@@ -247,7 +247,7 @@ public:
 				//if(concurrent_req_queue.put_reply(r)){
 				if(req_queue.put_reply(r)){
 					if(r.parent_id<0){
-						split_profile.report();
+						split_profile.report_msgsize();
 						SendReq(cfg,r.parent_id + cfg->m_num ,0, r,&split_profile);
 					} else {
 						int traverser_id=cfg->t_id;

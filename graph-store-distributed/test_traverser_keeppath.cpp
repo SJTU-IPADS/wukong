@@ -22,11 +22,15 @@ void pin_to_core(size_t core) {
   int result=sched_setaffinity(0, sizeof(mask), &mask);  
 }
 
-const int batch_factor=100;
+int num_recver;
+int num_thread;
+int batch_factor;
+
+//const int batch_factor=100;
 
 //query 2 is a patten matching query
-//query 4 is not complex , need to read attributes of every vertex
-//query 8 is not complex , need to read attributes of every vertex
+//query 4 is not complete , need to read attributes of every vertex
+//query 8 is not complete , need to read attributes of every vertex
 //query 9 is a patten matching query
 
 void query1(index_server* is);
@@ -63,11 +67,13 @@ int main(int argc, char * argv[])
 	    MPI_Abort(MPI_COMM_WORLD, 1);
 	}
 
-	if(argc !=2)
+	if(argc !=3)
 	{
-		printf("usage:./test_graph dir\n");
+		printf("usage:./test_graph dir batch_factor\n");
 		return -1;
 	}
+	batch_factor=atoi(argv[2]);
+
 	boost::mpi::environment env(argc, argv);
 	boost::mpi::communicator world;
 

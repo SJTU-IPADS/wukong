@@ -13,7 +13,7 @@ void SendReq(thread_cfg* cfg,int r_mid,int r_tid,request& r,profile* profile_ptr
     boost::archive::text_oarchive oa(ss);
     oa << r;
     if(profile_ptr!=NULL){
-      profile_ptr->record(ss.str().size());
+        profile_ptr->record_msgsize(ss.str().size());
     }
 
 #if USE_RBF

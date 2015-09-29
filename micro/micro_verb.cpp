@@ -61,7 +61,7 @@ void* Run(void *ptr) {
       if(count==100000){
         t2.reset();
         cout<<"(S="<<num_sender<<",R="<<num_recver <<")\t"
-                <<"batch="<<batch_factor<<"\t"<<"extre="<<extra_work <<"\t"
+                <<"batch="<<batch_factor<<"\t"<<"extra="<<extra_work <<"\t"
                 <<t2.diff(t1)<<" ms"<<endl;
         t1.reset();
         count=0;
@@ -108,7 +108,7 @@ int main(int argc, char * argv[])
   	uint64_t slot_per_thread= 1024*1024*128;
   	//rdma_size = rdma_size*20; //20G 
   	uint64_t total_size=rdma_size+slot_per_thread*num_thread*2;
-	Network_Node *node = new Network_Node(world.rank(),num_thread);
+	Network_Node *node = new Network_Node(world.rank(),100);
 	char *buffer= (char*) malloc(total_size);
 	rdma=new RdmaResource(world.size(),num_thread,world.rank(),buffer,total_size,slot_per_thread,rdma_size);
 	rdma->node = node;

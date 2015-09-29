@@ -610,7 +610,7 @@ poll_completion (struct QP *res) {
       zmq::context_t context(1);
       zmq::socket_t socket(context,ZMQ_REQ);
         
-      int port = 5573;
+      int port = 5576;
       snprintf(address,30,"tcp://%s:%d",node->net_def[j].c_str(),port);
       fprintf(stdout,"connect to %s\n",address);
       socket.connect(address);
@@ -830,7 +830,7 @@ internal_rdtsc(void)
     zmq::socket_t socket(context,ZMQ_REP);
     
     char address[30]="";
-    int port =  5573;
+    int port =  5576;
     int _current_partition=rdma->_current_partition;
     sprintf(address,"tcp://%s:%d",rdma->node->net_def[_current_partition].c_str(),port);
     fprintf(stdout,"binding: %s\n",address);

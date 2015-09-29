@@ -30,6 +30,7 @@ class index_server{
 	vector<string> id_to_predict;
 	ontology ontology_table;
 	thread_cfg* cfg;
+	profile latency_profile;
 	void load_ontology(string filename){
 		cout<<"index_server loading "<<filename<<endl;
 		ifstream file(filename.c_str());
@@ -163,10 +164,15 @@ public:
 		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
 		req.req_id=-1;
 		req.parent_id=cfg->m_id - cfg->m_num;
+		req.timestamp=timer::get_usec();
 		SendReq(cfg,first_target, 1+rand()%TRAVERSER_NUM, req);
+
 	}
 	request Recv(){
-		return RecvReq(cfg);
+		req=RecvReq(cfg);
+		if(cfg->m_id==0)
+			latency_profile.record_and_report_latency(timer::get_usec()-req.timestamp);
+		return req;
 	}
 
 	index_server& print_count(){

@@ -42,6 +42,7 @@ struct path_node_less_than
     }
 };
 struct request{
+	uint64_t timestamp;
 	int req_id;
 	int parent_id;
 	bool blocking;
@@ -141,6 +142,7 @@ struct request{
 
 	template <typename Archive>
 	void serialize(Archive &ar, const unsigned int version) { 
+		ar & timestamp;
 		ar & req_id; 
 		ar & parent_id; 
 		ar & cmd_chains; 
