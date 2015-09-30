@@ -80,7 +80,7 @@ public:
 		// so we can easily pop the cmd and do recursive operation
 		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
 		req.req_id=-1;
-		req.parent_id=cfg->m_id - cfg->m_num;
+		req.parent_id=cfg->get_inc_id();
 		SendReq(cfg,first_target, cfg->client_num+rand()%cfg->server_num, req);
 		req=RecvReq(cfg);
 		req.cmd_chains.clear();
@@ -90,7 +90,7 @@ public:
 	void Send(){
 		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
 		req.req_id=-1;
-		req.parent_id=cfg->m_id - cfg->m_num;
+		req.parent_id=cfg->get_inc_id();
 		req.timestamp=timer::get_usec();
 		SendReq(cfg,first_target, cfg->client_num+rand()%cfg->server_num, req);
 

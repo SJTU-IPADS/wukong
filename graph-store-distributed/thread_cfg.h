@@ -12,4 +12,26 @@ struct thread_cfg{
 	Network_Node* node;
 	RdmaResource* rdma;
 	void* ptr; 
+
+//get_id for requests	
+	int inc_id;//internal
+	void init(){
+		inc_id=t_num*m_id+t_id;
+	}
+	int get_inc_id(){
+		int tmp=inc_id;
+		inc_id+=m_num*t_num;
+		return tmp;
+	}
+	int mid_of(int target_id){
+		return (target_id%(m_num*t_num))/t_num;
+	}
+	int tid_of(int target_id){
+		return target_id%t_num;
+	}
+	bool is_client(int target_id){
+		if(tid_of(target_id)<client_num)
+			return true;
+		return false;
+	}
 };

@@ -231,27 +231,23 @@ public:
 			//continue;
 
 			if(r.req_id==-1){ //it means r is a request and shoule be executed
-				r.req_id=get_id();
+				//r.req_id=get_id();
+				r.req_id=cfg->get_inc_id();
+
 				handle_request(r);
 				if(!r.blocking){
-					if(r.parent_id<0){
+					if(cfg->is_client(r.parent_id)){
 						split_profile.report_msgsize();
-						SendReq(cfg,r.parent_id + cfg->m_num ,0, r,&split_profile);
-					} else {
-						int traverser_id=cfg->t_id;
-						SendReq(cfg,r.parent_id %  cfg->m_num ,traverser_id, r,&split_profile);
 					}
+					SendReq(cfg,cfg->mid_of(r.parent_id) ,cfg->tid_of(r.parent_id), r,&split_profile);
 				}
 			} else {
 				//if(concurrent_req_queue.put_reply(r)){
 				if(req_queue.put_reply(r)){
-					if(r.parent_id<0){
+					if(cfg->is_client(r.parent_id)){
 						split_profile.report_msgsize();
-						SendReq(cfg,r.parent_id + cfg->m_num ,0, r,&split_profile);
-					} else {
-						int traverser_id=cfg->t_id;
-						SendReq(cfg,r.parent_id %  cfg->m_num ,traverser_id, r,&split_profile);
 					}
+					SendReq(cfg,cfg->mid_of(r.parent_id) ,cfg->tid_of(r.parent_id), r,&split_profile);
 				}
 			}
 		}

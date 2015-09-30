@@ -60,15 +60,16 @@ public:
 		count_msg++;
 	}
 	void report_msgsize(){
+		int interval=1000*10;
 		current_req++;
-		if(current_req==10000){
+		if(current_req==interval){
 			current_req=0;
 			timer t2;
 			cout<<"average neighbor:"<<neighbor_num*1.0/(split_req+non_split_req)
 				<<"\t"<<"split-rate:"<<split_req*1.0/(split_req+non_split_req)
 				<<"\t"<<"msgsize=["<<min_msg<<","<<max_msg<<"]("<<sum_msg*1.0/count_msg<<")"
 				<<"\t"<<"total_msg="<<sum_msg/(1024*1024)<<" MB"
-				<<"\t"<<t2.diff(t)<<" ms"<<endl;
+				<<"\t"<<interval*1.0/t2.diff(t)<<" K ops"<<endl;
 			t.reset();
 		}
 	}

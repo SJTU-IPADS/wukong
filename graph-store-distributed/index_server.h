@@ -24,13 +24,6 @@
 using std::string;
 
 class index_server{
-	unordered_map<string,int> subject_to_id;
-	unordered_map<string,int> predict_to_id;
-	vector<string> id_to_subject;
-	vector<string> id_to_predict;
-	ontology ontology_table;
-	thread_cfg* cfg;
-	profile latency_profile;
 	void load_ontology(string filename){
 		cout<<"index_server loading "<<filename<<endl;
 		ifstream file(filename.c_str());
@@ -56,8 +49,7 @@ class index_server{
 		file.close();
 	}
 	
-	int first_target;
-
+	
 	void print_tree(int id,int level){
 		for(int i=0;i<level;i++)
 			cout<<"\t";
@@ -75,9 +67,13 @@ class index_server{
 	}
 
 public:
+	unordered_map<string,int> subject_to_id;
+	unordered_map<string,int> predict_to_id;
+	vector<string> id_to_subject;
+	vector<string> id_to_predict;
+	ontology ontology_table;
 	request req;
-	index_server(char* dir_name,thread_cfg* _cfg):cfg(_cfg){
-		first_target=0;
+	index_server(char* dir_name){
 		
 		struct dirent *ptr;    
 		DIR *dir;
@@ -98,82 +94,5 @@ public:
 				continue;
 			}
 		}
-		if(cfg->m_id==0)
-			print_ontology_tree();
 	}
-	index_server& lookup(string subject){
-		first_target=subject_to_id[subject]%(cfg->m_num);
-		req.clear();
-		path_node node(subject_to_id[subject],-1);
-		vector<path_node> vec;
-		vec.push_back(node);
-		req.result_paths.push_back(vec);
-		return *this;
-	}
-	index_server& lookup_id(int id){
-		first_target=id%(cfg->m_num);
-		req.clear();
-		path_node node(id,-1);
-		vector<path_node> vec;
-		vec.push_back(node);
-		req.result_paths.push_back(vec);
-		return *this;
-	}
-	index_server& get_subtype(string target){
-		req.clear();
-		int target_id=subject_to_id[target];
-		req.cmd_chains.push_back(cmd_get_subtype);
-		req.cmd_chains.push_back(target_id);
-		return *this;
-	}
-	index_server& neighbors(string dir,string predict){
-		req.cmd_chains.push_back(cmd_neighbors);
-		if(dir =="in" ){
-			req.cmd_chains.push_back(para_in);
-		} else if (dir =="out" ){
-			req.cmd_chains.push_back(para_out);
-		} else {
-			req.cmd_chains.push_back(para_all);
-		}
-		req.cmd_chains.push_back(predict_to_id[predict]);
-		return *this;
-	}
-	index_server& subclass_of(string target){
-		req.cmd_chains.push_back(cmd_subclass_of);
-		req.cmd_chains.push_back(subject_to_id[target]);
-		return *this;
-	}
-	index_server& execute(){
-		// reverse cmd_chains
-		// so we can easily pop the cmd and do recursive operation
-		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
-		req.req_id=-1;
-		req.parent_id=cfg->m_id - cfg->m_num;
-		SendReq(cfg,first_target, cfg->client_num+rand()%cfg->server_num, req);
-		req=RecvReq(cfg);
-		req.cmd_chains.clear();
-		return *this;
-	}
-
-	void Send(){
-		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
-		req.req_id=-1;
-		req.parent_id=cfg->m_id - cfg->m_num;
-		req.timestamp=timer::get_usec();
-		SendReq(cfg,first_target, cfg->client_num+rand()%cfg->server_num, req);
-
-	}
-	request Recv(){
-		req=RecvReq(cfg);
-		if(cfg->m_id==0)
-			latency_profile.record_and_report_latency(timer::get_usec()-req.timestamp);
-		return req;
-	}
-
-	index_server& print_count(){
-		int path_len=req.result_paths.size();
-		cout<<req.result_paths[path_len-1].size()<<endl;
-		return *this;
-	}
-
 };

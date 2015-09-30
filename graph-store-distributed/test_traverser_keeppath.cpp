@@ -6,6 +6,7 @@
 #include "graph.h"
 #include "traverser.h"
 #include "index_server.h"
+#include "client.h"
 #include "network_node.h"
 #include "rdma_resource.h"
 #include "thread_cfg.h"
@@ -34,24 +35,24 @@ int batch_factor;
 //query 8 is not complete , need to read attributes of every vertex
 //query 9 is a patten matching query
 
-void query1(index_server* is);
-void query3(index_server* is);
-void query5(index_server* is);
-void query6(index_server* is);
-void query7(index_server* is);
-void query8(index_server* is);
-void query10(index_server* is);
+void query1(client* is);
+void query3(client* is);
+void query5(client* is);
+void query6(client* is);
+void query7(client* is);
+void query8(client* is);
+void query10(client* is);
 
 
 void* Run(void *ptr) {
   struct thread_cfg *cfg = (struct thread_cfg*) ptr;
   pin_to_core(socket_0[cfg->t_id]);
 
-  if(cfg->t_id!=0){
+  if(cfg->t_id >= cfg->client_num){
   	((traverser*)(cfg->ptr))->run();
   }else {
   	sleep(1);	
-  	query1((index_server*)(cfg->ptr));
+  	query1((client*)(cfg->ptr));
   	cout<<"Finish all requests"<<endl;
   }
 }
@@ -75,7 +76,7 @@ int main(int argc, char * argv[])
 	}
 	batch_factor=atoi(argv[2]);
 	server_num=4;
-	client_num=1;
+	client_num=2;
 	thread_num=server_num+client_num;
 
 	boost::mpi::environment env(argc, argv);
@@ -107,21 +108,27 @@ int main(int argc, char * argv[])
 		cfg_array[i].server_num=server_num;
 		cfg_array[i].rdma=rdma;
 		cfg_array[i].node=new Network_Node(cfg_array[i].m_id,cfg_array[i].t_id);
+		cfg_array[i].init();
 	}
 	graph g(world,rdma,argv[1]);
-	index_server is(argv[1],&cfg_array[0]);
+	index_server is(argv[1]);
+	client** client_array=new client*[client_num];
+	for(int i=0;i<client_num;i++){
+		client_array[i]=new client(&is,&cfg_array[i]);
+	}
+
 	traverser** traverser_array=new traverser*[server_num];
 	concurrent_request_queue crq;
 	for(int i=0;i<server_num;i++){
-		traverser_array[i]=new traverser(g,crq,&cfg_array[1+i]);
+		traverser_array[i]=new traverser(g,crq,&cfg_array[client_num+i]);
 	}
 	
 	pthread_t     *thread  = new pthread_t[thread_num];
 	for(size_t id = 0;id < thread_num;++id) {
 		if(id<client_num){
-			cfg_array[id].ptr=&is;
+			cfg_array[id].ptr=client_array[id];
 		} else {
-			cfg_array[id].ptr=traverser_array[id-1];
+			cfg_array[id].ptr=traverser_array[id-client_num];
 		}
 		pthread_create (&(thread[id]), NULL, Run, (void *) &(cfg_array[id]));
     }
@@ -138,7 +145,7 @@ int main(int argc, char * argv[])
 }
 
 
-void query1(index_server* is){
+void query1(client* is){
 	request r=is->get_subtype("<ub#Course>")
 			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
 			.execute()
@@ -166,7 +173,7 @@ void query1(index_server* is){
 	}
 }
 
-void query3(index_server* is){
+void query3(client* is){
 //	request r=is->get_subtype("<ub#Professor>")
 	request r=is->get_subtype("<ub#FullProfessor>")
 //	request r=is->get_subtype("<ub#AssociateProfessor>")
@@ -197,7 +204,7 @@ void query3(index_server* is){
 	}
 }
 
-void query4(index_server* is){
+void query4(client* is){
 	request r=is->get_subtype("<ub#Department>")
 			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
 			.execute()
@@ -225,7 +232,7 @@ void query4(index_server* is){
 	}
 }
 
-void query5(index_server* is){
+void query5(client* is){
 	request r=is->get_subtype("<ub#Department>")
 			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
 			.execute()
@@ -254,7 +261,7 @@ void query5(index_server* is){
 }
 
 
-void query6(index_server* is){
+void query6(client* is){
 	for(int i=0;i<batch_factor;i++){
 		is->get_subtype("<ub#Student>")
 			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
@@ -271,7 +278,7 @@ void query6(index_server* is){
 	}
 }
 
-void query7(index_server* is){
+void query7(client* is){
 //	request r=is->get_subtype("<ub#Professor>")
 //	request r=is->get_subtype("<ub#FullProfessor>")
 //	request r=is->get_subtype("<ub#AssociateProfessor>")
@@ -307,7 +314,7 @@ void query7(index_server* is){
 }
 
 
-void query8(index_server* is){
+void query8(client* is){
 	request r=is->get_subtype("<ub#University>")
 			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
 			.execute()
@@ -338,7 +345,7 @@ void query8(index_server* is){
 		}
 	}
 }
-void query10(index_server* is){
+void query10(client* is){
 	request r=is->get_subtype("<ub#GraduateCourse>")
 			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
 			.execute()
