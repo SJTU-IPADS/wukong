@@ -7,6 +7,8 @@ struct thread_cfg{
 	int m_num; // total machine number
 	int t_id; // thread id
 	int t_num;  // total thread number in each machine
+	int server_num;// server thread number in each machine
+	int client_num;// client thread number in each machine
 	Network_Node* node;
 	RdmaResource* rdma;
 	void* ptr; 

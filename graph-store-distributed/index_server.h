@@ -55,12 +55,7 @@ class index_server{
 		}
 		file.close();
 	}
-	int req_id;
-	int get_id(){
-		int result=req_id;
-		req_id+=cfg->m_num;
-		return result;
-	}
+	
 	int first_target;
 
 	void print_tree(int id,int level){
@@ -83,7 +78,7 @@ public:
 	request req;
 	index_server(char* dir_name,thread_cfg* _cfg):cfg(_cfg){
 		first_target=0;
-		req_id=cfg->m_id;
+		
 		struct dirent *ptr;    
 		DIR *dir;
 		dir=opendir(dir_name);
@@ -154,7 +149,7 @@ public:
 		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
 		req.req_id=-1;
 		req.parent_id=cfg->m_id - cfg->m_num;
-		SendReq(cfg,first_target, 1+rand()%TRAVERSER_NUM, req);
+		SendReq(cfg,first_target, cfg->client_num+rand()%cfg->server_num, req);
 		req=RecvReq(cfg);
 		req.cmd_chains.clear();
 		return *this;
@@ -165,7 +160,7 @@ public:
 		req.req_id=-1;
 		req.parent_id=cfg->m_id - cfg->m_num;
 		req.timestamp=timer::get_usec();
-		SendReq(cfg,first_target, 1+rand()%TRAVERSER_NUM, req);
+		SendReq(cfg,first_target, cfg->client_num+rand()%cfg->server_num, req);
 
 	}
 	request Recv(){

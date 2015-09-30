@@ -22,8 +22,9 @@ void pin_to_core(size_t core) {
   int result=sched_setaffinity(0, sizeof(mask), &mask);  
 }
 
-int num_recver;
-int num_thread;
+int server_num;
+int client_num;
+int thread_num;
 int batch_factor;
 
 //const int batch_factor=100;
@@ -73,6 +74,9 @@ int main(int argc, char * argv[])
 		return -1;
 	}
 	batch_factor=atoi(argv[2]);
+	server_num=4;
+	client_num=1;
+	thread_num=server_num+client_num;
 
 	boost::mpi::environment env(argc, argv);
 	boost::mpi::communicator world;
@@ -80,10 +84,10 @@ int main(int argc, char * argv[])
 	uint64_t rdma_size = 1024*1024*1024;  //1G
   	uint64_t slot_per_thread= 1024*1024*128;
   	//rdma_size = rdma_size*20; //20G 
-  	uint64_t total_size=rdma_size+slot_per_thread*THREAD_NUM*2; 
-	Network_Node *node = new Network_Node(world.rank(),THREAD_NUM);//[0-THREAD_NUM-1] are used
+  	uint64_t total_size=rdma_size+slot_per_thread*thread_num*2; 
+	Network_Node *node = new Network_Node(world.rank(),thread_num);//[0-thread_num-1] are used
 	char *buffer= (char*) malloc(total_size);
-	RdmaResource *rdma=new RdmaResource(world.size(),THREAD_NUM,world.rank(),buffer,total_size,slot_per_thread,rdma_size);
+	RdmaResource *rdma=new RdmaResource(world.size(),thread_num,world.rank(),buffer,total_size,slot_per_thread,rdma_size);
 	rdma->node = node;
 	rdma->Servicing();
 	rdma->Connect();
@@ -93,33 +97,35 @@ int main(int argc, char * argv[])
   	//rdma->RdmaRead(0,(world.rank()+1)%world.size() ,(char *)local_buffer,1024,start_addr);
   	//cout<<"Fucking OK"<<endl;
 	
-	thread_cfg* cfg_array= new thread_cfg[THREAD_NUM];
-	for(int i=0;i<THREAD_NUM;i++){
+	thread_cfg* cfg_array= new thread_cfg[thread_num];
+	for(int i=0;i<thread_num;i++){
 		cfg_array[i].t_id=i;
-		cfg_array[i].t_num=THREAD_NUM;
+		cfg_array[i].t_num=thread_num;
 		cfg_array[i].m_id=world.rank();
 		cfg_array[i].m_num=world.size();
+		cfg_array[i].client_num=client_num;
+		cfg_array[i].server_num=server_num;
 		cfg_array[i].rdma=rdma;
 		cfg_array[i].node=new Network_Node(cfg_array[i].m_id,cfg_array[i].t_id);
 	}
 	graph g(world,rdma,argv[1]);
 	index_server is(argv[1],&cfg_array[0]);
-	traverser* traverser_array[TRAVERSER_NUM];
+	traverser** traverser_array=new traverser*[server_num];
 	concurrent_request_queue crq;
-	for(int i=0;i<TRAVERSER_NUM;i++){
+	for(int i=0;i<server_num;i++){
 		traverser_array[i]=new traverser(g,crq,&cfg_array[1+i]);
 	}
 	
-	pthread_t     *thread  = new pthread_t[THREAD_NUM];
-	for(size_t id = 0;id < THREAD_NUM;++id) {
-		if(id==0){
+	pthread_t     *thread  = new pthread_t[thread_num];
+	for(size_t id = 0;id < thread_num;++id) {
+		if(id<client_num){
 			cfg_array[id].ptr=&is;
 		} else {
 			cfg_array[id].ptr=traverser_array[id-1];
 		}
 		pthread_create (&(thread[id]), NULL, Run, (void *) &(cfg_array[id]));
     }
-    for(size_t t = 0 ; t < THREAD_NUM; t++) {
+    for(size_t t = 0 ; t < thread_num; t++) {
       int rc = pthread_join(thread[t], NULL);
       if (rc) {
         printf("ERROR; return code from pthread_join() is %d\n", rc);

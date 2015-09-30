@@ -17,7 +17,7 @@ class traverser{
 	int req_id;
 	int get_id(){
 		int result=req_id;
-		req_id+=cfg->m_num*TRAVERSER_NUM;
+		req_id+=cfg->m_num* cfg->server_num;
 		return result;
 	}
 	vector<path_node> do_neighbors(request& r){
@@ -217,7 +217,6 @@ public:
 			req_queue.put_req(r,sub_reqs.size());
 			//concurrent_req_queue.put_req(r,sub_reqs.size());
 			for(int i=0;i<sub_reqs.size();i++){
-				//int traverser_id=1+rand()%TRAVERSER_NUM;
 				int traverser_id=cfg->t_id;
 				SendReq(cfg,i ,traverser_id, sub_reqs[i],&split_profile);
 			}

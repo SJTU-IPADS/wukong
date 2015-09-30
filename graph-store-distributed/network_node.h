@@ -1,9 +1,5 @@
 #pragma once
 
-#define TRAVERSER_NUM 4
-#define THREAD_NUM (1+TRAVERSER_NUM)
-
-
 
 #include <zmq.hpp>
 #include <string>
