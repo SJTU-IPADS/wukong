@@ -35,8 +35,10 @@ int batch_factor;
 //query 8 is not complete , need to read attributes of every vertex
 //query 9 is a patten matching query
 
-void query1(client* is);
+void query1(client* is); 
+//shape: 1->2.52, but actually, avg neighbor=12.5,because of some filter operation 
 void query3(client* is);
+//shape: 1->17.5
 void query5(client* is);
 void query6(client* is);
 void query7(client* is);
@@ -52,7 +54,7 @@ void* Run(void *ptr) {
   	((traverser*)(cfg->ptr))->run();
   }else {
   	sleep(1);	
-  	query1((client*)(cfg->ptr));
+  	query8((client*)(cfg->ptr));
   	cout<<"Finish all requests"<<endl;
   }
 }
@@ -76,7 +78,7 @@ int main(int argc, char * argv[])
 	}
 	batch_factor=atoi(argv[2]);
 	server_num=4;
-	client_num=2;
+	client_num=1;
 	thread_num=server_num+client_num;
 
 	boost::mpi::environment env(argc, argv);
@@ -174,10 +176,10 @@ void query1(client* is){
 }
 
 void query3(client* is){
-//	request r=is->get_subtype("<ub#Professor>")
-	request r=is->get_subtype("<ub#FullProfessor>")
+	request r=is->get_subtype("<ub#Professor>")
+//	request r=is->get_subtype("<ub#FullProfessor>")
 //	request r=is->get_subtype("<ub#AssociateProfessor>")
-//	request r=is->get_subtype("<ub#AssistantProfessor>")
+//	request r=is->get_subtype("<ub#AssistantProfessor>")	//RealQuery
 			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
 			.execute()
 			.req;
@@ -280,9 +282,9 @@ void query6(client* is){
 
 void query7(client* is){
 //	request r=is->get_subtype("<ub#Professor>")
-//	request r=is->get_subtype("<ub#FullProfessor>")
-//	request r=is->get_subtype("<ub#AssociateProfessor>")
-	request r=is->get_subtype("<ub#AssistantProfessor>")
+	request r=is->get_subtype("<ub#FullProfessor>")
+//	request r=is->get_subtype("<ub#AssociateProfessor>")  //RealQuery
+//	request r=is->get_subtype("<ub#AssistantProfessor>")
 			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
 			.execute()
 			.req;

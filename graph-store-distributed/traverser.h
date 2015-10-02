@@ -237,6 +237,8 @@ public:
 				handle_request(r);
 				if(!r.blocking){
 					if(cfg->is_client(r.parent_id)){
+						//less print 
+						if(cfg->m_id==0 && cfg->t_id==cfg->client_num)
 						split_profile.report_msgsize();
 					}
 					SendReq(cfg,cfg->mid_of(r.parent_id) ,cfg->tid_of(r.parent_id), r,&split_profile);
@@ -245,6 +247,8 @@ public:
 				//if(concurrent_req_queue.put_reply(r)){
 				if(req_queue.put_reply(r)){
 					if(cfg->is_client(r.parent_id)){
+						//less print 
+						if(cfg->m_id==0 && cfg->t_id==cfg->client_num)
 						split_profile.report_msgsize();
 					}
 					SendReq(cfg,cfg->mid_of(r.parent_id) ,cfg->tid_of(r.parent_id), r,&split_profile);

@@ -97,8 +97,10 @@ public:
 	}
 	request Recv(){
 		req=RecvReq(cfg);
-		if(cfg->m_id==0)
+		if(cfg->m_id==0){
 			latency_profile.record_and_report_latency(timer::get_usec()-req.timestamp);
+			latency_profile.record_and_report_shape(req);
+		}
 		return req;
 	}
 

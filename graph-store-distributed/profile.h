@@ -3,10 +3,15 @@
 #include <iostream>
 #include "timer.h"
 #include "string"
+#include "request.h"
 using namespace std;
 
 class profile{
 public:
+	//use to draw the average shape of result
+	vector<uint64_t>  shape_vec;
+	uint64_t shape_count;
+
 	//use to calculate average latency
 	uint64_t sum_latency;
 	uint64_t count_latency;
@@ -41,6 +46,22 @@ public:
 
 		t.reset();
 	}
+	void record_and_report_shape(request& r){
+		if(r.result_paths.size()>shape_vec.size()){
+			shape_vec.resize(r.result_paths.size());
+		}
+		for(int i=0;i<r.result_paths.size();i++){
+			shape_vec[i]+=r.result_paths[i].size();
+		}
+		shape_count++;
+		if(shape_count%10000==9999){
+			cout<<"shape:";
+			for(int i=0;i<shape_vec.size();i++){
+				cout<<shape_vec[i]*1.0/shape_count<<" ";
+			}
+			cout<<endl;
+		}
+	}
 	void record_and_report_latency(uint64_t size){
 		count_latency++;
 		sum_latency+=size;
@@ -65,10 +86,10 @@ public:
 		if(current_req==interval){
 			current_req=0;
 			timer t2;
-			cout<<"average neighbor:"<<neighbor_num*1.0/(split_req+non_split_req)
-				<<"\t"<<"split-rate:"<<split_req*1.0/(split_req+non_split_req)
+			cout<<"avg neighbor:"<<neighbor_num*1.0/(split_req+non_split_req)
+				<<"\t"<<"split:"<<split_req*1.0/(split_req+non_split_req)
 				<<"\t"<<"msgsize=["<<min_msg<<","<<max_msg<<"]("<<sum_msg*1.0/count_msg<<")"
-				<<"\t"<<"total_msg="<<sum_msg/(1024*1024)<<" MB"
+				//<<"\t"<<"total_msg="<<sum_msg/(1024*1024)<<" MB"
 				<<"\t"<<interval*1.0/t2.diff(t)<<" K ops"<<endl;
 			t.reset();
 		}
