@@ -54,21 +54,23 @@ public:
 			shape_vec[i]+=r.result_paths[i].size();
 		}
 		shape_count++;
-		if(shape_count%10000==9999){
+		if(shape_count%100000==99999){
 			cout<<"shape:";
 			for(int i=0;i<shape_vec.size();i++){
 				cout<<shape_vec[i]*1.0/shape_count<<" ";
 			}
 			cout<<endl;
+			shape_count=0;
+			shape_vec.clear();
 		}
 	}
 	void record_and_report_latency(uint64_t size){
 		count_latency++;
 		sum_latency+=size;
-		if(count_latency%10000==9999){
+		if(count_latency%100000==99999){
 			cout<<"average latency:"<<sum_latency/count_latency << " us"<<endl;
-			//count_latency=0;
-			//sum_latency=0;
+			count_latency=0;
+			sum_latency=0;
 		}
 	}
 

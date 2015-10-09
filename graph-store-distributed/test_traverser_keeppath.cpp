@@ -16,6 +16,9 @@
 int socket_0[] = {
   0,2,4,6,8,10,12,14,16,18
 };
+int socket_1[] = {
+  1,3,5,7,9,11,13,15,17,19
+};
 void pin_to_core(size_t core) {
   cpu_set_t  mask;
   CPU_ZERO(&mask);
@@ -48,13 +51,13 @@ void query10(client* is);
 
 void* Run(void *ptr) {
   struct thread_cfg *cfg = (struct thread_cfg*) ptr;
-  pin_to_core(socket_0[cfg->t_id]);
+  pin_to_core(socket_1[cfg->t_id]);
 
   if(cfg->t_id >= cfg->client_num){
   	((traverser*)(cfg->ptr))->run();
   }else {
   	sleep(1);	
-  	query8((client*)(cfg->ptr));
+  	query3((client*)(cfg->ptr));
   	cout<<"Finish all requests"<<endl;
   }
 }
@@ -85,8 +88,9 @@ int main(int argc, char * argv[])
 	boost::mpi::communicator world;
 
 	uint64_t rdma_size = 1024*1024*1024;  //1G
+	rdma_size = rdma_size*2; //20G 
+  	
   	uint64_t slot_per_thread= 1024*1024*128;
-  	//rdma_size = rdma_size*20; //20G 
   	uint64_t total_size=rdma_size+slot_per_thread*thread_num*2; 
 	Network_Node *node = new Network_Node(world.rank(),thread_num);//[0-thread_num-1] are used
 	char *buffer= (char*) malloc(total_size);
@@ -176,8 +180,8 @@ void query1(client* is){
 }
 
 void query3(client* is){
-	request r=is->get_subtype("<ub#Professor>")
-//	request r=is->get_subtype("<ub#FullProfessor>")
+//	request r=is->get_subtype("<ub#Professor>")
+	request r=is->get_subtype("<ub#FullProfessor>")
 //	request r=is->get_subtype("<ub#AssociateProfessor>")
 //	request r=is->get_subtype("<ub#AssistantProfessor>")	//RealQuery
 			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
@@ -247,7 +251,7 @@ void query5(client* is){
 				.subclass_of("<ub#Person>")
 				.Send();
 		}
-		for(int times=0;times<100;times++){
+		for(int times=0;times<10000;times++){
 			for(int i=0;i<(*vec_ptr).size();i++){
 				is->Recv();
 				is->lookup_id((*vec_ptr)[i].id)
@@ -326,7 +330,7 @@ void query8(client* is){
 		for(int i=0;i<batch_factor;i++){
 			is->lookup_id((*vec_ptr)[0].id)
 				.neighbors("in","<ub#subOrganizationOf>")
-				.subclass_of("<ub#Department>")	
+				//.subclass_of("<ub#Department>")	
 				.neighbors("in","<ub#memberOf>")
 				.subclass_of("<ub#Student>")
 				.Send();
@@ -336,7 +340,7 @@ void query8(client* is){
 				is->Recv();
 				is->lookup_id((*vec_ptr)[i].id)
 					.neighbors("in","<ub#subOrganizationOf>")
-					.subclass_of("<ub#Department>")	
+					//.subclass_of("<ub#Department>")	
 					.neighbors("in","<ub#memberOf>")
 					.subclass_of("<ub#Student>")
 					.Send();

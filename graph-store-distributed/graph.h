@@ -109,12 +109,14 @@ public:
 	    // store_max_size=store_max_size*2;
 	    // char* start_addr=(char*)malloc(store_max_size);
 	    // kstore.init(start_addr,1000000,world.size(),store_max_size);
-	    kstore.init(rdma,1000000,world.size(),world.rank());
+	    uint64_t max_v_num=1000000*20;
+	    kstore.init(rdma,max_v_num,world.size(),world.rank());
 	    unordered_map<uint64_t,vertex_row>::iterator iter;
 		for(iter=vertex_table.begin();iter!=vertex_table.end();iter++){
 			kstore.insert(iter->first,iter->second);
 		}
-
+		cout<<"graph-store use "<<max_v_num*sizeof(vertex) / 1024 / 1024<<" MB for vertex data"<<endl;
+		cout<<"graph-store use "<<kstore.new_edge_ptr * sizeof(edge_row) / 1024 / 1024<<" MB for edge data"<<endl;
 	}
 };
 
