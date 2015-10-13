@@ -73,7 +73,7 @@ public:
 	vector<string> id_to_predict;
 	ontology ontology_table;
 	request req;
-	index_server(char* dir_name){
+	index_server(const char* dir_name){
 		
 		struct dirent *ptr;    
 		DIR *dir;

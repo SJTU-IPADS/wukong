@@ -5,6 +5,8 @@
 #include "profile.h"
 #include "thread_cfg.h"
 
+#include "global_cfg.h"
+
 #define USE_RBF 1
 
 
@@ -16,21 +18,33 @@ void SendReq(thread_cfg* cfg,int r_mid,int r_tid,request& r,profile* profile_ptr
         profile_ptr->record_msgsize(ss.str().size());
     }
 
-#if USE_RBF
-    cfg->rdma->rbfSend(cfg->t_id,r_mid, r_tid, ss.str().c_str(),ss.str().size());    
-#else 
-    cfg->node->Send(r_mid,r_tid,ss.str());
-#endif
+    if(global_use_rbf){
+        cfg->rdma->rbfSend(cfg->t_id,r_mid, r_tid, ss.str().c_str(),ss.str().size());    
+    } else {
+        cfg->node->Send(r_mid,r_tid,ss.str());
+    }
+
+
+// #if USE_RBF
+//     cfg->rdma->rbfSend(cfg->t_id,r_mid, r_tid, ss.str().c_str(),ss.str().size());    
+// #else 
+//     cfg->node->Send(r_mid,r_tid,ss.str());
+// #endif
 }
 
 request RecvReq(thread_cfg* cfg){
 
-#if USE_RBF
-    std::string str=cfg->rdma->rbfRecv(cfg->t_id);
-#else 
-    std::string str=cfg->node->Recv();
-#endif
-
+// #if USE_RBF
+//     std::string str=cfg->rdma->rbfRecv(cfg->t_id);
+// #else 
+//     std::string str=cfg->node->Recv();
+// #endif
+    std::string str;
+    if(global_use_rbf){
+        str=cfg->rdma->rbfRecv(cfg->t_id);
+    } else {
+        str=cfg->node->Recv();
+    }    
 
     std::stringstream s;
     s << str;

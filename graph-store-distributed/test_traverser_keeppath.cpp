@@ -10,6 +10,7 @@
 #include "network_node.h"
 #include "rdma_resource.h"
 #include "thread_cfg.h"
+#include "global_cfg.h"
 #include <pthread.h>
 
 
@@ -57,8 +58,24 @@ void* Run(void *ptr) {
   if(cfg->t_id >= cfg->client_num){
   	((traverser*)(cfg->ptr))->run();
   }else {
-  	sleep(1);	
-  	query4((client*)(cfg->ptr));
+  	void(* query_array[11])(client*);
+  	for(int i=0;i<=10;i++)
+  		query_array[i]=NULL;
+  	query_array[1]=	query1;
+  	query_array[3]=	query3;
+  	query_array[4]=	query4;
+  	query_array[5]=	query5;
+  	query_array[6]=	query6;
+  	query_array[7]=	query7;
+  	query_array[8]=	query8;
+  	query_array[10]=query10;
+  	sleep(1);
+  	if(global_query_type<1 || global_query_type >10 || query_array[global_query_type]==NULL){
+  		cout<<"Error Query "<<endl;
+  		assert(false);
+  	}
+  	
+  	query_array[global_query_type]((client*)(cfg->ptr));
   	cout<<"Finish all requests"<<endl;
   }
 }
@@ -75,14 +92,18 @@ int main(int argc, char * argv[])
 	    MPI_Abort(MPI_COMM_WORLD, 1);
 	}
 
-	if(argc !=3)
+	if(argc !=2)
 	{
-		printf("usage:./test_graph dir batch_factor\n");
+		printf("usage:./test_graph config_file\n");
 		return -1;
 	}
-	batch_factor=atoi(argv[2]);
-	server_num=4;
-	client_num=1;
+	load_global_cfg(argv[1]);
+	//batch_factor=atoi(argv[2]);
+	//server_num=4;
+	//client_num=1;
+	batch_factor=global_batch_factor;
+	server_num=global_num_server;
+	client_num=global_num_client;
 	thread_num=server_num+client_num;
 
 	boost::mpi::environment env(argc, argv);
@@ -102,9 +123,7 @@ int main(int argc, char * argv[])
 
 	uint64_t *local_buffer = (uint64_t *)rdma->GetMsgAddr(0);
   	uint64_t start_addr=0;
-  	//rdma->RdmaRead(0,(world.rank()+1)%world.size() ,(char *)local_buffer,1024,start_addr);
-  	//cout<<"Fucking OK"<<endl;
-	
+  	
 	thread_cfg* cfg_array= new thread_cfg[thread_num];
 	for(int i=0;i<thread_num;i++){
 		cfg_array[i].t_id=i;
@@ -117,8 +136,8 @@ int main(int argc, char * argv[])
 		cfg_array[i].node=new Network_Node(cfg_array[i].m_id,cfg_array[i].t_id);
 		cfg_array[i].init();
 	}
-	graph g(world,rdma,argv[1]);
-	index_server is(argv[1]);
+	graph g(world,rdma,global_input_folder.c_str());
+	index_server is(global_input_folder.c_str());
 	client** client_array=new client*[client_num];
 	for(int i=0;i<client_num;i++){
 		client_array[i]=new client(&is,&cfg_array[i]);
@@ -223,7 +242,7 @@ void query4(client* is){
 				.neighbors("in","<ub#worksFor>")
 				//.subclass_of("<ub#Professor>")
 				.subclass_of("<ub#FullProfessor>")
-				.get_attr("<ub#name>")
+				//.get_attr("<ub#name>")
 				//.get_attr("<ub#emailAddress>")
 				//.get_attr("<ub#telephone>")
 				.Send();
@@ -235,7 +254,7 @@ void query4(client* is){
 					.neighbors("in","<ub#worksFor>")
 					//.subclass_of("<ub#Professor>")
 					.subclass_of("<ub#FullProfessor>")
-					.get_attr("<ub#name>")
+					//.get_attr("<ub#name>")
 					//.get_attr("<ub#emailAddress>")
 					//.get_attr("<ub#telephone>")
 					.Send();

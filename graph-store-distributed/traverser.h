@@ -5,6 +5,7 @@
 #include "network_node.h"
 #include "message_wrap.h"
 #include "profile.h"
+#include "global_cfg.h"
 //traverser will remember all the paths just like
 //traverser_keeppath in single machine
 
@@ -152,51 +153,16 @@ public:
 			:g(gg),concurrent_req_queue(crq),cfg(_cfg){
 		req_id=cfg->m_id+cfg->t_id*cfg->m_num;
 	}
-	void handle_request(request& r){
-		if(r.cmd_chains.size()==0)
-			return;
-		vector<path_node> vec;
-		if(r.cmd_chains.back() == cmd_subclass_of){
-			// subclass_of is a filter operation
-			// it just remove some of the output
-			do_subclass_of(r);
-			handle_request(r);
-			return ;
-		} else if(r.cmd_chains.back() == cmd_get_attr){
-			// get_attr is similar to subclass_of
-			// it just remove some of the output
-			do_get_attr(r);
-			handle_request(r);
-			return ;
-		} else if(r.cmd_chains.back() == cmd_neighbors){
-			vec=do_neighbors(r);
-		} else if(r.cmd_chains.back() == cmd_get_subtype){
-			assert(r.path_length()==0);
-			vec=do_get_subtype(r);
-		} else{
-			assert(false);
-		}
-		//trying to execute using one-side RDMA here~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-		// if(r.cmd_chains.size()!=0){
-		// 	split_profile.neighbor_num+=vec.size();
-		// 	if(vec.size()<cfg->m_num*10){
-		// 		split_profile.split_req++;
-		// 	} else {
-		// 		split_profile.non_split_req++;
-		// 	}
-		// }
-
-		if(false){
-		//if(r.cmd_chains.size()!=0 && vec.size()<cfg->m_num*10){
-		//while(r.cmd_chains.size()!=0 ){
+	void try_rdma_execute(request& r,vector<path_node>& vec){
+		while(r.cmd_chains.size()!=0 ){
 			split_profile.neighbor_num+=vec.size();
 			if(vec.size()<cfg->m_num*10){
 				split_profile.split_req++;
 			} else {
 				split_profile.non_split_req++;
 			}
-		//	if(vec.size()>=cfg->m_num*10)
-		//		break;
+			if(vec.size()>=cfg->m_num*10)
+				break;
 
 			int dir=para_out;			
 			int cmd_type=r.cmd_chains.back();
@@ -251,6 +217,36 @@ public:
 				assert(false);
 			}
 		}
+	}
+	void handle_request(request& r){
+		if(r.cmd_chains.size()==0)
+			return;
+		vector<path_node> vec;
+		if(r.cmd_chains.back() == cmd_subclass_of){
+			// subclass_of is a filter operation
+			// it just remove some of the output
+			do_subclass_of(r);
+			handle_request(r);
+			return ;
+		} else if(r.cmd_chains.back() == cmd_get_attr){
+			// get_attr is similar to subclass_of
+			// it just remove some of the output
+			do_get_attr(r);
+			handle_request(r);
+			return ;
+		} else if(r.cmd_chains.back() == cmd_neighbors){
+			vec=do_neighbors(r);
+		} else if(r.cmd_chains.back() == cmd_get_subtype){
+			assert(r.path_length()==0);
+			vec=do_get_subtype(r);
+		} else{
+			assert(false);
+		}
+		//trying to execute using one-side RDMA here~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+		if(global_use_rdma){
+			try_rdma_execute(r,vec);
+		}
 		//end of trying to execute using one-side RDMA here~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		
 		if(r.cmd_chains.size()==0){
@@ -274,8 +270,6 @@ public:
 		while(true){
 			//request r=node->RecvReq();
 			request r=RecvReq(cfg);
-			//node->SendReq(r.parent_id + cfg->m_num ,0, r);
-			//continue;
 
 			if(r.req_id==-1){ //it means r is a request and shoule be executed
 				//r.req_id=get_id();

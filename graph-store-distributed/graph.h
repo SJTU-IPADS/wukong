@@ -71,7 +71,7 @@ public:
 		cout<<world.rank()<<" has "<<vertex_table.size()<<" vertex"<<endl;
 		cout<<world.rank()<<" has "<<in_edges<<" in_edges"<<endl;
 	}
-	graph(boost::mpi::communicator& para_world,RdmaResource* _rdma,char* dir_name)
+	graph(boost::mpi::communicator& para_world,RdmaResource* _rdma,const char* dir_name)
 			:world(para_world),rdma(_rdma){
 		in_edges=0;
 		out_edges=0;
