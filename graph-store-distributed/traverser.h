@@ -75,6 +75,31 @@ class traverser{
 		}
 		r.result_paths[path_len-1]=new_vec;
 	}
+	void do_get_attr(request& r){
+		r.cmd_chains.pop_back();
+		int predict_id=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
+
+		int path_len=r.result_paths.size();
+		vector<path_node>& prev_vec = r.result_paths[path_len-1];
+		vector<path_node> new_vec_attr;
+		vector<path_node> new_vec_id;
+		for (int i=0;i<prev_vec.size();i++){
+			int prev_id=prev_vec[i].id;	
+			vertex vdata=g.kstore.getVertex(prev_id);
+			edge_row* edge_ptr=g.kstore.getEdgeArray(vdata.out_edge_ptr);
+			for(uint64_t k=0;k<vdata.out_degree;k++){
+				if(predict_id==edge_ptr[k].predict ){
+					new_vec_attr.push_back(path_node(edge_ptr[k].vid,i));
+					new_vec_id.push_back(path_node(prev_id ,new_vec_attr.size()-1));
+					break;
+				}				
+			}
+		}
+		r.result_paths.push_back(new_vec_attr);
+		r.result_paths.push_back(new_vec_id);
+		//r.result_paths[path_len-1]=new_vec;
+	}
 	vector<path_node> do_get_subtype(request& r){
 		r.cmd_chains.pop_back();
 		int parent_type_id=r.cmd_chains.back();
@@ -137,6 +162,12 @@ public:
 			do_subclass_of(r);
 			handle_request(r);
 			return ;
+		} else if(r.cmd_chains.back() == cmd_get_attr){
+			// get_attr is similar to subclass_of
+			// it just remove some of the output
+			do_get_attr(r);
+			handle_request(r);
+			return ;
 		} else if(r.cmd_chains.back() == cmd_neighbors){
 			vec=do_neighbors(r);
 		} else if(r.cmd_chains.back() == cmd_get_subtype){
@@ -155,17 +186,17 @@ public:
 		// 	}
 		// }
 
-		//if(false){
+		if(false){
 		//if(r.cmd_chains.size()!=0 && vec.size()<cfg->m_num*10){
-		while(r.cmd_chains.size()!=0 ){
+		//while(r.cmd_chains.size()!=0 ){
 			split_profile.neighbor_num+=vec.size();
 			if(vec.size()<cfg->m_num*10){
 				split_profile.split_req++;
 			} else {
 				split_profile.non_split_req++;
 			}
-			if(vec.size()>=cfg->m_num*10)
-				break;
+		//	if(vec.size()>=cfg->m_num*10)
+		//		break;
 
 			int dir=para_out;			
 			int cmd_type=r.cmd_chains.back();
@@ -189,6 +220,22 @@ public:
 					}
 				}
 				vec=new_vec; //replace old vec since subclass is a filter operation
+			} else if(cmd_type == cmd_get_attr){
+				vector<path_node> new_vec_attr;
+				vector<path_node> new_vec_id;
+				for(int i=0;i<vec.size();i++){
+					vector<edge_row> edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir);
+					for(int k=0;k<edges.size();k++){
+						if(target_id==edges[k].predict) {
+							new_vec_attr.push_back(path_node(edges[k].vid,i));
+							new_vec_id.push_back(path_node(vec[i].id,new_vec_attr.size()-1));
+							break;
+						}	
+					}
+				}
+				r.result_paths.push_back(vec);
+				r.result_paths.push_back(new_vec_attr);
+				vec=new_vec_id;
 			} else if(cmd_type == cmd_neighbors){
 				for(int i=0;i<vec.size();i++){
 					vector<edge_row> edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir);

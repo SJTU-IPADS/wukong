@@ -70,6 +70,12 @@ public:
 		req.cmd_chains.push_back(is->predict_to_id[predict]);
 		return *this;
 	}
+	client& get_attr(string predict){
+		req.cmd_chains.push_back(cmd_get_attr);
+		req.cmd_chains.push_back(is->predict_to_id[predict]);
+		return *this;
+	}
+
 	client& subclass_of(string target){
 		req.cmd_chains.push_back(cmd_subclass_of);
 		req.cmd_chains.push_back(is->subject_to_id[target]);

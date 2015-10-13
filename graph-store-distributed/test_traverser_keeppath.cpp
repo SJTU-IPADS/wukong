@@ -17,7 +17,7 @@ int socket_0[] = {
   0,2,4,6,8,10,12,14,16,18
 };
 int socket_1[] = {
-  1,3,5,7,9,11,13,15,17,19
+  1,3,5,7,9,11,13,15,17,19,0,2,4,6,8,10,12,14,16,18
 };
 void pin_to_core(size_t core) {
   cpu_set_t  mask;
@@ -42,6 +42,7 @@ void query1(client* is);
 //shape: 1->2.52, but actually, avg neighbor=12.5,because of some filter operation 
 void query3(client* is);
 //shape: 1->17.5
+void query4(client* is);
 void query5(client* is);
 void query6(client* is);
 void query7(client* is);
@@ -57,7 +58,7 @@ void* Run(void *ptr) {
   	((traverser*)(cfg->ptr))->run();
   }else {
   	sleep(1);	
-  	query3((client*)(cfg->ptr));
+  	query4((client*)(cfg->ptr));
   	cout<<"Finish all requests"<<endl;
   }
 }
@@ -88,7 +89,7 @@ int main(int argc, char * argv[])
 	boost::mpi::communicator world;
 
 	uint64_t rdma_size = 1024*1024*1024;  //1G
-	rdma_size = rdma_size*2; //20G 
+	rdma_size = rdma_size*2; //2G 
   	
   	uint64_t slot_per_thread= 1024*1024*128;
   	uint64_t total_size=rdma_size+slot_per_thread*thread_num*2; 
@@ -220,15 +221,23 @@ void query4(client* is){
 		for(int i=0;i<batch_factor;i++){
 			is->lookup_id((*vec_ptr)[0].id)
 				.neighbors("in","<ub#worksFor>")
-				.subclass_of("<ub#Professor>")
+				//.subclass_of("<ub#Professor>")
+				.subclass_of("<ub#FullProfessor>")
+				.get_attr("<ub#name>")
+				//.get_attr("<ub#emailAddress>")
+				//.get_attr("<ub#telephone>")
 				.Send();
 		}
-		for(int times=0;times<100;times++){
+		for(int times=0;times<100000;times++){
 			for(int i=0;i<(*vec_ptr).size();i++){
 				is->Recv();
 				is->lookup_id((*vec_ptr)[i].id)
 					.neighbors("in","<ub#worksFor>")
-					.subclass_of("<ub#Professor>")
+					//.subclass_of("<ub#Professor>")
+					.subclass_of("<ub#FullProfessor>")
+					.get_attr("<ub#name>")
+					//.get_attr("<ub#emailAddress>")
+					//.get_attr("<ub#telephone>")
 					.Send();
 			}
 		}
@@ -286,8 +295,8 @@ void query6(client* is){
 
 void query7(client* is){
 //	request r=is->get_subtype("<ub#Professor>")
-	request r=is->get_subtype("<ub#FullProfessor>")
-//	request r=is->get_subtype("<ub#AssociateProfessor>")  //RealQuery
+//	request r=is->get_subtype("<ub#FullProfessor>")
+	request r=is->get_subtype("<ub#AssociateProfessor>")  //RealQuery
 //	request r=is->get_subtype("<ub#AssistantProfessor>")
 			.neighbors("in","<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>")
 			.execute()

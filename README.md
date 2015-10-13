@@ -36,5 +36,4 @@ cd tools
 ./generate_lubm.sh 100
 
 ####use row data to generate id_data and index_data
-mkdir id_univ100 ; cd id_univ100
-../index_server.out ../lubm
+./generate_ids.sh 100

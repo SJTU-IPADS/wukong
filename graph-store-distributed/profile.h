@@ -29,6 +29,10 @@ public:
 	uint64_t count_msg;
 	uint64_t sum_msg;
 
+	
+	double throughput;
+	int throughput_count;
+
 	timer t;
 	profile(){
 		sum_latency=0;
@@ -44,6 +48,8 @@ public:
 		sum_msg=0;
 		count_msg=0;
 
+		throughput=0;
+		throughput_count=-5;
 		t.reset();
 	}
 	void record_and_report_shape(request& r){
@@ -82,17 +88,27 @@ public:
 		sum_msg=sum_msg+size;
 		count_msg++;
 	}
+	
 	void report_msgsize(){
 		int interval=1000*10;
 		current_req++;
 		if(current_req==interval){
+			
 			current_req=0;
 			timer t2;
+			throughput_count++;
+			if(throughput_count>0){
+				throughput+=interval*1.0/t2.diff(t);
+				//cout<<"avg throughput:"<<throughput/throughput_count<<" K ops"<<endl;
+			
 			cout<<"avg neighbor:"<<neighbor_num*1.0/(split_req+non_split_req)
 				<<"\t"<<"split:"<<split_req*1.0/(split_req+non_split_req)
 				<<"\t"<<"msgsize=["<<min_msg<<","<<max_msg<<"]("<<sum_msg*1.0/count_msg<<")"
 				//<<"\t"<<"total_msg="<<sum_msg/(1024*1024)<<" MB"
-				<<"\t"<<interval*1.0/t2.diff(t)<<" K ops"<<endl;
+				//<<"\t"<<interval*1.0/t2.diff(t)<<" K ops"<<endl;
+				<<"\t"<<"avg throughput:"<<throughput/throughput_count<<" K ops"<<endl;
+			}	
+
 			t.reset();
 		}
 	}
