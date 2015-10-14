@@ -60,7 +60,7 @@ public:
 			shape_vec[i]+=r.result_paths[i].size();
 		}
 		shape_count++;
-		if(shape_count%100000==99999){
+		if(shape_count%1000==999){
 			cout<<"shape:";
 			for(int i=0;i<shape_vec.size();i++){
 				cout<<shape_vec[i]*1.0/shape_count<<" ";
@@ -73,7 +73,7 @@ public:
 	void record_and_report_latency(uint64_t size){
 		count_latency++;
 		sum_latency+=size;
-		if(count_latency%100000==99999){
+		if(count_latency%1000==999){
 			cout<<"average latency:"<<sum_latency/count_latency << " us"<<endl;
 			count_latency=0;
 			sum_latency=0;
@@ -90,7 +90,7 @@ public:
 	}
 	
 	void report_msgsize(){
-		int interval=1000*10;
+		int interval=1000;//*10;
 		current_req++;
 		if(current_req==interval){
 			

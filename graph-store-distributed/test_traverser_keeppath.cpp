@@ -358,9 +358,10 @@ void query8(client* is){
 		for(int i=0;i<batch_factor;i++){
 			is->lookup_id((*vec_ptr)[0].id)
 				.neighbors("in","<ub#subOrganizationOf>")
-				//.subclass_of("<ub#Department>")	
+				.subclass_of("<ub#Department>")	
 				.neighbors("in","<ub#memberOf>")
 				.subclass_of("<ub#Student>")
+				//.get_attr("<ub#emailAddress>")
 				.Send();
 		}
 		for(int times=0;times<100;times++){
@@ -368,9 +369,10 @@ void query8(client* is){
 				is->Recv();
 				is->lookup_id((*vec_ptr)[i].id)
 					.neighbors("in","<ub#subOrganizationOf>")
-					//.subclass_of("<ub#Department>")	
+					.subclass_of("<ub#Department>")	
 					.neighbors("in","<ub#memberOf>")
 					.subclass_of("<ub#Student>")
+					//.get_attr("<ub#emailAddress>")
 					.Send();
 			}
 		}
