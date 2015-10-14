@@ -16,13 +16,17 @@ using mpi ;
 
 ./b2 install 
 
-###modify ~/.bashrc
+### modify ~/.bashrc
+
 export BOOST_INCLUDE=/home/sjx/install/boost_1_58_0/boost_1_58_0-install/include
+
 export BOOST_LIB=/home/sjx/install/boost_1_58_0/boost_1_58_0-install/lib
+
 export LD_LIBRARY_PATH=$BOOST_LIB:$LD_LIBRARY_PATH 
 
 ## Compile
 cd tools
+
 make graph_distributed
 
 ## Generate data
@@ -30,15 +34,18 @@ make graph_distributed
 download UBA1.7 and Linux_file_path_fix from http://swat.cse.lehigh.edu/projects/lubm/
 
 cd uba/uba1.7/src/ ;
+
 javac edu/lehigh/swat/bench/uba/Generator.java 
 
 replace old class files
 
 Setting up Jena
 
-####generate row data first
+### generate row data first
 cd tools
+
 ./generate_lubm.sh 100
 
-####use row data to generate id_data and index_data
+### use row data to generate id_data and index_data
+
 ./generate_ids.sh 100
