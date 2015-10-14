@@ -12,12 +12,8 @@ extern int global_num_server;
 extern int global_num_client;
 extern int global_batch_factor;
 extern string global_input_folder;
-void init_global_cfg(){
-	global_use_rbf=false;
-	global_use_rdma=false;
-	global_query_type=1;
+extern bool global_interactive;
 
-}
 void load_global_cfg(char* filename){
 	ifstream file(filename);
 	
@@ -36,6 +32,7 @@ void load_global_cfg(char* filename){
 	global_num_client=atoi(config_map["global_num_client"].c_str());
 	global_batch_factor=atoi(config_map["global_batch_factor"].c_str());
 	global_input_folder=config_map["global_input_folder"];
+	global_interactive=atoi(config_map["global_interactive"].c_str());
 }
 
 

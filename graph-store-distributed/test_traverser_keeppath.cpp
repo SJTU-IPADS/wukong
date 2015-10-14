@@ -50,7 +50,48 @@ void query7(client* is);
 void query8(client* is);
 void query10(client* is);
 
+void interactive_mode(client* is){
+	while(true){
+		cout<<"interactive mode:"<<endl;
+		string filename;
+		cin>>filename;
+		ifstream file(filename);
+		if(!file)
+			cout<<"File "<<filename<<" not exist"<<endl;
 
+		string cmd;
+		while(file>>cmd){
+			if(cmd=="lookup"){
+				string object;
+				file>>object;
+				is->lookup(object);
+			} else if(cmd=="neighbors"){
+				string dir,object;
+				file>>dir>>object;
+				is->neighbors(dir,object);
+			} else if(cmd=="subclass_of"){
+				string object;
+				file>>object;
+				is->subclass_of(object);
+			} else if(cmd=="get_attr"){
+				string object;
+				file>>object;
+				is->get_attr(object);
+			} else if(cmd=="execute"){
+				uint64_t t1=timer::get_usec();
+				is->Send();
+				is->Recv();
+				uint64_t t2=timer::get_usec();
+				cout<<"result size:"<<is->req.path_num()<<endl;
+				cout<<t2-t1<<"us"<<endl;
+				break;
+			} else {
+				cout<<"error cmd"<<endl;
+				break;
+			}
+		}
+	}
+}
 void* Run(void *ptr) {
   struct thread_cfg *cfg = (struct thread_cfg*) ptr;
   pin_to_core(socket_1[cfg->t_id]);
@@ -58,6 +99,15 @@ void* Run(void *ptr) {
   if(cfg->t_id >= cfg->client_num){
   	((traverser*)(cfg->ptr))->run();
   }else {
+  	while(global_interactive){
+  		if(cfg->m_id!=0 || cfg->t_id!=0){
+  			// sleep forever
+  			sleep(1);
+  		}
+  		else{
+  			interactive_mode((client*)(cfg->ptr));
+  		}
+  	}
   	void(* query_array[11])(client*);
   	for(int i=0;i<=10;i++)
   		query_array[i]=NULL;

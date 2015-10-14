@@ -4,4 +4,5 @@ global_query_type		8
 global_num_server		4
 global_num_client		1
 global_batch_factor		10
-global_input_folder		/home/datanfs/nfs0/LUBM/id_univ160/
+global_input_folder		/home/datanfs/nfs0/LUBM/id_univ6/
+global_interactive		1

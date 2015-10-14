@@ -6,3 +6,4 @@ int global_num_server;
 int global_num_client;
 int global_batch_factor;
 std::string global_input_folder;
+bool global_interactive;
