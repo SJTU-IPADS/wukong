@@ -1,0 +1,4 @@
+lookup 			<http://www.Department0.University0.edu>
+neighbors   in 	<ub#memberOf>
+subclass_of		<ub#Person>
+execute

@@ -1,0 +1,11 @@
+lookup 			<http://www.University0.edu>
+neighbors   in 	<ub#subOrganizationOf>
+subclass_of		<ub#Department>
+neighbors   in 	<ub#memberOf>
+subclass_of		<ub#Student>
+get_attr 		<ub#emailAddress>
+execute
+
+
+
+subclass_of		<ub#GraduateStudent>

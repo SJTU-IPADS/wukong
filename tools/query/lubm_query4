@@ -1,0 +1,7 @@
+lookup 			<http://www.Department0.University0.edu>
+neighbors   in 	<ub#worksFor>
+subclass_of		<ub#Professor>
+get_attr		<ub#name>
+get_attr		<ub#emailAddress>
+get_attr		<ub#telephone>
+execute

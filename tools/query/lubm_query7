@@ -1,0 +1,6 @@
+lookup 			<http://www.Department0.University0.edu/AssociateProfessor0>
+neighbors  out	<ub#teacherOf>
+subclass_of		<ub#Course>
+neighbors  in	<ub#takesCourse>
+subclass_of		<ub#Student>
+execute
