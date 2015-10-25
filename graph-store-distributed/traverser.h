@@ -53,7 +53,8 @@ class traverser{
 	}
 	void do_subclass_of(request& r){
 		//int predict_id=g.predict_to_id["<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"];
-		int predict_id=0;//
+		//int predict_id=0;//
+		int predict_id=global_rdftype_id;
 
 		r.cmd_chains.pop_back();
 		int target_id=r.cmd_chains.back();
@@ -178,7 +179,7 @@ public:
 				for(int i=0;i<vec.size();i++){
 					vector<edge_row> edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir);
 					for(int k=0;k<edges.size();k++){
-						if(0==edges[k].predict && 
+						if(global_rdftype_id==edges[k].predict && 
 							g.ontology_table.is_subtype_of(edges[k].vid,target_id)){
 							new_vec.push_back(vec[i]);
 							break;

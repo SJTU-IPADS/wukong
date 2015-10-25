@@ -26,8 +26,8 @@ class client{
 	thread_cfg* cfg;
 	profile latency_profile;
 	int first_target;
-	index_server* is;
 public:
+	index_server* is;
 	request req;
 	client(index_server* _is,thread_cfg* _cfg):is(_is),cfg(_cfg){
 		first_target=0;

@@ -13,7 +13,7 @@ extern int global_num_client;
 extern int global_batch_factor;
 extern string global_input_folder;
 extern bool global_interactive;
-
+extern int global_rdftype_id;
 void load_global_cfg(char* filename){
 	ifstream file(filename);
 	
@@ -33,6 +33,7 @@ void load_global_cfg(char* filename){
 	global_batch_factor=atoi(config_map["global_batch_factor"].c_str());
 	global_input_folder=config_map["global_input_folder"];
 	global_interactive=atoi(config_map["global_interactive"].c_str());
+	global_rdftype_id=atoi(config_map["global_rdftype_id"].c_str());
 }
 
 
