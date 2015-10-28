@@ -1,0 +1,17 @@
+lookup			<http://dbpedia.org/ontology/Book>
+neighbors   in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
+get_attr		<http://dbpedia.org/property/name>
+get_attr		<http://dbpedia.org/property/pages>
+get_attr		<http://dbpedia.org/property/isbn>
+get_attr		<http://dbpedia.org/property/author>
+execute
+
+
+
+?var6 rdf:type %%var%%. 
+?var6 dbpprop:name ?var0. 
+?var6 dbpprop:pages ?var1. 
+?var6 dbpprop:isbn ?var2. 
+?var6 dbpprop:author ?var3.
+
+150:<http://dbpedia.org/property/name>

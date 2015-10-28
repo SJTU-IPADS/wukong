@@ -1,0 +1,14 @@
+lookup			<http://dbpedia.org/class/yago/Company108058098>
+neighbors   in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
+get_attr		<http://dbpedia.org/property/numEmployees>
+get_attr		<http://xmlns.com/foaf/0.1/homepage>
+execute
+
+
+filter,distinct PREFIX owl: <http://www.w3.org/2002/07/owl#> PREFIX xsd: <http://www.w3.org/2001/XMLSchema#> PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> PREFIX foaf: <http://xmlns.com/foaf/0.1/> PREFIX dc: <http://purl.org/dc/elements/1.1/> PREFIX : <http://dbpedia.org/resource/> PREFIX dbpedia2: <http://dbpedia.org/property/> PREFIX dbpedia: <http://dbpedia.org/> PREFIX skos: <http://www.w3.org/2004/02/skos/core#> SELECT DISTINCT ?var3 ?var5 ?var7 WHERE { 
+?var3 rdf:type <http://dbpedia.org/class/yago/Company108058098> . 
+?var3 dbpedia2:numEmployees ?var5 
+FILTER ( xsd:integer(?var5) >= %%var%% ) . 
+?var3 foaf:homepage ?var7 . 
+} 
+PREFIX owl: <http://www.w3.org/2002/07/owl#> PREFIX xsd: <http://www.w3.org/2001/XMLSchema#> PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> PREFIX foaf: <http://xmlns.com/foaf/0.1/> PREFIX dc: <http://purl.org/dc/elements/1.1/> PREFIX : <http://dbpedia.org/resource/> PREFIX dbpedia2: <http://dbpedia.org/property/> PREFIX dbpedia: <http://dbpedia.org/> PREFIX skos: <http://www.w3.org/2004/02/skos/core#> SELECT DISTINCT ?var  FROM <http://dbpedia.org> WHERE { ?var3 rdf:type <http://dbpedia.org/class/yago/Company108058098> . ?var3 dbpedia2:numEmployees ?var  . ?var3 foaf:homepage ?var7 . FILTER ( datatype(?var) = <http://www.w3.org/2001/XMLSchema#int> ) } LIMIT 1000

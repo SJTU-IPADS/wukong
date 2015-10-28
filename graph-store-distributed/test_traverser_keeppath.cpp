@@ -84,7 +84,7 @@ void interactive_mode(client* is){
 				uint64_t t2=timer::get_usec();
 				cout<<"result size:"<<is->req.path_num()<<endl;
 				cout<<t2-t1<<"us"<<endl;
-				for(int i=0;i<min(500,is->req.path_num());i++){
+				for(int i=0;i<min(5,is->req.path_num());i++){
 					cout<<"row "<<i<<endl;
 					for(int column=0;column< is->req.path_length();column++){
 						int id=is->req.get_node(i,column).id;
@@ -143,13 +143,14 @@ int main(int argc, char * argv[])
 {
 	int provided;
 
+/*
 	MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
 	if (provided < MPI_THREAD_MULTIPLE)
 	{
 	    printf("ERROR: The MPI library does not have full thread support\n");
 	    MPI_Abort(MPI_COMM_WORLD, 1);
 	}
-
+*/
 	if(argc !=2)
 	{
 		printf("usage:./test_graph config_file\n");

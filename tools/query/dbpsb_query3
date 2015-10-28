@@ -1,12 +1,30 @@
-lookup <http://dbpedia.org/ontology/Politician>
-neighbors   in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
-neighbors	out	<http://xmlns.com/foaf/0.1/homepage>
+lookup 			<http://dbpedia.org/resource/Hasbro_Interactive>
+neighbors   in 	<http://dbpedia.org/ontology/foundationPlace>
+subclass_of		<http://dbpedia.org/ontology/Organisation>
+neighbors   in 	<http://dbpedia.org/ontology/developer>
+subclass_of		<http://dbpedia.org/ontology/Software>
 execute
 
 4-TriplePatterns
 
+
 ?var2 a <http://dbpedia.org/ontology/Organisation> . ?var2 <http://dbpedia.org/ontology/foundationPlace> %%var0%% . ?var4 <http://dbpedia.org/ontology/developer> ?var2 . ?var4 a %%var1%%
 
 
-4-TriplePatterns        SELECT * where { ?var1 a <http://dbpedia.org/ontology/Organisation> . ?var2 <http://dbpedia.org/ontology/foundationPlace> %%var0%% . ?var4 <http://dbpedia.org/ontology/developer> ?var2 . ?var4 a %%var1%% . } SELECT DISTINCT ?var0 ?var1 FROM <http://dbpedia.org>  where { ?var2 a <http://dbpedia.org/ontology/Organisation> . ?var2 <http://dbpedia.org/ontology/foundationPlace> ?var0 . ?var4 <http://dbpedia.org/ontology/developer> ?var2 . ?var4 a ?var1 . } LIMIT 1000
+lookup %%var0%% 
+neighbors   in 	<http://dbpedia.org/ontology/foundationPlace>
+subclass_of		<http://dbpedia.org/ontology/Organisation>
+neighbors   in 	<http://dbpedia.org/ontology/developer>
+subclass_of		%%var1%%
+
+%%var0%% 
+205157:<http://dbpedia.org/resource/2004>
+1222873:<http://dbpedia.org/resource/Hasbro_Interactive>
+368716:<http://dbpedia.org/resource/Enix>
+
+%%var1%% 
+652:<http://dbpedia.org/ontology/Software>
+661:<http://dbpedia.org/ontology/VideoGame>
+
+
 5-TriplePatterns        PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> PREFIX dbpprop:<http://dbpedia.org/property/> SELECT ?var0 ?var1 ?var2 ?var3 where { ?var6 rdf:type %%var%%. ?var6 dbpprop:name ?var0. ?var6 dbpprop:pages ?var1. ?var6 dbpprop:isbn ?var2. ?var6 dbpprop:author ?var3.}      PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> PREFIX dbpprop:<http://dbpedia.org/property/> SELECT DISTINCT ?var FROM <http://dbpedia.org> where { ?var6 rdf:type ?var. ?var6 dbpprop:name ?var0. ?var6 dbpprop:pages ?var1. ?var6 dbpprop:isbn ?var2. ?var6 dbpprop:author ?var3.} LIMIT 1000

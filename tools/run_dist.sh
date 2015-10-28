@@ -2,7 +2,7 @@
 # $1 machine number
 # $2 config_file
 if [ -d $folderpath ]; then
-	mpiexec -hostfile mpd.hosts -n $1 ../graph-store-distributed/test_traverser_keeppath.out $2
+	/usr/bin/mpiexec -hostfile mpd.hosts -n $1 ../graph-store-distributed/test_traverser_keeppath.out $2
 else
 	echo  $folderpath "not exist"
 fi
