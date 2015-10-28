@@ -15,3 +15,5 @@ execute
 ?var6 dbpprop:author ?var3.
 
 150:<http://dbpedia.org/property/name>
+
+query/dbpsb_query4

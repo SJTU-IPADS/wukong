@@ -1,5 +1,6 @@
 global_use_rbf			1
 global_use_rdma			1
+global_rdma_threshold	300
 global_query_type		8
 global_num_server		4
 global_num_client		1

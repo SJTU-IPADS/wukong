@@ -1,6 +1,7 @@
 #include <string>
 bool global_use_rbf;
 bool global_use_rdma;
+int global_rdma_threshold;
 int global_query_type;
 int global_num_server;
 int global_num_client;

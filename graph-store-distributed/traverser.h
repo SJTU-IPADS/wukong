@@ -157,12 +157,13 @@ public:
 	void try_rdma_execute(request& r,vector<path_node>& vec){
 		while(r.cmd_chains.size()!=0 ){
 			split_profile.neighbor_num+=vec.size();
-			if(vec.size()<cfg->m_num*10){
+			//if(vec.size()<cfg->m_num*10){
+			if(vec.size()<global_rdma_threshold){
 				split_profile.split_req++;
 			} else {
 				split_profile.non_split_req++;
 			}
-			if(vec.size()>=cfg->m_num*10)
+			if(vec.size()>=global_rdma_threshold)
 				break;
 
 			int dir=para_out;			
