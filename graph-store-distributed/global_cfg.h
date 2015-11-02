@@ -15,6 +15,7 @@ extern int global_batch_factor;
 extern string global_input_folder;
 extern bool global_interactive;
 extern int global_rdftype_id;
+extern bool global_use_loc_cache;
 void load_global_cfg(char* filename){
 	ifstream file(filename);
 	
@@ -36,6 +37,7 @@ void load_global_cfg(char* filename){
 	global_input_folder=config_map["global_input_folder"];
 	global_interactive=atoi(config_map["global_interactive"].c_str());
 	global_rdftype_id=atoi(config_map["global_rdftype_id"].c_str());
+	global_use_loc_cache=atoi(config_map["global_use_loc_cache"].c_str());
 }
 
 

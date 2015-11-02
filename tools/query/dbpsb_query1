@@ -5,6 +5,9 @@ execute
 neighbors	out	<http://xmlns.com/foaf/0.1/homepage>
 
 2-TriplePatterns
+lookup <http://dbpedia.org/ontology/SpaceStation>
+lookup <http://dbpedia.org/ontology/College>
+
 10193us
 
 

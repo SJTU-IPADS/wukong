@@ -143,9 +143,26 @@ class traverser{
 			sub_reqs[i].result_paths.push_back(vector<path_node>());
 		}
 		for(int i=0;i<vec.size();i++){
-			//int machine = i % num_sub_request;
 			int machine = vec[i].id % num_sub_request;
 			sub_reqs[machine].result_paths[0].push_back(vec[i]);
+		}
+		return sub_reqs;
+	}
+	vector<vector<request> > split_request_mt(vector<path_node>& vec,request& r){
+		vector<vector<request> > sub_reqs;
+		sub_reqs.resize(cfg->m_num);
+		for(int i=0;i<sub_reqs.size();i++){
+			sub_reqs[i].resize(cfg->server_num);
+			for(int j=0;j<sub_reqs[i].size();j++){
+				sub_reqs[i][j].parent_id=r.req_id;
+				sub_reqs[i][j].cmd_chains=r.cmd_chains;
+				sub_reqs[i][j].result_paths.push_back(vector<path_node>());
+			}
+		}
+		for(int i=0;i<vec.size();i++){
+			int machine = vec[i].id % cfg->m_num; // 0 6 12
+			int thread  = (vec[i].id / cfg->m_num )% cfg->server_num;
+			sub_reqs[machine][thread].result_paths[0].push_back(vec[i]);
 		}
 		return sub_reqs;
 	}
@@ -178,8 +195,11 @@ public:
 			vector<path_node> new_vec;
 			if(cmd_type == cmd_subclass_of){
 				for(int i=0;i<vec.size();i++){
-					vector<edge_row> edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir);
-					for(int k=0;k<edges.size();k++){
+					int edge_num=0;
+					edge_row* edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir,&edge_num);
+					//vector<edge_row> edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir);
+					//for(int k=0;k<edges.size();k++){
+					for(int k=0;k<edge_num;k++){
 						if(global_rdftype_id==edges[k].predict && 
 							g.ontology_table.is_subtype_of(edges[k].vid,target_id)){
 							new_vec.push_back(vec[i]);
@@ -192,8 +212,11 @@ public:
 				vector<path_node> new_vec_attr;
 				vector<path_node> new_vec_id;
 				for(int i=0;i<vec.size();i++){
-					vector<edge_row> edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir);
-					for(int k=0;k<edges.size();k++){
+					int edge_num=0;
+					edge_row* edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir,&edge_num);
+					for(int k=0;k<edge_num;k++){
+					//vector<edge_row> edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir);
+					//for(int k=0;k<edges.size();k++){
 						if(target_id==edges[k].predict) {
 							new_vec_attr.push_back(path_node(edges[k].vid,i));
 							new_vec_id.push_back(path_node(vec[i].id,new_vec_attr.size()-1));
@@ -206,8 +229,11 @@ public:
 				vec=new_vec_id;
 			} else if(cmd_type == cmd_neighbors){
 				for(int i=0;i<vec.size();i++){
-					vector<edge_row> edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir);
-					for(int k=0;k<edges.size();k++){
+					int edge_num=0;
+					edge_row* edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir,&edge_num);
+					for(int k=0;k<edge_num;k++){
+					//vector<edge_row> edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir);
+					//for(int k=0;k<edges.size();k++){
 						if(target_id==edges[k].predict){
 							new_vec.push_back(path_node(edges[k].vid,i));
 						}
@@ -258,17 +284,34 @@ public:
 		} else {
 			//recursive execute 
 			r.blocking=true;
-			vector<request> sub_reqs=split_request(vec,r);
-			req_queue.put_req(r,sub_reqs.size());
-			//concurrent_req_queue.put_req(r,sub_reqs.size());
-			for(int i=0;i<sub_reqs.size();i++){
-				int traverser_id=cfg->t_id;
-				SendReq(cfg,i ,traverser_id, sub_reqs[i],&split_profile);
+			
+			if(vec.size() < global_rdma_threshold * cfg->t_num){
+				vector<request> sub_reqs=split_request(vec,r);
+				req_queue.put_req(r,sub_reqs.size());
+				for(int i=0;i<sub_reqs.size();i++){
+					int traverser_id=cfg->t_id;
+					SendReq(cfg,i ,traverser_id, sub_reqs[i],&split_profile);
+				}
+			} else {
+				vector<vector<request> > sub_reqs=split_request_mt(vec,r);
+				req_queue.put_req(r, cfg->m_num * cfg->server_num);
+				for(int i=0;i<sub_reqs.size();i++){
+					for(int j=0;j<sub_reqs[i].size();j++){
+						//int traverser_id=cfg->t_id;
+						int traverser_id=cfg->client_num+j;
+						SendReq(cfg,i ,traverser_id, sub_reqs[i][j],&split_profile);
+					}
+				}
 			}
+			
+			//global_rdma_threshold
+
+			
 			//merge_reqs(sub_reqs,r);
 		}	
 	} 
 	void run(){	
+		uint64_t t1;//timer::get_usec();;
 		while(true){
 			//request r=node->RecvReq();
 			request r=RecvReq(cfg);
@@ -276,7 +319,9 @@ public:
 			if(r.req_id==-1){ //it means r is a request and shoule be executed
 				//r.req_id=get_id();
 				r.req_id=cfg->get_inc_id();
-
+				if(cfg->is_client(r.parent_id)){
+					t1=timer::get_usec();
+				}
 				handle_request(r);
 				if(!r.blocking){
 					if(cfg->is_client(r.parent_id)){
@@ -293,6 +338,7 @@ public:
 						//less print 
 						if(cfg->m_id==0 && cfg->t_id==cfg->client_num)
 						split_profile.report_msgsize();
+						cout<<"without send back to user :"<<timer::get_usec()-t1<<endl;
 					}
 					SendReq(cfg,cfg->mid_of(r.parent_id) ,cfg->tid_of(r.parent_id), r,&split_profile);
 				}

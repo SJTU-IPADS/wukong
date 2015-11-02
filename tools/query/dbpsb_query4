@@ -1,4 +1,4 @@
-lookup			<http://dbpedia.org/ontology/Book>
+lookup			<http://dbpedia.org/class/Book>
 neighbors   in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
 get_attr		<http://dbpedia.org/property/name>
 get_attr		<http://dbpedia.org/property/pages>
@@ -17,3 +17,6 @@ execute
 150:<http://dbpedia.org/property/name>
 
 query/dbpsb_query4
+
+lookup			<http://dbpedia.org/ontology/Book>
+lookup			<http://dbpedia.org/class/Book>

@@ -9,3 +9,4 @@ int global_batch_factor;
 std::string global_input_folder;
 bool global_interactive;
 int global_rdftype_id;
+bool global_use_loc_cache;
