@@ -1,7 +1,4 @@
-get_subtype		<ub#Department>
-neighbors 	in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
-execute
-
+get_department_id
 neighbors   in 	<ub#subOrganizationOf>
 subclass_of		<ub#ResearchGroup>
 execute		200000

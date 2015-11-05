@@ -10,3 +10,5 @@ std::string global_input_folder;
 bool global_interactive;
 int global_rdftype_id;
 bool global_use_loc_cache;
+int global_num_lubm_university;
+

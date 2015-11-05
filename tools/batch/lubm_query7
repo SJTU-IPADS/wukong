@@ -1,7 +1,4 @@
-get_subtype		<ub#AssociateProfessor>
-neighbors 	in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
-execute
-
+get_AssociateProfessor_id
 neighbors 	out <ub#teacherOf>
 subclass_of 	<ub#Course>
 neighbors 	in	<ub#takesCourse>

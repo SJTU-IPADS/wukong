@@ -1,12 +1,14 @@
-get_subtype		<ub#Course>
-neighbors 	in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
-execute
-
+get_GraduateCourse_id
 neighbors 	in 	<ub#takesCourse>
 subclass_of 	<ub#GraduateStudent>
-execute		400000
+execute		100000
 
 
 
 
 get_subtype		<ub#GraduateCourse>
+
+
+get_subtype		<ub#Course>
+neighbors 	in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
+execute

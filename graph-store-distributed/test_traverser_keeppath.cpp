@@ -13,6 +13,7 @@
 #include "global_cfg.h"
 #include <pthread.h>
 
+#include "batch_lubm.h"
 
 int socket_0[] = {
   0,2,4,6,8,10,12,14,16,18
@@ -101,24 +102,6 @@ void interactive_mode(client* is){
 	}
 }
 
-void send_using_cmd_chain(client* is,vector<string>& cmd_chain){
-	int i=0;
-	while(true){
-		if(cmd_chain[i]=="neighbors"){
-			is->neighbors(cmd_chain[i+1],cmd_chain[i+2]);
-			i+=3;
-		} else if(cmd_chain[i]=="subclass_of"){
-			is->subclass_of(cmd_chain[i+1]);
-			i+=2;
-		} else if(cmd_chain[i]=="get_attr"){
-			is->get_attr(cmd_chain[i+1]);
-			i+=2;
-		} else if(cmd_chain[i]=="execute"){
-			is->Send();
-			return ;
-		}
-	}
-}
 void batch_mode(client* is,struct thread_cfg *cfg){
 	while(true){
 		string filename;
@@ -133,47 +116,14 @@ void batch_mode(client* is,struct thread_cfg *cfg){
   		}
   		MPI_Barrier(MPI_COMM_WORLD);
 		//only support one client now
-		cout<<cfg->m_id<<","<<cfg->t_id<<":"<<filename<<endl;
 		ifstream file(filename);
 		if(!file){
 			cout<<"File "<<filename<<" not exist"<<endl;
 			continue;
 		}
-		///// batch request has two part
 		string cmd;
-		while(file>>cmd){
-			if(cmd=="lookup"){
-				string object;
-				file>>object;
-				is->lookup(object);
-			} else if(cmd=="get_subtype"){
-				string object;
-				file>>object;
-				is->get_subtype(object);
-			} else if(cmd=="neighbors"){
-				string dir,object;
-				file>>dir>>object;
-				is->neighbors(dir,object);
-			} else if(cmd=="subclass_of"){
-				string object;
-				file>>object;
-				is->subclass_of(object);
-			} else if(cmd=="execute"){
-				is->req.timestamp=0;
-				is->Send();
-				is->Recv();
-				cout<<"result size:"<<is->req.path_num()<<endl;
-				break;
-			} else {
-				cout<<"error cmd"<<endl;
-				break;
-			}
-		}
-		request r=is->req;
-		vector<path_node> * vec_ptr=r.last_level();
-		if(vec_ptr==NULL){
-			cout<<"No Result"<<endl;
-		}
+		file>>cmd;
+		vector<uint64_t> ids=get_ids(is,cmd);
 		vector<string> cmd_chain;
 		int total_request=0;
 		while(file>>cmd){
@@ -181,39 +131,91 @@ void batch_mode(client* is,struct thread_cfg *cfg){
 			if(cmd=="execute"){
 				file>>cmd;
 				total_request = atoi(cmd.c_str());
+				total_request*=global_num_server;
 				break;
 			}
 		}
-		unsigned int seed=cfg->m_id*cfg->t_num+cfg->t_id;
-		for(int i=0;i<batch_factor;i++){
-			is->lookup_id((*vec_ptr)[0].id);
-			is->req.timestamp=timer::get_usec();
-			send_using_cmd_chain(is,cmd_chain);
+		if(ids.size()==0){
+			cout<<"id set is empty..."<<endl;
+			exit(0);
 		}
-		uint64_t total_latency=0;
-		uint64_t t1;
-		uint64_t t2;
-		for(int times=0;times<total_request;times++){
-			is->Recv();
-			if(times==total_request/4)
-				t1=timer::get_usec();
-			if(times==total_request/4 *3)
-				t2=timer::get_usec();
-			if(times>=total_request/4 && times<total_request/4*3){
-				total_latency+=timer::get_usec()-is->req.timestamp;
-			}
-			int i=rand_r(&seed) % (*vec_ptr).size();
-			is->lookup_id((*vec_ptr)[i].id);
-			is->req.timestamp=timer::get_usec();
-			send_using_cmd_chain(is,cmd_chain);
-		}
-		for(int i=0;i<batch_factor;i++){
-			is->Recv();
-		}
-		total_latency=total_latency/(total_request/2);
-		cout<<total_latency<<" us"<<endl;
-		cout<<(total_request/2)*1000.0/(t2-t1)<<" Kops"<<endl;
+		batch_execute(is,cfg,total_request,ids,cmd_chain);
 		MPI_Barrier(MPI_COMM_WORLD);
+		///// batch request has two part
+		
+		// while(file>>cmd){
+		// 	if(cmd=="lookup"){
+		// 		string object;
+		// 		file>>object;
+		// 		is->lookup(object);
+		// 	} else if(cmd=="get_subtype"){
+		// 		string object;
+		// 		file>>object;
+		// 		is->get_subtype(object);
+		// 	} else if(cmd=="neighbors"){
+		// 		string dir,object;
+		// 		file>>dir>>object;
+		// 		is->neighbors(dir,object);
+		// 	} else if(cmd=="subclass_of"){
+		// 		string object;
+		// 		file>>object;
+		// 		is->subclass_of(object);
+		// 	} else if(cmd=="execute"){
+		// 		is->req.timestamp=0;
+		// 		is->Send();
+		// 		is->Recv();
+		// 		cout<<"result size:"<<is->req.path_num()<<endl;
+		// 		break;
+		// 	} else {
+		// 		cout<<"error cmd"<<endl;
+		// 		break;
+		// 	}
+		// }
+		// request r=is->req;
+		// vector<path_node> * vec_ptr=r.last_level();
+		// if(vec_ptr==NULL){
+		// 	cout<<"No Result"<<endl;
+		// }
+		// vector<string> cmd_chain;
+		// int total_request=0;
+		// while(file>>cmd){
+		// 	cmd_chain.push_back(cmd);
+		// 	if(cmd=="execute"){
+		// 		file>>cmd;
+		// 		total_request = atoi(cmd.c_str());
+		// 		break;
+		// 	}
+		// }
+		// unsigned int seed=cfg->m_id*cfg->t_num+cfg->t_id;
+		// for(int i=0;i<batch_factor;i++){
+		// 	is->lookup_id((*vec_ptr)[0].id);
+		// 	is->req.timestamp=timer::get_usec();
+		// 	send_using_cmd_chain(is,cmd_chain);
+		// }
+		// uint64_t total_latency=0;
+		// uint64_t t1;
+		// uint64_t t2;
+		// for(int times=0;times<total_request;times++){
+		// 	is->Recv();
+		// 	if(times==total_request/4)
+		// 		t1=timer::get_usec();
+		// 	if(times==total_request/4 *3)
+		// 		t2=timer::get_usec();
+		// 	if(times>=total_request/4 && times<total_request/4*3){
+		// 		total_latency+=timer::get_usec()-is->req.timestamp;
+		// 	}
+		// 	int i=rand_r(&seed) % (*vec_ptr).size();
+		// 	is->lookup_id((*vec_ptr)[i].id);
+		// 	is->req.timestamp=timer::get_usec();
+		// 	send_using_cmd_chain(is,cmd_chain);
+		// }
+		// for(int i=0;i<batch_factor;i++){
+		// 	is->Recv();
+		// }
+		// total_latency=total_latency/(total_request/2);
+		// cout<<total_latency<<" us"<<endl;
+		// cout<<(total_request/2)*1000.0/(t2-t1)<<" Kops"<<endl;
+		// MPI_Barrier(MPI_COMM_WORLD);
 	}
 }
 void* Run(void *ptr) {
