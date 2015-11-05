@@ -311,7 +311,7 @@ public:
 		}	
 	} 
 	void run(){	
-		uint64_t t1;//timer::get_usec();;
+		//uint64_t t1;//timer::get_usec();;
 		while(true){
 			//request r=node->RecvReq();
 			request r=RecvReq(cfg);
@@ -320,14 +320,24 @@ public:
 				//r.req_id=get_id();
 				r.req_id=cfg->get_inc_id();
 				if(cfg->is_client(r.parent_id)){
-					t1=timer::get_usec();
+					//t1=timer::get_usec();
+					//r.timestamp=timer::get_usec();
 				}
 				handle_request(r);
 				if(!r.blocking){
 					if(cfg->is_client(r.parent_id)){
 						//less print 
-						if(cfg->m_id==0 && cfg->t_id==cfg->client_num)
-						split_profile.report_msgsize();
+						//if(cfg->m_id==0 && cfg->t_id==cfg->client_num)
+						//	split_profile.report_msgsize();
+						//uint64_t timestamp=timer::get_usec();
+						//split_profile.record_and_report_latency(timestamp-r.timestamp);
+						//if(global_interactive)
+						//	cout<<"without send back to user :"<<timestamp-r.timestamp<<endl;
+						//r.timestamp=timestamp-r.timestamp;
+						
+						if(r.timestamp!=0){
+							r.result_paths.clear();
+						}
 					}
 					SendReq(cfg,cfg->mid_of(r.parent_id) ,cfg->tid_of(r.parent_id), r,&split_profile);
 				}
@@ -336,9 +346,16 @@ public:
 				if(req_queue.put_reply(r)){
 					if(cfg->is_client(r.parent_id)){
 						//less print 
-						if(cfg->m_id==0 && cfg->t_id==cfg->client_num)
-						split_profile.report_msgsize();
-						cout<<"without send back to user :"<<timer::get_usec()-t1<<endl;
+						//if(cfg->m_id==0 && cfg->t_id==cfg->client_num)
+						//	split_profile.report_msgsize();
+						//uint64_t timestamp=timer::get_usec();
+						//split_profile.record_and_report_latency(timestamp-r.timestamp);
+						//if(global_interactive)
+						//	cout<<"without send back to user :"<<timestamp-r.timestamp<<endl;
+						//r.timestamp=timestamp-r.timestamp;
+						if(r.timestamp!=0){
+							r.result_paths.clear();
+						}
 					}
 					SendReq(cfg,cfg->mid_of(r.parent_id) ,cfg->tid_of(r.parent_id), r,&split_profile);
 				}

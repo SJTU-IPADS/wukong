@@ -97,15 +97,14 @@ public:
 		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
 		req.req_id=-1;
 		req.parent_id=cfg->get_inc_id();
-		req.timestamp=timer::get_usec();
 		SendReq(cfg,first_target, cfg->client_num+rand()%cfg->server_num, req);
 
 	}
 	request Recv(){
 		req=RecvReq(cfg);
 		if(cfg->m_id==0){
-			latency_profile.record_and_report_latency(timer::get_usec()-req.timestamp);
-			latency_profile.record_and_report_shape(req);
+			//latency_profile.record_and_report_latency(timer::get_usec()-req.timestamp);
+			//latency_profile.record_and_report_shape(req);
 		}
 		return req;
 	}

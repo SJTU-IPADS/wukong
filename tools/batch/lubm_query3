@@ -1,0 +1,7 @@
+get_subtype		<ub#FullProfessor>
+neighbors 	in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
+execute
+
+neighbors 	in 	<ub#publicationAuthor>
+subclass_of 	<ub#Publication>
+execute		400000

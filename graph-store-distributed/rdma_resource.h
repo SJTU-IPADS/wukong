@@ -90,7 +90,7 @@ struct normal_op_req
     int _total_threads = -1;
     int _current_partition = -1;
   
-
+    int prev_recvid[32][32];
     struct dev_resource *dev0;//for remote usage
     struct dev_resource *dev1;//for local usage
     
@@ -204,10 +204,24 @@ struct normal_op_req
           meta->remote_tail =meta->remote_tail+total_write_size;
       }
     }
+    
     std::string rbfRecv(int local_tid){
+      //int mid=_total_partition-1;
+      //int tid=_total_threads-1;
+      int mid=prev_recvid[local_tid][0];
+      int tid=prev_recvid[local_tid][1];
       while(true){
-        for(int mid=0;mid<_total_partition;mid++){
-          for(int tid=0;tid<_total_threads;tid++){
+        tid++;
+        if(tid==_total_threads){
+          tid=0;
+          mid++;
+        }
+        if(mid==_total_partition){
+          mid=0;
+        }
+
+//        for(int mid=0;mid<_total_partition;mid++){
+//          for(int tid=0;tid<_total_threads;tid++){
             char * rbf_ptr=buffer+rbfOffset(_current_partition,local_tid,mid,tid);
             char * rbf_data_ptr=rbf_ptr+ sizeof(rbfMeta);
             uint64_t rbf_datasize=rbf_size-sizeof(rbfMeta);
@@ -238,10 +252,12 @@ struct normal_op_req
             }
 
             meta->local_tail+=msg_size+padding+2*sizeof(uint64_t);
+            prev_recvid[local_tid][0]=mid;
+            prev_recvid[local_tid][1]=tid;
             return result;
           }
-        }
-      }
+//        }
+//      }
     }
   };
 

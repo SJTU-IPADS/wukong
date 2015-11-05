@@ -1,0 +1,9 @@
+get_subtype		<ub#University>
+neighbors 	in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
+execute
+
+neighbors   in 	<ub#subOrganizationOf>
+subclass_of		<ub#Department>
+neighbors   in 	<ub#worksFor>
+subclass_of		<ub#FullProfessor>
+execute			200000

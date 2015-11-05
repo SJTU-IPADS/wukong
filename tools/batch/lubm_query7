@@ -1,0 +1,10 @@
+get_subtype		<ub#AssociateProfessor>
+neighbors 	in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
+execute
+
+neighbors 	out <ub#teacherOf>
+subclass_of 	<ub#Course>
+neighbors 	in	<ub#takesCourse>
+subclass_of 	<ub#UndergraduateStudent>
+execute		200000
+

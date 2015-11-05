@@ -73,7 +73,7 @@ public:
 	void record_and_report_latency(uint64_t size){
 		count_latency++;
 		sum_latency+=size;
-		if(count_latency%1000==999){
+		if(count_latency%10000==9999){
 			cout<<"average latency:"<<sum_latency/count_latency << " us"<<endl;
 			count_latency=0;
 			sum_latency=0;
@@ -93,23 +93,35 @@ public:
 		int interval=1000;//*10;
 		current_req++;
 		if(current_req==interval){
-			
-			current_req=0;
 			timer t2;
-			throughput_count++;
-			if(throughput_count>0){
-				throughput+=interval*1.0/t2.diff(t);
-				//cout<<"avg throughput:"<<throughput/throughput_count<<" K ops"<<endl;
-			
 			cout<<"avg neighbor:"<<neighbor_num*1.0/(split_req+non_split_req)
 				<<"\t"<<"split:"<<split_req*1.0/(split_req+non_split_req)
 				<<"\t"<<"msgsize=["<<min_msg<<","<<max_msg<<"]("<<sum_msg*1.0/count_msg<<")"
-				//<<"\t"<<"total_msg="<<sum_msg/(1024*1024)<<" MB"
-				//<<"\t"<<interval*1.0/t2.diff(t)<<" K ops"<<endl;
-				<<"\t"<<"avg throughput:"<<throughput/throughput_count<<" K ops"<<endl;
-			}	
-
-			t.reset();
+				<<"\t"<<interval*1.0/t2.diff(t)<<" K ops"<<endl;
+				current_req=0;
+				t.reset();
+				neighbor_num=0;
+				split_req=0;
+				non_split_req=0;
 		}
+		// if(current_req==interval){
+			
+		// 	current_req=0;
+		// 	timer t2;
+		// 	throughput_count++;
+		// 	if(throughput_count>0){
+		// 		throughput+=interval*1.0/t2.diff(t);
+		// 		//cout<<"avg throughput:"<<throughput/throughput_count<<" K ops"<<endl;
+			
+		// 	cout<<"avg neighbor:"<<neighbor_num*1.0/(split_req+non_split_req)
+		// 		<<"\t"<<"split:"<<split_req*1.0/(split_req+non_split_req)
+		// 		<<"\t"<<"msgsize=["<<min_msg<<","<<max_msg<<"]("<<sum_msg*1.0/count_msg<<")"
+		// 		//<<"\t"<<"total_msg="<<sum_msg/(1024*1024)<<" MB"
+		// 		//<<"\t"<<interval*1.0/t2.diff(t)<<" K ops"<<endl;
+		// 		<<"\t"<<"avg throughput:"<<throughput/throughput_count<<" K ops"<<endl;
+		// 	}	
+
+		// 	t.reset();
+		// }
 	}
 };

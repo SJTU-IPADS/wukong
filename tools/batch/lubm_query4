@@ -1,0 +1,11 @@
+get_subtype		<ub#Department>
+neighbors 	in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
+execute
+
+neighbors 	in 	<ub#worksFor>
+subclass_of 	<ub#FullProfessor>
+get_attr	<ub#name>
+get_attr	<ub#emailAddress>
+get_attr	<ub#telephone>
+execute		200000
+
