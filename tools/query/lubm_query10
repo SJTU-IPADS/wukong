@@ -1,5 +1,0 @@
-lookup 			<http://www.Department0.University0.edu/GraduateCourse0>
-neighbors   in 	<ub#takesCourse>
-subclass_of		<ub#GraduateStudent>
-execute
-

@@ -335,9 +335,9 @@ public:
 						//	cout<<"without send back to user :"<<timestamp-r.timestamp<<endl;
 						//r.timestamp=timestamp-r.timestamp;
 						
-						if(r.timestamp!=0){
+						//if(r.timestamp!=0){
 							r.result_paths.clear();
-						}
+						//}
 					}
 					SendReq(cfg,cfg->mid_of(r.parent_id) ,cfg->tid_of(r.parent_id), r,&split_profile);
 				}
@@ -353,9 +353,10 @@ public:
 						//if(global_interactive)
 						//	cout<<"without send back to user :"<<timestamp-r.timestamp<<endl;
 						//r.timestamp=timestamp-r.timestamp;
-						if(r.timestamp!=0){
+						
+						//if(r.timestamp!=0){
 							r.result_paths.clear();
-						}
+						//}
 					}
 					SendReq(cfg,cfg->mid_of(r.parent_id) ,cfg->tid_of(r.parent_id), r,&split_profile);
 				}
