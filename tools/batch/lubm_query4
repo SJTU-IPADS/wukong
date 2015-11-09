@@ -4,5 +4,5 @@ subclass_of 	<ub#FullProfessor>
 get_attr	<ub#name>
 get_attr	<ub#emailAddress>
 get_attr	<ub#telephone>
-execute		200000
+execute		100000
 

@@ -178,10 +178,9 @@ void batch_execute(client* clnt,struct thread_cfg *cfg,int total_request,vector<
 	for(int i=0;i<global_batch_factor;i++){
 		clnt->Recv();
 	}
-	total_latency=total_latency/(total_request/2);
-	cout<<total_latency<<" us"<<endl;
+	cout<<total_latency/(total_request/2)<<" us"<<endl;
 	cout<<(total_request/2)*1000.0/(t2-t1)<<" Kops"<<endl;
-	cout<<"Total execution time "<<total_latency/1000 <<" ms"<<endl;
+	cout<<"Total execution time "<<(t2-t1)/1000 <<" ms"<<endl;
 }
 
 

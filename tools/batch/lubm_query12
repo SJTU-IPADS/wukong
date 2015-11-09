@@ -3,4 +3,4 @@ neighbors   in 	<ub#subOrganizationOf>
 subclass_of		<ub#Department>
 neighbors   in 	<ub#worksFor>
 subclass_of		<ub#FullProfessor>
-execute			200000
+execute			20000

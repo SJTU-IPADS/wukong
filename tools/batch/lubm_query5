@@ -1,6 +1,6 @@
 get_department_id
 neighbors 	in 	<ub#memberOf>
 subclass_of 	<ub#FullProfessor>
-execute		50000
+execute		20000
 
 

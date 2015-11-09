@@ -1,4 +1,4 @@
 get_AssistantProfessor_id
 neighbors 	in 	<ub#publicationAuthor>
 subclass_of 	<ub#Publication>
-execute		400000
+execute		200000
