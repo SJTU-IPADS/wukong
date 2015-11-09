@@ -39,6 +39,8 @@ class index_server{
 	}
 	void load_index(string filename,unordered_map<string,int>& str2id,
 					vector<string>& id2str){
+		uint64_t t1=timer::get_usec();
+	    
 		cout<<"index_server loading "<<filename<<endl;
 		ifstream file(filename.c_str());
 		string str;
@@ -47,6 +49,9 @@ class index_server{
 			id2str.push_back(str);
 		}
 		file.close();
+		uint64_t t2=timer::get_usec();
+		cout<<"loading "<<filename" in "<<(t2-t1)/1000.0/1000.0<<"s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"<<endl;
+
 	}
 	
 	

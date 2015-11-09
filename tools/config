@@ -2,13 +2,13 @@ global_use_rbf			1
 global_use_rdma			1
 global_rdma_threshold	300
 global_query_type		8
-global_num_server		1
+global_num_server		8
 global_num_client		1
-global_batch_factor		1
-global_input_folder		/home/datanfs/nfs0/LUBM/id_univ160/
+global_batch_factor		8
+global_input_folder		/home/datanfs/nfs0/LUBM/id_univ2560/
 global_interactive		0
 global_rdftype_id		0
 global_use_loc_cache	0
-global_num_lubm_university	160
+global_num_lubm_university	2560
 tmp_input_folder		/home/datanfs/nfs0/LUBM/id_dbpsb/	
 tmp_rdftype_id			7
