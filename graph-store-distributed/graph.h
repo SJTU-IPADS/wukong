@@ -112,7 +112,7 @@ public:
 			} else if(equal(data_prefix.begin(), data_prefix.end(), fname.begin())){
 				filenames.push_back(string(dir_name)+"/"+fname);
 			} else{
-				cout<<"What's this file:"<<fname<<endl;
+				//cout<<"What's this file:"<<fname<<endl;
 				//assert(false);
 			}
 	    }

@@ -50,7 +50,23 @@ class index_server{
 		}
 		file.close();
 		uint64_t t2=timer::get_usec();
-		cout<<"loading "<<filename" in "<<(t2-t1)/1000.0/1000.0<<"s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"<<endl;
+		cout<<"loading "<<filename<<" in "<<(t2-t1)/1000.0/1000.0<<"s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"<<endl;
+
+	}
+	void load_minimal_index(string filename,unordered_map<string,int>& str2id,
+					vector<string>& id2str){
+		uint64_t t1=timer::get_usec();
+	    
+		cout<<"index_server loading "<<filename<<endl;
+		ifstream file(filename.c_str());
+		string str;
+		int id;
+		while(file>>str>>id){
+			str2id[str]=id;
+		}
+		file.close();
+		uint64_t t2=timer::get_usec();
+		cout<<"loading "<<filename<<" in "<<(t2-t1)/1000.0/1000.0<<"s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"<<endl;
 
 	}
 	
@@ -58,7 +74,7 @@ class index_server{
 	void print_tree(int id,int level){
 		for(int i=0;i<level;i++)
 			cout<<"\t";
-		cout<<id_to_subject[id]<<endl;
+		//cout<<id_to_subject[id]<<endl;
 		for(auto child : ontology_table.id_to_children[id]){
 			print_tree(child,level+1);
 		}
@@ -92,8 +108,10 @@ public:
 			if(fname == "index_ontology"){
 				load_ontology(complete_fname);
 			} else if(fname == "index_subject"){
-				load_index(complete_fname,subject_to_id,id_to_subject);
-			} else if(fname == "index_predict"){
+				//load_index(complete_fname,subject_to_id,id_to_subject);
+			} else if(fname == "minimal_index_subject"){
+				load_minimal_index(complete_fname,subject_to_id,id_to_subject);
+			}else if(fname == "index_predict"){
 				load_index(complete_fname,predict_to_id,id_to_predict);
 			} else{
 				continue;

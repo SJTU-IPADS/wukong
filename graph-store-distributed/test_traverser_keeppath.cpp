@@ -85,14 +85,14 @@ void interactive_mode(client* is){
 				uint64_t t2=timer::get_usec();
 				cout<<"result size:"<<is->req.path_num()<<endl;
 				cout<<t2-t1<<"us"<<endl;
-				for(int i=0;i<min(5,is->req.path_num());i++){
-					cout<<"row "<<i<<endl;
-					for(int column=0;column< is->req.path_length();column++){
-						int id=is->req.get_node(i,column).id;
-						cout<<is->is->id_to_subject[id]<<"\t";
-					}
-					cout<<endl;
-				}
+				// for(int i=0;i<min(5,is->req.path_num());i++){
+				// 	cout<<"row "<<i<<endl;
+				// 	for(int column=0;column< is->req.path_length();column++){
+				// 		int id=is->req.get_node(i,column).id;
+				// 		cout<<is->is->id_to_subject[id]<<"\t";
+				// 	}
+				// 	cout<<endl;
+				// }
 				break;
 			} else {
 				cout<<"error cmd"<<endl;
