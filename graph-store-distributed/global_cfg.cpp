@@ -11,4 +11,6 @@ bool global_interactive;
 int global_rdftype_id;
 bool global_use_loc_cache;
 int global_num_lubm_university;
+bool global_load_convert_format;
+
 

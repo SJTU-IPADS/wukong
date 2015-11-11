@@ -139,6 +139,7 @@ void batch_mode(client* is,struct thread_cfg *cfg){
 			cout<<"id set is empty..."<<endl;
 			exit(0);
 		}
+		cout<<"start executing ..."<<endl;
 		//if(cfg->m_id<1){
 		batch_execute(is,cfg,total_request,ids,cmd_chain);
 		//}
@@ -218,7 +219,7 @@ int main(int argc, char * argv[])
 	boost::mpi::communicator world;
 
 	uint64_t rdma_size = 1024*1024*1024;  //1G
-	rdma_size = rdma_size*4; //2G 
+	rdma_size = rdma_size*16; //2G 
   	
   	uint64_t slot_per_thread= 1024*1024*128*4;
   	uint64_t total_size=rdma_size+slot_per_thread*thread_num*2; 
