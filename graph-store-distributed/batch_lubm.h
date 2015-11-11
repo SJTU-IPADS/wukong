@@ -118,19 +118,29 @@ vector<uint64_t> get_GraduateCourse_id(client* clnt){
 	return result;
 }
 
-vector<uint64_t> get_ids(client* clnt,string cmd){
-	if(cmd=="get_university_id")
-		return get_university_id(clnt);
-	if(cmd=="get_department_id")
-		return get_department_id(clnt);
-	if(cmd=="get_AssistantProfessor_id")
-		return get_AssistantProfessor_id(clnt);
-	if(cmd=="get_AssociateProfessor_id")
-		return get_AssociateProfessor_id(clnt);
-	if(cmd=="get_GraduateCourse_id")
-		return get_GraduateCourse_id(clnt);
+// vector<uint64_t> vec_university_id;
+// vector<uint64_t> vec_department_id;
+// vector<uint64_t> vec_AssistantProfessor_id;
+// vector<uint64_t> vec_AssociateProfessor_id;
+vector<uint64_t>& get_ids(client* clnt,string cmd){
+	static vector<uint64_t> vec_GraduateCourse_id;
+	// if(cmd=="get_university_id"){
+	// 	return get_university_id(clnt);
+	// }
+	// if(cmd=="get_department_id")
+	// 	return get_department_id(clnt);
+	// if(cmd=="get_AssistantProfessor_id")
+	// 	return get_AssistantProfessor_id(clnt);
+	// if(cmd=="get_AssociateProfessor_id")
+	// 	return get_AssociateProfessor_id(clnt);
+	if(cmd=="get_GraduateCourse_id"){
+		if(vec_GraduateCourse_id.size()==0){
+			vec_GraduateCourse_id=get_GraduateCourse_id(clnt);
+		}
+		return vec_GraduateCourse_id;
+	}
 	exit(0);
-	return vector<uint64_t>();
+	//return vector<uint64_t>();
 }
 
 void send_using_cmd_chain(client* is,vector<string>& cmd_chain){
@@ -180,7 +190,7 @@ void batch_execute(client* clnt,struct thread_cfg *cfg,int total_request,vector<
 	}
 	cout<<total_latency/(total_request/2)<<" us"<<endl;
 	cout<<(total_request/2)*1000.0/(t2-t1)<<" Kops"<<endl;
-	cout<<"Total execution time "<<(t2-t1)/1000 <<" ms"<<endl;
+	cout<<"client "<<cfg->m_id<< "Total execution time "<<(t2-t1)/1000 <<" ms"<<endl;
 }
 
 

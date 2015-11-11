@@ -151,6 +151,9 @@ public:
 				//assert(false);
 			}
 	    }
+	    uint64_t max_v_num=1000000*5;//80;
+	    kstore.init(rdma,max_v_num,world.size(),world.rank());
+	    
 	    uint64_t t1=timer::get_usec();
 		if(global_load_convert_format){
 			#pragma omp parallel for num_threads(16)
@@ -175,12 +178,7 @@ public:
 	    cout<<"loading files in "<<(t2-t1)/1000.0/1000.0<<"s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"<<endl;
 	    //sleep(1000);
 	    print_graph_info();
-	    // uint64_t store_max_size=1024*1024*1024;
-	    // store_max_size=store_max_size*2;
-	    // char* start_addr=(char*)malloc(store_max_size);
-	    // kstore.init(start_addr,1000000,world.size(),store_max_size);
-	    uint64_t max_v_num=1000000*80;
-	    kstore.init(rdma,max_v_num,world.size(),world.rank());
+	    
 	    for(int i=0;i<num_vertex_table;i++){
 		    unordered_map<uint64_t,vertex_row>::iterator iter;
 			for(iter=vertex_table[i].begin();iter!=vertex_table[i].end();iter++){
