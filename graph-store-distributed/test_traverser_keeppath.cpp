@@ -103,7 +103,11 @@ void interactive_mode(client* is){
 }
 
 void batch_mode(client* is,struct thread_cfg *cfg){
-
+	get_ids(is,"get_university_id");
+	get_ids(is,"get_department_id");
+	get_ids(is,"get_AssistantProfessor_id");
+	get_ids(is,"get_AssociateProfessor_id");
+	get_ids(is,"get_GraduateCourse_id");
 	while(true){
 		MPI_Barrier(MPI_COMM_WORLD);
 		string filename;
@@ -222,10 +226,10 @@ int main(int argc, char * argv[])
 	boost::mpi::communicator world;
 
 	uint64_t rdma_size = 1024*1024*1024;  //1G
-	//rdma_size = rdma_size*16; //2G 
-	rdma_size = rdma_size*2; //2G 
+	rdma_size = rdma_size*14; //2G 
+	//rdma_size = rdma_size*2; //2G 
   	
-  	uint64_t slot_per_thread= 1024*1024*128*4;
+  	uint64_t slot_per_thread= 1024*1024*64;
   	uint64_t total_size=rdma_size+slot_per_thread*thread_num*2; 
 	Network_Node *node = new Network_Node(world.rank(),thread_num);//[0-thread_num-1] are used
 	char *buffer= (char*) malloc(total_size);

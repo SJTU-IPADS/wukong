@@ -251,4 +251,35 @@ public:
 		new_edge_ptr+=vertex_addr[id/p_num].out_degree;
 
 	}
+
+	uint64_t alloc_edges(uint64_t num_edge){
+		uint64_t curr_edge_ptr=new_edge_ptr;
+		new_edge_ptr+=num_edge;
+		return curr_edge_ptr;
+	}
+	void insert_at(uint64_t id,vertex_row& v,uint64_t curr_edge_ptr){
+		if(curr_edge_ptr+v.in_edges.size()+v.out_edges.size() >=max_edge_ptr)
+			assert(false);
+		if(vertex_addr[id/p_num].id!=-1){
+			cout<<"conflict!!!! "<<vertex_addr[id/p_num].id<<"  "<<id<<endl;
+			exit(0);
+		}
+		assert(vertex_addr[id/p_num].id==-1);
+		vertex_addr[id/p_num].id=id;
+		vertex_addr[id/p_num].in_degree=v.in_edges.size();
+		vertex_addr[id/p_num].out_degree=v.out_edges.size();
+
+		vertex_addr[id/p_num].in_edge_ptr=curr_edge_ptr;
+		for(uint64_t i=0;i<v.in_edges.size();i++){
+			edge_addr[curr_edge_ptr+i]=v.in_edges[i];
+		}
+		curr_edge_ptr+=vertex_addr[id/p_num].in_degree;
+
+		vertex_addr[id/p_num].out_edge_ptr=curr_edge_ptr;
+		for(uint64_t i=0;i<v.out_edges.size();i++){
+			edge_addr[curr_edge_ptr+i]=v.out_edges[i];
+		}
+		curr_edge_ptr+=vertex_addr[id/p_num].out_degree;
+
+	}
 };

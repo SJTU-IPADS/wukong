@@ -117,22 +117,36 @@ vector<uint64_t> get_GraduateCourse_id(client* clnt){
 	}
 	return result;
 }
-
-// vector<uint64_t> vec_university_id;
-// vector<uint64_t> vec_department_id;
-// vector<uint64_t> vec_AssistantProfessor_id;
-// vector<uint64_t> vec_AssociateProfessor_id;
 vector<uint64_t>& get_ids(client* clnt,string cmd){
+	static vector<uint64_t> vec_university_id;
+	static vector<uint64_t> vec_department_id;
+	static vector<uint64_t> vec_AssistantProfessor_id;
+	static vector<uint64_t> vec_AssociateProfessor_id;
 	static vector<uint64_t> vec_GraduateCourse_id;
-	// if(cmd=="get_university_id"){
-	// 	return get_university_id(clnt);
-	// }
-	// if(cmd=="get_department_id")
-	// 	return get_department_id(clnt);
-	// if(cmd=="get_AssistantProfessor_id")
-	// 	return get_AssistantProfessor_id(clnt);
-	// if(cmd=="get_AssociateProfessor_id")
-	// 	return get_AssociateProfessor_id(clnt);
+	if(cmd=="get_university_id"){
+		if(vec_university_id.size()==0){
+			vec_university_id=get_university_id(clnt);
+		}
+		return vec_university_id;
+	}
+	if(cmd=="get_department_id"){
+		if(vec_department_id.size()==0){
+			vec_department_id=get_department_id(clnt);
+		}
+		return vec_department_id;
+	}
+	if(cmd=="get_AssistantProfessor_id"){
+		if(vec_AssistantProfessor_id.size()==0){
+			vec_AssistantProfessor_id=get_AssistantProfessor_id(clnt);
+		}
+		return vec_AssistantProfessor_id;
+	}
+	if(cmd=="get_AssociateProfessor_id"){
+		if(vec_AssociateProfessor_id.size()==0){
+			vec_AssociateProfessor_id=get_AssociateProfessor_id(clnt);
+		}
+		return vec_AssociateProfessor_id;
+	}
 	if(cmd=="get_GraduateCourse_id"){
 		if(vec_GraduateCourse_id.size()==0){
 			vec_GraduateCourse_id=get_GraduateCourse_id(clnt);
