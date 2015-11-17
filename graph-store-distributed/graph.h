@@ -37,14 +37,14 @@ public:
 		ifstream file(filename.c_str());
 		uint64_t child,parent;
 		while(file>>child>>parent){
-			int vt_id;
-			vt_id=(child/world.size())%num_vertex_table;
+			int vt_id=0;
+			//vt_id=(child/world.size())%num_vertex_table;
 			if(vertex_table[vt_id].find(child)==vertex_table[vt_id].end()){
 				if(child%(world.size())==world.rank())
 					vertex_table[vt_id][child]=vertex_row();
 				ontology_table.insert_type(child);				
 			}
-			vt_id=(parent/world.size())%num_vertex_table;
+			//vt_id=(parent/world.size())%num_vertex_table;
 			if(parent!=-1 && vertex_table[vt_id].find(parent)==vertex_table[vt_id].end()){
 				if(parent%(world.size())==world.rank())
 					vertex_table[vt_id][parent]=vertex_row();
@@ -54,6 +54,7 @@ public:
 				ontology_table.insert(child,parent);
 			}
 		}
+		vertex_table[0].clear();
 		file.close();
 	}
 	void load_data(string filename){
@@ -210,9 +211,7 @@ public:
 			}
 			sort(convert_s_files.begin(),convert_s_files.end());
 			sort(convert_o_files.begin(),convert_o_files.end());
-			for(int i=0;i<convert_s_files.size();i++){
-		    	cout<<convert_s_files[i]<<"--"<<convert_o_files[i]<<endl;
-		    }
+			
 			#pragma omp parallel for num_threads(5)
 			for(int i=0;i<convert_s_files.size();i++){
 		    	load_convert_data(i,convert_s_files[i],convert_o_files[i]);
