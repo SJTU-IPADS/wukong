@@ -18,6 +18,7 @@ extern int global_rdftype_id;
 extern bool global_use_loc_cache;
 extern int global_num_lubm_university;
 extern bool global_load_convert_format;
+extern bool global_load_minimal_index;
 
 void load_global_cfg(char* filename){
 	ifstream file(filename);
@@ -43,6 +44,7 @@ void load_global_cfg(char* filename){
 	global_use_loc_cache=atoi(config_map["global_use_loc_cache"].c_str());
 	global_num_lubm_university=atoi(config_map["global_num_lubm_university"].c_str());
 	global_load_convert_format=atoi(config_map["global_load_convert_format"].c_str());
+	global_load_minimal_index=atoi(config_map["global_load_minimal_index"].c_str());
 }
 
 

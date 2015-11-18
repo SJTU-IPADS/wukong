@@ -108,9 +108,11 @@ public:
 			if(fname == "index_ontology"){
 				load_ontology(complete_fname);
 			} else if(fname == "index_subject"){
-				//load_index(complete_fname,subject_to_id,id_to_subject);
+				if(!global_load_minimal_index)
+					load_index(complete_fname,subject_to_id,id_to_subject);
 			} else if(fname == "minimal_index_subject"){
-				load_minimal_index(complete_fname,subject_to_id,id_to_subject);
+				if(global_load_minimal_index)
+					load_minimal_index(complete_fname,subject_to_id,id_to_subject);
 			}else if(fname == "index_predict"){
 				load_index(complete_fname,predict_to_id,id_to_predict);
 			} else{
