@@ -294,14 +294,8 @@ public:
 			//recursive execute 
 			r.blocking=true;
 			
-			if(vec.size() < global_rdma_threshold * cfg->t_num){
-				vector<request> sub_reqs=split_request(vec,r);
-				req_queue.put_req(r,sub_reqs.size());
-				for(int i=0;i<sub_reqs.size();i++){
-					int traverser_id=cfg->t_id;
-					SendReq(cfg,i ,traverser_id, sub_reqs[i],&split_profile);
-				}
-			} else {
+			if(global_use_multithread ){
+			//if(global_use_multithread && vec.size() >= global_rdma_threshold * cfg->t_num){
 				vector<vector<request> > sub_reqs=split_request_mt(vec,r);
 				req_queue.put_req(r, cfg->m_num * cfg->server_num);
 				for(int i=0;i<sub_reqs.size();i++){
@@ -310,11 +304,15 @@ public:
 						int traverser_id=cfg->client_num+j;
 						SendReq(cfg,i ,traverser_id, sub_reqs[i][j],&split_profile);
 					}
+				}				
+			} else {
+				vector<request> sub_reqs=split_request(vec,r);
+				req_queue.put_req(r,sub_reqs.size());
+				for(int i=0;i<sub_reqs.size();i++){
+					int traverser_id=cfg->t_id;
+					SendReq(cfg,i ,traverser_id, sub_reqs[i],&split_profile);
 				}
 			}
-			
-			//global_rdma_threshold
-
 			
 			//merge_reqs(sub_reqs,r);
 		}	
@@ -343,10 +341,10 @@ public:
 						//if(global_interactive)
 						//	cout<<"without send back to user :"<<timestamp-r.timestamp<<endl;
 						//r.timestamp=timestamp-r.timestamp;
-						
-						//if(r.timestamp!=0){
+											
+						if(global_clear_final_result){
 							r.result_paths.clear();
-						//}
+						}
 					}
 					SendReq(cfg,cfg->mid_of(r.parent_id) ,cfg->tid_of(r.parent_id), r,&split_profile);
 				}
@@ -363,9 +361,9 @@ public:
 						//	cout<<"without send back to user :"<<timestamp-r.timestamp<<endl;
 						//r.timestamp=timestamp-r.timestamp;
 						
-						//if(r.timestamp!=0){
+						if(global_clear_final_result){
 							r.result_paths.clear();
-						//}
+						}
 					}
 					SendReq(cfg,cfg->mid_of(r.parent_id) ,cfg->tid_of(r.parent_id), r,&split_profile);
 				}

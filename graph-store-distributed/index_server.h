@@ -53,6 +53,25 @@ class index_server{
 		cout<<"loading "<<filename<<" in "<<(t2-t1)/1000.0/1000.0<<"s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"<<endl;
 
 	}
+	void load_index_predict(string filename,unordered_map<string,int>& str2id,
+					vector<string>& id2str){
+		uint64_t t1=timer::get_usec();
+	    
+		cout<<"index_server loading "<<filename<<endl;
+		ifstream file(filename.c_str());
+		string str;
+		while(file>>str){
+			if(str=="<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"){
+				global_rdftype_id=id2str.size();
+			}
+			str2id[str]=id2str.size();
+			id2str.push_back(str);
+		}
+		file.close();
+		uint64_t t2=timer::get_usec();
+		cout<<"loading "<<filename<<" in "<<(t2-t1)/1000.0/1000.0<<"s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"<<endl;
+
+	}
 	void load_minimal_index(string filename,unordered_map<string,int>& str2id,
 					vector<string>& id2str){
 		uint64_t t1=timer::get_usec();
@@ -114,7 +133,7 @@ public:
 				if(global_load_minimal_index)
 					load_minimal_index(complete_fname,subject_to_id,id_to_subject);
 			}else if(fname == "index_predict"){
-				load_index(complete_fname,predict_to_id,id_to_predict);
+				load_index_predict(complete_fname,predict_to_id,id_to_predict);
 			} else{
 				continue;
 			}
