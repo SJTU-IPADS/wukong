@@ -4,7 +4,7 @@ subclass_of		<ub#Department>
 neighbors   in 	<ub#memberOf>
 subclass_of		<ub#GraduateStudent>
 get_attr 		<ub#emailAddress>
-execute			1000
+execute			100
 
 get_subtype		<ub#University>
 neighbors 	in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>

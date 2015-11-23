@@ -173,6 +173,14 @@ public:
 	}
 	void try_rdma_execute(request& r,vector<path_node>& vec){
 		while(r.cmd_chains.size()!=0 ){
+
+			//if(vec.size()>50)
+			//	cout<<vec.size()<<endl;
+			if(vec.size()>global_tuning_threshold){
+				vec.resize(global_tuning_threshold);
+			}
+		
+
 			split_profile.neighbor_num+=vec.size();
 			//if(vec.size()<cfg->m_num*10){
 			if(vec.size()<global_rdma_threshold){
@@ -270,8 +278,9 @@ public:
 		} else{
 			assert(false);
 		}
+		
+		//Tuning the threshold; should be remove because it will throw away part of result
 		//trying to execute using one-side RDMA here~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 		if(global_use_rdma){
 			try_rdma_execute(r,vec);
 		}

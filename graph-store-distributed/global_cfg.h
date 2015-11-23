@@ -20,6 +20,8 @@ extern int global_num_lubm_university;
 extern bool global_load_convert_format;
 extern bool global_load_minimal_index;
 
+extern int global_tuning_threshold;
+
 void load_global_cfg(char* filename){
 	ifstream file(filename);
 	
@@ -45,6 +47,8 @@ void load_global_cfg(char* filename){
 	global_num_lubm_university=atoi(config_map["global_num_lubm_university"].c_str());
 	global_load_convert_format=atoi(config_map["global_load_convert_format"].c_str());
 	global_load_minimal_index=atoi(config_map["global_load_minimal_index"].c_str());
+
+	global_tuning_threshold=atoi(config_map["global_tuning_threshold"].c_str());;
 }
 
 

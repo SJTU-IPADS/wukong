@@ -1,0 +1,6 @@
+get_university_id
+neighbors   in 	<ub#subOrganizationOf>
+neighbors   in 	<ub#memberOf>
+subclass_of		<ub#GraduateStudent>
+execute		500
+

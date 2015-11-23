@@ -155,6 +155,69 @@ void batch_mode(client* is,struct thread_cfg *cfg){
 		
 	}
 }
+
+void tuning_mode(client* is,struct thread_cfg *cfg){
+	get_ids(is,"get_university_id");
+	get_ids(is,"get_department_id");
+	get_ids(is,"get_AssistantProfessor_id");
+	get_ids(is,"get_AssociateProfessor_id");
+	get_ids(is,"get_GraduateCourse_id");
+	MPI_Barrier(MPI_COMM_WORLD);
+	string filename;
+	if(cfg->m_id==0 && cfg->t_id==0){
+		cout<<"tuning mode:"<<endl;
+		cin>>filename;
+		for(int i=1;i<cfg->m_num;i++){
+			cfg->node->Send(i,0,filename);
+		}
+	} else {
+		filename=cfg->node->Recv();
+	}
+	ifstream file(filename);
+	if(!file){
+		cout<<"File "<<filename<<" not exist"<<endl;
+		//continue;
+	}
+	string cmd;
+	file>>cmd;
+	vector<uint64_t> ids=get_ids(is,cmd);
+	vector<string> cmd_chain;
+	int total_request=0;
+	while(file>>cmd){
+		cmd_chain.push_back(cmd);
+		if(cmd=="execute"){
+			file>>cmd;
+			total_request = atoi(cmd.c_str());
+			total_request*=global_num_server;
+			break;
+		}
+	}
+	if(ids.size()==0){
+		cout<<"id set is empty..."<<endl;
+		exit(0);
+	}
+	while(true){		
+		//if(cfg->m_id<1){
+		if(global_tuning_threshold>5000){
+			global_tuning_threshold-=500;
+		} else if(global_tuning_threshold>1000){
+			global_tuning_threshold-=100;
+		} else if(global_tuning_threshold>500){
+			global_tuning_threshold-=50;
+		} else if(global_tuning_threshold>20){
+			global_tuning_threshold-=10;
+		}
+		MPI_Barrier(MPI_COMM_WORLD);
+		if(cfg->m_id==0){
+			//cout<<"global_tuning_threshold == "<<global_tuning_threshold<<endl;
+			cout<<global_tuning_threshold<<"  == global_tuning_threshold "<<endl;
+		}
+		batch_execute(is,cfg,total_request,ids,cmd_chain);
+		//}
+		///// batch request has two part
+		
+	}
+}
 void* Run(void *ptr) {
   struct thread_cfg *cfg = (struct thread_cfg*) ptr;
   pin_to_core(socket_1[cfg->t_id]);
@@ -171,7 +234,8 @@ void* Run(void *ptr) {
   			interactive_mode((client*)(cfg->ptr));
   		}
   	}
-  	batch_mode((client*)(cfg->ptr),cfg);
+  	//batch_mode((client*)(cfg->ptr),cfg);
+	tuning_mode((client*)(cfg->ptr),cfg);
 
   	void(* query_array[11])(client*);
   	for(int i=0;i<=10;i++)
