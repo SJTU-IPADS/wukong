@@ -308,10 +308,13 @@ public:
 			} else {
 				vector<request> sub_reqs=split_request(vec,r);
 				req_queue.put_req(r,sub_reqs.size());
+				//uint64_t t1=timer::get_usec();
 				for(int i=0;i<sub_reqs.size();i++){
-					int traverser_id=cfg->t_id;
+					int traverser_id=cfg->t_id;	
 					SendReq(cfg,i ,traverser_id, sub_reqs[i],&split_profile);
 				}
+				//uint64_t t2=timer::get_usec();
+				//cout<<t2-t1<<" usec in sending messages!!!!!!!!!!!!!!!!!!"<<endl;
 			}
 			
 			//merge_reqs(sub_reqs,r);

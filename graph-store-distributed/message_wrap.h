@@ -12,7 +12,9 @@
 
 void SendReq(thread_cfg* cfg,int r_mid,int r_tid,request& r,profile* profile_ptr=NULL){
     std::stringstream ss;
-    boost::archive::text_oarchive oa(ss);
+    //boost::archive::text_oarchive oa(ss);
+    boost::archive::binary_oarchive oa(ss);
+    
     oa << r;
     if(profile_ptr!=NULL){
         profile_ptr->record_msgsize(ss.str().size());
@@ -48,7 +50,8 @@ request RecvReq(thread_cfg* cfg){
 
     std::stringstream s;
     s << str;
-    boost::archive::text_iarchive ia(s);
+    //boost::archive::text_iarchive ia(s);
+    boost::archive::binary_iarchive ia(s);
     request r;
     ia >> r;
     return r;
