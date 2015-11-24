@@ -203,10 +203,13 @@ void batch_execute(client* clnt,struct thread_cfg *cfg,int total_request,vector<
 		clnt->Recv();
 	}
 	if(cfg->m_id==0){
-		cout<<total_latency/(total_request/2)<<" us"<<endl;
-		cout<<(total_request/2)*1000.0/(t2-t1)<<" Kops"<<endl;
+		cout<<global_tuning_threshold<<"\t"
+			<<total_latency/(total_request/2)<<"\t"
+			<<(total_request/2)*1000.0/(t2-t1)<<endl;
+		//cout<<total_latency/(total_request/2)<<" us"<<endl;
+		//cout<<(total_request/2)*1000.0/(t2-t1)<<" Kops"<<endl;
 		//cout<<"client "<<cfg->m_id<< "Total execution time "<<(t2-t1)/1000 <<" ms"<<endl;
-		cout<<(t2-t1)/1000 <<" ms "<<"client "<<cfg->m_id<< " Total execution time "<<endl;
+		//cout<<(t2-t1)/1000 <<" ms "<<"client "<<cfg->m_id<< " Total execution time "<<endl;
 	}
 }
 

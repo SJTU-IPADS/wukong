@@ -15,6 +15,7 @@ class traverser{
 	request_queue req_queue;
 	thread_cfg* cfg;
 	profile split_profile;
+	vector<request> msg_fast_path;
 	int req_id;
 	int get_id(){
 		int result=req_id;
@@ -311,7 +312,11 @@ public:
 				//uint64_t t1=timer::get_usec();
 				for(int i=0;i<sub_reqs.size();i++){
 					int traverser_id=cfg->t_id;	
-					SendReq(cfg,i ,traverser_id, sub_reqs[i],&split_profile);
+					if(i == cfg->m_id ){
+						msg_fast_path.push_back(sub_reqs[i]);
+					} else {
+						SendReq(cfg,i ,traverser_id, sub_reqs[i],&split_profile);
+					}
 				}
 				//uint64_t t2=timer::get_usec();
 				//cout<<t2-t1<<" usec in sending messages!!!!!!!!!!!!!!!!!!"<<endl;
@@ -323,9 +328,14 @@ public:
 	void run(){	
 		//uint64_t t1;//timer::get_usec();;
 		while(true){
-			//request r=node->RecvReq();
-			request r=RecvReq(cfg);
-
+			request r;
+			if(msg_fast_path.size()>0){
+				r=msg_fast_path.back();
+				msg_fast_path.pop_back();
+			}
+			else {
+				r=RecvReq(cfg);
+			}
 			if(r.req_id==-1){ //it means r is a request and shoule be executed
 				//r.req_id=get_id();
 				r.req_id=cfg->get_inc_id();
@@ -349,7 +359,11 @@ public:
 							r.result_paths.clear();
 						}
 					}
-					SendReq(cfg,cfg->mid_of(r.parent_id) ,cfg->tid_of(r.parent_id), r,&split_profile);
+					if(cfg->mid_of(r.parent_id)== cfg->m_id && cfg->tid_of(r.parent_id)==cfg->t_id){
+						msg_fast_path.push_back(r);
+					} else {
+						SendReq(cfg,cfg->mid_of(r.parent_id) ,cfg->tid_of(r.parent_id), r,&split_profile);
+					}
 				}
 			} else {
 				//if(concurrent_req_queue.put_reply(r)){
@@ -368,7 +382,11 @@ public:
 							r.result_paths.clear();
 						}
 					}
-					SendReq(cfg,cfg->mid_of(r.parent_id) ,cfg->tid_of(r.parent_id), r,&split_profile);
+					if(cfg->mid_of(r.parent_id)== cfg->m_id && cfg->tid_of(r.parent_id)==cfg->t_id){
+						msg_fast_path.push_back(r);
+					} else {
+						SendReq(cfg,cfg->mid_of(r.parent_id) ,cfg->tid_of(r.parent_id), r,&split_profile);
+					}
 				}
 			}
 		}

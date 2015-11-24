@@ -196,6 +196,7 @@ void tuning_mode(client* is,struct thread_cfg *cfg){
 		cout<<"id set is empty..."<<endl;
 		exit(0);
 	}
+	int count=0;
 	while(true){		
 		//if(cfg->m_id<1){
 		if(global_tuning_threshold>5000){
@@ -207,10 +208,14 @@ void tuning_mode(client* is,struct thread_cfg *cfg){
 		} else if(global_tuning_threshold>20){
 			global_tuning_threshold-=10;
 		}
+		if(global_tuning_threshold==20){
+			count++;
+			if(count==5)
+				exit(0);
+		}
 		MPI_Barrier(MPI_COMM_WORLD);
 		if(cfg->m_id==0){
-			//cout<<"global_tuning_threshold == "<<global_tuning_threshold<<endl;
-			cout<<global_tuning_threshold<<"  == global_tuning_threshold "<<endl;
+			//cout<<global_tuning_threshold<<"  == global_tuning_threshold "<<endl;
 		}
 		batch_execute(is,cfg,total_request,ids,cmd_chain);
 		//}
