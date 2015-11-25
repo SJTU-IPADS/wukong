@@ -4,7 +4,10 @@
 #include "rdma_resource.h"
 #include "request.h" //para_in, para_out, para_all 
 #include "global_cfg.h"
+#include "ingress.h"
+
 #include <iostream>
+#include <pthread.h>
 struct edge_row{
 	edge_row(uint64_t p,uint64_t v){
 		predict=p;
@@ -92,12 +95,45 @@ class klist_store{
 	uint64_t p_num;
 	uint64_t p_id;
 	loc_cache* location_cache; 
+	pthread_spinlock_t allocation_lock;
 public:
+
 	uint64_t new_edge_ptr;
-	klist_store(){};
-	vertex getVertex(uint64_t id){
-		assert(vertex_addr[id/p_num].id==id);
-		return vertex_addr[id/p_num];
+	klist_store(){
+		pthread_spin_init(&allocation_lock,0);
+	};
+	vertex getVertex_local(uint64_t id){
+		int num_to_try=1000;
+		uint64_t vertex_ptr=ingress::hash(id)% v_num;
+		while(num_to_try>0){
+			if(vertex_addr[vertex_ptr].id==id){
+				return vertex_addr[vertex_ptr];	
+			}
+			num_to_try--;
+			vertex_ptr=(vertex_ptr+1)% v_num;
+		}
+		assert(false);
+		//assert(vertex_addr[id/p_num].id==id);
+		//return vertex_addr[id/p_num];
+	}
+	vertex getVertex_remote(int tid,uint64_t id){
+		char *local_buffer = rdma->GetMsgAddr(tid);
+		int num_to_try=1000;
+		uint64_t vertex_ptr=ingress::hash(id)% v_num;
+		while(num_to_try>0){
+			uint64_t start_addr=sizeof(vertex) * vertex_ptr;
+			uint64_t read_length=sizeof(vertex);
+			rdma->RdmaRead(tid,ingress::vid2mid(id,p_num),(char *)local_buffer,read_length,start_addr);
+			vertex v=*((vertex*)local_buffer);
+			if(v.id==id){
+				return v;	
+			}
+			num_to_try--;
+			vertex_ptr=(vertex_ptr+1)% v_num;
+		}
+		assert(false);
+		//assert(vertex_addr[id/p_num].id==id);
+		//return vertex_addr[id/p_num];
 	}
 	edge_row* getEdgeArray(uint64_t edgeptr){
 		return &(edge_addr[edgeptr]);
@@ -106,8 +142,8 @@ public:
 		return v_num*sizeof(vertex)+sizeof(edge_row)*edgeptr;
 	}
 	edge_row* readGlobal(int tid,uint64_t id,int direction,int* size){
-		if(id%p_num ==p_id){
-			vertex v=getVertex(id);
+		if( ingress::vid2mid(id,p_num) ==p_id){
+			vertex v=getVertex_local(id);
 			if(direction == para_in){
 				edge_row* edge_ptr=getEdgeArray(v.in_edge_ptr);
 				*size=v.in_degree;
@@ -139,28 +175,28 @@ public:
 			if(global_use_loc_cache){
 				 v=location_cache->loc_cache_lookup(id);
 				 if(v.id!=id){
-				 	rdma->RdmaRead(tid,id%p_num,(char *)local_buffer,read_length,start_addr);
-					v=*((vertex*)local_buffer);
+				 	v=getVertex_remote(tid,id);
+				 	//rdma->RdmaRead(tid,ingress::vid2mid(id,p_num),(char *)local_buffer,read_length,start_addr);
+					//v=*((vertex*)local_buffer);
 					location_cache->loc_cache_insert(v);
 				 }				
 			} else {
-				rdma->RdmaRead(tid,id%p_num,(char *)local_buffer,read_length,start_addr);
-				v=*((vertex*)local_buffer);
+				v=getVertex_remote(tid,id);
+				//rdma->RdmaRead(tid,ingress::vid2mid(id,p_num),(char *)local_buffer,read_length,start_addr);
+				//v=*((vertex*)local_buffer);
 			}
-			//rdma->RdmaRead(tid,id%p_num,(char *)local_buffer,read_length,start_addr);
-			//vertex v=*((vertex*)local_buffer);
 			//read edge data
 			*size=0;
 			if(direction == para_in || direction == para_all){
 				start_addr=getEdgeOffset(v.in_edge_ptr);
 				read_length=sizeof(edge_row)*v.in_degree;
-				rdma->RdmaRead(tid,id%p_num,(char *)local_buffer,read_length,start_addr);
+				rdma->RdmaRead(tid,ingress::vid2mid(id,p_num),(char *)local_buffer,read_length,start_addr);
 				*size=*size+v.in_degree;
 			}
 			if(direction == para_out || direction == para_all){
 				start_addr=getEdgeOffset(v.out_edge_ptr);
 				read_length=sizeof(edge_row)*v.out_degree;
-				rdma->RdmaRead(tid,id%p_num,local_buffer+(*size)*sizeof(edge_row),read_length,start_addr);
+				rdma->RdmaRead(tid,ingress::vid2mid(id,p_num),local_buffer+(*size)*sizeof(edge_row),read_length,start_addr);
 				*size=*size+v.out_degree;
 			}
 			edge_row* edge_ptr=(edge_row*)local_buffer;
@@ -185,60 +221,54 @@ public:
 			location_cache=new loc_cache(100000,p_num);
 		}
 	}
-	void insert(uint64_t id,vertex_row& v){
-		if(new_edge_ptr+v.in_edges.size()+v.out_edges.size() >=max_edge_ptr)
-			assert(false);
-		if(vertex_addr[id/p_num].id!=-1){
-			cout<<"conflict!!!! "<<vertex_addr[id/p_num].id<<"  "<<id<<endl;
-			exit(0);
-		}
-		assert(vertex_addr[id/p_num].id==-1);
-		vertex_addr[id/p_num].id=id;
-		vertex_addr[id/p_num].in_degree=v.in_edges.size();
-		vertex_addr[id/p_num].out_degree=v.out_edges.size();
 
-		vertex_addr[id/p_num].in_edge_ptr=new_edge_ptr;
-		for(uint64_t i=0;i<v.in_edges.size();i++){
-			edge_addr[new_edge_ptr+i]=v.in_edges[i];
-		}
-		new_edge_ptr+=vertex_addr[id/p_num].in_degree;
-
-		vertex_addr[id/p_num].out_edge_ptr=new_edge_ptr;
-		for(uint64_t i=0;i<v.out_edges.size();i++){
-			edge_addr[new_edge_ptr+i]=v.out_edges[i];
-		}
-		new_edge_ptr+=vertex_addr[id/p_num].out_degree;
-
-	}
-
-	uint64_t alloc_edges(uint64_t num_edge){
-		uint64_t curr_edge_ptr=new_edge_ptr;
+	uint64_t atomic_alloc_edges(uint64_t num_edge){
+		uint64_t curr_edge_ptr;
+		pthread_spin_lock(&allocation_lock);
+		curr_edge_ptr=new_edge_ptr;
 		new_edge_ptr+=num_edge;
+		pthread_spin_unlock(&allocation_lock);
+		if(new_edge_ptr>=max_edge_ptr){
+			cout<<"atomic_alloc_edges out of memory !!!! "<<endl;
+			assert(false);
+		}
 		return curr_edge_ptr;
 	}
 	void insert_at(uint64_t id,vertex_row& v,uint64_t curr_edge_ptr){
+		uint64_t vertex_ptr;
 		if(curr_edge_ptr+v.in_edges.size()+v.out_edges.size() >=max_edge_ptr)
 			assert(false);
-		if(vertex_addr[id/p_num].id!=-1){
-			cout<<"conflict!!!! "<<vertex_addr[id/p_num].id<<"  "<<id<<endl;
-			exit(0);
+		int num_to_try=1000;
+		pthread_spin_lock(&allocation_lock);
+		vertex_ptr=ingress::hash(id)% v_num;
+		while(num_to_try>0){
+			if(vertex_addr[vertex_ptr].id==-1){
+				vertex_addr[vertex_ptr].id=id;
+				break;
+			}
+			num_to_try--;
+			vertex_ptr=(vertex_ptr+1)% v_num;
 		}
-		assert(vertex_addr[id/p_num].id==-1);
-		vertex_addr[id/p_num].id=id;
-		vertex_addr[id/p_num].in_degree=v.in_edges.size();
-		vertex_addr[id/p_num].out_degree=v.out_edges.size();
+		if(num_to_try==0){
+			cout<<"fail to alloc for vertex "<<id<<endl;
+			assert(false);
+		}
+		pthread_spin_unlock(&allocation_lock);
+		//assert(vertex_addr[vertex_ptr].id==-1);
+		vertex_addr[vertex_ptr].id=id;
+		vertex_addr[vertex_ptr].in_degree=v.in_edges.size();
+		vertex_addr[vertex_ptr].out_degree=v.out_edges.size();
 
-		vertex_addr[id/p_num].in_edge_ptr=curr_edge_ptr;
+		vertex_addr[vertex_ptr].in_edge_ptr=curr_edge_ptr;
 		for(uint64_t i=0;i<v.in_edges.size();i++){
 			edge_addr[curr_edge_ptr+i]=v.in_edges[i];
 		}
-		curr_edge_ptr+=vertex_addr[id/p_num].in_degree;
-
-		vertex_addr[id/p_num].out_edge_ptr=curr_edge_ptr;
+		curr_edge_ptr+=vertex_addr[vertex_ptr].in_degree;
+		vertex_addr[vertex_ptr].out_edge_ptr=curr_edge_ptr;
 		for(uint64_t i=0;i<v.out_edges.size();i++){
 			edge_addr[curr_edge_ptr+i]=v.out_edges[i];
 		}
-		curr_edge_ptr+=vertex_addr[id/p_num].out_degree;
+		curr_edge_ptr+=vertex_addr[vertex_ptr].out_degree;
 
 	}
 };

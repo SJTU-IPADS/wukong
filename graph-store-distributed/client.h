@@ -21,6 +21,7 @@
 #include "message_wrap.h"
 #include "thread_cfg.h"
 #include "index_server.h"
+#include "ingress.h"
 
 class client{
 	thread_cfg* cfg;
@@ -34,7 +35,7 @@ public:
 	}
 
 	client& lookup(string subject){
-		first_target=is->subject_to_id[subject]%(cfg->m_num);
+		first_target=ingress::vid2mid(is->subject_to_id[subject] , (cfg->m_num));
 		req.clear();
 		path_node node(is->subject_to_id[subject],-1);
 		vector<path_node> vec;
@@ -43,7 +44,7 @@ public:
 		return *this;
 	}
 	client& lookup_id(int id){
-		first_target=id%(cfg->m_num);
+		first_target=ingress::vid2mid(id,cfg->m_num);
 		req.clear();
 		path_node node(id,-1);
 		vector<path_node> vec;

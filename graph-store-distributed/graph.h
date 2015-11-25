@@ -17,6 +17,7 @@
 #include "ontology.h"
 #include "klist_store.h"
 #include "rdma_resource.h"
+#include "ingress.h"
 #include "omp.h"
 using namespace std;
 
@@ -43,25 +44,6 @@ public:
 				ontology_table.insert(child,parent);
 			}
 		}
-		// while(file>>child>>parent){
-		// 	int vt_id=0;
-		// 	//vt_id=(child/world.size())%num_vertex_table;
-		// 	if(vertex_table[vt_id].find(child)==vertex_table[vt_id].end()){
-		// 		if(child%(world.size())==world.rank())
-		// 			vertex_table[vt_id][child]=vertex_row();
-		// 		ontology_table.insert_type(child);				
-		// 	}
-		// 	//vt_id=(parent/world.size())%num_vertex_table;
-		// 	if(parent!=-1 && vertex_table[vt_id].find(parent)==vertex_table[vt_id].end()){
-		// 		if(parent%(world.size())==world.rank())
-		// 			vertex_table[vt_id][parent]=vertex_row();
-		// 		ontology_table.insert_type(parent);	
-		// 	} 
-		// 	if(parent !=-1){
-		// 		ontology_table.insert(child,parent);
-		// 	}
-		// }
-		// vertex_table[0].clear();
 		file.close();
 	}
 	void load_data(string filename){
@@ -70,13 +52,13 @@ public:
 		uint64_t s,p,o;
 		while(file>>s>>p>>o){
 			int vt_id;
-			if(s%(world.size())==world.rank()){
+			if(ingress::vid2mid(s,world.size())==world.rank()){
 				vt_id=(s/world.size())%num_vertex_table;
 				pthread_spin_lock(&vertex_table_lock[vt_id]);
 				vertex_table[vt_id][s].out_edges.push_back(edge_row(p,o));
 				pthread_spin_unlock(&vertex_table_lock[vt_id]);
 			}
-			if(o%(world.size())==world.rank()){
+			if(ingress::vid2mid(o,world.size())==world.rank()){
 				vt_id=(o/world.size())%num_vertex_table;
 				pthread_spin_lock(&vertex_table_lock[vt_id]);
 				vertex_table[vt_id][o].in_edges.push_back(edge_row(p,s));
@@ -98,9 +80,7 @@ public:
 			vertex_table[i][o].in_edges.push_back(edge_row(p,s));
 			count++;
 		}
-		pthread_spin_lock(&vertex_table_lock[0]);
-		uint64_t curr_edge_ptr=kstore.alloc_edges(count);
-		pthread_spin_unlock(&vertex_table_lock[0]);
+		uint64_t curr_edge_ptr=kstore.atomic_alloc_edges(count);
 		unordered_map<uint64_t,vertex_row>::iterator iter;
 		for(iter=vertex_table[i].begin();iter!=vertex_table[i].end();iter++){
 			if(iter->second.out_edges.size()==0 && iter->second.in_edges.size()==0){
@@ -113,12 +93,6 @@ public:
 		cout<<"finished loading "<<s_file<<endl;
 	}
 
-		
-	void print_graph_info(){
-		//cout<<world.rank()<<" has "<<vertex_table.size()<<" vertex"<<endl;
-		//cout<<world.rank()<<" has "<<in_edges<<" in_edges"<<endl;
-		cout<<world.rank()<<" finished "<<endl;
-	}
 	graph(boost::mpi::communicator& para_world,RdmaResource* _rdma,const char* dir_name)
 			:world(para_world),rdma(_rdma){
 		in_edges=0;
@@ -175,14 +149,28 @@ public:
 		    	load_data(filenames[i]);
 		    }
 			uint64_t t2=timer::get_usec();
-		    print_graph_info();
 		    
-		    for(int i=0;i<num_vertex_table;i++){
-			    unordered_map<uint64_t,vertex_row>::iterator iter;
-			    for(iter=vertex_table[i].begin();iter!=vertex_table[i].end();iter++){
-					kstore.insert(iter->first,iter->second);
+		 	//  for(int i=0;i<num_vertex_table;i++){
+			//     unordered_map<uint64_t,vertex_row>::iterator iter;
+			//     for(iter=vertex_table[i].begin();iter!=vertex_table[i].end();iter++){
+			// 		kstore.insert(iter->first,iter->second);
+			// 	}
+			// 	vertex_table[i].clear();
+			// }
+
+			//#pragma omp parallel for num_threads(10)
+			for(int i=0;i<num_vertex_table;i++){
+				uint64_t count=0;
+				unordered_map<uint64_t,vertex_row>::iterator iter;
+				for(iter=vertex_table[i].begin();iter!=vertex_table[i].end();iter++){
+					count+=iter->second.in_edges.size() + iter->second.out_edges.size() ;
 				}
-				vertex_table[i].clear();
+				uint64_t curr_edge_ptr=kstore.atomic_alloc_edges(count);
+				for(iter=vertex_table[i].begin();iter!=vertex_table[i].end();iter++){
+					kstore.insert_at(iter->first,iter->second,curr_edge_ptr);
+					curr_edge_ptr+=iter->second.out_edges.size();
+					curr_edge_ptr+=iter->second.in_edges.size();
+				}
 			}
 			
 			uint64_t t3=timer::get_usec();
@@ -206,7 +194,7 @@ public:
 			cout<<"machine "<<world.rank()<<" load and init in "<<(t2-t1)/1000.0/1000.0<<"s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"<<endl;
 		}
 	    
-	    
+	    cout<<world.rank()<<" finished "<<endl;
 		cout<<"graph-store use "<<max_v_num*sizeof(vertex) / 1024 / 1024<<" MB for vertex data"<<endl;
 		cout<<"graph-store use "<<kstore.new_edge_ptr * sizeof(edge_row) / 1024 / 1024<<" MB for edge data"<<endl;
 	

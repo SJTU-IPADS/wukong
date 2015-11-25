@@ -6,6 +6,8 @@
 #include "message_wrap.h"
 #include "profile.h"
 #include "global_cfg.h"
+#include "ingress.h"
+
 //traverser will remember all the paths just like
 //traverser_keeppath in single machine
 
@@ -32,7 +34,7 @@ class traverser{
 		int path_len=r.result_paths.size();
 		for (int i=0;i< r.result_paths[path_len-1].size();i++){
 			int prev_id=r.result_paths[path_len-1][i].id;
-			vertex vdata=g.kstore.getVertex(prev_id);
+			vertex vdata=g.kstore.getVertex_local(prev_id);
 			if(dir ==para_in || dir == para_all){
 				edge_row* edge_ptr=g.kstore.getEdgeArray(vdata.in_edge_ptr);
 				for(uint64_t k=0;k<vdata.in_degree;k++){
@@ -66,7 +68,7 @@ class traverser{
 		vector<path_node> new_vec;
 		for (int i=0;i<prev_vec.size();i++){
 			int prev_id=prev_vec[i].id;	
-			vertex vdata=g.kstore.getVertex(prev_id);
+			vertex vdata=g.kstore.getVertex_local(prev_id);
 			edge_row* edge_ptr=g.kstore.getEdgeArray(vdata.out_edge_ptr);
 			for(uint64_t k=0;k<vdata.out_degree;k++){
 				if(predict_id==edge_ptr[k].predict && 
@@ -89,7 +91,7 @@ class traverser{
 		vector<path_node> new_vec_id;
 		for (int i=0;i<prev_vec.size();i++){
 			int prev_id=prev_vec[i].id;	
-			vertex vdata=g.kstore.getVertex(prev_id);
+			vertex vdata=g.kstore.getVertex_local(prev_id);
 			edge_row* edge_ptr=g.kstore.getEdgeArray(vdata.out_edge_ptr);
 			for(uint64_t k=0;k<vdata.out_degree;k++){
 				if(predict_id==edge_ptr[k].predict ){
@@ -144,7 +146,7 @@ class traverser{
 			sub_reqs[i].result_paths.push_back(vector<path_node>());
 		}
 		for(int i=0;i<vec.size();i++){
-			int machine = vec[i].id % num_sub_request;
+			int machine = ingress::vid2mid(vec[i].id , num_sub_request);
 			sub_reqs[machine].result_paths[0].push_back(vec[i]);
 		}
 		return sub_reqs;
@@ -160,9 +162,10 @@ class traverser{
 				sub_reqs[i][j].result_paths.push_back(vector<path_node>());
 			}
 		}
+		unsigned int seed=cfg->m_id*cfg->t_num+cfg->t_id;
 		for(int i=0;i<vec.size();i++){
-			int machine = vec[i].id % cfg->m_num; // 0 6 12
-			int thread  = (vec[i].id / cfg->m_num )% cfg->server_num;
+			int machine = ingress::vid2mid(vec[i].id, cfg->m_num);
+			int thread  = rand_r(&seed) % cfg->server_num;
 			sub_reqs[machine][thread].result_paths[0].push_back(vec[i]);
 		}
 		return sub_reqs;
