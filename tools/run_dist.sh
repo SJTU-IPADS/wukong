@@ -2,10 +2,8 @@
 # $1 machine number
 # $2 config_file
 if [ -d $folderpath ]; then
-	/usr/bin/mpiexec -hostfile mpd.hosts -n $1 ../graph-store-distributed/test_traverser_keeppath.out $2
+	/usr/bin/mpiexec -hostfile mpd.hosts -n $1 ../graph-store-distributed/test_graph_distributed.out $2
 else
 	echo  $folderpath "not exist"
 fi
 
-
-#mpiexec -hostfile mpd.hosts -n $1 ../graph-store-distributed/test_traverser_keeppath.out /home/sjx/nfs/LUBM/id_univ$2/

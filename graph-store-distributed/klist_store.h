@@ -105,47 +105,6 @@ public:
 	uint64_t getEdgeOffset(uint64_t edgeptr){
 		return v_num*sizeof(vertex)+sizeof(edge_row)*edgeptr;
 	}
-	// vector<edge_row> readGlobal(int tid,uint64_t id,int direction){
-	// 	vector<edge_row> result;
-	// 	if(id%p_num ==p_id){
-	// 		vertex v=getVertex(id);
-	// 		if(direction == para_in || direction == para_all){
-	// 			edge_row* edge_ptr=getEdgeArray(v.in_edge_ptr);
-	// 			for(int i=0;i<v.in_degree;i++)
-	// 				result.push_back(edge_ptr[i]);
-	// 		}
-	// 		if(direction == para_out || direction == para_all){
-	// 			edge_row* edge_ptr=getEdgeArray(v.out_edge_ptr);
-	// 			for(int i=0;i<v.out_degree;i++)
-	// 				result.push_back(edge_ptr[i]);
-	// 		}
-	// 	} else {
-	// 		//read vertex data first
-	// 		uint64_t *local_buffer = (uint64_t *)rdma->GetMsgAddr(tid);
-	// 		uint64_t start_addr=sizeof(vertex)*(id/p_num);
-	// 		uint64_t read_length=sizeof(vertex);
-	// 		rdma->RdmaRead(tid,id%p_num,(char *)local_buffer,read_length,start_addr);
-	// 		vertex v=*((vertex*)local_buffer);
-	// 		//read edge data
-	// 		if(direction == para_in || direction == para_all){
-	// 			start_addr=getEdgeOffset(v.in_edge_ptr);
-	// 			read_length=sizeof(edge_row)*v.in_degree;
-	// 			rdma->RdmaRead(tid,id%p_num,(char *)local_buffer,read_length,start_addr);
-	// 			edge_row* edge_ptr=(edge_row*)local_buffer;
-	// 			for(int i=0;i<v.in_degree;i++)
-	// 				result.push_back(edge_ptr[i]);
-	// 		}
-	// 		if(direction == para_out || direction == para_all){
-	// 			start_addr=getEdgeOffset(v.out_edge_ptr);
-	// 			read_length=sizeof(edge_row)*v.out_degree;
-	// 			rdma->RdmaRead(tid,id%p_num,(char *)local_buffer,read_length,start_addr);
-	// 			edge_row* edge_ptr=(edge_row*)local_buffer;
-	// 			for(int i=0;i<v.out_degree;i++)
-	// 				result.push_back(edge_ptr[i]);
-	// 		}
-	// 	}
-	// 	return result;
-	// }
 	edge_row* readGlobal(int tid,uint64_t id,int direction,int* size){
 		if(id%p_num ==p_id){
 			vertex v=getVertex(id);
