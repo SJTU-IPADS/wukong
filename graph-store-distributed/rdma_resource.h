@@ -107,8 +107,10 @@ struct normal_op_req
     void init();
     
   public:
-    uint64_t get_size(){
-      return size;
+    uint64_t get_memorystore_size(){
+      //[0-off) can be used;
+      //[off,size) should be reserve
+      return off;
     }
     char * get_buffer(){
       return buffer;

@@ -302,6 +302,7 @@ int main(int argc, char * argv[])
   	uint64_t total_size=rdma_size+slot_per_thread*thread_num*2; 
 	Network_Node *node = new Network_Node(world.rank(),thread_num);//[0-thread_num-1] are used
 	char *buffer= (char*) malloc(total_size);
+	//memset(buffer,0,total_size);
 	RdmaResource *rdma=new RdmaResource(world.size(),thread_num,world.rank(),buffer,total_size,slot_per_thread,rdma_size);
 	rdma->node = node;
 	rdma->Servicing();

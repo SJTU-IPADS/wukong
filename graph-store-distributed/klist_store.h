@@ -212,7 +212,7 @@ public:
 		edge_addr=(edge_row*)(rdma->get_buffer()+v_num*sizeof(vertex));
 		
 		new_edge_ptr=0;
-		max_edge_ptr=(rdma->get_size()-v_num*sizeof(vertex))/sizeof(edge_row);
+		max_edge_ptr=(rdma->get_memorystore_size()-v_num*sizeof(vertex))/sizeof(edge_row);
 		
 		for(uint64_t i=0;i<v_num;i++){
 			vertex_addr[i].id=-1;

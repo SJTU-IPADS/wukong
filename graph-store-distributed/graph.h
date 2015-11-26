@@ -59,7 +59,7 @@ public:
 	}
 	void flush_edge(int localtid,int nfile,int fileid){
 		uint64_t subslot_size=rdma->get_slotsize()/sizeof(uint64_t)/world.size();
-		uint64_t fileslot_size=rdma->get_size()/sizeof(uint64_t)/nfile;
+		uint64_t fileslot_size=rdma->get_memorystore_size()/sizeof(uint64_t)/nfile;
 		for(int mid=0;mid<world.size();mid++){
 			uint64_t *local_buffer = (uint64_t *)rdma->GetMsgAddr(localtid);//GetMsgAddr(tid);
 			local_buffer+=subslot_size*mid;
@@ -75,33 +75,34 @@ public:
 	}
 	void load_and_sync_data(vector<string> file_vec){
 		sort(file_vec.begin(),file_vec.end());
+		uint64_t t1=timer::get_usec();
 		int nfile=file_vec.size();
-		int total_edge=0;
+		#pragma omp parallel for num_threads(global_num_server)
 		for(int i=0;i<nfile;i++){
+			int localtid = omp_get_thread_num();
+			//cout<<localtid<<endl;
 			if(i%world.size()!=world.rank()){
 				continue;
 			}
 			ifstream file(file_vec[i].c_str());
 			uint64_t s,p,o;
-			//rdma->get_slotsize();
 			while(file>>s>>p>>o){
 				int s_mid=ingress::vid2mid(s,world.size());
 				int o_mid=ingress::vid2mid(o,world.size());
 				if(s_mid==o_mid){
-					send_edge(0,s_mid,s,p,o);
-					total_edge++;
+					send_edge(localtid,s_mid,s,p,o);
 				}
 				else {
-					send_edge(0,s_mid,s,p,o);
-					send_edge(0,o_mid,s,p,o);
-					total_edge+=2;
+					send_edge(localtid,s_mid,s,p,o);
+					send_edge(localtid,o_mid,s,p,o);
 				}
 			}
-			flush_edge(0,nfile,i);
+			flush_edge(localtid,nfile,i);
 		}
-		total_edge=0;
 		MPI_Barrier(MPI_COMM_WORLD);
-		uint64_t fileslot_size=rdma->get_size()/sizeof(uint64_t)/nfile;
+		uint64_t t2=timer::get_usec();
+		uint64_t fileslot_size=rdma->get_memorystore_size()/sizeof(uint64_t)/nfile;
+		//#pragma omp parallel for num_threads(4)
 		for(int i=0;i<file_vec.size();i++){
 			uint64_t offset=	fileslot_size*sizeof(uint64_t)*i;
 			uint64_t* buffer=(uint64_t*)(rdma->get_buffer()+fileslot_size*sizeof(uint64_t)*i);
@@ -109,7 +110,6 @@ public:
 			uint64_t s,p,o;
 			buffer++;
 			while(size>0){
-				total_edge++;
 				s=buffer[0];
 				p=buffer[1];
 				o=buffer[2];
@@ -130,6 +130,9 @@ public:
 				}
 			}
 		}
+		uint64_t t3=timer::get_usec();
+		cout<<(t2-t1)/1000<<" ms for loading files"<<endl;
+		cout<<(t3-t2)/1000<<" ms for aggregrate edges"<<endl;
 	}
 	void load_data(string filename){
 		//cout<<"loading "<<filename<<endl;
