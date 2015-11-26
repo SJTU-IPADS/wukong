@@ -113,6 +113,9 @@ struct normal_op_req
     char * get_buffer(){
       return buffer;
     }
+    uint64_t get_slotsize(){
+      return slotsize;
+    }
     //rdma location hashing
     uint64_t slotsize;
     uint64_t rbf_size;
@@ -208,6 +211,7 @@ struct normal_op_req
     std::string rbfRecv(int local_tid){
       //int mid=_total_partition-1;
       //int tid=_total_threads-1;
+      // prev_recvid is used to implement round-robin polling
       int mid=prev_recvid[local_tid][0];
       int tid=prev_recvid[local_tid][1];
       while(true){

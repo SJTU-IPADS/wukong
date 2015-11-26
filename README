@@ -34,4 +34,21 @@
 		index_subject can be very large, it slow down the loading phase and use a lot of memory.
 		we use a subset of index_subject to solve this problem
 
+4. usage of RDMA region
+
+running phase
+
+|<- klist-store ->|<- rdma-slot * nthread ->|<- msg-slot * nthread->|
+
+Any msg-slot is divided into nthread * nmachine smaller slot, each slot is a header and a ring buffer
+
+
+loading phase
+
+rdma-slot is divided into nmachine smaller slot, used to send edge data to other machine
+
+klist-store part divided into nfile smaller slot, used to store edge at loading phase.
+
+
+
 

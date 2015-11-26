@@ -26,13 +26,10 @@ class graph{
 	RdmaResource* rdma;
 public:
 	static const int num_vertex_table=100;
-	//unordered_map<uint64_t,vertex_row> vertex_table;
 	unordered_map<uint64_t,vertex_row> vertex_table[num_vertex_table];
 	pthread_spinlock_t vertex_table_lock[num_vertex_table];
 	klist_store kstore;
 	ontology ontology_table;
-	uint64_t in_edges;
-	uint64_t out_edges;
 	void load_ontology(string filename){
 		cout<<"loading "<<filename<<endl;
 		ifstream file(filename.c_str());
@@ -45,6 +42,94 @@ public:
 			}
 		}
 		file.close();
+	}
+
+	void inline send_edge(int localtid,int mid,uint64_t s,uint64_t p,uint64_t o){
+		uint64_t *local_buffer = (uint64_t *)rdma->GetMsgAddr(localtid);
+		uint64_t subslot_size=rdma->get_slotsize()/sizeof(uint64_t)/world.size();
+		local_buffer+=subslot_size*mid;
+		if((*local_buffer)*3+3 >=subslot_size){
+			cout<<"input file is too large, please split it into smaller files"<<endl;
+			assert(false);
+		} 
+		*(local_buffer+(*local_buffer)*3+1)=s;
+		*(local_buffer+(*local_buffer)*3+2)=p;
+		*(local_buffer+(*local_buffer)*3+3)=o;
+		*local_buffer=*local_buffer+1;
+	}
+	void flush_edge(int localtid,int nfile,int fileid){
+		uint64_t subslot_size=rdma->get_slotsize()/sizeof(uint64_t)/world.size();
+		uint64_t fileslot_size=rdma->get_size()/sizeof(uint64_t)/nfile;
+		for(int mid=0;mid<world.size();mid++){
+			uint64_t *local_buffer = (uint64_t *)rdma->GetMsgAddr(localtid);//GetMsgAddr(tid);
+			local_buffer+=subslot_size*mid;
+			uint64_t send_size=((*local_buffer)*3+1)*sizeof(uint64_t);
+			uint64_t remote_offset=	fileslot_size*sizeof(uint64_t)*fileid;
+			if(mid!=world.rank()){
+				rdma->RdmaWrite(localtid,mid,(char*)local_buffer,send_size, remote_offset);
+			} else {
+				memcpy(rdma->get_buffer()+remote_offset,(char*)local_buffer,send_size);
+			}
+			*local_buffer=0;
+		}
+	}
+	void load_and_sync_data(vector<string> file_vec){
+		sort(file_vec.begin(),file_vec.end());
+		int nfile=file_vec.size();
+		int total_edge=0;
+		for(int i=0;i<nfile;i++){
+			if(i%world.size()!=world.rank()){
+				continue;
+			}
+			ifstream file(file_vec[i].c_str());
+			uint64_t s,p,o;
+			//rdma->get_slotsize();
+			while(file>>s>>p>>o){
+				int s_mid=ingress::vid2mid(s,world.size());
+				int o_mid=ingress::vid2mid(o,world.size());
+				if(s_mid==o_mid){
+					send_edge(0,s_mid,s,p,o);
+					total_edge++;
+				}
+				else {
+					send_edge(0,s_mid,s,p,o);
+					send_edge(0,o_mid,s,p,o);
+					total_edge+=2;
+				}
+			}
+			flush_edge(0,nfile,i);
+		}
+		total_edge=0;
+		MPI_Barrier(MPI_COMM_WORLD);
+		uint64_t fileslot_size=rdma->get_size()/sizeof(uint64_t)/nfile;
+		for(int i=0;i<file_vec.size();i++){
+			uint64_t offset=	fileslot_size*sizeof(uint64_t)*i;
+			uint64_t* buffer=(uint64_t*)(rdma->get_buffer()+fileslot_size*sizeof(uint64_t)*i);
+			uint64_t size=*buffer;
+			uint64_t s,p,o;
+			buffer++;
+			while(size>0){
+				total_edge++;
+				s=buffer[0];
+				p=buffer[1];
+				o=buffer[2];
+				buffer+=3;
+				size-=1;
+				int vt_id;
+				if(ingress::vid2mid(s,world.size())==world.rank()){
+					vt_id=(s/world.size())%num_vertex_table;
+					pthread_spin_lock(&vertex_table_lock[vt_id]);
+					vertex_table[vt_id][s].out_edges.push_back(edge_row(p,o));
+					pthread_spin_unlock(&vertex_table_lock[vt_id]);
+				}
+				if(ingress::vid2mid(o,world.size())==world.rank()){
+					vt_id=(o/world.size())%num_vertex_table;
+					pthread_spin_lock(&vertex_table_lock[vt_id]);
+					vertex_table[vt_id][o].in_edges.push_back(edge_row(p,s));
+					pthread_spin_unlock(&vertex_table_lock[vt_id]);
+				}
+			}
+		}
 	}
 	void load_data(string filename){
 		//cout<<"loading "<<filename<<endl;
@@ -95,8 +180,6 @@ public:
 
 	graph(boost::mpi::communicator& para_world,RdmaResource* _rdma,const char* dir_name)
 			:world(para_world),rdma(_rdma){
-		in_edges=0;
-		out_edges=0;
 		struct dirent *ptr;    
 	    DIR *dir;
 	    dir=opendir(dir_name);
@@ -140,16 +223,21 @@ public:
 			}
 	    }
 	    uint64_t max_v_num=1000000*80;//80;
-	    kstore.init(rdma,max_v_num,world.size(),world.rank());
+	    
 	    
 	    uint64_t t1=timer::get_usec();
 		if(!global_load_convert_format){
-			#pragma omp parallel for num_threads(10)
-			for(int i=0;i<filenames.size();i++){
-		    	load_data(filenames[i]);
-		    }
+			// #pragma omp parallel for num_threads(10)
+			// for(int i=0;i<filenames.size();i++){
+			// 	load_data(filenames[i]);
+			// }
+		    load_and_sync_data(filenames);
 			uint64_t t2=timer::get_usec();
-		    
+			
+			//load_and_sync_data will use the memory of rdma_region
+			//so kstore should be init here
+		    kstore.init(rdma,max_v_num,world.size(),world.rank());
+		 	
 		 	//  for(int i=0;i<num_vertex_table;i++){
 			//     unordered_map<uint64_t,vertex_row>::iterator iter;
 			//     for(iter=vertex_table[i].begin();iter!=vertex_table[i].end();iter++){
@@ -177,6 +265,7 @@ public:
 			cout<<"loading files in "<<(t2-t1)/1000.0/1000.0<<"s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"<<endl;
 		    cout<<"init rdma store in "<<(t3-t2)/1000.0/1000.0<<"s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"<<endl;
 		} else {
+			kstore.init(rdma,max_v_num,world.size(),world.rank());
 			if(convert_s_files.size()==0){
 				cout<<"convert files not found!!!!!!!!!"<<endl;
 				exit(0);
@@ -200,5 +289,4 @@ public:
 	
 	}
 };
-
 
