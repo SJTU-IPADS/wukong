@@ -49,7 +49,7 @@ public:
 		uint64_t subslot_size=rdma->get_slotsize()/sizeof(uint64_t)/world.size();
 		local_buffer+=subslot_size*mid;
 		if((*local_buffer)*3+3 >=subslot_size){
-			cout<<"input file is too large, please split it into smaller files"<<endl;
+			cout<<"input file is too large, please split files into smaller files"<<endl;
 			assert(false);
 		} 
 		*(local_buffer+(*local_buffer)*3+1)=s;
@@ -65,6 +65,10 @@ public:
 			local_buffer+=subslot_size*mid;
 			uint64_t send_size=((*local_buffer)*3+1)*sizeof(uint64_t);
 			uint64_t remote_offset=	fileslot_size*sizeof(uint64_t)*fileid;
+			if(send_size > fileslot_size*sizeof(uint64_t)){
+				cout<<"fileslot_size is not large enough, please split files into smaller files"<<endl;
+				assert(false);
+			}
 			if(mid!=world.rank()){
 				rdma->RdmaWrite(localtid,mid,(char*)local_buffer,send_size, remote_offset);
 			} else {
@@ -72,6 +76,64 @@ public:
 			}
 			*local_buffer=0;
 		}
+	}
+	bool inline recv_edge(int nfile,int fileid,uint64_t row,uint64_t* s,uint64_t* p,uint64_t* o){
+		uint64_t fileslot_size=rdma->get_memorystore_size()/sizeof(uint64_t)/nfile;
+		uint64_t offset=fileslot_size*sizeof(uint64_t)*fileid;
+		uint64_t* buffer=(uint64_t*)(rdma->get_buffer()+offset);
+		uint64_t size=*buffer;
+		if(row>=size)
+			return false;
+		buffer++;
+		*s=buffer[row*3];
+		*p=buffer[row*3+1];
+		*o=buffer[row*3+2];
+		return true;
+	}
+	struct edge_tmp_for_sort{
+		uint64_t s;
+		uint64_t p;
+		uint64_t o;
+		bool operator < (edge_tmp_for_sort const& _A) const {  
+			if(s < _A.s)  
+				return true;  
+			if(s == _A.s) 
+				return o< _A.o;  
+			return false;  
+		}
+	};
+	void load_and_sync_data_greedy(vector<string> file_vec){
+		sort(file_vec.begin(),file_vec.end());
+		int nfile=file_vec.size();
+		#pragma omp parallel for num_threads(global_num_server)
+		for(int i=0;i<nfile;i++){
+			int localtid = omp_get_thread_num();
+			//cout<<localtid<<endl;
+			if(i%world.size()!=world.rank()){
+				continue;
+			}
+			ifstream file(file_vec[i].c_str());
+			uint64_t s,p,o;
+			while(file>>s>>p>>o){
+				int s_mid=ingress::vid2mid(s,world.size());
+				//only send to local buffer
+				send_edge(localtid,s_mid,s,p,o);
+			}
+			//flush data using rdma_write
+			flush_edge(localtid,nfile,i);
+		}
+		MPI_Barrier(MPI_COMM_WORLD);
+		vector<edge_tmp_for_sort> edge_vec;
+		for(int fileid=0;fileid<file_vec.size();fileid++){
+			uint64_t row=0;
+			//uint64_t s,p,o;
+			edge_tmp_for_sort e;
+			while(recv_edge(nfile,fileid,row,&e.s,&e.p,&e.o)){
+				edge_vec.push_back(e);
+				row++;
+			}
+		}
+		sort(edge_vec.begin(),edge_vec.end());
 	}
 	void load_and_sync_data(vector<string> file_vec){
 		sort(file_vec.begin(),file_vec.end());
@@ -102,31 +164,24 @@ public:
 		MPI_Barrier(MPI_COMM_WORLD);
 		uint64_t t2=timer::get_usec();
 		uint64_t fileslot_size=rdma->get_memorystore_size()/sizeof(uint64_t)/nfile;
-		//#pragma omp parallel for num_threads(4)
-		for(int i=0;i<file_vec.size();i++){
-			uint64_t offset=	fileslot_size*sizeof(uint64_t)*i;
-			uint64_t* buffer=(uint64_t*)(rdma->get_buffer()+fileslot_size*sizeof(uint64_t)*i);
-			uint64_t size=*buffer;
-			uint64_t s,p,o;
-			buffer++;
-			while(size>0){
-				s=buffer[0];
-				p=buffer[1];
-				o=buffer[2];
-				buffer+=3;
-				size-=1;
-				int vt_id;
-				if(ingress::vid2mid(s,world.size())==world.rank()){
-					vt_id=(s/world.size())%num_vertex_table;
-					pthread_spin_lock(&vertex_table_lock[vt_id]);
-					vertex_table[vt_id][s].out_edges.push_back(edge_row(p,o));
-					pthread_spin_unlock(&vertex_table_lock[vt_id]);
-				}
-				if(ingress::vid2mid(o,world.size())==world.rank()){
-					vt_id=(o/world.size())%num_vertex_table;
-					pthread_spin_lock(&vertex_table_lock[vt_id]);
-					vertex_table[vt_id][o].in_edges.push_back(edge_row(p,s));
-					pthread_spin_unlock(&vertex_table_lock[vt_id]);
+		int parallel_factor=global_num_server;
+		#pragma omp parallel for num_threads(parallel_factor)
+		for(int t=0;t<parallel_factor;t++){
+			for(int fileid=0;fileid<file_vec.size();fileid++){
+				uint64_t row=0;
+				uint64_t s,p,o;
+				while(recv_edge(nfile,fileid,row,&s,&p,&o)){
+					if(ingress::vid2mid(s,world.size())==world.rank()){
+						if((s/world.size())%parallel_factor==t){
+							vertex_table[t][s].out_edges.push_back(edge_row(p,o));
+						}
+					}
+					if(ingress::vid2mid(o,world.size())==world.rank()){
+						if((o/world.size())%parallel_factor==t){
+							vertex_table[t][o].in_edges.push_back(edge_row(p,s));
+						}
+					}
+					row++;
 				}
 			}
 		}
@@ -241,15 +296,8 @@ public:
 			//so kstore should be init here
 		    kstore.init(rdma,max_v_num,world.size(),world.rank());
 		 	
-		 	//  for(int i=0;i<num_vertex_table;i++){
-			//     unordered_map<uint64_t,vertex_row>::iterator iter;
-			//     for(iter=vertex_table[i].begin();iter!=vertex_table[i].end();iter++){
-			// 		kstore.insert(iter->first,iter->second);
-			// 	}
-			// 	vertex_table[i].clear();
-			// }
-
-			//#pragma omp parallel for num_threads(10)
+		 	
+			#pragma omp parallel for num_threads(10)
 			for(int i=0;i<num_vertex_table;i++){
 				uint64_t count=0;
 				unordered_map<uint64_t,vertex_row>::iterator iter;
@@ -285,7 +333,7 @@ public:
 		    uint64_t t2=timer::get_usec();
 			cout<<"machine "<<world.rank()<<" load and init in "<<(t2-t1)/1000.0/1000.0<<"s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"<<endl;
 		}
-	    
+	    kstore.calculate_edge_cut();
 	    cout<<world.rank()<<" finished "<<endl;
 		cout<<"graph-store use "<<max_v_num*sizeof(vertex) / 1024 / 1024<<" MB for vertex data"<<endl;
 		cout<<"graph-store use "<<kstore.new_edge_ptr * sizeof(edge_row) / 1024 / 1024<<" MB for edge data"<<endl;

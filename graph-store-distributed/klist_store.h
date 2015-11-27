@@ -271,4 +271,33 @@ public:
 		curr_edge_ptr+=vertex_addr[vertex_ptr].out_degree;
 
 	}
+	void calculate_edge_cut(){
+		uint64_t local_num=0;
+		uint64_t remote_num=0;
+		for(int i=0;i<v_num;i++){
+			if(vertex_addr[i].id!=-1){
+				uint64_t degree;
+				uint64_t edge_ptr;
+				degree  =vertex_addr[i].in_degree;
+				edge_ptr=vertex_addr[i].in_edge_ptr;
+				for(uint64_t j=0;j<degree;j++){
+					if(ingress::vid2mid(edge_addr[edge_ptr+j].vid,p_num)==p_id){
+						local_num++;
+					} else {
+						remote_num++;
+					}
+				}
+				degree  =vertex_addr[i].out_degree;
+				edge_ptr=vertex_addr[i].out_edge_ptr;
+				for(uint64_t j=0;j<degree;j++){
+					if(ingress::vid2mid(edge_addr[edge_ptr+j].vid,p_num)==p_id){
+						local_num++;
+					} else {
+						remote_num++;
+					}
+				}
+			}
+		}
+		cout<<"edge cut rate: "<<remote_num*1.0/(local_num+remote_num)<<endl;
+	}
 };
