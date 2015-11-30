@@ -1,4 +1,5 @@
 #include <string>
+
 bool global_use_rbf;
 bool global_use_rdma;
 int global_rdma_threshold;
@@ -15,7 +16,10 @@ bool global_load_convert_format;
 bool global_load_minimal_index;
 bool global_clear_final_result;
 bool global_use_multithread;
+int global_estimate_vnum;
+int global_estimate_enum;
 
 int global_tuning_threshold;
 
+int* global_mid_table;
 

@@ -21,9 +21,12 @@ extern bool global_load_convert_format;
 extern bool global_load_minimal_index;
 extern bool global_clear_final_result;
 extern bool global_use_multithread;
+extern int global_estimate_vnum;
+extern int global_estimate_enum;
 
 
 extern int global_tuning_threshold;
+extern int* global_mid_table;
 
 void load_global_cfg(char* filename){
 	ifstream file(filename);
@@ -52,8 +55,12 @@ void load_global_cfg(char* filename){
 	global_load_minimal_index=atoi(config_map["global_load_minimal_index"].c_str());
 	global_clear_final_result=atoi(config_map["global_clear_final_result"].c_str());
 	global_use_multithread=atoi(config_map["global_use_multithread"].c_str());
+	global_estimate_vnum=atoi(config_map["global_estimate_vnum"].c_str());
+	global_estimate_enum=atoi(config_map["global_estimate_enum"].c_str());
 
-	global_tuning_threshold=atoi(config_map["global_tuning_threshold"].c_str());;
+	global_tuning_threshold=atoi(config_map["global_tuning_threshold"].c_str());
+
+	global_mid_table=NULL;
 }
 
 

@@ -323,8 +323,8 @@ int main(int argc, char * argv[])
 		cfg_array[i].node=new Network_Node(cfg_array[i].m_id,cfg_array[i].t_id);
 		cfg_array[i].init();
 	}
-	graph g(world,rdma,global_input_folder.c_str());
 	index_server is(global_input_folder.c_str());
+	graph g(world,rdma,global_input_folder.c_str());
 	client** client_array=new client*[client_num];
 	MPI_Barrier(MPI_COMM_WORLD);
 	for(int i=0;i<client_num;i++){

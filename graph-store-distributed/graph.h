@@ -102,6 +102,48 @@ public:
 			return false;  
 		}
 	};
+	//#vertex and #edge number of each machine 
+	vector<double> balance_greedy;
+	void vid2mid_greedy(const vector<edge_tmp_for_sort>& edge_vec,uint64_t start,uint64_t end){
+		int m_num=world.size();
+		vector<double> score_greedy(m_num);
+		vector<int> degrees_greedy(m_num);
+		for (size_t i = start; i < end; ++i) {
+			uint64_t vid=edge_vec[i].o;
+			if (global_mid_table[vid]!=-1)
+				degrees_greedy[global_mid_table[vid]]++;
+		}
+		double gamma = 1.5;
+		double alpha = alpha = sqrt(m_num) * double(global_estimate_enum) / pow(global_estimate_vnum, gamma);
+		for (size_t i = 0; i < m_num; ++i) {
+			score_greedy[i] = degrees_greedy[i] 
+				- alpha * gamma * pow(balance_greedy[i], (gamma - 1));
+		}
+		double best_score = score_greedy[0];
+		int best_mid = 0;
+		for (size_t i = 1; i < m_num; ++i) {
+			if (score_greedy[i] > best_score) {
+				best_score = score_greedy[i];
+				best_mid = i;
+			}
+		}
+		global_mid_table[edge_vec[start].s]=best_mid;
+		//update balance 
+		balance_greedy[best_mid]++;
+		balance_greedy[best_mid] +=
+			((end-start) * float(global_estimate_vnum) / float(global_estimate_enum));
+
+	}
+	void merge_mid_table(int target_mid){
+		uint64_t read_length=global_estimate_vnum*sizeof(int);
+		rdma->RdmaRead(0,target_mid,rdma->get_buffer()+read_length,read_length,0);
+		int *remote_mid_table=(int*)(rdma->get_buffer()+read_length);
+		for(uint64_t i=0;i<global_estimate_vnum;i++){
+			if(remote_mid_table[i]!=-1){
+				global_mid_table[i]=remote_mid_table[i];
+			}
+		}
+	}
 	void load_and_sync_data_greedy(vector<string> file_vec){
 		sort(file_vec.begin(),file_vec.end());
 		int nfile=file_vec.size();
@@ -115,7 +157,8 @@ public:
 			ifstream file(file_vec[i].c_str());
 			uint64_t s,p,o;
 			while(file>>s>>p>>o){
-				int s_mid=ingress::vid2mid(s,world.size());
+				//int s_mid=ingress::vid2mid(s,world.size());
+				int s_mid=s%world.size();
 				//only send to local buffer
 				send_edge(localtid,s_mid,s,p,o);
 			}
@@ -130,10 +173,109 @@ public:
 			edge_tmp_for_sort e;
 			while(recv_edge(nfile,fileid,row,&e.s,&e.p,&e.o)){
 				edge_vec.push_back(e);
-				row++;
+				row++;//try to read next row
 			}
 		}
 		sort(edge_vec.begin(),edge_vec.end());
+		balance_greedy.resize(world.size());
+		global_mid_table=(int*)rdma->get_buffer();
+		for(uint64_t i=0;i<global_estimate_vnum;i++){
+			global_mid_table[i]=-1;
+		}
+		MPI_Barrier(MPI_COMM_WORLD);
+		//start to calculate the mid of all vertex
+
+		//ingress::create_table(global_estimate_vnum);
+		uint64_t edge_start=0;
+		uint64_t sync_point=edge_vec.size()/10;
+		while(edge_start<edge_vec.size()){
+			uint64_t edge_end=edge_start+1;
+			while(edge_end<edge_vec.size() && edge_vec[edge_start].s == edge_vec[edge_end].s){
+				edge_end++;
+			}
+			vid2mid_greedy(edge_vec,edge_start,edge_end);
+			edge_start=edge_end;
+			if(edge_start>sync_point){
+				for(int i=0;i<world.size();i++){
+					if(i==world.rank()){
+						continue;
+					}
+					merge_mid_table(i);
+				}
+				sync_point+=edge_vec.size()/10;
+			}
+		}
+		MPI_Barrier(MPI_COMM_WORLD);
+		for(int i=0;i<world.size();i++){
+			if(i==world.rank()){
+				continue;
+			}
+			merge_mid_table(i);
+		}
+		int* old_mid_table= global_mid_table;
+		global_mid_table=new int[global_estimate_vnum];
+		for(uint64_t i=0;i<global_estimate_vnum;i++){
+			global_mid_table[i]=old_mid_table[i];
+			if(global_mid_table[i]==-1){
+				global_mid_table[i]=i%world.size();
+			}
+		}
+		MPI_Barrier(MPI_COMM_WORLD);
+
+		//we will dive the vector into a lot of logic files
+		//since the interface is file based
+		int nfile_per_machine=20;
+		nfile=nfile_per_machine*world.size();
+		#pragma omp parallel for num_threads(global_num_server)
+		for(int i=0;i<nfile_per_machine;i++){
+			uint64_t start=edge_vec.size()/nfile_per_machine*i;
+			uint64_t end=edge_vec.size()/nfile_per_machine*(i+1);
+			if(i== nfile_per_machine-1){
+				end=edge_vec.size();
+			}
+			int localtid = omp_get_thread_num();
+			for(uint64_t i=start;i<end;i++){
+				uint64_t s,p,o;
+				s=edge_vec[i].s;
+				p=edge_vec[i].p;
+				o=edge_vec[i].o;
+				int s_mid=ingress::vid2mid(s,world.size());
+				int o_mid=ingress::vid2mid(o,world.size());
+				if(s_mid==o_mid){
+					send_edge(localtid,s_mid,s,p,o);
+				}
+				else {
+					send_edge(localtid,s_mid,s,p,o);
+					send_edge(localtid,o_mid,s,p,o);
+				}
+			}
+			flush_edge(localtid,nfile,nfile_per_machine*world.rank()+i);
+		}
+		MPI_Barrier(MPI_COMM_WORLD);
+		uint64_t t2=timer::get_usec();
+		int parallel_factor=global_num_server;
+		#pragma omp parallel for num_threads(parallel_factor)
+		for(int t=0;t<parallel_factor;t++){
+			for(int fileid=0;fileid<nfile;fileid++){
+				uint64_t row=0;
+				uint64_t s,p,o;
+				while(recv_edge(nfile,fileid,row,&s,&p,&o)){
+					if(ingress::vid2mid(s,world.size())==world.rank()){
+						if((s/world.size())%parallel_factor==t){
+							vertex_table[t][s].out_edges.push_back(edge_row(p,o));
+						}
+					}
+					if(ingress::vid2mid(o,world.size())==world.rank()){
+						if((o/world.size())%parallel_factor==t){
+							vertex_table[t][o].in_edges.push_back(edge_row(p,s));
+						}
+					}
+					row++;
+				}
+			}
+		}
+		uint64_t t3=timer::get_usec();
+		cout<<(t3-t2)/1000<<" ms for aggregrate edges"<<endl;
 	}
 	void load_and_sync_data(vector<string> file_vec){
 		sort(file_vec.begin(),file_vec.end());
@@ -163,7 +305,6 @@ public:
 		}
 		MPI_Barrier(MPI_COMM_WORLD);
 		uint64_t t2=timer::get_usec();
-		uint64_t fileslot_size=rdma->get_memorystore_size()/sizeof(uint64_t)/nfile;
 		int parallel_factor=global_num_server;
 		#pragma omp parallel for num_threads(parallel_factor)
 		for(int t=0;t<parallel_factor;t++){
@@ -289,15 +430,15 @@ public:
 			// for(int i=0;i<filenames.size();i++){
 			// 	load_data(filenames[i]);
 			// }
-		    load_and_sync_data(filenames);
+			load_and_sync_data(filenames);
+			//load_and_sync_data_greedy(filenames);
 			uint64_t t2=timer::get_usec();
 			
 			//load_and_sync_data will use the memory of rdma_region
 			//so kstore should be init here
 		    kstore.init(rdma,max_v_num,world.size(),world.rank());
 		 	
-		 	
-			#pragma omp parallel for num_threads(10)
+		 	#pragma omp parallel for num_threads(10)
 			for(int i=0;i<num_vertex_table;i++){
 				uint64_t count=0;
 				unordered_map<uint64_t,vertex_row>::iterator iter;

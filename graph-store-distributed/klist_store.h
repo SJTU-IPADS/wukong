@@ -281,6 +281,8 @@ public:
 				degree  =vertex_addr[i].in_degree;
 				edge_ptr=vertex_addr[i].in_edge_ptr;
 				for(uint64_t j=0;j<degree;j++){
+					if(edge_addr[edge_ptr+j].predict== global_rdftype_id)
+						continue;
 					if(ingress::vid2mid(edge_addr[edge_ptr+j].vid,p_num)==p_id){
 						local_num++;
 					} else {
@@ -290,6 +292,8 @@ public:
 				degree  =vertex_addr[i].out_degree;
 				edge_ptr=vertex_addr[i].out_edge_ptr;
 				for(uint64_t j=0;j<degree;j++){
+					if(edge_addr[edge_ptr+j].predict== global_rdftype_id)
+						continue;
 					if(ingress::vid2mid(edge_addr[edge_ptr+j].vid,p_num)==p_id){
 						local_num++;
 					} else {
@@ -298,6 +302,7 @@ public:
 				}
 			}
 		}
-		cout<<"edge cut rate: "<<remote_num*1.0/(local_num+remote_num)<<endl;
+		cout<<"edge cut rate: "	<<remote_num<<"/"<<(local_num+remote_num)<<"="
+								<<remote_num*1.0/(local_num+remote_num)<<endl;
 	}
 };
