@@ -40,7 +40,14 @@ class traverser{
 				for(uint64_t k=0;k<vdata.in_degree;k++){
 					if(predict_id==edge_ptr[k].predict){
 						vec.push_back(path_node(edge_ptr[k].vid,i));
-					}					
+					}
+					if(-1==edge_ptr[k].predict){ //pivot
+						if(edge_ptr[k+1].predict < predict_id){
+							k+=edge_ptr[k].vid;//skip 
+						} else if(edge_ptr[k+1].predict > predict_id){
+							break; //end
+						} 
+					} 					
 				}
 			}
 			if(dir ==para_out || dir == para_all){
@@ -48,7 +55,14 @@ class traverser{
 				for(uint64_t k=0;k<vdata.out_degree;k++){
 					if(predict_id==edge_ptr[k].predict){
 						vec.push_back(path_node(edge_ptr[k].vid,i));
-					}					
+					}
+					if(-1==edge_ptr[k].predict){ //pivot
+						if(edge_ptr[k+1].predict < predict_id){
+							k+=edge_ptr[k].vid;//skip 
+						} else if(edge_ptr[k+1].predict > predict_id){
+							break; //end
+						} 
+					} 					
 				}
 			}
 		}
@@ -75,7 +89,14 @@ class traverser{
 							g.ontology_table.is_subtype_of(edge_ptr[k].vid,target_id)){
 					new_vec.push_back(prev_vec[i]);
 					break;
-				}				
+				}	
+				if(-1==edge_ptr[k].predict){ //pivot
+					if(edge_ptr[k+1].predict < predict_id){
+						k+=edge_ptr[k].vid;//skip 
+					} else if(edge_ptr[k+1].predict > predict_id){
+						break; //end
+					} 
+				} 
 			}
 		}
 		r.result_paths[path_len-1]=new_vec;
@@ -98,7 +119,14 @@ class traverser{
 					new_vec_attr.push_back(path_node(edge_ptr[k].vid,i));
 					new_vec_id.push_back(path_node(prev_id ,new_vec_attr.size()-1));
 					break;
-				}				
+				}	
+				if(-1==edge_ptr[k].predict){ //pivot
+					if(edge_ptr[k+1].predict < predict_id){
+						k+=edge_ptr[k].vid;//skip 
+					} else if(edge_ptr[k+1].predict > predict_id){
+						break; //end
+					} 
+				} 			
 			}
 		}
 		r.result_paths.push_back(new_vec_attr);

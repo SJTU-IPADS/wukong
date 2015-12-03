@@ -13,8 +13,19 @@ struct edge_row{
 		predict=p;
 		vid=v;
 	}
+	edge_row(){
+		predict=-1;
+		vid=-1;
+	}
 	uint64_t predict;
 	uint64_t vid;
+	bool operator < (edge_row const& _A) const {  
+			if(predict < _A.predict)  
+				return true;  
+			if(predict == _A.predict) 
+				return vid< _A.vid;  
+			return false;  
+	}
 };
 struct vertex_row{
 	vector<edge_row> in_edges;
@@ -176,14 +187,10 @@ public:
 				 v=location_cache->loc_cache_lookup(id);
 				 if(v.id!=id){
 				 	v=getVertex_remote(tid,id);
-				 	//rdma->RdmaRead(tid,ingress::vid2mid(id,p_num),(char *)local_buffer,read_length,start_addr);
-					//v=*((vertex*)local_buffer);
-					location_cache->loc_cache_insert(v);
+				 	location_cache->loc_cache_insert(v);
 				 }				
 			} else {
 				v=getVertex_remote(tid,id);
-				//rdma->RdmaRead(tid,ingress::vid2mid(id,p_num),(char *)local_buffer,read_length,start_addr);
-				//v=*((vertex*)local_buffer);
 			}
 			//read edge data
 			*size=0;
@@ -196,7 +203,8 @@ public:
 			if(direction == para_out || direction == para_all){
 				start_addr=getEdgeOffset(v.out_edge_ptr);
 				read_length=sizeof(edge_row)*v.out_degree;
-				rdma->RdmaRead(tid,ingress::vid2mid(id,p_num),local_buffer+(*size)*sizeof(edge_row),read_length,start_addr);
+				rdma->RdmaRead(tid,ingress::vid2mid(id,p_num),
+									local_buffer+(*size)*sizeof(edge_row),read_length,start_addr);
 				*size=*size+v.out_degree;
 			}
 			edge_row* edge_ptr=(edge_row*)local_buffer;

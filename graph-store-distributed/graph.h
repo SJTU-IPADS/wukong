@@ -157,7 +157,6 @@ public:
 			ifstream file(file_vec[i].c_str());
 			uint64_t s,p,o;
 			while(file>>s>>p>>o){
-				//int s_mid=ingress::vid2mid(s,world.size());
 				int s_mid=s%world.size();
 				//only send to local buffer
 				send_edge(localtid,s_mid,s,p,o);
@@ -284,7 +283,6 @@ public:
 		#pragma omp parallel for num_threads(global_num_server)
 		for(int i=0;i<nfile;i++){
 			int localtid = omp_get_thread_num();
-			//cout<<localtid<<endl;
 			if(i%world.size()!=world.rank()){
 				continue;
 			}
@@ -350,6 +348,37 @@ public:
 			}
 		}
 		file.close();
+	}
+	void add_pivot(vector<edge_row>& edge_list){
+		sort(edge_list.begin(),edge_list.end());
+		uint64_t last;
+		uint64_t old_size;
+		uint64_t new_size;
+		uint64_t count;
+		last=-1;
+		old_size=edge_list.size();
+		new_size=old_size;
+		count=0;
+		for(uint64_t i=0;i<old_size;i++){
+			if(edge_list[i].predict!=last){
+				new_size++;
+				last=edge_list[i].predict;
+			}
+		}
+		edge_list.resize(new_size);
+		while(new_size>0){
+			edge_list[new_size-1]=edge_list[old_size-1];
+			count++;
+			new_size--;
+			old_size--;
+			if(old_size==0 || 
+				edge_list[old_size-1].predict != edge_list[old_size].predict){
+				edge_list[new_size-1].predict=-1;
+				edge_list[new_size-1].vid=count;
+				count=0;
+				new_size--;
+			}
+		}
 	}
 	void load_convert_data(int i,string s_file,string o_file){
 		ifstream file1(s_file.c_str());
@@ -443,6 +472,8 @@ public:
 				uint64_t count=0;
 				unordered_map<uint64_t,vertex_row>::iterator iter;
 				for(iter=vertex_table[i].begin();iter!=vertex_table[i].end();iter++){
+					add_pivot(iter->second.in_edges);
+					add_pivot(iter->second.out_edges);
 					count+=iter->second.in_edges.size() + iter->second.out_edges.size() ;
 				}
 				uint64_t curr_edge_ptr=kstore.atomic_alloc_edges(count);
@@ -472,12 +503,12 @@ public:
 
 
 		    uint64_t t2=timer::get_usec();
-			cout<<"machine "<<world.rank()<<" load and init in "<<(t2-t1)/1000.0/1000.0<<"s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"<<endl;
+			cout<<"machine "<<world.rank()<<" load and init in "<<(t2-t1)/1000000.0<<"s ~~~~~~~~~~~"<<endl;
 		}
 	    kstore.calculate_edge_cut();
 	    cout<<world.rank()<<" finished "<<endl;
 		cout<<"graph-store use "<<max_v_num*sizeof(vertex) / 1024 / 1024<<" MB for vertex data"<<endl;
-		cout<<"graph-store use "<<kstore.new_edge_ptr * sizeof(edge_row) / 1024 / 1024<<" MB for edge data"<<endl;
+		cout<<"graph-store use "<<kstore.new_edge_ptr*sizeof(edge_row)/1024/1024<<" MB for edge data"<<endl;
 	
 	}
 };

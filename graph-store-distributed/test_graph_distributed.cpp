@@ -324,6 +324,9 @@ int main(int argc, char * argv[])
 		cfg_array[i].init();
 	}
 	index_server is(global_input_folder.c_str());
+	//init of index_server and graph shouldn't be reordered!
+	//we will set the global_rdftype_id in index_server
+
 	graph g(world,rdma,global_input_folder.c_str());
 	client** client_array=new client*[client_num];
 	MPI_Barrier(MPI_COMM_WORLD);
