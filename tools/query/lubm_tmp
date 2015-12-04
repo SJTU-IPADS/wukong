@@ -1,0 +1,34 @@
+lookup 			<ub#Department>
+neighbors   in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
+triangle
+out	<ub#subOrganizationOf>
+in	<ub#undergraduateDegreeFrom>
+out <ub#memberOf>
+execute
+
+
+
+
+lookup 			<ub#Department>
+neighbors   in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
+neighbors   in 	<ub#memberOf>
+execute
+get_attr 	<ub#subOrganizationOf>
+
+neighbors   out <ub#subOrganizationOf>
+neighbors   in 	<ub#undergraduateDegreeFrom>
+execute
+lookup 			<ub#University>
+
+neighbors   in 	<ub#memberOf>
+
+
+
+
+lookup 			<ub#Department>
+neighbors   in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
+triangle
+out	<ub#subOrganizationOf>
+in	<ub#undergraduateDegreeFrom>
+out <ub#memberOf>
+execute

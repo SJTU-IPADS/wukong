@@ -7,7 +7,7 @@
 #include "profile.h"
 #include "global_cfg.h"
 #include "ingress.h"
-
+#include <set>
 //traverser will remember all the paths just like
 //traverser_keeppath in single machine
 
@@ -34,6 +34,7 @@ class traverser{
 		int path_len=r.result_paths.size();
 		for (int i=0;i< r.result_paths[path_len-1].size();i++){
 			int prev_id=r.result_paths[path_len-1][i].id;
+			
 			vertex vdata=g.kstore.getVertex_local(prev_id);
 			if(dir ==para_in || dir == para_all){
 				edge_row* edge_ptr=g.kstore.getEdgeArray(vdata.in_edge_ptr);
@@ -68,6 +69,64 @@ class traverser{
 		}
 		return vec;
 	}
+	vector<path_node> do_triangle(request& r){
+		//vertex_set triangle d1 p1 d2 p2 d3 p3
+		// find all matching 
+		// v0 belongs to vertex_set
+		// v0 d1,p1 v1
+		// v1 d2,p2 v2
+		// v2 d3,p3 v0
+		vector<path_node> vec1;
+		vector<path_node> vec2;
+		r.cmd_chains.pop_back();
+		int dir1=r.cmd_chains.back();r.cmd_chains.pop_back();
+		int	pre1=r.cmd_chains.back();r.cmd_chains.pop_back();	
+		int dir2=r.cmd_chains.back();r.cmd_chains.pop_back();
+		int	pre2=r.cmd_chains.back();r.cmd_chains.pop_back();	
+		int dir3=r.cmd_chains.back();r.cmd_chains.pop_back();
+		int	pre3=r.cmd_chains.back();r.cmd_chains.pop_back();	
+		//triangle == neighbor+neighbor+filter
+		r.cmd_chains.push_back(pre1);
+		r.cmd_chains.push_back(dir1);
+		r.cmd_chains.push_back(cmd_neighbors);
+		vec1=do_neighbors(r);
+		//
+		set<uint64_t> filter_src;
+		typedef std::pair<uint64_t,uint64_t> v_pair;
+		set<v_pair> filter_edge;
+		for(uint64_t i=0;i<vec1.size();i++){
+			if(filter_src.find(vec1[i].id)!=filter_src.end()){
+				continue;
+			}
+			int edge_num=0;
+			edge_row* edges=g.kstore.readGlobal(cfg->t_id,vec1[i].id,dir2,&edge_num);
+			for(int k=0;k<edge_num;k++){
+				if(pre2==edges[k].predict ){
+					filter_edge.insert(v_pair(vec1[i].id,edges[k].vid));
+				}	
+			}
+			filter_src.insert(vec1[i].id);
+		}
+		int path_len=r.result_paths.size();
+		vector<path_node>& prev_vec = r.result_paths[path_len-1];
+		for(uint64_t i=0;i<vec1.size();i++){
+			uint64_t prev_index=vec1[i].prev;
+			uint64_t prev_id=prev_vec[prev_index].id;
+			int edge_num=0;
+			edge_row* edges=g.kstore.readLocal(cfg->t_id,prev_id,reverse_dir(dir3),&edge_num);
+			for(int k=0;k<edge_num;k++){
+				if(pre3==edges[k].predict ){
+					//check (vec1[i].id, edges[k].vid)
+					v_pair e= v_pair(vec1[i].id,edges[k].vid);
+					if(filter_edge.find(e)!=filter_edge.end()){
+						vec2.push_back(path_node(edges[k].vid,i));
+					}
+				}	
+			}
+		}
+		r.result_paths.push_back(vec1);
+		return vec2;
+	}
 	void do_subclass_of(request& r){
 		//int predict_id=g.predict_to_id["<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"];
 		//int predict_id=0;//
@@ -101,7 +160,7 @@ class traverser{
 		}
 		r.result_paths[path_len-1]=new_vec;
 	}
-	void do_get_attr(request& r){
+	void do_get_attr(request& r,int dir=para_out){
 		r.cmd_chains.pop_back();
 		int predict_id=r.cmd_chains.back();
 		r.cmd_chains.pop_back();
@@ -113,8 +172,16 @@ class traverser{
 		for (int i=0;i<prev_vec.size();i++){
 			int prev_id=prev_vec[i].id;	
 			vertex vdata=g.kstore.getVertex_local(prev_id);
-			edge_row* edge_ptr=g.kstore.getEdgeArray(vdata.out_edge_ptr);
-			for(uint64_t k=0;k<vdata.out_degree;k++){
+			edge_row* edge_ptr;
+			uint64_t num_degree;
+			if(dir ==para_out){
+				edge_ptr=g.kstore.getEdgeArray(vdata.out_edge_ptr);
+				num_degree=vdata.out_degree;
+			} else if(dir ==para_in){
+				edge_ptr=g.kstore.getEdgeArray(vdata.in_edge_ptr);
+				num_degree=vdata.in_degree;	
+			}
+			for(uint64_t k=0;k<num_degree;k++){
 				if(predict_id==edge_ptr[k].predict ){
 					new_vec_attr.push_back(path_node(edge_ptr[k].vid,i));
 					new_vec_id.push_back(path_node(prev_id ,new_vec_attr.size()-1));
@@ -206,15 +273,12 @@ public:
 	void try_rdma_execute(request& r,vector<path_node>& vec){
 		while(r.cmd_chains.size()!=0 ){
 
-			//if(vec.size()>50)
-			//	cout<<vec.size()<<endl;
 			if(vec.size()>global_tuning_threshold){
 				vec.resize(global_tuning_threshold);
 			}
 		
 
 			split_profile.neighbor_num+=vec.size();
-			//if(vec.size()<cfg->m_num*10){
 			if(vec.size()<global_rdma_threshold){
 				split_profile.split_req++;
 			} else {
@@ -225,7 +289,10 @@ public:
 
 			int dir=para_out;			
 			int cmd_type=r.cmd_chains.back();
-			r.cmd_chains.pop_back();
+			if(cmd_type==cmd_triangle){
+				//not supported now.
+				return ;
+			}r.cmd_chains.pop_back();
 			if(cmd_type==cmd_neighbors){
 				dir=r.cmd_chains.back();
 				r.cmd_chains.pop_back();
@@ -304,6 +371,8 @@ public:
 			return ;
 		} else if(r.cmd_chains.back() == cmd_neighbors){
 			vec=do_neighbors(r);
+		} else if(r.cmd_chains.back() == cmd_triangle){
+			vec=do_triangle(r);
 		} else if(r.cmd_chains.back() == cmd_get_subtype){
 			assert(r.path_length()==0);
 			vec=do_get_subtype(r);
@@ -336,7 +405,7 @@ public:
 						int traverser_id=cfg->client_num+j;
 						SendReq(cfg,i ,traverser_id, sub_reqs[i][j],&split_profile);
 					}
-				}				
+				}
 			} else {
 				vector<request> sub_reqs=split_request(vec,r);
 				req_queue.put_req(r,sub_reqs.size());

@@ -152,31 +152,51 @@ public:
 	uint64_t getEdgeOffset(uint64_t edgeptr){
 		return v_num*sizeof(vertex)+sizeof(edge_row)*edgeptr;
 	}
+	edge_row* readLocal(int tid,uint64_t id,int direction,int* size){
+		assert(ingress::vid2mid(id,p_num) ==p_id);
+		vertex v=getVertex_local(id);
+		if(direction == para_in){
+			edge_row* edge_ptr=getEdgeArray(v.in_edge_ptr);
+			*size=v.in_degree;
+			return edge_ptr;
+		}
+		if(direction == para_out){
+			edge_row* edge_ptr=getEdgeArray(v.out_edge_ptr);
+			*size=v.out_degree;
+			return edge_ptr;
+		}
+		if(direction == para_all){
+			//don't support now!
+			assert(false);
+		}
+		return NULL;
+	}
 	edge_row* readGlobal(int tid,uint64_t id,int direction,int* size){
 		if( ingress::vid2mid(id,p_num) ==p_id){
-			vertex v=getVertex_local(id);
-			if(direction == para_in){
-				edge_row* edge_ptr=getEdgeArray(v.in_edge_ptr);
-				*size=v.in_degree;
-				return edge_ptr;
-			}
-			if(direction == para_out){
-				edge_row* edge_ptr=getEdgeArray(v.out_edge_ptr);
-				*size=v.out_degree;
-				return edge_ptr;
-			}
-			if(direction == para_all){
-				char *local_buffer = rdma->GetMsgAddr(tid);
-				edge_row* edge_ptr;
-				edge_ptr=getEdgeArray(v.in_edge_ptr);
-				memcpy ((void *) local_buffer, (void *) edge_ptr, sizeof(edge_row)*v.in_degree);
-				edge_ptr=getEdgeArray(v.out_edge_ptr);
-				memcpy ((void *) (local_buffer+sizeof(edge_row)*v.in_degree), 
-											(void *) edge_ptr, sizeof(edge_row)*v.out_degree);
-				edge_ptr=(edge_row*)local_buffer;
-				*size=v.in_degree+v.out_degree;
-				return edge_ptr;
-			}
+			return readLocal(tid,id,direction,size);
+			// vertex v=getVertex_local(id);
+			// if(direction == para_in){
+			// 	edge_row* edge_ptr=getEdgeArray(v.in_edge_ptr);
+			// 	*size=v.in_degree;
+			// 	return edge_ptr;
+			// }
+			// if(direction == para_out){
+			// 	edge_row* edge_ptr=getEdgeArray(v.out_edge_ptr);
+			// 	*size=v.out_degree;
+			// 	return edge_ptr;
+			// }
+			// if(direction == para_all){
+			// 	char *local_buffer = rdma->GetMsgAddr(tid);
+			// 	edge_row* edge_ptr;
+			// 	edge_ptr=getEdgeArray(v.in_edge_ptr);
+			// 	memcpy ((void *) local_buffer, (void *) edge_ptr, sizeof(edge_row)*v.in_degree);
+			// 	edge_ptr=getEdgeArray(v.out_edge_ptr);
+			// 	memcpy ((void *) (local_buffer+sizeof(edge_row)*v.in_degree), 
+			// 								(void *) edge_ptr, sizeof(edge_row)*v.out_degree);
+			// 	edge_ptr=(edge_row*)local_buffer;
+			// 	*size=v.in_degree+v.out_degree;
+			// 	return edge_ptr;
+			// }
 		} else {
 			//read vertex data first
 			char *local_buffer = rdma->GetMsgAddr(tid);

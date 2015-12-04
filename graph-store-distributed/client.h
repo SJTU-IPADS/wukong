@@ -71,6 +71,21 @@ public:
 		req.cmd_chains.push_back(is->predict_to_id[predict]);
 		return *this;
 	}
+	client& triangle(vector<string> dir_vec,vector<string> predict_vec){
+		req.cmd_chains.push_back(cmd_triangle);
+		for(int i=0;i<3;i++){
+			if(dir_vec[i] =="in" ){
+				req.cmd_chains.push_back(para_in);
+			} else if (dir_vec[i] =="out" ){
+				req.cmd_chains.push_back(para_out);
+			} else {
+				assert(false);
+				req.cmd_chains.push_back(para_all);
+			}
+			req.cmd_chains.push_back(is->predict_to_id[predict_vec[i]]);
+		}
+		return *this;
+	}
 	client& get_attr(string predict){
 		req.cmd_chains.push_back(cmd_get_attr);
 		req.cmd_chains.push_back(is->predict_to_id[predict]);

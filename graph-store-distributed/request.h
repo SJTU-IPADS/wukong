@@ -15,6 +15,7 @@ using std::vector;
 enum command{
 	cmd_subclass_of,
 	cmd_neighbors,
+	cmd_triangle,
 	cmd_get_attr,
 	cmd_get_subtype
 };
@@ -23,7 +24,13 @@ enum parameter{
 	para_out,
 	para_all
 };
-
+int reverse_dir(int dir){
+	if(dir==para_in)
+		return para_out;
+	if(dir==para_out)
+		return para_in;
+	return para_all;
+}
 struct path_node{
 	path_node():id(-1),prev(-1){
 	}
