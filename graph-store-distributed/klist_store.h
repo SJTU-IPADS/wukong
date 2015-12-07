@@ -152,6 +152,28 @@ public:
 	uint64_t getEdgeOffset(uint64_t edgeptr){
 		return v_num*sizeof(vertex)+sizeof(edge_row)*edgeptr;
 	}
+	edge_row* readGlobal_predict(int tid,uint64_t id,int direction,int predict,int* size){
+		int edge_num=0;
+		edge_row* edge_ptr=readGlobal(tid,id,direction,&edge_num);
+		int i=0;
+		while(i<edge_num){
+			assert(edge_ptr[i].predict==-1);
+			if(edge_ptr[i+1].predict<predict){
+				i=i+1+edge_ptr[i].vid;
+			} else if(edge_ptr[i+1].predict==predict){
+				*size=edge_ptr[i].vid;
+				return &(edge_ptr[i+1]);
+			} else {
+				*size=0;
+				return NULL;
+			}
+		}
+		return edge_ptr;
+	}
+	edge_row* readLocal_predict(int tid,uint64_t id,int direction,int predict,int* size){
+		assert(ingress::vid2mid(id,p_num) ==p_id);
+		return readGlobal_predict(tid,id,direction,predict,size); 
+	}
 	edge_row* readLocal(int tid,uint64_t id,int direction,int* size){
 		assert(ingress::vid2mid(id,p_num) ==p_id);
 		vertex v=getVertex_local(id);
@@ -166,7 +188,7 @@ public:
 			return edge_ptr;
 		}
 		if(direction == para_all){
-			//don't support now!
+			cout<<"not support para_all now"<<endl;
 			assert(false);
 		}
 		return NULL;
@@ -174,29 +196,6 @@ public:
 	edge_row* readGlobal(int tid,uint64_t id,int direction,int* size){
 		if( ingress::vid2mid(id,p_num) ==p_id){
 			return readLocal(tid,id,direction,size);
-			// vertex v=getVertex_local(id);
-			// if(direction == para_in){
-			// 	edge_row* edge_ptr=getEdgeArray(v.in_edge_ptr);
-			// 	*size=v.in_degree;
-			// 	return edge_ptr;
-			// }
-			// if(direction == para_out){
-			// 	edge_row* edge_ptr=getEdgeArray(v.out_edge_ptr);
-			// 	*size=v.out_degree;
-			// 	return edge_ptr;
-			// }
-			// if(direction == para_all){
-			// 	char *local_buffer = rdma->GetMsgAddr(tid);
-			// 	edge_row* edge_ptr;
-			// 	edge_ptr=getEdgeArray(v.in_edge_ptr);
-			// 	memcpy ((void *) local_buffer, (void *) edge_ptr, sizeof(edge_row)*v.in_degree);
-			// 	edge_ptr=getEdgeArray(v.out_edge_ptr);
-			// 	memcpy ((void *) (local_buffer+sizeof(edge_row)*v.in_degree), 
-			// 								(void *) edge_ptr, sizeof(edge_row)*v.out_degree);
-			// 	edge_ptr=(edge_row*)local_buffer;
-			// 	*size=v.in_degree+v.out_degree;
-			// 	return edge_ptr;
-			// }
 		} else {
 			//read vertex data first
 			char *local_buffer = rdma->GetMsgAddr(tid);
@@ -214,13 +213,16 @@ public:
 			}
 			//read edge data
 			*size=0;
-			if(direction == para_in || direction == para_all){
+			if(direction == para_all){
+				cout<<"not support para_all now"<<endl;
+			}
+			if(direction == para_in ){
 				start_addr=getEdgeOffset(v.in_edge_ptr);
 				read_length=sizeof(edge_row)*v.in_degree;
 				rdma->RdmaRead(tid,ingress::vid2mid(id,p_num),(char *)local_buffer,read_length,start_addr);
 				*size=*size+v.in_degree;
 			}
-			if(direction == para_out || direction == para_all){
+			if(direction == para_out ){
 				start_addr=getEdgeOffset(v.out_edge_ptr);
 				read_length=sizeof(edge_row)*v.out_degree;
 				rdma->RdmaRead(tid,ingress::vid2mid(id,p_num),

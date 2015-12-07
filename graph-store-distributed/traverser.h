@@ -34,37 +34,12 @@ class traverser{
 		int path_len=r.result_paths.size();
 		for (int i=0;i< r.result_paths[path_len-1].size();i++){
 			int prev_id=r.result_paths[path_len-1][i].id;
-			
-			vertex vdata=g.kstore.getVertex_local(prev_id);
-			if(dir ==para_in || dir == para_all){
-				edge_row* edge_ptr=g.kstore.getEdgeArray(vdata.in_edge_ptr);
-				for(uint64_t k=0;k<vdata.in_degree;k++){
-					if(predict_id==edge_ptr[k].predict){
-						vec.push_back(path_node(edge_ptr[k].vid,i));
-					}
-					if(-1==edge_ptr[k].predict){ //pivot
-						if(edge_ptr[k+1].predict < predict_id){
-							k+=edge_ptr[k].vid;//skip 
-						} else if(edge_ptr[k+1].predict > predict_id){
-							break; //end
-						} 
-					} 					
-				}
-			}
-			if(dir ==para_out || dir == para_all){
-				edge_row* edge_ptr=g.kstore.getEdgeArray(vdata.out_edge_ptr);
-				for(uint64_t k=0;k<vdata.out_degree;k++){
-					if(predict_id==edge_ptr[k].predict){
-						vec.push_back(path_node(edge_ptr[k].vid,i));
-					}
-					if(-1==edge_ptr[k].predict){ //pivot
-						if(edge_ptr[k+1].predict < predict_id){
-							k+=edge_ptr[k].vid;//skip 
-						} else if(edge_ptr[k+1].predict > predict_id){
-							break; //end
-						} 
-					} 					
-				}
+			int edge_num=0;
+			edge_row* edge_ptr=g.kstore.readLocal_predict(cfg->t_id, prev_id,dir,predict_id,&edge_num);
+			for(int k=0;k<edge_num;k++){
+				if(predict_id==edge_ptr[k].predict ){
+					vec.push_back(path_node(edge_ptr[k].vid,i));
+				}	
 			}
 		}
 		return vec;
@@ -99,7 +74,9 @@ class traverser{
 				continue;
 			}
 			int edge_num=0;
-			edge_row* edges=g.kstore.readGlobal(cfg->t_id,vec1[i].id,dir2,&edge_num);
+			//edge_row* edges=g.kstore.readGlobal(cfg->t_id,vec1[i].id,dir2,&edge_num);
+			edge_row* edges=g.kstore.readGlobal_predict(cfg->t_id,
+											vec1[i].id,dir2,pre2,&edge_num);
 			for(int k=0;k<edge_num;k++){
 				if(pre2==edges[k].predict ){
 					filter_edge.insert(v_pair(vec1[i].id,edges[k].vid));
@@ -113,7 +90,8 @@ class traverser{
 			uint64_t prev_index=vec1[i].prev;
 			uint64_t prev_id=prev_vec[prev_index].id;
 			int edge_num=0;
-			edge_row* edges=g.kstore.readLocal(cfg->t_id,prev_id,reverse_dir(dir3),&edge_num);
+			//edge_row* edges=g.kstore.readLocal(cfg->t_id,prev_id,reverse_dir(dir3),&edge_num);
+			edge_row* edges=g.kstore.readLocal_predict(cfg->t_id, prev_id,reverse_dir(dir3),pre3,&edge_num);
 			for(int k=0;k<edge_num;k++){
 				if(pre3==edges[k].predict ){
 					//check (vec1[i].id, edges[k].vid)
@@ -128,8 +106,6 @@ class traverser{
 		return vec2;
 	}
 	void do_subclass_of(request& r){
-		//int predict_id=g.predict_to_id["<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"];
-		//int predict_id=0;//
 		int predict_id=global_rdftype_id;
 
 		r.cmd_chains.pop_back();
@@ -141,21 +117,13 @@ class traverser{
 		vector<path_node> new_vec;
 		for (int i=0;i<prev_vec.size();i++){
 			int prev_id=prev_vec[i].id;	
-			vertex vdata=g.kstore.getVertex_local(prev_id);
-			edge_row* edge_ptr=g.kstore.getEdgeArray(vdata.out_edge_ptr);
-			for(uint64_t k=0;k<vdata.out_degree;k++){
+			int edge_num=0;
+			edge_row* edge_ptr=g.kstore.readLocal_predict(cfg->t_id, prev_id,para_out,predict_id,&edge_num);
+			for(int k=0;k<edge_num;k++){
 				if(predict_id==edge_ptr[k].predict && 
 							g.ontology_table.is_subtype_of(edge_ptr[k].vid,target_id)){
 					new_vec.push_back(prev_vec[i]);
-					break;
 				}	
-				if(-1==edge_ptr[k].predict){ //pivot
-					if(edge_ptr[k+1].predict < predict_id){
-						k+=edge_ptr[k].vid;//skip 
-					} else if(edge_ptr[k+1].predict > predict_id){
-						break; //end
-					} 
-				} 
 			}
 		}
 		r.result_paths[path_len-1]=new_vec;
@@ -171,29 +139,14 @@ class traverser{
 		vector<path_node> new_vec_id;
 		for (int i=0;i<prev_vec.size();i++){
 			int prev_id=prev_vec[i].id;	
-			vertex vdata=g.kstore.getVertex_local(prev_id);
-			edge_row* edge_ptr;
-			uint64_t num_degree;
-			if(dir ==para_out){
-				edge_ptr=g.kstore.getEdgeArray(vdata.out_edge_ptr);
-				num_degree=vdata.out_degree;
-			} else if(dir ==para_in){
-				edge_ptr=g.kstore.getEdgeArray(vdata.in_edge_ptr);
-				num_degree=vdata.in_degree;	
-			}
-			for(uint64_t k=0;k<num_degree;k++){
+			int edge_num=0;
+			edge_row* edge_ptr=g.kstore.readLocal_predict(cfg->t_id, prev_id,dir,predict_id,&edge_num);
+			for(int k=0;k<edge_num;k++){
 				if(predict_id==edge_ptr[k].predict ){
 					new_vec_attr.push_back(path_node(edge_ptr[k].vid,i));
 					new_vec_id.push_back(path_node(prev_id ,new_vec_attr.size()-1));
 					break;
 				}	
-				if(-1==edge_ptr[k].predict){ //pivot
-					if(edge_ptr[k+1].predict < predict_id){
-						k+=edge_ptr[k].vid;//skip 
-					} else if(edge_ptr[k+1].predict > predict_id){
-						break; //end
-					} 
-				} 			
 			}
 		}
 		r.result_paths.push_back(new_vec_attr);
@@ -292,7 +245,8 @@ public:
 			if(cmd_type==cmd_triangle){
 				//not supported now.
 				return ;
-			}r.cmd_chains.pop_back();
+			}
+			r.cmd_chains.pop_back();
 			if(cmd_type==cmd_neighbors){
 				dir=r.cmd_chains.back();
 				r.cmd_chains.pop_back();
@@ -303,9 +257,9 @@ public:
 			if(cmd_type == cmd_subclass_of){
 				for(int i=0;i<vec.size();i++){
 					int edge_num=0;
-					edge_row* edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir,&edge_num);
-					//vector<edge_row> edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir);
-					//for(int k=0;k<edges.size();k++){
+					//edge_row* edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir,&edge_num);
+					edge_row* edges=g.kstore.readGlobal_predict(cfg->t_id,
+											vec[i].id,dir,global_rdftype_id,&edge_num);
 					for(int k=0;k<edge_num;k++){
 						if(global_rdftype_id==edges[k].predict && 
 							g.ontology_table.is_subtype_of(edges[k].vid,target_id)){
@@ -320,10 +274,10 @@ public:
 				vector<path_node> new_vec_id;
 				for(int i=0;i<vec.size();i++){
 					int edge_num=0;
-					edge_row* edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir,&edge_num);
+					//edge_row* edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir,&edge_num);
+					edge_row* edges=g.kstore.readGlobal_predict(cfg->t_id,
+											vec[i].id,dir,target_id,&edge_num);
 					for(int k=0;k<edge_num;k++){
-					//vector<edge_row> edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir);
-					//for(int k=0;k<edges.size();k++){
 						if(target_id==edges[k].predict) {
 							new_vec_attr.push_back(path_node(edges[k].vid,i));
 							new_vec_id.push_back(path_node(vec[i].id,new_vec_attr.size()-1));
@@ -337,10 +291,10 @@ public:
 			} else if(cmd_type == cmd_neighbors){
 				for(int i=0;i<vec.size();i++){
 					int edge_num=0;
-					edge_row* edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir,&edge_num);
+					//edge_row* edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir,&edge_num);
+					edge_row* edges=g.kstore.readGlobal_predict(cfg->t_id,
+											vec[i].id,dir,target_id,&edge_num);
 					for(int k=0;k<edge_num;k++){
-					//vector<edge_row> edges=g.kstore.readGlobal(cfg->t_id,vec[i].id,dir);
-					//for(int k=0;k<edges.size();k++){
 						if(target_id==edges[k].predict){
 							new_vec.push_back(path_node(edges[k].vid,i));
 						}
