@@ -73,12 +73,15 @@ void interactive_mode(client* is){
 			} else if(cmd=="triangle"){
 				vector<string> dir_vec;
 				vector<string> predict_vec;
+				string type1;
+				string type2;
+				file>>type1>>type2;
 				dir_vec.resize(3);
 				predict_vec.resize(3);
 				for(int i=0;i<3;i++){
 					file>>dir_vec[i]>>predict_vec[i];
 				}
-				is->triangle(dir_vec,predict_vec);
+				is->triangle(type1,type2,dir_vec,predict_vec);
 			} else if(cmd=="subclass_of"){
 				string object;
 				file>>object;

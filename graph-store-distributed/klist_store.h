@@ -284,7 +284,6 @@ public:
 			assert(false);
 		}
 		pthread_spin_unlock(&allocation_lock);
-		//assert(vertex_addr[vertex_ptr].id==-1);
 		vertex_addr[vertex_ptr].id=id;
 		vertex_addr[vertex_ptr].in_degree=v.in_edges.size();
 		vertex_addr[vertex_ptr].out_degree=v.out_edges.size();
@@ -311,6 +310,8 @@ public:
 				degree  =vertex_addr[i].in_degree;
 				edge_ptr=vertex_addr[i].in_edge_ptr;
 				for(uint64_t j=0;j<degree;j++){
+					if(edge_addr[edge_ptr+j].predict== -1)
+						continue;
 					if(edge_addr[edge_ptr+j].predict== global_rdftype_id)
 						continue;
 					if(ingress::vid2mid(edge_addr[edge_ptr+j].vid,p_num)==p_id){
@@ -322,6 +323,8 @@ public:
 				degree  =vertex_addr[i].out_degree;
 				edge_ptr=vertex_addr[i].out_edge_ptr;
 				for(uint64_t j=0;j<degree;j++){
+					if(edge_addr[edge_ptr+j].predict== -1)
+						continue;
 					if(edge_addr[edge_ptr+j].predict== global_rdftype_id)
 						continue;
 					if(ingress::vid2mid(edge_addr[edge_ptr+j].vid,p_num)==p_id){

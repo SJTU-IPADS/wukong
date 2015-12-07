@@ -8,6 +8,7 @@
 #include "global_cfg.h"
 #include "ingress.h"
 #include <set>
+#include <map>
 //traverser will remember all the paths just like
 //traverser_keeppath in single machine
 
@@ -48,12 +49,14 @@ class traverser{
 		//vertex_set triangle d1 p1 d2 p2 d3 p3
 		// find all matching 
 		// v0 belongs to vertex_set
-		// v0 d1,p1 v1
-		// v1 d2,p2 v2
-		// v2 d3,p3 v0
+		// v0 d1,p1 vsrc
+		// vsrc d2,p2 vdst
+		// vdst d3,p3 v0
 		vector<path_node> vec1;
 		vector<path_node> vec2;
 		r.cmd_chains.pop_back();
+		int type_src_id=r.cmd_chains.back();r.cmd_chains.pop_back();
+		int type_dst_id=r.cmd_chains.back();r.cmd_chains.pop_back();
 		int dir1=r.cmd_chains.back();r.cmd_chains.pop_back();
 		int	pre1=r.cmd_chains.back();r.cmd_chains.pop_back();	
 		int dir2=r.cmd_chains.back();r.cmd_chains.pop_back();
@@ -65,24 +68,38 @@ class traverser{
 		r.cmd_chains.push_back(dir1);
 		r.cmd_chains.push_back(cmd_neighbors);
 		vec1=do_neighbors(r);
-		//
-		set<uint64_t> filter_src;
+		map<uint64_t,bool> filter_src;
 		typedef std::pair<uint64_t,uint64_t> v_pair;
 		set<v_pair> filter_edge;
 		for(uint64_t i=0;i<vec1.size();i++){
+			int edge_num=0;
+			edge_row* edge_ptr;
 			if(filter_src.find(vec1[i].id)!=filter_src.end()){
 				continue;
 			}
-			int edge_num=0;
-			//edge_row* edges=g.kstore.readGlobal(cfg->t_id,vec1[i].id,dir2,&edge_num);
-			edge_row* edges=g.kstore.readGlobal_predict(cfg->t_id,
+			edge_ptr=g.kstore.readGlobal_predict(cfg->t_id,
+											vec1[i].id,para_out,global_rdftype_id,&edge_num);
+			bool found=false;
+			for(int k=0;k<edge_num;k++){
+				if(global_rdftype_id==edge_ptr[k].predict && 
+						g.ontology_table.is_subtype_of(edge_ptr[k].vid,type_src_id)){
+					found=true;
+					filter_src[vec1[i].id]=true;
+					break;
+				}
+			}
+			if(!found){
+				filter_src[vec1[i].id]=false;
+				continue;
+			}
+			edge_num=0;
+			edge_ptr=g.kstore.readGlobal_predict(cfg->t_id,
 											vec1[i].id,dir2,pre2,&edge_num);
 			for(int k=0;k<edge_num;k++){
-				if(pre2==edges[k].predict ){
-					filter_edge.insert(v_pair(vec1[i].id,edges[k].vid));
+				if(pre2==edge_ptr[k].predict ){
+					filter_edge.insert(v_pair(vec1[i].id,edge_ptr[k].vid));
 				}	
 			}
-			filter_src.insert(vec1[i].id);
 		}
 		int path_len=r.result_paths.size();
 		vector<path_node>& prev_vec = r.result_paths[path_len-1];
@@ -103,7 +120,27 @@ class traverser{
 			}
 		}
 		r.result_paths.push_back(vec1);
-		return vec2;
+		vector<path_node> new_vec2;
+		map<uint64_t,bool> filter_dst;
+		for(uint64_t i=0;i<vec2.size();i++){
+			int edge_num=0;
+			edge_row* edge_ptr;
+			if(filter_dst.find(vec2[i].id)==filter_dst.end()){
+				filter_dst[vec2[i].id]=false;
+				edge_ptr=g.kstore.readGlobal_predict(cfg->t_id,
+											vec2[i].id,para_out,global_rdftype_id,&edge_num);
+				for(int k=0;k<edge_num;k++){
+					if(global_rdftype_id==edge_ptr[k].predict && 
+							g.ontology_table.is_subtype_of(edge_ptr[k].vid,type_dst_id)){
+						filter_dst[vec2[i].id]=true;
+						break;
+					}
+				}
+			}
+			if(filter_dst[vec2[i].id])
+				new_vec2.push_back(vec2[i]);
+		}
+		return new_vec2;
 	}
 	void do_subclass_of(request& r){
 		int predict_id=global_rdftype_id;
