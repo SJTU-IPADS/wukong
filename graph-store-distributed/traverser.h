@@ -8,6 +8,9 @@
 #include "global_cfg.h"
 #include "ingress.h"
 #include <set>
+//#include <unordered_set>
+#include <boost/unordered_set.hpp>
+#include <boost/container/set.hpp>
 #include <map>
 //traverser will remember all the paths just like
 //traverser_keeppath in single machine
@@ -67,10 +70,26 @@ class traverser{
 		r.cmd_chains.push_back(pre1);
 		r.cmd_chains.push_back(dir1);
 		r.cmd_chains.push_back(cmd_neighbors);
+		
+		uint64_t t1=timer::get_usec();
+
 		vec1=do_neighbors(r);
+
+		uint64_t t2=timer::get_usec();
+		pthread_spinlock_t triangle_lock;
+		pthread_spin_init(&triangle_lock,0);
+
 		map<uint64_t,bool> filter_src;
 		typedef std::pair<uint64_t,uint64_t> v_pair;
-		set<v_pair> filter_edge;
+		struct hash_vpair{
+			size_t operator()(const v_pair &x) const{
+				return hash<uint64_t>()(x.first) ^ hash<uint64_t>()(x.second);
+			}
+		};
+		//set<v_pair> filter_edge;
+		//unordered_set<v_pair,hash_vpair> filter_edge;
+		boost::unordered_set<v_pair,hash_vpair> filter_edge;
+		//boost::container::set<v_pair> filter_edge;
 		for(uint64_t i=0;i<vec1.size();i++){
 			int edge_num=0;
 			edge_row* edge_ptr;
@@ -101,24 +120,33 @@ class traverser{
 				}	
 			}
 		}
+		filter_edge.rehash(filter_edge.size()*2);
+		cout<<"filter_edge.size()="<<filter_edge.size()<<endl;
+		uint64_t t3=timer::get_usec();
 		int path_len=r.result_paths.size();
 		vector<path_node>& prev_vec = r.result_paths[path_len-1];
+		//#pragma omp parallel for num_threads(8)
+		#pragma omp parallel for num_threads(8)
 		for(uint64_t i=0;i<vec1.size();i++){
 			uint64_t prev_index=vec1[i].prev;
 			uint64_t prev_id=prev_vec[prev_index].id;
 			int edge_num=0;
-			//edge_row* edges=g.kstore.readLocal(cfg->t_id,prev_id,reverse_dir(dir3),&edge_num);
 			edge_row* edges=g.kstore.readLocal_predict(cfg->t_id, prev_id,reverse_dir(dir3),pre3,&edge_num);
 			for(int k=0;k<edge_num;k++){
 				if(pre3==edges[k].predict ){
 					//check (vec1[i].id, edges[k].vid)
 					v_pair e= v_pair(vec1[i].id,edges[k].vid);
+					for(int i=0;i<10;i++)
+						hash_vpair()(e);
 					if(filter_edge.find(e)!=filter_edge.end()){
+						pthread_spin_lock(&triangle_lock);
 						vec2.push_back(path_node(edges[k].vid,i));
+						pthread_spin_unlock(&triangle_lock);
 					}
 				}	
 			}
 		}
+		uint64_t t4=timer::get_usec();
 		r.result_paths.push_back(vec1);
 		vector<path_node> new_vec2;
 		map<uint64_t,bool> filter_dst;
@@ -140,6 +168,12 @@ class traverser{
 			if(filter_dst[vec2[i].id])
 				new_vec2.push_back(vec2[i]);
 		}
+
+		uint64_t t5=timer::get_usec();
+		// cout<<"[triangle]: do_neighbors "<<(t2-t1)/1000.0<<"ms "<<endl;
+		// cout<<"[triangle]: filter_edge "<<(t3-t2)/1000.0<<"ms "<<endl;
+		// cout<<"[triangle]: construct vec2 "<<(t4-t3)/1000.0<<"ms "<<endl;
+		// cout<<"[triangle]: filter vec2 "<<(t5-t4)/1000.0<<"ms "<<endl;
 		return new_vec2;
 	}
 	void do_subclass_of(request& r){
