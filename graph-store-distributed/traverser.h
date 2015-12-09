@@ -111,6 +111,7 @@ class traverser{
 		}
 		filter_edge.rehash();
 		uint64_t t3=timer::get_usec();
+		
 		int path_len=r.result_paths.size();
 		vector<path_node>& prev_vec = r.result_paths[path_len-1];
 		//#pragma omp parallel for num_threads(8)
