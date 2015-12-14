@@ -219,6 +219,20 @@ class traverser{
 		}
 		return vec;
 	}
+	vector<path_node> do_predict_index(request& r){
+		r.cmd_chains.pop_back();
+		int predict_id=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
+		int dir=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
+		const boost::unordered_set<uint64_t>& ids=g.kstore.get_predict_index(predict_id,dir);
+		//unordered_set<int> ids = g.get_predict_index(predict_id,dir);
+		vector<path_node> vec;
+		for(auto id: ids){
+			vec.push_back(path_node(id,-1));
+		}
+		return vec;
+	}
 
 	void merge_reqs(vector<request>& sub_reqs,request& r){
 		if(sub_reqs.size()>1){
@@ -385,6 +399,9 @@ public:
 		} else if(r.cmd_chains.back() == cmd_get_subtype){
 			assert(r.path_length()==0);
 			vec=do_get_subtype(r);
+		} else if(r.cmd_chains.back() == cmd_predict_index){
+			assert(r.path_length()==0);
+			vec=do_predict_index(r);
 		} else{
 			assert(false);
 		}
@@ -455,14 +472,6 @@ public:
 				handle_request(r);
 				if(!r.blocking){
 					if(cfg->is_client(r.parent_id)){
-						//less print 
-						//if(cfg->m_id==0 && cfg->t_id==cfg->client_num)
-						//	split_profile.report_msgsize();
-						//uint64_t timestamp=timer::get_usec();
-						//split_profile.record_and_report_latency(timestamp-r.timestamp);
-						//if(global_interactive)
-						//	cout<<"without send back to user :"<<timestamp-r.timestamp<<endl;
-						//r.timestamp=timestamp-r.timestamp;
 											
 						if(global_clear_final_result){
 							r.result_paths.clear();
@@ -478,14 +487,6 @@ public:
 				//if(concurrent_req_queue.put_reply(r)){
 				if(req_queue.put_reply(r)){
 					if(cfg->is_client(r.parent_id)){
-						//less print 
-						//if(cfg->m_id==0 && cfg->t_id==cfg->client_num)
-						//	split_profile.report_msgsize();
-						//uint64_t timestamp=timer::get_usec();
-						//split_profile.record_and_report_latency(timestamp-r.timestamp);
-						//if(global_interactive)
-						//	cout<<"without send back to user :"<<timestamp-r.timestamp<<endl;
-						//r.timestamp=timestamp-r.timestamp;
 						
 						if(global_clear_final_result){
 							r.result_paths.clear();

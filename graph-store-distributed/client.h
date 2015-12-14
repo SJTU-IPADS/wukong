@@ -52,6 +52,19 @@ public:
 		req.result_paths.push_back(vec);
 		return *this;
 	}
+	client& predict_index(string predict,string dir){
+		req.clear();
+		req.cmd_chains.push_back(cmd_predict_index);
+		req.cmd_chains.push_back(is->predict_to_id[predict]);
+		if(dir =="in" ){
+			req.cmd_chains.push_back(para_in);
+		} else if (dir =="out" ){
+			req.cmd_chains.push_back(para_out);
+		} else {
+			req.cmd_chains.push_back(para_all);
+		}
+		return *this;
+	}
 	client& get_subtype(string target){
 		req.clear();
 		int target_id=is->subject_to_id[target];

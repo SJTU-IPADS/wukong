@@ -8,6 +8,8 @@
 
 #include <iostream>
 #include <pthread.h>
+#include <boost/unordered_set.hpp>
+
 struct edge_row{
 	edge_row(uint64_t p,uint64_t v){
 		predict=p;
@@ -337,5 +339,57 @@ public:
 		}
 		cout<<"edge cut rate: "	<<remote_num<<"/"<<(local_num+remote_num)<<"="
 								<<remote_num*1.0/(local_num+remote_num)<<endl;
+	}
+
+	vector<boost::unordered_set<uint64_t> >predict_index_vec_in;
+	vector<boost::unordered_set<uint64_t> >predict_index_vec_out;
+	const boost::unordered_set<uint64_t>& get_predict_index(int predict_id,int dir){
+		if(dir==para_in){
+			return predict_index_vec_in[predict_id];
+		} else {
+			return predict_index_vec_out[predict_id];
+		}
+	}
+	void insert_predict_index(uint64_t s, uint64_t p, uint64_t o){
+		if(predict_index_vec_in.size()<=p){
+			predict_index_vec_in.resize(p+1);
+		}
+		if(predict_index_vec_out.size()<=p){
+			predict_index_vec_out.resize(p+1);
+		}
+		if(ingress::vid2mid(s,p_num)==p_id){
+			predict_index_vec_in[p].insert(s);
+		}
+		if(ingress::vid2mid(o,p_num)==p_id){
+			predict_index_vec_out[p].insert(o);
+		}
+	}
+	void init_predict_index(){
+		for(int i=0;i<v_num;i++){
+			if(vertex_addr[i].id!=-1){
+				uint64_t degree;
+				uint64_t edge_ptr;
+				degree  =vertex_addr[i].in_degree;
+				edge_ptr=vertex_addr[i].in_edge_ptr;
+				for(uint64_t j=0;j<degree;j++){
+					if(edge_addr[edge_ptr+j].predict== -1)
+						continue;
+					if(edge_addr[edge_ptr+j].predict== global_rdftype_id)
+						continue;
+					insert_predict_index(edge_addr[edge_ptr+j].vid,
+							edge_addr[edge_ptr+j].predict,vertex_addr[i].id);
+				}
+				degree  =vertex_addr[i].out_degree;
+				edge_ptr=vertex_addr[i].out_edge_ptr;
+				for(uint64_t j=0;j<degree;j++){
+					if(edge_addr[edge_ptr+j].predict== -1)
+						continue;
+					if(edge_addr[edge_ptr+j].predict== global_rdftype_id)
+						continue;
+					insert_predict_index(vertex_addr[i].id,
+							edge_addr[edge_ptr+j].predict,edge_addr[edge_ptr+j].vid);
+				}
+			}
+		}
 	}
 };

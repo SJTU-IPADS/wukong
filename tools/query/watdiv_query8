@@ -1,0 +1,21 @@
+lookup 			<http://db.uwaterloo.ca/~galuc/wsdbm/ProductCategory4> 
+neighbors   in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
+get_attr  	<http://schema.org/caption>
+get_attr  	<http://schema.org/publisher>
+get_attr  	<http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre>
+execute
+
+
+
+S3
+
+
+
+
+
+SELECT ?v0 ?v2 ?v3 ?v4 WHERE {
+	?v0 <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://db.uwaterloo.ca/~galuc/wsdbm/ProductCategory4> .
+	?v0 <http://schema.org/caption> ?v2 .
+	?v0 <http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre> ?v3 .
+	?v0 <http://schema.org/publisher> ?v4 .
+}

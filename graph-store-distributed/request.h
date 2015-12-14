@@ -17,7 +17,8 @@ enum command{
 	cmd_neighbors,
 	cmd_triangle,
 	cmd_get_attr,
-	cmd_get_subtype
+	cmd_get_subtype,
+	cmd_predict_index
 };
 enum parameter{
 	para_in,
