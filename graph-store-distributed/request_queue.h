@@ -52,29 +52,3 @@ public:
 		return false;
 	}	
 };
-
-const int num_request_queue=1;//37; //use a simple prime number
-class concurrent_request_queue{
-	pthread_spinlock_t lock_array[num_request_queue];
-	request_queue queue_array[num_request_queue];
-public:
-	concurrent_request_queue(){
-		for(int i=0;i<num_request_queue;i++){
-			pthread_spin_init(&lock_array[i],0);
-		}
-	}
-	void put_req(request& req,int count){
-		int queue_id=req.req_id % num_request_queue;
-		pthread_spin_lock(&lock_array[queue_id]);
-		queue_array[queue_id].put_req(req,count);
-		pthread_spin_unlock(&lock_array[queue_id]);
-	}
-	bool put_reply(request& req){
-		// find parent's position
-		int queue_id=req.parent_id % num_request_queue;
-		pthread_spin_lock(&lock_array[queue_id]);
-		bool result=queue_array[queue_id].put_reply(req);
-		pthread_spin_unlock(&lock_array[queue_id]);
-		return result;
-	}	
-};

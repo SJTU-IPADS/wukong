@@ -1,4 +1,4 @@
-lookup 			<http://db.uwaterloo.ca/~galuc/wsdbm/City115>
+lookup 			<http://db.uwaterloo.ca/~galuc/wsdbm/City207>
 neighbors   out 	<http://www.geonames.org/ontology#parentCountry>
 neighbors   in 	<http://schema.org/nationality>
 neighbors   out 	<http://schema.org/jobTitle>
@@ -15,3 +15,5 @@ SELECT ?v0 ?v1 ?v3 WHERE {
 	<http://db.uwaterloo.ca/~galuc/wsdbm/City207> <http://www.geonames.org/ontology#parentCountry> ?v3 .
 	?v0 <http://schema.org/nationality> ?v3 .
 }
+
+115

@@ -11,7 +11,7 @@ global_use_loc_cache	0
 global_num_lubm_university	160
 global_load_convert_format	0
 global_load_minimal_index 0
-global_clear_final_result	0
+global_clear_final_result	1
 global_use_multithread	0
 global_estimate_vnum	6000000
 global_estimate_enum 	24000000

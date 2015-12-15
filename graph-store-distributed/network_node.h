@@ -26,9 +26,9 @@ public:
   
  Network_Node(int _pid,int _nid):nid(_nid),pid(_pid),context(1){
     net_def.push_back("10.0.0.102");
+    net_def.push_back("10.0.0.103");
     net_def.push_back("10.0.0.100");    
     net_def.push_back("10.0.0.101");
-    net_def.push_back("10.0.0.103");
     net_def.push_back("10.0.0.104");
     net_def.push_back("10.0.0.105");
     

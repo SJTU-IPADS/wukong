@@ -15,7 +15,6 @@
 
 class traverser{
 	graph& g;
-	concurrent_request_queue& concurrent_req_queue;
 	request_queue req_queue;
 	thread_cfg* cfg;
 	profile split_profile;
@@ -288,8 +287,8 @@ class traverser{
 		return sub_reqs;
 	}
 public:
-	traverser(graph& gg,concurrent_request_queue& crq,thread_cfg* _cfg)
-			:g(gg),concurrent_req_queue(crq),cfg(_cfg){
+	traverser(graph& gg,thread_cfg* _cfg)
+			:g(gg),cfg(_cfg){
 		req_id=cfg->m_id+cfg->t_id*cfg->m_num;
 	}
 	void try_rdma_execute(request& r,vector<path_node>& vec){
