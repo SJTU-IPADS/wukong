@@ -101,8 +101,8 @@ struct normal_op_req
     uint64_t off ;//The offset to send message
     char *buffer;
     
-    int rdmaOp(int t_id,int m_id,char*buf,uint64_t size,uint64_t off,int op) ;
-    int batch_rdmaOp(int t_id,int m_id,char*buf,uint64_t size,uint64_t off,int op) ;
+    int rdmaOp(int t_id,int m_id,char*buf,uint64_t size,uint64_t off,ibv_wr_opcode op) ;
+    int batch_rdmaOp(int t_id,int m_id,char*buf,uint64_t size,uint64_t off,ibv_wr_opcode op) ;
     
     void init();
     
@@ -133,11 +133,11 @@ struct normal_op_req
     int RdmaRead(int t_id,int m_id,char *local,uint64_t size,uint64_t remote_offset);
     int RdmaWrite(int t_id,int m_id,char *local,uint64_t size,uint64_t remote_offset);
     int RdmaCmpSwap(int t_id,int m_id,char*local,uint64_t compare,uint64_t swap,uint64_t size,uint64_t off);
-    int post(int t_id,int machine_id,char* local,uint64_t size,uint64_t remote_offset,int op);
+    int post(int t_id,int machine_id,char* local,uint64_t size,uint64_t remote_offset,ibv_wr_opcode op);
     int poll(int t_id,int machine_id);
 
     //TODO what if batched?    
-    inline char *RdmaResource::GetMsgAddr(int t_id) {
+    inline char *GetMsgAddr(int t_id) {
       return (char *)( buffer + off + t_id * slotsize);
     }
     static void* RecvThread(void * arg);

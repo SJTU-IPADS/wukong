@@ -438,7 +438,7 @@ connect_qp (struct QP *res,struct cm_con_data_t tmp_con_data)
  
 
 static int
-post_send (struct QP *res, int opcode,char* local_buf,size_t size,size_t remote_offset,bool signal)
+post_send (struct QP *res, ibv_wr_opcode opcode,char* local_buf,size_t size,size_t remote_offset,bool signal)
 {
   struct ibv_send_wr sr;
   struct ibv_sge sge;
@@ -665,7 +665,7 @@ poll_completion (struct QP *res) {
     return rdmaOp(t_id,m_id,local,size,off,IBV_WR_RDMA_WRITE);
   }
   
-  int RdmaResource::rdmaOp(int t_id,int machine_id,char* local,uint64_t size,uint64_t remote_offset,int op) {
+  int RdmaResource::rdmaOp(int t_id,int machine_id,char* local,uint64_t size,uint64_t remote_offset,ibv_wr_opcode op) {
     //simple wrapper function for handling rdma compare and swap
     
     assert(remote_offset < this->size);
@@ -730,7 +730,7 @@ poll_completion (struct QP *res) {
     return 0;
   }
   
-  int RdmaResource::post(int t_id,int machine_id,char* local,uint64_t size,uint64_t remote_offset,int op) {
+  int RdmaResource::post(int t_id,int machine_id,char* local,uint64_t size,uint64_t remote_offset,ibv_wr_opcode op) {
     if(post_send(res[t_id] + machine_id,op,local,size,remote_offset,true) ) {
       fprintf(stderr,"failed to post request.");
       assert(false);
@@ -792,7 +792,7 @@ internal_rdtsc(void)
   return ((uint64_t)lo)|(((uint64_t)hi)<<32);
 }
 
-  int RdmaResource::batch_rdmaOp(int t_id,int machine_id,char* local,uint64_t size,uint64_t remote_offset,int op) {
+  int RdmaResource::batch_rdmaOp(int t_id,int machine_id,char* local,uint64_t size,uint64_t remote_offset,ibv_wr_opcode op) {
     //simple wrapper function for handling rdma compare and swap
     
     assert(remote_offset < this->size);
