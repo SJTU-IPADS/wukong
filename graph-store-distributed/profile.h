@@ -53,22 +53,24 @@ public:
 		t.reset();
 	}
 	void record_and_report_shape(request& r){
-		if(r.result_paths.size()>shape_vec.size()){
-			shape_vec.resize(r.result_paths.size());
-		}
-		for(int i=0;i<r.result_paths.size();i++){
-			shape_vec[i]+=r.result_paths[i].size();
-		}
-		shape_count++;
-		if(shape_count%1000==999){
-			cout<<"shape:";
-			for(int i=0;i<shape_vec.size();i++){
-				cout<<shape_vec[i]*1.0/shape_count<<" ";
-			}
-			cout<<endl;
-			shape_count=0;
-			shape_vec.clear();
-		}
+
+		// if(r.result_paths.size()>shape_vec.size()){
+		// 	shape_vec.resize(r.result_paths.size());
+		// }
+		// for(int i=0;i<r.result_paths.size();i++){
+		// 	shape_vec[i]+=r.result_paths[i].size();
+		// }
+		// shape_count++;
+		// if(shape_count%1000==999){
+		// 	cout<<"shape:";
+		// 	for(int i=0;i<shape_vec.size();i++){
+		// 		cout<<shape_vec[i]*1.0/shape_count<<" ";
+		// 	}
+		// 	cout<<endl;
+		// 	shape_count=0;
+		// 	shape_vec.clear();
+		// }
+
 	}
 	void record_and_report_latency(uint64_t size){
 		count_latency++;

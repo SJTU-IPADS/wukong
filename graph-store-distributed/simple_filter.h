@@ -14,15 +14,17 @@ size_t hash1(const v_pair &x){
 size_t hash2(const v_pair &x){
 	return hash<uint64_t>()(x.first+x.second);
 }
-//#define USE_BOOST_SET
+#define USE_BOOST_SET
 
 
 class simple_filter{
+public:
 	vector<v_pair> vec_id;
 	vector<v_pair> data;
 	boost::unordered_set<v_pair> pair_set;
 	void cuckoo_insert(v_pair vp,uint64_t level){
 		if(level==500){
+			cout<<"Too many evict"<<endl;
 			assert(false);
 		}
 		uint64_t bucket1=hash1(vp)%(data.size()/4);

@@ -10,6 +10,7 @@ in  <ub#teacherOf>
 execute
 
 
+
 lookup 			<ub#FullProfessor>
 neighbors   in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
 triangle
@@ -19,6 +20,7 @@ out	<ub#teacherOf>
 in	<ub#takesCourse>
 out  <ub#advisor>
 execute
+
 
 
 

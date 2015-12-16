@@ -506,7 +506,8 @@ public:
 			cout<<"machine "<<world.rank()<<" load and init in "<<(t2-t1)/1000000.0<<"s ~~~~~~~~~~~"<<endl;
 		}
 	    kstore.calculate_edge_cut();
-	    kstore.init_predict_index();
+	    if(global_use_predict_index)
+			kstore.init_predict_index();
 	    cout<<world.rank()<<" finished "<<endl;
 		cout<<"graph-store use "<<max_v_num*sizeof(vertex) / 1024 / 1024<<" MB for vertex data"<<endl;
 		cout<<"graph-store use "<<kstore.new_edge_ptr*sizeof(edge_row)/1024/1024<<" MB for edge data"<<endl;

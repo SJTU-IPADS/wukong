@@ -32,33 +32,15 @@ int reverse_dir(int dir){
 		return para_in;
 	return para_all;
 }
-struct path_node{
-	path_node():id(-1),prev(-1){
-	}
-	path_node(int _id,int _prev):id(_id),prev(_prev){
-	}
-	int id;
-	int prev;	
-	template <typename Archive> 
-	void serialize(Archive &ar, const unsigned int version) { 
-		ar & id; 
-		ar & prev; 
-	}
-};
-struct path_node_less_than
-{
-    inline bool operator() (const path_node& struct1, const path_node& struct2)
-    {
-        return (struct1.id < struct2.id);
-    }
-};
+
 struct request{
 	uint64_t timestamp;
 	int req_id;
 	int parent_id;
 	bool blocking;
 	vector<int> cmd_chains;
-	vector<vector<path_node> >result_paths;
+	
+	vector<vector<int> >result_table;
 	request(){
 		req_id=-1;
 		parent_id=-1;
@@ -66,97 +48,45 @@ struct request{
 	}
 	void clear(){
 		cmd_chains.clear();
-		result_paths.clear();
+		result_table.clear();
 	}
-	int path_length(){
-		return result_paths.size();
+	int column_num(){
+		return result_table.size();
 	}
-	int path_num(){
-		int path_len=result_paths.size();
+	int row_num(){
+		int path_len=result_table.size();
 		if(path_len==0)
 			return 0;
-		return result_paths[path_len-1].size();
+		return result_table[path_len-1].size();
 	}
-	vector<path_node> * last_level(){
-		int path_len=result_paths.size();
+	vector<int> * last_level(){
+		int path_len=result_table.size();
 		if(path_len==0)
 			return NULL;
-		return &result_paths[path_len-1];
+		return &result_table[path_len-1];
 	}
-	path_node get_node(int row,int column){
-		assert(row<path_num());
-		assert(column<path_length());
-		int current_column=path_length()-1;
-		while(column<current_column){
-			row=result_paths[current_column][row].prev;
-			current_column--;
-		}
-		return result_paths[column][row];
+	int get(int row,int column){
+		assert(row<row_num());
+		assert(column<column_num());
+		return result_table[column][row];
 	}
-	void sort(){
-		int path_len=result_paths.size();
-		if(path_len==0)
-			return ;
-		vector<path_node>& vec_to_sort=result_paths[path_len-1];
-		std::sort(vec_to_sort.begin(), vec_to_sort.end(), path_node_less_than());
-		return ;
+	int last_column(int row){
+		assert(row<row_num());
+		assert(0<column_num());
+		return result_table[column_num()-1][row];
 	}
-	void merge(request& other, int split_length){
-		sort();
-		other.sort();
-		int my_row=0;
-		int other_start=0;
-		vector<vector<path_node> >new_path;
-		for(int i=split_length;i<other.path_length();i++){
-			new_path.push_back(vector<path_node>());
+	void append_row_to(vector<vector<int> >& target_table,int row){
+		assert(column_num()<= target_table.size());
+		for(int i=0;i<column_num();i++){
+			target_table[i].push_back(result_table[i][row]);
 		}
-		while(my_row<path_num()){
-			path_node my_path_begin=get_node(my_row,split_length-1);
-			path_node my_path_end  =get_node(my_row,path_length()-1);
-			int other_row=other_start;
-			while(other_row<other.path_num()){
-				path_node other_path_begin=other.get_node(other_row,split_length-1);
-				path_node other_path_end  =other.get_node(other_row,other.path_length()-1);
-				if(other_path_end.id<my_path_end.id){
-					//skip this other.row forever 
-					other_row++;
-					other_start++;
-					continue;
-				} else if(other_path_end.id == my_path_end.id){
-					if(other_path_begin.id  == my_path_begin.id){
-						// this row match
-						path_node node=other.get_node(other_row,split_length);
-						node.prev=my_row;
-						new_path[0].push_back(node);
-						for(int column=split_length+1;column<other.path_length();column++){
-							path_node node=other.get_node(other_row,column);
-							node.prev=new_path[0].size()-1;
-							new_path[column-split_length].push_back(node);
-						}
-						other_row++;
-					} else {
-						// begin of path doesn't match
-						other_row++;
-					}
-				} else {
-					// we already check all possible other.rows for my_row
-					break;
-				}
-			}
-			my_row++;
-		}
-		for(int i=0;i<new_path.size();i++){
-			result_paths.push_back(new_path[i]);
-		}
-		return ;
 	}
-
 	template <typename Archive>
 	void serialize(Archive &ar, const unsigned int version) { 
 		ar & timestamp;
 		ar & req_id; 
 		ar & parent_id; 
 		ar & cmd_chains; 
-		ar & result_paths; 
+		ar & result_table; 
 	}
 };

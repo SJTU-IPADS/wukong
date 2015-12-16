@@ -16,6 +16,8 @@ bool global_load_convert_format;
 bool global_load_minimal_index;
 bool global_clear_final_result;
 bool global_use_multithread;
+bool global_use_predict_index;
+
 int global_estimate_vnum;
 int global_estimate_enum;
 

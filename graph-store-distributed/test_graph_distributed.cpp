@@ -81,7 +81,7 @@ void interactive_mode(client* is){
 				is->Send();
 				is->Recv();
 				uint64_t t2=timer::get_usec();
-				cout<<"result size:"<<is->req.path_num()<<endl;
+				cout<<"result size:"<<is->req.row_num()<<endl;
 				cout<<t2-t1<<"us"<<endl;
 				break;
 			} else {

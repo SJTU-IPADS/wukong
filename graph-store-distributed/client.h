@@ -34,6 +34,7 @@ public:
 		first_target=0;
 	}
 
+/*
 	client& lookup(string subject){
 		first_target=ingress::vid2mid(is->subject_to_id[subject] , (cfg->m_num));
 		req.clear();
@@ -52,7 +53,27 @@ public:
 		req.result_paths.push_back(vec);
 		return *this;
 	}
+*/
+	client& lookup(string subject){
+		first_target=ingress::vid2mid(is->subject_to_id[subject] , (cfg->m_num));
+		req.clear();
+		vector<int> vec_dataid;
+		vec_dataid.push_back(is->subject_to_id[subject]);
+		req.result_table.push_back(vec_dataid);
+		return *this;
+	}
+	client& lookup_id(int id){
+		first_target=ingress::vid2mid(id,cfg->m_num);
+		req.clear();
+		vector<int> vec_dataid;
+		vec_dataid.push_back(id);
+		req.result_table.push_back(vec_dataid);
+		return *this;
+	}
+
 	client& predict_index(string predict,string dir){
+		if(!global_use_predict_index)
+			assert(false);
 		req.clear();
 		req.cmd_chains.push_back(cmd_predict_index);
 		req.cmd_chains.push_back(is->predict_to_id[predict]);
@@ -66,6 +87,8 @@ public:
 		return *this;
 	}
 	client& get_subtype(string target){
+		//not supported anymore
+		assert(false);
 		req.clear();
 		int target_id=is->subject_to_id[target];
 		req.cmd_chains.push_back(cmd_get_subtype);
@@ -139,11 +162,5 @@ public:
 			//latency_profile.record_and_report_shape(req);
 		}
 		return req;
-	}
-
-	client& print_count(){
-		int path_len=req.result_paths.size();
-		cout<<req.result_paths[path_len-1].size()<<endl;
-		return *this;
 	}
 };
