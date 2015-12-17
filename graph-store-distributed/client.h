@@ -108,11 +108,10 @@ public:
 		return *this;
 	}
 	//This interface should be refined! 
-	client& triangle(string type1,string type2,vector<string> dir_vec,vector<string> predict_vec){
+	client& triangle(vector<string> type_vec,vector<string> dir_vec,vector<string> predict_vec){
 		req.cmd_chains.push_back(cmd_triangle);
-		req.cmd_chains.push_back(is->subject_to_id[type1]);
-		req.cmd_chains.push_back(is->subject_to_id[type2]);
 		for(int i=0;i<3;i++){
+			req.cmd_chains.push_back(is->subject_to_id[type_vec[i]]);
 			if(dir_vec[i] =="in" ){
 				req.cmd_chains.push_back(para_in);
 			} else if (dir_vec[i] =="out" ){

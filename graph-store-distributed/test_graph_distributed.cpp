@@ -53,21 +53,20 @@ void interactive_mode(client* is){
 				file>>predict>>dir;
 				is->predict_index(predict,dir);
 			} else if(cmd=="neighbors"){
-				string dir,object;
-				file>>dir>>object;
-				is->neighbors(dir,object);
+				string dir,predict;
+				file>>dir>>predict;
+				is->neighbors(dir,predict);
 			} else if(cmd=="triangle"){
+				vector<string> type_vec;
 				vector<string> dir_vec;
 				vector<string> predict_vec;
-				string type1;
-				string type2;
-				file>>type1>>type2;
+				type_vec.resize(3);
 				dir_vec.resize(3);
 				predict_vec.resize(3);
 				for(int i=0;i<3;i++){
-					file>>dir_vec[i]>>predict_vec[i];
+					file>>type_vec[i]>>dir_vec[i]>>predict_vec[i];
 				}
-				is->triangle(type1,type2,dir_vec,predict_vec);
+				is->triangle(type_vec,dir_vec,predict_vec);
 			} else if(cmd=="subclass_of"){
 				string object;
 				file>>object;

@@ -1,25 +1,24 @@
-
-lookup 			<ub#FullProfessor>
-neighbors   in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
 triangle
-<ub#UndergraduateStudent>
-<ub#Course>
-in	<ub#advisor>
-out	<ub#takesCourse>
-in  <ub#teacherOf>
+<ub#FullProfessor>	out	<ub#teacherOf>
+<ub#GraduateCourse>	in	<ub#takesCourse>
+<ub#GraduateStudent>	out  <ub#advisor>
+execute
+
+triangle
+<ub#FullProfessor>	in	<ub#advisor>
+<ub#UndergraduateStudent>	out	<ub#takesCourse>
+<ub#Course>	in  <ub#teacherOf>
+execute
+
+
+triangle
+<ub#FullProfessor>	out	<ub#teacherOf>
+<ub#Course>	in	<ub#takesCourse>
+<ub#UndergraduateStudent>	out  <ub#advisor>
 execute
 
 
 
-lookup 			<ub#FullProfessor>
-neighbors   in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
-triangle
-<ub#Course>
-<ub#UndergraduateStudent>
-out	<ub#teacherOf>
-in	<ub#takesCourse>
-out  <ub#advisor>
-execute
 
 
 

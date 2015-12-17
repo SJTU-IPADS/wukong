@@ -1,3 +1,11 @@
+triangle	
+<ub#Department>	out	<ub#subOrganizationOf>
+<ub#University>	in	<ub#undergraduateDegreeFrom>
+<ub#GraduateStudent>	out <ub#memberOf>
+execute
+
+
+
 lookup 			<ub#Department>
 neighbors   in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
 triangle
@@ -10,3 +18,4 @@ execute
 
 
 <ub#UndergraduateStudent>
+

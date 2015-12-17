@@ -126,117 +126,137 @@ class traverser{
 		r.result_table.clear();
 		return sub_reqs;
 	}
-
 	void do_triangle(request& r){
-		//vertex_set triangle d1 p1 d2 p2 d3 p3
-		// find all matching 
-		// v0 belongs to vertex_set
-		// v0 d1,p1 vsrc
-		// vsrc d2,p2 vdst
-		// vdst d3,p3 v0
 		r.cmd_chains.pop_back();
-		int type_src_id=r.cmd_chains.back();r.cmd_chains.pop_back();
-		int type_dst_id=r.cmd_chains.back();r.cmd_chains.pop_back();
-		int dir1=r.cmd_chains.back();r.cmd_chains.pop_back();
-		int	pre1=r.cmd_chains.back();r.cmd_chains.pop_back();	
-		int dir2=r.cmd_chains.back();r.cmd_chains.pop_back();
-		int	pre2=r.cmd_chains.back();r.cmd_chains.pop_back();	
-		int dir3=r.cmd_chains.back();r.cmd_chains.pop_back();
-		int	pre3=r.cmd_chains.back();r.cmd_chains.pop_back();	
-		//triangle == neighbor+neighbor+filter
-		r.cmd_chains.push_back(pre1);
-		r.cmd_chains.push_back(dir1);
-		r.cmd_chains.push_back(cmd_neighbors);
-		cout<<"[triangle]: number of r.row_num() = "<<r.row_num()<<endl;
-		
+		//find all matching 
+		//type_0 d0 p0
+		//type_1 d1 p1
+		//type_2 d2 p2
+		vector<int> v_type;
+		vector<int> v_dir;
+		vector<int> v_predict;
+		for(int i=0;i<3;i++){
+			v_type.push_back(r.cmd_chains.back());
+			r.cmd_chains.pop_back();
+			v_dir.push_back(r.cmd_chains.back());
+			r.cmd_chains.pop_back();
+			v_predict.push_back(r.cmd_chains.back());
+			r.cmd_chains.pop_back();
+		}
+
 		uint64_t t1=timer::get_usec();
 
+		//step 1 : find all type_0. type_0 is local
+		{
+			vector<vector<int> >updated_result_table;
+			updated_result_table.resize(1);
+			int edge_num=0;
+			edge_row* edge_ptr;
+			edge_ptr=g.kstore.readGlobal_predict(cfg->t_id,
+					v_type[0],para_in,global_rdftype_id,&edge_num);
+			for(int k=0;k<edge_num;k++){
+				if(global_rdftype_id==edge_ptr[k].predict ){
+					updated_result_table[0].push_back(edge_ptr[k].vid);
+				}
+			}
+			r.result_table.swap(updated_result_table);
+		}
+
+		//step 2 : find all type_0,type_1
+		r.cmd_chains.push_back(v_predict[0]);
+		r.cmd_chains.push_back(v_dir[0]);
+		r.cmd_chains.push_back(cmd_neighbors);		
 		do_neighbors(r);
 
-		cout<<"[triangle]: number of r.row_num() after do_neighbors = "<<r.row_num()<<endl;
-
 		uint64_t t2=timer::get_usec();
+
+		//step 3 : find all type_1,type_2 and create a simple_filter
 		pthread_spinlock_t triangle_lock;
 		pthread_spin_init(&triangle_lock,0);
-
-		//boost::unordered_set<uint64_t> filter_src;
-		boost::unordered_map<uint64_t,bool> filter_src;
-		boost::unordered_map<uint64_t,bool> filter_dst;
-
-		simple_filter filter_edge;
+		vector<boost::unordered_map<uint64_t,bool> > type_filter;
+		type_filter.resize(3);
+		simple_filter edge_filter;
 		for(uint64_t i=0;i<r.row_num();i++){
 			int edge_num=0;
 			edge_row* edge_ptr;
-			if(filter_src.find(r.last_column(i))!=filter_src.end()){
+			if(type_filter[1].find(r.last_column(i))!=type_filter[1].end()){
 				continue;
 			}
-			filter_src[r.last_column(i)]=true;					
+			type_filter[1][r.last_column(i)]=true;					
 
+			// check whether it's type_1 or not
 			edge_ptr=g.kstore.readGlobal_predict(cfg->t_id,
 										r.last_column(i),para_out,global_rdftype_id,&edge_num);
 			bool found=false;
 			for(int k=0;k<edge_num;k++){
 				if(global_rdftype_id==edge_ptr[k].predict && 
-						g.ontology_table.is_subtype_of(edge_ptr[k].vid,type_src_id)){
+						g.ontology_table.is_subtype_of(edge_ptr[k].vid,v_type[1])){
 					found=true;
-					filter_src[r.last_column(i)]=true;
+					type_filter[1][r.last_column(i)]=true;
 					break;
 				}
 			}
 			if(!found){
-				filter_src[r.last_column(i)]=false;
+				type_filter[1][r.last_column(i)]=false;
 				continue;
 			}
-
+			// fetch and insert to edge_filter
 			edge_num=0;
 			edge_ptr=g.kstore.readGlobal_predict(cfg->t_id,
-											r.last_column(i),dir2,pre2,&edge_num);
+											r.last_column(i),v_dir[1],v_predict[1],&edge_num);
 			for(int k=0;k<edge_num;k++){
-				if(pre2==edge_ptr[k].predict ){
-					filter_edge.insert(r.last_column(i),edge_ptr[k].vid);
+				if(v_predict[1]==edge_ptr[k].predict ){
+					edge_filter.insert(r.last_column(i),edge_ptr[k].vid);
 				}	
 			}
 		}
-		cout<<"[triangle]: filter_edge.vec_id.size() = "<<filter_edge.vec_id.size()<<endl;
 
-		filter_edge.rehash();
 		uint64_t t3=timer::get_usec();
-		
-		vector<vector<int> >updated_result_table;
-		updated_result_table.resize(r.column_num()+1);
 
-		vector<int>& prev_vec = r.result_table[r.column_num()-2];
-		//#pragma omp parallel for num_threads(8)
-		for(uint64_t i=0;i<r.row_num();i++){
-			uint64_t prev_id=prev_vec[i];
-			int edge_num=0;
-			edge_row* edges=g.kstore.readLocal_predict(cfg->t_id,prev_id,reverse_dir(dir3),pre3,&edge_num);
-			for(int k=0;k<edge_num;k++){
-				if(pre3==edges[k].predict ){
-					if(filter_edge.contain(r.last_column(i),edges[k].vid)) {
-						pthread_spin_lock(&triangle_lock);
-						r.append_row_to(updated_result_table,i);
-						updated_result_table[r.column_num()].push_back(edges[k].vid);
-						pthread_spin_unlock(&triangle_lock);
-					}
-				}	
-			}
-		}
-		r.result_table.swap(updated_result_table);
+		//step 4 : rehash edge_filter
+		edge_filter.rehash();
+
 		uint64_t t4=timer::get_usec();
-		r.cmd_chains.push_back(type_dst_id);
+
+		//step 5 : append type_2 to existing type_0,type_1 pair
+		{
+			vector<vector<int> >updated_result_table;
+			updated_result_table.resize(r.column_num()+1);
+
+			vector<int>& prev_vec = r.result_table[r.column_num()-2];
+			//#pragma omp parallel for num_threads(8)
+			for(uint64_t i=0;i<r.row_num();i++){
+				uint64_t prev_id=prev_vec[i];
+				int edge_num=0;
+				edge_row* edges=g.kstore.readLocal_predict(cfg->t_id,
+							prev_id,reverse_dir(v_dir[2]),v_predict[2],&edge_num);
+				for(int k=0;k<edge_num;k++){
+					if(v_predict[2]==edges[k].predict ){
+						if(edge_filter.contain(r.last_column(i),edges[k].vid)) {
+							pthread_spin_lock(&triangle_lock);
+							r.append_row_to(updated_result_table,i);
+							updated_result_table[r.column_num()].push_back(edges[k].vid);
+							pthread_spin_unlock(&triangle_lock);
+						}
+					}	
+				}
+			}
+			r.result_table.swap(updated_result_table);	
+		}
+		uint64_t t5=timer::get_usec();
+
+		//setp 6: do final filter on type_2
+		r.cmd_chains.push_back(v_type[2]);
 		r.cmd_chains.push_back(cmd_subclass_of);
 		do_subclass_of(r);
-		cout<<"[triangle]: number of r.row_num() = "<<r.row_num()<<endl;
-		
-		uint64_t t5=timer::get_usec();
-		cout<<"[triangle]: do_neighbors "<<(t2-t1)/1000.0<<"ms "<<endl;
-		cout<<"[triangle]: filter_edge "<<(t3-t2)/1000.0<<"ms "<<endl;
-		cout<<"[triangle]: construct triples "<<(t4-t3)/1000.0<<"ms "<<endl;
-		cout<<"[triangle]: do_subclass_of "<<(t5-t4)/1000.0<<"ms "<<endl;
-		return ;
-	}
 
+		uint64_t t6=timer::get_usec();
+		cout<<"[triangle]: find  all 0,1  "<<(t2-t1)/1000.0<<"ms "<<endl;
+		cout<<"[triangle]: fetch all 1,2  "<<(t3-t2)/1000.0<<"ms "<<endl;
+		cout<<"[triangle]: edge   filter  "<<(t4-t3)/1000.0<<"ms "<<endl;
+		cout<<"[triangle]: make all 0,1,2 "<<(t5-t4)/1000.0<<"ms "<<endl;
+		cout<<"[triangle]: final filter   "<<(t6-t5)/1000.0<<"ms "<<endl;
+	}
 	void try_rdma_execute(request& r){
 		while(r.cmd_chains.size()!=0 ){	
 			split_profile.neighbor_num+=r.row_num();
