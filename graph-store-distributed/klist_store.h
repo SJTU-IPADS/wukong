@@ -154,9 +154,75 @@ public:
 	uint64_t getEdgeOffset(uint64_t edgeptr){
 		return v_num*sizeof(vertex)+sizeof(edge_row)*edgeptr;
 	}
-	edge_row* readGlobal_predict(int tid,uint64_t id,int direction,int predict,int* size){
-		int edge_num=0;
-		edge_row* edge_ptr=readGlobal(tid,id,direction,&edge_num);
+
+	void batch_readGlobal_predict(int tid,const vector<int>& id_vec,int direction,int predict,
+				vector<edge_row*>& edge_ptr_vec,vector<int>& size_vec){
+		char *local_buffer = rdma->GetMsgAddr(tid);
+		char *local_buffer_end=local_buffer+rdma->get_slotsize();
+		local_buffer+=sizeof(vertex);
+		vector<uint64_t> edge_offset_vec;
+		for(int i=0;i<id_vec.size();i++){
+			if(ingress::vid2mid(id_vec[i],p_num) ==p_id){
+				int size=0;
+				edge_row* ptr=readLocal_predict(tid,id_vec[i],direction,predict,&size);
+				edge_offset_vec.push_back(0);
+				edge_ptr_vec.push_back(ptr);
+				size_vec.push_back(size);
+			} else {
+				uint64_t start_addr;
+				uint64_t read_length;
+				vertex v=getVertex_remote(tid,id_vec[i]);
+				if(direction == para_in ){
+					edge_offset_vec.push_back(getEdgeOffset(v.in_edge_ptr));
+					edge_ptr_vec.push_back((edge_row*)local_buffer);
+					size_vec.push_back(v.in_degree);
+					local_buffer+=sizeof(edge_row)*v.in_degree;
+				}
+				if(direction == para_out ){
+					edge_offset_vec.push_back(getEdgeOffset(v.out_edge_ptr));
+					edge_ptr_vec.push_back((edge_row*)local_buffer);
+					size_vec.push_back(v.out_degree);					
+					local_buffer+=sizeof(edge_row)*v.out_degree;
+				}
+			}
+		}
+		assert(local_buffer<local_buffer_end);
+
+		vector<int>batch_counter_vec;
+		batch_counter_vec.resize(p_num);
+
+		for(int i=0;i<id_vec.size();i++){
+			int target_mid=ingress::vid2mid(id_vec[i],p_num);
+			if(target_mid ==p_id){
+				continue;
+			}
+			batch_counter_vec[target_mid]++;
+			rdma->post(tid,target_mid,(char *)(edge_ptr_vec[i]),
+					sizeof(edge_row)*size_vec[i],edge_offset_vec[i],IBV_WR_RDMA_READ);
+			if(batch_counter_vec[target_mid]==32){
+				while(batch_counter_vec[target_mid]>0){
+					batch_counter_vec[target_mid]--;
+					rdma->poll(tid,target_mid);
+				}
+			}
+		}
+		for(int i=0;i<p_num;i++){
+			while(batch_counter_vec[i]>0){
+				batch_counter_vec[i]--;
+				rdma->poll(tid,i);
+			}
+		}
+		for(int i=0;i<id_vec.size();i++){
+			int target_mid=ingress::vid2mid(id_vec[i],p_num);
+			if(target_mid ==p_id){
+				continue;
+			}
+			int size;
+			edge_ptr_vec[i]=find_predict(edge_ptr_vec[i],size_vec[i],predict,&size);
+			size_vec[i]=size;
+		}
+	}
+	edge_row* find_predict(edge_row* edge_ptr,int edge_num,int predict,int* size){
 		int i=0;
 		while(i<edge_num){
 			assert(edge_ptr[i].predict==-1);
@@ -170,6 +236,12 @@ public:
 				return NULL;
 			}
 		}
+		return edge_ptr;
+	}
+	edge_row* readGlobal_predict(int tid,uint64_t id,int direction,int predict,int* size){
+		int edge_num=0;
+		edge_row* edge_ptr=readGlobal(tid,id,direction,&edge_num);
+		edge_ptr=find_predict(edge_ptr,edge_num,predict,size);
 		return edge_ptr;
 	}
 	edge_row* readLocal_predict(int tid,uint64_t id,int direction,int predict,int* size){
@@ -201,8 +273,10 @@ public:
 		} else {
 			//read vertex data first
 			char *local_buffer = rdma->GetMsgAddr(tid);
-			uint64_t start_addr=sizeof(vertex)*(id/p_num);
-			uint64_t read_length=sizeof(vertex);
+			// uint64_t start_addr=sizeof(vertex)*(id/p_num);
+			// uint64_t read_length=sizeof(vertex);
+			uint64_t start_addr;
+			uint64_t read_length;
 			vertex v;
 			if(global_use_loc_cache){
 				 v=location_cache->loc_cache_lookup(id);

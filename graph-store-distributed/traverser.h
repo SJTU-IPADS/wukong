@@ -74,6 +74,32 @@ class traverser{
 		}
 		r.result_table.swap(updated_result_table);
 	}
+	void async_do_subclass_of(request& r){
+		int predict_id=global_rdftype_id;
+		r.cmd_chains.pop_back();
+		int target_id=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
+
+		vector<vector<int> >updated_result_table;
+		updated_result_table.resize(r.column_num());
+		vector<edge_row*> edge_ptr_vec;
+		vector<int> size_vec;
+		g.kstore.batch_readGlobal_predict(cfg->t_id,r.result_table[r.column_num()-1],
+													para_out,predict_id,edge_ptr_vec,size_vec);
+		for (int i=0;i<r.row_num();i++){
+			int prev_id=r.last_column(i);	
+			edge_row* edge_ptr=edge_ptr_vec[i];
+			int edge_num=size_vec[i];
+			for(int k=0;k<edge_num;k++){
+				if(predict_id==edge_ptr[k].predict && 
+							g.ontology_table.is_subtype_of(edge_ptr[k].vid,target_id)){
+					r.append_row_to(updated_result_table,i);
+				}	
+			}
+		}
+		
+		r.result_table.swap(updated_result_table);
+	}
 	void do_get_attr(request& r,int dir=para_out){
 		r.cmd_chains.pop_back();
 		int predict_id=r.cmd_chains.back();
@@ -276,7 +302,8 @@ class traverser{
 				return ;
 			}
 			if(r.cmd_chains.back() == cmd_subclass_of){
-				do_subclass_of(r);
+				async_do_subclass_of(r);
+				//do_subclass_of(r);
 			} else if(r.cmd_chains.back() == cmd_get_attr){
 				do_get_attr(r);
 			} else if(r.cmd_chains.back() == cmd_neighbors){
@@ -356,6 +383,7 @@ public:
 				r=RecvReq(cfg);
 			}
 			if(r.req_id==-1){ //it means r is a request and shoule be executed
+				uint64_t t1=timer::get_usec();
 				r.req_id=cfg->get_inc_id();
 				handle_request(r);
 				if(!r.blocking){
@@ -363,6 +391,8 @@ public:
 						if(global_clear_final_result){
 							r.result_table.clear();
 						}
+						uint64_t t2=timer::get_usec();
+						cout<<"request finished in "<<(t2-t1)<<" us"<<endl;
 					}
 					if(cfg->mid_of(r.parent_id)== cfg->m_id && cfg->tid_of(r.parent_id)==cfg->t_id){
 						msg_fast_path.push_back(r);
