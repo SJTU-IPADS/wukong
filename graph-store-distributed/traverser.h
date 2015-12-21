@@ -392,7 +392,7 @@ public:
 							r.result_table.clear();
 						}
 						uint64_t t2=timer::get_usec();
-						cout<<"request finished in "<<(t2-t1)<<" us"<<endl;
+						//cout<<"request finished in "<<(t2-t1)<<" us"<<endl;
 					}
 					if(cfg->mid_of(r.parent_id)== cfg->m_id && cfg->tid_of(r.parent_id)==cfg->t_id){
 						msg_fast_path.push_back(r);

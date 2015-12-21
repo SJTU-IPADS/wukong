@@ -12,7 +12,7 @@
 #include "thread_cfg.h"
 #include "global_cfg.h"
 #include <pthread.h>
-
+#include <sstream>
 #include "batch_lubm.h"
 
 int socket_0[] = {
@@ -36,58 +36,70 @@ int batch_factor;
 void interactive_mode(client* is){
 	while(true){
 		cout<<"interactive mode:"<<endl;
+		// string filename;
+		// cin>>filename;
+		string input_str;
+		std::getline(std::cin,input_str);
+		istringstream iss(input_str);
 		string filename;
-		cin>>filename;
-		ifstream file(filename);
-		if(!file)
-			cout<<"File "<<filename<<" not exist"<<endl;
-
-		string cmd;
-		while(file>>cmd){
-			if(cmd=="lookup"){
-				string object;
-				file>>object;
-				is->lookup(object);
-			} else if(cmd=="predict_index"){
-				string predict,dir;
-				file>>predict>>dir;
-				is->predict_index(predict,dir);
-			} else if(cmd=="neighbors"){
-				string dir,predict;
-				file>>dir>>predict;
-				is->neighbors(dir,predict);
-			} else if(cmd=="triangle"){
-				vector<string> type_vec;
-				vector<string> dir_vec;
-				vector<string> predict_vec;
-				type_vec.resize(3);
-				dir_vec.resize(3);
-				predict_vec.resize(3);
-				for(int i=0;i<3;i++){
-					file>>type_vec[i]>>dir_vec[i]>>predict_vec[i];
-				}
-				is->triangle(type_vec,dir_vec,predict_vec);
-			} else if(cmd=="subclass_of"){
-				string object;
-				file>>object;
-				is->subclass_of(object);
-			} else if(cmd=="get_attr"){
-				string object;
-				file>>object;
-				is->get_attr(object);
-			} else if(cmd=="execute"){
-				uint64_t t1=timer::get_usec();
-				is->Send();
-				is->Recv();
-				uint64_t t2=timer::get_usec();
-				cout<<"result size:"<<is->req.row_num()<<endl;
-				cout<<t2-t1<<"us"<<endl;
-				break;
-			} else {
-				cout<<"error cmd"<<endl;
+		iss>>filename;
+		int execute_count=1;
+		iss>>execute_count;
+		int sum=0;
+		for(int i=0;i<execute_count;i++){
+			ifstream file(filename);
+			if(!file){
+				cout<<"File "<<filename<<" not exist"<<endl;
 				break;
 			}
+			string cmd;
+			while(file>>cmd){
+				if(cmd=="lookup"){
+					string object;
+					file>>object;
+					is->lookup(object);
+				} else if(cmd=="predict_index"){
+					string predict,dir;
+					file>>predict>>dir;
+					is->predict_index(predict,dir);
+				} else if(cmd=="neighbors"){
+					string dir,predict;
+					file>>dir>>predict;
+					is->neighbors(dir,predict);
+				} else if(cmd=="triangle"){
+					vector<string> type_vec;
+					vector<string> dir_vec;
+					vector<string> predict_vec;
+					type_vec.resize(3);
+					dir_vec.resize(3);
+					predict_vec.resize(3);
+					for(int i=0;i<3;i++){
+						file>>type_vec[i]>>dir_vec[i]>>predict_vec[i];
+					}
+					is->triangle(type_vec,dir_vec,predict_vec);
+				} else if(cmd=="subclass_of"){
+					string object;
+					file>>object;
+					is->subclass_of(object);
+				} else if(cmd=="get_attr"){
+					string object;
+					file>>object;
+					is->get_attr(object);
+				} else if(cmd=="execute"){
+					uint64_t t1=timer::get_usec();
+					is->Send();
+					is->Recv();
+					uint64_t t2=timer::get_usec();
+					sum+=t2-t1;
+					break;
+				} else {
+					cout<<"error cmd"<<endl;
+					break;
+				}
+			}
 		}
+		cout<<"result size:"<<is->req.row_num()<<endl;
+		cout<<"average latency "<<sum/execute_count<<" us"<<endl;
 	}
 }
 
