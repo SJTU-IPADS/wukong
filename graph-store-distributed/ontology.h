@@ -27,13 +27,14 @@ public:
 			id_to_children[type]=vector<int>();
 	}
 	bool is_subtype_of(int child,int parent){
-		while(true){
-			if(child==parent)
-				return true;
-			child=id_to_parent[child];
-			if(child==-1)
-				return false;
-		}
+		return child==parent;
+		// while(true){
+		// 	if(child==parent)
+		// 		return true;
+		// 	child=id_to_parent[child];
+		// 	if(child==-1)
+		// 		return false;
+		// }
 	}
 
 	unordered_set<int>  get_all_subtype(int id){

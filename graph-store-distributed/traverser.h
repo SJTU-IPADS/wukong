@@ -74,6 +74,29 @@ class traverser{
 		}
 		r.result_table.swap(updated_result_table);
 	}
+	void do_get_attr(request& r,int dir=para_out){
+		r.cmd_chains.pop_back();
+		int predict_id=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
+
+		vector<vector<int> >updated_result_table;
+		updated_result_table.resize(r.column_num()+1);
+		
+		for (int i=0;i<r.row_num();i++){
+			int prev_id=r.last_column(i);
+			int edge_num=0;
+			//edge_row* edge_ptr=g.kstore.readLocal_predict(cfg->t_id, prev_id,dir,predict_id,&edge_num);
+			edge_row* edge_ptr=g.kstore.readGlobal_predict(cfg->t_id, prev_id,dir,predict_id,&edge_num);
+			for(int k=0;k<edge_num;k++){
+				if(predict_id==edge_ptr[k].predict ){
+					r.append_row_to(updated_result_table,i);
+					updated_result_table[r.column_num()].push_back(edge_ptr[k].vid);
+				}	
+			}
+		}
+		r.result_table.swap(updated_result_table);
+		r.result_table[r.column_num()-1].swap(r.result_table[r.column_num()-2]);
+	}
 	void async_do_subclass_of(request& r){
 		int predict_id=global_rdftype_id;
 		r.cmd_chains.pop_back();
@@ -100,29 +123,62 @@ class traverser{
 		
 		r.result_table.swap(updated_result_table);
 	}
-	void do_get_attr(request& r,int dir=para_out){
+	void async_do_neighbors(request& r){
 		r.cmd_chains.pop_back();
-		int predict_id=r.cmd_chains.back();
+		int dir=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
+		int	predict_id=r.cmd_chains.back();
 		r.cmd_chains.pop_back();
 
 		vector<vector<int> >updated_result_table;
 		updated_result_table.resize(r.column_num()+1);
 		
+		vector<edge_row*> edge_ptr_vec;
+		vector<int> size_vec;
+		g.kstore.batch_readGlobal_predict(cfg->t_id,r.result_table[r.column_num()-1],
+													dir,predict_id,edge_ptr_vec,size_vec);
+
 		for (int i=0;i<r.row_num();i++){
-			int prev_id=r.last_column(i);
-			int edge_num=0;
-			//edge_row* edge_ptr=g.kstore.readLocal_predict(cfg->t_id, prev_id,dir,predict_id,&edge_num);
-			edge_row* edge_ptr=g.kstore.readGlobal_predict(cfg->t_id, prev_id,dir,predict_id,&edge_num);
+			int prev_id=r.last_column(i);	
+			edge_row* edge_ptr=edge_ptr_vec[i];
+			int edge_num=size_vec[i];
 			for(int k=0;k<edge_num;k++){
-				if(predict_id==edge_ptr[k].predict ){
+				if(predict_id==edge_ptr[k].predict){
 					r.append_row_to(updated_result_table,i);
 					updated_result_table[r.column_num()].push_back(edge_ptr[k].vid);
 				}	
 			}
 		}
 		r.result_table.swap(updated_result_table);
+	}
+	void async_do_get_attr(request& r,int dir=para_out){
+		r.cmd_chains.pop_back();
+		int predict_id=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
+
+		vector<vector<int> >updated_result_table;
+		updated_result_table.resize(r.column_num()+1);
+
+		vector<edge_row*> edge_ptr_vec;
+		vector<int> size_vec;
+		g.kstore.batch_readGlobal_predict(cfg->t_id,r.result_table[r.column_num()-1],
+													dir,predict_id,edge_ptr_vec,size_vec);
+		for (int i=0;i<r.row_num();i++){
+			int prev_id=r.last_column(i);	
+			edge_row* edge_ptr=edge_ptr_vec[i];
+			int edge_num=size_vec[i];
+			for(int k=0;k<edge_num;k++){
+				if(predict_id==edge_ptr[k].predict){
+					r.append_row_to(updated_result_table,i);
+					updated_result_table[r.column_num()].push_back(edge_ptr[k].vid);
+				}	
+			}
+		}
+		
+		r.result_table.swap(updated_result_table);
 		r.result_table[r.column_num()-1].swap(r.result_table[r.column_num()-2]);
 	}
+	
 	void do_predict_index(request& r){
 		r.cmd_chains.pop_back();
 		int predict_id=r.cmd_chains.back();
@@ -181,7 +237,8 @@ class traverser{
 			edge_ptr=g.kstore.readGlobal_predict(cfg->t_id,
 					v_type[0],para_in,global_rdftype_id,&edge_num);
 			for(int k=0;k<edge_num;k++){
-				if(global_rdftype_id==edge_ptr[k].predict ){
+				if(global_rdftype_id==edge_ptr[k].predict 
+						&& ingress::vid2mid(edge_ptr[k].vid,cfg->m_num)==cfg->m_id){
 					updated_result_table[0].push_back(edge_ptr[k].vid);
 				}
 			}
@@ -277,6 +334,7 @@ class traverser{
 		do_subclass_of(r);
 
 		uint64_t t6=timer::get_usec();
+		cout<<"[triangle]: result size= "<<r.row_num()<<endl;
 		cout<<"[triangle]: find  all 0,1  "<<(t2-t1)/1000.0<<"ms "<<endl;
 		cout<<"[triangle]: fetch all 1,2  "<<(t3-t2)/1000.0<<"ms "<<endl;
 		cout<<"[triangle]: edge   filter  "<<(t4-t3)/1000.0<<"ms "<<endl;
@@ -305,9 +363,11 @@ class traverser{
 				async_do_subclass_of(r);
 				//do_subclass_of(r);
 			} else if(r.cmd_chains.back() == cmd_get_attr){
-				do_get_attr(r);
+				async_do_get_attr(r);
+				//do_get_attr(r);
 			} else if(r.cmd_chains.back() == cmd_neighbors){
-				do_neighbors(r);
+				async_do_neighbors(r);
+				//do_neighbors(r);
 			} 
 		}
 	}

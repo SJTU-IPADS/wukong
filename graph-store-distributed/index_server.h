@@ -37,22 +37,6 @@ class index_server{
 		}
 		file.close();
 	}
-	void load_index(string filename,unordered_map<string,int>& str2id,
-					vector<string>& id2str){
-		uint64_t t1=timer::get_usec();
-	    
-		cout<<"index_server loading "<<filename<<endl;
-		ifstream file(filename.c_str());
-		string str;
-		while(file>>str){
-			str2id[str]=id2str.size();
-			id2str.push_back(str);
-		}
-		file.close();
-		uint64_t t2=timer::get_usec();
-		cout<<"loading "<<filename<<" in "<<(t2-t1)/1000.0/1000.0<<"s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"<<endl;
-
-	}
 	void load_index_predict(string filename,unordered_map<string,int>& str2id,
 					vector<string>& id2str){
 		uint64_t t1=timer::get_usec();
@@ -72,7 +56,7 @@ class index_server{
 		cout<<"loading "<<filename<<" in "<<(t2-t1)/1000.0/1000.0<<"s ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"<<endl;
 
 	}
-	void load_minimal_index(string filename,unordered_map<string,int>& str2id,
+	void load_index(string filename,unordered_map<string,int>& str2id,
 					vector<string>& id2str){
 		uint64_t t1=timer::get_usec();
 	    
@@ -131,7 +115,7 @@ public:
 					load_index(complete_fname,subject_to_id,id_to_subject);
 			} else if(fname == "minimal_index_subject"){
 				if(global_load_minimal_index)
-					load_minimal_index(complete_fname,subject_to_id,id_to_subject);
+					load_index(complete_fname,subject_to_id,id_to_subject);
 			}else if(fname == "index_predict"){
 				load_index_predict(complete_fname,predict_to_id,id_to_predict);
 			} else{

@@ -161,8 +161,10 @@ public:
 		char *local_buffer_end=local_buffer+rdma->get_slotsize();
 		local_buffer+=sizeof(vertex);
 		vector<uint64_t> edge_offset_vec;
+		int local_count=0;
 		for(int i=0;i<id_vec.size();i++){
 			if(ingress::vid2mid(id_vec[i],p_num) ==p_id){
+				local_count++;
 				int size=0;
 				edge_row* ptr=readLocal_predict(tid,id_vec[i],direction,predict,&size);
 				edge_offset_vec.push_back(0);
@@ -186,6 +188,8 @@ public:
 				}
 			}
 		}
+		cout<<"local_rate"<<local_count<<"/"<<id_vec.size()<<":"
+			<<local_count*1.0/(id_vec.size())<<endl;
 		assert(local_buffer<local_buffer_end);
 
 		vector<int>batch_counter_vec;

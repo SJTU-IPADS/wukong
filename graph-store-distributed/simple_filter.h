@@ -14,7 +14,7 @@ size_t hash1(const v_pair &x){
 size_t hash2(const v_pair &x){
 	return hash<int>()(x.first+x.second);
 }
-//#define USE_BOOST_SET
+#define USE_BOOST_SET
 
 
 class simple_filter{

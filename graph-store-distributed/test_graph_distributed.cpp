@@ -45,6 +45,9 @@ void interactive_mode(client* is){
 		iss>>filename;
 		int execute_count=1;
 		iss>>execute_count;
+		if(execute_count<1){
+			execute_count=1;
+		}
 		int sum=0;
 		for(int i=0;i<execute_count;i++){
 			ifstream file(filename);

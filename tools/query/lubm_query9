@@ -10,12 +10,13 @@ triangle
 <ub#Course>	in  <ub#teacherOf>
 execute
 
-
 triangle
 <ub#FullProfessor>	out	<ub#teacherOf>
 <ub#Course>	in	<ub#takesCourse>
 <ub#UndergraduateStudent>	out  <ub#advisor>
 execute
+
+
 
 
 

@@ -55,6 +55,7 @@ public:
 	}
 */
 	client& lookup(string subject){
+		assert(is->subject_to_id.find(subject)!=is->subject_to_id.end());
 		first_target=ingress::vid2mid(is->subject_to_id[subject] , (cfg->m_num));
 		req.clear();
 		vector<int> vec_dataid;
@@ -131,6 +132,7 @@ public:
 	}
 
 	client& subclass_of(string target){
+		assert(is->subject_to_id.find(target)!=is->subject_to_id.end());
 		req.cmd_chains.push_back(cmd_subclass_of);
 		req.cmd_chains.push_back(is->subject_to_id[target]);
 		return *this;
@@ -151,11 +153,27 @@ public:
 		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
 		req.req_id=-1;
 		req.parent_id=cfg->get_inc_id();
-		SendReq(cfg,first_target, cfg->client_num+rand()%cfg->server_num, req);
+		if(req.cmd_chains.back()==cmd_triangle){
+			for(int i=0;i<cfg->m_num;i++){
+				SendReq(cfg,i, cfg->client_num+rand()%cfg->server_num, req);		
+			}
+		} else {
+			SendReq(cfg,first_target, cfg->client_num+rand()%cfg->server_num, req);
+		}
 
 	}
 	request Recv(){
-		req=RecvReq(cfg);
+		if(req.cmd_chains.back()==cmd_triangle){
+			req=RecvReq(cfg);
+			for(int i=1;i<cfg->m_num;i++){
+				request tmp=RecvReq(cfg);
+				for(int j=0;j<tmp.row_num();j++){
+					tmp.append_row_to(req.result_table,j);
+				}
+			}
+		} else {
+			req=RecvReq(cfg);
+		}
 		if(cfg->m_id==0){
 			//latency_profile.record_and_report_latency(timer::get_usec()-req.timestamp);
 			//latency_profile.record_and_report_shape(req);
