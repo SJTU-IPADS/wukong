@@ -14,7 +14,7 @@ size_t hash1(const v_pair &x){
 size_t hash2(const v_pair &x){
 	return hash<int>()(x.first+x.second);
 }
-#define USE_BOOST_SET
+//#define USE_BOOST_SET
 
 
 class simple_filter{
@@ -71,6 +71,7 @@ public:
 
 	void rehash(){
 #ifdef USE_BOOST_SET
+		pair_set.reserve(vec_id.size()*1.5);
 		for(int i=0;i<vec_id.size();i++){
 			pair_set.insert(vec_id[i]);
 		}

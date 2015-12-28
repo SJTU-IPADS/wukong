@@ -259,6 +259,7 @@ class traverser{
 		vector<boost::unordered_map<uint64_t,bool> > type_filter;
 		type_filter.resize(3);
 		simple_filter edge_filter;
+		type_filter[1].reserve(r.row_num());
 		for(uint64_t i=0;i<r.row_num();i++){
 			int edge_num=0;
 			edge_row* edge_ptr;

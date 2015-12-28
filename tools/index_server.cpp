@@ -49,7 +49,7 @@ int main(int argc,char** argv){
     dir=opendir(argv[1]);
     printf("files:\n");
     
-    ofstream ontology_file("index_ontology");
+    //ofstream ontology_file("index_ontology");
 
     while((ptr=readdir(dir))!=NULL){
         if(ptr->d_name[0] == '.')
@@ -106,33 +106,33 @@ int main(int argc,char** argv){
 
     //Current I cannot correct parse the ontology file.
 	//and not all the subClass are list in the file.
-	//So I manually insert it and make it reasonable
+	// //So I manually insert it and make it reasonable
 
-	//Course
-	insert_subclass(ontology_file,"<ub#GraduateCourse>","<ub#Course>");
-	//student
-	insert_subclass(ontology_file,"<ub#GraduateStudent>","<ub#Student>");
-	insert_subclass(ontology_file,"<ub#UndergraduateStudent>","<ub#Student>");
-	//professor
-	insert_subclass(ontology_file,"<ub#FullProfessor>","<ub#Professor>");
-	insert_subclass(ontology_file,"<ub#AssistantProfessor>","<ub#Professor>");
-	insert_subclass(ontology_file,"<ub#AssociateProfessor>","<ub#Professor>");
-	//Faculty
-	insert_subclass(ontology_file,"<ub#Professor>","<ub#Faculty>");
-	insert_subclass(ontology_file,"<ub#Lecturer>","<ub#Faculty>");
+	// //Course
+	// insert_subclass(ontology_file,"<ub#GraduateCourse>","<ub#Course>");
+	// //student
+	// insert_subclass(ontology_file,"<ub#GraduateStudent>","<ub#Student>");
+	// insert_subclass(ontology_file,"<ub#UndergraduateStudent>","<ub#Student>");
+	// //professor
+	// insert_subclass(ontology_file,"<ub#FullProfessor>","<ub#Professor>");
+	// insert_subclass(ontology_file,"<ub#AssistantProfessor>","<ub#Professor>");
+	// insert_subclass(ontology_file,"<ub#AssociateProfessor>","<ub#Professor>");
+	// //Faculty
+	// insert_subclass(ontology_file,"<ub#Professor>","<ub#Faculty>");
+	// insert_subclass(ontology_file,"<ub#Lecturer>","<ub#Faculty>");
 
-	//Person
-	insert_subclass(ontology_file,"<ub#Student>","<ub#Person>");
-	insert_subclass(ontology_file,"<ub#Faculty>","<ub#Person>");
+	// //Person
+	// insert_subclass(ontology_file,"<ub#Student>","<ub#Person>");
+	// insert_subclass(ontology_file,"<ub#Faculty>","<ub#Person>");
 
-	insert_subclass(ontology_file,"<ub#TeachingAssistant>","<ub#Person>");
-	insert_subclass(ontology_file,"<ub#ResearchAssistant>","<ub#Person>");
+	// insert_subclass(ontology_file,"<ub#TeachingAssistant>","<ub#Person>");
+	// insert_subclass(ontology_file,"<ub#ResearchAssistant>","<ub#Person>");
 
 	
     cout<<id_to_subject.size()<<endl;
     ofstream f1("index_subject");
     for(int i=0;i<id_to_subject.size();i++){
-    	f1<<id_to_subject[i]<<endl;
+    	f1<<id_to_subject[i]<<"\t"<<i<<endl;
     }
     f1.close();
 
@@ -143,6 +143,6 @@ int main(int argc,char** argv){
     }
     f2.close();
     
-    ontology_file.close();
+//    ontology_file.close();
 }
 

@@ -230,18 +230,24 @@ void tuning_mode(client* is,struct thread_cfg *cfg){
 void* Run(void *ptr) {
   struct thread_cfg *cfg = (struct thread_cfg*) ptr;
   pin_to_core(socket_1[cfg->t_id]);
-
+  cout<<"("<<cfg->m_id<<","<<cfg->t_id<<")"<<endl;
   if(cfg->t_id >= cfg->client_num){
   	((traverser*)(cfg->ptr))->run();
   }else {
-  	while(global_interactive){
-  		if(cfg->m_id!=0 || cfg->t_id!=0){
-  			// sleep forever
-  			sleep(1);
+
+  	if(global_interactive){
+  		if(cfg->t_id==0){
+  			MPI_Barrier(MPI_COMM_WORLD);
   		}
-  		else{
-  			interactive_mode((client*)(cfg->ptr));
-  		}
+  		while(true){
+			if(cfg->m_id!=0 || cfg->t_id!=0){
+				// sleep forever
+				sleep(1);
+			}
+			else{
+				interactive_mode((client*)(cfg->ptr));
+			}
+		}
   	}
   	//batch_mode((client*)(cfg->ptr),cfg);
 	tuning_mode((client*)(cfg->ptr),cfg);
@@ -269,9 +275,6 @@ int main(int argc, char * argv[])
 		return -1;
 	}
 	load_global_cfg(argv[1]);
-	//batch_factor=atoi(argv[2]);
-	//server_num=4;
-	//client_num=1;
 	batch_factor=global_batch_factor;
 	server_num=global_num_server;
 	client_num=global_num_client;
@@ -288,7 +291,7 @@ int main(int argc, char * argv[])
   	uint64_t total_size=rdma_size+slot_per_thread*thread_num*2; 
 	Network_Node *node = new Network_Node(world.rank(),thread_num);//[0-thread_num-1] are used
 	char *buffer= (char*) malloc(total_size);
-	//memset(buffer,0,total_size);
+	memset(buffer,0,total_size);
 	RdmaResource *rdma=new RdmaResource(world.size(),thread_num,world.rank(),buffer,total_size,slot_per_thread,rdma_size);
 	rdma->node = node;
 	rdma->Servicing();

@@ -5,7 +5,7 @@
 #include <iostream>
 #include <stdio.h>
 #include <dirent.h>
-#include <unordered_map>
+#include <boost/unordered_map.hpp>
 #include <unordered_set>
 #include <vector>
 #include <algorithm>
@@ -26,7 +26,7 @@ class graph{
 	RdmaResource* rdma;
 public:
 	static const int num_vertex_table=100;
-	unordered_map<uint64_t,vertex_row> vertex_table[num_vertex_table];
+	boost::unordered_map<uint64_t,vertex_row> vertex_table[num_vertex_table];
 	pthread_spinlock_t vertex_table_lock[num_vertex_table];
 	klist_store kstore;
 	ontology ontology_table;
@@ -280,6 +280,7 @@ public:
 		sort(file_vec.begin(),file_vec.end());
 		uint64_t t1=timer::get_usec();
 		int nfile=file_vec.size();
+		volatile int finished_count = 0;
 		#pragma omp parallel for num_threads(global_num_server)
 		for(int i=0;i<nfile;i++){
 			int localtid = omp_get_thread_num();
@@ -300,10 +301,19 @@ public:
 				}
 			}
 			flush_edge(localtid,nfile,i);
+			int ret=__sync_fetch_and_add( &finished_count, 1 );
+			if(ret%40==39){
+				cout<<"already load "<<ret+1<<" files"<<endl;
+			}
 		}
 		MPI_Barrier(MPI_COMM_WORLD);
 		uint64_t t2=timer::get_usec();
-		int parallel_factor=global_num_server;
+		cout<<(t2-t1)/1000<<" ms for loading files"<<endl;
+		finished_count=0;
+
+
+//lock_free
+		int parallel_factor=40;
 		#pragma omp parallel for num_threads(parallel_factor)
 		for(int t=0;t<parallel_factor;t++){
 			for(int fileid=0;fileid<file_vec.size();fileid++){
@@ -322,10 +332,41 @@ public:
 					}
 					row++;
 				}
+				int ret=__sync_fetch_and_add( &finished_count, 1 );
+				if(ret%400==399){
+					cout<<"already aggregrate "<<ret+1<<endl;
+				}
 			}
 		}
+
+/*
+		int parallel_factor=40;
+		#pragma omp parallel for num_threads(parallel_factor)
+		for(int fileid=0;fileid<file_vec.size();fileid++){
+			uint64_t row=0;
+			uint64_t s,p,o;
+			while(recv_edge(nfile,fileid,row,&s,&p,&o)){
+				if(ingress::vid2mid(s,world.size())==world.rank()){
+					int vt_id=(s/world.size())%num_vertex_table;
+					pthread_spin_lock(&vertex_table_lock[vt_id]);
+					vertex_table[vt_id][s].out_edges.push_back(edge_row(p,o));
+					pthread_spin_unlock(&vertex_table_lock[vt_id]);
+				}
+				if(ingress::vid2mid(o,world.size())==world.rank()){
+					int vt_id=(o/world.size())%num_vertex_table;
+					pthread_spin_lock(&vertex_table_lock[vt_id]);
+					vertex_table[vt_id][o].in_edges.push_back(edge_row(p,s));
+					pthread_spin_unlock(&vertex_table_lock[vt_id]);
+				}
+				row++;
+			}
+			int ret=__sync_fetch_and_add( &finished_count, 1 );
+			if(ret%40==39){
+				cout<<"already aggregrate "<<ret+1<<endl;
+			}
+		}
+*/
 		uint64_t t3=timer::get_usec();
-		cout<<(t2-t1)/1000<<" ms for loading files"<<endl;
 		cout<<(t3-t2)/1000<<" ms for aggregrate edges"<<endl;
 	}
 	void load_data(string filename){
@@ -394,7 +435,7 @@ public:
 			count++;
 		}
 		uint64_t curr_edge_ptr=kstore.atomic_alloc_edges(count);
-		unordered_map<uint64_t,vertex_row>::iterator iter;
+		boost::unordered_map<uint64_t,vertex_row>::iterator iter;
 		for(iter=vertex_table[i].begin();iter!=vertex_table[i].end();iter++){
 			if(iter->second.out_edges.size()==0 && iter->second.in_edges.size()==0){
 				continue;
@@ -467,10 +508,11 @@ public:
 			//so kstore should be init here
 		    kstore.init(rdma,max_v_num,world.size(),world.rank());
 		 	
-		 	#pragma omp parallel for num_threads(10)
+		 	volatile int finished_count = 0;
+		 	#pragma omp parallel for num_threads(global_num_server)
 			for(int i=0;i<num_vertex_table;i++){
 				uint64_t count=0;
-				unordered_map<uint64_t,vertex_row>::iterator iter;
+				boost::unordered_map<uint64_t,vertex_row>::iterator iter;
 				for(iter=vertex_table[i].begin();iter!=vertex_table[i].end();iter++){
 					add_pivot(iter->second.in_edges);
 					add_pivot(iter->second.out_edges);
