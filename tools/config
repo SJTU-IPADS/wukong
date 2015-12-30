@@ -5,7 +5,7 @@ global_query_type		8
 global_num_server		8
 global_num_client		1
 global_batch_factor		8
-global_input_folder		/home/datanfs/nfs0/LUBM/id_univ640/
+global_input_folder		/home/datanfs/nfs0/LUBM/id_univ2560/
 global_interactive		1
 global_use_loc_cache	0
 global_num_lubm_university	160

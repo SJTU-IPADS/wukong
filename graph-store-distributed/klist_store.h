@@ -102,7 +102,6 @@ class klist_store{
 	edge_row* edge_addr;
 	RdmaResource* rdma;
 	
-	uint64_t max_edge_ptr;
 	
 	uint64_t v_num;
 	uint64_t p_num;
@@ -110,7 +109,8 @@ class klist_store{
 	loc_cache* location_cache; 
 	pthread_spinlock_t allocation_lock;
 public:
-
+	uint64_t used_v_num;
+	uint64_t max_edge_ptr;
 	uint64_t new_edge_ptr;
 	klist_store(){
 		pthread_spin_init(&allocation_lock,0);
@@ -316,6 +316,7 @@ public:
 	void init(RdmaResource* _rdma,uint64_t vertex_num,uint64_t partition_num,uint64_t partition_id){
 		rdma=_rdma;
 		v_num=vertex_num;
+		used_v_num=0;
 		p_num=partition_num;
 		p_id=partition_id;
 		vertex_addr=(vertex*)(rdma->get_buffer());
@@ -363,6 +364,7 @@ public:
 			cout<<"fail to alloc for vertex "<<id<<endl;
 			assert(false);
 		}
+		used_v_num++;
 		pthread_spin_unlock(&allocation_lock);
 		vertex_addr[vertex_ptr].id=id;
 		vertex_addr[vertex_ptr].in_degree=v.in_edges.size();

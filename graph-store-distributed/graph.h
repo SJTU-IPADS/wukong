@@ -332,9 +332,11 @@ public:
 					}
 					row++;
 				}
-				int ret=__sync_fetch_and_add( &finished_count, 1 );
-				if(ret%400==399){
-					cout<<"already aggregrate "<<ret+1<<endl;
+				if((fileid+1)%parallel_factor==0){
+					int ret=__sync_fetch_and_add( &finished_count, 1 );
+					if(ret%40==39){
+						cout<<"already aggregrate "<<ret+1<<endl;
+					}
 				}
 			}
 		}
@@ -508,8 +510,8 @@ public:
 			//so kstore should be init here
 		    kstore.init(rdma,max_v_num,world.size(),world.rank());
 		 	
-		 	volatile int finished_count = 0;
-		 	#pragma omp parallel for num_threads(global_num_server)
+		 	volatile int insert_vertex = 0;
+		 	#pragma omp parallel for num_threads(20)
 			for(int i=0;i<num_vertex_table;i++){
 				uint64_t count=0;
 				boost::unordered_map<uint64_t,vertex_row>::iterator iter;
@@ -551,8 +553,10 @@ public:
 	    if(global_use_predict_index)
 			kstore.init_predict_index();
 	    cout<<world.rank()<<" finished "<<endl;
-		cout<<"graph-store use "<<max_v_num*sizeof(vertex) / 1024 / 1024<<" MB for vertex data"<<endl;
-		cout<<"graph-store use "<<kstore.new_edge_ptr*sizeof(edge_row)/1024/1024<<" MB for edge data"<<endl;
+		cout<<"graph-store use "<<kstore.used_v_num*sizeof(vertex)/1048576<<"/"
+								<<max_v_num*sizeof(vertex) / 1048576<<" MB for vertex data"<<endl;
+		cout<<"graph-store use "<<kstore.new_edge_ptr*sizeof(edge_row)/1048576<<"/"
+								<<kstore.max_edge_ptr*sizeof(edge_row)/1048576<<" MB for edge data"<<endl;
 	
 	}
 
