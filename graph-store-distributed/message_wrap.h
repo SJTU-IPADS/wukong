@@ -8,7 +8,7 @@
 #include "global_cfg.h"
 
 #define USE_RBF 1
-
+#include <vector>
 
 void SendReq(thread_cfg* cfg,int r_mid,int r_tid,request& r,profile* profile_ptr=NULL){
     std::stringstream ss;
@@ -21,6 +21,16 @@ void SendReq(thread_cfg* cfg,int r_mid,int r_tid,request& r,profile* profile_ptr
     }
 
     if(global_use_rbf){
+        if(ss.str().size() > (cfg->rdma->rbf_size /2) ){
+            cout<<"Too large message size = "<<ss.str().size()*1.0/cfg->rdma->rbf_size<< " rbf_size" <<endl;
+            cout<<"r.row_num()=" <<r.row_num()<<endl;
+            r.result_table.clear();
+            std::stringstream ss2;
+            boost::archive::binary_oarchive oa2(ss2);
+            oa2 << r;
+            cfg->rdma->rbfSend(cfg->t_id,r_mid, r_tid, ss2.str().c_str(),ss2.str().size());   
+            return ;
+        }
         cfg->rdma->rbfSend(cfg->t_id,r_mid, r_tid, ss.str().c_str(),ss.str().size());    
     } else {
         cfg->node->Send(r_mid,r_tid,ss.str());
@@ -58,8 +68,6 @@ request RecvReq(thread_cfg* cfg){
 }
 
 
-
-
 void SendStr(thread_cfg* cfg,int r_mid,int r_tid,std::string& str){
 
 #if USE_RBF
@@ -77,4 +85,46 @@ std::string RecvStr(thread_cfg* cfg){
     std::string str=cfg->node->Recv();
 #endif
     return str;
+}
+
+
+
+
+
+
+
+void SendVector(thread_cfg* cfg,int r_mid,int r_tid,vector<int>& r){
+    std::stringstream ss;
+    boost::archive::binary_oarchive oa(ss);
+    oa << r;
+    cfg->node->Send(r_mid,r_tid,ss.str());
+}
+
+vector<int> RecvVector(thread_cfg* cfg){
+    std::string str;
+    str=cfg->node->Recv();
+    std::stringstream s;
+    s << str;
+    boost::archive::binary_iarchive ia(s);
+    vector<int> r;
+    ia >> r;
+    return r;
+}
+
+void SendTables(thread_cfg* cfg,int r_mid,int r_tid,vector<vector<int> >& r){
+    std::stringstream ss;
+    boost::archive::binary_oarchive oa(ss);
+    oa << r;
+    cfg->node->Send(r_mid,r_tid,ss.str());
+}
+
+vector<vector<int> > RecvTables(thread_cfg* cfg){
+    std::string str;
+    str=cfg->node->Recv();
+    std::stringstream s;
+    s << str;
+    boost::archive::binary_iarchive ia(s);
+    vector<vector<int> > r;
+    ia >> r;
+    return r;
 }

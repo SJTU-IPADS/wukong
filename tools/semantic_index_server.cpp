@@ -16,15 +16,21 @@ unsigned long semantic_hash(string str){
 	if(str==""){
 		return 0;
 	}
+	int start=0;
 	size_t end=str.find_last_of('.');
 	if(end==string::npos){
 		end=str.size();
+	} else {
+		start=end-1;
+		while(start>=0 && str[start]!='.'){
+			start--;
+		}
 	}
-	unsigned long hash = 5381;
-	for(int i=0;i<end;i++){
-		hash=hash*37 + str[i];
+	unsigned long val = 5381;
+	for(int i=start;i<end;i++){
+		val=val*37 + str[i];
 	}
-	return hash;
+	return hash<unsigned long>()(val);
 }
 int main(int argc,char** argv){
 
@@ -100,7 +106,9 @@ int main(int argc,char** argv){
 			}
     	}
     } 
-
+    for(int i=0;i<total_partition;i++){
+    	cout<<"partition "<<i<<" = "<<new_id[i]<<endl;
+    }
     //copy files
     {
     	ifstream finput(string(argv[1])+"/"+string("index_predict"),ios::binary);

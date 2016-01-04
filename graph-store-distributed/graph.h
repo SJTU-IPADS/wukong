@@ -313,7 +313,7 @@ public:
 
 
 //lock_free
-		int parallel_factor=40;
+		int parallel_factor=20;
 		#pragma omp parallel for num_threads(parallel_factor)
 		for(int t=0;t<parallel_factor;t++){
 			for(int fileid=0;fileid<file_vec.size();fileid++){
@@ -334,7 +334,7 @@ public:
 				}
 				if((fileid+1)%parallel_factor==0){
 					int ret=__sync_fetch_and_add( &finished_count, 1 );
-					if(ret%40==39){
+					if(ret%400==399){
 						cout<<"already aggregrate "<<ret+1<<endl;
 					}
 				}
@@ -394,6 +394,19 @@ public:
 	}
 	void add_pivot(vector<edge_row>& edge_list){
 		sort(edge_list.begin(),edge_list.end());
+		//remove duplicate	
+		if(edge_list.size()>1){
+			int end=1;
+			for(int i=1;i<edge_list.size();i++){
+				if(edge_list[i].predict==edge_list[i-1].predict
+						&&	edge_list[i].vid==edge_list[i-1].vid){
+					continue;
+				}
+				edge_list[end]=edge_list[i];
+				end++;
+			}
+			edge_list.resize(end);
+		}
 		uint64_t last;
 		uint64_t old_size;
 		uint64_t new_size;
@@ -493,7 +506,7 @@ public:
 				//assert(false);
 			}
 	    }
-	    uint64_t max_v_num=1000000*80;//80;
+	    uint64_t max_v_num=1000000*120;//80;
 	    
 	    
 	    uint64_t t1=timer::get_usec();
@@ -509,9 +522,8 @@ public:
 			//load_and_sync_data will use the memory of rdma_region
 			//so kstore should be init here
 		    kstore.init(rdma,max_v_num,world.size(),world.rank());
-		 	
-		 	volatile int insert_vertex = 0;
-		 	#pragma omp parallel for num_threads(20)
+			
+		 	#pragma omp parallel for num_threads(8)
 			for(int i=0;i<num_vertex_table;i++){
 				uint64_t count=0;
 				boost::unordered_map<uint64_t,vertex_row>::iterator iter;
@@ -526,6 +538,7 @@ public:
 					curr_edge_ptr+=iter->second.out_edges.size();
 					curr_edge_ptr+=iter->second.in_edges.size();
 				}
+				vertex_table[i].clear();
 			}
 			
 			uint64_t t3=timer::get_usec();
@@ -550,8 +563,9 @@ public:
 			cout<<"machine "<<world.rank()<<" load and init in "<<(t2-t1)/1000000.0<<"s ~~~~~~~~~~~"<<endl;
 		}
 	    kstore.calculate_edge_cut();
-	    if(global_use_predict_index)
+	    if(global_use_predict_index){
 			kstore.init_predict_index();
+		}
 	    cout<<world.rank()<<" finished "<<endl;
 		cout<<"graph-store use "<<kstore.used_v_num*sizeof(vertex)/1048576<<"/"
 								<<max_v_num*sizeof(vertex) / 1048576<<" MB for vertex data"<<endl;

@@ -1,0 +1,15 @@
+lookup	<http://www.University0.edu>
+neighbors   in 	<ub#subOrganizationOf>
+subclass_of		<ub#Department>
+neighbors   in 	<ub#worksFor>
+subclass_of		<ub#FullProfessor>
+execute
+
+
+
+Q6: SELECT ?x ?y WHERE { 
+?y ub:subOrganizationOf <http- ://www.University0.edu> . 
+?y rdf:type ub:Department . 
+?x ub:worksFor ?y . 
+?x rdf:type ub:FullProfessor . 
+}

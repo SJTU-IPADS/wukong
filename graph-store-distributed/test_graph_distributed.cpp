@@ -65,6 +65,10 @@ void interactive_mode(client* is){
 					string predict,dir;
 					file>>predict>>dir;
 					is->predict_index(predict,dir);
+				} else if(cmd=="type_index"){
+					string type;
+					file>>type;
+					is->type_index(type);
 				} else if(cmd=="neighbors"){
 					string dir,predict;
 					file>>dir>>predict;
@@ -229,9 +233,14 @@ void tuning_mode(client* is,struct thread_cfg *cfg){
 }
 void* Run(void *ptr) {
   struct thread_cfg *cfg = (struct thread_cfg*) ptr;
-  pin_to_core(socket_1[cfg->t_id]);
+  //pin_to_core(socket_1[cfg->t_id]);
   cout<<"("<<cfg->m_id<<","<<cfg->t_id<<")"<<endl;
   if(cfg->t_id >= cfg->client_num){
+  	if(global_interactive && cfg->t_id != cfg->client_num){
+  		//global_interactive mode
+  		//only one core working
+  		return NULL;
+  	}
   	((traverser*)(cfg->ptr))->run();
   }else {
 
@@ -284,10 +293,10 @@ int main(int argc, char * argv[])
 	boost::mpi::communicator world;
 
 	uint64_t rdma_size = 1024*1024*1024;  //1G
-	rdma_size = rdma_size*14; //2G 
+	rdma_size = rdma_size*28; //2G 
 	//rdma_size = rdma_size*2; //2G 
   	
-  	uint64_t slot_per_thread= 1024*1024*64;
+  	uint64_t slot_per_thread= 1024*1024*128;
   	uint64_t total_size=rdma_size+slot_per_thread*thread_num*2; 
 	Network_Node *node = new Network_Node(world.rank(),thread_num);//[0-thread_num-1] are used
 	char *buffer= (char*) malloc(total_size);

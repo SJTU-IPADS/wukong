@@ -109,6 +109,8 @@ class klist_store{
 	loc_cache* location_cache; 
 	pthread_spinlock_t allocation_lock;
 public:
+	uint64_t num_try;
+	
 	uint64_t used_v_num;
 	uint64_t max_edge_ptr;
 	uint64_t new_edge_ptr;
@@ -317,6 +319,7 @@ public:
 		rdma=_rdma;
 		v_num=vertex_num;
 		used_v_num=0;
+		num_try=0;
 		p_num=partition_num;
 		p_id=partition_id;
 		vertex_addr=(vertex*)(rdma->get_buffer());
@@ -347,8 +350,9 @@ public:
 	}
 	void insert_at(uint64_t id,vertex_row& v,uint64_t curr_edge_ptr){
 		uint64_t vertex_ptr;
-		if(curr_edge_ptr+v.in_edges.size()+v.out_edges.size() >=max_edge_ptr)
+		if(curr_edge_ptr+v.in_edges.size()+v.out_edges.size() >=max_edge_ptr){
 			assert(false);
+		}
 		int num_to_try=1000;
 		pthread_spin_lock(&allocation_lock);
 		vertex_ptr=ingress::hash(id)% v_num;
@@ -358,6 +362,7 @@ public:
 				break;
 			}
 			num_to_try--;
+			num_try++;
 			vertex_ptr=(vertex_ptr+1)% v_num;
 		}
 		if(num_to_try==0){
@@ -383,6 +388,7 @@ public:
 
 	}
 	void calculate_edge_cut(){
+		cout<<"average try= "<<num_try*1.0/used_v_num<<endl;
 		uint64_t local_num=0;
 		uint64_t remote_num=0;
 		for(int i=0;i<v_num;i++){

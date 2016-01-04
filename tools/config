@@ -5,10 +5,10 @@ global_query_type		8
 global_num_server		8
 global_num_client		1
 global_batch_factor		8
-global_input_folder		/home/datanfs/nfs0/LUBM/id_univ2560/
+global_input_folder		/home/datanfs/nfs0/LUBM/id_semantic_univ10240/
 global_interactive		1
 global_use_loc_cache	0
-global_num_lubm_university	160
+global_num_lubm_university	40
 global_load_convert_format	0
 global_load_minimal_index 1
 global_clear_final_result	0
@@ -17,10 +17,10 @@ global_use_multithread	0
 global_estimate_vnum	6000000
 global_estimate_enum 	24000000
 global_tuning_threshold		100000000
+global_verbose	1
 tmp_input_folder		/home/datanfs/nfs0/LUBM/id_dbpsb/
 tmp_lubm_input_folder	/home/sjx/local_data/id_univ10240/
 tmp_lubm_input_folder2	/home/datanfs/nfs0/LUBM/id_watdiv10m/
-tmp_rdftype_id			7
 global_vnum_lubm40	1308271
 global_enum_lubm40	5473877
 

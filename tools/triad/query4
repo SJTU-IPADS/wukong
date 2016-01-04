@@ -1,0 +1,16 @@
+lookup	<http://www.Department0.University0.edu>
+neighbors   in 	<ub#worksFor>
+subclass_of		<ub#FullProfessor>
+get_attr		<ub#name>
+get_attr		<ub#emailAddress>
+get_attr		<ub#telephone>
+execute
+
+
+Q4: SELECT ?x WHERE { 
+?x ub:worksFor <http://www.- Department0.University0.edu> . 
+?x rdf:type ub:FullProfessor . 
+?x ub:name ?y1 . 
+?x ub:emailAddress ?y2 . 
+?x ub:telephone ?y3 .
+}

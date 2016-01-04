@@ -87,6 +87,12 @@ public:
 		}
 		return *this;
 	}
+	client& type_index(string type){
+		req.clear();
+		req.cmd_chains.push_back(cmd_type_index);
+		req.cmd_chains.push_back(is->subject_to_id[type]);
+		return *this;
+	}
 	client& get_subtype(string target){
 		//not supported anymore
 		assert(false);
@@ -110,6 +116,7 @@ public:
 	}
 	//This interface should be refined! 
 	client& triangle(vector<string> type_vec,vector<string> dir_vec,vector<string> predict_vec){
+		req.clear();
 		req.cmd_chains.push_back(cmd_triangle);
 		for(int i=0;i<3;i++){
 			req.cmd_chains.push_back(is->subject_to_id[type_vec[i]]);
@@ -153,17 +160,28 @@ public:
 		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
 		req.req_id=-1;
 		req.parent_id=cfg->get_inc_id();
-		if(req.cmd_chains.back()==cmd_triangle){
+		command cmd=(command)req.cmd_chains.back();
+		if(cmd==cmd_triangle|| cmd == cmd_predict_index || cmd == cmd_type_index){
 			for(int i=0;i<cfg->m_num;i++){
-				SendReq(cfg,i, cfg->client_num+rand()%cfg->server_num, req);		
+				if(global_interactive ){
+					//only one core working
+					SendReq(cfg,i, cfg->client_num, req);
+				} else {
+					SendReq(cfg,i, cfg->client_num+rand()%cfg->server_num, req);
+				}
 			}
 		} else {
-			SendReq(cfg,first_target, cfg->client_num+rand()%cfg->server_num, req);
+			if(global_interactive ){
+				SendReq(cfg,first_target, cfg->client_num, req);
+			} else {
+				SendReq(cfg,first_target, cfg->client_num+rand()%cfg->server_num, req);
+			}
 		}
 
 	}
 	request Recv(){
-		if(req.cmd_chains.back()==cmd_triangle){
+		command cmd=(command)req.cmd_chains.back();
+		if(cmd==cmd_triangle|| cmd == cmd_predict_index || cmd == cmd_type_index){
 			req=RecvReq(cfg);
 			for(int i=1;i<cfg->m_num;i++){
 				request tmp=RecvReq(cfg);

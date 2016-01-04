@@ -1,0 +1,24 @@
+triangle	
+<ub#Department>	out	<ub#subOrganizationOf>
+<ub#University>	in	<ub#undergraduateDegreeFrom>
+<ub#UndergraduateStudent>	out <ub#memberOf>
+execute
+
+triangle	
+<ub#University>	in	<ub#undergraduateDegreeFrom>
+<ub#UndergraduateStudent>	out <ub#memberOf>
+<ub#Department>	out	<ub#subOrganizationOf>
+execute
+different-order-version
+
+
+
+
+Q3: SELECT ?x ?y ?z WHERE { s
+?x rdf:type ub:UndergraduateStudent. 
+?y rdf:type ub:University . 
+?z rdf:type ub:Department . 
+?x ub:memberOf ?z . 
+?z ub:subOrganizationOf ?y . 
+?x ub:undergraduateDegreeFrom ?y . 
+}

@@ -1,0 +1,16 @@
+type_index		<ub#Course>
+get_attr		<ub#name>
+execute
+
+lookup	<ub#Course>
+neighbors   in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
+get_attr		<ub#name>
+execute
+
+lookup	<ub#University>
+neighbors   in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
+execute
+
+Q2: SELECT ?x WHERE { 
+?x rdf:type ub:Course . 
+?x ub:name ?y . }

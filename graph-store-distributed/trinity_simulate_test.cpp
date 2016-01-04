@@ -4,16 +4,16 @@
 #include <iostream>
 
 #include "graph.h"
-#include "traverser.h"
 #include "index_server.h"
-#include "client.h"
 #include "network_node.h"
 #include "rdma_resource.h"
 #include "thread_cfg.h"
 #include "global_cfg.h"
 #include <pthread.h>
 #include <sstream>
-#include "batch_lubm.h"
+
+#include "trinity_client.h"
+#include "trinity_server.h"
 
 int socket_0[] = {
   0,2,4,6,8,10,12,14,16,18
@@ -33,7 +33,7 @@ int client_num;
 int thread_num;
 int batch_factor;
 
-void interactive_mode(client* is){
+void interactive_mode(trinity_client* is){
 	while(true){
 		cout<<"interactive mode:"<<endl;
 		// string filename;
@@ -57,38 +57,7 @@ void interactive_mode(client* is){
 			}
 			string cmd;
 			while(file>>cmd){
-				if(cmd=="lookup"){
-					string object;
-					file>>object;
-					is->lookup(object);
-				} else if(cmd=="predict_index"){
-					string predict,dir;
-					file>>predict>>dir;
-					is->predict_index(predict,dir);
-				} else if(cmd=="neighbors"){
-					string dir,predict;
-					file>>dir>>predict;
-					is->neighbors(dir,predict);
-				} else if(cmd=="triangle"){
-					vector<string> type_vec;
-					vector<string> dir_vec;
-					vector<string> predict_vec;
-					type_vec.resize(3);
-					dir_vec.resize(3);
-					predict_vec.resize(3);
-					for(int i=0;i<3;i++){
-						file>>type_vec[i]>>dir_vec[i]>>predict_vec[i];
-					}
-					is->triangle(type_vec,dir_vec,predict_vec);
-				} else if(cmd=="subclass_of"){
-					string object;
-					file>>object;
-					is->subclass_of(object);
-				} else if(cmd=="get_attr"){
-					string object;
-					file>>object;
-					is->get_attr(object);
-				} else if(cmd=="execute"){
+				if(cmd=="execute"){
 					uint64_t t1=timer::get_usec();
 					is->Send();
 					is->Recv();
@@ -96,40 +65,34 @@ void interactive_mode(client* is){
 					sum+=t2-t1;
 					break;
 				} else {
-					cout<<"error cmd"<<endl;
-					break;
+					is->cmd_string.push_back(cmd);
 				}
 			}
 		}
-		cout<<"result size:"<<is->req.row_num()<<endl;
 		cout<<"average latency "<<sum/execute_count<<" us"<<endl;
 	}
 }
 void* Run(void *ptr) {
   struct thread_cfg *cfg = (struct thread_cfg*) ptr;
   pin_to_core(socket_1[cfg->t_id]);
-  cout<<"("<<cfg->m_id<<","<<cfg->t_id<<")"<<endl;
+  //cout<<"("<<cfg->m_id<<","<<cfg->t_id<<")"<<endl;
   if(cfg->t_id >= cfg->client_num){
-  	((traverser*)(cfg->ptr))->run();
-  }else {
-
-  	if(global_interactive){
-  		if(cfg->t_id==0){
-  			MPI_Barrier(MPI_COMM_WORLD);
-  		}
-  		while(true){
-			if(cfg->m_id!=0 || cfg->t_id!=0){
-				// sleep forever
-				sleep(1);
-			}
-			else{
-				interactive_mode((client*)(cfg->ptr));
-			}
-		}
+  	if(cfg->t_id!=cfg->client_num){
+  		return NULL;
   	}
-  	//batch_mode((client*)(cfg->ptr),cfg);
-	tuning_mode((client*)(cfg->ptr),cfg);
-
+  	cout<<"Server "<<cfg->m_id<<" started"<<endl;
+  	((trinity_server*)(cfg->ptr))->run();
+  } else {
+  	cout<<"Client "<<cfg->m_id<<" started"<<endl;
+  	while(true){
+		if(cfg->m_id!=0 || cfg->t_id!=0){
+			// sleep forever
+			sleep(1);
+		}
+		else{
+			interactive_mode((trinity_client*)(cfg->ptr));
+		}
+	}  	
   	cout<<"Finish all requests"<<endl;
   }
 }
@@ -195,15 +158,15 @@ int main(int argc, char * argv[])
 	//we will set the global_rdftype_id in index_server
 
 	graph g(world,rdma,global_input_folder.c_str());
-	client** client_array=new client*[client_num];
+	trinity_client** client_array=new trinity_client*[client_num];
 	MPI_Barrier(MPI_COMM_WORLD);
 	for(int i=0;i<client_num;i++){
-		client_array[i]=new client(&is,&cfg_array[i]);
+		client_array[i]=new trinity_client(&is,&cfg_array[i]);
 	}
 
-	traverser** traverser_array=new traverser*[server_num];
+	trinity_server** traverser_array=new trinity_server*[server_num];
 	for(int i=0;i<server_num;i++){
-		traverser_array[i]=new traverser(g,&cfg_array[client_num+i]);
+		traverser_array[i]=new trinity_server(g,&cfg_array[client_num+i]);
 	}
 	
 	pthread_t     *thread  = new pthread_t[thread_num];

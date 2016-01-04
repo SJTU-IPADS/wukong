@@ -1,0 +1,6 @@
+reverse	?X	<ub#worksFor>	<http://www.Department0.University0.edu>
+forward	?X	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>	<ub#FullProfessor>
+forward	?X	<ub#name>	?A
+forward	?X	<ub#emailAddress>	?B
+forward	?X	<ub#telephone>	?C
+execute

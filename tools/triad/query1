@@ -1,0 +1,23 @@
+triangle	
+<ub#Department>	out	<ub#subOrganizationOf>
+<ub#University>	in	<ub#undergraduateDegreeFrom>
+<ub#GraduateStudent>	out <ub#memberOf>
+execute
+
+
+triangle	
+<ub#University>	in	<ub#subOrganizationOf>
+<ub#Department>	in	<ub#memberOf>
+<ub#GraduateStudent>	out <ub#undergraduateDegreeFrom>
+execute
+
+
+
+Q1: SELECT ?x ?y ?z WHERE { 
+?z ub:subOrganizationOf ?y . 
+?y rdf:type ub:University . 
+?z rdf:type ub:Department . 
+?x ub:memberOf ?z . 
+?x rdf:type ub:GraduateStudent . 
+?x ub:undergraduateDegreeFrom ?y . 
+}

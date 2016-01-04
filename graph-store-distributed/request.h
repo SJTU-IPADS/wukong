@@ -18,12 +18,17 @@ enum command{
 	cmd_triangle,
 	cmd_get_attr,
 	cmd_get_subtype,
-	cmd_predict_index
+	cmd_predict_index,
+	cmd_type_index
 };
 enum parameter{
 	para_in,
 	para_out,
 	para_all
+};
+enum direction{
+	direction_forward,
+	direction_reverse
 };
 int reverse_dir(int dir){
 	if(dir==para_in)

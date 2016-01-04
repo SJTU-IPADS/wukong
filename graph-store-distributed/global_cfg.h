@@ -27,6 +27,7 @@ extern int global_estimate_enum;
 
 
 extern int global_tuning_threshold;
+extern int global_verbose;
 extern int* global_mid_table;
 
 void load_global_cfg(char* filename){
@@ -61,7 +62,7 @@ void load_global_cfg(char* filename){
 	global_estimate_enum=atoi(config_map["global_estimate_enum"].c_str());
 
 	global_tuning_threshold=atoi(config_map["global_tuning_threshold"].c_str());
-
+	global_verbose=atoi(config_map["global_verbose"].c_str());
 	global_mid_table=NULL;
 }
 

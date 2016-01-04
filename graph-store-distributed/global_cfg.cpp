@@ -22,6 +22,7 @@ int global_estimate_vnum;
 int global_estimate_enum;
 
 int global_tuning_threshold;
+int global_verbose;
 
 int* global_mid_table;
 
