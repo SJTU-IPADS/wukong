@@ -36,11 +36,11 @@ struct vertex_row{
 
 struct vertex{
 	uint64_t id;
-	uint64_t in_degree;
-	uint64_t out_degree;
 	uint64_t in_edge_ptr;
 	uint64_t out_edge_ptr;
-
+	int in_degree;
+	int out_degree;
+	
 	void print(){
 		std::cout<<"("<<id<<","<<in_degree<<","<<out_degree
 				<<","<<in_edge_ptr<<","<<out_edge_ptr<<")"<<std::endl;
@@ -108,6 +108,11 @@ class klist_store{
 	uint64_t p_id;
 	loc_cache* location_cache; 
 	pthread_spinlock_t allocation_lock;
+	static const int num_locks=1024;
+	pthread_spinlock_t fine_grain_locks[num_locks];
+
+	uint64_t used_indirect_num;
+	
 public:
 	uint64_t num_try;
 	
@@ -116,40 +121,10 @@ public:
 	uint64_t new_edge_ptr;
 	klist_store(){
 		pthread_spin_init(&allocation_lock,0);
+		for(int i=0;i<num_locks;i++){
+			pthread_spin_init(&fine_grain_locks[i],0);
+		}
 	};
-	vertex getVertex_local(uint64_t id){
-		int num_to_try=1000;
-		uint64_t vertex_ptr=ingress::hash(id)% v_num;
-		while(num_to_try>0){
-			if(vertex_addr[vertex_ptr].id==id){
-				return vertex_addr[vertex_ptr];	
-			}
-			num_to_try--;
-			vertex_ptr=(vertex_ptr+1)% v_num;
-		}
-		assert(false);
-		//assert(vertex_addr[id/p_num].id==id);
-		//return vertex_addr[id/p_num];
-	}
-	vertex getVertex_remote(int tid,uint64_t id){
-		char *local_buffer = rdma->GetMsgAddr(tid);
-		int num_to_try=1000;
-		uint64_t vertex_ptr=ingress::hash(id)% v_num;
-		while(num_to_try>0){
-			uint64_t start_addr=sizeof(vertex) * vertex_ptr;
-			uint64_t read_length=sizeof(vertex);
-			rdma->RdmaRead(tid,ingress::vid2mid(id,p_num),(char *)local_buffer,read_length,start_addr);
-			vertex v=*((vertex*)local_buffer);
-			if(v.id==id){
-				return v;	
-			}
-			num_to_try--;
-			vertex_ptr=(vertex_ptr+1)% v_num;
-		}
-		assert(false);
-		//assert(vertex_addr[id/p_num].id==id);
-		//return vertex_addr[id/p_num];
-	}
 	edge_row* getEdgeArray(uint64_t edgeptr){
 		return &(edge_addr[edgeptr]);
 	}
@@ -161,7 +136,8 @@ public:
 				vector<edge_row*>& edge_ptr_vec,vector<int>& size_vec){
 		char *local_buffer = rdma->GetMsgAddr(tid);
 		char *local_buffer_end=local_buffer+rdma->get_slotsize();
-		local_buffer+=sizeof(vertex);
+		//getVertex_remote may use some of the buffer, so we should reserve space for it
+		local_buffer+=sizeof(vertex)*10;
 		vector<uint64_t> edge_offset_vec;
 		int local_count=0;
 		for(int i=0;i<id_vec.size();i++){
@@ -319,6 +295,7 @@ public:
 		rdma=_rdma;
 		v_num=vertex_num;
 		used_v_num=0;
+		used_indirect_num=0;
 		num_try=0;
 		p_num=partition_num;
 		p_id=partition_id;
@@ -348,45 +325,243 @@ public:
 		}
 		return curr_edge_ptr;
 	}
-	void insert_at(uint64_t id,vertex_row& v,uint64_t curr_edge_ptr){
+
+	int add_pivot(edge_row* edge_list,int size){
+		//return new_size
+		uint64_t last;
+		uint64_t old_size;
+		uint64_t new_size;
+		uint64_t count;
+		last=-1;
+		old_size=size;
+		new_size=old_size;
+		count=0;
+		for(uint64_t i=0;i<old_size;i++){
+			if(edge_list[i].predict!=last){
+				new_size++;
+				last=edge_list[i].predict;
+			}
+		}
+		int ret=new_size;
+		while(new_size>0){
+			edge_list[new_size-1]=edge_list[old_size-1];
+			count++;
+			new_size--;
+			old_size--;
+			if(old_size==0 || 
+				edge_list[old_size-1].predict != edge_list[old_size].predict){
+				edge_list[new_size-1].predict=-1;
+				edge_list[new_size-1].vid=count;
+				count=0;
+				new_size--;
+			}
+		}
+		return ret;
+	}
+
+
+	vertex getVertex_local(uint64_t id){
+		uint64_t header_num=(v_num/4)/5*4;
+		uint64_t indirect_num=(v_num/4)/5*1;
+		uint64_t bucket_id=ingress::hash(id)%header_num;
+		while(true){
+			for(uint64_t i=0;i<3;i++){
+				if(vertex_addr[bucket_id*4+i].id==id){
+					//we found it
+					return vertex_addr[bucket_id*4+i];
+				}
+			}
+			if(vertex_addr[bucket_id*4+3].id!=-1){
+				//next pointer
+				bucket_id=vertex_addr[bucket_id*4+3].id;
+				continue;
+			} else {
+				//we didn't found it!
+				assert(false);
+			}
+		}
+	}
+	vertex getVertex_remote(int tid,uint64_t id){
+		char *local_buffer = rdma->GetMsgAddr(tid);
+		uint64_t header_num=(v_num/4)/5*4;
+		uint64_t indirect_num=(v_num/4)/5*1;
+		uint64_t bucket_id=ingress::hash(id)%header_num;
+		while(true){
+			uint64_t start_addr=sizeof(vertex) * bucket_id *4;
+			uint64_t read_length=sizeof(vertex) * 4;
+			rdma->RdmaRead(tid,ingress::vid2mid(id,p_num),(char *)local_buffer,read_length,start_addr);
+			vertex* ptr=(vertex*)local_buffer;
+			for(uint64_t i=0;i<3;i++){
+				if(ptr[i].id==id){
+					//we found it
+					return ptr[i];
+				}
+			}
+			if(ptr[3].id!=-1){
+				//next pointer
+				bucket_id=ptr[3].id;
+				continue;
+			} else {
+				//we didn't found it!
+				assert(false);
+			}
+		}
+	}
+	uint64_t insert_at(uint64_t id,vertex_row& v,uint64_t curr_edge_ptr){
 		uint64_t vertex_ptr;
 		if(curr_edge_ptr+v.in_edges.size()+v.out_edges.size() >=max_edge_ptr){
 			assert(false);
 		}
-		int num_to_try=1000;
-		pthread_spin_lock(&allocation_lock);
-		vertex_ptr=ingress::hash(id)% v_num;
-		while(num_to_try>0){
-			if(vertex_addr[vertex_ptr].id==-1){
-				vertex_addr[vertex_ptr].id=id;
+		//4-associate
+		uint64_t header_num=(v_num/4)/5*4;
+		uint64_t indirect_num=(v_num/4)/5*1;
+		uint64_t bucket_id=ingress::hash(id)%header_num;
+		uint64_t lock_id=bucket_id% num_locks;
+		int slot_id=0;
+		bool found=false;
+		pthread_spin_lock(&fine_grain_locks[lock_id]);
+		//last slot is used as next pointer
+		while(!found){
+			for(uint64_t i=0;i<3;i++){
+				if(vertex_addr[bucket_id*4+i].id==-1){
+					vertex_addr[bucket_id*4+i].id=id;
+					found=true;
+					slot_id=i;
+					break;
+				}
+			}
+			if(found){
+				break;
+			} else if(vertex_addr[bucket_id*4+3].id!=-1){
+				//next pointer
+				bucket_id=vertex_addr[bucket_id*4+3].id;
+				continue;
+			} else {
+				//need alloc
+				pthread_spin_lock(&allocation_lock);
+				if(used_indirect_num>=indirect_num){
+					assert(false);
+				}
+				vertex_addr[bucket_id*4+3].id=header_num+used_indirect_num;
+				used_indirect_num++;
+				pthread_spin_unlock(&allocation_lock);
+				bucket_id=vertex_addr[bucket_id*4+3].id;
+				vertex_addr[bucket_id*4+0].id=id;
+				slot_id=0;
 				break;
 			}
-			num_to_try--;
-			num_try++;
-			vertex_ptr=(vertex_ptr+1)% v_num;
 		}
-		if(num_to_try==0){
-			cout<<"fail to alloc for vertex "<<id<<endl;
-			assert(false);
+		pthread_spin_unlock(&fine_grain_locks[lock_id]);
+		vertex_ptr = bucket_id*4+slot_id;
+		assert(vertex_addr[vertex_ptr].id==id);
+		
+		uint64_t total_edge=0;
+		{
+			for(uint64_t i=0;i<v.in_edges.size();i++){
+				edge_addr[curr_edge_ptr+i]=v.in_edges[i];
+			}
+			int new_size=add_pivot(&edge_addr[curr_edge_ptr],v.in_edges.size());
+			vertex_addr[vertex_ptr].in_edge_ptr=curr_edge_ptr;
+			vertex_addr[vertex_ptr].in_degree=new_size;
+			curr_edge_ptr+=new_size;
+			total_edge+=new_size;
 		}
-		used_v_num++;
-		pthread_spin_unlock(&allocation_lock);
-		vertex_addr[vertex_ptr].id=id;
-		vertex_addr[vertex_ptr].in_degree=v.in_edges.size();
-		vertex_addr[vertex_ptr].out_degree=v.out_edges.size();
-
-		vertex_addr[vertex_ptr].in_edge_ptr=curr_edge_ptr;
-		for(uint64_t i=0;i<v.in_edges.size();i++){
-			edge_addr[curr_edge_ptr+i]=v.in_edges[i];
+		{
+			for(uint64_t i=0;i<v.out_edges.size();i++){
+				edge_addr[curr_edge_ptr+i]=v.out_edges[i];
+			}
+			int new_size=add_pivot(&edge_addr[curr_edge_ptr],v.out_edges.size());
+			vertex_addr[vertex_ptr].out_edge_ptr=curr_edge_ptr;
+			vertex_addr[vertex_ptr].out_degree=new_size;
+			curr_edge_ptr+=new_size;
+			total_edge+=new_size;
 		}
-		curr_edge_ptr+=vertex_addr[vertex_ptr].in_degree;
-		vertex_addr[vertex_ptr].out_edge_ptr=curr_edge_ptr;
-		for(uint64_t i=0;i<v.out_edges.size();i++){
-			edge_addr[curr_edge_ptr+i]=v.out_edges[i];
-		}
-		curr_edge_ptr+=vertex_addr[vertex_ptr].out_degree;
-
+		return total_edge;	
 	}
+
+	// vertex getVertex_local(uint64_t id){
+	// 	int num_to_try=1000;
+	// 	uint64_t vertex_ptr=ingress::hash(id)% v_num;
+	// 	while(num_to_try>0){
+	// 		if(vertex_addr[vertex_ptr].id==id){
+	// 			return vertex_addr[vertex_ptr];	
+	// 		}
+	// 		num_to_try--;
+	// 		vertex_ptr=(vertex_ptr+1)% v_num;
+	// 	}
+	// 	assert(false);
+	// 	//assert(vertex_addr[id/p_num].id==id);
+	// 	//return vertex_addr[id/p_num];
+	// }
+	// vertex getVertex_remote(int tid,uint64_t id){
+	// 	char *local_buffer = rdma->GetMsgAddr(tid);
+	// 	int num_to_try=1000;
+	// 	uint64_t vertex_ptr=ingress::hash(id)% v_num;
+	// 	while(num_to_try>0){
+	// 		uint64_t start_addr=sizeof(vertex) * vertex_ptr;
+	// 		uint64_t read_length=sizeof(vertex);
+	// 		rdma->RdmaRead(tid,ingress::vid2mid(id,p_num),(char *)local_buffer,read_length,start_addr);
+	// 		vertex v=*((vertex*)local_buffer);
+	// 		if(v.id==id){
+	// 			return v;	
+	// 		}
+	// 		num_to_try--;
+	// 		vertex_ptr=(vertex_ptr+1)% v_num;
+	// 	}
+	// 	assert(false);
+	// 	//assert(vertex_addr[id/p_num].id==id);
+	// 	//return vertex_addr[id/p_num];
+	// }
+	// uint64_t insert_at(uint64_t id,vertex_row& v,uint64_t curr_edge_ptr){
+	// 	uint64_t vertex_ptr;
+	// 	if(curr_edge_ptr+v.in_edges.size()+v.out_edges.size() >=max_edge_ptr){
+	// 		assert(false);
+	// 	}
+	// 	int num_to_try=1000;
+	// 	pthread_spin_lock(&allocation_lock);
+	// 	vertex_ptr=ingress::hash(id)% v_num;
+	// 	while(num_to_try>0){
+	// 		if(vertex_addr[vertex_ptr].id==-1){
+	// 			vertex_addr[vertex_ptr].id=id;
+	// 			break;
+	// 		}
+	// 		num_to_try--;
+	// 		num_try++;
+	// 		vertex_ptr=(vertex_ptr+1)% v_num;
+	// 	}
+	// 	if(num_to_try==0){
+	// 		cout<<"fail to alloc for vertex "<<id<<endl;
+	// 		assert(false);
+	// 	}
+	// 	used_v_num++;
+	// 	pthread_spin_unlock(&allocation_lock);
+	// 	vertex_addr[vertex_ptr].id=id;
+		
+
+	// 	uint64_t total_edge=0;
+	// 	{
+	// 		for(uint64_t i=0;i<v.in_edges.size();i++){
+	// 			edge_addr[curr_edge_ptr+i]=v.in_edges[i];
+	// 		}
+	// 		int new_size=add_pivot(&edge_addr[curr_edge_ptr],v.in_edges.size());
+	// 		vertex_addr[vertex_ptr].in_edge_ptr=curr_edge_ptr;
+	// 		vertex_addr[vertex_ptr].in_degree=new_size;
+	// 		curr_edge_ptr+=new_size;
+	// 		total_edge+=new_size;
+	// 	}
+	// 	{
+	// 		for(uint64_t i=0;i<v.out_edges.size();i++){
+	// 			edge_addr[curr_edge_ptr+i]=v.out_edges[i];
+	// 		}
+	// 		int new_size=add_pivot(&edge_addr[curr_edge_ptr],v.out_edges.size());
+	// 		vertex_addr[vertex_ptr].out_edge_ptr=curr_edge_ptr;
+	// 		vertex_addr[vertex_ptr].out_degree=new_size;
+	// 		curr_edge_ptr+=new_size;
+	// 		total_edge+=new_size;
+	// 	}
+	// 	return total_edge;
+	// }
+
 	void calculate_edge_cut(){
 		cout<<"average try= "<<num_try*1.0/used_v_num<<endl;
 		uint64_t local_num=0;

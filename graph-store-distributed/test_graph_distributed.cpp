@@ -233,18 +233,18 @@ void tuning_mode(client* is,struct thread_cfg *cfg){
 }
 void* Run(void *ptr) {
   struct thread_cfg *cfg = (struct thread_cfg*) ptr;
-  //pin_to_core(socket_1[cfg->t_id]);
-  cout<<"("<<cfg->m_id<<","<<cfg->t_id<<")"<<endl;
+  pin_to_core(socket_1[cfg->t_id]);
   if(cfg->t_id >= cfg->client_num){
   	if(global_interactive && cfg->t_id != cfg->client_num){
   		//global_interactive mode
   		//only one core working
   		return NULL;
   	}
+  	cout<<"("<<cfg->m_id<<","<<cfg->t_id<<")"<<endl;
   	((traverser*)(cfg->ptr))->run();
   }else {
-
   	if(global_interactive){
+  		cout<<"("<<cfg->m_id<<","<<cfg->t_id<<")"<<endl;
   		if(cfg->t_id==0){
   			MPI_Barrier(MPI_COMM_WORLD);
   		}

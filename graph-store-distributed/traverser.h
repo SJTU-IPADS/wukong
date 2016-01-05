@@ -247,8 +247,8 @@ class traverser{
 			r.cmd_chains.pop_back();
 		}
 
-		uint64_t num_parallel_thread=global_num_server;
-		//uint64_t num_parallel_thread=1;
+		//uint64_t num_parallel_thread=global_num_server;
+		uint64_t num_parallel_thread=1;
 		uint64_t t1=timer::get_usec();
 
 		//step 1 : find all type_0. type_0 is local
@@ -268,6 +268,7 @@ class traverser{
 			r.result_table.swap(updated_result_table);
 		}
 
+		
 		//step 2 : find all type_0,type_1
 		r.cmd_chains.push_back(v_predict[0]);
 		r.cmd_chains.push_back(v_dir[0]);
@@ -275,6 +276,9 @@ class traverser{
 		do_neighbors(r);
 
 		uint64_t t2=timer::get_usec();
+
+		cout<<cfg->m_id <<" [triangle]: find  all 0,1  "<<(t2-t1)/1000.0<<"ms "<<endl;
+		
 		//step 3 : find all type_1,type_2 and create a simple_filter
 		pthread_spinlock_t triangle_lock;
 		pthread_spin_init(&triangle_lock,0);
@@ -344,6 +348,9 @@ class traverser{
 		}
 
 		uint64_t t3=timer::get_usec();
+
+		cout<<cfg->m_id <<" [triangle]: fetch all 1,2  "<<(t3-t2)/1000.0<<"ms "<<endl;
+		
 		int count=0;
 		for(int j=0;j<pair_vec.size();j++){
 			count+=pair_vec[j].size();
@@ -362,6 +369,8 @@ class traverser{
 		//edge_filter.rehash();
 
 		uint64_t t4=timer::get_usec();
+		cout<<cfg->m_id <<" [triangle]: edge   filter  "<<(t4-t3)/1000.0<<"ms "<<endl;
+
 		//step 5 : append type_2 to existing type_0,type_1 pair
 		{
 			vector<vector<int> >updated_result_table;
@@ -388,19 +397,23 @@ class traverser{
 			r.result_table.swap(updated_result_table);	
 		}
 		uint64_t t5=timer::get_usec();
+		cout<<cfg->m_id <<" [triangle]: make all 0,1,2 "<<(t5-t4)/1000.0<<"ms "<<endl;
+	
 		//setp 6: do final filter on type_2
 		r.cmd_chains.push_back(v_type[2]);
 		r.cmd_chains.push_back(cmd_subclass_of);
 		do_subclass_of(r);
 
 		uint64_t t6=timer::get_usec();
+		cout<<cfg->m_id <<" [triangle]: final filter   "<<(t6-t5)/1000.0<<"ms "<<endl;
+		
 		if(global_verbose){
-			cout<<"[triangle]: result size= "<<r.row_num()<<endl;
-			cout<<"[triangle]: find  all 0,1  "<<(t2-t1)/1000.0<<"ms "<<endl;
-			cout<<"[triangle]: fetch all 1,2  "<<(t3-t2)/1000.0<<"ms "<<endl;
-			cout<<"[triangle]: edge   filter  "<<(t4-t3)/1000.0<<"ms "<<endl;
-			cout<<"[triangle]: make all 0,1,2 "<<(t5-t4)/1000.0<<"ms "<<endl;
-			cout<<"[triangle]: final filter   "<<(t6-t5)/1000.0<<"ms "<<endl;
+			cout<<cfg->m_id <<"[triangle]: result size= "<<r.row_num()<<endl;
+			cout<<cfg->m_id <<" [triangle]: find  all 0,1  "<<(t2-t1)/1000.0<<"ms "<<endl;
+			cout<<cfg->m_id <<" [triangle]: fetch all 1,2  "<<(t3-t2)/1000.0<<"ms "<<endl;
+			cout<<cfg->m_id <<" [triangle]: edge   filter  "<<(t4-t3)/1000.0<<"ms "<<endl;
+			cout<<cfg->m_id <<" [triangle]: make all 0,1,2 "<<(t5-t4)/1000.0<<"ms "<<endl;
+			cout<<cfg->m_id <<" [triangle]: final filter   "<<(t6-t5)/1000.0<<"ms "<<endl;
 		}
 	}
 	void try_rdma_execute(request& r){
