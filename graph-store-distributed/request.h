@@ -19,7 +19,8 @@ enum command{
 	cmd_get_attr,
 	cmd_get_subtype,
 	cmd_predict_index,
-	cmd_type_index
+	cmd_type_index,
+	cmd_filter
 };
 enum parameter{
 	para_in,

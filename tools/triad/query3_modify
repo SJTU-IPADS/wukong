@@ -1,0 +1,17 @@
+type_index		<ub#University>
+neighbors   in 	<ub#undergraduateDegreeFrom>
+subclass_of		<ub#UndergraduateStudent>
+neighbors   out <ub#memberOf>
+subclass_of		<ub#Department>
+filter out 	<ub#subOrganizationOf>	0
+execute
+
+
+
+
+
+triangle	
+<ub#Department>	out	<ub#subOrganizationOf>
+<ub#University>	in	<ub#undergraduateDegreeFrom>
+<ub#UndergraduateStudent>	out <ub#memberOf>
+execute

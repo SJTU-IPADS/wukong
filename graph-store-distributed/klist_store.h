@@ -111,12 +111,12 @@ class klist_store{
 	static const int num_locks=1024;
 	pthread_spinlock_t fine_grain_locks[num_locks];
 
-	uint64_t used_indirect_num;
 	
 public:
 	uint64_t num_try;
 	
 	uint64_t used_v_num;
+	uint64_t used_indirect_num;
 	uint64_t max_edge_ptr;
 	uint64_t new_edge_ptr;
 	klist_store(){
@@ -166,8 +166,8 @@ public:
 				}
 			}
 		}
-		cout<<"local_rate"<<local_count<<"/"<<id_vec.size()<<":"
-			<<local_count*1.0/(id_vec.size())<<endl;
+		//cout<<"local_rate"<<local_count<<"/"<<id_vec.size()<<":"
+		//	<<local_count*1.0/(id_vec.size())<<endl;
 		assert(local_buffer<local_buffer_end);
 
 		vector<int>batch_counter_vec;

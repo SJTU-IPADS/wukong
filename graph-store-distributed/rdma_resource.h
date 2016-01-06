@@ -224,6 +224,7 @@ struct normal_op_req
         }
         if(mid==_total_partition){
           mid=0;
+          //usleep(1);
         }
 
 //        for(int mid=0;mid<_total_partition;mid++){

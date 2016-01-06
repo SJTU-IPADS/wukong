@@ -92,6 +92,10 @@ void interactive_mode(client* is){
 					string object;
 					file>>object;
 					is->get_attr(object);
+				} else if(cmd=="filter"){
+					string dir,predict,target;
+					file>>dir>>predict>>target;
+					is->filter(dir,predict,target);
 				} else if(cmd=="execute"){
 					uint64_t t1=timer::get_usec();
 					is->Send();
@@ -238,7 +242,7 @@ void* Run(void *ptr) {
   	if(global_interactive && cfg->t_id != cfg->client_num){
   		//global_interactive mode
   		//only one core working
-  		return NULL;
+  		//return NULL;
   	}
   	cout<<"("<<cfg->m_id<<","<<cfg->t_id<<")"<<endl;
   	((traverser*)(cfg->ptr))->run();
@@ -251,15 +255,16 @@ void* Run(void *ptr) {
   		while(true){
 			if(cfg->m_id!=0 || cfg->t_id!=0){
 				// sleep forever
-				sleep(1);
+				//sleep(1);
+				return NULL;
 			}
 			else{
 				interactive_mode((client*)(cfg->ptr));
 			}
 		}
   	}
-  	//batch_mode((client*)(cfg->ptr),cfg);
-	tuning_mode((client*)(cfg->ptr),cfg);
+  	batch_mode((client*)(cfg->ptr),cfg);
+	//tuning_mode((client*)(cfg->ptr),cfg);
 
   	cout<<"Finish all requests"<<endl;
   }
@@ -293,10 +298,10 @@ int main(int argc, char * argv[])
 	boost::mpi::communicator world;
 
 	uint64_t rdma_size = 1024*1024*1024;  //1G
-	rdma_size = rdma_size*28; //2G 
+	rdma_size = rdma_size*24; //2G 
 	//rdma_size = rdma_size*2; //2G 
   	
-  	uint64_t slot_per_thread= 1024*1024*128;
+  	uint64_t slot_per_thread= 1024*1024*512;
   	uint64_t total_size=rdma_size+slot_per_thread*thread_num*2; 
 	Network_Node *node = new Network_Node(world.rank(),thread_num);//[0-thread_num-1] are used
 	char *buffer= (char*) malloc(total_size);
@@ -327,14 +332,21 @@ int main(int argc, char * argv[])
 
 	graph g(world,rdma,global_input_folder.c_str());
 	client** client_array=new client*[client_num];
+	cout<<world.rank()<<" before barrier"<<i<<endl;
 	MPI_Barrier(MPI_COMM_WORLD);
+	cout<<world.rank()<<" after barrier"<<i<<endl;
 	for(int i=0;i<client_num;i++){
+		cout<<world.rank()<<" starting cid="<<i<<endl;
 		client_array[i]=new client(&is,&cfg_array[i]);
+		cout<<world.rank()<<" started cid="<<i<<endl;
 	}
 
 	traverser** traverser_array=new traverser*[server_num];
 	for(int i=0;i<server_num;i++){
+		cout<<world.rank()<<" starting tid="<<i<<endl;
 		traverser_array[i]=new traverser(g,&cfg_array[client_num+i]);
+		cout<<world.rank()<<" started tid="<<i<<endl;
+		
 	}
 	
 	pthread_t     *thread  = new pthread_t[thread_num];
@@ -345,7 +357,7 @@ int main(int argc, char * argv[])
 			cfg_array[id].ptr=traverser_array[id-client_num];
 		}
 		pthread_create (&(thread[id]), NULL, Run, (void *) &(cfg_array[id]));
-    }
+	}
     for(size_t t = 0 ; t < thread_num; t++) {
       int rc = pthread_join(thread[t], NULL);
       if (rc) {

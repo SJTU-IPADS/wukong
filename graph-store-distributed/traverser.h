@@ -97,6 +97,33 @@ class traverser{
 		r.result_table.swap(updated_result_table);
 		r.result_table[r.column_num()-1].swap(r.result_table[r.column_num()-2]);
 	}
+	void do_filter(request& r){
+		r.cmd_chains.pop_back();
+		int dir=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
+		int	predict_id=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
+		int target_column=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
+		
+		vector<vector<int> >updated_result_table;
+		updated_result_table.resize(r.column_num());
+
+		for (int i=0;i<r.row_num();i++){
+			int prev_id=r.last_column(i);
+			int target_id=r.get(i,target_column);	
+			int edge_num=0;
+			edge_row* edge_ptr=g.kstore.readGlobal_predict(cfg->t_id, prev_id,para_out,predict_id,&edge_num);
+			for(int k=0;k<edge_num;k++){
+				if(predict_id==edge_ptr[k].predict && 
+							(edge_ptr[k].vid == target_id)	){
+					r.append_row_to(updated_result_table,i);
+					break;
+				}
+			}
+		}
+		r.result_table.swap(updated_result_table);
+	}
 	void async_do_subclass_of(request& r){
 		int predict_id=global_rdftype_id;
 		r.cmd_chains.pop_back();
@@ -225,6 +252,23 @@ class traverser{
 		for(int i=0;i<r.row_num();i++){
 			int machine = ingress::vid2mid(r.last_column(i), num_sub_request);
 			r.append_row_to(sub_reqs[machine].result_table,i);
+		}
+		r.result_table.clear();
+		return sub_reqs;
+	}
+	vector<request> split_request_mt(request& r){
+		vector<request> sub_reqs;
+		int num_sub_request=cfg->m_num * cfg->server_num ;
+		sub_reqs.resize(num_sub_request);
+		for(int i=0;i<sub_reqs.size();i++){
+			sub_reqs[i].parent_id=r.req_id;
+			sub_reqs[i].cmd_chains=r.cmd_chains;
+			sub_reqs[i].result_table.resize(r.column_num());
+		}
+		for(int i=0;i<r.row_num();i++){
+			int machine = ingress::vid2mid(r.last_column(i), cfg->m_num);
+			int tid = ingress::hash(r.last_column(i)) % cfg->server_num ;
+			r.append_row_to(sub_reqs[machine*cfg->server_num+tid].result_table,i);
 		}
 		r.result_table.clear();
 		return sub_reqs;
@@ -443,7 +487,9 @@ class traverser{
 			} else if(r.cmd_chains.back() == cmd_neighbors){
 				async_do_neighbors(r);
 				//do_neighbors(r);
-			} 
+			} else if(r.cmd_chains.back() == cmd_filter){
+				do_filter(r);
+			}
 		}
 	}
 public:
@@ -469,6 +515,8 @@ public:
 			do_triangle(r);
 		} else if(r.cmd_chains.back() == cmd_neighbors){
 			do_neighbors(r);
+		} else if(r.cmd_chains.back() == cmd_filter){
+			do_filter(r);
 		} else if(r.cmd_chains.back() == cmd_predict_index){
 			assert(r.column_num()==0);
 			do_predict_index(r);
@@ -493,8 +541,20 @@ public:
 			//recursive execute 
 			r.blocking=true;
 			
-			if(global_use_multithread ){
-				assert(false);
+			if(global_use_multithread &&  r.row_num()>=global_rdma_threshold*100){
+				//cout<<"size of r.row_num() is too large, use multi-thread "<<endl;
+				vector<request> sub_reqs=split_request_mt(r);
+				req_queue.put_req(r,sub_reqs.size());
+				for(int i=0;i<sub_reqs.size();i++){
+					//i=machine*cfg->server_num+tid
+					int m_id= i / cfg->server_num;
+					int traverser_id= cfg->client_num + i % cfg->server_num;
+					if(m_id == cfg->m_id && traverser_id==cfg->t_id){
+						msg_fast_path.push_back(sub_reqs[i]);
+					} else {
+						SendReq(cfg,m_id ,traverser_id, sub_reqs[i],&split_profile);
+					}
+				}
 			} else {
 				vector<request> sub_reqs=split_request(r);
 				req_queue.put_req(r,sub_reqs.size());

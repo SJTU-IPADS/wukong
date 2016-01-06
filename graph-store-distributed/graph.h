@@ -665,8 +665,11 @@ public:
 			kstore.init_predict_index();
 		}
 	    cout<<world.rank()<<" finished "<<endl;
-		cout<<"graph-store use "<<kstore.used_v_num*sizeof(vertex)/1048576<<"/"
-								<<max_v_num*sizeof(vertex) / 1048576<<" MB for vertex data"<<endl;
+		
+		//cout<<"graph-store use "<<kstore.used_v_num*sizeof(vertex)/1048576<<"/"
+		cout<<"graph-store use "<<kstore.used_indirect_num <<" / "<<(max_v_num/4)/5*1
+								<<" indirect_num"<<endl;
+		cout<<"graph-store use "<<max_v_num*sizeof(vertex) / 1048576<<" MB for vertex data"<<endl;
 		cout<<"graph-store use "<<kstore.new_edge_ptr*sizeof(edge_row)/1048576<<"/"
 								<<kstore.max_edge_ptr*sizeof(edge_row)/1048576<<" MB for edge data"<<endl;
 	

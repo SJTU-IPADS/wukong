@@ -114,6 +114,19 @@ public:
 		req.cmd_chains.push_back(is->predict_to_id[predict]);
 		return *this;
 	}
+	client& filter(string dir,string predict,string target){
+		req.cmd_chains.push_back(cmd_filter);
+		if(dir =="in" ){
+			req.cmd_chains.push_back(para_in);
+		} else if (dir =="out" ){
+			req.cmd_chains.push_back(para_out);
+		} else {
+			req.cmd_chains.push_back(para_all);
+		}
+		req.cmd_chains.push_back(is->predict_to_id[predict]);
+		req.cmd_chains.push_back(atoi(target.c_str()));
+		return *this;
+	}
 	//This interface should be refined! 
 	client& triangle(vector<string> type_vec,vector<string> dir_vec,vector<string> predict_vec){
 		req.clear();
