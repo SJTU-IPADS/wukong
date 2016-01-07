@@ -231,8 +231,11 @@ class traverser{
 			edge_ptr=g.kstore.readGlobal_predict(cfg->t_id,
 					type_id,para_in,global_rdftype_id,&edge_num);
 			for(int k=0;k<edge_num;k++){
+				int mid = ingress::vid2mid(edge_ptr[k].vid, cfg->m_num);
+				int tid = cfg->client_num+ingress::hash(edge_ptr[k].vid) % cfg->server_num ;
 				if(global_rdftype_id==edge_ptr[k].predict 
-						&& ingress::vid2mid(edge_ptr[k].vid,cfg->m_num)==cfg->m_id){
+						&& mid==cfg->m_id
+						&& tid==cfg->t_id){
 					updated_result_table[0].push_back(edge_ptr[k].vid);
 				}
 			}
@@ -523,6 +526,8 @@ public:
 		} else if(r.cmd_chains.back() == cmd_type_index){
 			assert(r.column_num()==0);
 			do_type_index(r);
+			handle_request(r);
+			return ;
 		} else{
 			assert(false);
 		}

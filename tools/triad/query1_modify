@@ -2,6 +2,6 @@ type_index		<ub#University>
 neighbors   in 	<ub#undergraduateDegreeFrom>
 subclass_of		<ub#GraduateStudent>
 neighbors   out <ub#memberOf>
-subclass_of		<ub#Department>
 filter out 	<ub#subOrganizationOf>	0
+subclass_of		<ub#Department>
 execute

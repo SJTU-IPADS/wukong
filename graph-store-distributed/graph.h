@@ -201,6 +201,7 @@ public:
 			}
 			sort(triple_spo[t].begin(),triple_spo[t].end(),edge_sort_by_spo());
 		}
+		finished_count=0;
 		#pragma omp parallel for num_threads(nthread_parallel_load)
 		for(int t=0;t<nthread_parallel_load;t++){
 			int local_count=0;
