@@ -671,23 +671,37 @@ poll_completion (struct QP *res) {
     assert(remote_offset < this->size);
     assert(machine_id < _total_partition);
     assert(t_id < _total_threads);
-    if(post_send(res[t_id] + machine_id,op,local,size,remote_offset,true) ) {
-      fprintf(stderr,"failed to post request.");
-      assert(false);
-    }
 
-    // for(int i=0;i<31;i++){
-    //   if(post_send(res[t_id] + machine_id,op,local,size,remote_offset,false) ) {
-    //     fprintf(stderr,"failed to post request.");
-    //     assert(false);
-    //   }
-    // }
-    if(poll_completion(res[t_id] + machine_id)) {
-      fprintf(stderr,"poll completion failed\n");
-      assert(false);
+    uint64_t huge_size=102400;
+    //we split the huge rdma_op
+    while(size>0){
+      uint64_t size_send=std::min(size,huge_size);
+      if(post_send(res[t_id] + machine_id,op,local,size_send,remote_offset,true) ) {
+        fprintf(stderr,"failed to post request.");
+        assert(false);
+      }
+      if(poll_completion(res[t_id] + machine_id)) {
+        fprintf(stderr,"poll completion failed\n");
+        assert(false);
+      }
+      size-=size_send;
+      local+=size_send;
+      remote_offset+=size_send;
     }
-    //TODO! we need to 
     return 0;
+    
+
+
+    // if(post_send(res[t_id] + machine_id,op,local,size,remote_offset,true) ) {
+    //   fprintf(stderr,"failed to post request.");
+    //   assert(false);
+    // }
+    // if(poll_completion(res[t_id] + machine_id)) {
+    //   fprintf(stderr,"poll completion failed\n");
+    //   assert(false);
+    // }
+    // return 0;
+
   }
   int RdmaResource::RdmaCmpSwap(int t_id,int m_id,char*local,uint64_t compare,uint64_t swap,uint64_t size,uint64_t off) {
     

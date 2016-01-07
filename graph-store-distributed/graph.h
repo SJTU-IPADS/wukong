@@ -21,10 +21,57 @@
 #include "omp.h"
 using namespace std;
 
+struct edge_triple{
+	uint64_t s;
+	uint64_t p;
+	uint64_t o;
+	edge_triple(uint64_t _s,uint64_t _p, uint64_t _o):
+		s(_s),p(_p),o(_o){
+	}
+};
+struct edge_sort_by_spo
+{
+    inline bool operator() (const edge_triple& struct1, const edge_triple& struct2)
+    {
+        if(struct1.s < struct2.s){  
+			return true;  
+		} else if(struct1.s == struct2.s){
+			if(struct1.p < struct2.p){
+				return true; 
+			} else if(struct1.p == struct2.p && struct1.o < struct2.o){
+				return true;
+			}
+		}
+		//otherwise 
+		return false;  
+	}
+};
+struct edge_sort_by_ops
+{
+    inline bool operator() (const edge_triple& struct1, const edge_triple& struct2)
+    {
+        if(struct1.o < struct2.o){  
+			return true;  
+		} else if(struct1.o == struct2.o){
+			if(struct1.p < struct2.p){
+				return true; 
+			} else if(struct1.p == struct2.p && struct1.s < struct2.s){
+				return true;
+			}
+		}
+		//otherwise 
+		return false;  
+	}
+};
+
 class graph{
 	boost::mpi::communicator& world;
 	RdmaResource* rdma;
 public:
+	static const int nthread_parallel_load=20;
+	vector<vector<edge_triple> > triple_spo;
+	vector<vector<edge_triple> > triple_ops;
+
 	static const int num_vertex_table=100;
 	boost::unordered_map<uint64_t,vertex_row> vertex_table[num_vertex_table];
 	pthread_spinlock_t vertex_table_lock[num_vertex_table];
@@ -56,6 +103,7 @@ public:
 		}
 		return original - original%n; 
 	}
+	
 	void inline send_edge_v2(int localtid,int mid,uint64_t s,uint64_t p,uint64_t o){
 		uint64_t subslot_size=floor(rdma->get_slotsize()/world.size(),sizeof(uint64_t));
 		uint64_t *local_buffer = (uint64_t *) (rdma->GetMsgAddr(localtid) + subslot_size*mid );
@@ -119,6 +167,7 @@ public:
 					send_edge_v2(localtid,o_mid,s,p,o);
 				}
 			}
+			file.close();
 			int ret=__sync_fetch_and_add( &finished_count, 1 );
 			if(ret%40==39){
 				cout<<"already load "<<ret+1<<" files"<<endl;
@@ -153,6 +202,81 @@ public:
 			uint64_t* recv_buffer=(uint64_t*)(rdma->get_buffer()+offset);
 			total_count+= *recv_buffer;
 		}
+
+		// ////refine here
+		// triple_spo.clear();
+		// triple_ops.clear();
+		// triple_spo.resize(nthread_parallel_load);
+		// triple_ops.resize(nthread_parallel_load);
+		// for(int i=0;i<triple_spo.size();i++){
+		// 	triple_spo.reserve(total_count/world.size()*1.5);
+		// 	triple_ops.reserve(total_count/world.size()*1.5);
+		// }
+		// #pragma omp parallel for num_threads(nthread_parallel_load)
+		// for(int t=0;t<nthread_parallel_load;t++){
+		// 	int local_count=0;
+		// 	for(int mid=0;mid<world.size();mid++){
+		// 		//recv from different machine
+		// 		uint64_t max_size=floor(rdma->get_memorystore_size()/world.size(),sizeof(uint64_t));
+		// 		uint64_t offset= max_size * mid;
+		// 		uint64_t* recv_buffer=(uint64_t*)(rdma->get_buffer()+offset);
+		// 		uint64_t num_edge=*recv_buffer;
+		// 		for(uint64_t i=0;i< num_edge;i++){
+		// 			uint64_t s=recv_buffer[1+i*3];
+		// 			uint64_t p=recv_buffer[1+i*3+1];
+		// 			uint64_t o=recv_buffer[1+i*3+2];
+		// 			if(ingress::vid2mid(s,world.size())==world.rank()){
+		// 				int s_tableid=(s/world.size())%nthread_parallel_load;
+		// 				if( s_tableid ==t){
+		// 					triple_spo[t].push_back(edge_triple(s,p,o));
+		// 				}
+		// 			}
+		// 			local_count++;
+		// 			if(local_count==total_count/100){
+		// 				local_count=0;
+		// 				int ret=__sync_fetch_and_add( &finished_count, 1 );
+		// 				if((ret+1)%nthread_parallel_load==0){
+		// 					cout<<"already edge by s "<<(ret+1)/nthread_parallel_load<<" %"<<endl;
+		// 				}
+		// 			}
+		// 		}
+		// 	}
+		// 	sort(triple_spo[t].begin(),triple_spo[t].end(),edge_sort_by_spo());
+		// }
+		// #pragma omp parallel for num_threads(nthread_parallel_load)
+		// for(int t=0;t<nthread_parallel_load;t++){
+		// 	int local_count=0;
+		// 	for(int mid=0;mid<world.size();mid++){
+		// 		//recv from different machine
+		// 		uint64_t max_size=floor(rdma->get_memorystore_size()/world.size(),sizeof(uint64_t));
+		// 		uint64_t offset= max_size * mid;
+		// 		uint64_t* recv_buffer=(uint64_t*)(rdma->get_buffer()+offset);
+		// 		uint64_t num_edge=*recv_buffer;
+		// 		for(uint64_t i=0;i< num_edge;i++){
+		// 			uint64_t s=recv_buffer[1+i*3];
+		// 			uint64_t p=recv_buffer[1+i*3+1];
+		// 			uint64_t o=recv_buffer[1+i*3+2];
+		// 			if(ingress::vid2mid(o,world.size())==world.rank()){
+		// 				int o_tableid=(o/world.size())%nthread_parallel_load;
+		// 				if( o_tableid ==t){
+		// 					triple_ops[t].push_back(edge_triple(s,p,o));
+		// 				}
+		// 			}
+		// 			local_count++;
+		// 			if(local_count==total_count/100){
+		// 				local_count=0;
+		// 				int ret=__sync_fetch_and_add( &finished_count, 1 );
+		// 				if((ret+1)%nthread_parallel_load==0){
+		// 					cout<<"already edge by s "<<(ret+1)/nthread_parallel_load<<" %"<<endl;
+		// 				}
+		// 			}
+		// 		}
+		// 	}
+		// 	sort(triple_ops[t].begin(),triple_ops[t].end(),edge_sort_by_ops());
+		// }
+		// uint64_t t3=timer::get_usec();
+		// cout<<(t3-t2)/1000<<" ms for aggregrate edges"<<endl;
+
 		int parallel_factor=20;
 		#pragma omp parallel for num_threads(parallel_factor)
 		for(int t=0;t<parallel_factor;t++){

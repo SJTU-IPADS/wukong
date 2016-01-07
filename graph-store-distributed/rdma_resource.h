@@ -20,6 +20,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include "timer.h"
 
 #include <vector>
 struct config_t
@@ -214,8 +215,11 @@ struct normal_op_req
       //int mid=_total_partition-1;
       //int tid=_total_threads-1;
       // prev_recvid is used to implement round-robin polling
+      
       int mid=prev_recvid[local_tid][0];
       int tid=prev_recvid[local_tid][1];
+      int try_count=0;
+      uint64_t last_time=0; 
       while(true){
         tid++;
         if(tid==_total_threads){
@@ -224,6 +228,22 @@ struct normal_op_req
         }
         if(mid==_total_partition){
           mid=0;
+          try_count++;
+          
+          if(try_count==50000000){//about 10 second
+            if(last_time==0){
+              last_time=timer::get_usec();
+              try_count=0;
+              continue;
+            }
+            uint64_t tmp=timer::get_usec();
+            if(local_tid==1){
+              std::cout<<"("<<_current_partition<<","<<local_tid<<") doesn't recv anything for "
+                    <<(tmp-last_time)/1000<<" ms"<<std::endl;
+            }
+            last_time=tmp;
+            try_count=0;
+          }
           //usleep(1);
         }
 

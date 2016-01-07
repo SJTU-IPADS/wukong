@@ -332,9 +332,9 @@ int main(int argc, char * argv[])
 
 	graph g(world,rdma,global_input_folder.c_str());
 	client** client_array=new client*[client_num];
-	cout<<world.rank()<<" before barrier"<<i<<endl;
+	cout<<world.rank()<<" before barrier"<<endl;
 	MPI_Barrier(MPI_COMM_WORLD);
-	cout<<world.rank()<<" after barrier"<<i<<endl;
+	cout<<world.rank()<<" after barrier"<<endl;
 	for(int i=0;i<client_num;i++){
 		cout<<world.rank()<<" starting cid="<<i<<endl;
 		client_array[i]=new client(&is,&cfg_array[i]);
