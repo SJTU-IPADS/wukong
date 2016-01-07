@@ -21,7 +21,7 @@ extern bool global_load_convert_format;
 extern bool global_load_minimal_index;
 extern bool global_clear_final_result;
 extern bool global_use_multithread;
-extern bool global_use_predict_index;
+extern bool global_use_index_table;
 extern int global_estimate_vnum;
 extern int global_estimate_enum;
 
@@ -57,7 +57,7 @@ void load_global_cfg(char* filename){
 	global_load_minimal_index=atoi(config_map["global_load_minimal_index"].c_str());
 	global_clear_final_result=atoi(config_map["global_clear_final_result"].c_str());
 	global_use_multithread=atoi(config_map["global_use_multithread"].c_str());
-	global_use_predict_index=atoi(config_map["global_use_predict_index"].c_str());
+	global_use_index_table=atoi(config_map["global_use_index_table"].c_str());
 	global_estimate_vnum=atoi(config_map["global_estimate_vnum"].c_str());
 	global_estimate_enum=atoi(config_map["global_estimate_enum"].c_str());
 

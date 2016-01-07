@@ -9,6 +9,8 @@
 #include <iostream>
 #include <pthread.h>
 #include <boost/unordered_set.hpp>
+#include <tbb/concurrent_hash_map.h>
+
 
 struct edge_triple{
 	uint64_t s;
@@ -804,6 +806,50 @@ public:
 						continue;
 					insert_predict_index(vertex_addr[i].id,
 							edge_addr[edge_ptr+j].predict,edge_addr[edge_ptr+j].vid);
+				}
+			}
+		}
+	}
+	typedef tbb::concurrent_hash_map<uint64_t,boost::unordered_set<uint64_t> > tbb_index_table;
+	tbb_index_table type_index_table;
+	void index_table_insert(tbb_index_table& table,uint64_t index_id,uint64_t value_id){
+		tbb_index_table::accessor a; 
+		table.insert(a,index_id); 
+		a->second.insert(value_id);
+	}
+	boost::unordered_set<uint64_t>& index_table_lookup(tbb_index_table& table,uint64_t index_id){
+		tbb_index_table::accessor a; 
+		if (!table.find(a,index_id)){
+			assert(false);
+		}
+		return a->second;
+	} 
+	void init_index_table(){
+		int count=0;
+		//4-associate, 3 data and 1 next
+		uint64_t header_num=(v_num/4)/5*4;
+		uint64_t indirect_num=(v_num/4)/5*1;
+		#pragma omp parallel for num_threads(20)
+		for(int x=0;x<header_num+indirect_num;x++){
+			for(int y=0;y<3;y++){
+				uint64_t i=x*4+y;
+				if(vertex_addr[i].id!=-1){
+					uint64_t degree;
+					uint64_t edge_ptr;
+					degree  =vertex_addr[i].out_degree;
+					edge_ptr=vertex_addr[i].out_edge_ptr;
+					for(uint64_t j=0;j<degree;j++){
+						uint64_t s=vertex_addr[i].id;
+						uint64_t p=edge_addr[edge_ptr+j].predict;
+						uint64_t o=edge_addr[edge_ptr+j].vid;
+						if(p==-1){
+							continue;
+						} else if(p==global_rdftype_id){
+							index_table_insert(type_index_table,o,s);
+						} else {
+							//TODO
+						}
+					}
 				}
 			}
 		}

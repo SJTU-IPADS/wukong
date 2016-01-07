@@ -1,6 +1,7 @@
 type_index		<ub#Course>
 get_attr		<ub#name>
 execute
+get_attr		<ub#name>
 
 lookup	<ub#Course>
 neighbors   in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>

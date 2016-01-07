@@ -400,16 +400,15 @@ public:
 		uint64_t t3=timer::get_usec();
 		cout<<world.rank()<<" loading files in "<<(t2-t1)/1000.0/1000.0<<"s ~~~~~~~~~~~"<<endl;
 	    cout<<world.rank()<<" init rdma store in "<<(t3-t2)/1000.0/1000.0<<"s ~~~~~~~~~~~"<<endl;
-	    for(int i=0;i<num_vertex_table;i++){
-			vertex_table[i].clear();
-		}
-		uint64_t t4=timer::get_usec();
-		cout<<world.rank()<<" clear tmp memory in "<<(t4-t3)/1000.0/1000.0<<"s ~~~~~~~~~~~"<<endl;
-	 
+		
 	    
 	    //kstore.calculate_edge_cut();
-	    if(global_use_predict_index){
-			kstore.init_predict_index();
+	    if(global_use_index_table){
+	    	kstore.init_index_table();
+	    	uint64_t t4=timer::get_usec();
+	    	cout<<world.rank()<<" init index_table in "<<(t4-t3)/1000.0/1000.0<<"s ~~~~~~~~~~~"<<endl;
+		
+			//kstore.init_predict_index();
 		}
 	    cout<<world.rank()<<" finished "<<endl;
 		

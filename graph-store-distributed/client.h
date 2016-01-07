@@ -73,7 +73,7 @@ public:
 	}
 
 	client& predict_index(string predict,string dir){
-		if(!global_use_predict_index)
+		if(!global_use_index_table)
 			assert(false);
 		req.clear();
 		req.cmd_chains.push_back(cmd_predict_index);

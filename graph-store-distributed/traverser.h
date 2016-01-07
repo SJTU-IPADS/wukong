@@ -223,7 +223,21 @@ class traverser{
 		r.cmd_chains.pop_back();
 		int type_id=r.cmd_chains.back();
 		r.cmd_chains.pop_back();
-		{
+		if(global_use_index_table){
+			boost::unordered_set<uint64_t>& ids
+							=g.kstore.index_table_lookup(g.kstore.type_index_table, type_id);
+			vector<vector<int> >updated_result_table;
+			updated_result_table.resize(1);
+			for(auto id: ids){
+				int tid = cfg->client_num+ingress::hash(id) % cfg->server_num ;
+				if(tid==cfg->t_id){
+					updated_result_table[0].push_back(id);
+				}
+			}
+			r.result_table.swap(updated_result_table);
+			return ;
+		}
+		{//use rdma to read data
 			vector<vector<int> >updated_result_table;
 			updated_result_table.resize(1);
 			int edge_num=0;
