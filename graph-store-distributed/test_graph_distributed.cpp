@@ -298,7 +298,7 @@ int main(int argc, char * argv[])
 	boost::mpi::communicator world;
 
 	uint64_t rdma_size = 1024*1024*1024;  //1G
-	rdma_size = rdma_size*24; //2G 
+	rdma_size = rdma_size*30; //2G 
 	//rdma_size = rdma_size*2; //2G 
   	
   	uint64_t slot_per_thread= 1024*1024*512;

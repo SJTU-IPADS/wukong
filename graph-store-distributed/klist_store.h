@@ -10,6 +10,52 @@
 #include <pthread.h>
 #include <boost/unordered_set.hpp>
 
+struct edge_triple{
+	uint64_t s;
+	uint64_t p;
+	uint64_t o;
+	edge_triple(uint64_t _s,uint64_t _p, uint64_t _o):
+		s(_s),p(_p),o(_o){
+	}
+	edge_triple():
+		s(-1),p(-1),o(-1){
+	}
+};
+struct edge_sort_by_spo
+{
+    inline bool operator() (const edge_triple& struct1, const edge_triple& struct2)
+    {
+        if(struct1.s < struct2.s){  
+			return true;  
+		} else if(struct1.s == struct2.s){
+			if(struct1.p < struct2.p){
+				return true; 
+			} else if(struct1.p == struct2.p && struct1.o < struct2.o){
+				return true;
+			}
+		}
+		//otherwise 
+		return false;  
+	}
+};
+struct edge_sort_by_ops
+{
+    inline bool operator() (const edge_triple& struct1, const edge_triple& struct2)
+    {
+        if(struct1.o < struct2.o){  
+			return true;  
+		} else if(struct1.o == struct2.o){
+			if(struct1.p < struct2.p){
+				return true; 
+			} else if(struct1.p == struct2.p && struct1.s < struct2.s){
+				return true;
+			}
+		}
+		//otherwise 
+		return false;  
+	}
+};
+
 struct edge_row{
 	edge_row(uint64_t p,uint64_t v){
 		predict=p;
@@ -326,6 +372,7 @@ public:
 		return curr_edge_ptr;
 	}
 
+
 	int add_pivot(edge_row* edge_list,int size){
 		//return new_size
 		uint64_t last;
@@ -406,6 +453,114 @@ public:
 				assert(false);
 			}
 		}
+	}
+	uint64_t insert_or_get_vertex(uint64_t id){
+		uint64_t vertex_ptr;
+		//4-associate
+		uint64_t header_num=(v_num/4)/5*4;
+		uint64_t indirect_num=(v_num/4)/5*1;
+		uint64_t bucket_id=ingress::hash(id)%header_num;
+		uint64_t lock_id=bucket_id% num_locks;
+		int slot_id=0;
+		bool found=false;
+		pthread_spin_lock(&fine_grain_locks[lock_id]);
+		//last slot is used as next pointer
+		while(!found){
+			for(uint64_t i=0;i<3;i++){
+				if(vertex_addr[bucket_id*4+i].id==id){
+					//we already insert this vertex
+					//TODO , if there is a hole in the link-list
+					//e.g. we insert and then delete a element
+					//It may become a  problem
+					found=true;
+					slot_id=i;
+					break;
+				}
+				if(vertex_addr[bucket_id*4+i].id==-1){
+					vertex_addr[bucket_id*4+i].id=id;
+					found=true;
+					slot_id=i;
+					break;
+				}
+			}
+			if(found){
+				break;
+			} else if(vertex_addr[bucket_id*4+3].id!=-1){
+				//next pointer
+				bucket_id=vertex_addr[bucket_id*4+3].id;
+				continue;
+			} else {
+				//need alloc
+				pthread_spin_lock(&allocation_lock);
+				if(used_indirect_num>=indirect_num){
+					assert(false);
+				}
+				vertex_addr[bucket_id*4+3].id=header_num+used_indirect_num;
+				used_indirect_num++;
+				pthread_spin_unlock(&allocation_lock);
+				bucket_id=vertex_addr[bucket_id*4+3].id;
+				vertex_addr[bucket_id*4+0].id=id;
+				slot_id=0;
+				break;
+			}
+		}
+		pthread_spin_unlock(&fine_grain_locks[lock_id]);
+		vertex_ptr = bucket_id*4+slot_id;
+		assert(vertex_addr[vertex_ptr].id==id);
+		return vertex_ptr;
+	}
+	void batch_insert(vector<edge_triple>& vec_spo,
+						vector<edge_triple>& vec_ops,uint64_t curr_edge_ptr){
+		uint64_t start;
+		start=0;
+		while(start<vec_spo.size()){
+			uint64_t end=start+1;
+			while(end<vec_spo.size() && vec_spo[start].s==vec_spo[end].s){
+				end++;
+			}
+			uint64_t vertex_ptr=insert_or_get_vertex(vec_spo[start].s);
+			vertex_addr[vertex_ptr].out_edge_ptr=curr_edge_ptr;
+			uint64_t last_pivot_ptr;
+			for(uint64_t i=start;i<end;i++){
+				if(i==start || vec_spo[i].p != vec_spo[i-1].p){
+					last_pivot_ptr=curr_edge_ptr;
+					edge_addr[last_pivot_ptr].predict=-1;
+					edge_addr[last_pivot_ptr].vid=0;
+					curr_edge_ptr++;
+				}
+				edge_addr[last_pivot_ptr].vid++;
+				edge_addr[curr_edge_ptr].predict=vec_spo[i].p;
+				edge_addr[curr_edge_ptr].vid=vec_spo[i].o;
+				curr_edge_ptr++;
+			}
+			vertex_addr[vertex_ptr].out_degree=curr_edge_ptr-vertex_addr[vertex_ptr].out_edge_ptr;
+			start=end;
+		}
+		start=0;
+		while(start<vec_ops.size()){
+			uint64_t end=start+1;
+			while(end<vec_ops.size() && vec_ops[start].o==vec_ops[end].o){
+				end++;
+			}
+			uint64_t vertex_ptr=insert_or_get_vertex(vec_ops[start].o);
+			vertex_addr[vertex_ptr].in_edge_ptr=curr_edge_ptr;
+			uint64_t last_pivot_ptr;
+			for(uint64_t i=start;i<end;i++){
+				if(i==start || vec_ops[i].p != vec_ops[i-1].p){
+					last_pivot_ptr=curr_edge_ptr;
+					edge_addr[last_pivot_ptr].predict=-1;
+					edge_addr[last_pivot_ptr].vid=0;
+					curr_edge_ptr++;
+				}
+				edge_addr[last_pivot_ptr].vid++;
+				edge_addr[curr_edge_ptr].predict=vec_ops[i].p;
+				edge_addr[curr_edge_ptr].vid=vec_ops[i].s;
+				curr_edge_ptr++;
+			}
+			vertex_addr[vertex_ptr].in_degree=curr_edge_ptr-vertex_addr[vertex_ptr].in_edge_ptr;
+			start=end;
+		}
+
 	}
 	uint64_t insert_at(uint64_t id,vertex_row& v,uint64_t curr_edge_ptr){
 		uint64_t vertex_ptr;
