@@ -30,10 +30,6 @@ public:
 	vector<vector<edge_triple> > triple_spo;
 	vector<vector<edge_triple> > triple_ops;
 
-	static const int num_vertex_table=100;
-	boost::unordered_map<uint64_t,vertex_row> vertex_table[num_vertex_table];
-	pthread_spinlock_t vertex_table_lock[num_vertex_table];
-
 	klist_store kstore;
 	ontology ontology_table;
 	void load_ontology(string filename){
@@ -237,7 +233,21 @@ public:
 		cout<<(t3-t2)/1000<<" ms for aggregrate edges"<<endl;
 
 	}
-
+	void remove_duplicate(vector<edge_triple>& elist){
+		if(elist.size()>1){
+			uint64_t end=1;
+			for(uint64_t i=1;i<elist.size();i++){
+				if(elist[i].s==elist[i-1].s &&
+					elist[i].p==elist[i-1].p &&
+					elist[i].o==elist[i-1].o){
+					continue;
+				}
+				elist[end]=elist[i];
+				end++;
+			}
+			elist.resize(end);
+		}
+	}
 	uint64_t count_pivot(vector<edge_triple>& elist, bool order_by_s){
 		//already_sorted , by spo or by ops
 		//remove duplicate first
@@ -277,41 +287,6 @@ public:
 		}
 		return num_pivot;
 	}
-	uint64_t count_pivot(vector<edge_row>& edge_list){
-		//should return number of pivot
-
-		sort(edge_list.begin(),edge_list.end());
-		//sort(edge_list.begin(),edge_list.end());
-		//remove duplicate	
-		if(edge_list.size()>1){
-			int end=1;
-			for(int i=1;i<edge_list.size();i++){
-				if(edge_list[i].predict==edge_list[i-1].predict
-						&&	edge_list[i].vid==edge_list[i-1].vid){
-					continue;
-				}
-				edge_list[end]=edge_list[i];
-				end++;
-			}
-			edge_list.resize(end);
-		}
-		uint64_t last;
-		uint64_t old_size;
-		uint64_t count;
-		int num_pivot=0;
-		last=-1;
-		old_size=edge_list.size();
-		count=0;
-		for(uint64_t i=0;i<old_size;i++){
-			if(edge_list[i].predict!=last){
-				num_pivot++;
-				last=edge_list[i].predict;
-			}
-		}
-		// at first version , we modify the vector in place 
-		// but it's not scale to multiple thread, due to calling edge_list.resize();
-		return num_pivot;
-	}
 
 	graph(boost::mpi::communicator& para_world,RdmaResource* _rdma,const char* dir_name)
 			:world(para_world),rdma(_rdma){
@@ -319,9 +294,7 @@ public:
 	    DIR *dir;
 	    dir=opendir(dir_name);
 	    vector<string> filenames;
-	    for(int i=0;i<num_vertex_table;i++){
-			pthread_spin_init(&vertex_table_lock[i],0);
-		}
+
 	    while((ptr=readdir(dir))!=NULL){
 	        if(ptr->d_name[0] == '.')
 	            continue;
@@ -345,7 +318,7 @@ public:
 	    }
 	    edge_num_per_machine.resize(world.size());
 	    //uint64_t max_v_num=1000000*160;//80;
-	    uint64_t max_v_num=1000000*240;//80;
+	    uint64_t max_v_num=1000000*240*3;//80;
 	    
 	    
 	    uint64_t t1=timer::get_usec();
@@ -361,10 +334,10 @@ public:
 		#pragma omp parallel for num_threads(nthread_parallel_load)
 		for(int t=0;t<nthread_parallel_load;t++){
 			uint64_t count=0;
+			remove_duplicate(triple_spo[t]);
+			remove_duplicate(triple_ops[t]);
 			count+=triple_spo[t].size();
-			count+=triple_ops[t].size();
-			count+=count_pivot(triple_spo[t],true);
-			count+=count_pivot(triple_ops[t],false);
+			count+=triple_ops[t].size();			
 			uint64_t curr_edge_ptr=kstore.atomic_alloc_edges(count);
 			kstore.batch_insert(triple_spo[t],triple_ops[t],curr_edge_ptr);
 			triple_spo[t].clear();
@@ -389,9 +362,9 @@ public:
 		//cout<<"graph-store use "<<kstore.used_v_num*sizeof(vertex)/1048576<<"/"
 		cout<<"graph-store use "<<kstore.used_indirect_num <<" / "<<(max_v_num/4)/5*1
 								<<" indirect_num"<<endl;
-		cout<<"graph-store use "<<max_v_num*sizeof(vertex) / 1048576<<" MB for vertex data"<<endl;
-		cout<<"graph-store use "<<kstore.new_edge_ptr*sizeof(edge_row)/1048576<<"/"
-								<<kstore.max_edge_ptr*sizeof(edge_row)/1048576<<" MB for edge data"<<endl;
+		cout<<"graph-store use "<<max_v_num*sizeof(vertex_v2) / 1048576<<" MB for vertex data"<<endl;
+		cout<<"graph-store use "<<kstore.new_edge_ptr*sizeof(edge_v2)/1048576<<"/"
+								<<kstore.max_edge_ptr*sizeof(edge_v2)/1048576<<" MB for edge data"<<endl;
 	
 	}
 

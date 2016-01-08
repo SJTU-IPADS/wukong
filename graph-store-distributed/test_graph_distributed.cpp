@@ -336,17 +336,12 @@ int main(int argc, char * argv[])
 	MPI_Barrier(MPI_COMM_WORLD);
 	cout<<world.rank()<<" after barrier"<<endl;
 	for(int i=0;i<client_num;i++){
-		cout<<world.rank()<<" starting cid="<<i<<endl;
 		client_array[i]=new client(&is,&cfg_array[i]);
-		cout<<world.rank()<<" started cid="<<i<<endl;
 	}
 
 	traverser** traverser_array=new traverser*[server_num];
 	for(int i=0;i<server_num;i++){
-		cout<<world.rank()<<" starting tid="<<i<<endl;
-		traverser_array[i]=new traverser(g,&cfg_array[client_num+i]);
-		cout<<world.rank()<<" started tid="<<i<<endl;
-		
+		traverser_array[i]=new traverser(g,&cfg_array[client_num+i]);		
 	}
 	
 	pthread_t     *thread  = new pthread_t[thread_num];

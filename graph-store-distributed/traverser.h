@@ -39,14 +39,13 @@ class traverser{
 		for (int i=0;i<r.row_num();i++){
 			int prev_id=r.last_column(i);
 			int edge_num=0;
-			edge_row* edge_ptr;
+			edge_v2* edge_ptr;
 			//edge_ptr=g.kstore.readLocal_predict(cfg->t_id, prev_id,dir,predict_id,&edge_num); 
 			edge_ptr=g.kstore.readGlobal_predict(cfg->t_id, prev_id,dir,predict_id,&edge_num); 
 			for(int k=0;k<edge_num;k++){
-				if(predict_id==edge_ptr[k].predict ){
-					r.append_row_to(updated_result_table,i);
-					updated_result_table[r.column_num()].push_back(edge_ptr[k].vid);
-				}	
+				r.append_row_to(updated_result_table,i);
+				updated_result_table[r.column_num()].push_back(edge_ptr[k].val);
+					
 			}
 		}
 		r.result_table.swap(updated_result_table);
@@ -64,10 +63,9 @@ class traverser{
 		for (int i=0;i<r.row_num();i++){
 			int prev_id=r.last_column(i);	
 			int edge_num=0;
-			edge_row* edge_ptr=g.kstore.readGlobal_predict(cfg->t_id, prev_id,para_out,predict_id,&edge_num);
+			edge_v2* edge_ptr=g.kstore.readGlobal_predict(cfg->t_id, prev_id,para_out,predict_id,&edge_num);
 			for(int k=0;k<edge_num;k++){
-				if(predict_id==edge_ptr[k].predict && 
-							g.ontology_table.is_subtype_of(edge_ptr[k].vid,target_id)){
+				if(g.ontology_table.is_subtype_of(edge_ptr[k].val,target_id)){
 					r.append_row_to(updated_result_table,i);
 				}	
 			}
@@ -85,13 +83,10 @@ class traverser{
 		for (int i=0;i<r.row_num();i++){
 			int prev_id=r.last_column(i);
 			int edge_num=0;
-			//edge_row* edge_ptr=g.kstore.readLocal_predict(cfg->t_id, prev_id,dir,predict_id,&edge_num);
-			edge_row* edge_ptr=g.kstore.readGlobal_predict(cfg->t_id, prev_id,dir,predict_id,&edge_num);
+			edge_v2* edge_ptr=g.kstore.readGlobal_predict(cfg->t_id, prev_id,dir,predict_id,&edge_num);
 			for(int k=0;k<edge_num;k++){
-				if(predict_id==edge_ptr[k].predict ){
-					r.append_row_to(updated_result_table,i);
-					updated_result_table[r.column_num()].push_back(edge_ptr[k].vid);
-				}	
+				r.append_row_to(updated_result_table,i);
+				updated_result_table[r.column_num()].push_back(edge_ptr[k].val);	
 			}
 		}
 		r.result_table.swap(updated_result_table);
@@ -113,10 +108,9 @@ class traverser{
 			int prev_id=r.last_column(i);
 			int target_id=r.get(i,target_column);	
 			int edge_num=0;
-			edge_row* edge_ptr=g.kstore.readGlobal_predict(cfg->t_id, prev_id,para_out,predict_id,&edge_num);
+			edge_v2* edge_ptr=g.kstore.readGlobal_predict(cfg->t_id, prev_id,para_out,predict_id,&edge_num);
 			for(int k=0;k<edge_num;k++){
-				if(predict_id==edge_ptr[k].predict && 
-							(edge_ptr[k].vid == target_id)	){
+				if(edge_ptr[k].val == target_id){
 					r.append_row_to(updated_result_table,i);
 					break;
 				}
@@ -124,99 +118,100 @@ class traverser{
 		}
 		r.result_table.swap(updated_result_table);
 	}
-	void async_do_subclass_of(request& r){
-		int predict_id=global_rdftype_id;
-		r.cmd_chains.pop_back();
-		int target_id=r.cmd_chains.back();
-		r.cmd_chains.pop_back();
+	// void async_do_subclass_of(request& r){
+	// 	int predict_id=global_rdftype_id;
+	// 	r.cmd_chains.pop_back();
+	// 	int target_id=r.cmd_chains.back();
+	// 	r.cmd_chains.pop_back();
 
-		vector<vector<int> >updated_result_table;
-		updated_result_table.resize(r.column_num());
-		vector<edge_row*> edge_ptr_vec;
-		vector<int> size_vec;
-		g.kstore.batch_readGlobal_predict(cfg->t_id,r.result_table[r.column_num()-1],
-													para_out,predict_id,edge_ptr_vec,size_vec);
-		for (int i=0;i<r.row_num();i++){
-			int prev_id=r.last_column(i);	
-			edge_row* edge_ptr=edge_ptr_vec[i];
-			int edge_num=size_vec[i];
-			for(int k=0;k<edge_num;k++){
-				if(predict_id==edge_ptr[k].predict && 
-							g.ontology_table.is_subtype_of(edge_ptr[k].vid,target_id)){
-					r.append_row_to(updated_result_table,i);
-				}	
-			}
-		}
+	// 	vector<vector<int> >updated_result_table;
+	// 	updated_result_table.resize(r.column_num());
+	// 	vector<edge_row*> edge_ptr_vec;
+	// 	vector<int> size_vec;
+	// 	g.kstore.batch_readGlobal_predict(cfg->t_id,r.result_table[r.column_num()-1],
+	// 												para_out,predict_id,edge_ptr_vec,size_vec);
+	// 	for (int i=0;i<r.row_num();i++){
+	// 		int prev_id=r.last_column(i);	
+	// 		edge_row* edge_ptr=edge_ptr_vec[i];
+	// 		int edge_num=size_vec[i];
+	// 		for(int k=0;k<edge_num;k++){
+	// 			if(predict_id==edge_ptr[k].predict && 
+	// 						g.ontology_table.is_subtype_of(edge_ptr[k].vid,target_id)){
+	// 				r.append_row_to(updated_result_table,i);
+	// 			}	
+	// 		}
+	// 	}
 		
-		r.result_table.swap(updated_result_table);
-	}
-	void async_do_neighbors(request& r){
-		r.cmd_chains.pop_back();
-		int dir=r.cmd_chains.back();
-		r.cmd_chains.pop_back();
-		int	predict_id=r.cmd_chains.back();
-		r.cmd_chains.pop_back();
+	// 	r.result_table.swap(updated_result_table);
+	// }
+	// void async_do_neighbors(request& r){
+	// 	r.cmd_chains.pop_back();
+	// 	int dir=r.cmd_chains.back();
+	// 	r.cmd_chains.pop_back();
+	// 	int	predict_id=r.cmd_chains.back();
+	// 	r.cmd_chains.pop_back();
 
-		vector<vector<int> >updated_result_table;
-		updated_result_table.resize(r.column_num()+1);
+	// 	vector<vector<int> >updated_result_table;
+	// 	updated_result_table.resize(r.column_num()+1);
 		
-		vector<edge_row*> edge_ptr_vec;
-		vector<int> size_vec;
-		g.kstore.batch_readGlobal_predict(cfg->t_id,r.result_table[r.column_num()-1],
-													dir,predict_id,edge_ptr_vec,size_vec);
+	// 	vector<edge_row*> edge_ptr_vec;
+	// 	vector<int> size_vec;
+	// 	g.kstore.batch_readGlobal_predict(cfg->t_id,r.result_table[r.column_num()-1],
+	// 												dir,predict_id,edge_ptr_vec,size_vec);
 
-		for (int i=0;i<r.row_num();i++){
-			int prev_id=r.last_column(i);	
-			edge_row* edge_ptr=edge_ptr_vec[i];
-			int edge_num=size_vec[i];
-			for(int k=0;k<edge_num;k++){
-				if(predict_id==edge_ptr[k].predict){
-					r.append_row_to(updated_result_table,i);
-					updated_result_table[r.column_num()].push_back(edge_ptr[k].vid);
-				}	
-			}
-		}
-		r.result_table.swap(updated_result_table);
-	}
-	void async_do_get_attr(request& r,int dir=para_out){
-		r.cmd_chains.pop_back();
-		int predict_id=r.cmd_chains.back();
-		r.cmd_chains.pop_back();
+	// 	for (int i=0;i<r.row_num();i++){
+	// 		int prev_id=r.last_column(i);	
+	// 		edge_row* edge_ptr=edge_ptr_vec[i];
+	// 		int edge_num=size_vec[i];
+	// 		for(int k=0;k<edge_num;k++){
+	// 			if(predict_id==edge_ptr[k].predict){
+	// 				r.append_row_to(updated_result_table,i);
+	// 				updated_result_table[r.column_num()].push_back(edge_ptr[k].vid);
+	// 			}	
+	// 		}
+	// 	}
+	// 	r.result_table.swap(updated_result_table);
+	// }
+	// void async_do_get_attr(request& r,int dir=para_out){
+	// 	r.cmd_chains.pop_back();
+	// 	int predict_id=r.cmd_chains.back();
+	// 	r.cmd_chains.pop_back();
 
-		vector<vector<int> >updated_result_table;
-		updated_result_table.resize(r.column_num()+1);
+	// 	vector<vector<int> >updated_result_table;
+	// 	updated_result_table.resize(r.column_num()+1);
 
-		vector<edge_row*> edge_ptr_vec;
-		vector<int> size_vec;
-		g.kstore.batch_readGlobal_predict(cfg->t_id,r.result_table[r.column_num()-1],
-													dir,predict_id,edge_ptr_vec,size_vec);
-		for (int i=0;i<r.row_num();i++){
-			int prev_id=r.last_column(i);	
-			edge_row* edge_ptr=edge_ptr_vec[i];
-			int edge_num=size_vec[i];
-			for(int k=0;k<edge_num;k++){
-				if(predict_id==edge_ptr[k].predict){
-					r.append_row_to(updated_result_table,i);
-					updated_result_table[r.column_num()].push_back(edge_ptr[k].vid);
-				}	
-			}
-		}
+	// 	vector<edge_row*> edge_ptr_vec;
+	// 	vector<int> size_vec;
+	// 	g.kstore.batch_readGlobal_predict(cfg->t_id,r.result_table[r.column_num()-1],
+	// 												dir,predict_id,edge_ptr_vec,size_vec);
+	// 	for (int i=0;i<r.row_num();i++){
+	// 		int prev_id=r.last_column(i);	
+	// 		edge_row* edge_ptr=edge_ptr_vec[i];
+	// 		int edge_num=size_vec[i];
+	// 		for(int k=0;k<edge_num;k++){
+	// 			if(predict_id==edge_ptr[k].predict){
+	// 				r.append_row_to(updated_result_table,i);
+	// 				updated_result_table[r.column_num()].push_back(edge_ptr[k].vid);
+	// 			}	
+	// 		}
+	// 	}
 		
-		r.result_table.swap(updated_result_table);
-		r.result_table[r.column_num()-1].swap(r.result_table[r.column_num()-2]);
-	}
+	// 	r.result_table.swap(updated_result_table);
+	// 	r.result_table[r.column_num()-1].swap(r.result_table[r.column_num()-2]);
+	// }
 	
 	void do_predict_index(request& r){
-		r.cmd_chains.pop_back();
-		int predict_id=r.cmd_chains.back();
-		r.cmd_chains.pop_back();
-		int dir=r.cmd_chains.back();
-		r.cmd_chains.pop_back();
-		const boost::unordered_set<uint64_t>& ids=g.kstore.get_predict_index(predict_id,dir);
-		r.result_table.resize(1);
-		for(auto id: ids){
-			r.result_table[0].push_back(id);
-		}
+		assert(false);
+		// r.cmd_chains.pop_back();
+		// int predict_id=r.cmd_chains.back();
+		// r.cmd_chains.pop_back();
+		// int dir=r.cmd_chains.back();
+		// r.cmd_chains.pop_back();
+		// const boost::unordered_set<uint64_t>& ids=g.kstore.get_predict_index(predict_id,dir);
+		// r.result_table.resize(1);
+		// for(auto id: ids){
+		// 	r.result_table[0].push_back(id);
+		// }
 		return ;
 	}
 	void do_type_index(request& r){
@@ -242,16 +237,14 @@ class traverser{
 			vector<vector<int> >updated_result_table;
 			updated_result_table.resize(1);
 			int edge_num=0;
-			edge_row* edge_ptr;
+			edge_v2* edge_ptr;
 			edge_ptr=g.kstore.readGlobal_predict(cfg->t_id,
 					type_id,para_in,global_rdftype_id,&edge_num);
 			for(int k=0;k<edge_num;k++){
-				int mid = ingress::vid2mid(edge_ptr[k].vid, cfg->m_num);
-				int tid = cfg->client_num+ingress::hash(edge_ptr[k].vid) % cfg->server_num ;
-				if(global_rdftype_id==edge_ptr[k].predict 
-						&& mid==cfg->m_id
-						&& tid==cfg->t_id){
-					updated_result_table[0].push_back(edge_ptr[k].vid);
+				int mid = ingress::vid2mid(edge_ptr[k].val, cfg->m_num);
+				int tid = cfg->client_num+ingress::hash(edge_ptr[k].val) % cfg->server_num ;
+				if(mid==cfg->m_id && tid==cfg->t_id){
+					updated_result_table[0].push_back(edge_ptr[k].val);
 				}
 			}
 			r.result_table.swap(updated_result_table);
@@ -342,7 +335,7 @@ class traverser{
 			int working_tid = omp_get_thread_num();
 			
 			int edge_num=0;
-			edge_row* edge_ptr;
+			edge_v2* edge_ptr;
 			//pthread_spin_lock(&triangle_lock);
 			if(type_filter[1].find(r.last_column(i))!=type_filter[1].end()){
 				//	pthread_spin_unlock(&triangle_lock);
@@ -363,8 +356,7 @@ class traverser{
 
 			bool found=false;
 			for(int k=0;k<edge_num;k++){
-				if(global_rdftype_id==edge_ptr[k].predict && 
-						g.ontology_table.is_subtype_of(edge_ptr[k].vid,v_type[1])){
+				if(g.ontology_table.is_subtype_of(edge_ptr[k].val,v_type[1])){
 					found=true;
 					//pthread_spin_lock(&triangle_lock);
 					type_filter[1][r.last_column(i)]=true;
@@ -388,10 +380,9 @@ class traverser{
 			// 								r.last_column(i),v_dir[1],v_predict[1],&edge_num);
 			// }
 			for(int k=0;k<edge_num;k++){
-				if(v_predict[1]==edge_ptr[k].predict ){
-					pair_vec[working_tid].push_back(v_pair(r.last_column(i),edge_ptr[k].vid));
+				pair_vec[working_tid].push_back(v_pair(r.last_column(i),edge_ptr[k].val));
 					//edge_filter.insert(r.last_column(i),edge_ptr[k].vid);
-				}	
+					
 			}
 		}
 
@@ -426,17 +417,17 @@ class traverser{
 			for(uint64_t i=0;i<r.row_num();i++){
 				uint64_t prev_id=prev_vec[i];
 				int edge_num=0;
-				edge_row* edges=g.kstore.readLocal_predict(cfg->t_id,
+				edge_v2* edges=g.kstore.readLocal_predict(cfg->t_id,
 							prev_id,reverse_dir(v_dir[2]),v_predict[2],&edge_num);
 				for(int k=0;k<edge_num;k++){
-					if(v_predict[2]==edges[k].predict ){
-						if(edge_filter.contain(r.last_column(i),edges[k].vid)) {
-							//pthread_spin_lock(&triangle_lock);
-							r.append_row_to(updated_result_table,i);
-							updated_result_table[r.column_num()].push_back(edges[k].vid);
-							//pthread_spin_unlock(&triangle_lock);
-						}
-					}	
+					
+					if(edge_filter.contain(r.last_column(i),edges[k].val)) {
+						//pthread_spin_lock(&triangle_lock);
+						r.append_row_to(updated_result_table,i);
+						updated_result_table[r.column_num()].push_back(edges[k].val);
+						//pthread_spin_unlock(&triangle_lock);
+					}
+						
 				}
 			}
 			r.result_table.swap(updated_result_table);	
@@ -478,14 +469,14 @@ class traverser{
 				return ;
 			}
 			if(r.cmd_chains.back() == cmd_subclass_of){
-				async_do_subclass_of(r);
-				//do_subclass_of(r);
+				//async_do_subclass_of(r);
+				do_subclass_of(r);
 			} else if(r.cmd_chains.back() == cmd_get_attr){
-				async_do_get_attr(r);
-				//do_get_attr(r);
+				//async_do_get_attr(r);
+				do_get_attr(r);
 			} else if(r.cmd_chains.back() == cmd_neighbors){
-				async_do_neighbors(r);
-				//do_neighbors(r);
+				//async_do_neighbors(r);
+				do_neighbors(r);
 			} else if(r.cmd_chains.back() == cmd_filter){
 				do_filter(r);
 			}
