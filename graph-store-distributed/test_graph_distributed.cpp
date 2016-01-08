@@ -275,14 +275,6 @@ int main(int argc, char * argv[])
 {
 	int provided;
 
-/*
-	MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
-	if (provided < MPI_THREAD_MULTIPLE)
-	{
-	    printf("ERROR: The MPI library does not have full thread support\n");
-	    MPI_Abort(MPI_COMM_WORLD, 1);
-	}
-*/
 	if(argc !=2)
 	{
 		printf("usage:./test_graph config_file\n");
@@ -298,9 +290,8 @@ int main(int argc, char * argv[])
 	boost::mpi::communicator world;
 
 	uint64_t rdma_size = 1024*1024*1024;  //1G
-	rdma_size = rdma_size*30; //2G 
-	//rdma_size = rdma_size*2; //2G 
-  	
+	rdma_size = rdma_size*25; //25G 
+	
   	uint64_t slot_per_thread= 1024*1024*512;
   	uint64_t total_size=rdma_size+slot_per_thread*thread_num*2; 
 	Network_Node *node = new Network_Node(world.rank(),thread_num);//[0-thread_num-1] are used

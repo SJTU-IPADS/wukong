@@ -190,7 +190,7 @@ public:
 						local_count=0;
 						int ret=__sync_fetch_and_add( &finished_count, 1 );
 						if((ret+1)%nthread_parallel_load==0){
-							cout<<"already edge by s "<<(ret+1)/nthread_parallel_load<<" %"<<endl;
+							cout<<"already aggregrate by s "<<(ret+1)/nthread_parallel_load<<" %"<<endl;
 						}
 					}
 				}
@@ -222,7 +222,7 @@ public:
 						local_count=0;
 						int ret=__sync_fetch_and_add( &finished_count, 1 );
 						if((ret+1)%nthread_parallel_load==0){
-							cout<<"already edge by o "<<(ret+1)/nthread_parallel_load<<" %"<<endl;
+							cout<<"already aggregrate by o "<<(ret+1)/nthread_parallel_load<<" %"<<endl;
 						}
 					}
 				}
@@ -354,12 +354,9 @@ public:
 	    	kstore.init_index_table();
 	    	uint64_t t4=timer::get_usec();
 	    	cout<<world.rank()<<" init index_table in "<<(t4-t3)/1000.0/1000.0<<"s ~~~~~~~~~~~"<<endl;
-		
-			//kstore.init_predict_index();
 		}
 	    cout<<world.rank()<<" finished "<<endl;
 		
-		//cout<<"graph-store use "<<kstore.used_v_num*sizeof(vertex)/1048576<<"/"
 		cout<<"graph-store use "<<kstore.used_indirect_num <<" / "<<(max_v_num/4)/5*1
 								<<" indirect_num"<<endl;
 		cout<<"graph-store use "<<max_v_num*sizeof(vertex_v2) / 1048576<<" MB for vertex data"<<endl;

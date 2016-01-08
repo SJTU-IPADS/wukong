@@ -1,10 +1,16 @@
 type_index		<ub#University>
+execute
+
+type_index		<ub#GraduateStudent>
+neighbors   out 	<ub#undergraduateDegreeFrom>
+subclass_of		<ub#University>
+execute
+
+
+type_index		<ub#University>
+execute
 neighbors   in 	<ub#undergraduateDegreeFrom>
 subclass_of		<ub#GraduateStudent>
-neighbors   out <ub#memberOf>
-subclass_of		<ub#Department>
-execute
-filter out 	<ub#subOrganizationOf>	0
 
 LUBM_40
 
@@ -12,3 +18,8 @@ LUBM_40
 <ub#Department>	800
 <ub#GraduateStudent>	100570
 
+
+type_index		<ub#GraduateStudent>
+neighbors   out 	<ub#undergraduateDegreeFrom>
+subclass_of		<ub#University>
+execute

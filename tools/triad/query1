@@ -1,3 +1,9 @@
+triangle	
+<ub#GraduateStudent>	out <ub#undergraduateDegreeFrom>
+<ub#University>	in	<ub#subOrganizationOf>
+<ub#Department>	in	<ub#memberOf>
+execute
+
 
 triangle	
 <ub#GraduateStudent>	out <ub#memberOf>

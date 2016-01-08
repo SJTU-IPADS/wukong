@@ -1,3 +1,7 @@
+predict_index	out	<ub#undergraduateDegreeFrom>
+subclass_of		<ub#UndergraduateStudent>
+execute
+
 type_index		<ub#University>
 neighbors   in 	<ub#undergraduateDegreeFrom>
 subclass_of		<ub#UndergraduateStudent>
@@ -8,6 +12,9 @@ execute
 
 
 
+predict_index	out	<ub#undergraduateDegreeFrom>
+subclass_of		<ub#UndergraduateStudent>
+execute
 
 
 triangle	

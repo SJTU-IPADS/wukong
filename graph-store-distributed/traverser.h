@@ -201,17 +201,29 @@ class traverser{
 	// }
 	
 	void do_predict_index(request& r){
-		assert(false);
-		// r.cmd_chains.pop_back();
-		// int predict_id=r.cmd_chains.back();
-		// r.cmd_chains.pop_back();
-		// int dir=r.cmd_chains.back();
-		// r.cmd_chains.pop_back();
-		// const boost::unordered_set<uint64_t>& ids=g.kstore.get_predict_index(predict_id,dir);
-		// r.result_table.resize(1);
-		// for(auto id: ids){
-		// 	r.result_table[0].push_back(id);
-		// }
+		assert(global_use_index_table);
+		r.cmd_chains.pop_back();
+		int predict_id=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
+		int dir=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
+		vector<vector<int> >updated_result_table;
+		updated_result_table.resize(1);
+		int start_id=cfg->t_id-cfg->client_num;
+		if(dir==para_in){
+			vector<uint64_t>& ids=g.kstore.get_vector(
+					g.kstore.src_predict_table,predict_id);
+			for(int i=start_id;i<ids.size();i+=cfg->server_num){
+				updated_result_table[0].push_back(ids[i]);
+			}
+		} else {
+			vector<uint64_t>& ids=g.kstore.get_vector(
+					g.kstore.dst_predict_table,predict_id);
+			for(int i=start_id;i<ids.size();i+=cfg->server_num){
+				updated_result_table[0].push_back(ids[i]);
+			}
+		}
+		r.result_table.swap(updated_result_table);
 		return ;
 	}
 	void do_type_index(request& r){
@@ -225,10 +237,7 @@ class traverser{
 			updated_result_table.resize(1);
 			int start_id=cfg->t_id-cfg->client_num;
 			for(int i=start_id;i<ids.size();i+=cfg->server_num){
-				//int tid = cfg->client_num+ingress::hash(id) % cfg->server_num ;
-				//if(tid==cfg->t_id){
 				updated_result_table[0].push_back(ids[i]);
-				//}
 			}
 			r.result_table.swap(updated_result_table);
 			return ;
@@ -319,7 +328,7 @@ class traverser{
 		do_neighbors(r);
 
 		uint64_t t2=timer::get_usec();
-		
+
 		//step 3 : find all type_1,type_2 and create a simple_filter
 		//pthread_spinlock_t triangle_lock;
 		//pthread_spin_init(&triangle_lock,0);
@@ -384,6 +393,10 @@ class traverser{
 					//edge_filter.insert(r.last_column(i),edge_ptr[k].vid);
 					
 			}
+		}
+
+		if(global_verbose && cfg->t_id ==cfg->client_num){
+			cout<<cfg->m_id <<" [triangle]: count_type1  "<<count_type1<<endl;
 		}
 
 		uint64_t t3=timer::get_usec();
@@ -510,6 +523,7 @@ public:
 		} else if(r.cmd_chains.back() == cmd_predict_index){
 			assert(r.column_num()==0);
 			do_predict_index(r);
+			handle_request(r);
 		} else if(r.cmd_chains.back() == cmd_type_index){
 			assert(r.column_num()==0);
 			do_type_index(r);
