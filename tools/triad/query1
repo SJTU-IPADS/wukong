@@ -1,3 +1,18 @@
+
+triangle	
+<ub#GraduateStudent>	out <ub#memberOf>
+<ub#Department>	out	<ub#subOrganizationOf>
+<ub#University>	in	<ub#undergraduateDegreeFrom>
+execute
+
+type_index		<ub#University>
+
+
+triangle	
+<ub#GraduateStudent>	out <ub#undergraduateDegreeFrom>
+<ub#University>	in	<ub#subOrganizationOf>
+<ub#Department>	in	<ub#memberOf>
+
 triangle	
 <ub#Department>	out	<ub#subOrganizationOf>
 <ub#University>	in	<ub#undergraduateDegreeFrom>
@@ -5,10 +20,6 @@ triangle
 execute
 
 
-triangle	
-<ub#University>	in	<ub#subOrganizationOf>
-<ub#Department>	in	<ub#memberOf>
-<ub#GraduateStudent>	out <ub#undergraduateDegreeFrom>
 execute
 
 

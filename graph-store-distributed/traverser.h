@@ -224,15 +224,16 @@ class traverser{
 		int type_id=r.cmd_chains.back();
 		r.cmd_chains.pop_back();
 		if(global_use_index_table){
-			boost::unordered_set<uint64_t>& ids
-							=g.kstore.index_table_lookup(g.kstore.type_index_table, type_id);
+			vector<uint64_t>& ids=g.kstore.get_vector(
+					g.kstore.type_table,type_id);
 			vector<vector<int> >updated_result_table;
 			updated_result_table.resize(1);
-			for(auto id: ids){
-				int tid = cfg->client_num+ingress::hash(id) % cfg->server_num ;
-				if(tid==cfg->t_id){
-					updated_result_table[0].push_back(id);
-				}
+			int start_id=cfg->t_id-cfg->client_num;
+			for(int i=start_id;i<ids.size();i+=cfg->server_num){
+				//int tid = cfg->client_num+ingress::hash(id) % cfg->server_num ;
+				//if(tid==cfg->t_id){
+				updated_result_table[0].push_back(ids[i]);
+				//}
 			}
 			r.result_table.swap(updated_result_table);
 			return ;
@@ -313,22 +314,10 @@ class traverser{
 		uint64_t t1=timer::get_usec();
 
 		//step 1 : find all type_0. type_0 is local
-		{
-			vector<vector<int> >updated_result_table;
-			updated_result_table.resize(1);
-			int edge_num=0;
-			edge_row* edge_ptr;
-			edge_ptr=g.kstore.readGlobal_predict(cfg->t_id,
-					v_type[0],para_in,global_rdftype_id,&edge_num);
-			for(int k=0;k<edge_num;k++){
-				if(global_rdftype_id==edge_ptr[k].predict 
-						&& ingress::vid2mid(edge_ptr[k].vid,cfg->m_num)==cfg->m_id){
-					updated_result_table[0].push_back(edge_ptr[k].vid);
-				}
-			}
-			r.result_table.swap(updated_result_table);
-		}
-
+		r.cmd_chains.push_back(v_type[0]);
+		r.cmd_chains.push_back(cmd_type_index);
+		do_type_index(r);
+		uint64_t t1_5=timer::get_usec();
 		
 		//step 2 : find all type_0,type_1
 		r.cmd_chains.push_back(v_predict[0]);
@@ -337,12 +326,10 @@ class traverser{
 		do_neighbors(r);
 
 		uint64_t t2=timer::get_usec();
-
-		cout<<cfg->m_id <<" [triangle]: find  all 0,1  "<<(t2-t1)/1000.0<<"ms "<<endl;
 		
 		//step 3 : find all type_1,type_2 and create a simple_filter
-		pthread_spinlock_t triangle_lock;
-		pthread_spin_init(&triangle_lock,0);
+		//pthread_spinlock_t triangle_lock;
+		//pthread_spin_init(&triangle_lock,0);
 		vector<boost::unordered_map<uint64_t,bool> > type_filter;
 		type_filter.resize(3);
 		simple_filter edge_filter;
@@ -350,56 +337,56 @@ class traverser{
 		pair_vec.resize(num_parallel_thread);
 		//type_filter[1].reserve(r.row_num());
 		int count_type1=0;
-		#pragma omp parallel for num_threads(num_parallel_thread)
+		//#pragma omp parallel for num_threads(num_parallel_thread)
 		for(uint64_t i=0;i<r.row_num();i++){
 			int working_tid = omp_get_thread_num();
 			
 			int edge_num=0;
 			edge_row* edge_ptr;
-			pthread_spin_lock(&triangle_lock);
+			//pthread_spin_lock(&triangle_lock);
 			if(type_filter[1].find(r.last_column(i))!=type_filter[1].end()){
-				pthread_spin_unlock(&triangle_lock);
+				//	pthread_spin_unlock(&triangle_lock);
 				continue;
 			}
 			count_type1++;
 			type_filter[1][r.last_column(i)]=true;					
-			pthread_spin_unlock(&triangle_lock);
+			//pthread_spin_unlock(&triangle_lock);
 
 			// check whether it's type_1 or not
-			if(num_parallel_thread==1){
+			//if(num_parallel_thread==1){
 				edge_ptr=g.kstore.readGlobal_predict(cfg->t_id,
 										r.last_column(i),para_out,global_rdftype_id,&edge_num);
-			} else {
-				edge_ptr=g.kstore.readGlobal_predict(1+working_tid,
-										r.last_column(i),para_out,global_rdftype_id,&edge_num);
-			}
+			// } else {
+			// 	edge_ptr=g.kstore.readGlobal_predict(1+working_tid,
+			// 							r.last_column(i),para_out,global_rdftype_id,&edge_num);
+			// }
 
 			bool found=false;
 			for(int k=0;k<edge_num;k++){
 				if(global_rdftype_id==edge_ptr[k].predict && 
 						g.ontology_table.is_subtype_of(edge_ptr[k].vid,v_type[1])){
 					found=true;
-					pthread_spin_lock(&triangle_lock);
+					//pthread_spin_lock(&triangle_lock);
 					type_filter[1][r.last_column(i)]=true;
-					pthread_spin_unlock(&triangle_lock);
+					//pthread_spin_unlock(&triangle_lock);
 					break;
 				}
 			}
 			if(!found){
-				pthread_spin_lock(&triangle_lock);
+				//pthread_spin_lock(&triangle_lock);
 				type_filter[1][r.last_column(i)]=false;
-				pthread_spin_unlock(&triangle_lock);
+				//pthread_spin_unlock(&triangle_lock);
 				continue;
 			}
 			// fetch and insert to edge_filter
 			edge_num=0;
-			if(num_parallel_thread==1){
+			//if(num_parallel_thread==1){
 				edge_ptr=g.kstore.readGlobal_predict(cfg->t_id,
 											r.last_column(i),v_dir[1],v_predict[1],&edge_num);
-			} else {
-				edge_ptr=g.kstore.readGlobal_predict(1+working_tid,
-											r.last_column(i),v_dir[1],v_predict[1],&edge_num);
-			}
+			// } else {
+			// 	edge_ptr=g.kstore.readGlobal_predict(1+working_tid,
+			// 								r.last_column(i),v_dir[1],v_predict[1],&edge_num);
+			// }
 			for(int k=0;k<edge_num;k++){
 				if(v_predict[1]==edge_ptr[k].predict ){
 					pair_vec[working_tid].push_back(v_pair(r.last_column(i),edge_ptr[k].vid));
@@ -410,14 +397,12 @@ class traverser{
 
 		uint64_t t3=timer::get_usec();
 
-		cout<<cfg->m_id <<" [triangle]: fetch all 1,2  "<<(t3-t2)/1000.0<<"ms "<<endl;
-		
 		int count=0;
 		for(int j=0;j<pair_vec.size();j++){
 			count+=pair_vec[j].size();
 		}
 		edge_filter.tbb_set.rehash(2*count);
-		#pragma omp parallel for num_threads(num_parallel_thread)
+		//#pragma omp parallel for num_threads(num_parallel_thread)
 		for(uint64_t i=0;i<num_parallel_thread;i++){
 			for(int j=0;j<pair_vec[i].size();j++){
 				tbb_hashtable::accessor a; 
@@ -430,15 +415,14 @@ class traverser{
 		//edge_filter.rehash();
 
 		uint64_t t4=timer::get_usec();
-		cout<<cfg->m_id <<" [triangle]: edge   filter  "<<(t4-t3)/1000.0<<"ms "<<endl;
-
+		
 		//step 5 : append type_2 to existing type_0,type_1 pair
 		{
 			vector<vector<int> >updated_result_table;
 			updated_result_table.resize(r.column_num()+1);
 
 			vector<int>& prev_vec = r.result_table[r.column_num()-2];
-			#pragma omp parallel for num_threads(num_parallel_thread)
+			//#pragma omp parallel for num_threads(num_parallel_thread)
 			for(uint64_t i=0;i<r.row_num();i++){
 				uint64_t prev_id=prev_vec[i];
 				int edge_num=0;
@@ -447,10 +431,10 @@ class traverser{
 				for(int k=0;k<edge_num;k++){
 					if(v_predict[2]==edges[k].predict ){
 						if(edge_filter.contain(r.last_column(i),edges[k].vid)) {
-							pthread_spin_lock(&triangle_lock);
+							//pthread_spin_lock(&triangle_lock);
 							r.append_row_to(updated_result_table,i);
 							updated_result_table[r.column_num()].push_back(edges[k].vid);
-							pthread_spin_unlock(&triangle_lock);
+							//pthread_spin_unlock(&triangle_lock);
 						}
 					}	
 				}
@@ -458,17 +442,15 @@ class traverser{
 			r.result_table.swap(updated_result_table);	
 		}
 		uint64_t t5=timer::get_usec();
-		cout<<cfg->m_id <<" [triangle]: make all 0,1,2 "<<(t5-t4)/1000.0<<"ms "<<endl;
-	
+		
 		//setp 6: do final filter on type_2
 		r.cmd_chains.push_back(v_type[2]);
 		r.cmd_chains.push_back(cmd_subclass_of);
 		do_subclass_of(r);
 
 		uint64_t t6=timer::get_usec();
-		cout<<cfg->m_id <<" [triangle]: final filter   "<<(t6-t5)/1000.0<<"ms "<<endl;
 		
-		if(global_verbose){
+		if(global_verbose && cfg->t_id ==cfg->client_num){
 			cout<<cfg->m_id <<"[triangle]: result size= "<<r.row_num()<<endl;
 			cout<<cfg->m_id <<" [triangle]: find  all 0,1  "<<(t2-t1)/1000.0<<"ms "<<endl;
 			cout<<cfg->m_id <<" [triangle]: fetch all 1,2  "<<(t3-t2)/1000.0<<"ms "<<endl;

@@ -174,7 +174,7 @@ public:
 		req.req_id=-1;
 		req.parent_id=cfg->get_inc_id();
 		command cmd=(command)req.cmd_chains.back();
-		if(cmd == cmd_type_index){
+		if(cmd == cmd_type_index || cmd==cmd_triangle){
 			for(int i=0;i<cfg->m_num;i++){
 				for(int j=0;j<cfg->server_num;j++){
 					SendReq(cfg,i, cfg->client_num+j, req);
@@ -207,7 +207,7 @@ public:
 	}
 	request Recv(){
 		command cmd=(command)req.cmd_chains.back();
-		if(cmd == cmd_type_index){
+		if(cmd == cmd_type_index || cmd==cmd_triangle){
 			req=RecvReq(cfg);
 			for(int i=1;i<cfg->m_num*cfg->server_num;i++){
 				request tmp=RecvReq(cfg);

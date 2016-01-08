@@ -810,20 +810,22 @@ public:
 			}
 		}
 	}
-	typedef tbb::concurrent_hash_map<uint64_t,boost::unordered_set<uint64_t> > tbb_index_table;
-	tbb_index_table type_index_table;
-	void index_table_insert(tbb_index_table& table,uint64_t index_id,uint64_t value_id){
-		tbb_index_table::accessor a; 
-		table.insert(a,index_id); 
-		a->second.insert(value_id);
-	}
-	boost::unordered_set<uint64_t>& index_table_lookup(tbb_index_table& table,uint64_t index_id){
-		tbb_index_table::accessor a; 
+	typedef tbb::concurrent_hash_map<uint64_t,vector<uint64_t> > tbb_vector_table;
+	tbb_vector_table type_table;
+	vector<uint64_t>& get_vector(tbb_vector_table& table,uint64_t index_id){
+		tbb_vector_table::accessor a;
 		if (!table.find(a,index_id)){
 			assert(false);
 		}
 		return a->second;
-	} 
+	}
+	void insert_vector(tbb_vector_table& table,uint64_t index_id,uint64_t value_id){
+		tbb_vector_table::accessor a; 
+		table.insert(a,index_id); 
+		a->second.push_back(value_id);
+	}
+
+
 	void init_index_table(){
 		int count=0;
 		//4-associate, 3 data and 1 next
@@ -845,7 +847,7 @@ public:
 						if(p==-1){
 							continue;
 						} else if(p==global_rdftype_id){
-							index_table_insert(type_index_table,o,s);
+							insert_vector(type_table,o,s);
 						} else {
 							//TODO
 						}

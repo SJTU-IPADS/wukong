@@ -370,33 +370,7 @@ public:
 			triple_spo[t].clear();
 			triple_ops[t].clear();
 		}
-		// 	#pragma omp parallel for num_threads(8)
-		// for(int i=0;i<num_vertex_table;i++){
-		// 	uint64_t pivot_start=timer::get_usec();
-		// 	uint64_t count=0;
-		// 	boost::unordered_map<uint64_t,vertex_row>::iterator iter;
-		// 	for(iter=vertex_table[i].begin();iter!=vertex_table[i].end();iter++){
-		// 		int num_pivot_in = count_pivot(iter->second.in_edges);
-		// 		int num_pivot_out= count_pivot(iter->second.out_edges);
-		// 		count+=iter->second.in_edges.size() + iter->second.out_edges.size() ;
-		// 		count+=num_pivot_in+num_pivot_out;
-		// 	}
-		// 	uint64_t pivot_end=timer::get_usec();
-
-		// 	uint64_t curr_edge_ptr=kstore.atomic_alloc_edges(count);
-		// 	for(iter=vertex_table[i].begin();iter!=vertex_table[i].end();iter++){
-		// 		uint64_t num_total_edge=kstore.insert_at(iter->first,iter->second,curr_edge_ptr);
-		// 		curr_edge_ptr+=num_total_edge;
-		// 	}
-
-		// 	uint64_t insert_end=timer::get_usec();
-		// 	__sync_fetch_and_add( &pivot_time, pivot_end - pivot_start);
-		// 	__sync_fetch_and_add( &insert_time, insert_end - pivot_end);
-		// 	//cout<<"[num_vertex_table] "<<i<<" , count = "<<count<<endl;
-		// 	//vertex_table[i].clear();
-		// }
-		//cout<<"spend "<<pivot_time/1000.0<<" ms for pivot"<<endl;
-		//cout<<"spend "<<insert_time/1000.0<<" ms for insert"<<endl;
+		
 		uint64_t t3=timer::get_usec();
 		cout<<world.rank()<<" loading files in "<<(t2-t1)/1000.0/1000.0<<"s ~~~~~~~~~~~"<<endl;
 	    cout<<world.rank()<<" init rdma store in "<<(t3-t2)/1000.0/1000.0<<"s ~~~~~~~~~~~"<<endl;

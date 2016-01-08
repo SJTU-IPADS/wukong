@@ -1,13 +1,21 @@
 triangle	
+<ub#UndergraduateStudent>	out <ub#undergraduateDegreeFrom>
+<ub#University>	in	<ub#subOrganizationOf>
+<ub#Department>	in	<ub#memberOf>
+execute
+
+triangle	
+<ub#UndergraduateStudent>	out <ub#memberOf>
+<ub#Department>	out	<ub#subOrganizationOf>
+<ub#University>	in	<ub#undergraduateDegreeFrom>
+execute
+
+triangle	
 <ub#Department>	out	<ub#subOrganizationOf>
 <ub#University>	in	<ub#undergraduateDegreeFrom>
 <ub#UndergraduateStudent>	out <ub#memberOf>
 execute
 
-triangle	
-<ub#University>	in	<ub#undergraduateDegreeFrom>
-<ub#UndergraduateStudent>	out <ub#memberOf>
-<ub#Department>	out	<ub#subOrganizationOf>
 execute
 different-order-version
 
