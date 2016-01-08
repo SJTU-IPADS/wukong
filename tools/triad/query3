@@ -1,32 +1,8 @@
-triangle	
-<ub#UndergraduateStudent>	out <ub#undergraduateDegreeFrom>
-<ub#University>	in	<ub#subOrganizationOf>
-<ub#Department>	in	<ub#memberOf>
+type_index		<ub#University>
+neighbors   in 	<ub#undergraduateDegreeFrom>
+subclass_of		<ub#UndergraduateStudent>
+neighbors   out <ub#memberOf>
+filter out 	<ub#subOrganizationOf>	0
+subclass_of		<ub#Department>
 execute
 
-triangle	
-<ub#UndergraduateStudent>	out <ub#memberOf>
-<ub#Department>	out	<ub#subOrganizationOf>
-<ub#University>	in	<ub#undergraduateDegreeFrom>
-execute
-
-triangle	
-<ub#Department>	out	<ub#subOrganizationOf>
-<ub#University>	in	<ub#undergraduateDegreeFrom>
-<ub#UndergraduateStudent>	out <ub#memberOf>
-execute
-
-execute
-different-order-version
-
-
-
-
-Q3: SELECT ?x ?y ?z WHERE { s
-?x rdf:type ub:UndergraduateStudent. 
-?y rdf:type ub:University . 
-?z rdf:type ub:Department . 
-?x ub:memberOf ?z . 
-?z ub:subOrganizationOf ?y . 
-?x ub:undergraduateDegreeFrom ?y . 
-}

@@ -67,9 +67,9 @@ struct klist_key{
 		id-=1;
 	}
 	void print(){
-		cout<<"("<<dir<<","
-				<<predict<<","
-				<<id<<")"<<endl;
+		cout<<"("<<id<<","
+				<<dir<<","
+				<<predict<<")"<<endl;
 	}
 	uint64_t hash(){
 		uint64_t r=0;
@@ -80,7 +80,7 @@ struct klist_key{
 		r+=id;
 		return ingress::hash(r);
 	}
-	klist_key(uint64_t i,uint64_t d,uint64_t p):dir(d),predict(p),id(i){
+	klist_key(uint64_t i,uint64_t d,uint64_t p):id(i),dir(d),predict(p){
 	}
 	bool operator==(const klist_key& another_key){
 		if(dir!=another_key.dir){
@@ -174,6 +174,7 @@ public:
 		new_edge_ptr=0;
 		max_edge_ptr=(rdma->get_memorystore_size()-v_num*sizeof(vertex_v2))/sizeof(edge_v2);
 		
+		#pragma omp parallel for num_threads(20)
 		for(uint64_t i=0;i<v_num;i++){
 			vertex_addr[i].key=klist_key();
 		}
@@ -182,6 +183,13 @@ public:
 			assert(false);
 			//location_cache=new loc_cache(100000,p_num);
 		}
+	}
+	void print_memory_usage(){
+		cout<<"graph-store use "<<used_indirect_num <<" / "
+			<<indirect_num 	<<" indirect_num"<<endl;
+		cout<<"graph-store use "<<v_num*sizeof(vertex_v2) / 1048576<<" MB for vertex data"<<endl;
+		cout<<"graph-store use "<<new_edge_ptr*sizeof(edge_v2)/1048576<<"/"
+								<<max_edge_ptr*sizeof(edge_v2)/1048576<<" MB for edge data"<<endl;
 	}
 	edge_v2* getEdgeArray(uint64_t edgeptr){
 		return &(edge_addr[edgeptr]);
@@ -330,6 +338,8 @@ public:
 					bucket_id=vertex_addr[slot_id].key.id;
 					slot_id=bucket_id*cluster_size+0;
 					vertex_addr[slot_id].key=key;
+					//break the while loop since we successfully insert
+					break;
 				}
 			}
 		}

@@ -174,40 +174,19 @@ public:
 		req.req_id=-1;
 		req.parent_id=cfg->get_inc_id();
 		command cmd=(command)req.cmd_chains.back();
-		if(cmd == cmd_type_index || cmd==cmd_triangle){
+		if(cmd == cmd_type_index || cmd == cmd_predict_index|| cmd==cmd_triangle){
 			for(int i=0;i<cfg->m_num;i++){
 				for(int j=0;j<cfg->server_num;j++){
 					SendReq(cfg,i, cfg->client_num+j, req);
 				}
 			}
-		} else if(cmd==cmd_triangle|| cmd == cmd_predict_index ){
-			for(int i=0;i<cfg->m_num;i++){
-				SendReq(cfg,i, cfg->client_num+rand()%cfg->server_num, req);
-			}
 		} else {
 			SendReq(cfg,first_target, cfg->client_num+rand()%cfg->server_num, req);			
 		}
-		// if(cmd==cmd_triangle|| cmd == cmd_predict_index || cmd == cmd_type_index){
-		// 	for(int i=0;i<cfg->m_num;i++){
-		// 		if(global_interactive ){
-		// 			//only one core working
-		// 			SendReq(cfg,i, cfg->client_num, req);
-		// 		} else {
-		// 			SendReq(cfg,i, cfg->client_num+rand()%cfg->server_num, req);
-		// 		}
-		// 	}
-		// } else {
-		// 	if(global_interactive ){
-		// 		SendReq(cfg,first_target, cfg->client_num, req);
-		// 	} else {
-		// 		SendReq(cfg,first_target, cfg->client_num+rand()%cfg->server_num, req);
-		// 	}
-		// }
-
 	}
 	request Recv(){
 		command cmd=(command)req.cmd_chains.back();
-		if(cmd == cmd_type_index || cmd==cmd_triangle){
+		if(cmd == cmd_type_index || cmd == cmd_predict_index || cmd==cmd_triangle){
 			req=RecvReq(cfg);
 			for(int i=1;i<cfg->m_num*cfg->server_num;i++){
 				request tmp=RecvReq(cfg);
@@ -215,20 +194,8 @@ public:
 					tmp.append_row_to(req.result_table,j);
 				}
 			}
-		} else if(cmd==cmd_triangle|| cmd == cmd_predict_index ){
-			req=RecvReq(cfg);
-			for(int i=1;i<cfg->m_num;i++){
-				request tmp=RecvReq(cfg);
-				for(int j=0;j<tmp.row_num();j++){
-					tmp.append_row_to(req.result_table,j);
-				}
-			}
 		} else {
 			req=RecvReq(cfg);
-		}
-		if(cfg->m_id==0){
-			//latency_profile.record_and_report_latency(timer::get_usec()-req.timestamp);
-			//latency_profile.record_and_report_shape(req);
 		}
 		return req;
 	}

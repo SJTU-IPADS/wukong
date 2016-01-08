@@ -317,8 +317,7 @@ public:
 			}
 	    }
 	    edge_num_per_machine.resize(world.size());
-	    //uint64_t max_v_num=1000000*160;//80;
-	    uint64_t max_v_num=1000000*240*3;//80;
+	    uint64_t max_v_num=1000000*240*4;//80;
 	    
 	    
 	    uint64_t t1=timer::get_usec();
@@ -337,7 +336,7 @@ public:
 			remove_duplicate(triple_spo[t]);
 			remove_duplicate(triple_ops[t]);
 			count+=triple_spo[t].size();
-			count+=triple_ops[t].size();			
+			count+=triple_ops[t].size();	
 			uint64_t curr_edge_ptr=kstore.atomic_alloc_edges(count);
 			kstore.batch_insert(triple_spo[t],triple_ops[t],curr_edge_ptr);
 			triple_spo[t].clear();
@@ -356,12 +355,7 @@ public:
 	    	cout<<world.rank()<<" init index_table in "<<(t4-t3)/1000.0/1000.0<<"s ~~~~~~~~~~~"<<endl;
 		}
 	    cout<<world.rank()<<" finished "<<endl;
-		
-		cout<<"graph-store use "<<kstore.used_indirect_num <<" / "<<(max_v_num/4)/5*1
-								<<" indirect_num"<<endl;
-		cout<<"graph-store use "<<max_v_num*sizeof(vertex_v2) / 1048576<<" MB for vertex data"<<endl;
-		cout<<"graph-store use "<<kstore.new_edge_ptr*sizeof(edge_v2)/1048576<<"/"
-								<<kstore.max_edge_ptr*sizeof(edge_v2)/1048576<<" MB for edge data"<<endl;
+		kstore.print_memory_usage();
 	
 	}
 

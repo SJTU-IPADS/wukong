@@ -1,15 +1,14 @@
+type_index		<ub#FullProfessor>
+neighbors   out 	<ub#teacherOf>
+subclass_of		<ub#Course>
+neighbors   in <ub#takesCourse>
+subclass_of		<ub#UndergraduateStudent>
+filter out 	<ub#advisor>	0
+execute
+
+
 triangle
 <ub#FullProfessor>	out	<ub#teacherOf>
 <ub#Course>	in	<ub#takesCourse>
 <ub#UndergraduateStudent>	out  <ub#advisor>
 execute
-
-
-Q7: SELECT ?x ?y ?z WHERE { 
-?y ub:teacherOf ?z . 
-?y rdf:type ub:FullProfessor . 
-?z rdf:type ub:Course . 
-?x ub:advisor ?y . 
-?x rdf:type ub:UndergraduateStudent . 
-?x ub:takesCourse ?z
-}
