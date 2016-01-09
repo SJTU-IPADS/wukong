@@ -1,5 +1,22 @@
-type_index		<ub#University>
+type_index	8	<ub#UndergraduateStudent>
+neighbors   out <ub#memberOf>
 execute
+
+
+
+
+predict_index	8 	<ub#undergraduateDegreeFrom>	in
+subclass_of		<ub#UndergraduateStudent>
+neighbors   out <ub#memberOf>
+subclass_of		<ub#Department>
+execute
+subclass_of		<ub#UndergraduateStudent>
+
+
+type_index		<ub#Course>	
+execute
+type_index		<ub#GraduateStudent>
+type_index		<ub#Department>
 
 type_index		<ub#GraduateStudent>
 neighbors   out 	<ub#undergraduateDegreeFrom>
@@ -23,3 +40,21 @@ type_index		<ub#GraduateStudent>
 neighbors   out 	<ub#undergraduateDegreeFrom>
 subclass_of		<ub#University>
 execute
+
+
+query1:
+<ub#GraduateStudent>	2500w
+<ub#University>		1w
+<ub#Department>		20w 
+由于数据生成的问题，只有1000个学校可能是其他人的毕业学校。
+
+
+query3:
+<ub#UndergraduateStudent>	8000w
+<ub#University>		1w
+<ub#Department>		20w
+
+query7
+<ub#FullProfessor>	175w
+<ub#Course>		1100w
+<ub#UndergraduateStudent>	8000w

@@ -228,6 +228,8 @@ class traverser{
 	}
 	void do_type_index(request& r){
 		r.cmd_chains.pop_back();
+		int parallel_factor=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
 		int type_id=r.cmd_chains.back();
 		r.cmd_chains.pop_back();
 		if(global_use_index_table){
@@ -236,13 +238,12 @@ class traverser{
 			vector<vector<int> >updated_result_table;
 			updated_result_table.resize(1);
 			int start_id=cfg->t_id-cfg->client_num;
-			for(int i=start_id;i<ids.size();i+=cfg->server_num){
+			for(int i=start_id;i<ids.size();i+=parallel_factor){
 				updated_result_table[0].push_back(ids[i]);
 			}
 			r.result_table.swap(updated_result_table);
 			return ;
-		}
-		{//use rdma to read data
+		} else {//use rdma to read data
 			vector<vector<int> >updated_result_table;
 			updated_result_table.resize(1);
 			int edge_num=0;
@@ -251,7 +252,7 @@ class traverser{
 					type_id,para_in,global_rdftype_id,&edge_num);
 			for(int k=0;k<edge_num;k++){
 				int mid = ingress::vid2mid(edge_ptr[k].val, cfg->m_num);
-				int tid = cfg->client_num+ingress::hash(edge_ptr[k].val) % cfg->server_num ;
+				int tid = cfg->client_num+k % parallel_factor ;
 				if(mid==cfg->m_id && tid==cfg->t_id){
 					updated_result_table[0].push_back(edge_ptr[k].val);
 				}
@@ -295,6 +296,9 @@ class traverser{
 	}
 	void do_triangle(request& r){
 		r.cmd_chains.pop_back();
+		int parallel_factor=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
+		
 		//find all matching 
 		//type_0 d0 p0
 		//type_1 d1 p1
@@ -317,6 +321,7 @@ class traverser{
 
 		//step 1 : find all type_0. type_0 is local
 		r.cmd_chains.push_back(v_type[0]);
+		r.cmd_chains.push_back(parallel_factor);
 		r.cmd_chains.push_back(cmd_type_index);
 		do_type_index(r);
 		uint64_t t1_5=timer::get_usec();

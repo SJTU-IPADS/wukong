@@ -106,24 +106,5 @@ public:
 				split_req=0;
 				non_split_req=0;
 		}
-		// if(current_req==interval){
-			
-		// 	current_req=0;
-		// 	timer t2;
-		// 	throughput_count++;
-		// 	if(throughput_count>0){
-		// 		throughput+=interval*1.0/t2.diff(t);
-		// 		//cout<<"avg throughput:"<<throughput/throughput_count<<" K ops"<<endl;
-			
-		// 	cout<<"avg neighbor:"<<neighbor_num*1.0/(split_req+non_split_req)
-		// 		<<"\t"<<"split:"<<split_req*1.0/(split_req+non_split_req)
-		// 		<<"\t"<<"msgsize=["<<min_msg<<","<<max_msg<<"]("<<sum_msg*1.0/count_msg<<")"
-		// 		//<<"\t"<<"total_msg="<<sum_msg/(1024*1024)<<" MB"
-		// 		//<<"\t"<<interval*1.0/t2.diff(t)<<" K ops"<<endl;
-		// 		<<"\t"<<"avg throughput:"<<throughput/throughput_count<<" K ops"<<endl;
-		// 	}	
-
-		// 	t.reset();
-		// }
 	}
 };

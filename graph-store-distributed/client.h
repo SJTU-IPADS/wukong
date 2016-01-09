@@ -33,27 +33,55 @@ public:
 	client(index_server* _is,thread_cfg* _cfg):is(_is),cfg(_cfg){
 		first_target=0;
 	}
-
-/*
-	client& lookup(string subject){
-		first_target=ingress::vid2mid(is->subject_to_id[subject] , (cfg->m_num));
-		req.clear();
-		path_node node(is->subject_to_id[subject],-1);
-		vector<path_node> vec;
-		vec.push_back(node);
-		req.result_paths.push_back(vec);
-		return *this;
+	bool parse_cmd_vector(vector<string>& str_vec){
+		int i=0;
+		while(i<str_vec.size()){
+			if(str_vec[i]=="lookup"){
+				lookup(str_vec[i+1]);
+				i+=2;
+			} else if(str_vec[i]=="neighbors"){
+				neighbors(str_vec[i+1],str_vec[i+2]);
+				i+=3;
+			} else if(str_vec[i]=="get_attr"){
+				get_attr(str_vec[i+1]);
+				i+=2;
+			} else if(str_vec[i]=="subclass_of"){
+				subclass_of(str_vec[i+1]);
+				i+=2;
+			} else if(str_vec[i]=="filter"){
+				filter(str_vec[i+1],str_vec[i+2],str_vec[i+3]);
+				i+=4;
+			} else if(str_vec[i]=="type_index"){
+				type_index(str_vec[i+1],str_vec[i+2]);
+				i+=3;
+			} else if(str_vec[i]=="predict_index"){
+				predict_index(str_vec[i+1],str_vec[i+2],str_vec[i+3]);
+				i+=4;
+			} else if(str_vec[i]=="triangle"){
+				vector<string> type_vec;
+				vector<string> dir_vec;
+				vector<string> predict_vec;
+				type_vec.resize(3);
+				dir_vec.resize(3);
+				predict_vec.resize(3);
+				i++;
+				string parallel_count=str_vec[i];
+				i++;
+				for(int k=0;k<3;k++){
+					type_vec[k]=str_vec[i];
+					dir_vec[k]=str_vec[i+1];
+					predict_vec[k]=str_vec[i+2];
+					i+=3;
+				}
+				triangle(parallel_count,type_vec,dir_vec,predict_vec);
+			} else if(str_vec[i]=="execute"){
+				return true;
+			} else {
+				return false;
+			}
+		}
+		return false;
 	}
-	client& lookup_id(int id){
-		first_target=ingress::vid2mid(id,cfg->m_num);
-		req.clear();
-		path_node node(id,-1);
-		vector<path_node> vec;
-		vec.push_back(node);
-		req.result_paths.push_back(vec);
-		return *this;
-	}
-*/
 	client& lookup(string subject){
 		assert(is->subject_to_id.find(subject)!=is->subject_to_id.end());
 		first_target=ingress::vid2mid(is->subject_to_id[subject] , (cfg->m_num));
@@ -72,11 +100,12 @@ public:
 		return *this;
 	}
 
-	client& predict_index(string predict,string dir){
+	client& predict_index(string parallel_count,string predict,string dir){
 		if(!global_use_index_table)
 			assert(false);
 		req.clear();
 		req.cmd_chains.push_back(cmd_predict_index);
+		req.cmd_chains.push_back(atoi(parallel_count.c_str()));
 		req.cmd_chains.push_back(is->predict_to_id[predict]);
 		if(dir =="in" ){
 			req.cmd_chains.push_back(para_in);
@@ -87,19 +116,11 @@ public:
 		}
 		return *this;
 	}
-	client& type_index(string type){
+	client& type_index(string parallel_count,string type){
 		req.clear();
 		req.cmd_chains.push_back(cmd_type_index);
+		req.cmd_chains.push_back(atoi(parallel_count.c_str()));
 		req.cmd_chains.push_back(is->subject_to_id[type]);
-		return *this;
-	}
-	client& get_subtype(string target){
-		//not supported anymore
-		assert(false);
-		req.clear();
-		int target_id=is->subject_to_id[target];
-		req.cmd_chains.push_back(cmd_get_subtype);
-		req.cmd_chains.push_back(target_id);
 		return *this;
 	}
 	client& neighbors(string dir,string predict){
@@ -128,9 +149,11 @@ public:
 		return *this;
 	}
 	//This interface should be refined! 
-	client& triangle(vector<string> type_vec,vector<string> dir_vec,vector<string> predict_vec){
+	client& triangle(string parallel_count,vector<string> type_vec,
+						vector<string> dir_vec,vector<string> predict_vec){
 		req.clear();
 		req.cmd_chains.push_back(cmd_triangle);
+		req.cmd_chains.push_back(atoi(parallel_count.c_str()));
 		for(int i=0;i<3;i++){
 			req.cmd_chains.push_back(is->subject_to_id[type_vec[i]]);
 			if(dir_vec[i] =="in" ){
@@ -174,7 +197,16 @@ public:
 		req.req_id=-1;
 		req.parent_id=cfg->get_inc_id();
 		command cmd=(command)req.cmd_chains.back();
-		if(cmd == cmd_type_index || cmd == cmd_predict_index|| cmd==cmd_triangle){
+		if(cmd == cmd_type_index|| cmd == cmd_predict_index || cmd==cmd_triangle){
+			int chain_sz=req.cmd_chains.size();
+			int parallel_count=req.cmd_chains[chain_sz-2];
+			for(int i=0;i<cfg->m_num;i++){
+				for(int j=0;j<parallel_count;j++){
+					SendReq(cfg,i, cfg->client_num+j, req);
+				}
+			}
+		}
+		else if(cmd == cmd_type_index || cmd == cmd_predict_index|| cmd==cmd_triangle){
 			for(int i=0;i<cfg->m_num;i++){
 				for(int j=0;j<cfg->server_num;j++){
 					SendReq(cfg,i, cfg->client_num+j, req);
@@ -185,18 +217,30 @@ public:
 		}
 	}
 	request Recv(){
+		request reply;
 		command cmd=(command)req.cmd_chains.back();
-		if(cmd == cmd_type_index || cmd == cmd_predict_index || cmd==cmd_triangle){
-			req=RecvReq(cfg);
+		if(cmd == cmd_type_index|| cmd == cmd_predict_index || cmd==cmd_triangle){
+			int chain_sz=req.cmd_chains.size();
+			int parallel_count=req.cmd_chains[chain_sz-2];
+			reply=RecvReq(cfg);
+			for(int i=1;i<cfg->m_num* parallel_count;i++){
+				request tmp=RecvReq(cfg);
+				for(int j=0;j<tmp.row_num();j++){
+					tmp.append_row_to(reply.result_table,j);
+				}
+			}
+		}
+		else if(cmd == cmd_type_index || cmd == cmd_predict_index || cmd==cmd_triangle){
+			reply=RecvReq(cfg);
 			for(int i=1;i<cfg->m_num*cfg->server_num;i++){
 				request tmp=RecvReq(cfg);
 				for(int j=0;j<tmp.row_num();j++){
-					tmp.append_row_to(req.result_table,j);
+					tmp.append_row_to(reply.result_table,j);
 				}
 			}
 		} else {
-			req=RecvReq(cfg);
+			reply=RecvReq(cfg);
 		}
-		return req;
+		return reply;
 	}
 };

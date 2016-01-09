@@ -393,11 +393,13 @@ public:
 	tbb_vector_table type_table;
 	tbb_vector_table src_predict_table;
 	tbb_vector_table dst_predict_table;
+	vector<uint64_t> empty;
 
 	vector<uint64_t>& get_vector(tbb_vector_table& table,uint64_t index_id){
 		tbb_vector_table::accessor a;
 		if (!table.find(a,index_id)){
-			assert(false);
+			cout<<"[warning] index_table not found"<<endl; 
+			return empty;
 		}
 		return a->second;
 	}
@@ -408,7 +410,6 @@ public:
 	}
 
 	void init_index_table(){
-		int count=0;
 		#pragma omp parallel for num_threads(20)
 		for(int x=0;x<header_num+indirect_num;x++){
 			for(int y=0;y<cluster_size-1;y++){

@@ -13,6 +13,7 @@
 #include "global_cfg.h"
 #include <pthread.h>
 #include <sstream>
+#include "latency_logger.h"
 #include "batch_lubm.h"
 
 int socket_0[] = {
@@ -33,166 +34,19 @@ int client_num;
 int thread_num;
 int batch_factor;
 
-void interactive_mode(client* is){
-	while(true){
-		cout<<"interactive mode:"<<endl;
-		// string filename;
-		// cin>>filename;
-		string input_str;
-		std::getline(std::cin,input_str);
-		istringstream iss(input_str);
-		string filename;
-		iss>>filename;
-		int execute_count=1;
-		iss>>execute_count;
-		if(execute_count<1){
-			execute_count=1;
-		}
-		int sum=0;
-		for(int i=0;i<execute_count;i++){
-			ifstream file(filename);
-			if(!file){
-				cout<<"File "<<filename<<" not exist"<<endl;
-				break;
-			}
-			string cmd;
-			while(file>>cmd){
-				if(cmd=="lookup"){
-					string object;
-					file>>object;
-					is->lookup(object);
-				} else if(cmd=="predict_index"){
-					string predict,dir;
-					file>>predict>>dir;
-					is->predict_index(predict,dir);
-				} else if(cmd=="type_index"){
-					string type;
-					file>>type;
-					is->type_index(type);
-				} else if(cmd=="neighbors"){
-					string dir,predict;
-					file>>dir>>predict;
-					is->neighbors(dir,predict);
-				} else if(cmd=="triangle"){
-					vector<string> type_vec;
-					vector<string> dir_vec;
-					vector<string> predict_vec;
-					type_vec.resize(3);
-					dir_vec.resize(3);
-					predict_vec.resize(3);
-					for(int i=0;i<3;i++){
-						file>>type_vec[i]>>dir_vec[i]>>predict_vec[i];
-					}
-					is->triangle(type_vec,dir_vec,predict_vec);
-				} else if(cmd=="subclass_of"){
-					string object;
-					file>>object;
-					is->subclass_of(object);
-				} else if(cmd=="get_attr"){
-					string object;
-					file>>object;
-					is->get_attr(object);
-				} else if(cmd=="filter"){
-					string dir,predict,target;
-					file>>dir>>predict>>target;
-					is->filter(dir,predict,target);
-				} else if(cmd=="execute"){
-					uint64_t t1=timer::get_usec();
-					is->Send();
-					is->Recv();
-					uint64_t t2=timer::get_usec();
-					sum+=t2-t1;
-					break;
-				} else {
-					cout<<"error cmd"<<endl;
-					break;
-				}
-			}
-		}
-		cout<<"result size:"<<is->req.row_num()<<endl;
-		cout<<"average latency "<<sum/execute_count<<" us"<<endl;
-	}
-}
-
-void batch_mode(client* is,struct thread_cfg *cfg){
-	get_ids(is,"get_university_id");
-	get_ids(is,"get_department_id");
-	get_ids(is,"get_AssistantProfessor_id");
-	get_ids(is,"get_AssociateProfessor_id");
-	get_ids(is,"get_GraduateCourse_id");
-	while(true){
-		MPI_Barrier(MPI_COMM_WORLD);
-		string filename;
-		if(cfg->m_id==0 && cfg->t_id==0){
-			cout<<"batch mode:"<<endl;
-			cin>>filename;
-			for(int i=1;i<cfg->m_num;i++){
-				cfg->node->Send(i,0,filename);
-			}
-  		} else {
-  			filename=cfg->node->Recv();
-  		}
-  		MPI_Barrier(MPI_COMM_WORLD);
-		uint64_t t1=timer::get_usec();
-		//only support one client now
-		ifstream file(filename);
-		if(!file){
-			cout<<"File "<<filename<<" not exist"<<endl;
-			continue;
-		}
-		string cmd;
-		file>>cmd;
-		vector<uint64_t> ids=get_ids(is,cmd);
-		vector<string> cmd_chain;
-		int total_request=0;
-		while(file>>cmd){
-			cmd_chain.push_back(cmd);
-			if(cmd=="execute"){
-				file>>cmd;
-				total_request = atoi(cmd.c_str());
-				total_request*=global_num_server;
-				break;
-			}
-		}
-		if(ids.size()==0){
-			cout<<"id set is empty..."<<endl;
-			exit(0);
-		}
-		uint64_t t2=timer::get_usec();	    
-		cout<<"start executing in "<<(t2-t1)/1000.0<<" ms ..."<<endl;
-		//if(cfg->m_id<1){
-		batch_execute(is,cfg,total_request,ids,cmd_chain);
-		//}
-		///// batch request has two part
-		
-	}
-}
-
-void tuning_mode(client* is,struct thread_cfg *cfg){
-	get_ids(is,"get_university_id");
-	get_ids(is,"get_department_id");
-	get_ids(is,"get_AssistantProfessor_id");
-	get_ids(is,"get_AssociateProfessor_id");
-	get_ids(is,"get_GraduateCourse_id");
-	MPI_Barrier(MPI_COMM_WORLD);
-	string filename;
-	if(cfg->m_id==0 && cfg->t_id==0){
-		cout<<"tuning mode:"<<endl;
-		cin>>filename;
-		for(int i=1;i<cfg->m_num;i++){
-			cfg->node->Send(i,0,filename);
-		}
-	} else {
-		filename=cfg->node->Recv();
-	}
+void batch_execute(client* is,struct thread_cfg *cfg,string filename){
 	ifstream file(filename);
 	if(!file){
 		cout<<"File "<<filename<<" not exist"<<endl;
-		//continue;
+		return ;
 	}
 	string cmd;
 	file>>cmd;
 	vector<uint64_t> ids=get_ids(is,cmd);
+	if(ids.size()==0){
+		cout<<"id set is empty..."<<endl;
+		exit(0);
+	}
 	vector<string> cmd_chain;
 	int total_request=0;
 	while(file>>cmd){
@@ -204,69 +58,169 @@ void tuning_mode(client* is,struct thread_cfg *cfg){
 			break;
 		}
 	}
-	if(ids.size()==0){
-		cout<<"id set is empty..."<<endl;
-		exit(0);
+	////start to send message
+	latency_logger logger;
+	request reply;
+	for(int i=0;i<global_batch_factor;i++){
+		is->lookup_id(ids[0]);
+		if(!(is->parse_cmd_vector(cmd_chain))){
+			cout<<"error cmd"<<endl;
+			return ;
+		}
+		is->req.timestamp=timer::get_usec();
+		is->Send();
 	}
-	int count=0;
-	while(true){		
-		//if(cfg->m_id<1){
-		if(global_tuning_threshold>5000){
-			global_tuning_threshold-=500;
-		} else if(global_tuning_threshold>1000){
-			global_tuning_threshold-=100;
-		} else if(global_tuning_threshold>500){
-			global_tuning_threshold-=50;
-		} else if(global_tuning_threshold>20){
-			global_tuning_threshold-=10;
+	unsigned int seed=cfg->m_id*cfg->t_num+cfg->t_id;
+	uint64_t total_latency=0;
+	uint64_t t1;
+	uint64_t t2;
+	for(int times=0;times<total_request;times++){
+		reply=is->Recv();
+		if(times==total_request/4){
+			logger.start();
 		}
-		if(global_tuning_threshold==20){
-			count++;
-			if(count==5)
-				exit(0);
+		if(times==total_request/4 *3){
+			logger.stop();
 		}
+		if(times>=total_request/4 && times<total_request/4*3){
+			logger.record(reply.timestamp,timer::get_usec());
+		}
+		int i=rand_r(&seed) % ids.size();
+		is->lookup_id(ids[i]);
+		if(!(is->parse_cmd_vector(cmd_chain))){
+			cout<<"error cmd"<<endl;
+			return ;
+		}
+		is->req.timestamp=timer::get_usec();
+		is->Send();
+	}
+	for(int i=0;i<global_batch_factor;i++){
+		reply=is->Recv();
+	}
+	logger.print();
+}
+void interactive_execute(client* is,string filename,int execute_count){
+	int sum=0;
+	request reply;
+	for(int i=0;i<execute_count;i++){
+		ifstream file(filename);
+		if(!file){
+			cout<<"File "<<filename<<" not exist"<<endl;
+			break;
+		}
+		string cmd;
+		vector<string> cmd_vec;
+		while(file>>cmd){
+			cmd_vec.push_back(cmd);
+		}
+		if(is->parse_cmd_vector(cmd_vec)){
+			uint64_t t1=timer::get_usec();
+			is->Send();
+			reply=is->Recv();
+			uint64_t t2=timer::get_usec();
+			sum+=t2-t1;
+		} else {
+			cout<<"error cmd"<<endl;
+		}
+	}
+	cout<<"result size:"<<reply.row_num()<<endl;
+	cout<<"average latency "<<sum/execute_count<<" us"<<endl;
+}
+void interactive_mode(client* is,struct thread_cfg *cfg){
+	if(cfg->m_id!=0 || cfg->t_id!=0){
+		return ;
+	}
+	while(true){
+		cout<<"interactive mode:"<<endl;
+		string input_str;
+		std::getline(std::cin,input_str);
+		istringstream iss(input_str);
+		string filename;
+		iss>>filename;
+		int execute_count=1;
+		iss>>execute_count;
+		if(execute_count<1){
+			execute_count=1;
+		}
+		interactive_execute(is,filename,execute_count);
+	}
+}
+void batch_mode(client* is,struct thread_cfg *cfg){
+	get_ids(is,"get_university_id");
+	get_ids(is,"get_department_id");
+	get_ids(is,"get_AssistantProfessor_id");
+	get_ids(is,"get_AssociateProfessor_id");
+	get_ids(is,"get_GraduateCourse_id");
+	while(true){
+		//// Wait for user input
 		MPI_Barrier(MPI_COMM_WORLD);
-		if(cfg->m_id==0){
-			//cout<<global_tuning_threshold<<"  == global_tuning_threshold "<<endl;
-		}
-		batch_execute(is,cfg,total_request,ids,cmd_chain);
-		//}
-		///// batch request has two part
-		
-	}
+		string filename;
+		if(cfg->m_id==0 && cfg->t_id==0){
+			cout<<"batch mode:"<<endl;
+			cin>>filename;
+			for(int i=1;i<cfg->m_num;i++){
+				cfg->node->Send(i,0,filename);
+			}
+  		} else {
+  			filename=cfg->node->Recv();
+  		}
+  		////prepare for all used ids
+  		MPI_Barrier(MPI_COMM_WORLD);
+  		batch_execute(is,cfg,filename);
+	}//while loop, never end
+}
+void mixmode(client* is,struct thread_cfg *cfg){
+	get_ids(is,"get_university_id");
+	get_ids(is,"get_department_id");
+	get_ids(is,"get_AssistantProfessor_id");
+	get_ids(is,"get_AssociateProfessor_id");
+	get_ids(is,"get_GraduateCourse_id");
+	while(true){
+		//// Wait for user input
+		MPI_Barrier(MPI_COMM_WORLD);
+		string batch_filename;
+		string iterative_filename;
+		int iterative_count=1;
+		if(cfg->m_id==0 && cfg->t_id==0){
+			cout<<"mix mode (batch file + iterative file):"<<endl;
+			std::getline(std::cin,batch_filename);
+			for(int i=1;i<cfg->m_num;i++){
+				cfg->node->Send(i,0,batch_filename);
+			}
+			string input_str;
+			std::getline(std::cin,input_str);
+			istringstream iss(input_str);
+			iss>>iterative_filename;
+			iss>>iterative_count;
+			if(iterative_count<1){
+				iterative_count=1;
+			}
+  		} else {
+  			batch_filename=cfg->node->Recv();
+  		}
+  		////prepare for all used ids
+  		//MPI_Barrier(MPI_COMM_WORLD);
+  		if(cfg->m_id==0){
+  			interactive_execute(is,iterative_filename,iterative_count);
+  		} else {
+  			batch_execute(is,cfg,batch_filename);
+  		}
+	}//while loop, never end
 }
 void* Run(void *ptr) {
   struct thread_cfg *cfg = (struct thread_cfg*) ptr;
   pin_to_core(socket_1[cfg->t_id]);
   if(cfg->t_id >= cfg->client_num){
-  	if(global_interactive && cfg->t_id != cfg->client_num){
-  		//global_interactive mode
-  		//only one core working
-  		//return NULL;
-  	}
   	cout<<"("<<cfg->m_id<<","<<cfg->t_id<<")"<<endl;
   	((traverser*)(cfg->ptr))->run();
   }else {
+  	cout<<"("<<cfg->m_id<<","<<cfg->t_id<<")"<<endl;
   	if(global_interactive){
-  		cout<<"("<<cfg->m_id<<","<<cfg->t_id<<")"<<endl;
-  		if(cfg->t_id==0){
-  			MPI_Barrier(MPI_COMM_WORLD);
-  		}
-  		while(true){
-			if(cfg->m_id!=0 || cfg->t_id!=0){
-				// sleep forever
-				//sleep(1);
-				return NULL;
-			}
-			else{
-				interactive_mode((client*)(cfg->ptr));
-			}
-		}
+  		interactive_mode((client*)(cfg->ptr),cfg);
+  	} else {
+  		//batch_mode((client*)(cfg->ptr),cfg);
+  		mixmode((client*)(cfg->ptr),cfg);
   	}
-  	batch_mode((client*)(cfg->ptr),cfg);
-	//tuning_mode((client*)(cfg->ptr),cfg);
-
-  	cout<<"Finish all requests"<<endl;
   }
 }
 

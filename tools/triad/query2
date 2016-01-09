@@ -1,4 +1,4 @@
-type_index		<ub#Course>
+type_index	8		<ub#Course>
 get_attr		<ub#name>
 execute
 get_attr		<ub#name>
