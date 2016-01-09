@@ -1,4 +1,4 @@
-type_index	8		<ub#University>
+type_index	2		<ub#University>
 neighbors   in 	<ub#undergraduateDegreeFrom>
 subclass_of		<ub#UndergraduateStudent>
 neighbors   out <ub#memberOf>

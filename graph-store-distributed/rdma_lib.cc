@@ -588,9 +588,11 @@ poll_completion (struct QP *res) {
         assert(false);
       }
     }
-    for(int i=0;i<32;i++){
-      prev_recvid[i][0]=_total_partition-1;
-      prev_recvid[i][1]=_total_threads-1;
+    for(int i=0;i<40;i++){
+      local_meta[i].prev_recv_tid=_total_threads-1;
+      local_meta[i].prev_recv_mid=_total_partition-1;
+      local_meta[i].need_help=false;
+      pthread_spin_init(&local_meta[i].recv_lock,0);
     }
   }
 

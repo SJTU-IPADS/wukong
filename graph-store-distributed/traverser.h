@@ -40,7 +40,6 @@ class traverser{
 			int prev_id=r.last_column(i);
 			int edge_num=0;
 			edge_v2* edge_ptr;
-			//edge_ptr=g.kstore.readLocal_predict(cfg->t_id, prev_id,dir,predict_id,&edge_num); 
 			edge_ptr=g.kstore.readGlobal_predict(cfg->t_id, prev_id,dir,predict_id,&edge_num); 
 			for(int k=0;k<edge_num;k++){
 				r.append_row_to(updated_result_table,i);
@@ -209,17 +208,17 @@ class traverser{
 		r.cmd_chains.pop_back();
 		vector<vector<int> >updated_result_table;
 		updated_result_table.resize(1);
-		int start_id=cfg->t_id-cfg->client_num;
+		int start_id=r.parallel_id;
 		if(dir==para_in){
 			vector<uint64_t>& ids=g.kstore.get_vector(
 					g.kstore.src_predict_table,predict_id);
-			for(int i=start_id;i<ids.size();i+=cfg->server_num){
+			for(int i=start_id;i<ids.size();i+=r.parallel_total){
 				updated_result_table[0].push_back(ids[i]);
 			}
 		} else {
 			vector<uint64_t>& ids=g.kstore.get_vector(
 					g.kstore.dst_predict_table,predict_id);
-			for(int i=start_id;i<ids.size();i+=cfg->server_num){
+			for(int i=start_id;i<ids.size();i+=r.parallel_total){
 				updated_result_table[0].push_back(ids[i]);
 			}
 		}
@@ -227,8 +226,7 @@ class traverser{
 		return ;
 	}
 	void do_type_index(request& r){
-		r.cmd_chains.pop_back();
-		int parallel_factor=r.cmd_chains.back();
+		cfg->rdma->set_need_help(cfg->t_id,true);
 		r.cmd_chains.pop_back();
 		int type_id=r.cmd_chains.back();
 		r.cmd_chains.pop_back();
@@ -237,8 +235,8 @@ class traverser{
 					g.kstore.type_table,type_id);
 			vector<vector<int> >updated_result_table;
 			updated_result_table.resize(1);
-			int start_id=cfg->t_id-cfg->client_num;
-			for(int i=start_id;i<ids.size();i+=parallel_factor){
+			int start_id=r.parallel_id;
+			for(int i=start_id;i<ids.size();i+=r.parallel_total){
 				updated_result_table[0].push_back(ids[i]);
 			}
 			r.result_table.swap(updated_result_table);
@@ -252,8 +250,7 @@ class traverser{
 					type_id,para_in,global_rdftype_id,&edge_num);
 			for(int k=0;k<edge_num;k++){
 				int mid = ingress::vid2mid(edge_ptr[k].val, cfg->m_num);
-				int tid = cfg->client_num+k % parallel_factor ;
-				if(mid==cfg->m_id && tid==cfg->t_id){
+				if(mid==cfg->m_id && r.parallel_id ==  k % r.parallel_total){
 					updated_result_table[0].push_back(edge_ptr[k].val);
 				}
 			}
@@ -278,27 +275,28 @@ class traverser{
 		return sub_reqs;
 	}
 	vector<request> split_request_mt(request& r){
+		// (m0,t0),(m1,t0),(m2,t0)...
 		vector<request> sub_reqs;
-		int num_sub_request=cfg->m_num * cfg->server_num ;
+		int threads_per_machine=min(cfg->server_num,r.parallel_total);
+		int num_sub_request=cfg->m_num * threads_per_machine ;
 		sub_reqs.resize(num_sub_request);
 		for(int i=0;i<sub_reqs.size();i++){
+			sub_reqs[i].parallel_total=r.parallel_total;
 			sub_reqs[i].parent_id=r.req_id;
 			sub_reqs[i].cmd_chains=r.cmd_chains;
 			sub_reqs[i].result_table.resize(r.column_num());
 		}
 		for(int i=0;i<r.row_num();i++){
 			int machine = ingress::vid2mid(r.last_column(i), cfg->m_num);
-			int tid = ingress::hash(r.last_column(i)) % cfg->server_num ;
-			r.append_row_to(sub_reqs[machine*cfg->server_num+tid].result_table,i);
+			int tid = ingress::hash(r.last_column(i)) % threads_per_machine ;
+			r.append_row_to(sub_reqs[tid*cfg->m_num+machine].result_table,i);
+			//r.append_row_to(sub_reqs[machine*cfg->server_num+tid].result_table,i);
 		}
 		r.result_table.clear();
 		return sub_reqs;
 	}
 	void do_triangle(request& r){
 		r.cmd_chains.pop_back();
-		int parallel_factor=r.cmd_chains.back();
-		r.cmd_chains.pop_back();
-		
 		//find all matching 
 		//type_0 d0 p0
 		//type_1 d1 p1
@@ -321,7 +319,6 @@ class traverser{
 
 		//step 1 : find all type_0. type_0 is local
 		r.cmd_chains.push_back(v_type[0]);
-		r.cmd_chains.push_back(parallel_factor);
 		r.cmd_chains.push_back(cmd_type_index);
 		do_type_index(r);
 		uint64_t t1_5=timer::get_usec();
@@ -557,9 +554,9 @@ public:
 				vector<request> sub_reqs=split_request_mt(r);
 				req_queue.put_req(r,sub_reqs.size());
 				for(int i=0;i<sub_reqs.size();i++){
-					//i=machine*cfg->server_num+tid
-					int m_id= i / cfg->server_num;
-					int traverser_id= cfg->client_num + i % cfg->server_num;
+					//i=tid*cfg->m_num+machine
+					int m_id= i % cfg->m_num;
+					int traverser_id= cfg->client_num + i / cfg->m_num;
 					if(m_id == cfg->m_id && traverser_id==cfg->t_id){
 						msg_fast_path.push_back(sub_reqs[i]);
 					} else {
@@ -592,7 +589,6 @@ public:
 				r=RecvReq(cfg);
 			}
 			if(r.req_id==-1){ //it means r is a request and shoule be executed
-				uint64_t t1=timer::get_usec();
 				r.req_id=cfg->get_inc_id();
 				handle_request(r);
 				if(!r.blocking){
@@ -600,8 +596,7 @@ public:
 						if(global_clear_final_result){
 							r.result_table.clear();
 						}
-						uint64_t t2=timer::get_usec();
-						//cout<<"request finished in "<<(t2-t1)<<" us"<<endl;
+						cfg->rdma->set_need_help(cfg->t_id,false);
 					}
 					if(cfg->mid_of(r.parent_id)== cfg->m_id && cfg->tid_of(r.parent_id)==cfg->t_id){
 						msg_fast_path.push_back(r);
@@ -615,6 +610,7 @@ public:
 						if(global_clear_final_result){
 							r.result_table.clear();
 						}
+						cfg->rdma->set_need_help(cfg->t_id,false);
 					}
 					if(cfg->mid_of(r.parent_id)== cfg->m_id && cfg->tid_of(r.parent_id)==cfg->t_id){
 						msg_fast_path.push_back(r);

@@ -23,6 +23,7 @@
 #include "timer.h"
 
 #include <vector>
+#include <pthread.h>
 struct config_t
 {
   const char *dev_name;         /* IB device name */
@@ -83,7 +84,20 @@ struct normal_op_req
   
 };
 
-  
+  struct per_thread_metadata{
+    int prev_recv_tid;
+    int prev_recv_mid;
+    pthread_spinlock_t recv_lock;
+    char padding1[64];
+    bool need_help;
+    char padding2[64];
+    void lock(){
+      pthread_spin_lock(&recv_lock);
+    }
+    void unlock(){
+      pthread_spin_unlock(&recv_lock);
+    }
+  };
   class RdmaResource {
 
     //site configuration settings
@@ -91,7 +105,7 @@ struct normal_op_req
     int _total_threads = -1;
     int _current_partition = -1;
   
-    int prev_recvid[32][32];
+    per_thread_metadata local_meta[40];
     struct dev_resource *dev0;//for remote usage
     struct dev_resource *dev1;//for local usage
     
@@ -210,15 +224,61 @@ struct normal_op_req
           meta->remote_tail =meta->remote_tail+total_write_size;
       }
     }
-    
+
+    bool check_rbf_msg(int local_tid,int mid,int tid){
+      char * rbf_ptr=buffer+rbfOffset(_current_partition,local_tid,mid,tid);
+      char * rbf_data_ptr=rbf_ptr+ sizeof(rbfMeta);
+      uint64_t rbf_datasize=rbf_size-sizeof(rbfMeta);
+      struct rbfMeta* meta=(rbfMeta*) rbf_ptr;
+      uint64_t msg_size=*(volatile uint64_t*)(rbf_data_ptr+meta->local_tail%rbf_datasize );
+      if(msg_size==0){
+        return false;
+      }
+      return true;
+    }
+    std::string fetch_rbf_msg(int local_tid,int mid,int tid){
+      char * rbf_ptr=buffer+rbfOffset(_current_partition,local_tid,mid,tid);
+      char * rbf_data_ptr=rbf_ptr+ sizeof(rbfMeta);
+      uint64_t rbf_datasize=rbf_size-sizeof(rbfMeta);
+      struct rbfMeta* meta=(rbfMeta*) rbf_ptr;
+      uint64_t msg_size=*(volatile uint64_t*)(rbf_data_ptr+meta->local_tail%rbf_datasize );
+      assert(msg_size!=0);
+      *(uint64_t*)(rbf_data_ptr+meta->local_tail%rbf_datasize)=0;
+          //have message
+      uint64_t padding=msg_size % sizeof(uint64_t);
+      if(padding!=0)
+        padding=sizeof(uint64_t)-padding;
+      volatile uint64_t * msg_end_ptr=(uint64_t*)(rbf_data_ptr+ (meta->local_tail+msg_size+padding+sizeof(uint64_t))%rbf_datasize);
+      while(*msg_end_ptr !=msg_size){
+        uint64_t tmp=*msg_end_ptr;
+        if(tmp!=0 && tmp!=msg_size){
+          printf("waiting for %ld,but actually %ld\n",msg_size,tmp);
+          exit(0);
+        }
+      };
+      *msg_end_ptr=0;
+      std::string result;
+      for(uint64_t i=0;i<msg_size+padding;i++){
+        char * tmp=rbf_data_ptr+(meta->local_tail+sizeof(uint64_t)+i)%rbf_datasize;
+        if(i<msg_size)
+          result.push_back(*tmp);
+        *tmp=0;
+      }
+      meta->local_tail+=msg_size+padding+2*sizeof(uint64_t);
+      return result;
+    }
+    void set_need_help(int local_id,bool flag){
+      local_meta[local_id].need_help=flag;
+    }
+
     std::string rbfRecv(int local_tid){
-      //int mid=_total_partition-1;
-      //int tid=_total_threads-1;
-      // prev_recvid is used to implement round-robin polling
-      
-      int mid=prev_recvid[local_tid][0];
-      int tid=prev_recvid[local_tid][1];
-      int try_count=0;
+        // prev_recv_mid is used to implement round-robin polling
+
+      int mid=local_meta[local_tid].prev_recv_mid;
+      int tid=local_meta[local_tid].prev_recv_tid;
+
+      local_meta[local_tid].lock();
+      uint64_t try_count=0;
       uint64_t last_time=0; 
       while(true){
         tid++;
@@ -229,64 +289,56 @@ struct normal_op_req
         if(mid==_total_partition){
           mid=0;
           try_count++;
-          
-          if(try_count==50000000){//about 10 second
-            if(last_time==0){
-              last_time=timer::get_usec();
-              try_count=0;
-              continue;
-            }
-            uint64_t tmp=timer::get_usec();
-            if(local_tid==1){
-              std::cout<<"("<<_current_partition<<","<<local_tid<<") doesn't recv anything for "
-                    <<(tmp-last_time)/1000<<" ms"<<std::endl;
-            }
-            last_time=tmp;
-            try_count=0;
+        }
+        if(try_count==50000000 && local_tid==1){//a few seconds
+          try_count=0;
+          if(last_time==0){
+            last_time=timer::get_usec();
+            continue;
           }
-          //usleep(1);
+          uint64_t tmp=timer::get_usec();
+          std::cout<<"("<<_current_partition<<","<<local_tid<<") doesn't recv anything for "
+                    <<(tmp-last_time)/1000<<" ms"<<std::endl;
+          last_time=tmp;
         }
 
-//        for(int mid=0;mid<_total_partition;mid++){
-//          for(int tid=0;tid<_total_threads;tid++){
-            char * rbf_ptr=buffer+rbfOffset(_current_partition,local_tid,mid,tid);
-            char * rbf_data_ptr=rbf_ptr+ sizeof(rbfMeta);
-            uint64_t rbf_datasize=rbf_size-sizeof(rbfMeta);
-            struct rbfMeta* meta=(rbfMeta*) rbf_ptr;
-            uint64_t msg_size=*(volatile uint64_t*)(rbf_data_ptr+meta->local_tail%rbf_datasize );
-            if(msg_size==0)
-              continue;
-            *(uint64_t*)(rbf_data_ptr+meta->local_tail%rbf_datasize)=0;
-            //have message
-            uint64_t padding=msg_size % sizeof(uint64_t);
-            if(padding!=0)
-              padding=sizeof(uint64_t)-padding;
-            volatile uint64_t * msg_end_ptr=(uint64_t*)(rbf_data_ptr+ (meta->local_tail+msg_size+padding+sizeof(uint64_t))%rbf_datasize);
-            while(*msg_end_ptr !=msg_size){
-              uint64_t tmp=*msg_end_ptr;
-              if(tmp!=0 && tmp!=msg_size){
-                printf("waiting for %ld,but actually %ld\n",msg_size,tmp);
-                exit(0);
+        //If I'm a client, I can't steal anything
+        if(try_count%10==9 && local_tid!=0){
+          //try to help
+          local_meta[local_tid].unlock();
+          bool steal_success=false;
+          std::string result;
+          for(int t=0;t<_total_threads;t++){
+            if(local_meta[t].need_help){
+              local_meta[t].lock();
+              for(int m=0;m<_total_partition;m++){
+                if(check_rbf_msg(t,m,0)){
+                  result=fetch_rbf_msg(t,m,0);
+                  steal_success=true;
+                  break;
+                }
               }
-            };
-            *msg_end_ptr=0;
-            std::string result;
-            for(uint64_t i=0;i<msg_size+padding;i++){
-              char * tmp=rbf_data_ptr+(meta->local_tail+sizeof(uint64_t)+i)%rbf_datasize;
-              if(i<msg_size)
-                result.push_back(*tmp);
-              *tmp=0;
+              local_meta[t].unlock();
+              if(steal_success){
+                return result;
+              }
             }
-
-            meta->local_tail+=msg_size+padding+2*sizeof(uint64_t);
-            prev_recvid[local_tid][0]=mid;
-            prev_recvid[local_tid][1]=tid;
-            return result;
           }
-//        }
-//      }
+          local_meta[local_tid].lock();
+        }
+        
+        if(!check_rbf_msg(local_tid,mid,tid)){
+          continue;
+        }
+        std::string result=fetch_rbf_msg(local_tid,mid,tid);
+
+        local_meta[local_tid].prev_recv_mid=mid;
+        local_meta[local_tid].prev_recv_tid=tid;
+        local_meta[local_tid].unlock();
+        return result;
+      }
     }
-  };
+};
 
 
 #endif

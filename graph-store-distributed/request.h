@@ -45,12 +45,15 @@ struct request{
 	int parent_id;
 	bool blocking;
 	vector<int> cmd_chains;
-	
 	vector<vector<int> >result_table;
+	int parallel_total;
+	int parallel_id;
 	request(){
 		req_id=-1;
 		parent_id=-1;
 		blocking=false;
+		parallel_total=1000;
+		parallel_id=0;
 	}
 	void clear(){
 		cmd_chains.clear();
@@ -94,5 +97,7 @@ struct request{
 		ar & parent_id; 
 		ar & cmd_chains; 
 		ar & result_table; 
+		ar & parallel_total; 
+		ar & parallel_id; 
 	}
 };

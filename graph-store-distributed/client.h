@@ -104,8 +104,8 @@ public:
 		if(!global_use_index_table)
 			assert(false);
 		req.clear();
+		req.parallel_total=atoi(parallel_count.c_str());
 		req.cmd_chains.push_back(cmd_predict_index);
-		req.cmd_chains.push_back(atoi(parallel_count.c_str()));
 		req.cmd_chains.push_back(is->predict_to_id[predict]);
 		if(dir =="in" ){
 			req.cmd_chains.push_back(para_in);
@@ -118,8 +118,8 @@ public:
 	}
 	client& type_index(string parallel_count,string type){
 		req.clear();
+		req.parallel_total=atoi(parallel_count.c_str());
 		req.cmd_chains.push_back(cmd_type_index);
-		req.cmd_chains.push_back(atoi(parallel_count.c_str()));
 		req.cmd_chains.push_back(is->subject_to_id[type]);
 		return *this;
 	}
@@ -152,8 +152,8 @@ public:
 	client& triangle(string parallel_count,vector<string> type_vec,
 						vector<string> dir_vec,vector<string> predict_vec){
 		req.clear();
+		req.parallel_total=atoi(parallel_count.c_str());
 		req.cmd_chains.push_back(cmd_triangle);
-		req.cmd_chains.push_back(atoi(parallel_count.c_str()));
 		for(int i=0;i<3;i++){
 			req.cmd_chains.push_back(is->subject_to_id[type_vec[i]]);
 			if(dir_vec[i] =="in" ){
@@ -199,16 +199,9 @@ public:
 		command cmd=(command)req.cmd_chains.back();
 		if(cmd == cmd_type_index|| cmd == cmd_predict_index || cmd==cmd_triangle){
 			int chain_sz=req.cmd_chains.size();
-			int parallel_count=req.cmd_chains[chain_sz-2];
 			for(int i=0;i<cfg->m_num;i++){
-				for(int j=0;j<parallel_count;j++){
-					SendReq(cfg,i, cfg->client_num+j, req);
-				}
-			}
-		}
-		else if(cmd == cmd_type_index || cmd == cmd_predict_index|| cmd==cmd_triangle){
-			for(int i=0;i<cfg->m_num;i++){
-				for(int j=0;j<cfg->server_num;j++){
+				for(int j=0;j<req.parallel_total;j++){
+					req.parallel_id=j;
 					SendReq(cfg,i, cfg->client_num+j, req);
 				}
 			}
@@ -221,18 +214,8 @@ public:
 		command cmd=(command)req.cmd_chains.back();
 		if(cmd == cmd_type_index|| cmd == cmd_predict_index || cmd==cmd_triangle){
 			int chain_sz=req.cmd_chains.size();
-			int parallel_count=req.cmd_chains[chain_sz-2];
 			reply=RecvReq(cfg);
-			for(int i=1;i<cfg->m_num* parallel_count;i++){
-				request tmp=RecvReq(cfg);
-				for(int j=0;j<tmp.row_num();j++){
-					tmp.append_row_to(reply.result_table,j);
-				}
-			}
-		}
-		else if(cmd == cmd_type_index || cmd == cmd_predict_index || cmd==cmd_triangle){
-			reply=RecvReq(cfg);
-			for(int i=1;i<cfg->m_num*cfg->server_num;i++){
+			for(int i=1;i<cfg->m_num* req.parallel_total;i++){
 				request tmp=RecvReq(cfg);
 				for(int j=0;j<tmp.row_num();j++){
 					tmp.append_row_to(reply.result_table,j);
