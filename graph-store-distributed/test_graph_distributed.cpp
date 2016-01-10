@@ -74,17 +74,18 @@ void batch_execute(client* is,struct thread_cfg *cfg,string filename){
 	uint64_t total_latency=0;
 	uint64_t t1;
 	uint64_t t2;
+	logger.start();
 	for(int times=0;times<total_request;times++){
 		reply=is->Recv();
-		if(times==total_request/4){
-			logger.start();
-		}
-		if(times==total_request/4 *3){
-			logger.stop();
-		}
-		if(times>=total_request/4 && times<total_request/4*3){
-			logger.record(reply.timestamp,timer::get_usec());
-		}
+		// if(times==total_request/4){
+		// 	logger.start();
+		// }
+		// if(times==total_request/4 *3){
+		// 	logger.stop();
+		// }
+		// if(times>=total_request/4 && times<total_request/4*3){
+		logger.record(reply.timestamp,timer::get_usec());
+		//}
 		int i=rand_r(&seed) % ids.size();
 		is->lookup_id(ids[i]);
 		if(!(is->parse_cmd_vector(cmd_chain))){
@@ -94,6 +95,7 @@ void batch_execute(client* is,struct thread_cfg *cfg,string filename){
 		is->req.timestamp=timer::get_usec();
 		is->Send();
 	}
+	logger.stop();
 	for(int i=0;i<global_batch_factor;i++){
 		reply=is->Recv();
 	}
@@ -183,13 +185,14 @@ void mixmode(client* is,struct thread_cfg *cfg){
 		int iterative_count=1;
 		if(cfg->m_id==0 && cfg->t_id==0){
 			cout<<"mix mode (batch file + iterative file):"<<endl;
-			std::getline(std::cin,batch_filename);
-			for(int i=1;i<cfg->m_num;i++){
-				cfg->node->Send(i,0,batch_filename);
-			}
+			//std::getline(std::cin,batch_filename);
 			string input_str;
 			std::getline(std::cin,input_str);
 			istringstream iss(input_str);
+			iss>>batch_filename;
+			for(int i=1;i<cfg->m_num;i++){
+				cfg->node->Send(i,0,batch_filename);
+			}
 			iss>>iterative_filename;
 			iss>>iterative_count;
 			if(iterative_count<1){
@@ -207,6 +210,84 @@ void mixmode(client* is,struct thread_cfg *cfg){
   		}
 	}//while loop, never end
 }
+
+void run_client(client* is,struct thread_cfg *cfg){
+	get_ids(is,"get_university_id");
+	get_ids(is,"get_department_id");
+	get_ids(is,"get_AssistantProfessor_id");
+	get_ids(is,"get_AssociateProfessor_id");
+	get_ids(is,"get_GraduateCourse_id");
+	if(cfg->m_id==0){
+		cout<<"switch_iterative ->	iterative mode"<<endl;
+		cout<<"switch_batch 	->	batch mode"<<endl;
+		cout<<"switch_mix 		->	mix mode"<<endl;
+	}
+	if(global_client_mode<0|| global_client_mode>=3){
+		global_client_mode=0;
+	}
+	string mode_str[3];
+	mode_str[0]="iterative mode (iterative file + [count]):";
+	mode_str[1]="batch mode (batch file):";
+	mode_str[2]="mix mode (batch file + iterative file + [count]):";
+	
+	while(true){
+		MPI_Barrier(MPI_COMM_WORLD);
+		string batch_filename;
+		string iterative_filename;
+		int iterative_count=1;
+		if(cfg->m_id==0 ){
+			string input_str;
+			while(true){
+				cout<<mode_str[global_client_mode]<<endl;;
+				std::getline(std::cin,input_str);
+				if(input_str.find("switch_iterative")!=string::npos){
+					global_client_mode=0;
+					continue;
+				} else if(input_str.find("switch_batch")!=string::npos){
+					global_client_mode=1;
+					continue;
+				} else if(input_str.find("switch_mix")!=string::npos){
+					global_client_mode=2;
+					continue;
+				} else {
+					break;
+				}
+			}
+			istringstream iss(input_str);	
+			if(global_client_mode==0){
+				iss>>iterative_filename;
+				iss>>iterative_count;
+				if(iterative_count<1){
+					iterative_count=1;
+				}
+				batch_filename="NO_BATCH_FILE";
+			} else if(global_client_mode==1){
+				iss>>batch_filename;
+			} else if(global_client_mode==2){
+				iss>>batch_filename;
+				iss>>iterative_filename;
+				iss>>iterative_count;
+				if(iterative_count<1){
+					iterative_count=1;
+				}
+			}
+			for(int i=1;i<cfg->m_num;i++){
+				cfg->node->Send(i,0,batch_filename);
+			}
+  		} else {
+  			batch_filename=cfg->node->Recv();
+  			if(batch_filename=="NO_BATCH_FILE"){
+  				continue;
+  			}
+  		}
+
+  		if(cfg->m_id==0 && (global_client_mode==0 || global_client_mode==2) ){
+  			interactive_execute(is,iterative_filename,iterative_count);
+  		} else {
+  			batch_execute(is,cfg,batch_filename);
+  		}
+	}
+}
 void* Run(void *ptr) {
   struct thread_cfg *cfg = (struct thread_cfg*) ptr;
   pin_to_core(socket_1[cfg->t_id]);
@@ -215,6 +296,7 @@ void* Run(void *ptr) {
   	((traverser*)(cfg->ptr))->run();
   }else {
   	cout<<"("<<cfg->m_id<<","<<cfg->t_id<<")"<<endl;
+  	run_client((client*)(cfg->ptr),cfg);
   	if(global_interactive){
   		interactive_mode((client*)(cfg->ptr),cfg);
   	} else {

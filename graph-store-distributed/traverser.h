@@ -526,6 +526,7 @@ public:
 			assert(r.column_num()==0);
 			do_predict_index(r);
 			handle_request(r);
+			return ;
 		} else if(r.cmd_chains.back() == cmd_type_index){
 			assert(r.column_num()==0);
 			do_type_index(r);
@@ -550,7 +551,7 @@ public:
 			r.blocking=true;
 			
 			if(global_use_multithread &&  r.row_num()>=global_rdma_threshold*100){
-				//cout<<"size of r.row_num() is too large, use multi-thread "<<endl;
+				//cout<<"size of r.row_num()= "<< r.row_num()<< " is too large, use multi-thread "<<endl;
 				vector<request> sub_reqs=split_request_mt(r);
 				req_queue.put_req(r,sub_reqs.size());
 				for(int i=0;i<sub_reqs.size();i++){

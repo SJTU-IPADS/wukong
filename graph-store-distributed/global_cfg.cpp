@@ -3,12 +3,12 @@
 bool global_use_rbf;
 bool global_use_rdma;
 int global_rdma_threshold;
-int global_query_type;
 int global_num_server;
 int global_num_client;
 int global_batch_factor;
 std::string global_input_folder;
 bool global_interactive;
+int global_client_mode;
 int global_rdftype_id;
 bool global_use_loc_cache;
 int global_num_lubm_university;

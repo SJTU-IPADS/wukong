@@ -87,15 +87,30 @@ struct normal_op_req
   struct per_thread_metadata{
     int prev_recv_tid;
     int prev_recv_mid;
+    uint64_t own_count;
+    uint64_t recv_count;
+    uint64_t steal_count[40];
     pthread_spinlock_t recv_lock;
     char padding1[64];
-    bool need_help;
+    volatile bool need_help;
     char padding2[64];
     void lock(){
       pthread_spin_lock(&recv_lock);
     }
+    bool trylock(){
+      return pthread_spin_trylock(&recv_lock);
+    }
     void unlock(){
       pthread_spin_unlock(&recv_lock);
+    }
+    per_thread_metadata(){
+      need_help=false;
+      pthread_spin_init(&recv_lock,0);
+      own_count=0;
+      recv_count=0;
+      for(int i=0;i<40;i++){
+        steal_count[i]=0;
+      }
     }
   };
   class RdmaResource {
@@ -225,30 +240,76 @@ struct normal_op_req
       }
     }
 
-    bool check_rbf_msg(int local_tid,int mid,int tid){
+    // bool check_rbf_msg(int local_tid,int mid,int tid){
+    //   char * rbf_ptr=buffer+rbfOffset(_current_partition,local_tid,mid,tid);
+    //   char * rbf_data_ptr=rbf_ptr+ sizeof(rbfMeta);
+    //   uint64_t rbf_datasize=rbf_size-sizeof(rbfMeta);
+    //   struct rbfMeta* meta=(rbfMeta*) rbf_ptr;
+    //   uint64_t msg_size=*(volatile uint64_t*)(rbf_data_ptr+meta->local_tail%rbf_datasize );
+    //   if(msg_size==0){
+    //     return false;
+    //   }
+    //   return true;
+    // }
+    // std::string fetch_rbf_msg(int local_tid,int mid,int tid){
+    //   char * rbf_ptr=buffer+rbfOffset(_current_partition,local_tid,mid,tid);
+    //   char * rbf_data_ptr=rbf_ptr+ sizeof(rbfMeta);
+    //   uint64_t rbf_datasize=rbf_size-sizeof(rbfMeta);
+    //   struct rbfMeta* meta=(rbfMeta*) rbf_ptr;
+    //   uint64_t msg_size=*(volatile uint64_t*)(rbf_data_ptr+meta->local_tail%rbf_datasize );
+    //   assert(msg_size!=0);
+    //   *(uint64_t*)(rbf_data_ptr+meta->local_tail%rbf_datasize)=0;
+    //       //have message
+    //   uint64_t padding=msg_size % sizeof(uint64_t);
+    //   if(padding!=0)
+    //     padding=sizeof(uint64_t)-padding;
+    //   volatile uint64_t * msg_end_ptr=(uint64_t*)(rbf_data_ptr+ (meta->local_tail+msg_size+padding+sizeof(uint64_t))%rbf_datasize);
+    //   while(*msg_end_ptr !=msg_size){
+    //     uint64_t tmp=*msg_end_ptr;
+    //     if(tmp!=0 && tmp!=msg_size){
+    //       printf("waiting for %ld,but actually %ld\n",msg_size,tmp);
+    //       exit(0);
+    //     }
+    //   };
+    //   *msg_end_ptr=0;
+    //   std::string result;
+    //   for(uint64_t i=0;i<msg_size+padding;i++){
+    //     char * tmp=rbf_data_ptr+(meta->local_tail+sizeof(uint64_t)+i)%rbf_datasize;
+    //     if(i<msg_size)
+    //       result.push_back(*tmp);
+    //     *tmp=0;
+    //   }
+    //   meta->local_tail+=msg_size+padding+2*sizeof(uint64_t);
+    //   return result;
+    // }
+    bool check_rbf_msg(int local_tid,int mid,int tid,uint64_t& old_tail,uint64_t& msg_size){
       char * rbf_ptr=buffer+rbfOffset(_current_partition,local_tid,mid,tid);
       char * rbf_data_ptr=rbf_ptr+ sizeof(rbfMeta);
       uint64_t rbf_datasize=rbf_size-sizeof(rbfMeta);
       struct rbfMeta* meta=(rbfMeta*) rbf_ptr;
-      uint64_t msg_size=*(volatile uint64_t*)(rbf_data_ptr+meta->local_tail%rbf_datasize );
+      msg_size=*(volatile uint64_t*)(rbf_data_ptr+meta->local_tail%rbf_datasize );
       if(msg_size==0){
         return false;
       }
+      uint64_t padding=msg_size % sizeof(uint64_t);
+      if(padding!=0)
+        padding=sizeof(uint64_t)-padding;
+      old_tail=meta->local_tail;
+      meta->local_tail+=msg_size+padding+2*sizeof(uint64_t);
       return true;
     }
-    std::string fetch_rbf_msg(int local_tid,int mid,int tid){
+    std::string fetch_rbf_msg(int local_tid,int mid,int tid,uint64_t old_tail,uint64_t msg_size){
       char * rbf_ptr=buffer+rbfOffset(_current_partition,local_tid,mid,tid);
       char * rbf_data_ptr=rbf_ptr+ sizeof(rbfMeta);
       uint64_t rbf_datasize=rbf_size-sizeof(rbfMeta);
       struct rbfMeta* meta=(rbfMeta*) rbf_ptr;
-      uint64_t msg_size=*(volatile uint64_t*)(rbf_data_ptr+meta->local_tail%rbf_datasize );
       assert(msg_size!=0);
-      *(uint64_t*)(rbf_data_ptr+meta->local_tail%rbf_datasize)=0;
+      *(uint64_t*)(rbf_data_ptr+old_tail%rbf_datasize)=0;
           //have message
       uint64_t padding=msg_size % sizeof(uint64_t);
       if(padding!=0)
         padding=sizeof(uint64_t)-padding;
-      volatile uint64_t * msg_end_ptr=(uint64_t*)(rbf_data_ptr+ (meta->local_tail+msg_size+padding+sizeof(uint64_t))%rbf_datasize);
+      volatile uint64_t * msg_end_ptr=(uint64_t*)(rbf_data_ptr+ (old_tail+msg_size+padding+sizeof(uint64_t))%rbf_datasize);
       while(*msg_end_ptr !=msg_size){
         uint64_t tmp=*msg_end_ptr;
         if(tmp!=0 && tmp!=msg_size){
@@ -259,83 +320,91 @@ struct normal_op_req
       *msg_end_ptr=0;
       std::string result;
       for(uint64_t i=0;i<msg_size+padding;i++){
-        char * tmp=rbf_data_ptr+(meta->local_tail+sizeof(uint64_t)+i)%rbf_datasize;
+        char * tmp=rbf_data_ptr+(old_tail+sizeof(uint64_t)+i)%rbf_datasize;
         if(i<msg_size)
           result.push_back(*tmp);
         *tmp=0;
       }
-      meta->local_tail+=msg_size+padding+2*sizeof(uint64_t);
       return result;
     }
     void set_need_help(int local_id,bool flag){
       local_meta[local_id].need_help=flag;
     }
+    bool tryRecv(int thread_id,int recver_id,std::string& ret_str){
 
-    std::string rbfRecv(int local_tid){
-        // prev_recv_mid is used to implement round-robin polling
-
-      int mid=local_meta[local_tid].prev_recv_mid;
-      int tid=local_meta[local_tid].prev_recv_tid;
-
-      local_meta[local_tid].lock();
-      uint64_t try_count=0;
-      uint64_t last_time=0; 
-      while(true){
-        tid++;
-        if(tid==_total_threads){
-          tid=0;
-          mid++;
+      int max_try;
+      int mid;
+      int tid;
+      if(thread_id==recver_id){
+        max_try=_total_partition*_total_threads;
+      } else {
+        max_try=_total_partition;
+      }
+      //local_meta[recver_id].lock();
+      if(!local_meta[recver_id].trylock()){
+        return false;
+      }
+      while(max_try>0){
+        max_try--;
+        if(thread_id==recver_id){ //recv from my own queue
+          //order (m0,t0),(m1,t0)
+          mid=local_meta[thread_id].own_count % _total_partition;
+          tid= (local_meta[thread_id].own_count / _total_partition)% _total_threads;
+          local_meta[thread_id].own_count++;
+        } else { //steal from someone's queue, only steal user request
+          mid=local_meta[thread_id].steal_count[recver_id]% _total_partition;
+          local_meta[thread_id].steal_count[recver_id]++;
+          tid= 0 ;
         }
-        if(mid==_total_partition){
-          mid=0;
-          try_count++;
-        }
-        if(try_count==50000000 && local_tid==1){//a few seconds
-          try_count=0;
-          if(last_time==0){
-            last_time=timer::get_usec();
-            continue;
-          }
-          uint64_t tmp=timer::get_usec();
-          std::cout<<"("<<_current_partition<<","<<local_tid<<") doesn't recv anything for "
-                    <<(tmp-last_time)/1000<<" ms"<<std::endl;
-          last_time=tmp;
-        }
-
-        //If I'm a client, I can't steal anything
-        if(try_count%10==9 && local_tid!=0){
-          //try to help
-          local_meta[local_tid].unlock();
-          bool steal_success=false;
-          std::string result;
-          for(int t=0;t<_total_threads;t++){
-            if(local_meta[t].need_help){
-              local_meta[t].lock();
-              for(int m=0;m<_total_partition;m++){
-                if(check_rbf_msg(t,m,0)){
-                  result=fetch_rbf_msg(t,m,0);
-                  steal_success=true;
-                  break;
-                }
-              }
-              local_meta[t].unlock();
-              if(steal_success){
-                return result;
-              }
-            }
-          }
-          local_meta[local_tid].lock();
-        }
-        
-        if(!check_rbf_msg(local_tid,mid,tid)){
+        uint64_t old_tail;
+        uint64_t msg_size;
+        if(!check_rbf_msg(recver_id,mid,tid,old_tail,msg_size)){
           continue;
         }
-        std::string result=fetch_rbf_msg(local_tid,mid,tid);
+        local_meta[recver_id].unlock();
+        ret_str=fetch_rbf_msg(recver_id,mid,tid,old_tail,msg_size);
+        return true;
+      }
+      local_meta[recver_id].unlock();
+      return false;
+    }
+    std::string rbfRecv(int local_tid){
+        // prev_recv_mid is used to implement round-robin polling
+      std::string ret_str;
+      if(local_meta[local_tid].need_help){
+        //Too busy to help other thread
+        while(true){
+          if(tryRecv(local_tid,local_tid,ret_str)){
+            //local_meta[local_tid].recv_count++;
+            return ret_str;
+          }
+          //local_meta[local_tid].unlock();
+        }
+      } else {
+        while(true){
 
-        local_meta[local_tid].prev_recv_mid=mid;
-        local_meta[local_tid].prev_recv_tid=tid;
-        local_meta[local_tid].unlock();
-        return result;
+          int choice[2];
+          choice[0]=local_tid;
+          choice[1]=local_tid;
+          if(local_tid>4){
+            choice[1]-=4;
+          }
+          int t=choice[local_meta[local_tid].recv_count %2 ];
+          //int t=1+ local_meta[local_tid].recv_count %(_total_threads-1);
+          
+
+          local_meta[local_tid].recv_count++;
+          int tid;
+          if(local_meta[t].need_help){
+            tid=t;
+          } else {
+            tid=local_tid;
+          }
+          bool success=tryRecv(local_tid,tid,ret_str);
+          if(success){
+            return ret_str;
+          }
+        }
       }
     }
 };

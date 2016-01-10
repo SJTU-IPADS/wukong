@@ -1,7 +1,6 @@
 get_GraduateCourse_id
 neighbors 	in 	<ub#takesCourse>
 subclass_of 	<ub#GraduateStudent>
-execute		2
 execute		20000
 
 
