@@ -189,7 +189,7 @@ public:
 					if(local_count==total_count/100){
 						local_count=0;
 						int ret=__sync_fetch_and_add( &finished_count, 1 );
-						if((ret+1)%nthread_parallel_load==0){
+						if((ret+1)%(nthread_parallel_load*5)==0){
 							cout<<"already aggregrate by s "<<(ret+1)/nthread_parallel_load<<" %"<<endl;
 						}
 					}
@@ -221,7 +221,7 @@ public:
 					if(local_count==total_count/100){
 						local_count=0;
 						int ret=__sync_fetch_and_add( &finished_count, 1 );
-						if((ret+1)%nthread_parallel_load==0){
+						if((ret+1)%(nthread_parallel_load*5)==0){
 							cout<<"already aggregrate by o "<<(ret+1)/nthread_parallel_load<<" %"<<endl;
 						}
 					}

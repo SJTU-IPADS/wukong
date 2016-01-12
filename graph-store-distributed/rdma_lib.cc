@@ -543,7 +543,9 @@ poll_completion (struct QP *res) {
    
     off = _off;
     slotsize = _slotsize;
-    rbf_size=slotsize/(_total_threads*_total_partition);
+    // rbf_size=slotsize/(_total_threads*_total_partition);
+    // rbf_size=rbf_size-(rbf_size%64);
+    rbf_size=slotsize/(_total_partition);
     rbf_size=rbf_size-(rbf_size%64);
     
     init();    
@@ -591,6 +593,16 @@ poll_completion (struct QP *res) {
     for(int i=0;i<40;i++){
       local_meta[i].prev_recv_tid=_total_threads-1;
       local_meta[i].prev_recv_mid=_total_partition-1;
+    }
+
+
+    RemoteMeta.resize(_total_partition);
+    for(int i=0;i<RemoteMeta.size();i++){
+      RemoteMeta[i].resize(_total_threads);
+    }
+    LocalMeta.resize(_total_threads);
+    for(int i=0;i<LocalMeta.size();i++){
+      LocalMeta[i].resize(_total_partition);
     }
   }
 
