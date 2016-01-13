@@ -12,7 +12,6 @@ int global_client_mode;
 int global_rdftype_id;
 bool global_use_loc_cache;
 int global_num_lubm_university;
-bool global_load_convert_format;
 bool global_load_minimal_index;
 bool global_clear_final_result;
 bool global_use_multithread;

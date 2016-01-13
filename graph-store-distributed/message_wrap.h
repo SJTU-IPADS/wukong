@@ -22,6 +22,7 @@ void SendReq(thread_cfg* cfg,int r_mid,int r_tid,request& r,profile* profile_ptr
 
     if(global_use_rbf){
         if(ss.str().size() > (cfg->rdma->rbf_size /2) ){
+            cout<<"cfg->rdma->rbf_size= "<<  cfg->rdma->rbf_size<<endl;
             cout<<"Too large message size = "<<ss.str().size()*1.0/cfg->rdma->rbf_size<< " rbf_size" <<endl;
             cout<<"r.row_num()=" <<r.row_num()<<endl;
             r.result_table.clear();

@@ -398,7 +398,7 @@ public:
 	vector<uint64_t>& get_vector(tbb_vector_table& table,uint64_t index_id){
 		tbb_vector_table::accessor a;
 		if (!table.find(a,index_id)){
-			cout<<"[warning] index_table not found"<<endl; 
+			cout<<"[warning] index_table "<< index_id << "not found"<<endl; 
 			return empty;
 		}
 		return a->second;
@@ -443,6 +443,9 @@ public:
 				}
 			}
 		}
+	cout<<"sizeof type_table = "<<type_table.size()<<endl;
+	cout<<"sizeof src_predict_table = "<<src_predict_table.size()<<endl;
+	cout<<"sizeof dst_predict_table = "<<dst_predict_table.size()<<endl;
 	}
 
 };

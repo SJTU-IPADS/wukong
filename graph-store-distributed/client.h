@@ -43,8 +43,10 @@ public:
 				neighbors(str_vec[i+1],str_vec[i+2]);
 				i+=3;
 			} else if(str_vec[i]=="get_attr"){
-				get_attr(str_vec[i+1]);
-				i+=2;
+				// get_attr(str_vec[i+1]);
+				// i+=2;
+				get_attr(str_vec[i+1],str_vec[i+2]);
+				i+=3;
 			} else if(str_vec[i]=="subclass_of"){
 				subclass_of(str_vec[i+1]);
 				i+=2;
@@ -168,8 +170,13 @@ public:
 		}
 		return *this;
 	}
-	client& get_attr(string predict){
+	client& get_attr(string dir,string predict){
 		req.cmd_chains.push_back(cmd_get_attr);
+		if(dir =="in" ){
+			req.cmd_chains.push_back(para_in);
+		} else if (dir =="out" ){
+			req.cmd_chains.push_back(para_out);
+		} 
 		req.cmd_chains.push_back(is->predict_to_id[predict]);
 		return *this;
 	}

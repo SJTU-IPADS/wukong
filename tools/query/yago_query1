@@ -1,0 +1,7 @@
+lookup <Athens>
+neighbors   in 	y:livesIn
+execute
+ 
+
+
+select ?x where { ?x y:livesIn y:Athens . }

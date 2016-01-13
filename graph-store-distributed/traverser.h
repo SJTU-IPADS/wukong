@@ -71,7 +71,9 @@ class traverser{
 		}
 		r.result_table.swap(updated_result_table);
 	}
-	void do_get_attr(request& r,int dir=para_out){
+	void do_get_attr(request& r){
+		r.cmd_chains.pop_back();
+		int dir=r.cmd_chains.back();
 		r.cmd_chains.pop_back();
 		int predict_id=r.cmd_chains.back();
 		r.cmd_chains.pop_back();
@@ -504,8 +506,15 @@ public:
 	}
 	
 	void handle_request(request& r){
-		if(r.cmd_chains.size()==0)
-			return;
+		if(r.cmd_chains.size()==0){
+			if(global_clear_final_result){
+				// cout<<"clear,("<<cfg->m_id<<","<<cfg->t_id
+				// 	<<")  r.row_num()=" <<r.row_num()<<endl;
+					r.clear_data();
+					//r.result_table.clear();
+			}
+			return ;
+		}
 		if(r.cmd_chains.back() == cmd_subclass_of){
 			// subclass_of is a filter operation
 			// it just remove some of the output
@@ -545,6 +554,11 @@ public:
 		
 		if(r.cmd_chains.size()==0){
 			// end here
+			if(global_clear_final_result){
+				// cout<<"clear,("<<cfg->m_id<<","<<cfg->t_id
+				// 	<<")  r.row_num()=" <<r.row_num()<<endl;
+					r.clear_data();
+			}
 			return ;
 		} else {
 			//recursive execute 
@@ -594,9 +608,11 @@ public:
 				handle_request(r);
 				if(!r.blocking){
 					if(cfg->is_client(r.parent_id)){
-						if(global_clear_final_result){
-							r.result_table.clear();
-						}
+						// if(global_clear_final_result){
+						// 	cout<<"clear,("<<cfg->m_id<<","<<cfg->t_id
+						// 		<<")  r.row_num()=" <<r.row_num()<<endl;
+						// 	r.result_table.clear();
+						// }
 						cfg->rdma->set_need_help(cfg->t_id,false);
 					}
 					if(cfg->mid_of(r.parent_id)== cfg->m_id && cfg->tid_of(r.parent_id)==cfg->t_id){
@@ -608,9 +624,9 @@ public:
 			} else {
 				if(req_queue.put_reply(r)){
 					if(cfg->is_client(r.parent_id)){
-						if(global_clear_final_result){
-							r.result_table.clear();
-						}
+						// if(global_clear_final_result){
+						// 	r.result_table.clear();
+						// }
 						cfg->rdma->set_need_help(cfg->t_id,false);
 					}
 					if(cfg->mid_of(r.parent_id)== cfg->m_id && cfg->tid_of(r.parent_id)==cfg->t_id){

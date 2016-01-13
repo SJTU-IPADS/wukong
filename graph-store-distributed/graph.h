@@ -318,6 +318,7 @@ public:
 	    }
 	    edge_num_per_machine.resize(world.size());
 	    uint64_t max_v_num=1000000*240*4;//80;
+	    //uint64_t max_v_num=100000*240*4;//80;
 	    
 	    
 	    uint64_t t1=timer::get_usec();

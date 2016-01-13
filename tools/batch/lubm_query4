@@ -1,8 +1,8 @@
 get_department_id
 neighbors 	in 	<ub#worksFor>
 subclass_of 	<ub#FullProfessor>
-get_attr	<ub#name>
-get_attr	<ub#emailAddress>
-get_attr	<ub#telephone>
+get_attr	out	<ub#name>
+get_attr	out	<ub#emailAddress>
+get_attr	out	<ub#telephone>
 execute		100000
 

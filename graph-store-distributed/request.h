@@ -7,7 +7,7 @@
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/vector.hpp>
-
+#include <boost/unordered_set.hpp>
 #include <vector>
 using namespace boost::archive;
 using std::vector;
@@ -58,6 +58,16 @@ struct request{
 	void clear(){
 		cmd_chains.clear();
 		result_table.clear();
+	}
+	void clear_data(){
+		boost::unordered_set<int> final_set;
+		for(int i=0;i<row_num();i++){
+			final_set.insert(last_column(i));
+		}
+		//cout<<"size = "<<row_num()<< " non-dup = "<<final_set.size()<<endl;
+		for(int i=0;i<result_table.size();i++){
+			result_table[i].clear();
+		}		
 	}
 	int column_num(){
 		return result_table.size();

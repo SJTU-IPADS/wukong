@@ -239,14 +239,18 @@ struct normal_op_req
       uint64_t remote_start=start_of_recv_queue(remote_tid,_current_partition);
       if(_current_partition==remote_mid){
         char * ptr=buffer+remote_start;
-        *((uint64_t*)(ptr+ (meta->remote_tail)%rbf_size )) = str_size;
-        (meta->remote_tail)+=sizeof(uint64_t);
+        uint64_t tail=meta->remote_tail;
+        (meta->remote_tail)+=sizeof(uint64_t)*2+ceil(str_size,sizeof(uint64_t));
+        meta->unlock();
+
+        *((uint64_t*)(ptr+ (tail)%rbf_size )) = str_size;
+        tail+=sizeof(uint64_t);
         for(uint64_t i=0;i<str_size;i++){
-          *(ptr+(meta->remote_tail+i)%rbf_size)=str_ptr[i];
+          *(ptr+(tail+i)%rbf_size)=str_ptr[i];
         }
-        meta->remote_tail+=ceil(str_size,sizeof(uint64_t));
-        *((uint64_t*)(ptr+(meta->remote_tail)%rbf_size))=str_size;
-        (meta->remote_tail)+=sizeof(uint64_t);
+        tail+=ceil(str_size,sizeof(uint64_t));
+        *((uint64_t*)(ptr+(tail)%rbf_size))=str_size;
+
       } else {
         uint64_t total_write_size=sizeof(uint64_t)*2+ceil(str_size,sizeof(uint64_t));
         char* local_buffer=GetMsgAddr(local_tid);
@@ -255,20 +259,21 @@ struct normal_op_req
         memcpy(local_buffer,str_ptr,str_size);
         local_buffer+=ceil(str_size,sizeof(uint64_t));
         *((uint64_t*)local_buffer)=str_size;
-        if(meta->remote_tail / rbf_size == (meta->remote_tail+total_write_size-1)/ rbf_size ){
-          uint64_t remote_msg_offset=remote_start+(meta->remote_tail% rbf_size);
+        uint64_t tail=meta->remote_tail;
+        meta->remote_tail =meta->remote_tail+total_write_size; 
+        meta->unlock();   
+        if(tail/ rbf_size == (tail+total_write_size-1)/ rbf_size ){
+          uint64_t remote_msg_offset=remote_start+(tail% rbf_size);
          RdmaWrite(local_tid,remote_mid,GetMsgAddr(local_tid),total_write_size,remote_msg_offset);
         } else {
-          uint64_t length1=rbf_size - (meta->remote_tail % rbf_size);
+          uint64_t length1=rbf_size - (tail % rbf_size);
           uint64_t length2=total_write_size-length1;
-          uint64_t remote_msg_offset1=remote_start+(meta->remote_tail% rbf_size);
+          uint64_t remote_msg_offset1=remote_start+(tail% rbf_size);
           uint64_t remote_msg_offset2=remote_start;
           RdmaWrite(local_tid,remote_mid,GetMsgAddr(local_tid),length1,remote_msg_offset1);
           RdmaWrite(local_tid,remote_mid,GetMsgAddr(local_tid)+length1,length2,remote_msg_offset2); 
-        }
-        meta->remote_tail =meta->remote_tail+total_write_size;        
+        }    
       }
-      meta->unlock();
     }
     bool check_rbf_msg(int local_tid,int mid){
       LocalQueueMeta * meta=&LocalMeta[local_tid][mid];

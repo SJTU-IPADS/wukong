@@ -17,7 +17,6 @@ extern int global_client_mode;
 extern int global_rdftype_id;  // only a global variable, but not configurable
 extern bool global_use_loc_cache;
 extern int global_num_lubm_university;
-extern bool global_load_convert_format;
 extern bool global_load_minimal_index;
 extern bool global_clear_final_result;
 extern bool global_use_multithread;
@@ -32,7 +31,7 @@ extern int* global_mid_table;
 
 void load_global_cfg(char* filename){
 	ifstream file(filename);
-	
+	global_rdftype_id=-1;
 	string row;
 	string val;
 	if(!file)
@@ -50,10 +49,8 @@ void load_global_cfg(char* filename){
 	global_input_folder=config_map["global_input_folder"];
 	global_interactive=atoi(config_map["global_interactive"].c_str());
 	global_client_mode=atoi(config_map["global_client_mode"].c_str());
-	//global_rdftype_id=atoi(config_map["global_rdftype_id"].c_str());
 	global_use_loc_cache=atoi(config_map["global_use_loc_cache"].c_str());
 	global_num_lubm_university=atoi(config_map["global_num_lubm_university"].c_str());
-	global_load_convert_format=atoi(config_map["global_load_convert_format"].c_str());
 	global_load_minimal_index=atoi(config_map["global_load_minimal_index"].c_str());
 	global_clear_final_result=atoi(config_map["global_clear_final_result"].c_str());
 	global_use_multithread=atoi(config_map["global_use_multithread"].c_str());

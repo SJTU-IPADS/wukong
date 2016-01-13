@@ -1,0 +1,55 @@
+predict_index	16	y:hasInternalWikipediaLinkTo	in
+neighbors   out 	y:hasInternalWikipediaLinkTo
+neighbors   out 	y:hasInternalWikipediaLinkTo
+neighbors   out 	y:hasInternalWikipediaLinkTo
+execute
+
+predict_index	16	y:hasInternalWikipediaLinkTo	out
+get_attr out y:hasInternalWikipediaLinkTo
+neighbors   in 	y:hasInternalWikipediaLinkTo
+execute
+
+
+predict_index	8	y:hasInternalWikipediaLinkTo	in
+get_attr in y:hasInternalWikipediaLinkTo
+neighbors   out 	y:hasInternalWikipediaLinkTo
+execute
+
+predict_index	16	y:hasInternalWikipediaLinkTo	out
+get_attr y:hasInternalWikipediaLinkTo
+neighbors   in 	y:hasInternalWikipediaLinkTo
+execute
+
+predict_index	16	y:hasInternalWikipediaLinkTo	out
+neighbors   in 	y:hasInternalWikipediaLinkTo
+neighbors   in 	y:hasInternalWikipediaLinkTo
+execute
+
+
+predict_index	16	y:hasInternalWikipediaLinkTo	in
+neighbors   out 	y:hasInternalWikipediaLinkTo
+neighbors   out 	y:hasInternalWikipediaLinkTo
+execute
+
+
+
+
+neighbors   out 	y:hasInternalWikipediaLinkTo
+neighbors   in 	y:hasInternalWikipediaLinkTo
+neighbors   out 	y:hasInternalWikipediaLinkTo
+
+neighbors   in 	y:hasInternalWikipediaLinkTo
+neighbors   in 	y:hasInternalWikipediaLinkTo
+neighbors   out 	y:hasInternalWikipediaLinkTo
+neighbors   out 	y:hasInternalWikipediaLinkTo
+
+predict_index	8	y:hasInternalWikipediaLinkTo	out
+neighbors   in 	y:hasInternalWikipediaLinkTo
+neighbors   in 	y:hasInternalWikipediaLinkTo
+
+
+select * where { ?p y:hasInternalWikipediaLinkTo ?p1 . 
+?p1 y:hasInternalWikipediaLinkTo ?p2 . 
+?p2 y:hasInternalWikipediaLinkTo ?p3 . }
+
+p->p1->p2->p3

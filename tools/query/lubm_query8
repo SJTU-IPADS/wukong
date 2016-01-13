@@ -3,7 +3,7 @@ neighbors   in 	<ub#subOrganizationOf>
 subclass_of		<ub#Department>
 neighbors   in 	<ub#memberOf>
 subclass_of		<ub#GraduateStudent>
-get_attr 		<ub#emailAddress>
+get_attr	out 	<ub#emailAddress>
 execute
 
 
