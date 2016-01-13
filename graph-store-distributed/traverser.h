@@ -297,6 +297,27 @@ class traverser{
 		r.result_table.clear();
 		return sub_reqs;
 	}
+	vector<request> split_request_join(request& r){
+		vector<request> sub_reqs;
+		int num_sub_request=cfg->m_num;
+		sub_reqs.resize(num_sub_request);
+		for(int i=0;i<sub_reqs.size();i++){
+			sub_reqs[i].parent_id=r.req_id;
+			sub_reqs[i].cmd_chains=r.cmd_chains;
+			sub_reqs[i].cmd_chains.pop_back();
+			sub_reqs[i].result_table.resize(1);
+		}
+		boost::unordered_set<int> remove_dup_set;
+		for(int i=0;i<r.row_num();i++){
+			if(remove_dup_set.find(r.last_column(i))!=remove_dup_set.end()){
+				continue;
+			}
+			remove_dup_set.insert(r.last_column(i));
+			int machine = ingress::vid2mid(r.last_column(i), num_sub_request);
+			sub_reqs[machine].result_table[0].push_back(r.last_column(i));
+		}
+		return sub_reqs;
+	}
 	void do_triangle(request& r){
 		r.cmd_chains.pop_back();
 		//find all matching 
@@ -563,8 +584,21 @@ public:
 		} else {
 			//recursive execute 
 			r.blocking=true;
-			
-			if(global_use_multithread &&  r.row_num()>=global_rdma_threshold*100){
+			if(r.cmd_chains.back() == cmd_join){
+				vector<request> sub_reqs=split_request_join(r);
+				req_queue.put_req(r,sub_reqs.size());
+				for(int i=0;i<sub_reqs.size();i++){
+					//i=tid*cfg->m_num+machine
+					int m_id= i % cfg->m_num;
+					int traverser_id= cfg->client_num + i / cfg->m_num;
+					if(m_id == cfg->m_id && traverser_id==cfg->t_id){
+						msg_fast_path.push_back(sub_reqs[i]);
+					} else {
+						SendReq(cfg,m_id ,traverser_id, sub_reqs[i],&split_profile);
+					}
+				}
+			}
+			else if(global_use_multithread &&  r.row_num()>=global_rdma_threshold*100){
 				//cout<<"size of r.row_num()= "<< r.row_num()<< " is too large, use multi-thread "<<endl;
 				vector<request> sub_reqs=split_request_mt(r);
 				req_queue.put_req(r,sub_reqs.size());
@@ -608,11 +642,11 @@ public:
 				handle_request(r);
 				if(!r.blocking){
 					if(cfg->is_client(r.parent_id)){
-						// if(global_clear_final_result){
-						// 	cout<<"clear,("<<cfg->m_id<<","<<cfg->t_id
-						// 		<<")  r.row_num()=" <<r.row_num()<<endl;
-						// 	r.result_table.clear();
-						// }
+						if(global_clear_final_result){
+							// cout<<"clear,("<<cfg->m_id<<","<<cfg->t_id
+							// 	<<")  r.row_num()=" <<r.row_num()<<endl;
+							r.clear_data();
+						}
 						cfg->rdma->set_need_help(cfg->t_id,false);
 					}
 					if(cfg->mid_of(r.parent_id)== cfg->m_id && cfg->tid_of(r.parent_id)==cfg->t_id){
@@ -624,9 +658,9 @@ public:
 			} else {
 				if(req_queue.put_reply(r)){
 					if(cfg->is_client(r.parent_id)){
-						// if(global_clear_final_result){
-						// 	r.result_table.clear();
-						// }
+						if(global_clear_final_result){
+							r.clear_data();
+						}
 						cfg->rdma->set_need_help(cfg->t_id,false);
 					}
 					if(cfg->mid_of(r.parent_id)== cfg->m_id && cfg->tid_of(r.parent_id)==cfg->t_id){

@@ -20,7 +20,8 @@ enum command{
 	cmd_get_subtype,
 	cmd_predict_index,
 	cmd_type_index,
-	cmd_filter
+	cmd_filter,
+	cmd_join
 };
 enum parameter{
 	para_in,
@@ -60,10 +61,10 @@ struct request{
 		result_table.clear();
 	}
 	void clear_data(){
-		boost::unordered_set<int> final_set;
-		for(int i=0;i<row_num();i++){
-			final_set.insert(last_column(i));
-		}
+		// boost::unordered_set<int> final_set;
+		// for(int i=0;i<row_num();i++){
+		// 	final_set.insert(last_column(i));
+		// }
 		//cout<<"size = "<<row_num()<< " non-dup = "<<final_set.size()<<endl;
 		for(int i=0;i<result_table.size();i++){
 			result_table[i].clear();

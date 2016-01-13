@@ -1,13 +1,39 @@
+predict_index	16	y:hasInternalWikipediaLinkTo	out
+neighbors   in 	y:hasInternalWikipediaLinkTo
+neighbors   in 	y:hasInternalWikipediaLinkTo
+neighbors   in 	y:hasInternalWikipediaLinkTo
+execute
+
 predict_index	16	y:hasInternalWikipediaLinkTo	in
 neighbors   out 	y:hasInternalWikipediaLinkTo
 neighbors   out 	y:hasInternalWikipediaLinkTo
 neighbors   out 	y:hasInternalWikipediaLinkTo
 execute
 
+
+predict_index	16	y:hasInternalWikipediaLinkTo	in
+get_attr in y:hasInternalWikipediaLinkTo
+neighbors   out 	y:hasInternalWikipediaLinkTo
+join	neighbors   out 	y:hasInternalWikipediaLinkTo
+execute
+
+
+predict_index	8	y:hasInternalWikipediaLinkTo	out
+get_attr out y:hasInternalWikipediaLinkTo
+neighbors   in 	y:hasInternalWikipediaLinkTo
+join neighbors   in 	y:hasInternalWikipediaLinkTo
+execute
+
+
+
+
 predict_index	16	y:hasInternalWikipediaLinkTo	out
 get_attr out y:hasInternalWikipediaLinkTo
 neighbors   in 	y:hasInternalWikipediaLinkTo
+join 	neighbors   in 	y:hasInternalWikipediaLinkTo
 execute
+
+
 
 
 predict_index	8	y:hasInternalWikipediaLinkTo	in

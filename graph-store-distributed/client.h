@@ -59,6 +59,9 @@ public:
 			} else if(str_vec[i]=="predict_index"){
 				predict_index(str_vec[i+1],str_vec[i+2],str_vec[i+3]);
 				i+=4;
+			} else if(str_vec[i]=="join"){
+				join();
+				i+=1;
 			} else if(str_vec[i]=="triangle"){
 				vector<string> type_vec;
 				vector<string> dir_vec;
@@ -148,6 +151,10 @@ public:
 		}
 		req.cmd_chains.push_back(is->predict_to_id[predict]);
 		req.cmd_chains.push_back(atoi(target.c_str()));
+		return *this;
+	}
+	client& join(){
+		req.cmd_chains.push_back(cmd_join);
 		return *this;
 	}
 	//This interface should be refined! 

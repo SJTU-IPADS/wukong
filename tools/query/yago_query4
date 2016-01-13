@@ -2,6 +2,7 @@ predict_index	16	y:hasInternalWikipediaLinkTo	in
 get_attr out y:hasExternalWikipediaLinkTo
 neighbors   out y:hasInternalWikipediaLinkTo
 neighbors   out y:hasExternalWikipediaLinkTo
+execute
 
 predict_index	16	y:hasExternalWikipediaLinkTo	out
 neighbors   in 	y:hasExternalWikipediaLinkTo
