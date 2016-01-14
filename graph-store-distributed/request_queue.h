@@ -56,10 +56,12 @@ class request_queue{
 		}
 		if(sub_reqs.size()>0)
 			r.result_table.resize(sub_reqs[0].column_num());
+		r.final_row_number=0;
 		for(int i=0;i<sub_reqs.size();i++){
 			for(int j=0;j<sub_reqs[i].row_num();j++){
-				sub_reqs[i].append_row_to(r.result_table,j);
+				sub_reqs[i].append_row_to(r.result_table,j);	
 			}
+			r.final_row_number+=sub_reqs[i].final_row_number;
 		}
 	}
 public:

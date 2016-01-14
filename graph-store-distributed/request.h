@@ -49,16 +49,19 @@ struct request{
 	vector<vector<int> >result_table;
 	int parallel_total;
 	int parallel_id;
+	uint64_t final_row_number;
 	request(){
 		req_id=-1;
 		parent_id=-1;
 		blocking=false;
 		parallel_total=1000;
 		parallel_id=0;
+		final_row_number=0;
 	}
 	void clear(){
 		cmd_chains.clear();
 		result_table.clear();
+		final_row_number=0;
 	}
 	void clear_data(){
 		// boost::unordered_set<int> final_set;
@@ -74,6 +77,7 @@ struct request{
 		return result_table.size();
 	}
 	int row_num(){
+		//return final_row_number;
 		int path_len=result_table.size();
 		if(path_len==0)
 			return 0;
@@ -110,5 +114,6 @@ struct request{
 		ar & result_table; 
 		ar & parallel_total; 
 		ar & parallel_id; 
+		ar & final_row_number; 
 	}
 };

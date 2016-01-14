@@ -16,11 +16,10 @@ bool global_load_minimal_index;
 bool global_clear_final_result;
 bool global_use_multithread;
 bool global_use_index_table;
+int global_total_memory_gb;
+int global_perslot_msg_mb;
+int global_hash_header_million;
 
-int global_estimate_vnum;
-int global_estimate_enum;
-
-int global_tuning_threshold;
 int global_verbose;
 
 int* global_mid_table;

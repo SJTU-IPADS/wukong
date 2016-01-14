@@ -3,6 +3,8 @@ get_attr out y:hasExternalWikipediaLinkTo
 neighbors   out y:hasInternalWikipediaLinkTo
 neighbors   out y:hasExternalWikipediaLinkTo
 execute
+2809 ms
+
 
 predict_index	16	y:hasExternalWikipediaLinkTo	out
 neighbors   in 	y:hasExternalWikipediaLinkTo

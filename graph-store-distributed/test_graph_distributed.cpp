@@ -125,7 +125,7 @@ void interactive_execute(client* is,string filename,int execute_count){
 			cout<<"error cmd"<<endl;
 		}
 	}
-	cout<<"result size:"<<reply.row_num()<<endl;
+	cout<<"result size:"<<reply.final_row_number<<endl;
 	cout<<"average latency "<<sum/execute_count<<" us"<<endl;
 }
 void interactive_mode(client* is,struct thread_cfg *cfg){
@@ -297,12 +297,6 @@ void* Run(void *ptr) {
   }else {
   	cout<<"("<<cfg->m_id<<","<<cfg->t_id<<")"<<endl;
   	run_client((client*)(cfg->ptr),cfg);
-  	if(global_interactive){
-  		interactive_mode((client*)(cfg->ptr),cfg);
-  	} else {
-  		//batch_mode((client*)(cfg->ptr),cfg);
-  		mixmode((client*)(cfg->ptr),cfg);
-  	}
   }
 }
 
@@ -326,9 +320,10 @@ int main(int argc, char * argv[])
 	boost::mpi::communicator world;
 
 	uint64_t rdma_size = 1024*1024*1024;  //1G
-	rdma_size = rdma_size*25; //25G 
+	//rdma_size = rdma_size*20; //25G 
+	rdma_size = rdma_size*global_total_memory_gb; //25G 
 	
-  	uint64_t slot_per_thread= 1024*1024*512;
+  	uint64_t slot_per_thread= 1024*1024*global_perslot_msg_mb;
   	uint64_t total_size=rdma_size+slot_per_thread*thread_num*2; 
 	Network_Node *node = new Network_Node(world.rank(),thread_num);//[0-thread_num-1] are used
 	char *buffer= (char*) malloc(total_size);

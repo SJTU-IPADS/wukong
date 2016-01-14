@@ -529,9 +529,11 @@ public:
 	void handle_request(request& r){
 		if(r.cmd_chains.size()==0){
 			if(global_clear_final_result){
+				r.final_row_number=r.row_num();
+				r.clear_data();
 				// cout<<"clear,("<<cfg->m_id<<","<<cfg->t_id
 				// 	<<")  r.row_num()=" <<r.row_num()<<endl;
-					r.clear_data();
+					//r.clear_data();
 					//r.result_table.clear();
 			}
 			return ;
@@ -578,7 +580,8 @@ public:
 			if(global_clear_final_result){
 				// cout<<"clear,("<<cfg->m_id<<","<<cfg->t_id
 				// 	<<")  r.row_num()=" <<r.row_num()<<endl;
-					r.clear_data();
+				r.final_row_number=r.row_num();
+				r.clear_data();
 			}
 			return ;
 		} else {

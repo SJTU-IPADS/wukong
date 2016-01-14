@@ -231,9 +231,10 @@ public:
 			reply=RecvReq(cfg);
 			for(int i=1;i<cfg->m_num* req.parallel_total;i++){
 				request tmp=RecvReq(cfg);
-				for(int j=0;j<tmp.row_num();j++){
-					tmp.append_row_to(reply.result_table,j);
-				}
+				reply.final_row_number+=tmp.final_row_number;
+				// for(int j=0;j<tmp.row_num();j++){
+				// 	tmp.append_row_to(reply.result_table,j);
+				// }
 			}
 		} else {
 			reply=RecvReq(cfg);
