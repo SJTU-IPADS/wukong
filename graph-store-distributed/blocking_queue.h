@@ -4,6 +4,7 @@
 #include <vector>
 #include <unordered_map>
 #include <pthread.h>
+#include "global_cfg.h"
 #include <boost/unordered_map.hpp>
 
 struct item{
@@ -11,8 +12,9 @@ struct item{
 	request req;
 	vector<request> sub_reqs;
 };
-class request_queue{
+class blocking_queue{
 	unordered_map<int,item> req_queue;
+	pthread_spinlock_t internal_lock;
 	void merge_reqs(vector<request>& sub_reqs,request& r){
 		if(r.cmd_chains.back()==cmd_join){
 
@@ -65,14 +67,26 @@ class request_queue{
 		}
 	}
 public:
-	void put_req(request& req,int count){				
+	blocking_queue(){
+		pthread_spin_init(&internal_lock,0);
+	}
+	void put_req(request& req,int count){	
+		if(global_enable_workstealing){
+			pthread_spin_lock(&internal_lock);
+		}			
 		item data;
 		data.count=count;
 		data.req=req;
 		req_queue[req.req_id]=data;		
+		if(global_enable_workstealing){
+			pthread_spin_unlock(&internal_lock);
+		}			
 	}
 	bool put_reply(request& req){
-		
+		if(global_enable_workstealing){
+			pthread_spin_lock(&internal_lock);
+		}	
+		bool ret=false;;				
 		//if we get all replies , we return true
 		int id=req.parent_id;
 		req_queue[id].count--;
@@ -82,8 +96,11 @@ public:
 			req=req_queue[id].req;
 			merge_reqs(req_queue[id].sub_reqs,req);		
 			req_queue.erase(id);
-			return true;
+			ret=true;
 		}
-		return false;
+		if(global_enable_workstealing){
+			pthread_spin_unlock(&internal_lock);
+		}	
+		return ret;
 	}	
 };

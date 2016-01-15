@@ -1,4 +1,4 @@
-type_index	1		<ub#FullProfessor>
+type_index	16		<ub#FullProfessor>
 neighbors   out 	<ub#teacherOf>
 subclass_of		<ub#Course>
 neighbors   in <ub#takesCourse>

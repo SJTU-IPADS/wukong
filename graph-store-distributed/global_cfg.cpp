@@ -19,6 +19,7 @@ bool global_use_index_table;
 int global_total_memory_gb;
 int global_perslot_msg_mb;
 int global_hash_header_million;
+int global_enable_workstealing;
 
 int global_verbose;
 

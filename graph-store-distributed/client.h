@@ -194,17 +194,6 @@ public:
 		req.cmd_chains.push_back(is->subject_to_id[target]);
 		return *this;
 	}
-	client& execute(){
-		// reverse cmd_chains
-		// so we can easily pop the cmd and do recursive operation
-		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	
-		req.req_id=-1;
-		req.parent_id=cfg->get_inc_id();
-		SendReq(cfg,first_target, cfg->client_num+rand()%cfg->server_num, req);
-		req=RecvReq(cfg);
-		req.cmd_chains.clear();
-		return *this;
-	}
 
 	void Send(){
 		reverse(req.cmd_chains.begin(),req.cmd_chains.end()); 	

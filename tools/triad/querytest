@@ -1,13 +1,14 @@
-type_index	4	<ub#FullProfessor>
-get_attr		<ub#teacherOf>
-get_attr		<ub#teacherOf>
-get_attr		<ub#teacherOf>
-get_attr		<ub#teacherOf>
-get_attr		<ub#teacherOf>
-get_attr		<ub#teacherOf>
-get_attr		<ub#teacherOf>
-subclass_of		<ub#UndergraduateStudent>
+type_index	8	<ub#FullProfessor>
+get_attr	out	<ub#teacherOf>
+get_attr	out	<ub#teacherOf>
+get_attr	out	<ub#teacherOf>
+get_attr	out	<ub#teacherOf>
+get_attr	out	<ub#teacherOf>
+get_attr	out	<ub#teacherOf>
+get_attr	out	<ub#teacherOf>
 execute
+subclass_of		<ub#UndergraduateStudent>
+
 
 
 predict_index	8 	<ub#undergraduateDegreeFrom>	in

@@ -23,6 +23,7 @@ extern bool global_use_index_table;
 extern int global_total_memory_gb;
 extern int global_perslot_msg_mb;
 extern int global_hash_header_million;
+extern int global_enable_workstealing;
 
 
 extern int global_verbose;
@@ -56,7 +57,8 @@ void load_global_cfg(char* filename){
 	global_total_memory_gb=atoi(config_map["global_total_memory_gb"].c_str());
 	global_perslot_msg_mb=atoi(config_map["global_perslot_msg_mb"].c_str());
 	global_hash_header_million=atoi(config_map["global_hash_header_million"].c_str());
-
+	global_enable_workstealing=atoi(config_map["global_enable_workstealing"].c_str());
+	
 	global_verbose=atoi(config_map["global_verbose"].c_str());
 	global_mid_table=NULL;
 }

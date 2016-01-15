@@ -360,10 +360,10 @@ int main(int argc, char * argv[])
 	for(int i=0;i<client_num;i++){
 		client_array[i]=new client(&is,&cfg_array[i]);
 	}
-
+	per_thread_resource* res_array=new per_thread_resource[thread_num];
 	traverser** traverser_array=new traverser*[server_num];
 	for(int i=0;i<server_num;i++){
-		traverser_array[i]=new traverser(g,&cfg_array[client_num+i]);		
+		traverser_array[i]=new traverser(g,res_array,&cfg_array[client_num+i],cfg_array);		
 	}
 	
 	pthread_t     *thread  = new pthread_t[thread_num];

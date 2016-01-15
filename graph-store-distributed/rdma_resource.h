@@ -325,11 +325,16 @@ struct normal_op_req
         }
       }
     }
-
-    void set_need_help(int local_id,bool flag){
-      local_meta[local_id].need_help=flag;
+    bool rbfTryRecv(int local_tid, std::string& ret){
+        for(int mid=0;mid<_total_partition;mid++){
+          if(check_rbf_msg(local_tid,mid)){
+            ret= fetch_rbf_msg(local_tid,mid);
+            return true;
+          }
+        }
+        return false;
     }
-
+    
     // bool check_rbf_msg(int local_tid,int mid,int tid,uint64_t& old_tail,uint64_t& msg_size){
     //   char * rbf_ptr=buffer+rbfOffset(_current_partition,local_tid,mid,tid);
     //   char * rbf_data_ptr=rbf_ptr+ sizeof(rbfMeta);

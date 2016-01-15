@@ -12,7 +12,6 @@
 
 void SendReq(thread_cfg* cfg,int r_mid,int r_tid,request& r,profile* profile_ptr=NULL){
     std::stringstream ss;
-    //boost::archive::text_oarchive oa(ss);
     boost::archive::binary_oarchive oa(ss);
     
     oa << r;
@@ -37,21 +36,10 @@ void SendReq(thread_cfg* cfg,int r_mid,int r_tid,request& r,profile* profile_ptr
         cfg->node->Send(r_mid,r_tid,ss.str());
     }
 
-
-// #if USE_RBF
-//     cfg->rdma->rbfSend(cfg->t_id,r_mid, r_tid, ss.str().c_str(),ss.str().size());    
-// #else 
-//     cfg->node->Send(r_mid,r_tid,ss.str());
-// #endif
 }
 
 request RecvReq(thread_cfg* cfg){
 
-// #if USE_RBF
-//     std::string str=cfg->rdma->rbfRecv(cfg->t_id);
-// #else 
-//     std::string str=cfg->node->Recv();
-// #endif
     std::string str;
     if(global_use_rbf){
         str=cfg->rdma->rbfRecv(cfg->t_id);
@@ -61,11 +49,33 @@ request RecvReq(thread_cfg* cfg){
 
     std::stringstream s;
     s << str;
-    //boost::archive::text_iarchive ia(s);
     boost::archive::binary_iarchive ia(s);
     request r;
     ia >> r;
     return r;
+}
+
+bool TryRecvReq(thread_cfg* cfg,request& r){
+
+    std::string str;
+    if(global_use_rbf){
+        bool ret=cfg->rdma->rbfTryRecv(cfg->t_id,str);
+        if(!ret){
+            return false;
+        }
+    } else {
+        assert(false);
+        str=cfg->node->tryRecv();
+        if(str==""){
+            return false;
+        }
+    }    
+
+    std::stringstream s;
+    s << str;
+    boost::archive::binary_iarchive ia(s);
+    ia >> r;
+    return true;
 }
 
 

@@ -54,7 +54,7 @@ struct request{
 		req_id=-1;
 		parent_id=-1;
 		blocking=false;
-		parallel_total=1000;
+		parallel_total=0;
 		parallel_id=0;
 		final_row_number=0;
 	}

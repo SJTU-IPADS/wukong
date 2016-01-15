@@ -1,7 +1,7 @@
 #pragma once
 #include "graph.h"
 #include "request.h"
-#include "request_queue.h"
+#include "blocking_queue.h"
 #include "network_node.h"
 #include "message_wrap.h"
 #include "profile.h"
@@ -10,15 +10,26 @@
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
 #include "simple_filter.h"
-//traverser will remember all the paths just like
-//traverser_keeppath in single machine
-
+struct per_thread_resource{
+	bool need_help;
+	char padding[63];
+	pthread_spinlock_t internal_lock;
+	blocking_queue req_queue;
+	vector<request> msg_fast_path;
+	per_thread_resource(){
+		need_help=false;
+		pthread_spin_init(&internal_lock,0);
+	}
+	void lock(){pthread_spin_lock(&internal_lock);}
+	void unlock(){pthread_spin_unlock(&internal_lock);}
+};
 class traverser{
 	graph& g;
-	request_queue req_queue;
 	thread_cfg* cfg;
+	thread_cfg* cfg_array;
+
 	profile split_profile;
-	vector<request> msg_fast_path;
+	per_thread_resource * res_array;
 	int req_id;
 	int get_id(){
 		int result=req_id;
@@ -228,7 +239,6 @@ class traverser{
 		return ;
 	}
 	void do_type_index(request& r){
-		cfg->rdma->set_need_help(cfg->t_id,true);
 		r.cmd_chains.pop_back();
 		int type_id=r.cmd_chains.back();
 		r.cmd_chains.pop_back();
@@ -279,7 +289,8 @@ class traverser{
 	vector<request> split_request_mt(request& r){
 		// (m0,t0),(m1,t0),(m2,t0)...
 		vector<request> sub_reqs;
-		int threads_per_machine=min(cfg->server_num,r.parallel_total);
+		//int threads_per_machine=min(cfg->server_num,r.parallel_total);
+		int threads_per_machine=cfg->server_num;
 		int num_sub_request=cfg->m_num * threads_per_machine ;
 		sub_reqs.resize(num_sub_request);
 		for(int i=0;i<sub_reqs.size();i++){
@@ -520,9 +531,23 @@ class traverser{
 			}
 		}
 	}
+	void traverser_SendReq(int r_mid,int r_tid,request& r){
+		if(r_mid == cfg->m_id && r_tid==cfg->t_id){
+			if(global_enable_workstealing){
+				//fast_path may conflict with the stealing thread
+				res_array[cfg->t_id].lock();
+			}
+			res_array[cfg->t_id].msg_fast_path.push_back(r);
+			if(global_enable_workstealing){
+				res_array[cfg->t_id].unlock();
+			}
+		} else {
+			SendReq(cfg,r_mid,r_tid, r,&split_profile);
+		}
+	}
 public:
-	traverser(graph& gg,thread_cfg* _cfg)
-			:g(gg),cfg(_cfg){
+	traverser(graph& gg,per_thread_resource* _res_array, thread_cfg* _cfg,thread_cfg* _cfg_array)
+			:g(gg),res_array(_res_array),cfg(_cfg),cfg_array(_cfg_array){
 		req_id=cfg->m_id+cfg->t_id*cfg->m_num;
 	}
 	
@@ -589,43 +614,31 @@ public:
 			r.blocking=true;
 			if(r.cmd_chains.back() == cmd_join){
 				vector<request> sub_reqs=split_request_join(r);
-				req_queue.put_req(r,sub_reqs.size());
+				res_array[cfg->t_id].req_queue.put_req(r,sub_reqs.size());
+				
 				for(int i=0;i<sub_reqs.size();i++){
 					//i=tid*cfg->m_num+machine
 					int m_id= i % cfg->m_num;
 					int traverser_id= cfg->client_num + i / cfg->m_num;
-					if(m_id == cfg->m_id && traverser_id==cfg->t_id){
-						msg_fast_path.push_back(sub_reqs[i]);
-					} else {
-						SendReq(cfg,m_id ,traverser_id, sub_reqs[i],&split_profile);
-					}
+					traverser_SendReq(m_id,traverser_id,sub_reqs[i]);
 				}
 			}
 			else if(global_use_multithread &&  r.row_num()>=global_rdma_threshold*100){
 				//cout<<"size of r.row_num()= "<< r.row_num()<< " is too large, use multi-thread "<<endl;
 				vector<request> sub_reqs=split_request_mt(r);
-				req_queue.put_req(r,sub_reqs.size());
+				res_array[cfg->t_id].req_queue.put_req(r,sub_reqs.size());
 				for(int i=0;i<sub_reqs.size();i++){
 					//i=tid*cfg->m_num+machine
 					int m_id= i % cfg->m_num;
 					int traverser_id= cfg->client_num + i / cfg->m_num;
-					if(m_id == cfg->m_id && traverser_id==cfg->t_id){
-						msg_fast_path.push_back(sub_reqs[i]);
-					} else {
-						SendReq(cfg,m_id ,traverser_id, sub_reqs[i],&split_profile);
-					}
+					traverser_SendReq(m_id,traverser_id,sub_reqs[i]);
 				}
 			} else {
 				vector<request> sub_reqs=split_request(r);
-				req_queue.put_req(r,sub_reqs.size());
-				//uint64_t t1=timer::get_usec();
+				res_array[cfg->t_id].req_queue.put_req(r,sub_reqs.size());
 				for(int i=0;i<sub_reqs.size();i++){
 					int traverser_id=cfg->t_id;	
-					if(i == cfg->m_id ){
-						msg_fast_path.push_back(sub_reqs[i]);
-					} else {
-						SendReq(cfg,i ,traverser_id, sub_reqs[i],&split_profile);
-					}
+					traverser_SendReq(i,traverser_id,sub_reqs[i]);
 				}
 			}	
 		}	
@@ -633,14 +646,64 @@ public:
 	void run(){	
 		while(true){
 			request r;
-			if(msg_fast_path.size()>0){
-				r=msg_fast_path.back();
-				msg_fast_path.pop_back();
+			bool steal=false;
+			if(global_enable_workstealing){
+				res_array[cfg->t_id].lock();
+				while(true){
+					if(res_array[cfg->t_id].msg_fast_path.size()>0){
+						r=res_array[cfg->t_id].msg_fast_path.back();
+						res_array[cfg->t_id].msg_fast_path.pop_back();
+						res_array[cfg->t_id].unlock();
+						break;
+					} 
+					bool success=TryRecvReq(cfg,r);
+					if(success){
+						res_array[cfg->t_id].unlock();
+						break;
+					}
+					if(cfg->t_id>8 && res_array[cfg->t_id].need_help==false
+									&& res_array[cfg->t_id-8].need_help==true){
+						//we are going to steal from other thread
+						res_array[cfg->t_id-8].lock();
+						success=TryRecvReq(&cfg_array[cfg->t_id-8],r);
+						if(success ){
+							if(cfg->is_client(r.parent_id)|| r.parallel_total==0){
+								//we will steal
+								//1. client request 
+								//2. sub-request or sub-reply of smaller request
+								steal=true;
+							} else {
+								success=false;
+								res_array[cfg->t_id-8].msg_fast_path.push_back(r);
+
+							}
+						}
+						res_array[cfg->t_id-8].unlock();
+						if(success){
+							res_array[cfg->t_id].unlock();
+							break;
+						}
+					}
+				}
+
+
+
+			} else { //just simply Recv
+				if(res_array[cfg->t_id].msg_fast_path.size()>0){
+					r=res_array[cfg->t_id].msg_fast_path.back();
+					res_array[cfg->t_id].msg_fast_path.pop_back();
+				}
+				else {
+					r=RecvReq(cfg);
+				}
 			}
-			else {
-				r=RecvReq(cfg);
-			}
+
 			if(r.req_id==-1){ //it means r is a request and shoule be executed
+				command cmd=(command)r.cmd_chains.back();
+				if(cmd == cmd_type_index|| cmd == cmd_predict_index || cmd==cmd_triangle){
+					res_array[cfg->t_id].need_help=true;
+					//cfg->rdma->set_need_help(cfg->t_id,true);
+				}
 				r.req_id=cfg->get_inc_id();
 				handle_request(r);
 				if(!r.blocking){
@@ -650,27 +713,30 @@ public:
 							// 	<<")  r.row_num()=" <<r.row_num()<<endl;
 							r.clear_data();
 						}
-						cfg->rdma->set_need_help(cfg->t_id,false);
+						res_array[cfg->t_id].need_help=false;
+						//cfg->rdma->set_need_help(cfg->t_id,false);
 					}
-					if(cfg->mid_of(r.parent_id)== cfg->m_id && cfg->tid_of(r.parent_id)==cfg->t_id){
-						msg_fast_path.push_back(r);
-					} else {
-						SendReq(cfg,cfg->mid_of(r.parent_id) ,cfg->tid_of(r.parent_id), r,&split_profile);
-					}
+					traverser_SendReq(cfg->mid_of(r.parent_id),cfg->tid_of(r.parent_id),r);
+				} else {
+					//else this request is put into waiting queue
+					//so we doesn't need to do any-thing
 				}
 			} else {
-				if(req_queue.put_reply(r)){
+				bool success;
+				if(steal){
+					success=res_array[cfg->t_id-8].req_queue.put_reply(r);
+				} else {
+					success=res_array[cfg->t_id].req_queue.put_reply(r);
+				}
+				if(success){
 					if(cfg->is_client(r.parent_id)){
 						if(global_clear_final_result){
 							r.clear_data();
 						}
-						cfg->rdma->set_need_help(cfg->t_id,false);
+						res_array[cfg->t_id].need_help=false;
+						//cfg->rdma->set_need_help(cfg->t_id,false);
 					}
-					if(cfg->mid_of(r.parent_id)== cfg->m_id && cfg->tid_of(r.parent_id)==cfg->t_id){
-						msg_fast_path.push_back(r);
-					} else {
-						SendReq(cfg,cfg->mid_of(r.parent_id) ,cfg->tid_of(r.parent_id), r,&split_profile);
-					}
+					traverser_SendReq(cfg->mid_of(r.parent_id),cfg->tid_of(r.parent_id),r);
 				}
 			}
 		}
