@@ -618,6 +618,10 @@ public:
 		while(true){
 			request r;
 			bool steal=false;
+			int victim_id=cfg->t_id;
+			if(cfg->t_id>=cfg->client_num+cfg->server_num/2){
+				victim_id=victim_id-cfg->server_num/2;
+			}
 			if(global_enable_workstealing){
 				res_array[cfg->t_id].lock();
 				while(true){
@@ -632,11 +636,11 @@ public:
 						res_array[cfg->t_id].unlock();
 						break;
 					}
-					if(cfg->t_id>8 && res_array[cfg->t_id].need_help==false
-									&& res_array[cfg->t_id-8].need_help==true){
+					if(res_array[cfg->t_id].need_help==false
+									&& res_array[victim_id].need_help==true){
 						//we are going to steal from other thread
-						res_array[cfg->t_id-8].lock();
-						success=TryRecvReq(&cfg_array[cfg->t_id-8],r);
+						res_array[victim_id].lock();
+						success=TryRecvReq(&cfg_array[victim_id],r);
 						if(success ){
 							if(cfg->is_client(r.parent_id)|| r.parallel_total==0){
 								//we will steal
@@ -645,11 +649,11 @@ public:
 								steal=true;
 							} else {
 								success=false;
-								res_array[cfg->t_id-8].msg_fast_path.push_back(r);
+								res_array[victim_id].msg_fast_path.push_back(r);
 
 							}
 						}
-						res_array[cfg->t_id-8].unlock();
+						res_array[victim_id].unlock();
 						if(success){
 							res_array[cfg->t_id].unlock();
 							break;
@@ -673,19 +677,15 @@ public:
 				command cmd=(command)r.cmd_chains.back();
 				if(cmd == cmd_type_index|| cmd == cmd_predict_index || cmd==cmd_triangle){
 					res_array[cfg->t_id].need_help=true;
-					//cfg->rdma->set_need_help(cfg->t_id,true);
 				}
 				r.req_id=cfg->get_inc_id();
 				handle_request(r);
 				if(!r.blocking){
 					if(cfg->is_client(r.parent_id)){
 						if(global_clear_final_result){
-							// cout<<"clear,("<<cfg->m_id<<","<<cfg->t_id
-							// 	<<")  r.row_num()=" <<r.row_num()<<endl;
 							r.clear_data();
 						}
 						res_array[cfg->t_id].need_help=false;
-						//cfg->rdma->set_need_help(cfg->t_id,false);
 					}
 					traverser_SendReq(cfg->mid_of(r.parent_id),cfg->tid_of(r.parent_id),r);
 				} else {
@@ -695,7 +695,7 @@ public:
 			} else {
 				bool success;
 				if(steal){
-					success=res_array[cfg->t_id-8].req_queue.put_reply(r);
+					success=res_array[victim_id].req_queue.put_reply(r);
 				} else {
 					success=res_array[cfg->t_id].req_queue.put_reply(r);
 				}

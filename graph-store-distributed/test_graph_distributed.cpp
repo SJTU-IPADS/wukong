@@ -125,6 +125,10 @@ void interactive_execute(client* is,string filename,int execute_count){
 
 void mix_execute(client* is,struct thread_cfg *cfg,string mix_config){
 	ifstream configfile(mix_config);
+	if(!configfile){
+		cout<<"File "<<mix_config<<" not exist"<<endl;
+		return ;
+	}
 	int total_query_type;
 	int total_request;
 	configfile>>total_query_type>>total_request;
@@ -184,15 +188,27 @@ void mix_execute(client* is,struct thread_cfg *cfg,string mix_config){
 	}
 	logger.print();
 }
-
-
+int global_barrier_val;
+void ClientBarrier(struct thread_cfg *cfg,int last_barrier){
+	//cout<<"Client "<<cfg->t_id<<" wish to enter a barrier"<<endl;
+	if(cfg->t_id==0){
+		MPI_Barrier(MPI_COMM_WORLD);
+		__sync_fetch_and_add(&global_barrier_val,1);
+	}  else {
+		__sync_fetch_and_add(&global_barrier_val,1);
+	}
+	while(global_barrier_val !=last_barrier+cfg->client_num){
+		usleep(1);
+	}
+	//cout<<"Client "<<cfg->t_id<<" leave the barrier"<<endl;
+}
 void run_client(client* is,struct thread_cfg *cfg){
 	get_ids(is,"get_university_id");
 	get_ids(is,"get_department_id");
 	get_ids(is,"get_AssistantProfessor_id");
 	get_ids(is,"get_AssociateProfessor_id");
 	get_ids(is,"get_GraduateCourse_id");
-	if(cfg->m_id==0){
+	if(cfg->m_id==0 && cfg->t_id==0){
 		cout<<"switch_iterative ->	iterative mode"<<endl;
 		cout<<"switch_batch 	->	batch mode"<<endl;
 		cout<<"switch_mix 		->	mix mode"<<endl;
@@ -204,13 +220,16 @@ void run_client(client* is,struct thread_cfg *cfg){
 	mode_str[0]="iterative mode (iterative file + [count]):";
 	mode_str[1]="batch mode (batch file):";
 	mode_str[2]="mix mode (batch file + iterative file + [count]):";
-	
+	int last_barrier=0;
 	while(true){
-		MPI_Barrier(MPI_COMM_WORLD);
+		//MPI_Barrier(MPI_COMM_WORLD);
+		ClientBarrier(cfg,last_barrier);
+		last_barrier+=cfg->client_num;
+
 		string batch_filename;
 		string iterative_filename;
 		int iterative_count=1;
-		if(cfg->m_id==0 ){
+		if(cfg->m_id==0 && cfg->t_id==0){
 			string input_str;
 			while(true){
 				cout<<mode_str[global_client_mode]<<endl;;
@@ -246,17 +265,23 @@ void run_client(client* is,struct thread_cfg *cfg){
 					iterative_count=1;
 				}
 			}
-			for(int i=1;i<cfg->m_num;i++){
-				cfg->node->Send(i,0,batch_filename);
+			
+			for(int i=0;i<cfg->m_num;i++){
+				for(int j=0;j<cfg->client_num;j++){
+					if(i==0 && j==0){
+						continue;
+					}
+					cfg->node->Send(i,j,batch_filename);
+				}
 			}
   		} else {
   			batch_filename=cfg->node->Recv();
   			if(batch_filename=="NO_BATCH_FILE"){
   				continue;
   			}
-  		}
+		}
 
-  		if(cfg->m_id==0 && (global_client_mode==0 || global_client_mode==2) ){
+  		if(cfg->m_id==0 && cfg->t_id==0 && (global_client_mode==0 || global_client_mode==2) ){
   			interactive_execute(is,iterative_filename,iterative_count);
   		} else {
   			mix_execute(is,cfg,batch_filename);
@@ -294,6 +319,7 @@ int main(int argc, char * argv[])
 
 	boost::mpi::environment env(argc, argv);
 	boost::mpi::communicator world;
+	global_barrier_val=0;
 
 	uint64_t rdma_size = 1024*1024*1024;  //1G
 	//rdma_size = rdma_size*20; //25G 

@@ -3,7 +3,7 @@ global_use_rdma			1
 global_rdma_threshold	300
 global_query_type		8
 global_num_server		16
-global_num_client		1
+global_num_client		2
 global_batch_factor		16
 global_input_folder		/home/datanfs/nfs0/LUBM/id_univ40/
 global_client_mode		0
