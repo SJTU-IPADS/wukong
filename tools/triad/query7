@@ -2,8 +2,8 @@ type_index	16		<ub#FullProfessor>
 neighbors   out 	<ub#teacherOf>
 subclass_of		<ub#Course>
 neighbors   in <ub#takesCourse>
-subclass_of		<ub#UndergraduateStudent>
 filter out 	<ub#advisor>	0
+subclass_of		<ub#UndergraduateStudent>
 execute
 
 

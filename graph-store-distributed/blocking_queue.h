@@ -18,7 +18,6 @@ class blocking_queue{
 	void merge_reqs(vector<request>& sub_reqs,request& r){
 		if(r.cmd_chains.back()==cmd_join){
 
-			//cout<<"join "<<r.row_num()<<" start"<<endl;
 			boost::unordered_map<int,pair<int,int> > id_2_row_start;
 			for(int i=0;i<sub_reqs.size();i++){
 				for(int j=0;j<sub_reqs[i].row_num();j++){
@@ -28,7 +27,6 @@ class blocking_queue{
 					}
 				}
 			}
-			//cout<<"create unordered_map "<<r.row_num()<<endl;
 			vector<vector<int> >updated_result_table;
 			int new_size=0;
 			updated_result_table.resize(r.column_num()+sub_reqs[0].column_num()-1);
@@ -53,7 +51,7 @@ class blocking_queue{
 			//cout<<"create new updated_result_table "<<r.row_num()<<endl;
 			//cout<<"r from"<<r.row_num()<<" to"<<updated_result_table[0].size()<<endl;
 			cout<<"r from"<<r.row_num()<<" to"<<new_size<<endl;
-			
+			r.result_table.swap(updated_result_table);
 			return ;
 		}
 		if(sub_reqs.size()>0)

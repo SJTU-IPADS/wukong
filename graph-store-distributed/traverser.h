@@ -314,6 +314,7 @@ class traverser{
 		sub_reqs.resize(num_sub_request);
 		for(int i=0;i<sub_reqs.size();i++){
 			sub_reqs[i].parent_id=r.req_id;
+			sub_reqs[i].parallel_total=r.parallel_total;
 			sub_reqs[i].cmd_chains=r.cmd_chains;
 			sub_reqs[i].cmd_chains.pop_back();
 			sub_reqs[i].result_table.resize(1);
@@ -366,68 +367,42 @@ class traverser{
 		uint64_t t2=timer::get_usec();
 
 		//step 3 : find all type_1,type_2 and create a simple_filter
-		//pthread_spinlock_t triangle_lock;
-		//pthread_spin_init(&triangle_lock,0);
 		vector<boost::unordered_map<uint64_t,bool> > type_filter;
 		type_filter.resize(3);
 		simple_filter edge_filter;
 		vector<vector<v_pair> >pair_vec;
 		pair_vec.resize(num_parallel_thread);
-		//type_filter[1].reserve(r.row_num());
 		int count_type1=0;
-		//#pragma omp parallel for num_threads(num_parallel_thread)
 		for(uint64_t i=0;i<r.row_num();i++){
 			int working_tid = omp_get_thread_num();
 			
 			int edge_num=0;
 			edge_v2* edge_ptr;
-			//pthread_spin_lock(&triangle_lock);
 			if(type_filter[1].find(r.last_column(i))!=type_filter[1].end()){
-				//	pthread_spin_unlock(&triangle_lock);
 				continue;
 			}
 			count_type1++;
 			type_filter[1][r.last_column(i)]=true;					
-			//pthread_spin_unlock(&triangle_lock);
-
-			// check whether it's type_1 or not
-			//if(num_parallel_thread==1){
 				edge_ptr=g.kstore.readGlobal_predict(cfg->t_id,
 										r.last_column(i),para_out,global_rdftype_id,&edge_num);
-			// } else {
-			// 	edge_ptr=g.kstore.readGlobal_predict(1+working_tid,
-			// 							r.last_column(i),para_out,global_rdftype_id,&edge_num);
-			// }
-
 			bool found=false;
 			for(int k=0;k<edge_num;k++){
 				if(g.ontology_table.is_subtype_of(edge_ptr[k].val,v_type[1])){
 					found=true;
-					//pthread_spin_lock(&triangle_lock);
 					type_filter[1][r.last_column(i)]=true;
-					//pthread_spin_unlock(&triangle_lock);
 					break;
 				}
 			}
 			if(!found){
-				//pthread_spin_lock(&triangle_lock);
 				type_filter[1][r.last_column(i)]=false;
-				//pthread_spin_unlock(&triangle_lock);
 				continue;
 			}
 			// fetch and insert to edge_filter
 			edge_num=0;
-			//if(num_parallel_thread==1){
 				edge_ptr=g.kstore.readGlobal_predict(cfg->t_id,
 											r.last_column(i),v_dir[1],v_predict[1],&edge_num);
-			// } else {
-			// 	edge_ptr=g.kstore.readGlobal_predict(1+working_tid,
-			// 								r.last_column(i),v_dir[1],v_predict[1],&edge_num);
-			// }
 			for(int k=0;k<edge_num;k++){
-				pair_vec[working_tid].push_back(v_pair(r.last_column(i),edge_ptr[k].val));
-					//edge_filter.insert(r.last_column(i),edge_ptr[k].vid);
-					
+				pair_vec[working_tid].push_back(v_pair(r.last_column(i),edge_ptr[k].val));		
 			}
 		}
 
@@ -442,7 +417,6 @@ class traverser{
 			count+=pair_vec[j].size();
 		}
 		edge_filter.tbb_set.rehash(2*count);
-		//#pragma omp parallel for num_threads(num_parallel_thread)
 		for(uint64_t i=0;i<num_parallel_thread;i++){
 			for(int j=0;j<pair_vec[i].size();j++){
 				tbb_hashtable::accessor a; 
@@ -556,10 +530,6 @@ public:
 			if(global_clear_final_result){
 				r.final_row_number=r.row_num();
 				r.clear_data();
-				// cout<<"clear,("<<cfg->m_id<<","<<cfg->t_id
-				// 	<<")  r.row_num()=" <<r.row_num()<<endl;
-					//r.clear_data();
-					//r.result_table.clear();
 			}
 			return ;
 		}
@@ -619,7 +589,8 @@ public:
 				for(int i=0;i<sub_reqs.size();i++){
 					//i=tid*cfg->m_num+machine
 					int m_id= i % cfg->m_num;
-					int traverser_id= cfg->client_num + i / cfg->m_num;
+					int traverser_id=cfg->t_id;	
+					//int traverser_id= cfg->client_num + i / cfg->m_num;
 					traverser_SendReq(m_id,traverser_id,sub_reqs[i]);
 				}
 			}

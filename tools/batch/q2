@@ -1,0 +1,6 @@
+get_AssistantProfessor_id
+neighbors 	in 	<ub#publicationAuthor>
+subclass_of 	<ub#Publication>
+execute	
+
+modified version of query3 in LUBM website

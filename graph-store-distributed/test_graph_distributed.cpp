@@ -77,15 +77,7 @@ void batch_execute(client* is,struct thread_cfg *cfg,string filename){
 	logger.start();
 	for(int times=0;times<total_request;times++){
 		reply=is->Recv();
-		// if(times==total_request/4){
-		// 	logger.start();
-		// }
-		// if(times==total_request/4 *3){
-		// 	logger.stop();
-		// }
-		// if(times>=total_request/4 && times<total_request/4*3){
 		logger.record(reply.timestamp,timer::get_usec());
-		//}
 		int i=rand_r(&seed) % ids.size();
 		is->lookup_id(ids[i]);
 		if(!(is->parse_cmd_vector(cmd_chain))){
@@ -128,88 +120,71 @@ void interactive_execute(client* is,string filename,int execute_count){
 	cout<<"result size:"<<reply.final_row_number<<endl;
 	cout<<"average latency "<<sum/execute_count<<" us"<<endl;
 }
-void interactive_mode(client* is,struct thread_cfg *cfg){
-	if(cfg->m_id!=0 || cfg->t_id!=0){
-		return ;
-	}
-	while(true){
-		cout<<"interactive mode:"<<endl;
-		string input_str;
-		std::getline(std::cin,input_str);
-		istringstream iss(input_str);
+
+
+
+void mix_execute(client* is,struct thread_cfg *cfg,string mix_config){
+	ifstream configfile(mix_config);
+	int total_query_type;
+	int total_request;
+	configfile>>total_query_type>>total_request;
+	vector<vector<uint64_t> > first_ids;
+	vector<vector<string> > cmd_chains;
+	first_ids.resize(total_query_type);
+	cmd_chains.resize(total_query_type);
+	for(int i=0;i<total_query_type;i++){
 		string filename;
-		iss>>filename;
-		int execute_count=1;
-		iss>>execute_count;
-		if(execute_count<1){
-			execute_count=1;
+		configfile>>filename;
+		ifstream file(filename);
+		string cmd;
+		file>>cmd;
+		first_ids[i]=get_ids(is,cmd);
+		if(first_ids[i].size()==0){
+			cout<<"id set is empty..."<<endl;
+			exit(0);
 		}
-		interactive_execute(is,filename,execute_count);
+		while(file>>cmd){
+			cmd_chains[i].push_back(cmd);
+		}
+		file.close();
 	}
+	configfile.close();
+	////start to send message
+	latency_logger logger;
+	request reply;
+	for(int i=0;i<global_batch_factor;i++){
+		is->lookup_id(first_ids[0][0]);
+		if(!(is->parse_cmd_vector(cmd_chains[0]))){
+			cout<<"error cmd"<<endl;
+			return ;
+		}
+		is->req.timestamp=timer::get_usec();
+		is->Send();
+	}
+	unsigned int seed=cfg->m_id*cfg->t_num+cfg->t_id;
+	logger.start();
+	for(int times=0;times<total_request;times++){
+		reply=is->Recv();
+		logger.record(reply.timestamp,timer::get_usec());
+		unsigned random_number=rand_r(&seed);
+		unsigned query_type=random_number%total_query_type;
+		unsigned idx=(random_number/total_query_type) % first_ids[query_type].size();
+		
+		is->lookup_id(first_ids[query_type][idx]);
+		if(!(is->parse_cmd_vector(cmd_chains[query_type]))){
+			cout<<"error cmd"<<endl;
+			return ;
+		}
+		is->req.timestamp=timer::get_usec();
+		is->Send();
+	}
+	logger.stop();
+	for(int i=0;i<global_batch_factor;i++){
+		reply=is->Recv();
+	}
+	logger.print();
 }
-void batch_mode(client* is,struct thread_cfg *cfg){
-	get_ids(is,"get_university_id");
-	get_ids(is,"get_department_id");
-	get_ids(is,"get_AssistantProfessor_id");
-	get_ids(is,"get_AssociateProfessor_id");
-	get_ids(is,"get_GraduateCourse_id");
-	while(true){
-		//// Wait for user input
-		MPI_Barrier(MPI_COMM_WORLD);
-		string filename;
-		if(cfg->m_id==0 && cfg->t_id==0){
-			cout<<"batch mode:"<<endl;
-			cin>>filename;
-			for(int i=1;i<cfg->m_num;i++){
-				cfg->node->Send(i,0,filename);
-			}
-  		} else {
-  			filename=cfg->node->Recv();
-  		}
-  		////prepare for all used ids
-  		MPI_Barrier(MPI_COMM_WORLD);
-  		batch_execute(is,cfg,filename);
-	}//while loop, never end
-}
-void mixmode(client* is,struct thread_cfg *cfg){
-	get_ids(is,"get_university_id");
-	get_ids(is,"get_department_id");
-	get_ids(is,"get_AssistantProfessor_id");
-	get_ids(is,"get_AssociateProfessor_id");
-	get_ids(is,"get_GraduateCourse_id");
-	while(true){
-		//// Wait for user input
-		MPI_Barrier(MPI_COMM_WORLD);
-		string batch_filename;
-		string iterative_filename;
-		int iterative_count=1;
-		if(cfg->m_id==0 && cfg->t_id==0){
-			cout<<"mix mode (batch file + iterative file):"<<endl;
-			//std::getline(std::cin,batch_filename);
-			string input_str;
-			std::getline(std::cin,input_str);
-			istringstream iss(input_str);
-			iss>>batch_filename;
-			for(int i=1;i<cfg->m_num;i++){
-				cfg->node->Send(i,0,batch_filename);
-			}
-			iss>>iterative_filename;
-			iss>>iterative_count;
-			if(iterative_count<1){
-				iterative_count=1;
-			}
-  		} else {
-  			batch_filename=cfg->node->Recv();
-  		}
-  		////prepare for all used ids
-  		//MPI_Barrier(MPI_COMM_WORLD);
-  		if(cfg->m_id==0){
-  			interactive_execute(is,iterative_filename,iterative_count);
-  		} else {
-  			batch_execute(is,cfg,batch_filename);
-  		}
-	}//while loop, never end
-}
+
 
 void run_client(client* is,struct thread_cfg *cfg){
 	get_ids(is,"get_university_id");
@@ -284,7 +259,8 @@ void run_client(client* is,struct thread_cfg *cfg){
   		if(cfg->m_id==0 && (global_client_mode==0 || global_client_mode==2) ){
   			interactive_execute(is,iterative_filename,iterative_count);
   		} else {
-  			batch_execute(is,cfg,batch_filename);
+  			mix_execute(is,cfg,batch_filename);
+  			//batch_execute(is,cfg,batch_filename);
   		}
 	}
 }

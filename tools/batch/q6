@@ -1,0 +1,10 @@
+get_university_id
+neighbors   in 	<ub#subOrganizationOf>
+subclass_of		<ub#Department>
+neighbors   in 	<ub#worksFor>
+subclass_of		<ub#FullProfessor>
+execute	10000
+
+
+modified version of query12 in LUBM website 
+

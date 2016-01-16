@@ -318,11 +318,13 @@ struct normal_op_req
     }
     std::string rbfRecv(int local_tid){
       while(true){
-        for(int mid=0;mid<_total_partition;mid++){
+        int mid=local_meta[local_tid].own_count % _total_partition;
+        local_meta[local_tid].own_count++;
+        //for(int mid=0;mid<_total_partition;mid++){
           if(check_rbf_msg(local_tid,mid)){
             return fetch_rbf_msg(local_tid,mid);
           }
-        }
+        //}
       }
     }
     bool rbfTryRecv(int local_tid, std::string& ret){
