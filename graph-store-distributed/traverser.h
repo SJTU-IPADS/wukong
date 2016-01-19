@@ -82,6 +82,31 @@ class traverser{
 		}
 		r.result_table.swap(updated_result_table);
 	}
+	void do_has_attr(request& r){
+		r.cmd_chains.pop_back();
+		int dir=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
+		int predict_id=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
+		int target_id=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
+
+		vector<vector<int> >updated_result_table;
+		updated_result_table.resize(r.column_num());
+
+		for (int i=0;i<r.row_num();i++){
+			int prev_id=r.last_column(i);	
+			int edge_num=0;
+			edge_v2* edge_ptr=g.kstore.readGlobal_predict(cfg->t_id, prev_id,dir,predict_id,&edge_num);
+			for(int k=0;k<edge_num;k++){
+				if(edge_ptr[k].val==target_id){
+					r.append_row_to(updated_result_table,i);
+					break;
+				}	
+			}
+		}
+		r.result_table.swap(updated_result_table);
+	}
 	void do_get_attr(request& r){
 		r.cmd_chains.pop_back();
 		int dir=r.cmd_chains.back();
@@ -129,6 +154,12 @@ class traverser{
 			}
 		}
 		r.result_table.swap(updated_result_table);
+	}
+	void do_swap_column(request& r){
+		r.cmd_chains.pop_back();
+		int column_id=r.cmd_chains.back();
+		r.cmd_chains.pop_back();
+		r.result_table[r.column_num()-1].swap(r.result_table[column_id]);
 	}
 	// void async_do_subclass_of(request& r){
 	// 	int predict_id=global_rdftype_id;
@@ -497,6 +528,9 @@ class traverser{
 			} else if(r.cmd_chains.back() == cmd_get_attr){
 				//async_do_get_attr(r);
 				do_get_attr(r);
+			} else if(r.cmd_chains.back() == cmd_has_attr){
+				//async_do_get_attr(r);
+				do_has_attr(r);
 			} else if(r.cmd_chains.back() == cmd_neighbors){
 				//async_do_neighbors(r);
 				do_neighbors(r);
@@ -543,6 +577,10 @@ public:
 			do_get_attr(r);
 			handle_request(r);
 			return ;
+		} else if(r.cmd_chains.back() == cmd_has_attr){
+			do_has_attr(r);
+			handle_request(r);
+			return ;
 		} else if(r.cmd_chains.back() == cmd_triangle){
 			do_triangle(r);
 		} else if(r.cmd_chains.back() == cmd_neighbors){
@@ -559,8 +597,14 @@ public:
 			do_type_index(r);
 			handle_request(r);
 			return ;
-		} else{
+		} else if(r.cmd_chains.back() == cmd_swap_column){
+			do_swap_column(r);
+		} else {
 			assert(false);
+		}
+
+		if(r.cmd_chains.size()!=0 && r.cmd_chains.back() == cmd_swap_column){
+			do_swap_column(r);
 		}
 		
 		//Tuning the threshold; should be remove because it will throw away part of result

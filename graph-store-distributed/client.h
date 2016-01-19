@@ -43,10 +43,14 @@ public:
 				neighbors(str_vec[i+1],str_vec[i+2]);
 				i+=3;
 			} else if(str_vec[i]=="get_attr"){
-				// get_attr(str_vec[i+1]);
-				// i+=2;
 				get_attr(str_vec[i+1],str_vec[i+2]);
 				i+=3;
+			} else if(str_vec[i]=="has_attr"){
+				has_attr(str_vec[i+1],str_vec[i+2],str_vec[i+3]);
+				i+=4;
+			} else if(str_vec[i]=="swap_column"){
+				swap_column(str_vec[i+1]);
+				i+=2;
 			} else if(str_vec[i]=="subclass_of"){
 				subclass_of(str_vec[i+1]);
 				i+=2;
@@ -153,6 +157,10 @@ public:
 		req.cmd_chains.push_back(atoi(target.c_str()));
 		return *this;
 	}
+	client& swap_column(string column_id){
+		req.cmd_chains.push_back(cmd_swap_column);
+		req.cmd_chains.push_back(atoi(column_id.c_str()));
+	}
 	client& join(){
 		req.cmd_chains.push_back(cmd_join);
 		return *this;
@@ -185,6 +193,18 @@ public:
 			req.cmd_chains.push_back(para_out);
 		} 
 		req.cmd_chains.push_back(is->predict_to_id[predict]);
+		return *this;
+	}
+	client& has_attr(string dir,string predict,string target){
+		assert(is->subject_to_id.find(target)!=is->subject_to_id.end());
+		req.cmd_chains.push_back(cmd_has_attr);
+		if(dir =="in" ){
+			req.cmd_chains.push_back(para_in);
+		} else if (dir =="out" ){
+			req.cmd_chains.push_back(para_out);
+		} 
+		req.cmd_chains.push_back(is->predict_to_id[predict]);
+		req.cmd_chains.push_back(is->subject_to_id[target]);
 		return *this;
 	}
 

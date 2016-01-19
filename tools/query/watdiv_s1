@@ -1,0 +1,24 @@
+lookup <http://db.uwaterloo.ca/~galuc/wsdbm/Retailer9817>
+neighbors out	<http://purl.org/goodrelations/offers>
+get_attr out <http://purl.org/goodrelations/includes>
+get_attr out <http://purl.org/goodrelations/price>
+get_attr out <http://purl.org/goodrelations/serialNumber>
+get_attr out <http://purl.org/goodrelations/validFrom>
+get_attr out <http://purl.org/goodrelations/validThrough>
+get_attr out <http://schema.org/eligibleQuantity>
+get_attr out <http://schema.org/eligibleRegion>
+get_attr out <http://schema.org/priceValidUntil>
+execute
+
+
+SELECT ?v0 ?v1 ?v3 ?v4 ?v5 ?v6 ?v7 ?v8 ?v9 WHERE {
+	?v0 <http://purl.org/goodrelations/includes> ?v1 .
+	<http://db.uwaterloo.ca/~galuc/wsdbm/Retailer9817> <http://purl.org/goodrelations/offers> ?v0 .
+	?v0 <http://purl.org/goodrelations/price> ?v3 .
+	?v0 <http://purl.org/goodrelations/serialNumber> ?v4 .
+	?v0 <http://purl.org/goodrelations/validFrom> ?v5 .
+	?v0 <http://purl.org/goodrelations/validThrough> ?v6 .
+	?v0 <http://schema.org/eligibleQuantity> ?v7 .
+	?v0 <http://schema.org/eligibleRegion> ?v8 .
+	?v0 <http://schema.org/priceValidUntil> ?v9 .
+}

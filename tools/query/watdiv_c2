@@ -1,0 +1,29 @@
+predict_index 4 <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase> in
+get_attr out <http://schema.org/jobTitle> 
+get_attr out <http://xmlns.com/foaf/homepage>
+neighbors out <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase>
+neighbors out <http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor>
+neighbors out <http://purl.org/stuff/rev#hasReview>
+neighbors out <http://purl.org/stuff/rev#totalVotes>
+swap_column	4
+neighbors in <http://purl.org/goodrelations/includes>
+has_attr out <http://schema.org/eligibleRegion> <http://db.uwaterloo.ca/~galuc/wsdbm/Country5>
+neighbors in <http://purl.org/goodrelations/offers>
+neighbors out <http://schema.org/legalName>
+execute
+
+
+
+
+SELECT ?v0 ?v3 ?v4 ?v8 WHERE {
+	?v0 <http://schema.org/legalName> ?v1 .
+	?v0 <http://purl.org/goodrelations/offers> ?v2 .
+	?v2 <http://schema.org/eligibleRegion> <http://db.uwaterloo.ca/~galuc/wsdbm/Country5> .
+	?v2 <http://purl.org/goodrelations/includes> ?v3 .
+	?v4 <http://schema.org/jobTitle> ?v5 .
+	?v4 <http://xmlns.com/foaf/homepage> ?v6 .
+	?v4 <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase> ?v7 .
+	?v7 <http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor> ?v3 .
+	?v3 <http://purl.org/stuff/rev#hasReview> ?v8 .
+	?v8 <http://purl.org/stuff/rev#totalVotes> ?v9 .
+}

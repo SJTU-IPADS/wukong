@@ -1,0 +1,26 @@
+lookup <http://db.uwaterloo.ca/~galuc/wsdbm/Topic245>
+neighbors   in 	<http://ogp.me/ns#tag>
+get_attr	out	<http://schema.org/description>
+get_attr	out	<http://schema.org/contentSize>
+get_attr	in	<http://db.uwaterloo.ca/~galuc/wsdbm/likes> 
+get_attr	in	<http://purl.org/goodrelations/includes>
+neighbors	out	<http://xmlns.com/foaf/homepage>
+has_attr	out	<http://schema.org/language>	<http://db.uwaterloo.ca/~galuc/wsdbm/Language0>
+get_attr	out	<http://schema.org/url>
+get_attr	out	<http://db.uwaterloo.ca/~galuc/wsdbm/hits>
+execute
+
+
+
+
+SELECT ?v0 ?v1 ?v2 ?v4 ?v5 ?v6 ?v7 ?v8 WHERE {
+	?v0 <http://xmlns.com/foaf/homepage> ?v1 .
+	?v2 <http://purl.org/goodrelations/includes> ?v0 .
+	?v0 <http://ogp.me/ns#tag> <http://db.uwaterloo.ca/~galuc/wsdbm/Topic245> .
+	?v0 <http://schema.org/description> ?v4 .
+	?v0 <http://schema.org/contentSize> ?v8 .
+	?v1 <http://schema.org/url> ?v5 .
+	?v1 <http://db.uwaterloo.ca/~galuc/wsdbm/hits> ?v6 .
+	?v1 <http://schema.org/language> <http://db.uwaterloo.ca/~galuc/wsdbm/Language0> .
+	?v7 <http://db.uwaterloo.ca/~galuc/wsdbm/likes> ?v0 .
+}

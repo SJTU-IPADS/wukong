@@ -1,0 +1,24 @@
+lookup	<http://db.uwaterloo.ca/~galuc/wsdbm/Country1>
+neighbors	in	<http://schema.org/nationality>
+get_attr in	<http://purl.org/ontology/mo/artist> 
+get_attr out	<http://xmlns.com/foaf/familyName> 
+has_attr out	<http://xmlns.com/foaf/age> <http://db.uwaterloo.ca/~galuc/wsdbm/AgeGroup7>
+execute
+
+lookup	<http://db.uwaterloo.ca/~galuc/wsdbm/AgeGroup7>
+neighbors in <http://xmlns.com/foaf/age>
+get_attr out	<http://xmlns.com/foaf/familyName> 
+get_attr in	<http://purl.org/ontology/mo/artist> 
+has_attr out	<http://schema.org/nationality> <http://db.uwaterloo.ca/~galuc/wsdbm/Country1>
+execute
+
+
+
+
+
+SELECT ?v0 ?v2 ?v3 WHERE {
+	?v0 <http://xmlns.com/foaf/age> <http://db.uwaterloo.ca/~galuc/wsdbm/AgeGroup7> .
+	?v0 <http://xmlns.com/foaf/familyName> ?v2 .
+	?v3 <http://purl.org/ontology/mo/artist> ?v0 .
+	?v0 <http://schema.org/nationality> <http://db.uwaterloo.ca/~galuc/wsdbm/Country1> .
+}

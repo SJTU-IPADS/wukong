@@ -1,7 +1,7 @@
 lookup			<http://dbpedia.org/class/yago/Company108058098>
 neighbors   in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
-get_attr		<http://dbpedia.org/property/numEmployees>
-get_attr		<http://xmlns.com/foaf/0.1/homepage>
+get_attr	out	<http://dbpedia.org/property/numEmployees>
+get_attr	out	<http://xmlns.com/foaf/0.1/homepage>
 execute
 
 

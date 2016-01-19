@@ -1,0 +1,14 @@
+lookup <http://db.uwaterloo.ca/~galuc/wsdbm/SubGenre143>
+neighbors in <http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre>
+get_attr out	<http://purl.org/ontology/mo/conductor>
+get_attr out	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
+execute
+
+
+
+
+SELECT ?v0 ?v1 ?v2 WHERE {
+	?v0 <http://purl.org/ontology/mo/conductor> ?v1 .
+	?v0 <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?v2 .
+	?v0 <http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre> <http://db.uwaterloo.ca/~galuc/wsdbm/SubGenre143> .
+}

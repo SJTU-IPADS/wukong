@@ -1,14 +1,12 @@
-lookup <http://dbpedia.org/ontology/BasketballPlayer>
-neighbors   in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
-get_attr	<http://xmlns.com/foaf/0.1/homepage>
+type_index 16 <http://dbpedia.org/ontology/Person>
+get_attr	out	<http://xmlns.com/foaf/0.1/homepage>
 execute
-neighbors	out	<http://xmlns.com/foaf/0.1/homepage>
 
-2-TriplePatterns
-lookup <http://dbpedia.org/ontology/SpaceStation>
-lookup <http://dbpedia.org/ontology/College>
 
-10193us
+1752us
+
+
+<http://dbpedia.org/ontology/Building>
 
 
 1-TriplePatterns        PREFIX dbpprop: <http://dbpedia.org/property/> SELECT * WHERE { %%var%%  dbpprop:redirect ?var0 . }     PREFIX dbpprop: <http://dbpedia.org/property/> SELECT DISTINCT ?var FROM <http://dbpedia.org> WHERE { ?var dbpprop:redirect ?var0 . } LIMIT 1000

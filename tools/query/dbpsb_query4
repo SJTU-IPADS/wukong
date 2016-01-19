@@ -1,11 +1,11 @@
-lookup			<http://dbpedia.org/class/Book>
-neighbors   in 	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
-get_attr		<http://dbpedia.org/property/name>
-get_attr		<http://dbpedia.org/property/pages>
-get_attr		<http://dbpedia.org/property/isbn>
-get_attr		<http://dbpedia.org/property/author>
+type_index 16 <http://www.w3.org/2002/07/owl#Thing>
+get_attr	out	<http://dbpedia.org/property/name>
+get_attr	out	<http://dbpedia.org/property/pages>
+get_attr	out	<http://dbpedia.org/property/isbn>
+get_attr	out	<http://dbpedia.org/property/author>
 execute
 
+type_index 8 <http://www.w3.org/2002/07/owl#Thing>
 
 
 ?var6 rdf:type %%var%%. 
@@ -17,6 +17,6 @@ execute
 150:<http://dbpedia.org/property/name>
 
 query/dbpsb_query4
-
-lookup			<http://dbpedia.org/ontology/Book>
-lookup			<http://dbpedia.org/class/Book>
+<http://www.w3.org/2002/07/owl#Thing>
+<http://dbpedia.org/ontology/Book>
+<http://dbpedia.org/class/Book>

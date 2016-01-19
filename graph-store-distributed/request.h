@@ -17,11 +17,13 @@ enum command{
 	cmd_neighbors,
 	cmd_triangle,
 	cmd_get_attr,
+	cmd_has_attr,
 	cmd_get_subtype,
 	cmd_predict_index,
 	cmd_type_index,
 	cmd_filter,
-	cmd_join
+	cmd_join,
+	cmd_swap_column
 };
 enum parameter{
 	para_in,

@@ -1,0 +1,14 @@
+lookup <http://db.uwaterloo.ca/~galuc/wsdbm/City113>
+neighbors out	<http://www.geonames.org/ontology#parentCountry>
+neighbors in <http://schema.org/nationality>
+has_attr out <http://db.uwaterloo.ca/~galuc/wsdbm/likes> <http://db.uwaterloo.ca/~galuc/wsdbm/Product0>
+execute
+
+
+
+
+SELECT ?v1 ?v2 WHERE {
+	<http://db.uwaterloo.ca/~galuc/wsdbm/City113> <http://www.geonames.org/ontology#parentCountry> ?v1 .
+	?v2 <http://db.uwaterloo.ca/~galuc/wsdbm/likes> <http://db.uwaterloo.ca/~galuc/wsdbm/Product0> .
+	?v2 <http://schema.org/nationality> ?v1 .
+}

@@ -1,7 +1,7 @@
 lookup "SuperPatriot"@en
 neighbors	in 	<http://www.w3.org/2000/01/rdf-schema#label>
 subclass_of <http://dbpedia.org/ontology/Person>
-get_attr	<http://xmlns.com/foaf/0.1/page>
+get_attr	out	<http://xmlns.com/foaf/0.1/page>
 execute
 
 3-TriplePatterns

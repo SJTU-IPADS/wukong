@@ -1,0 +1,33 @@
+lookup <http://db.uwaterloo.ca/~galuc/wsdbm/SubGenre101>
+neighbors   in 	<http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre>
+get_attr	out	<http://schema.org/description>
+get_attr	out	<http://schema.org/caption>
+get_attr	out	<http://ogp.me/ns#title>
+get_attr	out	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
+neighbors	out	<http://xmlns.com/foaf/homepage>
+get_attr	out	<http://schema.org/url>
+get_attr	out	<http://db.uwaterloo.ca/~galuc/wsdbm/hits>
+execute
+
+
+
+
+get_attr	out	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
+neighbors   in 	<http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre>
+get_attr	out	<http://schema.org/trailer>
+get_attr	out	<http://schema.org/keywords>
+subclass_of	<http://db.uwaterloo.ca/~galuc/wsdbm/ProductCategory2> 
+execute
+
+
+
+SELECT ?v0 ?v1 ?v2 ?v4 ?v5 ?v6 ?v7 WHERE {
+	?v0 <http://xmlns.com/foaf/homepage> ?v1 .
+	?v0 <http://ogp.me/ns#title> ?v2 .
+	?v0 <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?v3 .
+	?v0 <http://schema.org/caption> ?v4 .
+	?v0 <http://schema.org/description> ?v5 .
+	?v1 <http://schema.org/url> ?v6 .
+	?v1 <http://db.uwaterloo.ca/~galuc/wsdbm/hits> ?v7 .
+	?v0 <http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre> <http://db.uwaterloo.ca/~galuc/wsdbm/SubGenre101> .
+}

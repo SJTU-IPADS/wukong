@@ -1,11 +1,12 @@
 lookup 			<http://dbpedia.org/resource/Hasbro_Interactive>
 neighbors   in 	<http://dbpedia.org/ontology/foundationPlace>
-subclass_of		<http://dbpedia.org/ontology/Organisation>
 neighbors   in 	<http://dbpedia.org/ontology/developer>
 subclass_of		<http://dbpedia.org/ontology/Software>
 execute
 
 4-TriplePatterns
+
+subclass_of		<http://dbpedia.org/ontology/Organisation>
 
 
 ?var2 a <http://dbpedia.org/ontology/Organisation> . ?var2 <http://dbpedia.org/ontology/foundationPlace> %%var0%% . ?var4 <http://dbpedia.org/ontology/developer> ?var2 . ?var4 a %%var1%%

@@ -1,17 +1,15 @@
-predict_index	<http://schema.org/caption>	in
-get_attr  	<http://schema.org/text>
-get_attr  	<http://schema.org/contentRating>
-get_attr  	<http://schema.org/caption>
+predict_index	8	<http://schema.org/caption>	in
+get_attr  out	<http://schema.org/text>
+get_attr  out  	<http://schema.org/contentRating>
+get_attr  out  	<http://schema.org/caption>
 neighbors   out 	<http://purl.org/stuff/rev#hasReview>
-get_attr  	<http://purl.org/stuff/rev#title>
+get_attr  	out  	<http://purl.org/stuff/rev#title>
 neighbors   out  	<http://purl.org/stuff/rev#reviewer>
 neighbors   in 	<http://schema.org/actor>
-get_attr  	<http://schema.org/language>
+get_attr  out  	<http://schema.org/language>
 execute
 
 
-
-C1
 
 SELECT ?v0 ?v4 ?v6 ?v7 WHERE {
 	?v0 <http://schema.org/caption> ?v1 .

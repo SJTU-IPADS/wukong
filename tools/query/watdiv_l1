@@ -1,4 +1,4 @@
-lookup 			<http://db.uwaterloo.ca/~galuc/wsdbm/Website2363>
+lookup 			<http://db.uwaterloo.ca/~galuc/wsdbm/Website23161>
 neighbors   in 	<http://db.uwaterloo.ca/~galuc/wsdbm/subscribes>
 neighbors   out 	<http://db.uwaterloo.ca/~galuc/wsdbm/likes>
 neighbors   out 	<http://schema.org/caption>
@@ -10,7 +10,7 @@ L1
 
 
 SELECT ?v0 ?v2 ?v3 WHERE {
-	?v0 <http://db.uwaterloo.ca/~galuc/wsdbm/subscribes> <http://db.uwaterloo.ca/~galuc/wsdbm/Website2363> .
+	?v0 <http://db.uwaterloo.ca/~galuc/wsdbm/subscribes> <http://db.uwaterloo.ca/~galuc/wsdbm/Website23161> .
 	?v2 <http://schema.org/caption> ?v3 .
 	?v0 <http://db.uwaterloo.ca/~galuc/wsdbm/likes> ?v2 .
 }
