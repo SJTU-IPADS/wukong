@@ -1,10 +1,8 @@
-lookup 			<http://db.uwaterloo.ca/~galuc/wsdbm/City17>
-neighbors   out 	<http://www.geonames.org/ontology#parentCountry>
-neighbors   in 	<http://schema.org/nationality>
-neighbors	out	<http://schema.org/jobTitle>
+predict_index	8	<http://schema.org/nationality>	in
+get_attr out	<http://schema.org/jobTitle>
+neighbors	out	<http://schema.org/nationality>
+has_attr	in	<http://www.geonames.org/ontology#parentCountry>	<http://db.uwaterloo.ca/~galuc/wsdbm/City17>
 execute 
-
-
 
 
 SELECT ?v0 ?v1 ?v3 WHERE {

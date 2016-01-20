@@ -1,4 +1,4 @@
-predict_index 4	<http://purl.org/dc/terms/Location> in
+predict_index 16	<http://purl.org/dc/terms/Location> in
 get_attr  out  	<http://xmlns.com/foaf/age>
 get_attr  out	<http://db.uwaterloo.ca/~galuc/wsdbm/gender>
 get_attr  out 	<http://xmlns.com/foaf/givenName>

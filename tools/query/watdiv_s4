@@ -1,15 +1,8 @@
-lookup	<http://db.uwaterloo.ca/~galuc/wsdbm/Country1>
-neighbors	in	<http://schema.org/nationality>
+predict_index	8	<http://schema.org/nationality>	in
+has_attr	out	<http://schema.org/nationality>	<http://db.uwaterloo.ca/~galuc/wsdbm/Country1>
 get_attr in	<http://purl.org/ontology/mo/artist> 
 get_attr out	<http://xmlns.com/foaf/familyName> 
 has_attr out	<http://xmlns.com/foaf/age> <http://db.uwaterloo.ca/~galuc/wsdbm/AgeGroup7>
-execute
-
-lookup	<http://db.uwaterloo.ca/~galuc/wsdbm/AgeGroup7>
-neighbors in <http://xmlns.com/foaf/age>
-get_attr out	<http://xmlns.com/foaf/familyName> 
-get_attr in	<http://purl.org/ontology/mo/artist> 
-has_attr out	<http://schema.org/nationality> <http://db.uwaterloo.ca/~galuc/wsdbm/Country1>
 execute
 
 

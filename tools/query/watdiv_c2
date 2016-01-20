@@ -1,4 +1,4 @@
-predict_index 4 <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase> in
+predict_index 8 <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase> in
 get_attr out <http://schema.org/jobTitle> 
 get_attr out <http://xmlns.com/foaf/homepage>
 neighbors out <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase>

@@ -1,4 +1,4 @@
-predict_index	8	<http://schema.org/caption>	in
+predict_index	16	<http://schema.org/caption>	in
 get_attr  out	<http://schema.org/text>
 get_attr  out  	<http://schema.org/contentRating>
 get_attr  out  	<http://schema.org/caption>

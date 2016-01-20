@@ -536,6 +536,8 @@ class traverser{
 				do_neighbors(r);
 			} else if(r.cmd_chains.back() == cmd_filter){
 				do_filter(r);
+			} else if(r.cmd_chains.back() == cmd_swap_column){
+				do_swap_column(r);
 			}
 		}
 	}
@@ -597,7 +599,7 @@ public:
 			do_type_index(r);
 			handle_request(r);
 			return ;
-		} else if(r.cmd_chains.back() == cmd_swap_column){
+		} else if(r.cmd_chains.back() == cmd_swap_column){	
 			do_swap_column(r);
 		} else {
 			assert(false);

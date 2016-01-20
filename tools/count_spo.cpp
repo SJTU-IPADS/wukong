@@ -40,6 +40,7 @@ int main(int argc,char** argv){
     int triples=0;
 	{
 		for(int i=0;i<datafile_vec.size();i++){
+			cout<<"checking file "<<i<<endl;
 			ifstream finput(string(argv[1])+"/"+datafile_vec[i]);
 			int s,p,o;
 			while(finput>>s>>p>>o){
