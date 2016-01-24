@@ -44,6 +44,7 @@ int reverse_dir(int dir){
 
 struct request{
 	uint64_t timestamp;
+	int type_id;
 	int req_id;
 	int parent_id;
 	bool blocking;
@@ -116,6 +117,7 @@ struct request{
 		ar & result_table; 
 		ar & parallel_total; 
 		ar & parallel_id; 
-		ar & final_row_number; 
+		ar & final_row_number;
+		ar & type_id;
 	}
 };

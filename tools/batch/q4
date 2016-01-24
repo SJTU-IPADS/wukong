@@ -4,7 +4,7 @@ subclass_of		<ub#FullProfessor>
 get_attr	out		<ub#name>
 get_attr	out		<ub#emailAddress>
 get_attr	out		<ub#telephone>
-execute		10000
+execute	
 
 
 modified version of query4 in LUBM website 

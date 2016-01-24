@@ -91,7 +91,7 @@ void batch_execute(client* is,struct thread_cfg *cfg,string filename){
 	for(int i=0;i<global_batch_factor;i++){
 		reply=is->Recv();
 	}
-	logger.print();
+	//logger.print();
 }
 void interactive_execute(client* is,string filename,int execute_count){
 	int sum=0;
@@ -123,7 +123,7 @@ void interactive_execute(client* is,string filename,int execute_count){
 
 
 
-void mix_execute(client* is,struct thread_cfg *cfg,string mix_config){
+void mix_execute(client* is,struct thread_cfg *cfg,string mix_config,latency_logger& logger){
 	ifstream configfile(mix_config);
 	if(!configfile){
 		cout<<"File "<<mix_config<<" not exist"<<endl;
@@ -154,7 +154,7 @@ void mix_execute(client* is,struct thread_cfg *cfg,string mix_config){
 	}
 	configfile.close();
 	////start to send message
-	latency_logger logger;
+	//latency_logger logger;
 	request reply;
 	for(int i=0;i<global_batch_factor;i++){
 		is->lookup_id(first_ids[0][0]);
@@ -163,13 +163,14 @@ void mix_execute(client* is,struct thread_cfg *cfg,string mix_config){
 			return ;
 		}
 		is->req.timestamp=timer::get_usec();
+		is->req.type_id=0;
 		is->Send();
 	}
 	unsigned int seed=cfg->m_id*cfg->t_num+cfg->t_id;
 	logger.start();
 	for(int times=0;times<total_request;times++){
 		reply=is->Recv();
-		logger.record(reply.timestamp,timer::get_usec());
+		logger.record(reply.timestamp,timer::get_usec(),reply.type_id);
 		unsigned random_number=rand_r(&seed);
 		unsigned query_type=random_number%total_query_type;
 		unsigned idx=(random_number/total_query_type) % first_ids[query_type].size();
@@ -180,14 +181,16 @@ void mix_execute(client* is,struct thread_cfg *cfg,string mix_config){
 			return ;
 		}
 		is->req.timestamp=timer::get_usec();
+		is->req.type_id=query_type;
 		is->Send();
 	}
 	logger.stop();
 	for(int i=0;i<global_batch_factor;i++){
 		reply=is->Recv();
 	}
-	logger.print();
+	//logger.print();
 }
+
 int global_barrier_val;
 void ClientBarrier(struct thread_cfg *cfg,int last_barrier){
 	//cout<<"Client "<<cfg->t_id<<" wish to enter a barrier"<<endl;
@@ -222,12 +225,12 @@ void run_client(client* is,struct thread_cfg *cfg){
 	mode_str[2]="mix mode (batch file + iterative file + [count]):";
 	int last_barrier=0;
 	while(true){
-		//MPI_Barrier(MPI_COMM_WORLD);
 		ClientBarrier(cfg,last_barrier);
 		last_barrier+=cfg->client_num;
 
 		string batch_filename;
 		string iterative_filename;
+		latency_logger logger;
 		int iterative_count=1;
 		if(cfg->m_id==0 && cfg->t_id==0){
 			string input_str;
@@ -284,9 +287,31 @@ void run_client(client* is,struct thread_cfg *cfg){
   		if(cfg->m_id==0 && cfg->t_id==0 && (global_client_mode==0 || global_client_mode==2) ){
   			interactive_execute(is,iterative_filename,iterative_count);
   		} else {
-  			mix_execute(is,cfg,batch_filename);
+  			mix_execute(is,cfg,batch_filename,logger);
   			//batch_execute(is,cfg,batch_filename);
   		}
+
+  		if(batch_filename!="NO_BATCH_FILE"){
+  			ClientBarrier(cfg,last_barrier);
+  			last_barrier+=cfg->client_num;
+  			if(cfg->m_id==0 && cfg->t_id==0){
+  				for(int i=0;i<cfg->m_num;i++){
+					for(int j=0;j<cfg->client_num;j++){
+						if(i==0 && j==0){
+							continue;
+						}
+						latency_logger r=RecvLog(cfg);
+						logger.merge(r);
+					}
+				}
+				logger.print();
+			} else {
+  				SendLog(cfg,0,0,logger);
+  			}
+  		} else {
+  			cout<<"NO_BATCH_FILE"<<endl;
+  		}
+
 	}
 }
 void* Run(void *ptr) {
