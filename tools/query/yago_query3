@@ -12,7 +12,12 @@ neighbors   out 	y:hasInternalWikipediaLinkTo
 execute
 
 
-
+predict_index	16	y:hasInternalWikipediaLinkTo	in
+get_attr   out 	y:hasInternalWikipediaLinkTo
+neighbors   in 	y:hasInternalWikipediaLinkTo
+neighbors   in 	y:hasInternalWikipediaLinkTo
+execute
+p2,p3,p1,p
 
 select * where { ?p y:hasInternalWikipediaLinkTo ?p1 . 
 ?p1 y:hasInternalWikipediaLinkTo ?p2 . 

@@ -1,16 +1,18 @@
-predict_index	16	y:hasInternalWikipediaLinkTo	in
-get_attr out y:hasExternalWikipediaLinkTo
-neighbors   out y:hasInternalWikipediaLinkTo
-neighbors   out y:hasExternalWikipediaLinkTo
-execute
-2809 ms
-
-
 predict_index	16	y:hasExternalWikipediaLinkTo	out
 neighbors   in 	y:hasExternalWikipediaLinkTo
 neighbors   out y:hasInternalWikipediaLinkTo
 neighbors   out y:hasExternalWikipediaLinkTo
 execute
+e,p,p1,e1
+
+
+predict_index	16	y:hasInternalWikipediaLinkTo	in
+get_attr out y:hasExternalWikipediaLinkTo
+neighbors   out y:hasInternalWikipediaLinkTo
+neighbors   out y:hasExternalWikipediaLinkTo
+execute
+p e p1 e1
+
 
 
 predict_index	16	y:hasInternalWikipediaLinkTo	in
@@ -33,5 +35,5 @@ execute
 select * where { ?p y:hasInternalWikipediaLinkTo ?p1 . 
 				?p1 y:hasExternalWikipediaLinkTo ?e1 . 
 				?p y:hasExternalWikipediaLinkTo ?e . }
-p-> I ->p1 ->e1
-p-> E ->e
+p->p1->e1
+p->e
