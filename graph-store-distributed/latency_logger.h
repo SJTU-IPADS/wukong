@@ -15,20 +15,26 @@ class latency_logger{
 	uint64_t min_latency;
 	uint64_t max_latency;
 public:
+	void reserve(int total_request){
+		send_time_vec.reserve(total_request);
+		recv_time_vec.reserve(total_request);
+		query_type_vec.reserve(total_request);
+	}
+	
 	void merge(latency_logger& r){
 		for(int i=0;i<r.send_time_vec.size();i++){
-			send_time_vec.push_back(send_time_vec[i]);
-			recv_time_vec.push_back(recv_time_vec[i]);
-			query_type_vec.push_back(query_type_vec[i]);
+			send_time_vec.push_back(r.send_time_vec[i]);
+			recv_time_vec.push_back(r.recv_time_vec[i]);
+			query_type_vec.push_back(r.query_type_vec[i]);
 		}
 	}
 	void clear(){
-		send_time_vec.clear();
-		recv_time_vec.clear();
-		query_type_vec.clear();
+		//send_time_vec.clear();
+		//recv_time_vec.clear();
+		//query_type_vec.clear();
 	}
 	void start(){
-		clear();
+		//clear();
 		start_time=timer::get_usec();
 		accum_latency=0;
 		min_latency=-1;
@@ -67,32 +73,37 @@ public:
 			}
 			cdf_data[query_type_vec[i]].push_back(recv_time_vec[i]- send_time_vec[i]);
 		}
-		int cdf_pirnt_rate=20;
+		int cdf_pirnt_rate=100;
 		for(int i=0;i<cdf_data.size();i++){
 			sort(cdf_data[i].begin(),cdf_data[i].end());
 			cout<<"query "<<i<<endl;
+			int count=0;
 			for(int j=0;j<cdf_data[i].size();j++){
 				if((j+1)%(cdf_data[i].size()/cdf_pirnt_rate)==0 ){
-					cout<<cdf_data[i][j]<<endl;
+					cout<<cdf_data[i][j]<<"\t";
+					count++;
+					if(count%5==0){
+						cout<<endl;
+					}
 				}
 			}
 		}
-
+*/
 		///print throughput-time graph
-		int time_pirnt_rate=100;
+		int time_pirnt_ms=100; //print every 100 ms
 		vector<int> count_vec;
-		count_vec.resize(time_pirnt_rate+1);
+		count_vec.resize(end_time/(time_pirnt_ms*1000)+1);
 		for(int i=0;i<recv_time_vec.size();i++){
-			int idx=recv_time_vec[i]/(end_time/time_pirnt_rate);
-			if(idx>=time_pirnt_rate){
-				idx=time_pirnt_rate-1;
-			}
+			int idx=recv_time_vec[i]/(time_pirnt_ms*1000);
 			count_vec[idx]++;
 		}
-		for(int i=0;i<time_pirnt_rate;i++){
-			cout<<count_vec[i]*1000.0/(end_time/time_pirnt_rate)<<endl;
+		for(int i=0;i<count_vec.size();i++){
+			cout<<count_vec[i]*1.0/time_pirnt_ms<<"\t";
+			if((i+1)%5==0 || i==count_vec.size()-1){
+				cout<<endl;
+			}
 		}
-*/
+
 
 		//cout<<"Avg latency us"<<endl;
 		// cout<<"Finish batch in "<<(stop_time-start_time)/1000.0<<" ms"<<endl;
@@ -113,12 +124,15 @@ void SendLog(thread_cfg* cfg,int r_mid,int r_tid,latency_logger& r){
     std::stringstream ss;
     boost::archive::binary_oarchive oa(ss);
     oa << r;
-    cfg->node->Send(r_mid,r_tid,ss.str());
+    //cfg->node->Send(r_mid,r_tid,ss.str());
+    cfg->rdma->rbfSend(cfg->t_id,r_mid, r_tid, ss.str().c_str(),ss.str().size());  
 }
 
 latency_logger RecvLog(thread_cfg* cfg){
     std::string str;
-    str=cfg->node->Recv();
+    //str=cfg->node->Recv();
+    str=cfg->rdma->rbfRecv(cfg->t_id);
+
     std::stringstream s;
     s << str;
     boost::archive::binary_iarchive ia(s);

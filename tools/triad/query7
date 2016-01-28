@@ -5,6 +5,14 @@ neighbors   in <ub#takesCourse>
 filter out 	<ub#advisor>	0
 subclass_of		<ub#UndergraduateStudent>
 execute
+get_attr out <ub#takesCourse>
+get_attr out <ub#takesCourse>
+get_attr out <ub#takesCourse>
+get_attr out <ub#takesCourse>
+get_attr out <ub#takesCourse>
+get_attr out <ub#takesCourse>
+get_attr out <ub#takesCourse>
+get_attr out <ub#takesCourse>
 
 
 triangle

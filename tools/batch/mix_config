@@ -1,10 +1,10 @@
-1	10000
-batch/q4
-batch/q5
-batch/q6
-batch/q1
-batch/q2
-batch/q3
+6	200000
+batch/q1	25
+batch/q2	25
+batch/q3	3
+batch/q4	6
+batch/q5	25
+batch/q6	2
 
 
 28.3139

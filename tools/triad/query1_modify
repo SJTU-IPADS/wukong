@@ -1,4 +1,4 @@
-triangle	16
+triangle	2
 <ub#GraduateStudent>	out <ub#undergraduateDegreeFrom>
 <ub#University>	in	<ub#subOrganizationOf>
 <ub#Department>	in	<ub#memberOf>

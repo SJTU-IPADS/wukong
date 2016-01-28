@@ -134,11 +134,19 @@ void mix_execute(client* is,struct thread_cfg *cfg,string mix_config,latency_log
 	configfile>>total_query_type>>total_request;
 	vector<vector<uint64_t> > first_ids;
 	vector<vector<string> > cmd_chains;
+	vector<int > distribution;
+	int distribution_sum=0;
 	first_ids.resize(total_query_type);
 	cmd_chains.resize(total_query_type);
+	distribution.resize(total_query_type);
+	logger.reserve(total_request);
 	for(int i=0;i<total_query_type;i++){
 		string filename;
 		configfile>>filename;
+		int current_dist;
+		configfile>>current_dist;
+		distribution_sum+=current_dist;
+		distribution[i]=distribution_sum;
 		ifstream file(filename);
 		string cmd;
 		file>>cmd;
@@ -172,7 +180,20 @@ void mix_execute(client* is,struct thread_cfg *cfg,string mix_config,latency_log
 		reply=is->Recv();
 		logger.record(reply.timestamp,timer::get_usec(),reply.type_id);
 		unsigned random_number=rand_r(&seed);
-		unsigned query_type=random_number%total_query_type;
+		//unsigned query_type=random_number%total_query_type;
+		//random_number= random_number%distribution_sum;
+		int i=0;
+		unsigned query_type=0;
+		while(true){
+			assert(query_type<total_query_type);
+			if( (random_number%distribution_sum) <distribution[query_type]){
+				break;
+			}
+			query_type++;
+		}
+		//cout<<query_type<<endl;
+		
+
 		unsigned idx=(random_number/total_query_type) % first_ids[query_type].size();
 		
 		is->lookup_id(first_ids[query_type][idx]);
@@ -268,23 +289,28 @@ void run_client(client* is,struct thread_cfg *cfg){
 					iterative_count=1;
 				}
 			}
-			
+			if(batch_filename==""){
+				batch_filename="empty";
+			}
 			for(int i=0;i<cfg->m_num;i++){
 				for(int j=0;j<cfg->client_num;j++){
 					if(i==0 && j==0){
 						continue;
 					}
-					cfg->node->Send(i,j,batch_filename);
+					cfg->rdma->rbfSend(cfg->t_id,i, j, batch_filename.c_str(),batch_filename.size()); 
+					//cfg->node->Send(i,j,batch_filename);
 				}
 			}
   		} else {
-  			batch_filename=cfg->node->Recv();
+  			//batch_filename=cfg->node->Recv();
+  			batch_filename=cfg->rdma->rbfRecv(cfg->t_id);
   			if(batch_filename=="NO_BATCH_FILE"){
   				continue;
   			}
 		}
 
   		if(cfg->m_id==0 && cfg->t_id==0 && (global_client_mode==0 || global_client_mode==2) ){
+  			sleep(1);
   			interactive_execute(is,iterative_filename,iterative_count);
   		} else {
   			mix_execute(is,cfg,batch_filename,logger);

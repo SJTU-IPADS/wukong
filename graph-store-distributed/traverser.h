@@ -665,8 +665,9 @@ public:
 			request r;
 			bool steal=false;
 			int victim_id=cfg->t_id;
-			if(cfg->t_id>=cfg->client_num+cfg->server_num/2){
-				victim_id=victim_id-cfg->server_num/2;
+			if(cfg->t_id>=cfg->client_num+cfg->server_num/8){
+				victim_id=cfg->client_num+ (cfg->t_id-cfg->client_num)/8;
+				//victim_id=victim_id-cfg->server_num/8;
 			}
 			if(global_enable_workstealing){
 				res_array[cfg->t_id].lock();
@@ -731,7 +732,9 @@ public:
 						if(global_clear_final_result){
 							r.clear_data();
 						}
-						res_array[cfg->t_id].need_help=false;
+						if(res_array[cfg->t_id].need_help){
+							res_array[cfg->t_id].need_help=false;
+						}
 					}
 					traverser_SendReq(cfg->mid_of(r.parent_id),cfg->tid_of(r.parent_id),r);
 				} else {
@@ -750,7 +753,9 @@ public:
 						if(global_clear_final_result){
 							r.clear_data();
 						}
-						res_array[cfg->t_id].need_help=false;
+						if(res_array[cfg->t_id].need_help){
+							res_array[cfg->t_id].need_help=false;
+						}
 						//cfg->rdma->set_need_help(cfg->t_id,false);
 					}
 					traverser_SendReq(cfg->mid_of(r.parent_id),cfg->tid_of(r.parent_id),r);

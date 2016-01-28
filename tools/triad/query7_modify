@@ -1,4 +1,4 @@
-triangle	16
+triangle	2
 <ub#FullProfessor>	out	<ub#teacherOf>
 <ub#Course>	in	<ub#takesCourse>
 <ub#UndergraduateStudent>	out  <ub#advisor>

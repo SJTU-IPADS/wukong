@@ -1,4 +1,4 @@
-type_index	8	<ub#FullProfessor>
+type_index	1	<ub#FullProfessor>
 get_attr	out	<ub#teacherOf>
 get_attr	out	<ub#teacherOf>
 get_attr	out	<ub#teacherOf>

@@ -69,21 +69,21 @@ public:
 		pthread_spin_init(&internal_lock,0);
 	}
 	void put_req(request& req,int count){	
-		if(global_enable_workstealing){
+		//if(global_enable_workstealing){
 			pthread_spin_lock(&internal_lock);
-		}			
+		//}			
 		item data;
 		data.count=count;
 		data.req=req;
 		req_queue[req.req_id]=data;		
-		if(global_enable_workstealing){
+		//if(global_enable_workstealing){
 			pthread_spin_unlock(&internal_lock);
-		}			
+		//}			
 	}
 	bool put_reply(request& req){
-		if(global_enable_workstealing){
+		//if(global_enable_workstealing){
 			pthread_spin_lock(&internal_lock);
-		}	
+		//}	
 		bool ret=false;;				
 		//if we get all replies , we return true
 		int id=req.parent_id;
@@ -96,9 +96,9 @@ public:
 			req_queue.erase(id);
 			ret=true;
 		}
-		if(global_enable_workstealing){
+		//if(global_enable_workstealing){
 			pthread_spin_unlock(&internal_lock);
-		}	
+		//}	
 		return ret;
 	}	
 };

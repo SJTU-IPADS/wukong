@@ -2,10 +2,10 @@ global_use_rbf			1
 global_use_rdma			1
 global_rdma_threshold	300
 global_query_type		8
-global_num_server		16
-global_num_client		1
-global_batch_factor		32
-global_input_folder		/home/datanfs/nfs0/LUBM/id_univ40/
+global_num_server		8
+global_num_client		2
+global_batch_factor		16
+global_input_folder		/home/datanfs/nfs0/LUBM/id_univ10240/
 global_client_mode		1
 global_use_loc_cache	0
 global_num_lubm_university	40
@@ -16,7 +16,7 @@ global_use_multithread	0
 global_total_memory_gb	30
 global_perslot_msg_mb	512
 global_hash_header_million	1000
-global_enable_workstealing	0
+global_enable_workstealing	1
 global_verbose	0
 tmp_input_folder		/home/datanfs/nfs0/LUBM/id_dbpsb_10/
 tmp_lubm_input_folder	/home/sjx/local_data/id_univ10240/

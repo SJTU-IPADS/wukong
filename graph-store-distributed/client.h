@@ -229,7 +229,16 @@ public:
 				}
 			}
 		} else {
-			SendReq(cfg,first_target, cfg->client_num+rand()%cfg->server_num, req);			
+			int target_id=cfg->client_num+rand()%cfg->server_num;
+			
+			// if(cfg->server_num == 16){
+			// 	if(cfg->t_id==0){
+			// 		target_id=cfg->client_num+rand()%8;
+			// 	} else {
+			// 		target_id=cfg->client_num+8+rand()%8;
+			// 	}
+			// }
+			SendReq(cfg,first_target, target_id, req);			
 		}
 	}
 	request Recv(){
