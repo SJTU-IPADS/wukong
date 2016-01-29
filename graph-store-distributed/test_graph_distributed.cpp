@@ -19,9 +19,23 @@
 int socket_0[] = {
   0,2,4,6,8,10,12,14,16,18
 };
+
+
+int two_socket[] = {
+  1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19
+};
+
 int socket_1[] = {
   1,3,5,7,9,11,13,15,17,19,0,2,4,6,8,10,12,14,16,18
 };
+
+int client_4_server_16[] = {
+  17,19,16,18,1,3,5,7,9,11,13,15,0,2,4,6,8,10,12,14
+};
+int client_2_server_16[] = {
+  17,16,1,3,5,7,9,11,13,15,0,2,4,6,8,10,12,14,18,19
+};
+
 void pin_to_core(size_t core) {
   cpu_set_t  mask;
   CPU_ZERO(&mask);
@@ -34,65 +48,7 @@ int client_num;
 int thread_num;
 int batch_factor;
 
-void batch_execute(client* is,struct thread_cfg *cfg,string filename){
-	ifstream file(filename);
-	if(!file){
-		cout<<"File "<<filename<<" not exist"<<endl;
-		return ;
-	}
-	string cmd;
-	file>>cmd;
-	vector<uint64_t> ids=get_ids(is,cmd);
-	if(ids.size()==0){
-		cout<<"id set is empty..."<<endl;
-		exit(0);
-	}
-	vector<string> cmd_chain;
-	int total_request=0;
-	while(file>>cmd){
-		cmd_chain.push_back(cmd);
-		if(cmd=="execute"){
-			file>>cmd;
-			total_request = atoi(cmd.c_str());
-			total_request*=global_num_server;
-			break;
-		}
-	}
-	////start to send message
-	latency_logger logger;
-	request reply;
-	for(int i=0;i<global_batch_factor;i++){
-		is->lookup_id(ids[0]);
-		if(!(is->parse_cmd_vector(cmd_chain))){
-			cout<<"error cmd"<<endl;
-			return ;
-		}
-		is->req.timestamp=timer::get_usec();
-		is->Send();
-	}
-	unsigned int seed=cfg->m_id*cfg->t_num+cfg->t_id;
-	uint64_t total_latency=0;
-	uint64_t t1;
-	uint64_t t2;
-	logger.start();
-	for(int times=0;times<total_request;times++){
-		reply=is->Recv();
-		logger.record(reply.timestamp,timer::get_usec());
-		int i=rand_r(&seed) % ids.size();
-		is->lookup_id(ids[i]);
-		if(!(is->parse_cmd_vector(cmd_chain))){
-			cout<<"error cmd"<<endl;
-			return ;
-		}
-		is->req.timestamp=timer::get_usec();
-		is->Send();
-	}
-	logger.stop();
-	for(int i=0;i<global_batch_factor;i++){
-		reply=is->Recv();
-	}
-	//logger.print();
-}
+
 void interactive_execute(client* is,string filename,int execute_count){
 	int sum=0;
 	request reply;
@@ -123,7 +79,7 @@ void interactive_execute(client* is,string filename,int execute_count){
 
 
 
-void mix_execute(client* is,struct thread_cfg *cfg,string mix_config,latency_logger& logger){
+void batch_execute(client* is,struct thread_cfg *cfg,string mix_config,latency_logger& logger){
 	ifstream configfile(mix_config);
 	if(!configfile){
 		cout<<"File "<<mix_config<<" not exist"<<endl;
@@ -131,7 +87,8 @@ void mix_execute(client* is,struct thread_cfg *cfg,string mix_config,latency_log
 	}
 	int total_query_type;
 	int total_request;
-	configfile>>total_query_type>>total_request;
+	int useless;
+	configfile>>total_query_type>>total_request>>useless;
 	vector<vector<uint64_t> > first_ids;
 	vector<vector<string> > cmd_chains;
 	vector<int > distribution;
@@ -212,6 +169,97 @@ void mix_execute(client* is,struct thread_cfg *cfg,string mix_config,latency_log
 	//logger.print();
 }
 
+
+
+void noblocking_execute(client* is,struct thread_cfg *cfg,string mix_config,latency_logger& logger){
+	ifstream configfile(mix_config);
+	if(!configfile){
+		cout<<"File "<<mix_config<<" not exist"<<endl;
+		return ;
+	}
+	int total_query_type;
+	int total_request;
+	int sleep_round=1;
+	configfile>>total_query_type>>total_request>>sleep_round;
+	vector<vector<uint64_t> > first_ids;
+	vector<vector<string> > cmd_chains;
+	vector<int > distribution;
+	int distribution_sum=0;
+	first_ids.resize(total_query_type);
+	cmd_chains.resize(total_query_type);
+	distribution.resize(total_query_type);
+	logger.reserve(total_request);
+	for(int i=0;i<total_query_type;i++){
+		string filename;
+		configfile>>filename;
+		int current_dist;
+		configfile>>current_dist;
+		distribution_sum+=current_dist;
+		distribution[i]=distribution_sum;
+		ifstream file(filename);
+		string cmd;
+		file>>cmd;
+		first_ids[i]=get_ids(is,cmd);
+		if(first_ids[i].size()==0){
+			cout<<"id set is empty..."<<endl;
+			exit(0);
+		}
+		while(file>>cmd){
+			cmd_chains[i].push_back(cmd);
+		}
+		file.close();
+	}
+	configfile.close();
+	////start to send message
+	unsigned int seed=cfg->m_id*cfg->t_num+cfg->t_id;
+	logger.start();
+	int waiting_request=total_request;
+	
+	while(total_request>0){
+		//count++;
+		for(int i=0;i<batch_factor;i++){
+			//if(waiting_request>0 && count%100< request_per_ms)
+			if(waiting_request>0 )
+			{
+				
+				unsigned random_number=rand_r(&seed);
+				unsigned query_type=0;
+				while(true){
+					assert(query_type<total_query_type);
+					if( (random_number%distribution_sum) <distribution[query_type]){
+						break;
+					}
+					query_type++;
+				}
+				unsigned idx=(random_number/total_query_type) % first_ids[query_type].size();
+
+				is->lookup_id(first_ids[query_type][idx]);
+				if(!(is->parse_cmd_vector(cmd_chains[query_type]))){
+					cout<<"error cmd"<<endl;
+					return ;
+				}
+				is->req.timestamp=timer::get_usec();
+				is->req.type_id=query_type;
+				//is->req.type_id=0;
+
+				is->Send();
+				waiting_request--;
+			}
+		}
+		for(int i=0;i<sleep_round;i++){
+			usleep(batch_factor);
+			request reply;
+			bool success=TryRecvReq(cfg,reply);
+			while(success){
+				total_request--;
+				logger.record(reply.timestamp,timer::get_usec(),reply.type_id);
+				success=TryRecvReq(cfg,reply);
+			}
+		}
+	}
+	logger.stop();
+}
+
 int global_barrier_val;
 void ClientBarrier(struct thread_cfg *cfg,int last_barrier){
 	//cout<<"Client "<<cfg->t_id<<" wish to enter a barrier"<<endl;
@@ -227,11 +275,13 @@ void ClientBarrier(struct thread_cfg *cfg,int last_barrier){
 	//cout<<"Client "<<cfg->t_id<<" leave the barrier"<<endl;
 }
 void run_client(client* is,struct thread_cfg *cfg){
-	get_ids(is,"get_university_id");
-	get_ids(is,"get_department_id");
-	get_ids(is,"get_AssistantProfessor_id");
-	get_ids(is,"get_AssociateProfessor_id");
-	get_ids(is,"get_GraduateCourse_id");
+	if(cfg->t_id==0){
+		get_ids(is,"get_university_id");
+		get_ids(is,"get_department_id");
+		get_ids(is,"get_AssistantProfessor_id");
+		get_ids(is,"get_AssociateProfessor_id");
+		get_ids(is,"get_GraduateCourse_id");
+	}
 	if(cfg->m_id==0 && cfg->t_id==0){
 		cout<<"switch_iterative ->	iterative mode"<<endl;
 		cout<<"switch_batch 	->	batch mode"<<endl;
@@ -313,7 +363,8 @@ void run_client(client* is,struct thread_cfg *cfg){
   			sleep(1);
   			interactive_execute(is,iterative_filename,iterative_count);
   		} else {
-  			mix_execute(is,cfg,batch_filename,logger);
+  			//batch_execute(is,cfg,batch_filename,logger);
+  			noblocking_execute(is,cfg,batch_filename,logger);
   			//batch_execute(is,cfg,batch_filename);
   		}
 
@@ -342,6 +393,14 @@ void run_client(client* is,struct thread_cfg *cfg){
 }
 void* Run(void *ptr) {
   struct thread_cfg *cfg = (struct thread_cfg*) ptr;
+  // if(cfg->client_num==4 &&  cfg->server_num==16){
+  // 	pin_to_core(client_4_server_16[cfg->t_id]);
+  // } else if(cfg->client_num==2 &&  cfg->server_num==16){
+  // 	pin_to_core(client_2_server_16[cfg->t_id]);
+  // } else {
+  // 	pin_to_core(socket_1[cfg->t_id]);
+  // }
+
   pin_to_core(socket_1[cfg->t_id]);
   if(cfg->t_id >= cfg->client_num){
   	cout<<"("<<cfg->m_id<<","<<cfg->t_id<<")"<<endl;

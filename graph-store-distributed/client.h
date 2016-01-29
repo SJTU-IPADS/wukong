@@ -229,15 +229,11 @@ public:
 				}
 			}
 		} else {
-			int target_id=cfg->client_num+rand()%cfg->server_num;
+
+			//int target_id=cfg->client_num+rand()%cfg->server_num;
+			int nserver_per_client=  cfg->server_num / cfg->client_num;
+			int target_id= cfg->client_num+ cfg->t_id*nserver_per_client + rand()%nserver_per_client;
 			
-			// if(cfg->server_num == 16){
-			// 	if(cfg->t_id==0){
-			// 		target_id=cfg->client_num+rand()%8;
-			// 	} else {
-			// 		target_id=cfg->client_num+8+rand()%8;
-			// 	}
-			// }
 			SendReq(cfg,first_target, target_id, req);			
 		}
 	}

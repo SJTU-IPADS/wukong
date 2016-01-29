@@ -13,9 +13,9 @@ global_load_minimal_index 1
 global_clear_final_result	1
 global_use_index_table	1
 global_use_multithread	0
-global_total_memory_gb	30
+global_total_memory_gb	35
 global_perslot_msg_mb	512
-global_hash_header_million	1000
+global_hash_header_million	1500
 global_enable_workstealing	1
 global_verbose	0
 tmp_input_folder		/home/datanfs/nfs0/LUBM/id_dbpsb_10/

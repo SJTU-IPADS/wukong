@@ -11,7 +11,7 @@
 #include <boost/unordered_map.hpp>
 #include "simple_filter.h"
 struct per_thread_resource{
-	bool need_help;
+	volatile bool need_help;
 	char padding[63];
 	pthread_spinlock_t internal_lock;
 	blocking_queue req_queue;
@@ -666,8 +666,9 @@ public:
 			bool steal=false;
 			int victim_id=cfg->t_id;
 			if(cfg->t_id>=cfg->client_num+cfg->server_num/8){
-				victim_id=cfg->client_num+ (cfg->t_id-cfg->client_num)/8;
-				//victim_id=victim_id-cfg->server_num/8;
+				//victim_id=cfg->client_num+ (cfg->t_id-cfg->client_num)/2;
+				victim_id=cfg->client_num+(cfg->t_id-cfg->client_num) % (cfg->server_num/8);
+				//victim_id=victim_id-cfg->server_num/2;
 			}
 			if(global_enable_workstealing){
 				res_array[cfg->t_id].lock();

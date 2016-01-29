@@ -64,7 +64,7 @@ public:
 		}
 		cout<<"Finish batch in "<<end_time/1000.0<<" ms"<<endl;
 		cout<<"Throughput "<<recv_time_vec.size()*1000.0/end_time<<" Kops"<<endl;
-/*
+
 		////print CDF
 		vector<vector<int> >cdf_data;
 		for(int i=0;i<query_type_vec.size();i++){
@@ -88,7 +88,8 @@ public:
 				}
 			}
 		}
-*/
+		cout<<endl;
+		
 		///print throughput-time graph
 		int time_pirnt_ms=100; //print every 100 ms
 		vector<int> count_vec;
