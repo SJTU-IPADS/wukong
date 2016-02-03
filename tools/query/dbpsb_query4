@@ -1,8 +1,8 @@
 type_index 16 <http://www.w3.org/2002/07/owl#Thing>
-get_attr	out	<http://dbpedia.org/property/name>
 get_attr	out	<http://dbpedia.org/property/pages>
 get_attr	out	<http://dbpedia.org/property/isbn>
 get_attr	out	<http://dbpedia.org/property/author>
+get_attr	out	<http://dbpedia.org/property/name>
 execute
 
 type_index 8 <http://www.w3.org/2002/07/owl#Thing>

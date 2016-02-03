@@ -1,7 +1,7 @@
-type_index	16	<http://db.uwaterloo.ca/~galuc/wsdbm/ProductCategory5> 
+type_index	8	<http://db.uwaterloo.ca/~galuc/wsdbm/ProductCategory5> 
 get_attr out	<http://schema.org/caption>
-get_attr out	<http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre>
 get_attr out	<http://schema.org/publisher>
+get_attr out	<http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre>
 execute
 
 

@@ -30,8 +30,10 @@ class client{
 public:
 	index_server* is;
 	request req;
+	unsigned int seed;
 	client(index_server* _is,thread_cfg* _cfg):is(_is),cfg(_cfg){
 		first_target=0;
+		seed=cfg->m_id*cfg->t_num+cfg->t_id;
 	}
 	bool parse_cmd_vector(vector<string>& str_vec){
 		int i=0;
@@ -230,10 +232,9 @@ public:
 			}
 		} else {
 
-			//int target_id=cfg->client_num+rand()%cfg->server_num;
+			//int target_id=cfg->client_num+rand_r(&seed)%cfg->server_num;
 			int nserver_per_client=  cfg->server_num / cfg->client_num;
-			int target_id= cfg->client_num+ cfg->t_id*nserver_per_client + rand()%nserver_per_client;
-			
+			int target_id= cfg->client_num+ cfg->t_id*nserver_per_client + rand_r(&seed)%nserver_per_client;
 			SendReq(cfg,first_target, target_id, req);			
 		}
 	}

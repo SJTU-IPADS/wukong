@@ -25,9 +25,14 @@ int two_socket[] = {
   1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19
 };
 
+
 int socket_1[] = {
-  1,3,5,7,9,11,13,15,17,19,0,2,4,6,8,10,12,14,16,18
+  1,3,5,0,11,13,15,2,4,6,8,10,12,14,16,18
 };
+
+// int socket_1[] = {
+//   1,3,5,7,9,11,13,15,17,19,0,2,4,6,8,10,12,14,16,18
+// };
 
 int client_4_server_16[] = {
   17,19,16,18,1,3,5,7,9,11,13,15,0,2,4,6,8,10,12,14
@@ -363,8 +368,8 @@ void run_client(client* is,struct thread_cfg *cfg){
   			sleep(1);
   			interactive_execute(is,iterative_filename,iterative_count);
   		} else {
-  			//batch_execute(is,cfg,batch_filename,logger);
-  			noblocking_execute(is,cfg,batch_filename,logger);
+  			batch_execute(is,cfg,batch_filename,logger);
+  			//noblocking_execute(is,cfg,batch_filename,logger);
   			//batch_execute(is,cfg,batch_filename);
   		}
 
@@ -383,6 +388,7 @@ void run_client(client* is,struct thread_cfg *cfg){
 				}
 				logger.print();
 			} else {
+				//logger.print();
   				SendLog(cfg,0,0,logger);
   			}
   		} else {
@@ -400,7 +406,6 @@ void* Run(void *ptr) {
   // } else {
   // 	pin_to_core(socket_1[cfg->t_id]);
   // }
-
   pin_to_core(socket_1[cfg->t_id]);
   if(cfg->t_id >= cfg->client_num){
   	cout<<"("<<cfg->m_id<<","<<cfg->t_id<<")"<<endl;

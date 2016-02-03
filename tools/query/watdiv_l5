@@ -1,4 +1,4 @@
-predict_index	8	<http://schema.org/nationality>	in
+predict_index	8	<http://schema.org/jobTitle>	in
 get_attr out	<http://schema.org/jobTitle>
 neighbors	out	<http://schema.org/nationality>
 has_attr	in	<http://www.geonames.org/ontology#parentCountry>	<http://db.uwaterloo.ca/~galuc/wsdbm/City17>

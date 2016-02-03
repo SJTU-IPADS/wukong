@@ -665,12 +665,12 @@ public:
 			request r;
 			bool steal=false;
 			int victim_id=cfg->t_id;
-			if(cfg->t_id>=cfg->client_num+cfg->server_num/8){
-				//victim_id=cfg->client_num+ (cfg->t_id-cfg->client_num)/2;
-				victim_id=cfg->client_num+(cfg->t_id-cfg->client_num) % (cfg->server_num/8);
-				//victim_id=victim_id-cfg->server_num/2;
-			}
 			if(global_enable_workstealing){
+				if(cfg->t_id>=cfg->client_num+cfg->server_num/8){
+					//victim_id=cfg->client_num+ (cfg->t_id-cfg->client_num)/2;
+					victim_id=cfg->client_num+(cfg->t_id-cfg->client_num) % (cfg->server_num/8);
+					//victim_id=victim_id-cfg->server_num/2;
+				}
 				res_array[cfg->t_id].lock();
 				while(true){
 					if(res_array[cfg->t_id].msg_fast_path.size()>0){

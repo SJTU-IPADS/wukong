@@ -1,4 +1,4 @@
-predict_index	16 	<ub#undergraduateDegreeFrom>	in
+predict_index	1 	<ub#undergraduateDegreeFrom>	in
 subclass_of		<ub#UndergraduateStudent>
 neighbors   out <ub#memberOf>
 subclass_of		<ub#Department>

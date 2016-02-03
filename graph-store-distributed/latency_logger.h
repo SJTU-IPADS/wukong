@@ -65,30 +65,31 @@ public:
 		cout<<"Finish batch in "<<end_time/1000.0<<" ms"<<endl;
 		cout<<"Throughput "<<recv_time_vec.size()*1000.0/end_time<<" Kops"<<endl;
 
+
 		////print CDF
-		vector<vector<int> >cdf_data;
-		for(int i=0;i<query_type_vec.size();i++){
-			if(query_type_vec[i] >= cdf_data.size()){
-				cdf_data.resize(query_type_vec[i]+1);
-			}
-			cdf_data[query_type_vec[i]].push_back(recv_time_vec[i]- send_time_vec[i]);
-		}
-		int cdf_pirnt_rate=100;
-		for(int i=0;i<cdf_data.size();i++){
-			sort(cdf_data[i].begin(),cdf_data[i].end());
-			cout<<"query "<<i<<endl;
-			int count=0;
-			for(int j=0;j<cdf_data[i].size();j++){
-				if((j+1)%(cdf_data[i].size()/cdf_pirnt_rate)==0 ){
-					cout<<cdf_data[i][j]<<"\t";
-					count++;
-					if(count%5==0){
-						cout<<endl;
-					}
-				}
-			}
-		}
-		cout<<endl;
+		// vector<vector<int> >cdf_data;
+		// for(int i=0;i<query_type_vec.size();i++){
+		// 	if(query_type_vec[i] >= cdf_data.size()){
+		// 		cdf_data.resize(query_type_vec[i]+1);
+		// 	}
+		// 	cdf_data[query_type_vec[i]].push_back(recv_time_vec[i]- send_time_vec[i]);
+		// }
+		// int cdf_pirnt_rate=100;
+		// for(int i=0;i<cdf_data.size();i++){
+		// 	sort(cdf_data[i].begin(),cdf_data[i].end());
+		// 	cout<<"query "<<i<<endl;
+		// 	int count=0;
+		// 	for(int j=0;j<cdf_data[i].size();j++){
+		// 		if((j+1)%(cdf_data[i].size()/cdf_pirnt_rate)==0 ){
+		// 			cout<<cdf_data[i][j]<<"\t";
+		// 			count++;
+		// 			if(count%5==0){
+		// 				cout<<endl;
+		// 			}
+		// 		}
+		// 	}
+		// }
+		// cout<<endl;
 		
 		///print throughput-time graph
 		int time_pirnt_ms=100; //print every 100 ms

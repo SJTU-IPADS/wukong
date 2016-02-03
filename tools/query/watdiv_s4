@@ -1,9 +1,10 @@
-predict_index	8	<http://schema.org/nationality>	in
-has_attr	out	<http://schema.org/nationality>	<http://db.uwaterloo.ca/~galuc/wsdbm/Country1>
+predict_index	8	<http://purl.org/ontology/mo/artist> 	out
 get_attr in	<http://purl.org/ontology/mo/artist> 
 get_attr out	<http://xmlns.com/foaf/familyName> 
+has_attr	out	<http://schema.org/nationality>	<http://db.uwaterloo.ca/~galuc/wsdbm/Country1>
 has_attr out	<http://xmlns.com/foaf/age> <http://db.uwaterloo.ca/~galuc/wsdbm/AgeGroup7>
 execute
+
 
 
 

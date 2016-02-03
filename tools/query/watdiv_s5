@@ -1,3 +1,11 @@
+predict_index	8	<http://schema.org/language>	in
+has_attr	out	<http://schema.org/language>	<http://db.uwaterloo.ca/~galuc/wsdbm/Language0>
+subclass_of	<http://db.uwaterloo.ca/~galuc/wsdbm/ProductCategory14>
+get_attr out	<http://schema.org/description>
+get_attr out	<http://schema.org/keywords>
+execute
+
+
 lookup	<http://db.uwaterloo.ca/~galuc/wsdbm/Language0>
 neighbors	in	<http://schema.org/language>
 subclass_of	<http://db.uwaterloo.ca/~galuc/wsdbm/ProductCategory14>
@@ -12,3 +20,5 @@ SELECT ?v0 ?v2 ?v3 WHERE {
 	?v0 <http://schema.org/keywords> ?v3 .
 	?v0 <http://schema.org/language> <http://db.uwaterloo.ca/~galuc/wsdbm/Language0> .
 }
+
+

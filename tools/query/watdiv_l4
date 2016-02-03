@@ -1,3 +1,8 @@
+predict_index	8	<http://ogp.me/ns#tag>	in
+has_attr	out	<http://ogp.me/ns#tag>	<http://db.uwaterloo.ca/~galuc/wsdbm/Topic227>
+neighbors	out	<http://schema.org/caption>
+execute
+
 lookup 			<http://db.uwaterloo.ca/~galuc/wsdbm/Topic227>
 neighbors   in 	<http://ogp.me/ns#tag>
 neighbors   out 	<http://schema.org/caption>
@@ -8,3 +13,8 @@ SELECT ?v0 ?v2 WHERE {
 	?v0 <http://ogp.me/ns#tag> <http://db.uwaterloo.ca/~galuc/wsdbm/Topic227> .
 	?v0 <http://schema.org/caption> ?v2 .
 }
+
+predict_index	8	<http://ogp.me/ns#tag>	in
+has_attr	out	<http://ogp.me/ns#tag>	<http://db.uwaterloo.ca/~galuc/wsdbm/Topic227>
+neighbors	out	<http://schema.org/caption>
+execute
