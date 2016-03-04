@@ -1,5 +1,5 @@
 #!/bin/bash
-root_dir=/home/sjx/wukong/
+root_dir=/home/sjx/graph-query/
 cat mpd.hosts | while read machine
 do
 	#Don't copy things like Makefile, *.o, etc.
