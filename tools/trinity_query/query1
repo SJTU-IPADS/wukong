@@ -1,8 +1,0 @@
-reverse	?Z	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>	<ub#Department>
-forward	?Z	<ub#subOrganizationOf>	?Y
-forward	?Y	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>	<ub#University>
-reverse	?X	<ub#undergraduateDegreeFrom>	?Y
-forward	?X	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>	<ub#GraduateStudent>
-forward	?X	<ub#memberOf>	?Z
-execute
-

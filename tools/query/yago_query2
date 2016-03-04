@@ -1,7 +1,0 @@
-lookup <Albert_Einstein>
-neighbors   out 	y:graduatedFrom
-neighbors   in 	y:graduatedFrom
-execute
-
-
-select ?y ?u where { ?y y:graduatedFrom ?u . y:Albert Einstein y:graduatedFrom ?u . }

@@ -1,4 +1,0 @@
-lookup 			<http://www.Department0.University0.edu/AssistantProfessor0>
-neighbors   in 	<ub#publicationAuthor>
-subclass_of		<ub#Publication>
-execute

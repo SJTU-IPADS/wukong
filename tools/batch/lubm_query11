@@ -1,5 +1,0 @@
-get_department_id
-neighbors   in 	<ub#subOrganizationOf>
-subclass_of		<ub#ResearchGroup>
-execute		200000
-

@@ -1,3 +1,0 @@
-reverse	?X	<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>	<ub#Course>
-forward	?X	<ub#name>	?Y
-execute

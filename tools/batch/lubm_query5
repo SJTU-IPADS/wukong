@@ -1,6 +1,0 @@
-get_department_id
-neighbors 	in 	<ub#memberOf>
-subclass_of 	<ub#FullProfessor>
-execute		2000
-
-
