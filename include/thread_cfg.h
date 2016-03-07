@@ -11,12 +11,17 @@ struct thread_cfg{
 	int client_num;// client thread number in each machine
 	Network_Node* node;
 	RdmaResource* rdma;
+	unsigned int seed;
 	void* ptr;
 
 	//get_id for requests
 	int inc_id;//internal
 	void init(){
 		inc_id=t_num*m_id+t_id;
+		seed=inc_id;
+	}
+	unsigned get_random(){
+		return rand_r(&seed);
 	}
 	int get_inc_id(){
 		int tmp=inc_id;
