@@ -9,6 +9,7 @@ void interactive_execute(client* clnt,string filename,int execute_count){
 		cout<<"sparql parse error"<<endl;
 		return ;
 	}
+	request.silent=global_silent;
 	request_or_reply reply;
 	for(int i=0;i<execute_count;i++){
 		uint64_t t1=timer::get_usec();

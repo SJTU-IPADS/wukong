@@ -180,6 +180,7 @@ vector<request_or_reply> server::generate_sub_requests(request_or_reply& req){
 		sub_reqs[i].cmd_chains=req.cmd_chains;
         sub_reqs[i].step=req.step;
         sub_reqs[i].col_num=req.col_num;
+        sub_reqs[i].silent=req.silent;
         sub_reqs[i].local_var=end;
 	}
 	for(int i=0;i<req.row_num();i++){
@@ -203,7 +204,7 @@ void server::execute(request_or_reply& req){
         execute_one_step(req);
         if(req.is_finished()){
             req.silent_row_num=req.row_num();
-            if(global_silent){
+            if(req.silent){
                 req.clear_data();
             }
             SendR(cfg,cfg->mid_of(req.parent_id),cfg->tid_of(req.parent_id),req);

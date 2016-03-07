@@ -29,6 +29,7 @@ struct request_or_reply{
 	int parent_id;
     int step;
     int col_num;
+	bool silent;
 	int silent_row_num;
 	int local_var;
     vector<int> cmd_chains; //n*(start,p,direction,end)
@@ -42,6 +43,7 @@ struct request_or_reply{
 		id=-1;
         step=0;
         col_num=0;
+		silent=false;
 		silent_row_num=0;
 		local_var=0;
         timestamp=0;
@@ -56,6 +58,7 @@ struct request_or_reply{
 		ar & parent_id;
         ar & step;
         ar & col_num;
+		ar & silent;
 		ar & silent_row_num;
 		ar & local_var;
         ar & cmd_chains;
