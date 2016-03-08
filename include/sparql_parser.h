@@ -19,8 +19,8 @@ class sparql_parser{
     boost::unordered_map<string,int> variable_map;
 
     const static int place_holder=INT_MIN;
-    
-    request_or_reply internal_req;
+
+    request_template req_template;
     void clear();
     bool readFile(string filename);
 public:
@@ -29,4 +29,5 @@ public:
 
     sparql_parser(string_server* _str_server);
     bool parse(string filename,request_or_reply& r);
+    bool parse_template(string filename,request_template& r);
 };

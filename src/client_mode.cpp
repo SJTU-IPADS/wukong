@@ -1,25 +1,34 @@
 #include "client_mode.h"
 
-boost::unordered_map<string,vector<int> > type_to_idvec;
-void insert_type(client* clnt,string type){
-	if(type_to_idvec.find(type)!=type_to_idvec.end()){
-		return ;
+boost::unordered_map<string,vector<int>* > type_to_idvec;
+void translate_req_template(client* clnt,request_template& req_template){
+	req_template.place_holder_vecptr.resize(req_template.place_holder_str.size());
+	for(int i=0;i<req_template.place_holder_str.size();i++){
+		string type=req_template.place_holder_str[i];
+		if(type_to_idvec.find(type)!=type_to_idvec.end()){
+			// do nothing
+		} else {
+			request_or_reply type_request;
+			assert(clnt->parser.find_type_of(type,type_request));
+			request_or_reply reply;
+			clnt->Send(type_request);
+			reply=clnt->Recv();
+			vector<int>* ptr=new vector<int>();
+			*ptr =reply.result_table;
+			type_to_idvec[type]=ptr;
+			cout<<type<<" has "<<ptr->size()<<" objects"<<endl;
+		}
+		req_template.place_holder_vecptr[i]=type_to_idvec[type];
 	}
-	request_or_reply type_request;
-	assert(clnt->parser.find_type_of(type,type_request));
-	request_or_reply reply;
-	clnt->Send(type_request);
-	reply=clnt->Recv();
-	type_to_idvec[type]=reply.result_table;
-	cout<<type<<" has "<<type_to_idvec[type].size()<<" objects"<<endl;
 }
-void instantiate_request(client* clnt,request_or_reply& req){
-	for(int i=0;i<req.place_holder_str.size();i++){
-		int pos=req.place_holder_position[i];
-		vector<int>& idvec=type_to_idvec[req.place_holder_str[i]];
-		req.cmd_chains[pos]=idvec[clnt->cfg->get_random()%idvec.size()];
+
+void instantiate_request(client* clnt,request_template& req_template,request_or_reply& r){
+	for(int i=0;i<req_template.place_holder_position.size();i++){
+		int pos=req_template.place_holder_position[i];
+		vector<int>* vecptr=req_template.place_holder_vecptr[i];
+		r.cmd_chains[pos]=(*vecptr)[clnt->cfg->get_random()% (vecptr->size())];
 	}
-	
+	return ;
 }
 
 void interactive_execute(client* clnt,string filename,int execute_count){
@@ -73,20 +82,20 @@ void interactive_mode(client* clnt){
 void batch_execute(client* clnt,string filename,int execute_count){
 	int sum=0;
     int result_count;
-    request_or_reply request;
-	bool success=clnt->parser.parse(filename,request);
+
+	request_template req_template;
+	request_or_reply request;
+	bool success=clnt->parser.parse_template(filename,req_template);
+	request.cmd_chains=req_template.cmd_chains;
 	if(!success){
 		cout<<"sparql parse error"<<endl;
 		return ;
 	}
-	for(int i=0;i<request.place_holder_str.size();i++){
-		insert_type(clnt,request.place_holder_str[i]);
-	}
-
+	translate_req_template(clnt,req_template);
 	request.silent=global_silent;
 	request_or_reply reply;
 	for(int i=0;i<execute_count;i++){
-		instantiate_request(clnt,request);
+		instantiate_request(clnt,req_template,request);
 		uint64_t t1=timer::get_usec();
         clnt->Send(request);
         reply=clnt->Recv();

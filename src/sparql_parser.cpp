@@ -12,7 +12,7 @@ sparql_parser::sparql_parser(string_server* _str_server):str_server(_str_server)
 void sparql_parser::clear(){
     prefix_map.clear();
     variable_map.clear();
-    internal_req = request_or_reply();
+    req_template =  request_template();
 };
 
 bool sparql_parser::readFile(string filename){
@@ -70,10 +70,10 @@ bool sparql_parser::readFile(string filename){
             variable_map[str_var]=new_id;
         }
         id_var=variable_map[str_var];
-        internal_req.cmd_chains.push_back(id_index);
-        internal_req.cmd_chains.push_back(0);//useless
-        internal_req.cmd_chains.push_back(dir);
-        internal_req.cmd_chains.push_back(id_var);
+        req_template.cmd_chains.push_back(id_index);
+        req_template.cmd_chains.push_back(0);//useless
+        req_template.cmd_chains.push_back(dir);
+        req_template.cmd_chains.push_back(id_var);
         iter+=4;
     }
     while(token_vec[iter]!="}"){
@@ -95,7 +95,7 @@ bool sparql_parser::readFile(string filename){
                 ids[i]=variable_map[strs[i]];
             } else if(strs[i][0]=='%'){
                 ids[i]=place_holder;
-                internal_req.place_holder_str.push_back(strs[i].substr(1));
+                req_template.place_holder_str.push_back(strs[i].substr(1));
             } else {
                 if(id_maps[i]->find(strs[i])==id_maps[i]->end()){
                     return false;
@@ -104,24 +104,24 @@ bool sparql_parser::readFile(string filename){
             }
         }
         if(token_vec[iter+3]=="." || token_vec[iter+3]=="->"){
-            internal_req.cmd_chains.push_back(ids[0]);
-            internal_req.cmd_chains.push_back(ids[1]);
-            internal_req.cmd_chains.push_back(direction_out);
-            internal_req.cmd_chains.push_back(ids[2]);
+            req_template.cmd_chains.push_back(ids[0]);
+            req_template.cmd_chains.push_back(ids[1]);
+            req_template.cmd_chains.push_back(direction_out);
+            req_template.cmd_chains.push_back(ids[2]);
             iter+=4;
         } else if(token_vec[iter+3]=="<-"){
-            internal_req.cmd_chains.push_back(ids[2]);
-            internal_req.cmd_chains.push_back(ids[1]);
-            internal_req.cmd_chains.push_back(direction_in);
-            internal_req.cmd_chains.push_back(ids[0]);
+            req_template.cmd_chains.push_back(ids[2]);
+            req_template.cmd_chains.push_back(ids[1]);
+            req_template.cmd_chains.push_back(direction_in);
+            req_template.cmd_chains.push_back(ids[0]);
             iter+=4;
         } else {
             return false;
         }
     }
-    for(int i=0;i<internal_req.cmd_chains.size();i++){
-        if(internal_req.cmd_chains[i]==place_holder){
-            internal_req.place_holder_position.push_back(i);
+    for(int i=0;i<req_template.cmd_chains.size();i++){
+        if(req_template.cmd_chains[i]==place_holder){
+            req_template.place_holder_position.push_back(i);
         }
     }
     return true;
@@ -132,16 +132,26 @@ bool sparql_parser::parse(string filename,request_or_reply& r){
     if(!readFile(filename)){
         return false;
     }
-    r=internal_req;
+    r=request_or_reply();
+    r.cmd_chains=req_template.cmd_chains;
+    return true;
+};
+
+bool sparql_parser::parse_template(string filename,request_template& r){
+    clear();
+    if(!readFile(filename)){
+        return false;
+    }
+    r=req_template;
     return true;
 };
 
 bool sparql_parser::find_type_of(string type,request_or_reply& r){
     clear();
-    internal_req.cmd_chains.push_back(str_server->subject_to_id[type]);
-    internal_req.cmd_chains.push_back(global_rdftype_id);
-    internal_req.cmd_chains.push_back(direction_in);
-    internal_req.cmd_chains.push_back(-1);
-    r=internal_req;
+    r=request_or_reply();
+    r.cmd_chains.push_back(str_server->subject_to_id[type]);
+    r.cmd_chains.push_back(global_rdftype_id);
+    r.cmd_chains.push_back(direction_in);
+    r.cmd_chains.push_back(-1);
     return true;
 };

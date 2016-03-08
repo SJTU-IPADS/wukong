@@ -21,7 +21,12 @@ enum var_type{
 constexpr int var_pair(int type1,int type2){
     return ((type1<<4) | type2);
 };
-
+struct request_template{
+	vector<string> place_holder_str;	// no serialize
+	vector<int> place_holder_position;	// no serialize
+	vector<vector<int>*  > place_holder_vecptr;	// no serialize
+	vector<int> cmd_chains;
+};
 struct request_or_reply{
 	int first_target;// no serialize
 	vector<string> place_holder_str;	// no serialize
