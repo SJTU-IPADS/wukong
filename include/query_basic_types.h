@@ -29,9 +29,7 @@ struct request_template{
 };
 struct request_or_reply{
 	int first_target;// no serialize
-	vector<string> place_holder_str;	// no serialize
-	vector<int> place_holder_position;	// no serialize
-
+	
     uint64_t timestamp;
 	int id;
 	int parent_id;

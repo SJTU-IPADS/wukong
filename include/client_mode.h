@@ -11,4 +11,6 @@ using namespace std;
 void interactive_execute(client* clnt,string filename,int execute_count);
 void interactive_mode(client* clnt);
 
-void batch_execute(client* clnt,string filename,int execute_count);
+void batch_execute(client* clnt,string mix_config);
+
+void noblocking_execute(client* clnt,string mix_config);
