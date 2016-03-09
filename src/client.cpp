@@ -4,9 +4,15 @@ client::client(thread_cfg* _cfg,string_server* _str_server):cfg(_cfg)
 
 }
 
+void client::GetId(request_or_reply& req){
+    req.parent_id=cfg->get_inc_id();
+}
+
 void client::Send(request_or_reply& req){
+    if(req.parent_id==-1){
+        GetId(req);
+    }
     if(req.use_index_vertex()){
-        req.parent_id=cfg->get_inc_id();
         for(int i=0;i<cfg->m_num;i++){
             for(int j=0;j<cfg->server_num;j++){
                 req.mt_total_thread=cfg->server_num;
@@ -16,7 +22,6 @@ void client::Send(request_or_reply& req){
         }
         return ;
     }
-    req.parent_id=cfg->get_inc_id();
     req.first_target=mymath::hash_mod(req.cmd_chains[0],cfg->m_num);
     SendR(cfg,req.first_target,cfg->client_num,req);
 }

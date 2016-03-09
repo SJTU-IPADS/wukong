@@ -3,14 +3,14 @@
 #include "global_cfg.h"
 #include "thread_cfg.h"
 #include "client.h"
+#include "batch_logger.h"
 
 #include <boost/unordered_map.hpp>
 
 using namespace std;
 
-void interactive_execute(client* clnt,string filename,int execute_count);
-void interactive_mode(client* clnt);
+void single_execute(client* clnt,string filename,int execute_count);
 
-void batch_execute(client* clnt,string mix_config);
+void batch_execute(client* clnt,string mix_config,batch_logger& logger);
 
-void noblocking_execute(client* clnt,string mix_config);
+void iterative_shell(client* clnt);

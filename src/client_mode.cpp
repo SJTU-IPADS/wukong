@@ -1,11 +1,10 @@
 #include "client_mode.h"
 
-boost::unordered_map<string,vector<int>* > type_to_idvec;
 void translate_req_template(client* clnt,request_template& req_template){
 	req_template.place_holder_vecptr.resize(req_template.place_holder_str.size());
 	for(int i=0;i<req_template.place_holder_str.size();i++){
 		string type=req_template.place_holder_str[i];
-		if(type_to_idvec.find(type)!=type_to_idvec.end()){
+		if(clnt->parser.type_to_idvec.find(type)!=clnt->parser.type_to_idvec.end()){
 			// do nothing
 		} else {
 			request_or_reply type_request;
@@ -15,10 +14,10 @@ void translate_req_template(client* clnt,request_template& req_template){
 			reply=clnt->Recv();
 			vector<int>* ptr=new vector<int>();
 			*ptr =reply.result_table;
-			type_to_idvec[type]=ptr;
+			clnt->parser.type_to_idvec[type]=ptr;
 			cout<<type<<" has "<<ptr->size()<<" objects"<<endl;
 		}
-		req_template.place_holder_vecptr[i]=type_to_idvec[type];
+		req_template.place_holder_vecptr[i]=clnt->parser.type_to_idvec[type];
 	}
 }
 
@@ -34,7 +33,7 @@ void instantiate_request(client* clnt,request_template& req_template,request_or_
 	return ;
 }
 
-void interactive_execute(client* clnt,string filename,int execute_count){
+void single_execute(client* clnt,string filename,int execute_count){
 	int sum=0;
     int result_count;
     request_or_reply request;
@@ -60,69 +59,92 @@ void interactive_execute(client* clnt,string filename,int execute_count){
 	cout<<"average latency "<<sum/execute_count<<" us"<<endl;
 };
 
-void interactive_mode(client* clnt){
-    while(true){
-        MPI_Barrier(MPI_COMM_WORLD);
-        string iterative_filename;
-        if(clnt->cfg->m_id==0 && clnt->cfg->t_id==0){
-            cout<<"iterative mode (iterative file + [count]):"<<endl;
-            string input_str;
-            std::getline(std::cin,input_str);
-            istringstream iss(input_str);
-            string iterative_filename;
-            int iterative_count;
-            iss>>iterative_filename;
-    		iss>>iterative_count;
-            if(iterative_count<1){
-    			iterative_count=1;
-    		}
-            //interactive_execute(clnt,iterative_filename,iterative_count);
-			batch_execute(clnt,iterative_filename);
-        }
-    }
-};
-
-void noblocking_execute(client* clnt,string mix_config){
-	ifstream configfile(mix_config);
-	if(!configfile){
-		cout<<"File "<<mix_config<<" not exist"<<endl;
-		return ;
+void display_help(client* clnt){
+	if(clnt->cfg->m_id==0 && clnt->cfg->t_id==0){
+		cout<<"> switch_single: execute one query at a time"<<endl;
+		cout<<"> switch_batch: execute concurrent queries"<<endl;
+		cout<<"> help: display help infomation"<<endl;
 	}
-	int total_query_type;
-	int total_request;
-	int sleep_round=1;
-	configfile>>total_query_type>>total_request>>sleep_round;
-	vector<int > distribution;
-	vector<request_template > vec_template;
-	vector<request_or_reply > vec_req;
-	vec_template.resize(total_query_type);
-	vec_req.resize(total_query_type);
-	for(int i=0;i<total_query_type;i++){
-		string filename;
-		configfile>>filename;
-		int current_dist;
-		configfile>>current_dist;
-		bool success=clnt->parser.parse_template(filename,vec_template[i]);
-		translate_req_template(clnt,vec_template[i]);
-		vec_req[i].cmd_chains=vec_template[i].cmd_chains;
-		if(!success){
-			cout<<"sparql parse error"<<endl;
-			return ;
-		}
-		vec_req[i].silent=global_silent;
-	}
-	uint64_t t1=timer::get_usec();
-	assert(false);
-	// for(int i=0;i<total_request;i++){
-	// 	int idx=clnt->cfg->get_random() %total_query_type;
-	// 	instantiate_request(clnt,vec_template[idx],vec_req[idx]);
-	// 	clnt->Send(vec_req[idx]);
-    //     request_or_reply reply=clnt->Recv();
-	// }
-	uint64_t t2=timer::get_usec();
-	cout<<"average latency "<<(t2-t1)/total_request<<" us"<<endl;
 }
-void batch_execute(client* clnt,string mix_config){
+
+
+void iterative_shell(client* clnt){
+	struct thread_cfg *cfg=clnt->cfg;
+	string mode_str[2];
+	mode_str[0]="single mode (single file + [count]):";
+	mode_str[1]="batch mode (batch config file):";
+	cout<<"input help to get more infomation about the shell"<<endl;
+	while(true){
+		MPI_Barrier(MPI_COMM_WORLD);
+		string input_str;
+		//exchange input
+		if(cfg->m_id==0 && cfg->t_id==0){
+			cout<<mode_str[global_client_mode]<<endl;
+			cout<<"> ";
+			std::getline(std::cin,input_str);
+			for(int i=0;i<cfg->m_num;i++){
+				for(int j=0;j<cfg->client_num;j++){
+					if(i==0 && j==0){
+						continue;
+					}
+					cfg->node->Send(i,j,input_str);
+				}
+			}
+		} else {
+			input_str=cfg->node->Recv();
+		}
+		//end of exchange input
+
+		if(input_str=="help"){
+			display_help(clnt);
+		} else if(input_str=="switch_single"){
+			if(cfg->t_id==0){
+				global_client_mode=0;
+			}
+		} else if(input_str=="switch_batch"){
+			if(cfg->t_id==0){
+				global_client_mode=1;
+			}
+		} else {
+			//handle queries here
+			if(global_client_mode==0){
+				if(cfg->m_id==0 && cfg->t_id==0){
+					istringstream iss(input_str);
+					string filename;
+					int count=1;
+					iss>>filename;
+					iss>>count;
+					if(count<1){
+						count=1;
+					}
+					single_execute(clnt,filename,count);
+				}
+			} else if(global_client_mode==1){
+				istringstream iss(input_str);
+	            string filename;
+	            iss>>filename;
+				batch_logger logger;
+				logger.init();
+				batch_execute(clnt,filename,logger);
+				logger.finish();
+				MPI_Barrier(MPI_COMM_WORLD);
+				if(cfg->m_id==0 && cfg->t_id==0){
+					for(int i=0;i<cfg->m_num*cfg->client_num -1 ;i++){
+						batch_logger r=RecvObject<batch_logger>(clnt->cfg);
+						logger.merge(r);
+					}
+					logger.print();
+				} else {
+					SendObject<batch_logger>(clnt->cfg,0,0,logger);
+				}
+			}
+		}
+
+
+	}
+}
+
+void batch_execute(client* clnt,string mix_config,batch_logger& logger){
 	ifstream configfile(mix_config);
 	if(!configfile){
 		cout<<"File "<<mix_config<<" not exist"<<endl;
@@ -142,6 +164,7 @@ void batch_execute(client* clnt,string mix_config){
 		configfile>>filename;
 		int current_dist;
 		configfile>>current_dist;
+		distribution.push_back(current_dist);
 		bool success=clnt->parser.parse_template(filename,vec_template[i]);
 		translate_req_template(clnt,vec_template[i]);
 		vec_req[i].cmd_chains=vec_template[i].cmd_chains;
@@ -151,22 +174,24 @@ void batch_execute(client* clnt,string mix_config){
 		}
 		vec_req[i].silent=global_silent;
 	}
-	uint64_t t1=timer::get_usec();
 	for(int i=0;i<global_batch_factor;i++){
-		int idx=clnt->cfg->get_random() %total_query_type;
+		int idx=mymath::get_distribution(clnt->cfg->get_random(),distribution);
 		instantiate_request(clnt,vec_template[idx],vec_req[idx]);
+		clnt->GetId(vec_req[idx]);
+		logger.start_record(vec_req[idx].parent_id,idx);
 		clnt->Send(vec_req[idx]);
 	}
 	for(int i=0;i<total_request;i++){
 		request_or_reply reply=clnt->Recv();
-		int idx=clnt->cfg->get_random() %total_query_type;
+		logger.end_record(reply.parent_id);
+		int idx=mymath::get_distribution(clnt->cfg->get_random(),distribution);
 		instantiate_request(clnt,vec_template[idx],vec_req[idx]);
+		clnt->GetId(vec_req[idx]);
+		logger.start_record(vec_req[idx].parent_id,idx);
 		clnt->Send(vec_req[idx]);
 	}
 	for(int i=0;i<global_batch_factor;i++){
 		request_or_reply reply=clnt->Recv();
+		logger.end_record(reply.parent_id);
 	}
-	uint64_t t2=timer::get_usec();
-	cout<<"Throughput "<<total_request/((t2-t1)/1000.0)<<" Kops"<<endl;
-
 };

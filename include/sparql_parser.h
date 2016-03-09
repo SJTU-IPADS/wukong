@@ -15,6 +15,8 @@ using namespace std;
 
 class sparql_parser{
     string_server* str_server;
+
+
     boost::unordered_map<string,string> prefix_map;
     boost::unordered_map<string,int> variable_map;
 
@@ -24,6 +26,7 @@ class sparql_parser{
     void clear();
     bool readFile(string filename);
 public:
+    boost::unordered_map<string,vector<int>* > type_to_idvec; // translate %type to a vector
 
     bool find_type_of(string type,request_or_reply& r);
 

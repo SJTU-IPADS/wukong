@@ -40,11 +40,10 @@ void* Run_SendAndRecv(void *ptr) {
 
 void* Run(void *ptr) {
 	struct thread_cfg *cfg = (struct thread_cfg*) ptr;
-	cout<<"("<<cfg->m_id<<","<<cfg->t_id<<")"<<endl;
 	if(cfg->t_id >= cfg->client_num){
 		((server*)(cfg->ptr))->run();
 	}else {
-		interactive_mode(((client*)(cfg->ptr)));
+		iterative_shell(((client*)(cfg->ptr)));
 	}
 }
 

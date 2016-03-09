@@ -1,7 +1,22 @@
 #pragma once
-
+#include <vector>
 class mymath{ //math will conflict with other lib; so it's named mymath
 public:
+    uint64_t static get_distribution(int r,std::vector<int>& distribution){
+        int sum=0;
+        for(int i=0;i<distribution.size();i++){
+            sum+=distribution[i];
+        }
+        assert(sum>0);
+        r=r%sum;
+        for(int i=0;i<distribution.size();i++){
+            if(r<distribution[i]){
+                return i;
+            }
+            r-=distribution[i];
+        }
+        assert(false);
+    }
     inline uint64_t static floor(uint64_t original,uint64_t n){
 		if(n==0){
 			assert(false);
