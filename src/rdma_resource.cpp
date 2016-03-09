@@ -561,7 +561,7 @@ poll_completion (struct QP *res) {
     dev_resources_init(dev0);
     dev_resources_init(dev1);
 
-    if(dev_resources_create(dev0,buffer,size) || dev_resources_create(dev1,buffer,size)) {
+    if(dev_resources_create(dev0,buffer,size) ) {
       fprintf(stderr,"failed to create dev resources");
     }
 
@@ -582,14 +582,7 @@ poll_completion (struct QP *res) {
 
     //fprintf(stdout,"creating own qps\n");
 
-    own_res = new struct QP[_total_threads];
-    for(int i = 0;i < _total_threads;++i) {
-      QP_init(own_res + i);
-      if(QP_create(own_res + i,dev1)) {
-        fprintf(stderr,"failed to create own resources\n");
-        assert(false);
-      }
-    }
+
     for(int i=0;i<40;i++){
       local_meta[i].prev_recv_tid=_total_threads-1;
       local_meta[i].prev_recv_mid=_total_partition-1;
@@ -653,19 +646,7 @@ poll_completion (struct QP *res) {
         }
       }
     }
-    for(int i = 0;i < _total_threads;++i) {
-      //initiliaze own qps for local reads
-      struct cm_con_data_t local_con_data = get_local_con_data(own_res + i);
-      if(connect_qp(res[i] + _current_partition,local_con_data)){
-        fprintf(stderr,"failed to connect local QPs\n");
-        assert(false);
-      }
-      struct cm_con_data_t local_con_data2 = get_local_con_data(res[i] + _current_partition);
-      if(connect_qp(own_res + i,local_con_data2)){
-        fprintf(stderr,"failed to connect local QPs 2\n");
-        assert(false);
-      }
-    }
+
     fprintf(stdout,"connection done------------\n");
   }
 

@@ -33,6 +33,21 @@ void instantiate_request(client* clnt,request_template& req_template,request_or_
 	return ;
 }
 
+__thread int local_barrier_val=0;
+int global_barrier_val=0;
+void ClientBarrier(struct thread_cfg *cfg){
+	if(cfg->t_id==0){
+		MPI_Barrier(MPI_COMM_WORLD);
+		__sync_fetch_and_add(&global_barrier_val,1);
+	}  else {
+		__sync_fetch_and_add(&global_barrier_val,1);
+	}
+	while(global_barrier_val !=local_barrier_val+cfg->client_num){
+		usleep(1);
+	}
+	local_barrier_val+=cfg->client_num;
+}
+
 void single_execute(client* clnt,string filename,int execute_count){
 	int sum=0;
     int result_count;
@@ -75,7 +90,8 @@ void iterative_shell(client* clnt){
 	mode_str[1]="batch mode (batch config file):";
 	cout<<"input help to get more infomation about the shell"<<endl;
 	while(true){
-		MPI_Barrier(MPI_COMM_WORLD);
+		//MPI_Barrier(MPI_COMM_WORLD);
+		ClientBarrier(clnt->cfg);
 		string input_str;
 		//exchange input
 		if(cfg->m_id==0 && cfg->t_id==0){
@@ -127,7 +143,8 @@ void iterative_shell(client* clnt){
 				logger.init();
 				batch_execute(clnt,filename,logger);
 				logger.finish();
-				MPI_Barrier(MPI_COMM_WORLD);
+				ClientBarrier(clnt->cfg);
+				//MPI_Barrier(MPI_COMM_WORLD);
 				if(cfg->m_id==0 && cfg->t_id==0){
 					for(int i=0;i<cfg->m_num*cfg->client_num -1 ;i++){
 						batch_logger r=RecvObject<batch_logger>(clnt->cfg);

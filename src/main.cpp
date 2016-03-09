@@ -38,8 +38,19 @@ void* Run_SendAndRecv(void *ptr) {
 	}
 }
 
+int socket_1[] = {
+  1,3,5,0,11,13,15,2,4,6,8,10,12,14,16,18
+};
+void pin_to_core(size_t core) {
+  cpu_set_t  mask;
+  CPU_ZERO(&mask);
+  CPU_SET(core , &mask);
+  int result=sched_setaffinity(0, sizeof(mask), &mask);
+}
+
 void* Run(void *ptr) {
 	struct thread_cfg *cfg = (struct thread_cfg*) ptr;
+	pin_to_core(socket_1[cfg->t_id]);
 	if(cfg->t_id >= cfg->client_num){
 		((server*)(cfg->ptr))->run();
 	}else {

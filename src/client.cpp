@@ -23,7 +23,8 @@ void client::Send(request_or_reply& req){
         return ;
     }
     req.first_target=mymath::hash_mod(req.cmd_chains[0],cfg->m_num);
-    SendR(cfg,req.first_target,cfg->client_num,req);
+    int mid=cfg->client_num + cfg->get_random() % cfg->server_num;
+    SendR(cfg,req.first_target,mid,req);
 }
 
 request_or_reply client::Recv(){

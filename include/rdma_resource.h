@@ -124,7 +124,6 @@ struct normal_op_req
     struct dev_resource *dev1;//for local usage
 
     struct QP **res;
-    struct QP  *own_res;
 
     uint64_t size;//The size of the rdma region,should be the same across machines!
     uint64_t off ;//The offset to send message
