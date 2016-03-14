@@ -90,7 +90,6 @@ void iterative_shell(client* clnt){
 	mode_str[1]="batch mode (batch config file):";
 	cout<<"input help to get more infomation about the shell"<<endl;
 	while(true){
-		//MPI_Barrier(MPI_COMM_WORLD);
 		ClientBarrier(clnt->cfg);
 		string input_str;
 		//exchange input

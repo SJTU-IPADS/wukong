@@ -29,8 +29,7 @@ struct request_template{
 };
 struct request_or_reply{
 	int first_target;// no serialize
-	
-    uint64_t timestamp;
+
 	int id;
 	int parent_id;
     int step;
@@ -53,14 +52,12 @@ struct request_or_reply{
 		silent=false;
 		silent_row_num=0;
 		local_var=0;
-        timestamp=0;
 		mt_total_thread=1;
 		mt_current_thread=0;
 
     }
     template <typename Archive>
 	void serialize(Archive &ar, const unsigned int version) {
-		ar & timestamp;
 		ar & id;
 		ar & parent_id;
         ar & step;
