@@ -230,22 +230,16 @@ vector<uint64_t>& graph_storage::get_vector(uint64_t index_id,int dir){
     switch (dir) {
         case direction_in:
             if (!src_predict_table.find(a,index_id)){
-        		cout<<"[warning] index_table "<< index_id << "not found"<<endl;
+        		cout<<"[warning] src index_table "<< index_id << "not found"<<endl;
         		return empty;
         	}
         	return a->second;
         case direction_out:
             if (!dst_predict_table.find(a,index_id)){
-        		cout<<"[warning] index_table "<< index_id << "not found"<<endl;
+        		cout<<"[warning] dst index_table "<< index_id << "not found"<<endl;
         		return empty;
         	}
         	return a->second;
-        // case tindex_in:
-        //     if (!type_table.find(a,index_id)){
-        // 		cout<<"[warning] index_table "<< index_id << "not found"<<endl;
-        // 		return empty;
-        // 	}
-        // 	return a->second;
         default:
             cout<<"[warning] error index_table"<<endl;
             return empty;

@@ -68,6 +68,13 @@ void sparql_parser::replace_prefix(vector<string>& token_vec){
                 new_str+=token_vec[i].substr(iter.first.size());
                 new_str+=">";
                 token_vec[i]=new_str;
+            } else if(token_vec[i][0]=='%' && token_vec[i].find(iter.first)==1 ){
+                string new_str="%";
+                new_str+=iter.second;
+                new_str.pop_back();
+                new_str+=token_vec[i].substr(iter.first.size()+1);
+                new_str+=">";
+                token_vec[i]=new_str;
             }
         }
     }
@@ -84,8 +91,9 @@ int sparql_parser::str2id(string& str){
         }
         return variable_map[str];
     } else if(str[0]=='%'){
-        valid=false;
-        return 0;
+        req_template.place_holder_str.push_back(str.substr(1));
+        //valid=false;
+        return place_holder;
     } else {
         if(str_server->str2id.find(str) ==str_server->str2id.end()){
             valid=false;
@@ -133,12 +141,22 @@ void sparql_parser::do_parse(string filename){
             return ;
         }
     }
+    for(int i=0;i<req_template.cmd_chains.size();i++){
+        if(req_template.cmd_chains[i]==place_holder){
+            req_template.place_holder_position.push_back(i);
+            return ;
+        }
+    }
 }
 
 bool sparql_parser::parse(string filename,request_or_reply& r){
     clear();
     do_parse(filename);
     if(!valid){
+        return false;
+    }
+    if(req_template.place_holder_position.size()!=0){
+        cout<<"[error] request with place_holder"<<endl;
         return false;
     }
     r=request_or_reply();
@@ -152,6 +170,10 @@ bool sparql_parser::parse_template(string filename,request_template& r){
     if(!valid){
         return false;
     }
+    if(req_template.place_holder_position.size()==0){
+        cout<<"[error] request_template without place_holder"<<endl;
+        return false;
+    }
     r=req_template;
     return true;
 };
@@ -159,7 +181,7 @@ bool sparql_parser::parse_template(string filename,request_template& r){
 bool sparql_parser::find_type_of(string type,request_or_reply& r){
     clear();
     r=request_or_reply();
-    r.cmd_chains.push_back(str_server->subject_to_id[type]);
+    r.cmd_chains.push_back(str_server->str2id[type]);
     r.cmd_chains.push_back(global_rdftype_id);
     r.cmd_chains.push_back(direction_in);
     r.cmd_chains.push_back(-1);

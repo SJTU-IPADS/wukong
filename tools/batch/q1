@@ -1,10 +1,9 @@
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-PREFIX ub: <http://www.lehigh.edu/~zhp2/2004/0401/univ-bench.owl#>
-
+PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
 
 SELECT ?X
 WHERE
 {
-?X  <ub#takesCourse> %<ub#GraduateCourse> <-
-?X <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <ub#GraduateStudent> .
+?X  ub:takesCourse     %ub:GraduateCourse <-
+?X  rdf:type            ub:GraduateStudent .
 }
