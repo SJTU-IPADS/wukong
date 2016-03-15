@@ -5,7 +5,7 @@ inline static bool is_upper(string str1,string str2){
 }
 
 sparql_parser::sparql_parser(string_server* _str_server):str_server(_str_server){
-
+    valid=true;
 };
 
 
@@ -13,95 +13,108 @@ void sparql_parser::clear(){
     prefix_map.clear();
     variable_map.clear();
     req_template =  request_template();
+    valid=true;
 };
 
-bool sparql_parser::readFile(string filename){
+vector<string> sparql_parser::get_token_vec(string filename){
     ifstream file(filename);
-	if(!file){
-        return false;
-	}
-    string cmd;
     vector<string> token_vec;
-	while(file>>cmd){
+    if(!file){
+        valid=false;
+        return token_vec;
+    }
+    string cmd;
+    while(file>>cmd){
         token_vec.push_back(cmd);
         if(cmd=="}"){
             break;
         }
 	}
     file.close();
-    int iter=0;
+    return token_vec;
+}
 
-    boost::unordered_map<string,int>* id_maps[3]={
-        &str_server->subject_to_id,
-        &str_server->predict_to_id,
-        &str_server->subject_to_id,
-    };
-    //A more reasonable parser should be implemented
+void sparql_parser::remove_header(vector<string>& token_vec){
+    vector<string> new_vec;
+    int iter=0;
+    while(token_vec.size()>iter && token_vec[iter]=="PREFIX"){
+        if(token_vec.size()>iter+2){
+            prefix_map[token_vec[iter+1]]=token_vec[iter+2];
+            iter+=3;
+        } else {
+            valid=false;
+            return ;
+        }
+    }
+    /// TODO More Check!
     while(token_vec[iter]!="{"){
         iter++;
     }
     iter++;
-    //handle possible index vertex
-    if(token_vec[iter]=="PI" || token_vec[iter]=="TI"){
-        string str_index=token_vec[iter+1];
-        string str_var=token_vec[iter+2];
-        int id_index;
-        int id_var;
-        int dir;
-        if(token_vec[iter]=="PI"){
-            if(id_maps[1]->find(str_index)==id_maps[1]->end()){
-                return false;
-            }
-            id_index=(*id_maps[1])[str_index];
-            if(token_vec[iter+3]=="->" || token_vec[iter+3]=="."){
-                dir=pindex_out;
-            } else {
-                dir=pindex_in;
-            }
-        } else {
-            if(id_maps[0]->find(str_index)==id_maps[0]->end()){
-                return false;
-            }
-            id_index=(*id_maps[0])[str_index];
-            dir=tindex_in;
-        }
-        if(variable_map.find(str_var)==variable_map.end()){
-            int new_id=-1-variable_map.size();
-            variable_map[str_var]=new_id;
-        }
-        id_var=variable_map[str_var];
-        req_template.cmd_chains.push_back(id_index);
-        req_template.cmd_chains.push_back(0);//useless
-        req_template.cmd_chains.push_back(dir);
-        req_template.cmd_chains.push_back(id_var);
-        iter+=4;
-    }
+
     while(token_vec[iter]!="}"){
-        string str_s=token_vec[iter];
-        string str_p=token_vec[iter+1];
-        string str_o=token_vec[iter+2];
-        string strs[3]={str_s,str_p,str_o};
+        new_vec.push_back(token_vec[iter]);
+        iter++;
+    }
+    token_vec.swap(new_vec);
+}
+
+void sparql_parser::replace_prefix(vector<string>& token_vec){
+    for(int i=0;i<token_vec.size();i++){
+        for(auto iter: prefix_map){
+            if(token_vec[i].find(iter.first)==0){
+                string new_str=iter.second;
+                new_str.pop_back();
+                new_str+=token_vec[i].substr(iter.first.size());
+                new_str+=">";
+                token_vec[i]=new_str;
+            }
+        }
+    }
+}
+int sparql_parser::str2id(string& str){
+    if(str==""){
+        valid=false;
+        return 0;
+    }
+    if(str[0]=='?'){
+        if(variable_map.find(str)==variable_map.end()){
+            int new_id=-1-variable_map.size();
+            variable_map[str]=new_id;
+        }
+        return variable_map[str];
+    } else if(str[0]=='%'){
+        valid=false;
+        return 0;
+    } else {
+        if(str_server->str2id.find(str) ==str_server->str2id.end()){
+            valid=false;
+            return 0;
+        }
+        return str_server->str2id[str];
+    }
+}
+void sparql_parser::do_parse(string filename){
+    vector<string> token_vec=get_token_vec(filename);
+    if(!valid) return ;
+
+    remove_header(token_vec);
+    if(!valid) return ;
+
+    replace_prefix(token_vec);
+    if(!valid) return ;
+
+    if(token_vec.size()%4!=0){
+        valid=false;
+        return ;
+    }
+
+    int iter=0;
+    while(iter<token_vec.size()){
+        string strs[3]={token_vec[iter+0],token_vec[iter+1],token_vec[iter+2]};
         int ids[3];
         for(int i=0;i<3;i++){
-            if(strs[i][0]=='?'){
-                if(i==1){
-                    //doesn't support predict varibale
-                    return false;
-                }
-                if(variable_map.find(strs[i])==variable_map.end()){
-                    int new_id=-1-variable_map.size();
-                    variable_map[strs[i]]=new_id;
-                }
-                ids[i]=variable_map[strs[i]];
-            } else if(strs[i][0]=='%'){
-                ids[i]=place_holder;
-                req_template.place_holder_str.push_back(strs[i].substr(1));
-            } else {
-                if(id_maps[i]->find(strs[i])==id_maps[i]->end()){
-                    return false;
-                }
-                ids[i]=(*id_maps[i])[strs[i]];
-            }
+            ids[i]=str2id(strs[i]);
         }
         if(token_vec[iter+3]=="." || token_vec[iter+3]=="->"){
             req_template.cmd_chains.push_back(ids[0]);
@@ -116,20 +129,16 @@ bool sparql_parser::readFile(string filename){
             req_template.cmd_chains.push_back(ids[0]);
             iter+=4;
         } else {
-            return false;
+            valid=false;
+            return ;
         }
     }
-    for(int i=0;i<req_template.cmd_chains.size();i++){
-        if(req_template.cmd_chains[i]==place_holder){
-            req_template.place_holder_position.push_back(i);
-        }
-    }
-    return true;
 }
 
 bool sparql_parser::parse(string filename,request_or_reply& r){
     clear();
-    if(!readFile(filename)){
+    do_parse(filename);
+    if(!valid){
         return false;
     }
     r=request_or_reply();
@@ -139,7 +148,8 @@ bool sparql_parser::parse(string filename,request_or_reply& r){
 
 bool sparql_parser::parse_template(string filename,request_template& r){
     clear();
-    if(!readFile(filename)){
+    do_parse(filename);
+    if(!valid){
         return false;
     }
     r=req_template;

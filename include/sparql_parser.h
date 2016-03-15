@@ -23,8 +23,16 @@ class sparql_parser{
     const static int place_holder=INT_MIN;
 
     request_template req_template;
+    bool valid;
     void clear();
-    bool readFile(string filename);
+
+
+    vector<string> get_token_vec(string filename);
+    void remove_header(vector<string>& token_vec);
+    void replace_prefix(vector<string>& token_vec);
+    int str2id(string& string);
+
+    void do_parse(string filename);
 public:
     boost::unordered_map<string,vector<int>* > type_to_idvec; // translate %type to a vector
 

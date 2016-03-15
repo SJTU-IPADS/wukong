@@ -46,10 +46,10 @@ void client::print_result(request_or_reply& reply,int row_to_print){
         cout<<i+1<<":  ";
         for(int c=0;c<reply.column_num();c++){
             int id=reply.get_row_column(i,c);
-            if(str_server->id_to_subject.find(id)==str_server->id_to_subject.end()){
+            if(str_server->id2str.find(id)==str_server->id2str.end()){
                 cout<<"NULL  ";
             } else {
-                cout<<str_server->id_to_subject[reply.get_row_column(i,c)]<<"  ";
+                cout<<str_server->id2str[reply.get_row_column(i,c)]<<"  ";
             }
         }
         cout<<endl;
