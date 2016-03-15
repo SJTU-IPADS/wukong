@@ -228,24 +228,24 @@ edge* graph_storage::get_edges_local(int tid,uint64_t id,int direction,int predi
 vector<uint64_t>& graph_storage::get_vector(uint64_t index_id,int dir){
     tbb_vector_table::accessor a;
     switch (dir) {
-        case pindex_in:
+        case direction_in:
             if (!src_predict_table.find(a,index_id)){
         		cout<<"[warning] index_table "<< index_id << "not found"<<endl;
         		return empty;
         	}
         	return a->second;
-        case pindex_out:
+        case direction_out:
             if (!dst_predict_table.find(a,index_id)){
         		cout<<"[warning] index_table "<< index_id << "not found"<<endl;
         		return empty;
         	}
         	return a->second;
-        case tindex_in:
-            if (!type_table.find(a,index_id)){
-        		cout<<"[warning] index_table "<< index_id << "not found"<<endl;
-        		return empty;
-        	}
-        	return a->second;
+        // case tindex_in:
+        //     if (!type_table.find(a,index_id)){
+        // 		cout<<"[warning] index_table "<< index_id << "not found"<<endl;
+        // 		return empty;
+        // 	}
+        // 	return a->second;
         default:
             cout<<"[warning] error index_table"<<endl;
             return empty;
@@ -283,7 +283,8 @@ void graph_storage::init_index_table(){
 					uint64_t edge_ptr=vertex_addr[i].val.ptr;
 					for(uint64_t j=0;j<degree;j++){
 						//src may belongs to multiple types
-						insert_vector(type_table,edge_addr[edge_ptr+j].val,vid);
+						//insert_vector(type_table,edge_addr[edge_ptr+j].val,vid);
+                        insert_vector(src_predict_table,edge_addr[edge_ptr+j].val,vid);
 					}
 				} else {
 					insert_vector(src_predict_table,p,vid);

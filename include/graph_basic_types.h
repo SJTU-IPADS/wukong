@@ -111,7 +111,4 @@ struct edge{
 enum direction{
 	direction_in,
 	direction_out,
-	pindex_in,
-	pindex_out,
-	tindex_in,
 };

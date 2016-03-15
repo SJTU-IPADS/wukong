@@ -80,9 +80,13 @@ struct request_or_reply{
 		return id==-1;
 	}
 	bool use_index_vertex(){
-		return cmd_chains[2]==pindex_in ||
-			cmd_chains[2]==pindex_out ||
-			cmd_chains[2]==tindex_in ;
+		if(cmd_chains[0]>=0 && cmd_chains[0]<(1<<15)){
+			return true;
+		}
+		return false;
+		// return cmd_chains[2]==pindex_in ||
+		// 	cmd_chains[2]==pindex_out ||
+		// 	cmd_chains[2]==tindex_in ;
 	}
     var_type variable_type(int v){
         if(v>=0){
