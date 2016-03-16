@@ -49,9 +49,9 @@ public:
     typedef tbb::concurrent_hash_map<uint64_t,vector<uint64_t> > tbb_vector_table;
     void insert_vector(tbb_vector_table& table,uint64_t index_id,uint64_t value_id);
     void init_index_table();
-    tbb_vector_table type_table;
     tbb_vector_table src_predict_table;
     tbb_vector_table dst_predict_table;
-    vector<uint64_t> empty;
-    vector<uint64_t>& get_vector(uint64_t index_id,int dir);
+
+    edge* get_index_edges_local(int tid,uint64_t index_id,int direction,int* size);
+
 };

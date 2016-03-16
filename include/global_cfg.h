@@ -19,7 +19,6 @@ extern int global_batch_factor;
 extern string global_input_folder;
 extern int global_client_mode;
 extern bool global_use_loc_cache;
-extern int global_num_lubm_university;
 extern bool global_load_minimal_index;
 extern bool global_silent;
 extern int global_max_print_row;

@@ -42,10 +42,15 @@ struct edge_sort_by_ops {
 	}
 };
 
+const int nbit_predict=15;
+const int nbit_id=48;
+static inline bool is_index_vertex(int id){
+	return id< (1<<nbit_predict);
+}
 struct local_key{
 	uint64_t dir:1;
-	uint64_t predict:15;
-	uint64_t id:48;
+	uint64_t predict: nbit_predict;
+	uint64_t id: nbit_id;
 	local_key():dir(0),predict(0),id(0){
 		dir-=1;
 		predict-=1;
@@ -57,9 +62,9 @@ struct local_key{
 	uint64_t hash(){
 		uint64_t r=0;
 		r+=dir;
-		r<<=15;
+		r<<=nbit_predict;
 		r+=predict;
-		r<<=48;
+		r<<=nbit_id;
 		r+=id;
 		return mymath::hash(r);
 	}

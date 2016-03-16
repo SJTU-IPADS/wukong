@@ -109,11 +109,15 @@ void server::index_to_unknown(request_or_reply& req){
         //it means the query plan is wrong
         assert(false);
     }
-    vector<uint64_t>& ids=g.local_storage.get_vector(index_vertex,direction);
-	int start_id=req.mt_current_thread;
-	for(int i=start_id;i<ids.size();i+=req.mt_total_thread){
-		updated_result_table.push_back(ids[i]);
-	}
+
+    int edge_num=0;
+    edge* edge_ptr;
+    edge_ptr=g.local_storage.get_index_edges_local(cfg->t_id,index_vertex,direction,&edge_num);
+    int start_id=req.mt_current_thread;
+    for(int k=start_id;k<edge_num;k+=req.mt_total_thread){
+        updated_result_table.push_back(edge_ptr[k].val);
+    }
+    
     req.result_table.swap(updated_result_table);
     req.set_column_num(1);
     req.step++;

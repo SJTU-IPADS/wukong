@@ -4,8 +4,8 @@ PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
 SELECT ?X ?Y
 WHERE
 {
-?X  <ub#subOrganizationOf> %<ub#University> <-
-?X  <http://www.w3.org/1999/02/22-rdf-syntax-ns#type>  <ub#Department> .
-?Y  <ub#worksFor>   ?X                      <-
-?Y  <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <ub#FullProfessor> .
+?X  ub:subOrganizationOf %ub:University    <-
+?X  rdf:type              ub:Department    .
+?Y  ub:worksFor           ?X               <-
+?Y  rdf:type              ub:FullProfessor .
 }

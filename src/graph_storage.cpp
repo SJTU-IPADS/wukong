@@ -95,7 +95,15 @@ uint64_t graph_storage::atomic_alloc_edges(uint64_t num_edge){
 	return curr_edge_ptr;
 }
 void graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,vector<edge_triple>& vec_ops){
-    uint64_t curr_edge_ptr=atomic_alloc_edges(vec_spo.size()+vec_ops.size());
+    uint64_t nedges_to_skip=0;
+    while(nedges_to_skip<vec_ops.size()){
+        if(is_index_vertex(vec_ops[nedges_to_skip].o)){
+            nedges_to_skip++;
+        } else {
+            break;
+        }
+    }
+    uint64_t curr_edge_ptr=atomic_alloc_edges(vec_spo.size()+vec_ops.size()-nedges_to_skip);
     uint64_t start;
 	start=0;
 	while(start<vec_spo.size()){
@@ -115,7 +123,8 @@ void graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,vector<edge
 		}
 		start=end;
 	}
-	start=0;
+
+	start=nedges_to_skip;
 	while(start<vec_ops.size()){
 		uint64_t end=start+1;
 		while(end<vec_ops.size()
@@ -213,7 +222,7 @@ edge* graph_storage::get_edges_global(int tid,uint64_t id,int direction,int pred
     return result_ptr;
 }
 edge* graph_storage::get_edges_local(int tid,uint64_t id,int direction,int predict,int* size){
-    assert(mymath::hash_mod(id,m_num) ==m_id);
+    assert(mymath::hash_mod(id,m_num) ==m_id ||  is_index_vertex(id));
     local_key key=local_key(id,direction,predict);
     vertex v=get_vertex_local(key);
     if(v.key==local_key()){
@@ -225,26 +234,6 @@ edge* graph_storage::get_edges_local(int tid,uint64_t id,int direction,int predi
     return &(edge_addr[ptr]);
 }
 
-vector<uint64_t>& graph_storage::get_vector(uint64_t index_id,int dir){
-    tbb_vector_table::accessor a;
-    switch (dir) {
-        case direction_in:
-            if (!src_predict_table.find(a,index_id)){
-        		cout<<"[warning] src index_table "<< index_id << "not found"<<endl;
-        		return empty;
-        	}
-        	return a->second;
-        case direction_out:
-            if (!dst_predict_table.find(a,index_id)){
-        		cout<<"[warning] dst index_table "<< index_id << "not found"<<endl;
-        		return empty;
-        	}
-        	return a->second;
-        default:
-            cout<<"[warning] error index_table"<<endl;
-            return empty;
-    }
-}
 void graph_storage::insert_vector(tbb_vector_table& table,uint64_t index_id,uint64_t value_id){
 	tbb_vector_table::accessor a;
 	table.insert(a,index_id);
@@ -266,6 +255,8 @@ void graph_storage::init_index_table(){
 				if(p==global_rdftype_id){
 					//it means vid is a type vertex
 					//we just skip it
+                    cout<<"[error] type vertices are not skipped"<<endl;
+                    assert(false);
 					continue;
 				} else {
 					//this edge is in-direction, so vid is the dst of predict
@@ -277,8 +268,7 @@ void graph_storage::init_index_table(){
 					uint64_t edge_ptr=vertex_addr[i].val.ptr;
 					for(uint64_t j=0;j<degree;j++){
 						//src may belongs to multiple types
-						//insert_vector(type_table,edge_addr[edge_ptr+j].val,vid);
-                        insert_vector(src_predict_table,edge_addr[edge_ptr+j].val,vid);
+						insert_vector(src_predict_table,edge_addr[edge_ptr+j].val,vid);
 					}
 				} else {
 					insert_vector(src_predict_table,p,vid);
@@ -286,7 +276,34 @@ void graph_storage::init_index_table(){
 			}
 		}
 	}
-    cout<<"sizeof type_table = "<<type_table.size()<<endl;
+    for( tbb_vector_table::iterator i=src_predict_table.begin(); i!=src_predict_table.end(); ++i ) {
+        uint64_t curr_edge_ptr=atomic_alloc_edges(i->second.size());
+        local_key key= local_key(i->first,direction_in,0);
+		uint64_t vertex_ptr=insertKey(key);
+		local_val val= local_val(i->second.size(),curr_edge_ptr);
+		vertex_addr[vertex_ptr].val=val;
+		for(uint64_t k=0;k<i->second.size();k++){
+			edge_addr[curr_edge_ptr].val=i->second[k];
+			curr_edge_ptr++;
+		}
+    }
+    for( tbb_vector_table::iterator i=dst_predict_table.begin(); i!=dst_predict_table.end(); ++i ) {
+        uint64_t curr_edge_ptr=atomic_alloc_edges(i->second.size());
+        local_key key= local_key(i->first,direction_out,0);
+		uint64_t vertex_ptr=insertKey(key);
+		local_val val= local_val(i->second.size(),curr_edge_ptr);
+		vertex_addr[vertex_ptr].val=val;
+		for(uint64_t k=0;k<i->second.size();k++){
+			edge_addr[curr_edge_ptr].val=i->second[k];
+			curr_edge_ptr++;
+		}
+    }
+
     cout<<"sizeof src_predict_table = "<<src_predict_table.size()<<endl;
     cout<<"sizeof dst_predict_table = "<<dst_predict_table.size()<<endl;
 }
+
+edge* graph_storage::get_index_edges_local(int tid,uint64_t index_id,int direction,int* size){
+    //predict is not important , so we set it 0
+    return get_edges_local(tid,index_id,direction,0,size);
+};

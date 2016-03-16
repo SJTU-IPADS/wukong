@@ -80,7 +80,7 @@ struct request_or_reply{
 		return id==-1;
 	}
 	bool use_index_vertex(){
-		if(cmd_chains[0]>=0 && cmd_chains[0]<(1<<15)){
+		if(cmd_chains[0]>=0 && cmd_chains[0]<(1<<nbit_predict)){
 			return true;
 		}
 		return false;

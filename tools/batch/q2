@@ -4,6 +4,6 @@ PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
 SELECT ?X
 WHERE
 {
-?X  <ub#publicationAuthor> %<ub#AssistantProfessor> <-
-?X <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <ub#Publication> .
+?X  ub:publicationAuthor %ub:AssistantProfessor <-
+?X  rdf:type ub:Publication .
 }

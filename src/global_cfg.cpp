@@ -12,7 +12,6 @@ std::string global_input_folder;
 int global_client_mode;
 int global_rdftype_id;
 bool global_use_loc_cache;
-int global_num_lubm_university;
 bool global_load_minimal_index;
 bool global_silent;
 int global_max_print_row;
@@ -49,7 +48,6 @@ void load_global_cfg(char* filename){
 	global_input_folder=config_map["global_input_folder"];
 	global_client_mode=atoi(config_map["global_client_mode"].c_str());
 	global_use_loc_cache=atoi(config_map["global_use_loc_cache"].c_str());
-	global_num_lubm_university=atoi(config_map["global_num_lubm_university"].c_str());
 	global_load_minimal_index=atoi(config_map["global_load_minimal_index"].c_str());
 	global_silent=atoi(config_map["global_silent"].c_str());
 	global_max_print_row=atoi(config_map["global_max_print_row"].c_str());

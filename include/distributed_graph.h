@@ -42,4 +42,7 @@ public:
     edge* get_edges_local(int tid,uint64_t id,int direction,int predict,int* size){
 		return local_storage.get_edges_local(tid,id,direction,predict,size);
 	};
+	edge* get_index_edges_local(int tid,uint64_t id,int direction,int* size){
+		return local_storage.get_index_edges_local(tid,id,direction,size);
+	};
 };
