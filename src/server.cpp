@@ -117,7 +117,7 @@ void server::index_to_unknown(request_or_reply& req){
     for(int k=start_id;k<edge_num;k+=req.mt_total_thread){
         updated_result_table.push_back(edge_ptr[k].val);
     }
-    
+
     req.result_table.swap(updated_result_table);
     req.set_column_num(1);
     req.step++;

@@ -38,8 +38,12 @@ void* Run_SendAndRecv(void *ptr) {
 	}
 }
 
+int socket_0[] = {
+  0,2,4,6,8,10,12,14,16,18
+};
+
 int socket_1[] = {
-  1,3,5,0,11,13,15,2,4,6,8,10,12,14,16,18
+  1,3,5,7,9,11,13,15,17,19,0,2,4,6,8,10,12,14,16,18
 };
 void pin_to_core(size_t core) {
   cpu_set_t  mask;
@@ -50,7 +54,12 @@ void pin_to_core(size_t core) {
 
 void* Run(void *ptr) {
 	struct thread_cfg *cfg = (struct thread_cfg*) ptr;
-	pin_to_core(socket_1[cfg->t_id]);
+	//pin_to_core(socket_1[cfg->t_id]);
+	if(cfg->m_id %2==0){
+		pin_to_core(socket_1[cfg->t_id]);
+	} else {
+		pin_to_core(socket_0[cfg->t_id]);
+	}
 	if(cfg->t_id >= cfg->client_num){
 		((server*)(cfg->ptr))->run();
 	}else {

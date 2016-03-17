@@ -112,6 +112,10 @@ void iterative_shell(client* clnt){
 
 		if(input_str=="help"){
 			display_help(clnt);
+		} else if(input_str=="quit"){
+			if(cfg->t_id==0){
+				exit(0);
+			}
 		} else if(input_str=="switch_single"){
 			if(cfg->t_id==0){
 				global_client_mode=0;
@@ -190,6 +194,7 @@ void batch_execute(client* clnt,string mix_config,batch_logger& logger){
 		}
 		vec_req[i].silent=global_silent;
 	}
+	uint64_t start_time=timer::get_usec();
 	for(int i=0;i<global_batch_factor;i++){
 		int idx=mymath::get_distribution(clnt->cfg->get_random(),distribution);
 		instantiate_request(clnt,vec_template[idx],vec_req[idx]);
@@ -210,4 +215,6 @@ void batch_execute(client* clnt,string mix_config,batch_logger& logger){
 		request_or_reply reply=clnt->Recv();
 		logger.end_record(reply.parent_id);
 	}
+	uint64_t end_time=timer::get_usec();
+	cout<< 1000.0*(total_request+global_batch_factor)/(end_time-start_time)<<" Kops"<<endl;
 };

@@ -12,6 +12,9 @@ include_directories(include)
 include_directories(utils)
 file(GLOB SOURCES "src/*.cpp")
 
+# list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
+# list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/micro_main.cpp)
+
 add_executable(wukong ${SOURCES})
 target_link_libraries( wukong zmq)
 target_link_libraries( wukong rt)

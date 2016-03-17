@@ -277,9 +277,15 @@ struct normal_op_req
       LocalQueueMeta * meta=&LocalMeta[local_tid][mid];
       char * rbf_ptr=buffer+start_of_recv_queue(local_tid,mid);
       uint64_t msg_size=*(volatile uint64_t*)(rbf_ptr+meta->local_tail%rbf_size );
-      if(msg_size==0){
-        return false;
+      uint64_t skip_size=sizeof(uint64_t)+ceil(msg_size,sizeof(uint64_t));
+      volatile uint64_t * msg_end_ptr=(uint64_t*)(rbf_ptr+ (meta->local_tail+skip_size)%rbf_size);
+      if(msg_size==0 || *msg_end_ptr !=msg_size){
+          return false;
       }
+
+    //   if(msg_size==0 ){
+    //     return false;
+    //   }
       return true;
     }
     std::string fetch_rbf_msg(int local_tid,int mid){
@@ -304,6 +310,7 @@ struct normal_op_req
       *msg_end_ptr=0;
 
       std::string result;
+      result.reserve(msg_size);
       for(uint64_t i=0;i<ceil(msg_size,sizeof(uint64_t));i++){
         char * tmp=rbf_ptr+(meta->local_tail+sizeof(uint64_t)+i)%rbf_size;
         if(i<msg_size)
