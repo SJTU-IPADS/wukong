@@ -76,6 +76,7 @@ void single_execute(client* clnt,string filename,int execute_count){
 
 void display_help(client* clnt){
 	if(clnt->cfg->m_id==0 && clnt->cfg->t_id==0){
+		cout<<"> reconfig: reload config file"<<endl;
 		cout<<"> switch_single: execute one query at a time"<<endl;
 		cout<<"> switch_batch: execute concurrent queries"<<endl;
 		cout<<"> help: display help infomation"<<endl;
@@ -88,7 +89,9 @@ void iterative_shell(client* clnt){
 	string mode_str[2];
 	mode_str[0]="single mode (single file + [count]):";
 	mode_str[1]="batch mode (batch config file):";
-	cout<<"input help to get more infomation about the shell"<<endl;
+	if(cfg->m_id==0 && cfg->t_id==0){
+		cout<<"input help to get more infomation about the shell"<<endl;
+	}
 	while(true){
 		ClientBarrier(clnt->cfg);
 		string input_str;
@@ -112,6 +115,8 @@ void iterative_shell(client* clnt){
 
 		if(input_str=="help"){
 			display_help(clnt);
+		} else if(input_str=="reconfig"){
+			load_changeable_cfg();
 		} else if(input_str=="quit"){
 			if(cfg->t_id==0){
 				exit(0);

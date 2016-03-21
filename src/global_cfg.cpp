@@ -25,14 +25,31 @@ int global_enable_workstealing;
 int global_verbose;
 
 int* global_mid_table;
-
+std::string config_filename;
+void load_changeable_cfg(){
+	ifstream file(config_filename.c_str());
+	string row;
+	string val;
+	if(!file){
+		cout<<"Config file "<<config_filename<<" not exist"<<endl;
+		exit(0);
+	}
+	map<string,string> config_map;
+	while(file>>row>>val){
+		config_map[row]=val;
+	}
+	global_batch_factor=atoi(config_map["global_batch_factor"].c_str());
+	global_use_loc_cache=atoi(config_map["global_use_loc_cache"].c_str());
+	global_silent=atoi(config_map["global_silent"].c_str());
+}
 void load_global_cfg(char* filename){
-	ifstream file(filename);
+	config_filename=std::string(filename);
+	ifstream file(config_filename.c_str());
 	global_rdftype_id=-1;
 	string row;
 	string val;
 	if(!file){
-		cout<<"Config file "<<filename<<" not exist"<<endl;
+		cout<<"Config file "<<config_filename<<" not exist"<<endl;
 		exit(0);
 	}
 	map<string,string> config_map;

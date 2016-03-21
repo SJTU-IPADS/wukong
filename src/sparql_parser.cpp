@@ -96,6 +96,7 @@ int sparql_parser::str2id(string& str){
         return place_holder;
     } else {
         if(str_server->str2id.find(str) ==str_server->str2id.end()){
+            cout<<"unknown str "<<str<<endl;
             valid=false;
             return 0;
         }

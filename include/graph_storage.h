@@ -10,12 +10,50 @@
 #include "graph_basic_types.h"
 #include "global_cfg.h"
 #include "utils.h"
+class rdma_cache{
+    struct cache_item{
+        pthread_spinlock_t lock;
+        vertex v;
+        cache_item(){
+            pthread_spin_init(&lock,0);
+        }
+    };
+    static const int num_cache=100000;
+    cache_item array[num_cache];
+public:
+    bool lookup(local_key key,vertex& ret){
+        if(!global_use_loc_cache){
+            return false;
+        }
+        int idx=key.hash()%num_cache;
+        bool found=false;
+        pthread_spin_lock(&(array[idx].lock));
+        if(array[idx].v.key==key){
+            ret=array[idx].v;
+            found=true;
+        }
+        pthread_spin_unlock(&(array[idx].lock));
+        return found;
+    }
+    void insert(vertex& v){
+        if(!global_use_loc_cache){
+            return ;
+        }
+        int idx=v.key.hash()%num_cache;
+        pthread_spin_lock(&(array[idx].lock));
+        array[idx].v=v;
+        pthread_spin_unlock(&(array[idx].lock));
+    }
+};
 class graph_storage{
+
     static const int num_locks=1024;
     static const int indirect_ratio=5; // 	1/5 of buckets are used as indirect buckets
 	static const int cluster_size=4;   //	each bucket has 4 slots
     pthread_spinlock_t allocation_lock;
 	pthread_spinlock_t fine_grain_locks[num_locks];
+
+    rdma_cache rdmacache;
 
     vertex* vertex_addr;
 	edge* edge_addr;

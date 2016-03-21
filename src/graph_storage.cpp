@@ -29,9 +29,9 @@ void graph_storage::init(RdmaResource* _rdma,uint64_t machine_num,uint64_t machi
 	for(uint64_t i=0;i<slot_num;i++){
 		vertex_addr[i].key=local_key();
 	}
-	if(global_use_loc_cache){
-		assert(false);
-	}
+	// if(global_use_loc_cache){
+	// 	assert(false);
+	// }
 }
 uint64_t graph_storage::insertKey(local_key key){
 	uint64_t vertex_ptr;
@@ -178,6 +178,10 @@ vertex graph_storage::get_vertex_local(local_key key){
 vertex graph_storage::get_vertex_remote(int tid,local_key key){
 	char *local_buffer = rdma->GetMsgAddr(tid);
 	uint64_t bucket_id=key.hash()%header_num;
+    vertex ret;
+    if(rdmacache.lookup(key,ret)){
+        return ret;
+    }
 	while(true){
 		uint64_t start_addr=sizeof(vertex) * bucket_id *cluster_size;
 		uint64_t read_length=sizeof(vertex) * cluster_size;
@@ -187,6 +191,7 @@ vertex graph_storage::get_vertex_remote(int tid,local_key key){
 			if(i<cluster_size-1){
 				if(ptr[i].key==key){
 					//we found it
+                    rdmacache.insert(ptr[i]);
 					return ptr[i];
 				}
 			} else {
