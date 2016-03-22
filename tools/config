@@ -2,11 +2,11 @@ global_use_rbf			1
 global_use_rdma			1
 global_rdma_threshold	300
 global_num_server		8
-global_num_client		2
+global_num_client		1
 global_batch_factor		10
 global_multithread_factor   1
 global_input_folder		/home/datanfs/nfs0/rdfdata/id_lubm_40/
-global_client_mode		1
+global_client_mode		2
 global_use_loc_cache	0
 global_load_minimal_index 0
 global_silent	1

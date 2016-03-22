@@ -1,7 +1,9 @@
 #include "server.h"
 
 server::server(distributed_graph& _g,thread_cfg* _cfg):g(_g),cfg(_cfg){
-
+    last_time=-1;
+    pthread_spin_init(&recv_lock,0);
+    pthread_spin_init(&wqueue_lock,0);
 }
 void server::const_to_unknown(request_or_reply& req){
     int start       =req.cmd_chains[req.step*4];
@@ -227,18 +229,71 @@ void server::execute(request_or_reply& req){
 };
 
 void server::run(){
+    int own_id=cfg->t_id - cfg->client_num ;
+    int possible_array[2]={own_id , cfg->server_num-1 - own_id};
+    uint64_t try_count=0;
     while(true){
-        request_or_reply r=RecvR(cfg);
+        last_time=timer::get_usec();
+        request_or_reply r;
+        int recvid;
+        // step 1: pool message
+        while(true){
+            //recvid=own_id;
+            recvid=possible_array[try_count%2];
+            try_count++;
+            if(recvid==own_id){
+                // tryrecv
+            } else {
+                uint64_t last_of_other=s_array[recvid]->last_time;
+                if(last_time > last_of_other && (last_time - last_of_other)> 100000 ){
+                    // tryrecv
+                } else {
+                    continue;
+                }
+            }
+
+            bool success;
+            pthread_spin_lock(&s_array[recvid]->recv_lock);
+            success=TryRecvR(s_array[recvid]->cfg,r);
+            pthread_spin_unlock(&s_array[recvid]->recv_lock);
+            if(success){
+                break;
+            }
+        }
+
+        // step 2: handle it
         if(r.is_request()){
             r.id=cfg->get_inc_id();
             execute(r);
         } else {
             //r is reply
-            wqueue.put_reply(r);
-            if(wqueue.is_ready(r.parent_id)){
-                request_or_reply reply=wqueue.get_merged_reply(r.parent_id);
+            pthread_spin_lock(&s_array[recvid]->wqueue_lock);
+            s_array[recvid]->wqueue.put_reply(r);
+            if(s_array[recvid]->wqueue.is_ready(r.parent_id)){
+                request_or_reply reply=s_array[recvid]->wqueue.get_merged_reply(r.parent_id);
+                pthread_spin_unlock(&s_array[recvid]->wqueue_lock);
                 SendR(cfg,cfg->mid_of(reply.parent_id),cfg->tid_of(reply.parent_id),reply);
             }
+            pthread_spin_unlock(&s_array[recvid]->wqueue_lock);
         }
     }
 }
+
+//
+//
+// void server::run(){
+//     while(true){
+//         request_or_reply r=RecvR(cfg);
+//         if(r.is_request()){
+//             r.id=cfg->get_inc_id();
+//             execute(r);
+//         } else {
+//             //r is reply
+//             wqueue.put_reply(r);
+//             if(wqueue.is_ready(r.parent_id)){
+//                 request_or_reply reply=wqueue.get_merged_reply(r.parent_id);
+//                 SendR(cfg,cfg->mid_of(reply.parent_id),cfg->tid_of(reply.parent_id),reply);
+//             }
+//         }
+//     }
+// }

@@ -25,3 +25,23 @@ request_or_reply RecvR(thread_cfg* cfg){
     ia >> r;
     return r;
 }
+
+bool TryRecvR(thread_cfg* cfg,request_or_reply& r){
+    std::string str;
+    if(global_use_rbf){
+        bool ret=cfg->rdma->rbfTryRecv(cfg->t_id,str);
+        if(!ret) {
+            return false;
+        }
+    } else {
+        str=cfg->node->tryRecv();
+        if(str==""){
+            return false;
+        }
+    }
+    std::stringstream s;
+    s << str;
+    boost::archive::binary_iarchive ia(s);
+    ia >> r;
+    return true;
+};

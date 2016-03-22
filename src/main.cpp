@@ -113,6 +113,9 @@ int main(int argc, char * argv[]) {
 	for(int i=0;i<global_num_server;i++){
 		server_array[i]=new server(graph,&cfg_array[global_num_client+i]);
 	}
+	for(int i=0;i<global_num_server;i++){
+		server_array[i]->set_server_array(server_array);
+	}
 
 
 	pthread_t     *thread  = new pthread_t[global_num_thread];

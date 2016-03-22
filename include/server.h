@@ -13,6 +13,11 @@ class server{
     distributed_graph& g;
 	thread_cfg* cfg;
     wait_queue wqueue;
+    uint64_t last_time;
+    pthread_spinlock_t recv_lock;
+    pthread_spinlock_t wqueue_lock;
+
+
     void const_to_unknown(request_or_reply& req);
     void const_to_known(request_or_reply& req);
     void known_to_unknown(request_or_reply& req);
@@ -24,7 +29,12 @@ class server{
     bool need_sub_requests(request_or_reply& req);
     bool execute_one_step(request_or_reply& req);
     void execute(request_or_reply& req);
+
+    server** s_array;// array of server pointers
 public:
     server(distributed_graph& _g,thread_cfg* _cfg);
+    void set_server_array(server** array){
+        s_array=array;
+    };
     void run();
 };

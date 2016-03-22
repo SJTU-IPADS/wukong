@@ -13,7 +13,6 @@ struct item{
 };
 class wait_queue{
     boost::unordered_map<int,item> internal_item_map;
-    pthread_spinlock_t internal_lock;
 public:
     void put_parent_request(request_or_reply& req,int count);
 	void put_reply(request_or_reply& reply);
