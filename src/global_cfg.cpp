@@ -8,6 +8,7 @@ int global_num_server;
 int global_num_client;
 int global_num_thread;
 int global_batch_factor;
+int global_multithread_factor;
 std::string global_input_folder;
 int global_client_mode;
 int global_rdftype_id;
@@ -24,7 +25,6 @@ int global_enable_workstealing;
 
 int global_verbose;
 
-int* global_mid_table;
 std::string config_filename;
 void load_changeable_cfg(){
 	ifstream file(config_filename.c_str());
@@ -41,6 +41,7 @@ void load_changeable_cfg(){
 	global_batch_factor=atoi(config_map["global_batch_factor"].c_str());
 	global_use_loc_cache=atoi(config_map["global_use_loc_cache"].c_str());
 	global_silent=atoi(config_map["global_silent"].c_str());
+	global_multithread_factor=atoi(config_map["global_multithread_factor"].c_str());
 }
 void load_global_cfg(char* filename){
 	config_filename=std::string(filename);
@@ -62,6 +63,7 @@ void load_global_cfg(char* filename){
 	global_num_server=atoi(config_map["global_num_server"].c_str());
 	global_num_client=atoi(config_map["global_num_client"].c_str());
 	global_batch_factor=atoi(config_map["global_batch_factor"].c_str());
+	global_multithread_factor=atoi(config_map["global_multithread_factor"].c_str());
 	global_input_folder=config_map["global_input_folder"];
 	global_client_mode=atoi(config_map["global_client_mode"].c_str());
 	global_use_loc_cache=atoi(config_map["global_use_loc_cache"].c_str());
@@ -78,5 +80,4 @@ void load_global_cfg(char* filename){
 	global_verbose=atoi(config_map["global_verbose"].c_str());
 
 	global_num_thread=global_num_server+global_num_client;
-	global_mid_table=NULL;
 }

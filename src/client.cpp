@@ -13,9 +13,10 @@ void client::Send(request_or_reply& req){
         GetId(req);
     }
     if(req.use_index_vertex()){
+        int nthread=max(1,min(global_multithread_factor,global_num_server));
         for(int i=0;i<cfg->m_num;i++){
-            for(int j=0;j<cfg->server_num;j++){
-                req.mt_total_thread=cfg->server_num;
+            for(int j=0;j<nthread;j++){
+                req.mt_total_thread=nthread;
                 req.mt_current_thread=j;
                 SendR(cfg,i,cfg->client_num+j,req);
             }
@@ -32,7 +33,8 @@ void client::Send(request_or_reply& req){
 request_or_reply client::Recv(){
     request_or_reply r = RecvR(cfg);
     if(r.use_index_vertex()){
-        for(int count=0;count<cfg->m_num*cfg->server_num-1 ;count++){
+        int nthread=max(1,min(global_multithread_factor,global_num_server));
+        for(int count=0;count<cfg->m_num * nthread-1 ;count++){
             request_or_reply r2=RecvR(cfg);
             r.silent_row_num +=r2.silent_row_num;
             int new_size=r.result_table.size()+r2.result_table.size();

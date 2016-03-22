@@ -33,7 +33,7 @@ void instantiate_request(client* clnt,request_template& req_template,request_or_
 	return ;
 }
 
-__thread int local_barrier_val=0;
+__thread int local_barrier_val=1;
 int global_barrier_val=0;
 void ClientBarrier(struct thread_cfg *cfg){
 	if(cfg->t_id==0){
@@ -42,10 +42,10 @@ void ClientBarrier(struct thread_cfg *cfg){
 	}  else {
 		__sync_fetch_and_add(&global_barrier_val,1);
 	}
-	while(global_barrier_val !=local_barrier_val+cfg->client_num){
+	while(global_barrier_val < local_barrier_val*cfg->client_num){
 		usleep(1);
 	}
-	local_barrier_val+=cfg->client_num;
+	local_barrier_val+=1;
 }
 
 void single_execute(client* clnt,string filename,int execute_count){
@@ -77,27 +77,31 @@ void single_execute(client* clnt,string filename,int execute_count){
 void display_help(client* clnt){
 	if(clnt->cfg->m_id==0 && clnt->cfg->t_id==0){
 		cout<<"> reconfig: reload config file"<<endl;
-		cout<<"> switch_single: execute one query at a time"<<endl;
-		cout<<"> switch_batch: execute concurrent queries"<<endl;
+		cout<<"> switch_single: execute one query at a time (singlefile [ + count])"<<endl;
+		cout<<"> switch_batch: execute concurrent queries (batchfile)"<<endl;
+		cout<<"> switch_mix:  (batch + singlefile [ + count] )"<<endl;
 		cout<<"> help: display help infomation"<<endl;
 	}
 }
 
 
 void iterative_shell(client* clnt){
+	//ClientBarrier(clnt->cfg);
 	struct thread_cfg *cfg=clnt->cfg;
-	string mode_str[2];
-	mode_str[0]="single mode (single file + [count]):";
-	mode_str[1]="batch mode (batch config file):";
+	string mode_str[3];
+	mode_str[0]="single mode (singlefile [ + count]):";
+	mode_str[1]="batch mode (batchfile):";
+	mode_str[2]="mix mode (batchfile + singlefile [ + count]):";
 	if(cfg->m_id==0 && cfg->t_id==0){
 		cout<<"input help to get more infomation about the shell"<<endl;
+		cout<<mode_str[global_client_mode]<<endl;
 	}
 	while(true){
 		ClientBarrier(clnt->cfg);
 		string input_str;
 		//exchange input
 		if(cfg->m_id==0 && cfg->t_id==0){
-			cout<<mode_str[global_client_mode]<<endl;
+			//cout<<mode_str[global_client_mode]<<endl;
 			cout<<"> ";
 			std::getline(std::cin,input_str);
 			for(int i=0;i<cfg->m_num;i++){
@@ -116,7 +120,9 @@ void iterative_shell(client* clnt){
 		if(input_str=="help"){
 			display_help(clnt);
 		} else if(input_str=="reconfig"){
-			load_changeable_cfg();
+			if(cfg->t_id==0){
+				load_changeable_cfg();
+			}
 		} else if(input_str=="quit"){
 			if(cfg->t_id==0){
 				exit(0);
@@ -124,10 +130,23 @@ void iterative_shell(client* clnt){
 		} else if(input_str=="switch_single"){
 			if(cfg->t_id==0){
 				global_client_mode=0;
+				if(cfg->m_id==0){
+					cout<<mode_str[global_client_mode]<<endl;
+				}
 			}
 		} else if(input_str=="switch_batch"){
 			if(cfg->t_id==0){
 				global_client_mode=1;
+				if(cfg->m_id==0){
+					cout<<mode_str[global_client_mode]<<endl;
+				}
+			}
+		} else if(input_str=="switch_mix"){
+			if(cfg->t_id==0){
+				global_client_mode=2;
+				if(cfg->m_id==0){
+					cout<<mode_str[global_client_mode]<<endl;
+				}
 			}
 		} else {
 			//handle queries here
@@ -151,6 +170,34 @@ void iterative_shell(client* clnt){
 				logger.init();
 				batch_execute(clnt,filename,logger);
 				logger.finish();
+				ClientBarrier(clnt->cfg);
+				//MPI_Barrier(MPI_COMM_WORLD);
+				if(cfg->m_id==0 && cfg->t_id==0){
+					for(int i=0;i<cfg->m_num*cfg->client_num -1 ;i++){
+						batch_logger r=RecvObject<batch_logger>(clnt->cfg);
+						logger.merge(r);
+					}
+					logger.print();
+				} else {
+					SendObject<batch_logger>(clnt->cfg,0,0,logger);
+				}
+			} else if(global_client_mode==2){
+				istringstream iss(input_str);
+				string batchfile;
+				string singlefile;
+				int count=1;
+				iss>>batchfile>>singlefile>>count;
+				if(count<1){
+					count=1;
+				}
+				batch_logger logger;
+				if(cfg->m_id==0 && cfg->t_id==0){
+					single_execute(clnt,singlefile,count);
+				} else {
+					logger.init();
+					batch_execute(clnt,batchfile,logger);
+					logger.finish();
+				}
 				ClientBarrier(clnt->cfg);
 				//MPI_Barrier(MPI_COMM_WORLD);
 				if(cfg->m_id==0 && cfg->t_id==0){

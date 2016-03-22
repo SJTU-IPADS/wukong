@@ -56,6 +56,24 @@ public:
             }
         }
 
+        ///
+        cout<<"CDF graph"<<endl;
+        vector<int> cdf_data;
+        int cdf_pirnt_rate=100;
+        for(auto iter: stats_map){
+            cdf_data.push_back(iter.second.end_time-iter.second.start_time);
+        }
+        sort(cdf_data.begin(),cdf_data.end());
+        int count=0;
+        for(int j=0;j<cdf_data.size();j++){
+            if((j+1)%(cdf_data.size()/cdf_pirnt_rate)==0 ){
+                cout<<cdf_data[j]<<"\t";
+                count++;
+                if(count%5==0){
+					cout<<endl;
+				}
+            }
+        }
     }
     template <typename Archive>
 	void serialize(Archive &ar, const unsigned int version) {
