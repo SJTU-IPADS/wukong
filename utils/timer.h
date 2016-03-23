@@ -14,4 +14,12 @@ public:
         result+=tmp.tv_nsec/1000;
         return result;
     }
+
+    static void myusleep(int u){
+        int t=166*u;
+		while(t>0){
+			t--;
+			_mm_pause();
+		}
+    }
 };

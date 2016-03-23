@@ -238,8 +238,8 @@ void server::run(){
         int recvid;
         // step 1: pool message
         while(true){
-            //recvid=own_id;
-            recvid=possible_array[try_count%2];
+            int size=global_enable_workstealing?2:1;
+            recvid=possible_array[try_count % size];
             try_count++;
             if(recvid==own_id){
                 // tryrecv

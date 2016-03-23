@@ -164,11 +164,12 @@ void iterative_shell(client* clnt){
 				}
 			} else if(global_client_mode==1){
 				istringstream iss(input_str);
-	            string filename;
-	            iss>>filename;
+	            string batchfile;
+	            iss>>batchfile;
 				batch_logger logger;
 				logger.init();
-				batch_execute(clnt,filename,logger);
+				nonblocking_execute(clnt,batchfile,logger);
+				//batch_execute(clnt,filename,logger);
 				logger.finish();
 				ClientBarrier(clnt->cfg);
 				//MPI_Barrier(MPI_COMM_WORLD);
@@ -195,7 +196,8 @@ void iterative_shell(client* clnt){
 					single_execute(clnt,singlefile,count);
 				} else {
 					logger.init();
-					batch_execute(clnt,batchfile,logger);
+					nonblocking_execute(clnt,batchfile,logger);
+					//batch_execute(clnt,batchfile,logger);
 					logger.finish();
 				}
 				ClientBarrier(clnt->cfg);
@@ -269,4 +271,62 @@ void batch_execute(client* clnt,string mix_config,batch_logger& logger){
 	}
 	uint64_t end_time=timer::get_usec();
 	cout<< 1000.0*(total_request+global_batch_factor)/(end_time-start_time)<<" Kops"<<endl;
+};
+
+
+void nonblocking_execute(client* clnt,string mix_config,batch_logger& logger){
+	ifstream configfile(mix_config);
+	if(!configfile){
+		cout<<"File "<<mix_config<<" not exist"<<endl;
+		return ;
+	}
+	int total_query_type;
+	int total_request;
+	int sleep_round=1;
+	configfile>>total_query_type>>total_request>>sleep_round;
+	vector<int > distribution;
+	vector<request_template > vec_template;
+	vector<request_or_reply > vec_req;
+	vec_template.resize(total_query_type);
+	vec_req.resize(total_query_type);
+	for(int i=0;i<total_query_type;i++){
+		string filename;
+		configfile>>filename;
+		int current_dist;
+		configfile>>current_dist;
+		distribution.push_back(current_dist);
+		bool success=clnt->parser.parse_template(filename,vec_template[i]);
+		translate_req_template(clnt,vec_template[i]);
+		vec_req[i].cmd_chains=vec_template[i].cmd_chains;
+		if(!success){
+			cout<<"sparql parse error"<<endl;
+			return ;
+		}
+		vec_req[i].silent=global_silent;
+	}
+
+	int send_request=0;
+	int recv_request=0;
+	while(recv_request!=total_request){
+		for(int t=0;t<10;t++){
+			if(send_request<total_request){
+				send_request++;
+				int idx=mymath::get_distribution(clnt->cfg->get_random(),distribution);
+				instantiate_request(clnt,vec_template[idx],vec_req[idx]);
+				clnt->GetId(vec_req[idx]);
+				logger.start_record(vec_req[idx].parent_id,idx);
+				clnt->Send(vec_req[idx]);
+			}
+		}
+		for(int i=0;i<sleep_round;i++){
+			timer::myusleep(10);
+			request_or_reply reply;
+			bool success=TryRecvR(clnt->cfg,reply);
+			while(success){
+				recv_request++;
+				logger.end_record(reply.parent_id);
+				success=TryRecvR(clnt->cfg,reply);
+			}
+		}
+	}
 };
