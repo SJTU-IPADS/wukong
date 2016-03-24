@@ -220,7 +220,13 @@ void server::execute(request_or_reply& req){
             vector<request_or_reply> sub_reqs=generate_sub_requests(req);
             wqueue.put_parent_request(req,sub_reqs.size());
 			for(int i=0;i<sub_reqs.size();i++){
-				SendR(cfg,i,cfg->t_id,sub_reqs[i]);
+                if(i!=cfg->m_id){
+                    SendR(cfg,i,cfg->t_id,sub_reqs[i]);
+                } else {
+                    pthread_spin_lock(&recv_lock);
+                    msg_fast_path.push_back(sub_reqs[i]);
+                    pthread_spin_unlock(&recv_lock);
+                }
 			}
             return ;
         }
@@ -238,6 +244,20 @@ void server::run(){
         int recvid;
         // step 1: pool message
         while(true){
+            //check fast path first
+            bool get_from_fast_path=false;
+            pthread_spin_lock(&recv_lock);
+            if(msg_fast_path.size()>0){
+                r=msg_fast_path.back();
+                msg_fast_path.pop_back();
+                get_from_fast_path=true;
+            }
+            pthread_spin_unlock(&recv_lock);
+            if(get_from_fast_path){
+                break;
+            }
+
+
             int size=global_enable_workstealing?2:1;
             recvid=possible_array[try_count % size];
             try_count++;
@@ -245,7 +265,7 @@ void server::run(){
                 // tryrecv
             } else {
                 uint64_t last_of_other=s_array[recvid]->last_time;
-                if(last_time > last_of_other && (last_time - last_of_other)> 100000 ){
+                if(last_time > last_of_other && (last_time - last_of_other)> 10000 ){
                     // tryrecv
                 } else {
                     continue;
@@ -255,6 +275,10 @@ void server::run(){
             bool success;
             pthread_spin_lock(&s_array[recvid]->recv_lock);
             success=TryRecvR(s_array[recvid]->cfg,r);
+            if(success && recvid!=own_id && r.use_index_vertex()){
+                s_array[recvid]->msg_fast_path.push_back(r);
+                success=false;
+            }
             pthread_spin_unlock(&s_array[recvid]->recv_lock);
             if(success){
                 break;

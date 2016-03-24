@@ -24,9 +24,12 @@ void client::Send(request_or_reply& req){
         return ;
     }
     req.first_target=mymath::hash_mod(req.cmd_chains[0],cfg->m_num);
-    int server_per_client=  cfg->server_num  / cfg->client_num;
-    int mid=cfg->client_num + server_per_client*cfg->t_id + cfg->get_random() % server_per_client;
-    //int mid=cfg->client_num + cfg->get_random() % cfg->server_num;
+    //one-to-one mapping
+//    int server_per_client=  cfg->server_num  / cfg->client_num;
+//    int mid=cfg->client_num + server_per_client*cfg->t_id + cfg->get_random() % server_per_client;
+
+    // random
+    int mid=cfg->client_num + cfg->get_random() % cfg->server_num;
     SendR(cfg,req.first_target,mid,req);
 }
 

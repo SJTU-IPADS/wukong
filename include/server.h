@@ -16,7 +16,7 @@ class server{
     uint64_t last_time;
     pthread_spinlock_t recv_lock;
     pthread_spinlock_t wqueue_lock;
-
+    vector<request_or_reply> msg_fast_path;
 
     void const_to_unknown(request_or_reply& req);
     void const_to_known(request_or_reply& req);

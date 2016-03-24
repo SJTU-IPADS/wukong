@@ -67,8 +67,12 @@ public:
         int count=0;
         for(int j=0;j<cdf_data.size();j++){
             if((j+1)%(cdf_data.size()/cdf_pirnt_rate)==0 ){
-                cout<<cdf_data[j]<<"\t";
                 count++;
+                if(count!=cdf_pirnt_rate){
+                    cout<<cdf_data[j]<<"\t";
+                } else {
+                    cout<<cdf_data[cdf_data.size()-1]<<"\t";
+                }
                 if(count%5==0){
 					cout<<endl;
 				}
