@@ -94,7 +94,9 @@ uint64_t graph_storage::atomic_alloc_edges(uint64_t num_edge){
 	}
 	return curr_edge_ptr;
 }
+
 void graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,vector<edge_triple>& vec_ops){
+    uint64_t accum_predict=0;
     uint64_t nedges_to_skip=0;
     while(nedges_to_skip<vec_ops.size()){
         if(is_index_vertex(vec_ops[nedges_to_skip].o)){
@@ -113,6 +115,7 @@ void graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,vector<edge
 				&& vec_spo[start].p==vec_spo[end].p){
 			end++;
 		}
+        accum_predict++;
 		local_key key= local_key(vec_spo[start].s,direction_out,vec_spo[start].p);
 		uint64_t vertex_ptr=insertKey(key);
 		local_val val= local_val(end-start,curr_edge_ptr);
@@ -132,6 +135,7 @@ void graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,vector<edge
 				&& vec_ops[start].p==vec_ops[end].p){
 			end++;
 		}
+        accum_predict++;
 		local_key key= local_key(vec_ops[start].o,direction_in,vec_ops[start].p);
 		uint64_t vertex_ptr=insertKey(key);
 		local_val val= local_val(end-start,curr_edge_ptr);
@@ -141,6 +145,46 @@ void graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,vector<edge
 			curr_edge_ptr++;
 		}
 		start=end;
+	}
+
+    // accum_predict is calculated at previoud phase
+    curr_edge_ptr=atomic_alloc_edges(accum_predict);
+    start=0;
+	while(start<vec_spo.size()){
+        // __PREDICT__
+        local_key key= local_key(vec_spo[start].s,direction_out,0);
+        local_val val= local_val(0,curr_edge_ptr);
+        uint64_t vertex_ptr=insertKey(key);
+        uint64_t end=start;
+		while(end<vec_spo.size() && vec_spo[start].s==vec_spo[end].s){
+            if(end==start || vec_spo[end].p!=vec_spo[end-1].p){
+                edge_addr[curr_edge_ptr].val = vec_spo[end].p;
+    			curr_edge_ptr++;
+                val.size=val.size+1;
+            }
+			end++;
+		}
+        vertex_addr[vertex_ptr].val=val;
+    	start=end;
+	}
+
+    start=nedges_to_skip;
+    while(start<vec_ops.size()){
+        local_key key= local_key(vec_ops[start].o,direction_in,0);
+        local_val val= local_val(0,curr_edge_ptr);
+        uint64_t vertex_ptr=insertKey(key);
+        vertex_addr[vertex_ptr].val=val;
+        uint64_t end=start;
+		while(end<vec_ops.size() && vec_ops[start].o==vec_ops[end].o){
+            if(end==start || vec_ops[end].p!=vec_ops[end-1].p){
+                edge_addr[curr_edge_ptr].val = vec_ops[end].p;
+    			curr_edge_ptr++;
+                val.size=val.size+1;
+            }
+			end++;
+		}
+        vertex_addr[vertex_ptr].val=val;
+        start=end;
 	}
 }
 void graph_storage::print_memory_usage(){

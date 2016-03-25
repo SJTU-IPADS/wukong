@@ -1,6 +1,13 @@
 // g++ -std=c++11 generate_data.cpp -o generate_data
 // /home/sjx/graph-query/generate/generate_data lubm_raw_40 id_lubm_40
 
+
+//to generate minimal_index
+
+//  grep "<http://www.University0.edu>" str_normal >> str_normal_minimal
+//  grep "<http://www.Department0.University0.edu>" str_normal >> str_normal_minimal
+
+
 #include <string>
 #include <fstream>
 #include <iostream>
@@ -43,7 +50,8 @@ int main(int argc,char** argv){
             continue;
         ifstream file((string(argv[1])+"/"+string(ptr->d_name)).c_str());
         ofstream output((string(argv[2])+"/id_"+string(ptr->d_name)).c_str());
-        printf("No.%d, loading %s ...\n",count,ptr->d_name);
+        cout<<"No."<<count<<", loading "<<ptr->d_name<<endl;
+        //printf("No.%d, loading %s ...\n",count,ptr->d_name);
         count++;
         string subject;
 		string predict;

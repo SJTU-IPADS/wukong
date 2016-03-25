@@ -8,7 +8,7 @@ global_multithread_factor   1
 global_input_folder		/home/datanfs/nfs0/rdfdata/id_lubm_40/
 global_client_mode		2
 global_use_loc_cache	0
-global_load_minimal_index 0
+global_load_minimal_index 1
 global_silent	1
 global_max_print_row	10
 global_use_index_table	1
