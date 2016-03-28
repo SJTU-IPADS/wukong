@@ -5,3 +5,8 @@ WHERE
 {
 ?X  ?P   <http://www.Department0.University0.edu>    <-
 }
+
+{
+?D  ub:subOrganizationOf   <http://www.University0.edu> <-
+?X  ?P   ?D    <-
+}
