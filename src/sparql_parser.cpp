@@ -122,6 +122,9 @@ void sparql_parser::do_parse(string filename){
     while(iter<token_vec.size()){
         string strs[3]={token_vec[iter+0],token_vec[iter+1],token_vec[iter+2]};
         int ids[3];
+        if(token_vec[iter+3]=="<-"){
+            swap(strs[0],strs[2]);
+        }
         for(int i=0;i<3;i++){
             ids[i]=str2id(strs[i]);
         }
@@ -132,10 +135,10 @@ void sparql_parser::do_parse(string filename){
             req_template.cmd_chains.push_back(ids[2]);
             iter+=4;
         } else if(token_vec[iter+3]=="<-"){
-            req_template.cmd_chains.push_back(ids[2]);
+            req_template.cmd_chains.push_back(ids[0]);
             req_template.cmd_chains.push_back(ids[1]);
             req_template.cmd_chains.push_back(direction_in);
-            req_template.cmd_chains.push_back(ids[0]);
+            req_template.cmd_chains.push_back(ids[2]);
             iter+=4;
         } else {
             valid=false;

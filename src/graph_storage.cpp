@@ -173,7 +173,6 @@ void graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,vector<edge
         local_key key= local_key(vec_ops[start].o,direction_in,0);
         local_val val= local_val(0,curr_edge_ptr);
         uint64_t vertex_ptr=insertKey(key);
-        vertex_addr[vertex_ptr].val=val;
         uint64_t end=start;
 		while(end<vec_ops.size() && vec_ops[start].o==vec_ops[end].o){
             if(end==start || vec_ops[end].p!=vec_ops[end-1].p){

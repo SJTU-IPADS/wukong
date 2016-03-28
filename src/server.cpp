@@ -125,6 +125,47 @@ void server::index_to_unknown(request_or_reply& req){
     req.step++;
 };
 
+void server::const_unknown_unknown(request_or_reply& req){
+    int start       =req.cmd_chains[req.step*4];
+    int predict     =req.cmd_chains[req.step*4+1];
+    int direction   =req.cmd_chains[req.step*4+2];
+    int end         =req.cmd_chains[req.step*4+3];
+    vector<int> updated_result_table;
+
+    if(req.column_num()!=0 ){
+        //it means the query plan is wrong
+        assert(false);
+    }
+    // step-1 , find all predicts
+    {
+        int edge_num=0;
+        edge* edge_ptr;
+        edge_ptr=g.get_edges_global(cfg->t_id,start,direction,0,&edge_num);
+        for(int k=0;k<edge_num;k++){
+            updated_result_table.push_back(edge_ptr[k].val);
+        }
+        req.result_table.swap(updated_result_table);
+        updated_result_table.clear();
+        req.set_column_num(1);
+    }
+    // step-2 , find all targets
+
+    for(int i=0;i<req.row_num();i++){
+        int curr_predict=req.get_row_column(i,req.var2column(predict));
+        int edge_num=0;
+        edge* edge_ptr;
+        edge_ptr=g.get_edges_global(cfg->t_id, start,direction,curr_predict,&edge_num);
+        for(int k=0;k<edge_num;k++){
+            req.append_row_to(i,updated_result_table);
+            updated_result_table.push_back(edge_ptr[k].val);
+        }
+    }
+    req.result_table.swap(updated_result_table);
+    req.set_column_num(2);
+
+    req.step++;
+
+};
 bool server::execute_one_step(request_or_reply& req){
     if(req.is_finished()){
         return false;
@@ -137,6 +178,23 @@ bool server::execute_one_step(request_or_reply& req){
     int predict     =req.cmd_chains[req.step*4+1];
     int direction   =req.cmd_chains[req.step*4+2];
     int end         =req.cmd_chains[req.step*4+3];
+
+    if(predict<0){
+        switch (var_pair(req.variable_type(start),req.variable_type(end))) {
+            case var_pair(const_var,unknown_var):
+                const_unknown_unknown(req);
+                break;
+            case var_pair(known_var,unknown_var):
+                //known_unknown_unknown(req);
+                break;
+            default :
+                assert(false);
+                break;
+        }
+        return true;
+    }
+
+    // known_predict
     switch (var_pair(req.variable_type(start),req.variable_type(end))) {
         ///start from const_var
         case var_pair(const_var,const_var):

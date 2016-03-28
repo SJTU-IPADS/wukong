@@ -18,12 +18,17 @@ class server{
     pthread_spinlock_t wqueue_lock;
     vector<request_or_reply> msg_fast_path;
 
+    // all of these means const predict
     void const_to_unknown(request_or_reply& req);
     void const_to_known(request_or_reply& req);
     void known_to_unknown(request_or_reply& req);
     void known_to_known(request_or_reply& req);
     void known_to_const(request_or_reply& req);
     void index_to_unknown(request_or_reply& req);
+
+    // unknown_predict
+    void const_unknown_unknown(request_or_reply& req);
+    void known_unknown_unknown(request_or_reply& req);
 
     vector<request_or_reply> generate_sub_requests(request_or_reply& r);
     bool need_sub_requests(request_or_reply& req);
