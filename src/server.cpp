@@ -183,6 +183,37 @@ void server::known_unknown_unknown(request_or_reply& req){
     req.step++;
 };
 
+void server::known_unknown_const(request_or_reply& req){
+    int start       =req.cmd_chains[req.step*4];
+    int predict     =req.cmd_chains[req.step*4+1];
+    int direction   =req.cmd_chains[req.step*4+2];
+    int end         =req.cmd_chains[req.step*4+3];
+    vector<int> updated_result_table;
+
+    // foreach vertex
+    for(int i=0;i<req.row_num();i++){
+        int prev_id=req.get_row_column(i,req.var2column(start));
+        int npredict=0;
+        edge* predict_ptr=g.get_edges_global(cfg->t_id,prev_id,direction,0,&npredict);
+        // foreach possible predict
+        for(int p=0;p<npredict;p++){
+            int edge_num=0;
+            edge* edge_ptr;
+            edge_ptr=g.get_edges_global(cfg->t_id, prev_id,direction,predict_ptr[p].val,&edge_num);
+            for(int k=0;k<edge_num;k++){
+                if(edge_ptr[k].val == end){
+                    req.append_row_to(i,updated_result_table);
+                    updated_result_table.push_back(predict_ptr[p].val);
+                    break;
+                }
+            }
+        }
+    }
+
+    req.set_column_num(req.column_num()+1);
+    req.result_table.swap(updated_result_table);
+    req.step++;
+}
 bool server::execute_one_step(request_or_reply& req){
     if(req.is_finished()){
         return false;

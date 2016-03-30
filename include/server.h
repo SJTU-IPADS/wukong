@@ -29,6 +29,8 @@ class server{
     // unknown_predict
     void const_unknown_unknown(request_or_reply& req);
     void known_unknown_unknown(request_or_reply& req);
+    void known_unknown_const(request_or_reply& req);
+
 
     vector<request_or_reply> generate_sub_requests(request_or_reply& r);
     bool need_sub_requests(request_or_reply& req);

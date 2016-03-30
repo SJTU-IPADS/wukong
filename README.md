@@ -1,3 +1,4 @@
+
 # Dependence
 
 ### Boost+mpi
@@ -48,4 +49,12 @@ add following lines in ~/.bashrc
 
 # Input Data
 
-TODO
+1. If there is space at the raw_data, convert it to underline first
+
+        cat raw_file | sed -e 's/ /_/g’ > convert_file
+2. use generate_data to convert raw_data into id_data .
+
+        ./generate_data lubm_raw_40/ id_lubm_40/
+3. put id_data to NFS , and set the global_input_folder at config file
+
+4. use str_normal_minimal if loading str_normal causes too much time
