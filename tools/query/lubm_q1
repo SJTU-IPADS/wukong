@@ -13,10 +13,11 @@ WHERE
 
 
 {
-?Y <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <ub#University> <-
-?X  <ub#undergraduateDegreeFrom> ?Y <-
-?X <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <ub#GraduateStudent> .
-?X  <ub#memberOf> ?Z .
-?Z  <ub#subOrganizationOf> ?Y .
-?Z <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <ub#Department> .
+?X  rdf:type ub:GraduateStudent <-
+?X  ub:undergraduateDegreeFrom ?Y ->
+?X  ub:memberOf ?Z ->
+join
+?Y  rdf:type ub:University ->
+?Z  ub:subOrganizationOf ?Y <-
+?Z  rdf:type ub:Department ->
 }

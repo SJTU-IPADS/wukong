@@ -214,6 +214,31 @@ void server::known_unknown_const(request_or_reply& req){
     req.result_table.swap(updated_result_table);
     req.step++;
 }
+void server::handle_join(request_or_reply& req){
+
+    // step.1 remove dup;
+    boost::unordered_set<int> remove_dup_set;
+    int dup_var=req.cmd_chains[req.step*4+4];
+    assert(dup_var<0);
+    for(int i=0;i<req.row_num();i++){
+        remove_dup_set.insert(req.get_row_column(i,req.var2column(dup_var)));
+    }
+
+    // step.2 generate cmd_chain for sub_requests
+    vector<int> sub_chain;
+    boost::unordered_map<int,int> var_mapping;
+    for(int i=req.step*4+4;i<req.cmd_chains.size();i++){
+        if(req.cmd_chains[i]<0 && ( var_mapping.find(req.cmd_chains[i]) ==  var_mapping.end()) ){
+            var_mapping[req.cmd_chains[i]]= -1-var_mapping.size();
+        }
+        if(req.cmd_chains[i]<0){
+            sub_chain.push_back(var_mapping[req.cmd_chains[i]]);
+        } else {
+            sub_chain.push_back(req.cmd_chains[i]);
+        }
+    }
+
+}
 bool server::execute_one_step(request_or_reply& req){
     if(req.is_finished()){
         return false;
@@ -226,6 +251,11 @@ bool server::execute_one_step(request_or_reply& req){
     int predict     =req.cmd_chains[req.step*4+1];
     int direction   =req.cmd_chains[req.step*4+2];
     int end         =req.cmd_chains[req.step*4+3];
+
+    if(direction==join_cmd){
+        //handle_join(req);
+        return true;
+    }
 
     if(predict<0){
         switch (var_pair(req.variable_type(start),req.variable_type(end))) {

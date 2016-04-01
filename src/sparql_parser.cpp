@@ -14,6 +14,7 @@ void sparql_parser::clear(){
     variable_map.clear();
     req_template =  request_template();
     valid=true;
+    join_step=-1;
 };
 
 vector<string> sparql_parser::get_token_vec(string filename){
@@ -53,6 +54,11 @@ void sparql_parser::remove_header(vector<string>& token_vec){
     iter++;
 
     while(token_vec[iter]!="}"){
+        if(token_vec[iter]=="join"){
+            join_step=new_vec.size()/4;
+            iter++;
+            continue;
+        }
         new_vec.push_back(token_vec[iter]);
         iter++;
     }
@@ -164,6 +170,15 @@ bool sparql_parser::parse(string filename,request_or_reply& r){
         return false;
     }
     r=request_or_reply();
+    if(join_step>=0){
+        vector<int> join_vec;
+        join_vec.push_back(0);
+        join_vec.push_back(0);
+        join_vec.push_back(join_cmd); //means join
+        join_vec.push_back(0);
+        req_template.cmd_chains.insert(req_template.cmd_chains.begin()+join_step*4,
+                                                join_vec.begin(),join_vec.end());
+    }
     r.cmd_chains=req_template.cmd_chains;
     return true;
 };

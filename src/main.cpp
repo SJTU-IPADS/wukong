@@ -54,12 +54,12 @@ void pin_to_core(size_t core) {
 
 void* Run(void *ptr) {
 	struct thread_cfg *cfg = (struct thread_cfg*) ptr;
-	//pin_to_core(socket_1[cfg->t_id]);
-	if(cfg->m_id %2==0){
-		pin_to_core(socket_1[cfg->t_id]);
-	} else {
-		pin_to_core(socket_0[cfg->t_id]);
-	}
+	pin_to_core(socket_1[cfg->t_id]);
+	// if(cfg->m_id %2==0){
+	// 	pin_to_core(socket_1[cfg->t_id]);
+	// } else {
+	// 	pin_to_core(socket_0[cfg->t_id]);
+	// }
 	if(cfg->t_id >= cfg->client_num){
 		((server*)(cfg->ptr))->run();
 	}else {

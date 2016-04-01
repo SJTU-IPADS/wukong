@@ -38,6 +38,10 @@ class server{
     void execute(request_or_reply& req);
 
     server** s_array;// array of server pointers
+
+
+    //join related functions
+    void handle_join(request_or_reply& req);
 public:
     server(distributed_graph& _g,thread_cfg* _cfg);
     void set_server_array(server** array){
