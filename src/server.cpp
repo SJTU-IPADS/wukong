@@ -1,4 +1,61 @@
 #include "server.h"
+#include <stdlib.h> //qsort
+
+int compare_tuple(int N,std::vector<int>& vec, size_t i, std::vector<int>& vec2,size_t j){
+    // ture means less or equal
+    for(int t=0;t<N;t++){
+        if(vec[i*N+t]<vec2[j*N+t]){
+            return -1;
+        }
+        if(vec[i*N+t]>vec2[j*N+t]){
+            return 1;
+        }
+    }
+    return 0;
+}
+inline void static swap_tuple(int N,std::vector<int>& vec, size_t i, size_t j){
+    for(int t=0;t<N;t++){
+        swap(vec[i*N+t], vec[j*N+t]);
+    }
+}
+void static qsort_tuple_recursive(int N,std::vector<int>& vec,size_t begin,size_t end){
+    if(begin +1 >= end){
+        return ;
+    }
+    int middle=begin;
+    for(int iter=begin+1;iter<end;iter++){
+        if(compare_tuple(N,vec,iter,vec,begin) ==-1 ){
+            middle++;
+            swap_tuple(N,vec,iter,middle);
+        }
+    }
+    swap_tuple(N,vec,begin,middle);
+    qsort_tuple_recursive(N,vec,begin,middle);
+    qsort_tuple_recursive(N,vec,middle+1,end);
+}
+bool static binary_search_tuple_recursive(int N,std::vector<int>& vec,std::vector<int>& target,int begin,int end){
+    if(begin >= end){
+        return false;
+    }
+    int middle=(begin+end)/2;
+    int r=compare_tuple(N,target,0,vec,middle);
+    if(r==0){
+        return true;
+    }
+    if(r<0){
+        return binary_search_tuple_recursive(N,vec,target,begin,middle);
+    } else {
+        return binary_search_tuple_recursive(N,vec,target,middle+1,end);
+    }
+}
+
+bool static binary_search_tuple(int N,std::vector<int>& vec,std::vector<int>& target){
+    binary_search_tuple_recursive(N,vec,target,0,vec.size()/N);
+}
+void static qsort_tuple(int N,std::vector<int>& vec){
+    qsort_tuple_recursive(N,vec,0,vec.size()/N);
+}
+
 
 server::server(distributed_graph& _g,thread_cfg* _cfg):g(_g),cfg(_cfg){
     last_time=-1;
@@ -123,6 +180,7 @@ void server::index_to_unknown(request_or_reply& req){
     req.result_table.swap(updated_result_table);
     req.set_column_num(1);
     req.step++;
+    req.local_var=-1;
 };
 
 void server::const_unknown_unknown(request_or_reply& req){
@@ -214,8 +272,14 @@ void server::known_unknown_const(request_or_reply& req){
     req.result_table.swap(updated_result_table);
     req.step++;
 }
+typedef std::pair<int,int> v_pair;
+size_t hash_pair(const v_pair &x){
+	size_t r=x.first;
+	r=r<<32;
+	r+=x.second;
+	return hash<size_t>()(r);
+}
 void server::handle_join(request_or_reply& req){
-
     // step.1 remove dup;
     boost::unordered_set<int> remove_dup_set;
     int dup_var=req.cmd_chains[req.step*4+4];
@@ -224,12 +288,15 @@ void server::handle_join(request_or_reply& req){
         remove_dup_set.insert(req.get_row_column(i,req.var2column(dup_var)));
     }
 
-    // step.2 generate cmd_chain for sub_requests
+    // step.2 generate cmd_chain for sub-req
     vector<int> sub_chain;
     boost::unordered_map<int,int> var_mapping;
+    vector<int> reverse_mapping;
     for(int i=req.step*4+4;i<req.cmd_chains.size();i++){
         if(req.cmd_chains[i]<0 && ( var_mapping.find(req.cmd_chains[i]) ==  var_mapping.end()) ){
-            var_mapping[req.cmd_chains[i]]= -1-var_mapping.size();
+            int new_id=-1-var_mapping.size();
+            var_mapping[req.cmd_chains[i]]=new_id;
+            reverse_mapping.push_back(req.var2column(req.cmd_chains[i]));
         }
         if(req.cmd_chains[i]<0){
             sub_chain.push_back(var_mapping[req.cmd_chains[i]]);
@@ -237,6 +304,75 @@ void server::handle_join(request_or_reply& req){
             sub_chain.push_back(req.cmd_chains[i]);
         }
     }
+
+    // step.3 make sub-req
+    request_or_reply sub_req;
+    {
+        boost::unordered_set<int>::iterator iter;
+        for(iter=remove_dup_set.begin();iter!=remove_dup_set.end();iter++){
+            sub_req.result_table.push_back(*iter);
+        }
+        sub_req.cmd_chains=sub_chain;
+        sub_req.silent=false;
+        sub_req.col_num=1;
+    }
+
+    uint64_t t1=timer::get_usec();
+    // step.4 execute sub-req
+    while(true){
+        execute_one_step(sub_req);
+        if(sub_req.is_finished()){
+            break;
+        }
+    }
+    uint64_t t2=timer::get_usec();
+
+    qsort_tuple(sub_req.column_num(),sub_req.result_table);
+    vector<int> tmp_vec;
+    tmp_vec.resize(sub_req.column_num());
+    vector<int> updated_result_table;
+
+    uint64_t t3=timer::get_usec();
+
+    for(int i=0;i<req.row_num();i++){
+        for(int c=0;c<reverse_mapping.size();c++){
+            tmp_vec[c]=req.get_row_column(i,reverse_mapping[c]);
+        }
+        if(binary_search_tuple(sub_req.column_num(),sub_req.result_table,tmp_vec)){
+            req.append_row_to(i,updated_result_table);
+        }
+    }
+    // step.5 join together
+    uint64_t t4=timer::get_usec();
+
+// ///
+//     boost::unordered_set<v_pair> remote_set;
+//     vector<int> updated_result_table2;
+//     for(int i=0;i<sub_req.row_num();i++){
+//         remote_set.insert(v_pair(sub_req.get_row_column(i,0),sub_req.get_row_column(i,0)));
+//     }
+//     uint64_t t5=timer::get_usec();
+//     for(int i=0;i<req.row_num();i++){
+//         for(int c=0;c<reverse_mapping.size();c++){
+//             tmp_vec[c]=req.get_row_column(i,reverse_mapping[c]);
+//         }
+//         v_pair target=v_pair(tmp_vec[0],tmp_vec[1]);
+//         if(remote_set.find(target)!= remote_set.end()){
+//             req.append_row_to(i,updated_result_table2);
+//         }
+//     }
+//     uint64_t t6=timer::get_usec();
+// ///
+//     if(cfg->m_id==0 && cfg->t_id==cfg->client_num){
+//         cout<<"execute sub-request "<<(t2-t1)/1000<<endl;
+//         cout<<"sort "<<(t3-t2)/1000<<endl;
+//         cout<<"lookup "<<(t4-t3)/1000<<endl;
+//         cout<<"init set "<<(t5-t4)/1000<<endl;
+//         cout<<"lookup "<<(t6-t5)/1000<<endl;
+//     }
+
+    req.result_table.swap(updated_result_table);
+    req.step=req.cmd_chains.size()/4;
 
 }
 bool server::execute_one_step(request_or_reply& req){
@@ -251,11 +387,6 @@ bool server::execute_one_step(request_or_reply& req){
     int predict     =req.cmd_chains[req.step*4+1];
     int direction   =req.cmd_chains[req.step*4+2];
     int end         =req.cmd_chains[req.step*4+3];
-
-    if(direction==join_cmd){
-        //handle_join(req);
-        return true;
-    }
 
     if(predict<0){
         switch (var_pair(req.variable_type(start),req.variable_type(end))) {
@@ -344,6 +475,9 @@ bool server::need_sub_requests(request_or_reply& req){
 void server::execute(request_or_reply& req){
     while(true){
         execute_one_step(req);
+        if(!req.is_finished() && req.cmd_chains[req.step*4+2]==join_cmd){
+            handle_join(req);
+        }
         if(req.is_finished()){
             req.silent_row_num=req.row_num();
             if(req.silent){
