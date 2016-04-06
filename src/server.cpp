@@ -92,7 +92,7 @@ void server::known_to_unknown(request_or_reply& req){
     int direction   =req.cmd_chains[req.step*4+2];
     int end         =req.cmd_chains[req.step*4+3];
     vector<int> updated_result_table;
-
+    updated_result_table.reserve(req.result_table.size());
     if(req.column_num() != req.var2column(end) ){
         //it means the query plan is wrong
         assert(false);
@@ -281,6 +281,8 @@ size_t hash_pair(const v_pair &x){
 }
 void server::handle_join(request_or_reply& req){
     // step.1 remove dup;
+    uint64_t t0=timer::get_usec();
+
     boost::unordered_set<int> remove_dup_set;
     int dup_var=req.cmd_chains[req.step*4+4];
     assert(dup_var<0);
@@ -292,7 +294,8 @@ void server::handle_join(request_or_reply& req){
     vector<int> sub_chain;
     boost::unordered_map<int,int> var_mapping;
     vector<int> reverse_mapping;
-    for(int i=req.step*4+4;i<req.cmd_chains.size();i++){
+    int join_step=req.cmd_chains[req.step*4+3];
+    for(int i=req.step*4+4;i<join_step*4;i++){
         if(req.cmd_chains[i]<0 && ( var_mapping.find(req.cmd_chains[i]) ==  var_mapping.end()) ){
             int new_id=-1-var_mapping.size();
             var_mapping[req.cmd_chains[i]]=new_id;
@@ -327,53 +330,52 @@ void server::handle_join(request_or_reply& req){
     }
     uint64_t t2=timer::get_usec();
 
-    qsort_tuple(sub_req.column_num(),sub_req.result_table);
-    vector<int> tmp_vec;
-    tmp_vec.resize(sub_req.column_num());
+    uint64_t t3,t4;
     vector<int> updated_result_table;
 
-    uint64_t t3=timer::get_usec();
-
-    for(int i=0;i<req.row_num();i++){
-        for(int c=0;c<reverse_mapping.size();c++){
-            tmp_vec[c]=req.get_row_column(i,reverse_mapping[c]);
+    if(sub_req.column_num()>2){
+    //if(true){ // always use qsort
+        qsort_tuple(sub_req.column_num(),sub_req.result_table);
+        vector<int> tmp_vec;
+        tmp_vec.resize(sub_req.column_num());
+        t3=timer::get_usec();
+        for(int i=0;i<req.row_num();i++){
+            for(int c=0;c<reverse_mapping.size();c++){
+                tmp_vec[c]=req.get_row_column(i,reverse_mapping[c]);
+            }
+            if(binary_search_tuple(sub_req.column_num(),sub_req.result_table,tmp_vec)){
+                req.append_row_to(i,updated_result_table);
+            }
         }
-        if(binary_search_tuple(sub_req.column_num(),sub_req.result_table,tmp_vec)){
-            req.append_row_to(i,updated_result_table);
+        t4=timer::get_usec();
+    } else { // hash join
+        boost::unordered_set<v_pair> remote_set;
+        for(int i=0;i<sub_req.row_num();i++){
+            remote_set.insert(v_pair(sub_req.get_row_column(i,0),sub_req.get_row_column(i,1)));
         }
+        vector<int> tmp_vec;
+        tmp_vec.resize(sub_req.column_num());
+        t3=timer::get_usec();
+        for(int i=0;i<req.row_num();i++){
+            for(int c=0;c<reverse_mapping.size();c++){
+                tmp_vec[c]=req.get_row_column(i,reverse_mapping[c]);
+            }
+            v_pair target=v_pair(tmp_vec[0],tmp_vec[1]);
+            if(remote_set.find(target)!= remote_set.end()){
+                req.append_row_to(i,updated_result_table);
+            }
+        }
+        t4=timer::get_usec();
     }
-    // step.5 join together
-    uint64_t t4=timer::get_usec();
-
-// ///
-//     boost::unordered_set<v_pair> remote_set;
-//     vector<int> updated_result_table2;
-//     for(int i=0;i<sub_req.row_num();i++){
-//         remote_set.insert(v_pair(sub_req.get_row_column(i,0),sub_req.get_row_column(i,0)));
-//     }
-//     uint64_t t5=timer::get_usec();
-//     for(int i=0;i<req.row_num();i++){
-//         for(int c=0;c<reverse_mapping.size();c++){
-//             tmp_vec[c]=req.get_row_column(i,reverse_mapping[c]);
-//         }
-//         v_pair target=v_pair(tmp_vec[0],tmp_vec[1]);
-//         if(remote_set.find(target)!= remote_set.end()){
-//             req.append_row_to(i,updated_result_table2);
-//         }
-//     }
-//     uint64_t t6=timer::get_usec();
-// ///
-//     if(cfg->m_id==0 && cfg->t_id==cfg->client_num){
-//         cout<<"execute sub-request "<<(t2-t1)/1000<<endl;
-//         cout<<"sort "<<(t3-t2)/1000<<endl;
-//         cout<<"lookup "<<(t4-t3)/1000<<endl;
-//         cout<<"init set "<<(t5-t4)/1000<<endl;
-//         cout<<"lookup "<<(t6-t5)/1000<<endl;
-//     }
+    if(cfg->m_id==0 && cfg->t_id==cfg->client_num){
+        cout<<"prepare "<<(t1-t0) <<" us"<<endl;
+        cout<<"execute sub-request "<<(t2-t1) <<" us"<<endl;
+        cout<<"sort "<<(t3-t2) <<" us"<<endl;
+        cout<<"lookup "<<(t4-t3) <<" us"<<endl;
+    }
 
     req.result_table.swap(updated_result_table);
-    req.step=req.cmd_chains.size()/4;
-
+    req.step=join_step;
 }
 bool server::execute_one_step(request_or_reply& req){
     if(req.is_finished()){
@@ -473,10 +475,22 @@ bool server::need_sub_requests(request_or_reply& req){
     return true;
 };
 void server::execute(request_or_reply& req){
+    uint64_t t1;
+    uint64_t t2;
     while(true){
+        t1=timer::get_usec();
         execute_one_step(req);
+        t2=timer::get_usec();
+        if(cfg->m_id==0 && cfg->t_id==cfg->client_num){
+            cout<<"step "<<req.step <<" "<<t2-t1<<" us"<<endl;
+        }
         if(!req.is_finished() && req.cmd_chains[req.step*4+2]==join_cmd){
+            t1=timer::get_usec();
             handle_join(req);
+            t2=timer::get_usec();
+            if(cfg->m_id==0 && cfg->t_id==cfg->client_num){
+                cout<<"handle join "<<" "<<t2-t1<<" us"<<endl;
+            }
         }
         if(req.is_finished()){
             req.silent_row_num=req.row_num();

@@ -26,6 +26,7 @@ class sparql_parser{
     bool valid;
     void clear();
 
+    int fork_step;
     int join_step;
     vector<string> get_token_vec(string filename);
     void remove_header(vector<string>& token_vec);

@@ -30,8 +30,10 @@ distributed_graph::distributed_graph(boost::mpi::communicator& _world,
     #pragma omp parallel for num_threads(nthread_parallel_load)
 	for(int t=0;t<nthread_parallel_load;t++){
 		local_storage.atomic_batch_insert(triple_spo[t],triple_ops[t]);
-		triple_spo[t].clear();
-		triple_ops[t].clear();
+        vector<edge_triple>().swap(triple_spo[t]);
+        vector<edge_triple>().swap(triple_ops[t]);
+        //triple_spo[t].clear();
+		//triple_ops[t].clear();
 	}
     local_storage.init_index_table();
     cout<<world.rank()<<" finished "<<endl;

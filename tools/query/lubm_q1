@@ -4,14 +4,14 @@ SELECT ?X ?Y ?Z
 WHERE
 {
 ?X  rdf:type ub:GraduateStudent <-
-?X  ub:undergraduateDegreeFrom ?Y ->
 ?X  ub:memberOf ?Z ->
-join
+?X  ub:undergraduateDegreeFrom ?Y ->
+fork
 ?Y  rdf:type ub:University ->
 ?Z  ub:subOrganizationOf ?Y <-
+join
 ?Z  rdf:type ub:Department ->
 }
-
 
 {
 ?Y  rdf:type ub:University <-
