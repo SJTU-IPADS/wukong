@@ -1,60 +1,6 @@
 #include "server.h"
 #include <stdlib.h> //qsort
 
-int compare_tuple(int N,std::vector<int>& vec, size_t i, std::vector<int>& vec2,size_t j){
-    // ture means less or equal
-    for(int t=0;t<N;t++){
-        if(vec[i*N+t]<vec2[j*N+t]){
-            return -1;
-        }
-        if(vec[i*N+t]>vec2[j*N+t]){
-            return 1;
-        }
-    }
-    return 0;
-}
-inline void static swap_tuple(int N,std::vector<int>& vec, size_t i, size_t j){
-    for(int t=0;t<N;t++){
-        swap(vec[i*N+t], vec[j*N+t]);
-    }
-}
-void static qsort_tuple_recursive(int N,std::vector<int>& vec,size_t begin,size_t end){
-    if(begin +1 >= end){
-        return ;
-    }
-    int middle=begin;
-    for(int iter=begin+1;iter<end;iter++){
-        if(compare_tuple(N,vec,iter,vec,begin) ==-1 ){
-            middle++;
-            swap_tuple(N,vec,iter,middle);
-        }
-    }
-    swap_tuple(N,vec,begin,middle);
-    qsort_tuple_recursive(N,vec,begin,middle);
-    qsort_tuple_recursive(N,vec,middle+1,end);
-}
-bool static binary_search_tuple_recursive(int N,std::vector<int>& vec,std::vector<int>& target,int begin,int end){
-    if(begin >= end){
-        return false;
-    }
-    int middle=(begin+end)/2;
-    int r=compare_tuple(N,target,0,vec,middle);
-    if(r==0){
-        return true;
-    }
-    if(r<0){
-        return binary_search_tuple_recursive(N,vec,target,begin,middle);
-    } else {
-        return binary_search_tuple_recursive(N,vec,target,middle+1,end);
-    }
-}
-
-bool static binary_search_tuple(int N,std::vector<int>& vec,std::vector<int>& target){
-    binary_search_tuple_recursive(N,vec,target,0,vec.size()/N);
-}
-void static qsort_tuple(int N,std::vector<int>& vec){
-    qsort_tuple_recursive(N,vec,0,vec.size()/N);
-}
 
 
 server::server(distributed_graph& _g,thread_cfg* _cfg):g(_g),cfg(_cfg){
@@ -335,7 +281,7 @@ void server::handle_join(request_or_reply& req){
 
     if(sub_req.column_num()>2){
     //if(true){ // always use qsort
-        qsort_tuple(sub_req.column_num(),sub_req.result_table);
+        mytuple::qsort_tuple(sub_req.column_num(),sub_req.result_table);
         vector<int> tmp_vec;
         tmp_vec.resize(sub_req.column_num());
         t3=timer::get_usec();
@@ -343,7 +289,7 @@ void server::handle_join(request_or_reply& req){
             for(int c=0;c<reverse_mapping.size();c++){
                 tmp_vec[c]=req.get_row_column(i,reverse_mapping[c]);
             }
-            if(binary_search_tuple(sub_req.column_num(),sub_req.result_table,tmp_vec)){
+            if(mytuple::binary_search_tuple(sub_req.column_num(),sub_req.result_table,tmp_vec)){
                 req.append_row_to(i,updated_result_table);
             }
         }
