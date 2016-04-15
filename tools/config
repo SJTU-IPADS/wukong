@@ -5,7 +5,7 @@ global_num_server		16
 global_num_client		1
 global_batch_factor		10
 global_multithread_factor   16
-global_input_folder		/home/datanfs/nfs0/rdfdata/id_lubm_2560/
+global_input_folder		/home/datanfs/nfs0/rdfdata/id_lubm_10240/
 global_client_mode		0
 global_use_loc_cache	0
 global_load_minimal_index 1
@@ -13,8 +13,9 @@ global_silent	1
 global_max_print_row	10
 global_use_index_table	1
 global_use_multithread	0
-global_total_memory_gb	30
-global_perslot_msg_mb	512
-global_hash_header_million	1000
+global_total_memory_gb	20
+global_perslot_msg_mb   256
+global_perslot_rdma_mb	64
+global_hash_header_million	800
 global_enable_workstealing	0
 global_verbose	0

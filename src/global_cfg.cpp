@@ -20,6 +20,7 @@ bool global_use_multithread;
 bool global_use_index_table;
 int global_total_memory_gb;
 int global_perslot_msg_mb;
+int global_perslot_rdma_mb;
 int global_hash_header_million;
 int global_enable_workstealing;
 
@@ -74,6 +75,7 @@ void load_global_cfg(char* filename){
 	global_use_index_table=atoi(config_map["global_use_index_table"].c_str());
 	global_total_memory_gb=atoi(config_map["global_total_memory_gb"].c_str());
 	global_perslot_msg_mb=atoi(config_map["global_perslot_msg_mb"].c_str());
+	global_perslot_rdma_mb=atoi(config_map["global_perslot_rdma_mb"].c_str());
 	global_hash_header_million=atoi(config_map["global_hash_header_million"].c_str());
 	global_enable_workstealing=atoi(config_map["global_enable_workstealing"].c_str());
 

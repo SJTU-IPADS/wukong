@@ -532,7 +532,7 @@ poll_completion (struct QP *res) {
 
 
 
-  RdmaResource::RdmaResource(int t_partition,int t_threads,int current,char *_buffer,uint64_t _size,uint64_t _slotsize,uint64_t _off) {
+  RdmaResource::RdmaResource(int t_partition,int t_threads,int current,char *_buffer,uint64_t _size,uint64_t rdma_slot,uint64_t msg_slot,uint64_t _off) {
 
     _total_threads = t_threads;
     _total_partition = t_partition;
@@ -542,10 +542,9 @@ poll_completion (struct QP *res) {
     size   = _size;
 
     off = _off;
-    slotsize = _slotsize;
-    // rbf_size=slotsize/(_total_threads*_total_partition);
-    // rbf_size=rbf_size-(rbf_size%64);
-    rbf_size=slotsize/(_total_partition);
+    rdma_slotsize = rdma_slot;
+    msg_slotsize = msg_slot;
+    rbf_size=msg_slotsize/(_total_partition);
     rbf_size=rbf_size-(rbf_size%64);
 
     init();

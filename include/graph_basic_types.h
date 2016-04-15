@@ -111,7 +111,8 @@ struct vertex{
 	local_val val;
 };
 struct edge{
-	uint64_t val;
+	//	uint64_t val;
+	unsigned int val;
 };
 enum direction{
 	direction_in,

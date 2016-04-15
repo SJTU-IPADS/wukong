@@ -49,7 +49,7 @@ class graph_storage{
 
     static const int num_locks=1024;
     static const int indirect_ratio=5; // 	1/5 of buckets are used as indirect buckets
-	static const int cluster_size=4;   //	each bucket has 4 slots
+	static const int cluster_size=6;   //	each bucket has 4 slots
     pthread_spinlock_t allocation_lock;
 	pthread_spinlock_t fine_grain_locks[num_locks];
 

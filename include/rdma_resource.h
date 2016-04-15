@@ -144,15 +144,17 @@ struct normal_op_req
       return buffer;
     }
     uint64_t get_slotsize(){
-      return slotsize;
+      return rdma_slotsize;
     }
     //rdma location hashing
-    uint64_t slotsize;
+    uint64_t rdma_slotsize;
+    uint64_t msg_slotsize;
     uint64_t rbf_size;
     Network_Node* node;
 
     //for testing
-    RdmaResource(int t_partition,int t_threads,int current,char *_buffer,uint64_t _size,uint64_t _slotsize,uint64_t _off = 0);
+    RdmaResource(int t_partition,int t_threads,int current,char *_buffer,
+                uint64_t _size,uint64_t rdma_slot,uint64_t msg_slot,uint64_t _off = 0);
 
     void Connect();
     void Servicing();
@@ -166,7 +168,7 @@ struct normal_op_req
 
     //TODO what if batched?
     inline char *GetMsgAddr(int t_id) {
-      return (char *)( buffer + off + t_id * slotsize);
+      return (char *)( buffer + off + t_id * rdma_slotsize);
     }
     static void* RecvThread(void * arg);
 
@@ -225,7 +227,7 @@ struct normal_op_req
     }
     uint64_t start_of_recv_queue(int local_tid,int remote_mid){
       //[t0,m0][t0,m1] [t0,m5], [t1,m0],...
-      uint64_t result=off+(_total_threads) * slotsize; //skip data-region and rdma_read-region
+      uint64_t result=off+(_total_threads) * rdma_slotsize; //skip data-region and rdma_read-region
       result=result+rbf_size*(local_tid*_total_partition+remote_mid);
       return result;
     }

@@ -78,13 +78,14 @@ int main(int argc, char * argv[]) {
 
 	uint64_t rdma_size = 1024*1024*1024;
 	rdma_size = rdma_size*global_total_memory_gb;
-	uint64_t slot_per_thread= 1024*1024*global_perslot_msg_mb;
-	uint64_t total_size=rdma_size+slot_per_thread*global_num_thread*2;
+	uint64_t msg_slot_per_thread= 1024*1024*global_perslot_msg_mb;
+	uint64_t rdma_slot_per_thread =1024*1024* global_perslot_rdma_mb;
+	uint64_t total_size=rdma_size+rdma_slot_per_thread*global_num_thread+ msg_slot_per_thread*global_num_thread;
 	Network_Node *node = new Network_Node(world.rank(),global_num_thread,string(argv[2]));//[0-thread_num-1] are used
 	char *buffer= (char*) malloc(total_size);
 	memset(buffer,0,total_size);
 	RdmaResource *rdma=new RdmaResource(world.size(),global_num_thread,
-				world.rank(),buffer,total_size,slot_per_thread,rdma_size);
+				world.rank(),buffer,total_size,rdma_slot_per_thread,msg_slot_per_thread,rdma_size);
 	rdma->node = node;
 	rdma->Servicing();
 	rdma->Connect();

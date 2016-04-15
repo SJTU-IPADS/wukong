@@ -349,6 +349,8 @@ void graph_storage::init_index_table(){
 
     cout<<"sizeof src_predict_table = "<<src_predict_table.size()<<endl;
     cout<<"sizeof dst_predict_table = "<<dst_predict_table.size()<<endl;
+    tbb_vector_table().swap(src_predict_table);
+    tbb_vector_table().swap(dst_predict_table);
 }
 
 edge* graph_storage::get_index_edges_local(int tid,uint64_t index_id,int direction,int* size){

@@ -28,6 +28,7 @@ extern bool global_use_multithread;
 extern bool global_use_index_table;
 extern int global_total_memory_gb;
 extern int global_perslot_msg_mb;
+extern int global_perslot_rdma_mb;
 extern int global_hash_header_million;
 extern int global_enable_workstealing;
 
