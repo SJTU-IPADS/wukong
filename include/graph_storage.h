@@ -48,8 +48,8 @@ public:
 class graph_storage{
 
     static const int num_locks=1024;
-    static const int indirect_ratio=5; // 	1/5 of buckets are used as indirect buckets
-	static const int cluster_size=6;   //	each bucket has 4 slots
+    static const int indirect_ratio=7; // 	1/indirect_ratio  of buckets are used as indirect buckets
+	static const int cluster_size=8;   //	each bucket has cluster_size slots
     pthread_spinlock_t allocation_lock;
 	pthread_spinlock_t fine_grain_locks[num_locks];
 
@@ -65,9 +65,12 @@ class graph_storage{
 
 	uint64_t header_num;
 	uint64_t indirect_num;
-    uint64_t used_indirect_num;
 	uint64_t max_edge_ptr;
 	uint64_t new_edge_ptr;
+
+    uint64_t used_indirect_num; // used to print memory usage
+    uint64_t type_index_edge_num; // used to print memory usage
+    uint64_t predict_index_edge_num; // used to print memory usage
 
     uint64_t insertKey(local_key key);
     uint64_t atomic_alloc_edges(uint64_t num_edge);
@@ -89,6 +92,7 @@ public:
     void init_index_table();
     tbb_vector_table src_predict_table;
     tbb_vector_table dst_predict_table;
+    tbb_vector_table type_table;
 
     edge* get_index_edges_local(int tid,uint64_t index_id,int direction,int* size);
 

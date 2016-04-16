@@ -1,5 +1,6 @@
 #pragma once
 #include "utils.h"
+#include <functional>
 struct edge_triple{
 	uint64_t s;
 	uint64_t p;
@@ -66,6 +67,7 @@ struct local_key{
 		r+=predict;
 		r<<=nbit_id;
 		r+=id;
+		//return std::hash<uint64_t>()(r);
 		return mymath::hash(r);
 	}
 	local_key(uint64_t i,uint64_t d,uint64_t p):id(i),dir(d),predict(p){
