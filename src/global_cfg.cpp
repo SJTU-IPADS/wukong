@@ -23,6 +23,7 @@ int global_perslot_msg_mb;
 int global_perslot_rdma_mb;
 int global_hash_header_million;
 int global_enable_workstealing;
+int global_enable_index_partition;
 
 int global_verbose;
 
@@ -78,7 +79,8 @@ void load_global_cfg(char* filename){
 	global_perslot_rdma_mb=atoi(config_map["global_perslot_rdma_mb"].c_str());
 	global_hash_header_million=atoi(config_map["global_hash_header_million"].c_str());
 	global_enable_workstealing=atoi(config_map["global_enable_workstealing"].c_str());
-
+	global_enable_index_partition=atoi(config_map["global_enable_index_partition"].c_str());
+	
 	global_verbose=atoi(config_map["global_verbose"].c_str());
 
 	global_num_thread=global_num_server+global_num_client;

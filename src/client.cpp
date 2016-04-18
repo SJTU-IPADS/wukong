@@ -12,7 +12,7 @@ void client::Send(request_or_reply& req){
     if(req.parent_id==-1){
         GetId(req);
     }
-    if(req.use_index_vertex()){
+    if(req.use_index_vertex() && global_enable_index_partition){
         int nthread=max(1,min(global_multithread_factor,global_num_server));
         for(int i=0;i<cfg->m_num;i++){
             for(int j=0;j<nthread;j++){
@@ -35,7 +35,7 @@ void client::Send(request_or_reply& req){
 
 request_or_reply client::Recv(){
     request_or_reply r = RecvR(cfg);
-    if(r.use_index_vertex()){
+    if(r.use_index_vertex() && global_enable_index_partition ){
         int nthread=max(1,min(global_multithread_factor,global_num_server));
         for(int count=0;count<cfg->m_num * nthread-1 ;count++){
             request_or_reply r2=RecvR(cfg);

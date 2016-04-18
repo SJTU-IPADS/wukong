@@ -31,6 +31,7 @@ extern int global_perslot_msg_mb;
 extern int global_perslot_rdma_mb;
 extern int global_hash_header_million;
 extern int global_enable_workstealing;
+extern int global_enable_index_partition;
 
 
 extern int global_verbose;

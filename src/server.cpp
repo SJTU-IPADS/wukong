@@ -110,6 +110,10 @@ void server::index_to_unknown(request_or_reply& req){
     int var         =req.cmd_chains[req.step*4+3];
     vector<int> updated_result_table;
 
+    if(!global_enable_index_partition){
+        const_to_unknown(req);
+        return ;
+    }
     if(!(req.column_num()==0 && req.column_num() == req.var2column(var)  )){
         //it means the query plan is wrong
         assert(false);
@@ -410,6 +414,31 @@ vector<request_or_reply> server::generate_sub_requests(request_or_reply& req){
 	}
 	return sub_reqs;
 }
+vector<request_or_reply> server::generate_mt_sub_requests(request_or_reply& req){
+    int start       =req.cmd_chains[req.step*4];
+    int end         =req.cmd_chains[req.step*4+3];
+    int nthread=max(1,min(global_multithread_factor,global_num_server));
+
+	vector<request_or_reply> sub_reqs;
+	int num_sub_request=cfg->m_num * nthread ;
+	sub_reqs.resize(num_sub_request );
+	for(int i=0;i<sub_reqs.size();i++){
+		sub_reqs[i].parent_id=req.id;
+		sub_reqs[i].cmd_chains=req.cmd_chains;
+        sub_reqs[i].step=req.step;
+        sub_reqs[i].col_num=req.col_num;
+        sub_reqs[i].silent=req.silent;
+        sub_reqs[i].local_var=start;
+	}
+	for(int i=0;i<req.row_num();i++){
+        // id = t_id*cfg->m_num + m_id
+        //so  m_id = id % cfg->m_num
+        //    t_id = id / cfg->m_num
+		int id = mymath::hash_mod(req.get_row_column(i,req.var2column(start)), num_sub_request);
+		req.append_row_to(i,sub_reqs[id].result_table);
+	}
+	return sub_reqs;
+}
 bool server::need_sub_requests(request_or_reply& req){
     int start       =req.cmd_chains[req.step*4];
     if(req.local_var==start){
@@ -444,6 +473,17 @@ void server::execute(request_or_reply& req){
                 req.clear_data();
             }
             SendR(cfg,cfg->mid_of(req.parent_id),cfg->tid_of(req.parent_id),req);
+            return ;
+        }
+        if(req.step==1 && req.use_index_vertex() && !global_enable_index_partition){
+            assert(!global_enable_workstealing);
+            vector<request_or_reply> sub_reqs=generate_mt_sub_requests(req);
+            wqueue.put_parent_request(req,sub_reqs.size());
+            //so  m_id = id % cfg->m_num
+            //    t_id = id / cfg->m_num + cfg->client_num
+            for(int i=0;i<sub_reqs.size();i++){
+                SendR(cfg,i%cfg->m_num ,i / cfg->m_num+ cfg->client_num,sub_reqs[i]);
+			}
             return ;
         }
         if(need_sub_requests(req)){

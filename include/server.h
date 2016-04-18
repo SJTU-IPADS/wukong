@@ -33,6 +33,8 @@ class server{
 
 
     vector<request_or_reply> generate_sub_requests(request_or_reply& r);
+    vector<request_or_reply> generate_mt_sub_requests(request_or_reply& r);
+    
     bool need_sub_requests(request_or_reply& req);
     bool execute_one_step(request_or_reply& req);
     void execute(request_or_reply& req);
