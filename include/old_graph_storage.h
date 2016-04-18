@@ -11,7 +11,16 @@
 #include "global_cfg.h"
 #include "utils.h"
 
-class graph_storage{
+
+/*
+    normal key  = (id,direction,1)
+    normal val  = p1 p2 p3   v1 v2 v3
+    so we can get continuous value
+*/
+
+
+
+class old_graph_storage{
     class rdma_cache{
         struct cache_item{
             pthread_spinlock_t lock;
@@ -78,7 +87,7 @@ class graph_storage{
     vertex get_vertex_remote(int tid,local_key key);
 
 public:
-	graph_storage();
+	old_graph_storage();
     void init(RdmaResource* _rdma,uint64_t machine_num,uint64_t machine_id);
     void atomic_batch_insert(vector<edge_triple>& vec_spo,vector<edge_triple>& vec_ops);
     void print_memory_usage();

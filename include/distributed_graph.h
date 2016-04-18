@@ -18,6 +18,7 @@
 #include "rdma_resource.h"
 #include "omp.h"
 #include "graph_storage.h"
+#include "old_graph_storage.h"
 
 using namespace std;
 
@@ -34,8 +35,9 @@ class distributed_graph{
 	void load_data(vector<string>& file_vec);
     void load_and_sync_data(vector<string>& file_vec);
 public:
-	graph_storage local_storage;
-    distributed_graph(boost::mpi::communicator& para_world,RdmaResource* _rdma,string dir_name);
+	//graph_storage local_storage;
+	old_graph_storage local_storage;
+	distributed_graph(boost::mpi::communicator& para_world,RdmaResource* _rdma,string dir_name);
 	edge* get_edges_global(int tid,uint64_t id,int direction,int predict,int* size){
 		return local_storage.get_edges_global(tid,id,direction,predict,size);
 	};
