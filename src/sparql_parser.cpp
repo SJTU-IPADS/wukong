@@ -22,6 +22,7 @@ vector<string> sparql_parser::get_token_vec(string filename){
     ifstream file(filename);
     vector<string> token_vec;
     if(!file){
+        cout<<"[file not found] "<<filename<<endl;
         valid=false;
         return token_vec;
     }
@@ -93,6 +94,7 @@ void sparql_parser::replace_prefix(vector<string>& token_vec){
 }
 int sparql_parser::str2id(string& str){
     if(str==""){
+        cout<<"[empty string] "<<str<<endl;
         valid=false;
         return 0;
     }
@@ -126,6 +128,7 @@ void sparql_parser::do_parse(string filename){
     if(!valid) return ;
 
     if(token_vec.size()%4!=0){
+        cout<<"[error token number] "<<filename<<endl;
         valid=false;
         return ;
     }
@@ -153,6 +156,7 @@ void sparql_parser::do_parse(string filename){
             req_template.cmd_chains.push_back(ids[2]);
             iter+=4;
         } else {
+            cout<<"[error seperator] "<<filename<<endl;
             valid=false;
             return ;
         }

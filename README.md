@@ -58,3 +58,4 @@ add following lines in ~/.bashrc
 3. put id_data to NFS , and set the global_input_folder at config file
 
 4. use str_normal_minimal if loading str_normal causes too much time
+    grep "<http://www.Department0.University0.edu>" str_normal >> str_normal_minimal
