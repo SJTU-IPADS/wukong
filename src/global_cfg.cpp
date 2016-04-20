@@ -80,7 +80,7 @@ void load_global_cfg(char* filename){
 	global_hash_header_million=atoi(config_map["global_hash_header_million"].c_str());
 	global_enable_workstealing=atoi(config_map["global_enable_workstealing"].c_str());
 	global_enable_index_partition=atoi(config_map["global_enable_index_partition"].c_str());
-	
+
 	global_verbose=atoi(config_map["global_verbose"].c_str());
 
 	global_num_thread=global_num_server+global_num_client;

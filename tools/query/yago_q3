@@ -1,0 +1,6 @@
+
+select * where {
+?p y:hasInternalWikipediaLinkTo ?p1 .
+?p1 y:hasInternalWikipediaLinkTo ?p2 .
+?p2 y:hasInternalWikipediaLinkTo ?p3 .
+}

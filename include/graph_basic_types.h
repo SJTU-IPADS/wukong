@@ -1,6 +1,9 @@
 #pragma once
 #include "utils.h"
 #include <functional>
+#include <iostream>
+#include "global_cfg.h"
+
 struct edge_triple{
 	uint64_t s;
 	uint64_t p;
@@ -44,7 +47,7 @@ struct edge_sort_by_ops {
 };
 
 const int nbit_predict=15;
-const int nbit_id=48;
+const int nbit_id=63-nbit_predict;
 static inline bool is_index_vertex(int id){
 	return id< (1<<nbit_predict);
 }
@@ -57,9 +60,9 @@ struct local_key{
 		predict-=1;
 		id-=1;
 	}
-	// void print(){
-	// 	cout<<"("<<id<<","<<dir<<","<<predict<<")"<<endl;
-	// }
+	void print(){
+		std::cout<<"("<<id<<","<<dir<<","<<predict<<")"<<std::endl;
+	}
 	uint64_t hash(){
 		uint64_t r=0;
 		r+=dir;
@@ -71,7 +74,10 @@ struct local_key{
 		return mymath::hash(r);
 	}
 	local_key(uint64_t i,uint64_t d,uint64_t p):id(i),dir(d),predict(p){
-
+		if(id!=i || dir!=d || predict !=p){
+			std::cout<<"truncated: "<<"("<<i<<","<<d<<","<<p<<")=>"
+									<<"("<<id<<","<<dir<<","<<predict<<")"<<std::endl;
+		}
 	}
 	bool operator==(const local_key& another_key){
 		if(dir==another_key.dir

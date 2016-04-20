@@ -45,7 +45,8 @@ uint64_t graph_storage::insertKey(local_key key){
 		for(uint64_t i=0;i<cluster_size-1;i++){
 			slot_id=bucket_id*cluster_size+i;
 			if(vertex_addr[slot_id].key==key){
-				cout<<"inserting duplicate key" <<endl;
+				cout<<"inserting duplicate key"<<endl;
+                key.print();
 				assert(false);
 			}
 			if(vertex_addr[slot_id].key==local_key()){

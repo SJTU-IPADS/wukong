@@ -18,5 +18,5 @@ global_perslot_msg_mb   256
 global_perslot_rdma_mb	64
 global_hash_header_million	800
 global_enable_workstealing	0
-global_enable_index_partition	0
+global_enable_index_partition	1
 global_verbose	0

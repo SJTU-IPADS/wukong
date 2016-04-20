@@ -41,7 +41,7 @@ int main(int argc,char** argv){
     str_to_id["<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"]=1;
     index_str.push_back("<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>");
 
-    int nbit_predict=15;
+    int nbit_predict=17;
     size_t next_index_id=2;
     size_t next_normal_id=1<<nbit_predict;
     int count=1;
