@@ -1,11 +1,11 @@
 global_use_rbf			1
 global_use_rdma			1
 global_rdma_threshold	300
-global_num_server		8
+global_num_server		16
 global_num_client		1
 global_batch_factor		10
-global_multithread_factor   8
-global_input_folder		/home/datanfs/nfs0/rdfdata/id_dbpsb10/
+global_multithread_factor   16
+global_input_folder		/home/datanfs/nfs0/rdfdata/id_watdiv100m/
 global_client_mode		0
 global_use_loc_cache	0
 global_load_minimal_index 1

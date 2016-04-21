@@ -1,5 +1,5 @@
 
 select ?y ?u where {
-    y:Albert_Einstein y:graduatedFrom ?u .
+    <Albert_Einstein> y:graduatedFrom ?u .
     ?y y:graduatedFrom ?u <-
 }

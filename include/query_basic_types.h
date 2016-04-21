@@ -35,7 +35,7 @@ struct request_or_reply{
     int step;
     int col_num;
 	bool silent;
-	int silent_row_num;
+	uint64_t silent_row_num;
 	int local_var;
     vector<int> cmd_chains; //n*(start,p,direction,end)
     vector<int> result_table;
@@ -108,7 +108,7 @@ struct request_or_reply{
     int column_num(){
         return col_num;
     };
-    int row_num(){
+    uint64_t row_num(){
         if(col_num==0){
             return 0;
         }

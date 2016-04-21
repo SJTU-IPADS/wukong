@@ -1,10 +1,5 @@
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 
-SELECT ?var3 ?var2 WHERE {
-?var3 __PREDICT__   <http://xmlns.com/foaf/0.1/homepage>  <-
-?var3 rdf:type <http://dbpedia.org/ontology/Person> .
-?var3 <http://xmlns.com/foaf/0.1/homepage> ?var2 .
-}
 
 
 SELECT ?var3 ?var2 WHERE {

@@ -1,0 +1,9 @@
+select * where
+{
+y:hasExternalWikipediaLinkTo __PREDICT__ ?e .
+?p y:hasExternalWikipediaLinkTo ?e <-
+?p y:hasInternalWikipediaLinkTo ?p1 .
+?p1 y:hasExternalWikipediaLinkTo ?e1 .
+}
+p->p1->e1
+p->e

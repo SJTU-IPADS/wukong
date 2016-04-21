@@ -1,4 +1,14 @@
+SELECT ?v0 ?v1 ?v3 WHERE {
+    ?v0 __PREDICT__  <http://schema.org/jobTitle> <-
+    ?v0 <http://schema.org/jobTitle> ?v1 .
+    ?v0 <http://schema.org/nationality> ?v3 .
+	<http://db.uwaterloo.ca/~galuc/wsdbm/City17> <http://www.geonames.org/ontology#parentCountry> ?v3 <-
+}
 
+
+
+
+---> original
 
 SELECT ?v0 ?v1 ?v3 WHERE {
     <http://db.uwaterloo.ca/~galuc/wsdbm/City17> <http://www.geonames.org/ontology#parentCountry> ?v3 .

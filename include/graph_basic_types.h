@@ -46,7 +46,7 @@ struct edge_sort_by_ops {
 	}
 };
 
-const int nbit_predict=15;
+const int nbit_predict=17;
 const int nbit_id=63-nbit_predict;
 static inline bool is_index_vertex(int id){
 	return id< (1<<nbit_predict);

@@ -457,14 +457,14 @@ void server::execute(request_or_reply& req){
         execute_one_step(req);
         t2=timer::get_usec();
         if(cfg->m_id==0 && cfg->t_id==cfg->client_num){
-            cout<<"step "<<req.step <<" "<<t2-t1<<" us"<<endl;
+            //cout<<"step "<<req.step <<" "<<t2-t1<<" us"<<endl;
         }
         if(!req.is_finished() && req.cmd_chains[req.step*4+2]==join_cmd){
             t1=timer::get_usec();
             handle_join(req);
             t2=timer::get_usec();
             if(cfg->m_id==0 && cfg->t_id==cfg->client_num){
-                cout<<"handle join "<<" "<<t2-t1<<" us"<<endl;
+                //cout<<"handle join "<<" "<<t2-t1<<" us"<<endl;
             }
         }
         if(req.is_finished()){

@@ -67,7 +67,7 @@ void single_execute(client* clnt,string filename,int execute_count){
 		sum+=t2-t1;
 	}
 	cout<<"result size:"<<reply.silent_row_num<<endl;
-	int row_to_print=min(reply.row_num(),global_max_print_row);
+	int row_to_print=min(reply.row_num(),(uint64_t)global_max_print_row);
 	if(row_to_print>0){
 		clnt->print_result(reply,row_to_print);
 	}
