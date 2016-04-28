@@ -10,3 +10,17 @@ WHERE
 ?Z  ub:subOrganizationOf ?Y .
 ?Z  rdf:type ub:Department .
 }
+
+
+{
+?X  __PREDICT__  ub:undergraduateDegreeFrom  <-
+?X  rdf:type ub:UndergraduateStudent .
+?X  ub:memberOf ?Z .
+?Z  rdf:type ub:Department .
+?Z  ub:subOrganizationOf ?Y .
+?Y  rdf:type ub:University .
+?X  ub:undergraduateDegreeFrom ?Y .
+}
+
+
+WHERE

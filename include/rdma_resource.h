@@ -280,14 +280,15 @@ struct normal_op_req
       char * rbf_ptr=buffer+start_of_recv_queue(local_tid,mid);
       uint64_t msg_size=*(volatile uint64_t*)(rbf_ptr+meta->local_tail%rbf_size );
       uint64_t skip_size=sizeof(uint64_t)+ceil(msg_size,sizeof(uint64_t));
-      volatile uint64_t * msg_end_ptr=(uint64_t*)(rbf_ptr+ (meta->local_tail+skip_size)%rbf_size);
-      if(msg_size==0 || *msg_end_ptr !=msg_size){
-          return false;
-      }
-
-    //   if(msg_size==0 ){
-    //     return false;
+    //   volatile uint64_t * msg_end_ptr=(uint64_t*)(rbf_ptr+ (meta->local_tail+skip_size)%rbf_size);
+    //   wait for longer time
+    //   if(msg_size==0 || *msg_end_ptr !=msg_size){
+    //       return false;
     //   }
+
+      if(msg_size==0 ){
+        return false;
+      }
       return true;
     }
     std::string fetch_rbf_msg(int local_tid,int mid){
@@ -295,13 +296,14 @@ struct normal_op_req
 
       char * rbf_ptr=buffer+start_of_recv_queue(local_tid,mid);
       uint64_t msg_size=*(volatile uint64_t*)(rbf_ptr+meta->local_tail%rbf_size );
-
+      uint64_t t1=timer::get_usec();
       //clear head
       *(uint64_t*)(rbf_ptr+(meta->local_tail)%rbf_size)=0;
 
       uint64_t skip_size=sizeof(uint64_t)+ceil(msg_size,sizeof(uint64_t));
       volatile uint64_t * msg_end_ptr=(uint64_t*)(rbf_ptr+ (meta->local_tail+skip_size)%rbf_size);
       while(*msg_end_ptr !=msg_size){
+        //timer::myusleep(10);
         uint64_t tmp=*msg_end_ptr;
         if(tmp!=0 && tmp!=msg_size){
           printf("waiting for %ld,but actually %ld\n",msg_size,tmp);
@@ -310,17 +312,34 @@ struct normal_op_req
       }
       //clear tail
       *msg_end_ptr=0;
-
+      uint64_t t2=timer::get_usec();
+      //copy from (meta->local_tail+sizeof(uint64_t) , meta->local_tail+sizeof(uint64_t)+ msg_size )
+      //      or
       std::string result;
       result.reserve(msg_size);
-      for(uint64_t i=0;i<ceil(msg_size,sizeof(uint64_t));i++){
-        char * tmp=rbf_ptr+(meta->local_tail+sizeof(uint64_t)+i)%rbf_size;
-        if(i<msg_size)
-          result.push_back(*tmp);
-        //clear data
-        *tmp=0;
+      {
+          size_t msg_head=(meta->local_tail+sizeof(uint64_t))%rbf_size;
+          size_t msg_tail=(meta->local_tail+sizeof(uint64_t)+msg_size)%rbf_size;
+          if(msg_head<msg_tail){
+              result.append(rbf_ptr+msg_head,msg_size);
+              memset(rbf_ptr+msg_head,0,ceil(msg_size,sizeof(uint64_t)));
+          } else {
+              result.append(rbf_ptr+msg_head,msg_size-msg_tail);
+              result.append(rbf_ptr,msg_tail);
+              memset(rbf_ptr+msg_head,0,msg_size-msg_tail);
+              memset(rbf_ptr,0,ceil(msg_tail,sizeof(uint64_t)));
+          }
       }
+    //   for(uint64_t i=0;i<ceil(msg_size,sizeof(uint64_t));i++){
+    //     char * tmp=rbf_ptr+(meta->local_tail+sizeof(uint64_t)+i)%rbf_size;
+    //     if(i<msg_size)
+    //       result.push_back(*tmp);
+    //     //clear data
+    //     *tmp=0;
+    //   }
+
       meta->local_tail+=2*sizeof(uint64_t)+ceil(msg_size,sizeof(uint64_t));
+      uint64_t t3=timer::get_usec();
       return result;
     }
     std::string rbfRecv(int local_tid){

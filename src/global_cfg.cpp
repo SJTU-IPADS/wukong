@@ -44,6 +44,8 @@ void load_changeable_cfg(){
 	global_use_loc_cache=atoi(config_map["global_use_loc_cache"].c_str());
 	global_silent=atoi(config_map["global_silent"].c_str());
 	global_multithread_factor=atoi(config_map["global_multithread_factor"].c_str());
+	global_rdma_threshold=atoi(config_map["global_rdma_threshold"].c_str());
+
 }
 void load_global_cfg(char* filename){
 	config_filename=std::string(filename);

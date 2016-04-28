@@ -457,7 +457,7 @@ post_send (struct QP *res, ibv_wr_opcode opcode,char* local_buf,size_t size,size
   sr.num_sge = 1;
   sr.opcode = opcode;
   if(signal)
-    sr.send_flags = IBV_SEND_SIGNALED;
+    sr.send_flags = IBV_SEND_SIGNALED ;
   else
     sr.send_flags = 0;
   if (opcode != IBV_WR_SEND)
@@ -530,6 +530,44 @@ poll_completion (struct QP *res) {
   return rc;
 }
 
+static int
+batch_poll_completion (struct QP *res,int total) {
+  struct ibv_wc wc[32];
+  unsigned long start_time_msec;
+  unsigned long cur_time_msec;
+  struct timeval cur_time;
+  int poll_result=0;
+  int rc = 0;
+  /* poll the completion for a while before giving up of doing it .. */
+  do{
+    total=total-poll_result;
+    poll_result = ibv_poll_cq (res->cq, total, &wc[0]);
+  } while ((poll_result ==0));
+  if (poll_result < 0)
+  {
+    /* poll CQ failed */
+    fprintf (stderr, "poll CQ failed\n");
+    rc = 1;
+  } else if (poll_result == 0)
+  {
+    /* the CQ is empty */
+    fprintf (stderr, "completion wasn't found in the CQ after timeout\n");
+    rc = 1;
+  } else {
+    /* CQE found */
+    //      fprintf (stdout, "completion was found in CQ with status 0x%x\n",
+    //               wc.status);
+    /* check the completion status (here we don't care about the completion opcode */
+    // if (wc.status != IBV_WC_SUCCESS)
+    // {
+    //   fprintf (stderr,
+    //      "got bad completion with status: 0x%x, vendor syndrome: 0x%x\n",
+    //      wc.status, wc.vendor_err);
+    //   rc = 1;
+    // }
+  }
+  return poll_result;
+}
 
 
   RdmaResource::RdmaResource(int t_partition,int t_threads,int current,char *_buffer,uint64_t _size,uint64_t rdma_slot,uint64_t msg_slot,uint64_t _off) {
@@ -664,35 +702,71 @@ poll_completion (struct QP *res) {
     assert(machine_id < _total_partition);
     assert(t_id < _total_threads);
 
-    uint64_t huge_size=102400;
-    //we split the huge rdma_op
-    while(size>0){
-      uint64_t size_send=std::min(size,huge_size);
-      if(post_send(res[t_id] + machine_id,op,local,size_send,remote_offset,true) ) {
-        fprintf(stderr,"failed to post request.");
-        assert(false);
-      }
-      if(poll_completion(res[t_id] + machine_id)) {
-        fprintf(stderr,"poll completion failed\n");
-        assert(false);
-      }
-      size-=size_send;
-      local+=size_send;
-      remote_offset+=size_send;
+
+    if(post_send(res[t_id] + machine_id,op,local,size,remote_offset,true) ) {
+      fprintf(stderr,"failed to post request.");
+      assert(false);
+    }
+    if(poll_completion(res[t_id] + machine_id)) {
+      fprintf(stderr,"poll completion failed\n");
+      assert(false);
     }
     return 0;
 
-
-
-    // if(post_send(res[t_id] + machine_id,op,local,size,remote_offset,true) ) {
-    //   fprintf(stderr,"failed to post request.");
-    //   assert(false);
+    // uint64_t split_size=1024;
+    // int waiting_count=0;
+    // while(size>0){
+    //     if(waiting_count==16){
+    //         int r=batch_poll_completion(res[t_id] + machine_id,4);
+    //         // if(poll_completion(res[t_id] + machine_id)) {
+    //         //     fprintf(stderr,"poll completion failed\n");
+    //         //     assert(false);
+    //         // }
+    //         waiting_count-=r;
+    //     }
+    //     uint64_t size_send=std::min(size,split_size);
+    //     if(post_send(res[t_id] + machine_id,op,local,size_send,remote_offset,true) ) {
+    //         fprintf(stderr,"failed to post request.");
+    //         assert(false);
+    //     }
+    //     size-=size_send;
+    //     local+=size_send;
+    //     remote_offset+=size_send;
+    //     waiting_count++;
     // }
-    // if(poll_completion(res[t_id] + machine_id)) {
-    //   fprintf(stderr,"poll completion failed\n");
-    //   assert(false);
+    // while(waiting_count>0){
+    //     if(poll_completion(res[t_id] + machine_id)) {
+    //         fprintf(stderr,"poll completion failed\n");
+    //         assert(false);
+    //     }
+    //     waiting_count--;
+    // }
+
+
+
+
+
+    // uint64_t huge_size=102400000;
+    //
+    //
+    //
+    // //we split the huge rdma_op
+    // while(size>0){
+    //   uint64_t size_send=std::min(size,huge_size);
+    //   if(post_send(res[t_id] + machine_id,op,local,size_send,remote_offset,true) ) {
+    //     fprintf(stderr,"failed to post request.");
+    //     assert(false);
+    //   }
+    //   if(poll_completion(res[t_id] + machine_id)) {
+    //     fprintf(stderr,"poll completion failed\n");
+    //     assert(false);
+    //   }
+    //   size-=size_send;
+    //   local+=size_send;
+    //   remote_offset+=size_send;
     // }
     // return 0;
+
 
   }
   int RdmaResource::RdmaCmpSwap(int t_id,int m_id,char*local,uint64_t compare,uint64_t swap,uint64_t size,uint64_t off) {
@@ -751,44 +825,6 @@ poll_completion (struct QP *res) {
     return 0;
   }
 
-static int
-batch_poll_completion (struct QP *res,int total) {
-  struct ibv_wc wc[32];
-  unsigned long start_time_msec;
-  unsigned long cur_time_msec;
-  struct timeval cur_time;
-  int poll_result=0;
-  int rc = 0;
-  /* poll the completion for a while before giving up of doing it .. */
-  do{
-    total=total-poll_result;
-    poll_result = ibv_poll_cq (res->cq, total, &wc[0]);
-  } while ((poll_result ==0));
-  if (poll_result < 0)
-  {
-    /* poll CQ failed */
-    fprintf (stderr, "poll CQ failed\n");
-    rc = 1;
-  } else if (poll_result == 0)
-  {
-    /* the CQ is empty */
-    fprintf (stderr, "completion wasn't found in the CQ after timeout\n");
-    rc = 1;
-  } else {
-    /* CQE found */
-    //      fprintf (stdout, "completion was found in CQ with status 0x%x\n",
-    //               wc.status);
-    /* check the completion status (here we don't care about the completion opcode */
-    // if (wc.status != IBV_WC_SUCCESS)
-    // {
-    //   fprintf (stderr,
-    //      "got bad completion with status: 0x%x, vendor syndrome: 0x%x\n",
-    //      wc.status, wc.vendor_err);
-    //   rc = 1;
-    // }
-  }
-  return poll_result;
-}
 
 inline  uint64_t
 internal_rdtsc(void)

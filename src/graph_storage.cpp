@@ -188,8 +188,8 @@ void graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,vector<edge
 	}
 }
 void graph_storage::print_memory_usage(){
-    cout<<"disable print_memory_usage now "<<endl;
-    return ;
+    //cout<<"disable print_memory_usage now "<<endl;
+    //return ;
 
     uint64_t used_header_slot=0;
     for(int x=0;x<header_num+indirect_num;x++){

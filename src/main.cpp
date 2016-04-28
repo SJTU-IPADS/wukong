@@ -13,31 +13,6 @@
 
 using namespace std;
 
-void* Run_SendAndRecv(void *ptr) {
-	struct thread_cfg *cfg = (struct thread_cfg*) ptr;
-	if(cfg->t_id >= cfg->client_num){
-		for(int i=0;i<cfg->m_num;i++){
-			for(int j=0;j<cfg->client_num;j++){
-				cfg->node->Recv();
-			}
-		}
-		string message="("+to_string(cfg->m_id)+
-						","+to_string(cfg->t_id)+
-						") recv all messages";
-		cout<<message<<endl;
-	}else {
-		for(int i=0;i<cfg->m_num;i++){
-			for(int j=0;j<cfg->server_num;j++){
-				cfg->node->Send(i,cfg->client_num+j,"test");
-			}
-		}
-		string message="("+to_string(cfg->m_id)+
-						","+to_string(cfg->t_id)+
-						") send all messages";
-		cout<<message<<endl;
-	}
-}
-
 int socket_0[] = {
   0,2,4,6,8,10,12,14,16,18
 };
@@ -90,8 +65,6 @@ int main(int argc, char * argv[]) {
 	rdma->Servicing();
 	rdma->Connect();
 
-	string_server str_server(global_input_folder);
-	distributed_graph graph(world,rdma,global_input_folder);
 	thread_cfg* cfg_array= new thread_cfg[global_num_thread];
 	for(int i=0;i<global_num_thread;i++){
 		cfg_array[i].t_id=i;
@@ -105,7 +78,49 @@ int main(int argc, char * argv[]) {
 		cfg_array[i].init();
 	}
 
+    bool get_back=true;
+	for(int size=8;size<1000000;size*=2){
+		if(world.rank()==0){
+			string str;
+			str.resize(size);
+            for(int i=0;i<str.size();i++){
+                str[i]=(i*i*i);
+            }
+			uint64_t t1,t2,t_mid;
+            int use_rdma=0;
+            for(int i=0;i<5;i++){
+                t1=timer::get_usec();
+    			if(global_use_rbf){
+                    rdma->rbfSend(0,1, 0, str.c_str(),str.size());
+                    t_mid=timer::get_usec();
+                    if(get_back)str=rdma->rbfRecv(0);
+                    use_rdma=1;
+    			} else {
+    				cfg_array[0].node->Send(1,0,str);
+                    t_mid=timer::get_usec();
+    				if(get_back)str=cfg_array[0].node->Recv();
+    			}
+                t2=timer::get_usec();
+                cout<<t_mid-t1<<" usec for send; "<<t2-t1<<" usec for total & size= "<<size <<endl;
+            }
+		} else {
+            for(int i=0;i<15;i++){
+    			if(global_use_rbf){
+                    string str = rdma->rbfRecv(0);
+                    if(get_back)rdma->rbfSend(0,0, 0, str.c_str(),str.size());
+    			} else {
+    				string str=cfg_array[0].node->Recv();
+    				if(get_back)cfg_array[0].node->Send(0,0,str);
+    			}
+            }
+		}
+	}
+	sleep(1);
+	return 0;
 
+
+	string_server str_server(global_input_folder);
+	distributed_graph graph(world,rdma,global_input_folder);
 	client** client_array=new client*[global_num_client];
 	for(int i=0;i<global_num_client;i++){
 		client_array[i]=new client(&cfg_array[i],&str_server);
