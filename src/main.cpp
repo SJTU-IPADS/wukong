@@ -77,7 +77,7 @@ int main(int argc, char * argv[]) {
 		cfg_array[i].node=new Network_Node(cfg_array[i].m_id,cfg_array[i].t_id,string(argv[2]));
 		cfg_array[i].init();
 	}
-
+/*
     bool get_back=true;
 	for(int size=8;size<1000000;size*=2){
 		if(world.rank()==0){
@@ -117,7 +117,7 @@ int main(int argc, char * argv[]) {
 	}
 	sleep(1);
 	return 0;
-
+*/
 
 	string_server str_server(global_input_folder);
 	distributed_graph graph(world,rdma,global_input_folder);

@@ -35,7 +35,7 @@ distributed_graph::distributed_graph(boost::mpi::communicator& _world,
         //triple_spo[t].clear();
 		//triple_ops[t].clear();
 	}
-    local_storage.init_index_table();
+    //local_storage.init_index_table();
     cout<<world.rank()<<" finished "<<endl;
     local_storage.print_memory_usage();
 }

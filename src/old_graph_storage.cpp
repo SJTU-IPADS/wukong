@@ -141,7 +141,50 @@ void old_graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,vector<
 	}
 }
 void old_graph_storage::print_memory_usage(){
+    uint64_t used_header_slot=0;
+    for(int x=0;x<header_num+indirect_num;x++){
+		for(int y=0;y<cluster_size-1;y++){
+			uint64_t i=x*cluster_size+y;
+			if(vertex_addr[i].key==local_key()){
+				//empty slot, skip it
+				continue;
+			}
+            used_header_slot++;
+        }
+    }
+    cout<<"graph_storage direct_header= "<<header_num*cluster_size*sizeof(vertex) / 1048576<<" MB "<<endl;
+    cout<<"                  real_data= "<<used_header_slot*sizeof(vertex) / 1048576<<" MB "<<endl;
+    cout<<"                   next_ptr= "<<header_num*sizeof(vertex) / 1048576<<" MB "<<endl;
+    cout<<"                 empty_slot= "<<(header_num*cluster_size-header_num-used_header_slot)
+                                                            *sizeof(vertex) / 1048576<<" MB "<<endl;
 
+    uint64_t used_indirect_slot=0;
+    uint64_t used_indirect_bucket=0;
+    for(int x=header_num;x<header_num+indirect_num;x++){
+        bool all_empty=true;
+		for(int y=0;y<cluster_size-1;y++){
+			uint64_t i=x*cluster_size+y;
+			if(vertex_addr[i].key==local_key()){
+				//empty slot, skip it
+				continue;
+			}
+            all_empty=false;
+            used_indirect_slot++;
+        }
+        if(!all_empty){
+            used_indirect_bucket++;
+        }
+    }
+    cout<<"graph_storage indirect_header= "<<indirect_num*cluster_size*sizeof(vertex) / 1048576<<" MB "<<endl;
+    cout<<"               not_empty_data= "<<used_indirect_bucket*cluster_size*sizeof(vertex) / 1048576<<" MB "<<endl;
+    cout<<"                    real_data= "<<used_indirect_slot*sizeof(vertex) / 1048576<<" MB "<<endl;
+
+
+    cout<<"graph_storage use "<<used_indirect_num <<" / " <<indirect_num 	<<" indirect_num"<<endl;
+    cout<<"graph_storage use "<<slot_num*sizeof(vertex) / 1048576<<" MB for vertex data"<<endl;
+
+	cout<<"graph_storage edge_data= "<<new_edge_ptr*sizeof(edge)/1048576<<"/"
+							<<max_edge_ptr*sizeof(edge)/1048576<<" MB "<<endl;
 }
 
 vertex old_graph_storage::get_vertex_local(local_key key){

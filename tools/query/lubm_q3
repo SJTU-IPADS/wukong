@@ -3,6 +3,16 @@ PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
 SELECT ?X ?Y ?Z
 WHERE
 {
+?X  __PREDICT__  ub:undergraduateDegreeFrom  <-
+?X  rdf:type ub:UndergraduateStudent .
+?X  ub:memberOf ?Z .
+?Z  rdf:type ub:Department .
+?Z  ub:subOrganizationOf ?Y .
+?Y  rdf:type ub:University .
+?X  ub:undergraduateDegreeFrom ?Y .
+}
+
+{
 ?Y  rdf:type ub:University <-
 ?X  ub:undergraduateDegreeFrom ?Y <-
 ?X  rdf:type ub:UndergraduateStudent .
@@ -12,15 +22,7 @@ WHERE
 }
 
 
-{
-?X  __PREDICT__  ub:undergraduateDegreeFrom  <-
-?X  rdf:type ub:UndergraduateStudent .
-?X  ub:memberOf ?Z .
-?Z  rdf:type ub:Department .
-?Z  ub:subOrganizationOf ?Y .
-?Y  rdf:type ub:University .
-?X  ub:undergraduateDegreeFrom ?Y .
-}
+
 
 
 WHERE
