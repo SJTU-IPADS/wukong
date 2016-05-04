@@ -96,7 +96,10 @@ uint64_t old_graph_storage::atomic_alloc_edges(uint64_t num_edge){
 }
 
 void old_graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,vector<edge_triple>& vec_ops){
+
     uint64_t curr_edge_ptr=atomic_alloc_edges(2* (vec_spo.size()+vec_ops.size()));
+    uint64_t total_size=2* (vec_spo.size()+vec_ops.size());
+    uint64_t curr_edge_ptr_old=curr_edge_ptr;
     uint64_t start;
 	start=0;
 	while(start<vec_spo.size()){
@@ -139,6 +142,7 @@ void old_graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,vector<
         curr_edge_ptr+=(end-start);
 		start=end;
 	}
+    assert(curr_edge_ptr_old+total_size==curr_edge_ptr);
 }
 void old_graph_storage::print_memory_usage(){
     uint64_t used_header_slot=0;

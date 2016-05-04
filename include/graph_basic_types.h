@@ -93,8 +93,8 @@ struct local_key{
 };
 
 struct local_val{
-	uint64_t size:24;
-	uint64_t ptr:40;
+	uint64_t size:28;
+	uint64_t ptr:36;
 	local_val():size(0),ptr(0){
 		size-=1;
 		ptr-=1;

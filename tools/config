@@ -1,6 +1,6 @@
 global_use_rbf			1
 global_use_rdma			1
-global_rdma_threshold	300
+global_rdma_threshold	0
 global_num_server		16
 global_num_client		1
 global_batch_factor		10
@@ -20,5 +20,5 @@ global_hash_header_million	520
 global_enable_workstealing	0
 global_enable_index_partition	1
 global_verbose	0
-global_perslot_msg_mb_tmp 12
+global_total_memory_gb_tmp 12
 global_hash_header_million_tmp	520

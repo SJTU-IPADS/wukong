@@ -558,6 +558,7 @@ void server::run(){
         // step 2: handle it
         if(r.is_request()){
             r.id=cfg->get_inc_id();
+            int before=r.row_num();
             execute(r);
         } else {
             //r is reply
