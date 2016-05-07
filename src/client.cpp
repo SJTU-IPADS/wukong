@@ -29,8 +29,8 @@ void client::Send(request_or_reply& req){
 //    int mid=cfg->client_num + server_per_client*cfg->t_id + cfg->get_random() % server_per_client;
 
     // random
-    int mid=cfg->client_num + cfg->get_random() % cfg->server_num;
-    SendR(cfg,req.first_target,mid,req);
+    int tid=cfg->client_num + cfg->get_random() % cfg->server_num;
+    SendR(cfg,req.first_target,tid,req);
 }
 
 request_or_reply client::Recv(){

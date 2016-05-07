@@ -13,6 +13,7 @@ join
 ?Z  rdf:type ub:Department ->
 }
 
+
 {
 ?Y  rdf:type ub:University <-
 ?X  ub:undergraduateDegreeFrom ?Y <-

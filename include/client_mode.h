@@ -6,6 +6,7 @@
 #include "batch_logger.h"
 
 #include <boost/unordered_map.hpp>
+#include <set>
 
 using namespace std;
 

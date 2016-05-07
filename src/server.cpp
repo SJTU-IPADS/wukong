@@ -48,6 +48,7 @@ void server::known_to_unknown(request_or_reply& req){
         int edge_num=0;
         edge* edge_ptr;
         edge_ptr=g.get_edges_global(cfg->t_id, prev_id,direction,predict,&edge_num);
+
         for(int k=0;k<edge_num;k++){
             req.append_row_to(i,updated_result_table);
             updated_result_table.push_back(edge_ptr[k].val);

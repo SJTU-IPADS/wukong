@@ -117,8 +117,7 @@ int sparql_parser::str2id(string& str){
         return str_server->str2id[str];
     }
 }
-void sparql_parser::do_parse(string filename){
-    vector<string> token_vec=get_token_vec(filename);
+void sparql_parser::do_parse(vector<string>& token_vec){
     if(!valid) return ;
 
     remove_header(token_vec);
@@ -128,7 +127,7 @@ void sparql_parser::do_parse(string filename){
     if(!valid) return ;
 
     if(token_vec.size()%4!=0){
-        cout<<"[error token number] "<<filename<<endl;
+        cout<<"[error token number] "<<endl;
         valid=false;
         return ;
     }
@@ -156,7 +155,7 @@ void sparql_parser::do_parse(string filename){
             req_template.cmd_chains.push_back(ids[2]);
             iter+=4;
         } else {
-            cout<<"[error seperator] "<<filename<<endl;
+            cout<<"[error seperator] "<<endl;
             valid=false;
             return ;
         }
@@ -171,7 +170,8 @@ void sparql_parser::do_parse(string filename){
 
 bool sparql_parser::parse(string filename,request_or_reply& r){
     clear();
-    do_parse(filename);
+    vector<string> token_vec=get_token_vec(filename);
+    do_parse(token_vec);
     if(!valid){
         return false;
     }
@@ -192,10 +192,42 @@ bool sparql_parser::parse(string filename,request_or_reply& r){
     r.cmd_chains=req_template.cmd_chains;
     return true;
 };
-
+bool sparql_parser::parse_string(string input_str,request_or_reply& r){
+    clear();
+    std::stringstream ss(input_str);
+    string str;
+    vector<string> token_vec;
+    while(ss>>str){
+        token_vec.push_back(str);
+        if(str=="}"){
+            break;
+        }
+    }
+    do_parse(token_vec);
+    if(!valid){
+        return false;
+    }
+    if(req_template.place_holder_position.size()!=0){
+        cout<<"[error] request with place_holder"<<endl;
+        return false;
+    }
+    r=request_or_reply();
+    if(join_step>=0){
+        vector<int> join_vec;
+        join_vec.push_back(0);
+        join_vec.push_back(0);
+        join_vec.push_back(join_cmd); //means join
+        join_vec.push_back(join_step+1); // because we insert a new cmd in the middle
+        req_template.cmd_chains.insert(req_template.cmd_chains.begin()+fork_step*4,
+                                                join_vec.begin(),join_vec.end());
+    }
+    r.cmd_chains=req_template.cmd_chains;
+    return true;
+};
 bool sparql_parser::parse_template(string filename,request_template& r){
     clear();
-    do_parse(filename);
+    vector<string> token_vec=get_token_vec(filename);
+    do_parse(token_vec);
     if(!valid){
         return false;
     }

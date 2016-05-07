@@ -84,6 +84,213 @@ void display_help(client* clnt){
 	}
 }
 
+bool simulate_execute_first_step(client* clnt,string cmd,request_or_reply& reply){
+	request_or_reply request;
+	bool success=clnt->parser.parse_string(cmd,request);
+	if(!success){
+		cout<<"sparql parse_string error"<<endl;
+		return false;
+	}
+	request.silent=false;
+    clnt->Send(request);
+    reply=clnt->Recv();
+	cout<<"result size:"<<reply.silent_row_num<<endl;
+	return true;
+}
+bool simulate_execute_other_step(client* clnt,string cmd,request_or_reply& reply,set<int>& s){
+	vector<request_or_reply> request_vec;
+	request_vec.resize(clnt->cfg->m_num);
+	for(int i=0;i<clnt->cfg->m_num;i++){
+		bool success=clnt->parser.parse_string(cmd,request_vec[i]);
+		request_vec[i].set_column_num(1);
+		request_vec[i].silent=false;
+		if(!success){
+			cout<<"sparql parse_string error"<<endl;
+			return false;
+		}
+	}
+	for(set<int>::iterator iter=s.begin();iter!=s.end();iter++){
+		int m_id= mymath::hash_mod(*iter,clnt->cfg->m_num);
+		request_vec[m_id].result_table.push_back(*iter);
+	}
+	for(int i=0;i<clnt->cfg->m_num;i++){
+		clnt->GetId(request_vec[i]);
+		SendR(clnt->cfg, i ,clnt->cfg->client_num,request_vec[i]);
+	}
+	reply= RecvR(clnt->cfg);
+	for(int i=0;i<clnt->cfg->m_num -1;i++){
+		request_or_reply r = RecvR(clnt->cfg);
+		reply.silent_row_num +=r.silent_row_num;
+		int new_size=r.result_table.size()+reply.result_table.size();
+		reply.result_table.reserve(new_size);
+		reply.result_table.insert( reply.result_table.end(), r.result_table.begin(), r.result_table.end());
+	}
+	cout<<"result size:"<<reply.silent_row_num<<endl;
+	return true;
+}
+set<int> remove_dup(request_or_reply& reply,int col){
+	set<int> s;
+	for(int i=0;i<reply.row_num();i++){
+        int id=reply.get_row_column(i,col);
+        s.insert(id);
+    }
+	return s;
+}
+
+void simulate_trinity_q6(client* clnt){
+	if(clnt->cfg->m_id!=0 || clnt->cfg->t_id!=0){
+		return ;
+	}
+	string header="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> "
+	"PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#> SELECT * WHERE { ";
+
+	string part1="?Y  ub:subOrganizationOf   <http://www.University0.edu>    <-  "
+				;
+	string part2= "?Y  rdf:type   ub:Department . "
+				  "?X  ub:worksFor ?Y    <- "
+				;
+	string part3="?X  rdf:type ub:FullProfessor . "
+				;
+
+	request_or_reply r1;
+	request_or_reply r2;
+	request_or_reply r3;
+	if(!simulate_execute_first_step(clnt,header+part1+" }",r1)){
+		return ;
+	}
+	set<int> s1=remove_dup(r1,0);
+	cout<<"result size after remove_dup:"<<s1.size()<<endl;
+
+	if(!simulate_execute_other_step(clnt,header+part2+" }",r2,s1)){
+		return ;
+	}
+	set<int> s2=remove_dup(r2,1);
+	cout<<"result size after remove_dup:"<<s2.size()<<endl;
+
+	if(!simulate_execute_other_step(clnt,header+part3+" }",r3,s2)){
+		return ;
+	}
+	set<int> s3=remove_dup(r3,0);
+	cout<<"result size after remove_dup:"<<s3.size()<<endl;
+
+//two-step join
+	boost::unordered_map<int,vector<int> > hashtable1;
+	for(int i=0;i<r2.row_num();i++){
+		int v1=r2.get_row_column(i,0);
+		int v2=r2.get_row_column(i,1);
+		hashtable1[v1].push_back(v2);
+	}
+	vector<int> updated_result_table;
+	for(int i=0;i<r1.row_num();i++){
+		int vid=r1.get_row_column(i,0);
+		if(hashtable1.find(vid)!=hashtable1.end()){
+			for(int k=0;k<hashtable1[vid].size();k++){
+				r1.append_row_to(i,updated_result_table);
+	            updated_result_table.push_back(hashtable1[vid][k]);
+			}
+		}
+	}
+	r1.set_column_num(r1.column_num()+1);
+    r1.result_table.swap(updated_result_table);
+	updated_result_table.clear();
+
+	boost::unordered_set<int > hashset2;
+	for(int i=0;i<r3.row_num();i++){
+		int v1=r3.get_row_column(i,0);
+		hashset2.insert(v1);
+	}
+	for(int i=0;i<r1.row_num();i++){
+		int v1=r1.get_row_column(i,0);
+		int v2=r1.get_row_column(i,1);
+		if(hashset2.find(v2)!=hashset2.end()){
+			r1.append_row_to(i,updated_result_table);
+		}
+	}
+	r1.result_table.swap(updated_result_table);
+	cout<<"final join result size:"<<r1.row_num()<<endl;
+
+}
+void simulate_trinity_q7(client* clnt){
+	if(clnt->cfg->m_id!=0 || clnt->cfg->t_id!=0){
+		return ;
+	}
+	string header="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> "
+	"PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#> SELECT * WHERE { ";
+
+	string part1="?Y  rdf:type ub:FullProfessor <-  "
+				"?Y  ub:teacherOf ?Z . "
+				;
+	string part2=
+				"?Z  rdf:type  ub:Course . "
+				 "?X  ub:takesCourse ?Z <- "
+				;
+	string part3="?X  ub:advisor    ?Y . "
+				 "?X  rdf:type ub:UndergraduateStudent . "
+				;
+
+	request_or_reply r1;
+	request_or_reply r2;
+	request_or_reply r3;
+	if(!simulate_execute_first_step(clnt,header+part1+" }",r1)){
+		return ;
+	}
+	set<int> s1=remove_dup(r1,1);
+	cout<<"result size after remove_dup:"<<s1.size()<<endl;
+
+	if(!simulate_execute_other_step(clnt,header+part2+" }",r2,s1)){
+		return ;
+	}
+	set<int> s2=remove_dup(r2,1);
+	cout<<"result size after remove_dup:"<<s2.size()<<endl;
+
+	if(!simulate_execute_other_step(clnt,header+part3+" }",r3,s2)){
+		return ;
+	}
+	set<int> s3=remove_dup(r3,1);
+	cout<<"result size after remove_dup:"<<s3.size()<<endl;
+
+//two-step join
+	boost::unordered_map<int,vector<int> > hashtable1;
+	for(int i=0;i<r2.row_num();i++){
+		int v1=r2.get_row_column(i,0);
+		int v2=r2.get_row_column(i,1);
+		hashtable1[v1].push_back(v2);
+	}
+	vector<int> updated_result_table;
+	for(int i=0;i<r1.row_num();i++){
+		int vid=r1.get_row_column(i,1);
+		if(hashtable1.find(vid)!=hashtable1.end()){
+			for(int k=0;k<hashtable1[vid].size();k++){
+				r1.append_row_to(i,updated_result_table);
+	            updated_result_table.push_back(hashtable1[vid][k]);
+			}
+		}
+	}
+	r1.set_column_num(r1.column_num()+1);
+    r1.result_table.swap(updated_result_table);
+	updated_result_table.clear();
+
+	boost::unordered_map<int,vector<int> > hashtable2;
+	for(int i=0;i<r3.row_num();i++){
+		int v1=r3.get_row_column(i,0);
+		int v2=r3.get_row_column(i,1);
+		hashtable2[v1].push_back(v2);
+	}
+	for(int i=0;i<r1.row_num();i++){
+		int v1=r1.get_row_column(i,0);
+		int v2=r1.get_row_column(i,2);
+		if(hashtable2.find(v2)!=hashtable2.end()){
+			for(int k=0;k<hashtable2[v2].size();k++){
+				if(v1==hashtable2[v2][k]){
+					r1.append_row_to(i,updated_result_table);
+				}
+			}
+		}
+	}
+	r1.result_table.swap(updated_result_table);
+	cout<<"final join result size:"<<r1.row_num()<<endl;
+}
+
 
 void iterative_shell(client* clnt){
 	//ClientBarrier(clnt->cfg);
@@ -119,6 +326,10 @@ void iterative_shell(client* clnt){
 
 		if(input_str=="help"){
 			display_help(clnt);
+		} else if(input_str=="trinity_q6"){
+			simulate_trinity_q6(clnt);
+		} else if(input_str=="trinity_q7"){
+			simulate_trinity_q7(clnt);
 		} else if(input_str=="reconfig"){
 			if(cfg->t_id==0){
 				load_changeable_cfg();
@@ -319,7 +530,7 @@ void nonblocking_execute(client* clnt,string mix_config,batch_logger& logger){
 			}
 		}
 		for(int i=0;i<sleep_round;i++){
-			timer::myusleep(10);
+			timer::myusleep(100);
 			request_or_reply reply;
 			bool success=TryRecvR(clnt->cfg,reply);
 			while(success){

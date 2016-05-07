@@ -12,11 +12,8 @@ include_directories(include)
 include_directories(utils)
 file(GLOB SOURCES "src/*.cpp")
 
-# list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
-# list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/micro_main.cpp)
-
 add_executable(wukong ${SOURCES} "test/main.cpp")
 target_link_libraries( wukong zmq rt ibverbs tbb ${BOOST_ROOT}/lib/libboost_mpi.a ${BOOST_ROOT}/lib/libboost_serialization.a)
 
-add_executable(test_rdma ${SOURCES} "test/test_rdma.cpp")
-target_link_libraries( test_rdma zmq rt ibverbs tbb ${BOOST_ROOT}/lib/libboost_mpi.a ${BOOST_ROOT}/lib/libboost_serialization.a)
+# add_executable(test_rdma ${SOURCES} "test/test_rdma.cpp")
+# target_link_libraries( test_rdma zmq rt ibverbs tbb ${BOOST_ROOT}/lib/libboost_mpi.a ${BOOST_ROOT}/lib/libboost_serialization.a)

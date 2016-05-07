@@ -6,5 +6,5 @@ WHERE
 ?Y  ub:subOrganizationOf   <http://www.University0.edu>    <-
 ?Y  rdf:type   ub:Department .
 ?X  ub:worksFor ?Y    <-
-?X  rdf:type ub:FullProfessor .
 }
+?X  rdf:type ub:FullProfessor .

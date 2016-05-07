@@ -29,7 +29,7 @@ void pin_to_core(size_t core) {
 
 
 const int start_sz=4;
-const int end_sz=8192;
+const int end_sz=8192*256;
 void record_result(struct thread_cfg *cfg){
     int sz=start_sz;
     while(true){
@@ -81,7 +81,7 @@ void* Run(void *ptr) {
         int curr_index=0;
         int sz=start_sz;
         while(sz<=end_sz){
-            uint64_t nops=5000;
+            uint64_t nops=50;
             buffer.resize(3);
             buffer[0]=cfg->m_id;
             buffer[1]=cfg->t_id;

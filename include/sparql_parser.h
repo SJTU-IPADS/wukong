@@ -4,6 +4,7 @@
 #include <vector>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <assert.h>
 #include <boost/unordered_map.hpp>
 #include <boost/algorithm/string.hpp>
@@ -33,7 +34,8 @@ class sparql_parser{
     void replace_prefix(vector<string>& token_vec);
     int str2id(string& string);
 
-    void do_parse(string filename);
+    void do_parse(vector<string>& token_vec);
+
 public:
     boost::unordered_map<string,vector<int>* > type_to_idvec; // translate %type to a vector
 
@@ -41,5 +43,6 @@ public:
 
     sparql_parser(string_server* _str_server);
     bool parse(string filename,request_or_reply& r);
+    bool parse_string(string input_str,request_or_reply& r);
     bool parse_template(string filename,request_template& r);
 };

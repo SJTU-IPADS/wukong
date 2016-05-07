@@ -37,7 +37,7 @@ distributed_graph::distributed_graph(boost::mpi::communicator& _world,
 	}
     local_storage.init_index_table();
     cout<<world.rank()<<" finished "<<endl;
-    local_storage.print_memory_usage();
+    //local_storage.print_memory_usage();
 }
 void distributed_graph::load_data(vector<string>& file_vec){
     sort(file_vec.begin(),file_vec.end());
