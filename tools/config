@@ -1,4 +1,4 @@
-global_use_rbf			0
+global_use_rbf			0  
 global_use_rdma			1
 global_rdma_threshold	300
 global_num_server		16

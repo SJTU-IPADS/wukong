@@ -98,27 +98,36 @@ bool simulate_execute_first_step(client* clnt,string cmd,request_or_reply& reply
 	return true;
 }
 bool simulate_execute_other_step(client* clnt,string cmd,request_or_reply& reply,set<int>& s){
-	vector<request_or_reply> request_vec;
+	vector<vector<request_or_reply> > request_vec;
+	int num_thread=global_num_server;
+
 	request_vec.resize(clnt->cfg->m_num);
-	for(int i=0;i<clnt->cfg->m_num;i++){
-		bool success=clnt->parser.parse_string(cmd,request_vec[i]);
-		request_vec[i].set_column_num(1);
-		request_vec[i].silent=false;
-		if(!success){
-			cout<<"sparql parse_string error"<<endl;
-			return false;
+	for(int i=0;i<request_vec.size();i++){
+		request_vec[i].resize(num_thread);
+		for(int j=0;j<num_thread;j++){
+			bool success=clnt->parser.parse_string(cmd,request_vec[i][j]);
+			request_vec[i][j].set_column_num(1);
+			request_vec[i][j].silent=false;
+			if(!success){
+				cout<<"sparql parse_string error"<<endl;
+				return false;
+			}
 		}
 	}
+
 	for(set<int>::iterator iter=s.begin();iter!=s.end();iter++){
 		int m_id= mymath::hash_mod(*iter,clnt->cfg->m_num);
-		request_vec[m_id].result_table.push_back(*iter);
+		int t_id= mymath::hash_mod( (*iter)/clnt->cfg->m_num , num_thread);
+		request_vec[m_id][t_id].result_table.push_back(*iter);
 	}
-	for(int i=0;i<clnt->cfg->m_num;i++){
-		clnt->GetId(request_vec[i]);
-		SendR(clnt->cfg, i ,clnt->cfg->client_num,request_vec[i]);
+	for(int i=0;i<request_vec.size();i++){
+		for(int j=0;j<num_thread;j++){
+			clnt->GetId(request_vec[i][j]);
+			SendR(clnt->cfg, i , j+clnt->cfg->client_num,request_vec[i][j]);
+		}
 	}
 	reply= RecvR(clnt->cfg);
-	for(int i=0;i<clnt->cfg->m_num -1;i++){
+	for(int i=0;i<clnt->cfg->m_num * num_thread -1;i++){
 		request_or_reply r = RecvR(clnt->cfg);
 		reply.silent_row_num +=r.silent_row_num;
 		int new_size=r.result_table.size()+reply.result_table.size();
@@ -155,6 +164,7 @@ void simulate_trinity_q6(client* clnt){
 	request_or_reply r1;
 	request_or_reply r2;
 	request_or_reply r3;
+
 	if(!simulate_execute_first_step(clnt,header+part1+" }",r1)){
 		return ;
 	}
@@ -172,7 +182,6 @@ void simulate_trinity_q6(client* clnt){
 	}
 	set<int> s3=remove_dup(r3,0);
 	cout<<"result size after remove_dup:"<<s3.size()<<endl;
-
 //two-step join
 	boost::unordered_map<int,vector<int> > hashtable1;
 	for(int i=0;i<r2.row_num();i++){
@@ -231,23 +240,58 @@ void simulate_trinity_q7(client* clnt){
 	request_or_reply r1;
 	request_or_reply r2;
 	request_or_reply r3;
+	uint64_t t[20];
+	t[0]=timer::get_usec();
 	if(!simulate_execute_first_step(clnt,header+part1+" }",r1)){
 		return ;
 	}
+	t[1]=timer::get_usec();
 	set<int> s1=remove_dup(r1,1);
+	t[2]=timer::get_usec();
 	cout<<"result size after remove_dup:"<<s1.size()<<endl;
 
+	t[3]=timer::get_usec();
 	if(!simulate_execute_other_step(clnt,header+part2+" }",r2,s1)){
 		return ;
 	}
+	t[4]=timer::get_usec();
 	set<int> s2=remove_dup(r2,1);
+	t[5]=timer::get_usec();
 	cout<<"result size after remove_dup:"<<s2.size()<<endl;
 
+	t[6]=timer::get_usec();
 	if(!simulate_execute_other_step(clnt,header+part3+" }",r3,s2)){
 		return ;
 	}
+	t[7]=timer::get_usec();
 	set<int> s3=remove_dup(r3,1);
+	t[8]=timer::get_usec();
 	cout<<"result size after remove_dup:"<<s3.size()<<endl;
+
+	cout<<t[1]-t[0]<<"   "<<t[2]-t[1]<<" usec"<<endl;
+	cout<<t[4]-t[3]<<"   "<<t[5]-t[4]<<" usec"<<endl;
+	cout<<t[7]-t[6]<<"   "<<t[8]-t[7]<<" usec"<<endl;
+
+	t[9]=timer::get_usec();
+
+	ofstream f1("file_yz");
+	ofstream f2("file_zx");
+	ofstream f3("file_xy");
+	for(int i=0;i<r1.row_num();i++){
+		int v1=r1.get_row_column(i,0);
+		int v2=r1.get_row_column(i,1);
+		f1<<v1<<"\t"<<v2<<endl;
+	}
+	for(int i=0;i<r2.row_num();i++){
+		int v1=r2.get_row_column(i,0);
+		int v2=r2.get_row_column(i,1);
+		f2<<v1<<"\t"<<v2<<endl;
+	}
+	for(int i=0;i<r3.row_num();i++){
+		int v1=r3.get_row_column(i,0);
+		int v2=r3.get_row_column(i,1);
+		f3<<v1<<"\t"<<v2<<endl;
+	}
 
 //two-step join
 	boost::unordered_map<int,vector<int> > hashtable1;
@@ -288,7 +332,10 @@ void simulate_trinity_q7(client* clnt){
 		}
 	}
 	r1.result_table.swap(updated_result_table);
+	t[10]=timer::get_usec();
 	cout<<"final join result size:"<<r1.row_num()<<endl;
+	cout<<t[10]-t[9]<<" usec for join-time"<<endl;
+
 }
 
 
