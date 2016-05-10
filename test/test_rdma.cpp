@@ -30,8 +30,11 @@ void pin_to_core(size_t core) {
 
 const int start_sz=4;
 const int end_sz=8192*256;
+//nops=500;
 void record_result(struct thread_cfg *cfg){
     int sz=start_sz;
+    uint64_t t1=timer::get_usec();
+    uint64_t t2=timer::get_usec();
     while(true){
         uint64_t throughput=0;
         for(int m=1;m<cfg->m_num;m++){
@@ -39,12 +42,15 @@ void record_result(struct thread_cfg *cfg){
                 throughput+=RecvObject<uint64_t>(cfg);
             }
         }
-        cout<<"throughput of sz="<<sz <<" is "<<throughput<<endl;
+        t2=timer::get_usec();
+        //cout<<"throughput of sz="<<sz <<" is "<<throughput<<endl;
+        cout<<"throughput of sz="<<sz <<" is "<< 500L*(cfg->m_num-1)*(cfg->t_num-1)*1000000/((t2 - t1) )<<endl;
         for(int m=1;m<cfg->m_num;m++){
             for(int t=1;t<cfg->t_num;t++){
                 SendObject<uint64_t>(cfg,m,t,throughput); // next-round
             }
         }
+        t1=timer::get_usec();
         sz=sz*2;
     }
 }
@@ -81,7 +87,7 @@ void* Run(void *ptr) {
         int curr_index=0;
         int sz=start_sz;
         while(sz<=end_sz){
-            uint64_t nops=50;
+            uint64_t nops=500;
             buffer.resize(3);
             buffer[0]=cfg->m_id;
             buffer[1]=cfg->t_id;
@@ -117,16 +123,16 @@ void* Run(void *ptr) {
             uint64_t t2=timer::get_usec();
             uint64_t throughput = nops*1000*1000/(t2-t1);
             SendObject<uint64_t>(cfg,0,0,throughput);
+            //cout<<throughput<<endl;
             RecvObject<uint64_t>(cfg);
-
-
+            //sleep(1);
             curr_index++;
             sz*=2;
         }
 
         /// test latency
         if(cfg->m_id==1 && cfg->t_id==1){
-            sleep(1);
+
             int curr_index=0;
             int sz=start_sz;
             while(sz<=end_sz){
