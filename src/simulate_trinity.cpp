@@ -152,7 +152,17 @@ void simulate_trinity_q2(client* clnt){
 		f2<<v1<<endl;
 	}
 
-
+	// vector<int> vec;
+	// vec.resize(11058812*2);
+	// uint64_t t1=timer::get_usec();
+	// vector<int> updated_result_table;
+	// updated_result_table.reserve(11058812*2);
+	// for(int i=0;i<vec.size();i++){
+	// 	updated_result_table.push_back(vec[i]);
+	// }
+	// uint64_t t2=timer::get_usec();
+	// cout<<"updated_result_table.size= "<<updated_result_table.size()<<endl;
+	// cout<<"q2 join in "<< t2-t1<<" usec"<<endl;
 }
 
 void simulate_trinity_q3(client* clnt){
@@ -415,6 +425,7 @@ void simulate_trinity_q7(client* clnt){
 	if(clnt->cfg->m_id!=0 || clnt->cfg->t_id!=0){
 		return ;
 	}
+/*
 	string header="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> "
 	"PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#> SELECT * WHERE { ";
 
@@ -527,5 +538,98 @@ void simulate_trinity_q7(client* clnt){
 	t[10]=timer::get_usec();
 	cout<<"final join result size:"<<r1.row_num()<<endl;
 	cout<<t[10]-t[9]<<" usec for join-time"<<endl;
+*/
 
+
+	string header="PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> "
+	"PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#> SELECT * WHERE { ";
+
+	string part1="?Y  rdf:type ub:FullProfessor <-  ?X  ub:advisor ?Y <-  " ;
+	string part2="?X  rdf:type ub:UndergraduateStudent .  ?X  ub:takesCourse ?Z . ";
+	string part3="?Z  rdf:type ub:Course .  ?Y  ub:teacherOf ?Z <- ";
+
+
+	request_or_reply r1;
+	request_or_reply r2;
+	request_or_reply r3;
+	if(!simulate_execute_first_step(clnt,header+part1+" }",r1)){
+		return ;
+	}
+	set<int> s1=remove_dup(r1,1);
+	cout<<"result size after remove_dup:"<<s1.size()<<endl;
+
+	if(!simulate_execute_other_step(clnt,header+part2+" }",r2,s1)){
+		return ;
+	}
+	set<int> s2=remove_dup(r2,1);
+	cout<<"result size after remove_dup:"<<s2.size()<<endl;
+
+	if(!simulate_execute_other_step(clnt,header+part3+" }",r3,s2)){
+		return ;
+	}
+	set<int> s3=remove_dup(r3,1);
+	cout<<"result size after remove_dup:"<<s3.size()<<endl;
+
+	ofstream f1("q7_step1_yx");
+	ofstream f2("q7_step2_xz");
+	ofstream f3("q7_step2_zy");
+	for(int i=0;i<r1.row_num();i++){
+		int v1=r1.get_row_column(i,0);
+		int v2=r1.get_row_column(i,1);
+		f1<<v1<<"\t"<<v2<<endl;
+	}
+	for(int i=0;i<r2.row_num();i++){
+		int v1=r2.get_row_column(i,0);
+		int v2=r2.get_row_column(i,1);
+		f2<<v1<<"\t"<<v2<<endl;
+	}
+	for(int i=0;i<r3.row_num();i++){
+		int v1=r3.get_row_column(i,0);
+		int v2=r3.get_row_column(i,1);
+		f3<<v1<<"\t"<<v2<<endl;
+	}
+
+	uint64_t t1=timer::get_usec();
+
+	boost::unordered_map<int,vector<int> > hashtable1;
+	for(int i=0;i<r2.row_num();i++){
+		int v1=r2.get_row_column(i,0);
+		int v2=r2.get_row_column(i,1);
+		hashtable1[v1].push_back(v2);
+	}
+	vector<int> updated_result_table;
+	for(int i=0;i<r1.row_num();i++){
+		int vid=r1.get_row_column(i,1);
+		if(hashtable1.find(vid)!=hashtable1.end()){
+			for(int k=0;k<hashtable1[vid].size();k++){
+				r1.append_row_to(i,updated_result_table);
+				updated_result_table.push_back(hashtable1[vid][k]);
+			}
+		}
+	}
+	r1.set_column_num(r1.column_num()+1);
+	r1.result_table.swap(updated_result_table);
+	updated_result_table.clear();
+
+	boost::unordered_map<int,vector<int> > hashtable2;
+	for(int i=0;i<r3.row_num();i++){
+		int v1=r3.get_row_column(i,0);
+		int v2=r3.get_row_column(i,1);
+		hashtable2[v1].push_back(v2);
+	}
+	for(int i=0;i<r1.row_num();i++){
+		int v1=r1.get_row_column(i,0);
+		int v2=r1.get_row_column(i,2);
+		if(hashtable2.find(v2)!=hashtable2.end()){
+			for(int k=0;k<hashtable2[v2].size();k++){
+				if(v1==hashtable2[v2][k]){
+					r1.append_row_to(i,updated_result_table);
+				}
+			}
+		}
+	}
+	r1.result_table.swap(updated_result_table);
+	uint64_t t2=timer::get_usec();
+	cout<<"final join result size:"<<r1.row_num()<<endl;
+	cout<<t2-t1<<" usec for join-time"<<endl;
 }

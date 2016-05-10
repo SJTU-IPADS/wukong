@@ -1,11 +1,11 @@
-global_use_rbf			0
+global_use_rbf			1
 global_use_rdma			1
 global_rdma_threshold	300
 global_num_server		16
 global_num_client		1
 global_batch_factor		20
 global_multithread_factor  16
-global_input_folder		/home/datanfs/nfs0/rdfdata/id_lubm_10240/
+global_input_folder		/home/datanfs/nfs0/rdfdata/id_watdiv100m/
 global_client_mode		0
 global_use_loc_cache	0
 global_load_minimal_index 1
@@ -16,7 +16,7 @@ global_use_multithread	0
 global_total_memory_gb	20
 global_perslot_msg_mb   256
 global_perslot_rdma_mb	128
-global_hash_header_million	700
+global_hash_header_million	1000
 global_enable_workstealing	0
 global_enable_index_partition	1
 global_verbose	0
