@@ -100,7 +100,10 @@ struct local_val{
 		ptr-=1;
 	}
 	local_val(uint64_t s,uint64_t p):size(s),ptr(p){
-
+		if(size!=s || ptr !=p){
+			std::cout<<"truncated: "<<"("<<s<<","<<p<<")=>"
+									<<"("<<size<<","<<ptr<<")"<<std::endl;
+		}
 	}
 	bool operator==(const local_val& another_val){
 		if(size==another_val.size

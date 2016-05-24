@@ -1,12 +1,15 @@
 
 # Dependence
 
+export WUKONG_ROOT=/home/sjx/graph-query
+
 ### Boost+mpi
 
-    cd /home/sjx/install/boost_1_58_0/  
+    cd  deps/
     tar jxvf  boost_1_58_0.tar.bz2  
-    cd /home/sjx/install/boost_1_58_0/boost_1_58_0  
-    ./bootstrap.sh --prefix=/home/sjx/install/boost_1_58_0/boost_1_58_0-install  
+    mkdir boost_1_58_0-install
+    ./bootstrap.sh --prefix=../boost_1_58_0-install  
+
 add following lines in project-config.jam  
 
     using mpi ;  
@@ -14,6 +17,7 @@ add following lines in project-config.jam
 install
 
     ./b2 install  
+
 
 ### intel-TBB
 
@@ -23,17 +27,35 @@ install
     cd tbb44_20151115oss;  
     make;  
 
-add following lines in ~/.bashrc  
+add following lines in ~/.bashrc (replace WUKONG_ROOT with real dirname)
 
-    source /home/sjx/install/tbb44_20151115oss/build/linux_intel64_gcc_cc4.8_libc2.19_kernel3.18.24+_release/tbbvars.sh
+    source ${WUKONG_ROOT}/deps/tbb44_20151115oss/build/linux_intel64_gcc_cc4.8_libc2.19_kernel3.18.24+_release/tbbvars.sh
 
 ### zeroMQ+ cpp-binding
+
+    http://zeromq.org/
+
+    cd  deps/
+    tar -zxvf zeromq-4.0.5.tar.gz
+    cd zeromq-4.0.5-install
+    ./configure --prefix=${WUKONG_ROOT}/deps/zeromq-4.0.5-install/
+    make
+    make install
+    cd ..
+    cp zmq.hpp  zeromq-4.0.5-install/include/
+
+add following lines in ~/.bashrc (replace WUKONG_ROOT with real dirname)   
+
+    export CPATH=${WUKONG_ROOT}/deps/zeromq-4.0.5-install/include:$CPATH
+    export LIBRARY_PATH=${WUKONG_ROOT}/deps/zeromq-4.0.5-install/lib:$LIBRARY_PATH
+    export LD_LIBRARY_PATH=${WUKONG_ROOT}/deps/zeromq-4.0.5-install/lib:$LD_LIBRARY_PATH
+
 ### RDMA
 
 # Compile
 
 1. copy wukong/ to all slaves  
-2. modify CMakeLists.txt to set BOOST_ROOT and CMAKE_CXX_COMPILER
+2. modify CMakeLists.txt to set CMAKE_CXX_COMPILER
 3. modify tools/sync.sh to set root_dir  
 4. modify tools/mpd.hosts to set ip addresses of slaves  
 5. compile and sync  
