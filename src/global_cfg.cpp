@@ -16,8 +16,6 @@ bool global_use_loc_cache;
 bool global_load_minimal_index;
 bool global_silent;
 int global_max_print_row;
-bool global_use_multithread;
-bool global_use_index_table;
 int global_total_memory_gb;
 int global_perslot_msg_mb;
 int global_perslot_rdma_mb;
@@ -37,9 +35,16 @@ void load_changeable_cfg(){
 		exit(0);
 	}
 	map<string,string> config_map;
-	while(file>>row>>val){
+	// while(file>>row>>val){
+	// 	config_map[row]=val;
+	// }
+	string line;
+	while (std::getline(file, line)) {
+	    istringstream iss(line);
+		iss >> row>>val;
 		config_map[row]=val;
 	}
+
 	global_batch_factor=atoi(config_map["global_batch_factor"].c_str());
 	global_use_loc_cache=atoi(config_map["global_use_loc_cache"].c_str());
 	global_silent=atoi(config_map["global_silent"].c_str());
@@ -58,7 +63,13 @@ void load_global_cfg(char* filename){
 		exit(0);
 	}
 	map<string,string> config_map;
-	while(file>>row>>val){
+	// while(file>>row>>val){
+	// 	config_map[row]=val;
+	// }
+	string line;
+	while (std::getline(file, line)) {
+	    istringstream iss(line);
+		iss >> row>>val;
 		config_map[row]=val;
 	}
 	global_use_rbf=atoi(config_map["global_use_rbf"].c_str());
@@ -74,8 +85,6 @@ void load_global_cfg(char* filename){
 	global_load_minimal_index=atoi(config_map["global_load_minimal_index"].c_str());
 	global_silent=atoi(config_map["global_silent"].c_str());
 	global_max_print_row=atoi(config_map["global_max_print_row"].c_str());
-	global_use_multithread=atoi(config_map["global_use_multithread"].c_str());
-	global_use_index_table=atoi(config_map["global_use_index_table"].c_str());
 	global_total_memory_gb=atoi(config_map["global_total_memory_gb"].c_str());
 	global_perslot_msg_mb=atoi(config_map["global_perslot_msg_mb"].c_str());
 	global_perslot_rdma_mb=atoi(config_map["global_perslot_rdma_mb"].c_str());
