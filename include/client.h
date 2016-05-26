@@ -10,14 +10,15 @@
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
 
-class client{
+
+class client {
 public:
 	thread_cfg* cfg;
 	string_server* str_server;
 	sparql_parser parser;
-    client(thread_cfg* _cfg,string_server* str_server);
+	client(thread_cfg* _cfg, string_server* str_server);
 	void GetId(request_or_reply& req);
 	void Send(request_or_reply& req);
 	request_or_reply Recv();
-	void print_result(request_or_reply& reply,int row_to_print);
+	void print_result(request_or_reply& reply, int row_to_print);
 };

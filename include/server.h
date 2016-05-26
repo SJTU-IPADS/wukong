@@ -1,4 +1,5 @@
 #pragma once
+
 #include "message_wrap.h"
 #include "distributed_graph.h"
 #include "query_basic_types.h"
@@ -9,9 +10,9 @@
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
 
-class server{
+class server {
     distributed_graph& g;
-	thread_cfg* cfg;
+    thread_cfg* cfg;
     wait_queue wqueue;
     uint64_t last_time;
     pthread_spinlock_t recv_lock;
@@ -34,20 +35,20 @@ class server{
 
     vector<request_or_reply> generate_sub_requests(request_or_reply& r);
     vector<request_or_reply> generate_mt_sub_requests(request_or_reply& r);
-    
+
     bool need_sub_requests(request_or_reply& req);
     bool execute_one_step(request_or_reply& req);
     void execute(request_or_reply& req);
 
     server** s_array;// array of server pointers
 
-
     //join related functions
     void handle_join(request_or_reply& req);
+
 public:
-    server(distributed_graph& _g,thread_cfg* _cfg);
-    void set_server_array(server** array){
-        s_array=array;
+    server(distributed_graph& _g, thread_cfg* _cfg);
+    void set_server_array(server** array) {
+        s_array = array;
     };
     void run();
 };
