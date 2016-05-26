@@ -1,5 +1,9 @@
 #pragma once
 
+#include "rdma_resource_fake.h"
+
+#ifndef USE_ZEROMQ
+
 #include "network_node.h"
 
 #pragma GCC diagnostic warning "-fpermissive"
@@ -363,3 +367,5 @@ struct normal_op_req
         return false;
     }
 };
+
+#endif

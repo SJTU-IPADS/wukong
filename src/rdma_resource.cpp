@@ -1,5 +1,8 @@
+
 #include "rdma_resource.h"
 #include <errno.h>
+
+#ifndef USE_ZEROMQ
 
 struct config_t rdma_config = {
   NULL,                         /* dev_name */
@@ -901,3 +904,5 @@ internal_rdtsc(void)
     }
 
   }
+
+#endif
