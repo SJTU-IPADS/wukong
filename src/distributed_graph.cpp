@@ -32,8 +32,6 @@ distributed_graph::distributed_graph(boost::mpi::communicator& _world,
 		local_storage.atomic_batch_insert(triple_spo[t],triple_ops[t]);
         vector<edge_triple>().swap(triple_spo[t]);
         vector<edge_triple>().swap(triple_ops[t]);
-        //triple_spo[t].clear();
-		//triple_ops[t].clear();
 	}
     local_storage.init_index_table();
     cout<<world.rank()<<" finished "<<endl;
@@ -90,13 +88,48 @@ void distributed_graph::load_data(vector<string>& file_vec){
     uint64_t t2=timer::get_usec();
 	cout<<(t2-t1)/1000<<" ms for loading files"<<endl;
 }
+void distributed_graph::load_data_from_allfiles(vector<string>& file_vec){
+    sort(file_vec.begin(),file_vec.end());
+    int nfile=file_vec.size();
+
+	#pragma omp parallel for num_threads(global_num_server)
+	for(int i=0;i<nfile;i++){
+		int localtid = omp_get_thread_num();
+        uint64_t max_size=mymath::floor(rdma->get_memorystore_size()/global_num_server,sizeof(uint64_t));
+        uint64_t offset= max_size * localtid;
+        uint64_t* local_buffer=(uint64_t*)(rdma->get_buffer()+offset);
+
+	    ifstream file(file_vec[i].c_str());
+		uint64_t s,p,o;
+		while(file>>s>>p>>o){
+			int s_mid=mymath::hash_mod(s,world.size());
+			int o_mid=mymath::hash_mod(o,world.size());
+			if(s_mid==world.rank() || o_mid==world.rank()){
+                *(local_buffer+(*local_buffer)*3+1)=s;
+                *(local_buffer+(*local_buffer)*3+2)=p;
+                *(local_buffer+(*local_buffer)*3+3)=o;
+                *local_buffer=*local_buffer+1;
+                if((*local_buffer+1)*3*sizeof(uint64_t) >=max_size){
+            		cout<<"[fail to execute load_data_from_allfiles] Out of memory"<<endl;
+            		exit(-1);
+            	}
+			}
+		}
+		file.close();
+	}
+}
 void distributed_graph::load_and_sync_data(vector<string>& file_vec){
-    load_data(file_vec);
+    // load_data(file_vec);
+    // int num_recv_block=world.size();
+
+    load_data_from_allfiles(file_vec);
+    int num_recv_block=global_num_server;
+
     uint64_t t1=timer::get_usec();
 	volatile int finished_count=0;
 	uint64_t total_count=0;
-	for(int mid=0;mid<world.size();mid++){
-		uint64_t max_size=mymath::floor(rdma->get_memorystore_size()/world.size(),sizeof(uint64_t));
+	for(int mid=0;mid< num_recv_block;mid++){
+		uint64_t max_size=mymath::floor(rdma->get_memorystore_size()/num_recv_block,sizeof(uint64_t));
 		uint64_t offset= max_size * mid;
 		uint64_t* recv_buffer=(uint64_t*)(rdma->get_buffer()+offset);
 		total_count+= *recv_buffer;
@@ -112,9 +145,9 @@ void distributed_graph::load_and_sync_data(vector<string>& file_vec){
     #pragma omp parallel for num_threads(nthread_parallel_load)
 	for(int t=0;t<nthread_parallel_load;t++){
 		int local_count=0;
-		for(int mid=0;mid<world.size();mid++){
+		for(int mid=0;mid<num_recv_block;mid++){
 			//recv from different machine
-			uint64_t max_size=mymath::floor(rdma->get_memorystore_size()/world.size(),sizeof(uint64_t));
+			uint64_t max_size=mymath::floor(rdma->get_memorystore_size()/num_recv_block,sizeof(uint64_t));
 			uint64_t offset= max_size * mid;
 			uint64_t* recv_buffer=(uint64_t*)(rdma->get_buffer()+offset);
 			uint64_t num_edge=*recv_buffer;

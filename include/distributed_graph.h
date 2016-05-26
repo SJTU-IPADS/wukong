@@ -33,6 +33,8 @@ class distributed_graph{
 	void inline send_edge(int localtid,int mid,uint64_t s,uint64_t p,uint64_t o);
 	void flush_edge(int localtid,int mid);
 	void load_data(vector<string>& file_vec);
+	void load_data_from_allfiles(vector<string>& file_vec);
+
     void load_and_sync_data(vector<string>& file_vec);
 public:
 	graph_storage local_storage;
