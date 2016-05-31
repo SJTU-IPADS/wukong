@@ -1,7 +1,8 @@
 #include "distributed_graph.h"
 
 distributed_graph::distributed_graph(boost::mpi::communicator& _world,
-                                     RdmaResource* _rdma, string dir_name): world(_world), rdma(_rdma) {
+                                     RdmaResource* _rdma, string dir_name): world(_world), rdma(_rdma)
+{
 	struct dirent *ptr;
 	DIR *dir;
 	dir = opendir(dir_name.c_str());
@@ -10,10 +11,11 @@ distributed_graph::distributed_graph(boost::mpi::communicator& _world,
 		cout << "Error folder: " << dir_name << " at node " << world.rank() << endl;
 		exit(-1);
 	}
+
 	while ((ptr = readdir(dir)) != NULL) {
-		if (ptr->d_name[0] == '.') {
+		if (ptr->d_name[0] == '.')
 			continue;
-		}
+
 		string fname(ptr->d_name);
 		string index_prefix = "index";
 		string data_prefix = "id";
@@ -27,6 +29,7 @@ distributed_graph::distributed_graph(boost::mpi::communicator& _world,
 	edge_num_per_machine.resize(world.size());
 	load_and_sync_data(filenames);
 	local_storage.init(rdma, world.size(), world.rank());
+
 	#pragma omp parallel for num_threads(nthread_parallel_load)
 	for (int t = 0; t < nthread_parallel_load; t++) {
 		local_storage.atomic_batch_insert(triple_spo[t], triple_ops[t]);
@@ -37,17 +40,21 @@ distributed_graph::distributed_graph(boost::mpi::communicator& _world,
 	cout << world.rank() << " finished " << endl;
 	//local_storage.print_memory_usage();
 }
-void distributed_graph::load_data(vector<string>& file_vec) {
+
+void
+distributed_graph::load_data(vector<string>& file_vec)
+{
 	sort(file_vec.begin(), file_vec.end());
 	uint64_t t1 = timer::get_usec();
 	int nfile = file_vec.size();
 	volatile int finished_count = 0;
+
 	#pragma omp parallel for num_threads(global_num_server)
 	for (int i = 0; i < nfile; i++) {
 		int localtid = omp_get_thread_num();
-		if (i % world.size() != world.rank()) {
+		if (i % world.size() != world.rank())
 			continue;
-		}
+
 		ifstream file(file_vec[i].c_str());
 		uint64_t s, p, o;
 		while (file >> s >> p >> o) {
@@ -62,16 +69,17 @@ void distributed_graph::load_data(vector<string>& file_vec) {
 			}
 		}
 		file.close();
+
 		int ret = __sync_fetch_and_add( &finished_count, 1 );
 		if (ret % 40 == 39) {
 			cout << "node " << world.rank() << " already load " << ret + 1 << " files" << endl;
 		}
 	}
-	for (int mid = 0; mid < world.size(); mid++) {
-		for (int i = 0; i < global_num_server; i++) {
+
+	for (int mid = 0; mid < world.size(); mid++)
+		for (int i = 0; i < global_num_server; i++)
 			flush_edge(i, mid);
-		}
-	}
+
 	for (int mid = 0; mid < world.size(); mid++) {
 		//after flush all data,we need to write the number of total edges;
 		uint64_t *local_buffer = (uint64_t *) rdma->GetMsgAddr(0);
@@ -85,11 +93,14 @@ void distributed_graph::load_data(vector<string>& file_vec) {
 		}
 	}
 	MPI_Barrier(MPI_COMM_WORLD);
+
 	uint64_t t2 = timer::get_usec();
 	cout << (t2 - t1) / 1000 << " ms for loading files" << endl;
 }
 
-void distributed_graph::load_data_from_allfiles(vector<string>& file_vec) {
+void
+distributed_graph::load_data_from_allfiles(vector<string>& file_vec)
+{
 	sort(file_vec.begin(), file_vec.end());
 	int nfile = file_vec.size();
 
@@ -119,12 +130,17 @@ void distributed_graph::load_data_from_allfiles(vector<string>& file_vec) {
 		file.close();
 	}
 }
-void distributed_graph::load_and_sync_data(vector<string>& file_vec) {
-	// load_data(file_vec);
-	// int num_recv_block=world.size();
 
+void
+distributed_graph::load_and_sync_data(vector<string>& file_vec)
+{
+#ifdef USE_ZEROMQ
 	load_data_from_allfiles(file_vec);
 	int num_recv_block = global_num_server;
+#else
+	load_data(file_vec);
+	int num_recv_block = world.size();
+#endif
 
 	uint64_t t1 = timer::get_usec();
 	volatile int finished_count = 0;
@@ -159,23 +175,22 @@ void distributed_graph::load_and_sync_data(vector<string>& file_vec) {
 				uint64_t o = recv_buffer[1 + i * 3 + 2];
 				if (mymath::hash_mod(s, world.size()) == world.rank()) {
 					int s_tableid = (s / world.size()) % nthread_parallel_load;
-					if ( s_tableid == t) {
+					if ( s_tableid == t)
 						triple_spo[t].push_back(edge_triple(s, p, o));
-					}
 				}
+
 				if (mymath::hash_mod(o, world.size()) == world.rank()) {
 					int o_tableid = (o / world.size()) % nthread_parallel_load;
-					if ( o_tableid == t) {
+					if ( o_tableid == t)
 						triple_ops[t].push_back(edge_triple(s, p, o));
-					}
 				}
+
 				local_count++;
 				if (local_count == total_count / 100) {
 					local_count = 0;
 					int ret = __sync_fetch_and_add( &finished_count, 1 );
-					if ((ret + 1) % (nthread_parallel_load * 5) == 0) {
+					if ((ret + 1) % (nthread_parallel_load * 5) == 0)
 						cout << "already aggregrate " << (ret + 1) / nthread_parallel_load << " %" << endl;
-					}
 				}
 			}
 		}
@@ -188,7 +203,9 @@ void distributed_graph::load_and_sync_data(vector<string>& file_vec) {
 	cout << (t2 - t1) / 1000 << " ms for aggregrate edges" << endl;
 }
 
-void distributed_graph::send_edge(int localtid, int mid, uint64_t s, uint64_t p, uint64_t o) {
+void
+distributed_graph::send_edge(int localtid, int mid, uint64_t s, uint64_t p, uint64_t o)
+{
 	uint64_t subslot_size = mymath::floor(rdma->get_slotsize() / world.size(), sizeof(uint64_t));
 	uint64_t *local_buffer = (uint64_t *) (rdma->GetMsgAddr(localtid) + subslot_size * mid );
 	*(local_buffer + (*local_buffer) * 3 + 1) = s;
@@ -200,7 +217,10 @@ void distributed_graph::send_edge(int localtid, int mid, uint64_t s, uint64_t p,
 		flush_edge(localtid, mid);
 	}
 }
-void distributed_graph::flush_edge(int localtid, int mid) {
+
+void
+distributed_graph::flush_edge(int localtid, int mid)
+{
 	uint64_t subslot_size = mymath::floor(rdma->get_slotsize() / world.size(), sizeof(uint64_t));
 	uint64_t *local_buffer = (uint64_t *) (rdma->GetMsgAddr(localtid) + subslot_size * mid );
 	uint64_t num_edge_to_send = *local_buffer;
@@ -227,7 +247,9 @@ void distributed_graph::flush_edge(int localtid, int mid) {
 	}
 }
 
-void distributed_graph::remove_duplicate(vector<edge_triple>& elist) {
+void
+distributed_graph::remove_duplicate(vector<edge_triple>& elist)
+{
 	if (elist.size() > 1) {
 		uint64_t end = 1;
 		for (uint64_t i = 1; i < elist.size(); i++) {

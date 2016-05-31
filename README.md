@@ -111,7 +111,7 @@ Currently, Wukong will enable RDMA feature by default, and suppose the driver ha
 
 Modify CMakeLists.txt to set CMAKE_CXX_COMPILER (e.g., `/usr/bin/mpic++`)
 
-	set(CMAKE_CXX_COMPILER /usr/bin/mpic++)
+    set(CMAKE_CXX_COMPILER /usr/bin/mpic++)
 
 Build wukong 
 

@@ -18,6 +18,6 @@ target_link_libraries(wukong zmq rt ibverbs tbb ${BOOST_LIB}/libboost_mpi.a ${BO
 # add_executable(wukong_test ${SOURCES} "test/test_rdma.cpp")
 # target_link_libraries(wukong_test zmq rt ibverbs tbb ${BOOST_ROOT}/lib/libboost_mpi.a ${BOOST_ROOT}/lib/libboost_serialization.a)
 
-add_executable(wukong_zmq ${SOURCES} "test/main_zmq.cpp")
-target_link_libraries(wukong_zmq zmq rt ibverbs tbb ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a)
-target_compile_definitions(wukong_zmq PRIVATE USE_ZEROMQ=1 )
+# add_executable(wukong_zmq ${SOURCES} "test/main_zmq.cpp")
+# target_link_libraries(wukong_zmq zmq rt tbb ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a)
+# target_compile_definitions(wukong_zmq PRIVATE USE_ZEROMQ=1)
