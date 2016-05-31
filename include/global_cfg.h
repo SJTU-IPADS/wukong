@@ -16,7 +16,6 @@ extern int global_rdftype_id;  // only a global variable, but non-configurable
 extern int global_num_thread;  // the sum of #servers and #clients
 
 /* configurable global variables */
-bool global_use_rbf;
 extern bool global_use_rbf;
 extern bool global_use_rdma;
 extern int global_num_server;	// #servers
