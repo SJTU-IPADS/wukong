@@ -48,13 +48,13 @@ struct cm_con_data_t {
 
 /* structure of system resources */
 struct dev_resource {
-    struct ibv_device_attr device_attr;   /* Device attributes */
-    struct ibv_port_attr port_attr;       /* IB port attributes */
-    struct ibv_context *ib_ctx;   /* device handle */
+    struct ibv_device_attr device_attr; /* Device attributes */
+    struct ibv_port_attr port_attr;     /* IB port attributes */
+    struct ibv_context *ib_ctx;         /* device handle */
 
-    struct ibv_pd *pd;            /* PD handle */
-    struct ibv_mr *mr;            /* MR handle for buf */
-    char *buf;                    /* memory buffer pointer, used for RDMA and send*/
+    struct ibv_pd *pd;                  /* PD handle */
+    struct ibv_mr *mr;                  /* MR handle for buf */
+    char *buf;                          /* memory buffer pointer, used for RDMA and send*/
 };
 
 struct QP {
@@ -155,21 +155,21 @@ public:
     uint64_t rbf_size;
     Network_Node* node;
 
-    //for testing
+    // for testing
     RdmaResource(int t_partition, int t_threads, int current, char *_buffer,
                  uint64_t _size, uint64_t rdma_slot, uint64_t msg_slot, uint64_t _off = 0);
 
     void Connect();
     void Servicing();
 
-    //0 on success,-1 otherwise
+    // 0 on success, -1 otherwise
     int RdmaRead(int t_id, int m_id, char *local, uint64_t size, uint64_t remote_offset);
     int RdmaWrite(int t_id, int m_id, char *local, uint64_t size, uint64_t remote_offset);
     int RdmaCmpSwap(int t_id, int m_id, char*local, uint64_t compare, uint64_t swap, uint64_t size, uint64_t off);
     int post(int t_id, int machine_id, char* local, uint64_t size, uint64_t remote_offset, ibv_wr_opcode op);
     int poll(int t_id, int machine_id);
 
-    //TODO what if batched?
+    // TODO what if batched?
     inline char *GetMsgAddr(int t_id) {
         return (char *)( buffer + off + t_id * rdma_slotsize);
     }
@@ -309,10 +309,10 @@ public:
         uint64_t skip_size = sizeof(uint64_t) + ceil(msg_size, sizeof(uint64_t));
         volatile uint64_t * msg_end_ptr = (uint64_t*)(rbf_ptr + (meta->local_tail + skip_size) % rbf_size);
         while (*msg_end_ptr != msg_size) {
-            //timer::myusleep(10);
+            //timer::cpu_relax(10);
             uint64_t tmp = *msg_end_ptr;
             if (tmp != 0 && tmp != msg_size) {
-                printf("waiting for %ld,but actually %ld\n", msg_size, tmp);
+                printf("waiting for %ld, but actually %ld\n", msg_size, tmp);
                 exit(0);
             }
         }

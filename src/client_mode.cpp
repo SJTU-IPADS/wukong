@@ -1,6 +1,8 @@
 #include "client_mode.h"
 
-void translate_req_template(client* clnt, request_template& req_template) {
+void
+translate_req_template(client* clnt, request_template& req_template)
+{
 	req_template.place_holder_vecptr.resize(req_template.place_holder_str.size());
 	for (int i = 0; i < req_template.place_holder_str.size(); i++) {
 		string type = req_template.place_holder_str[i];
@@ -21,7 +23,9 @@ void translate_req_template(client* clnt, request_template& req_template) {
 	}
 }
 
-void instantiate_request(client* clnt, request_template& req_template, request_or_reply& r) {
+void
+instantiate_request(client* clnt, request_template& req_template, request_or_reply& r)
+{
 	for (int i = 0; i < req_template.place_holder_position.size(); i++) {
 		int pos = req_template.place_holder_position[i];
 		vector<int>* vecptr = req_template.place_holder_vecptr[i];
@@ -35,7 +39,9 @@ void instantiate_request(client* clnt, request_template& req_template, request_o
 
 __thread int local_barrier_val = 1;
 int global_barrier_val = 0;
-void ClientBarrier(struct thread_cfg *cfg) {
+void
+ClientBarrier(struct thread_cfg *cfg)
+{
 	if (cfg->t_id == 0) {
 		MPI_Barrier(MPI_COMM_WORLD);
 		__sync_fetch_and_add(&global_barrier_val, 1);
@@ -48,7 +54,9 @@ void ClientBarrier(struct thread_cfg *cfg) {
 	local_barrier_val += 1;
 }
 
-void single_execute(client* clnt, string filename, int execute_count) {
+void
+single_execute(client* clnt, string filename, int execute_count)
+{
 	int sum = 0;
 	int result_count;
 	request_or_reply request;
@@ -74,7 +82,9 @@ void single_execute(client* clnt, string filename, int execute_count) {
 	cout << "average latency " << sum / execute_count << " us" << endl;
 };
 
-void display_help(client* clnt) {
+void
+display_help(client* clnt)
+{
 	if (clnt->cfg->m_id == 0 && clnt->cfg->t_id == 0) {
 		cout << "> reconfig: reload config file" << endl;
 		cout << "> switch_single: execute one query at a time (singlefile [ + count])" << endl;
@@ -93,7 +103,9 @@ extern void simulate_trinity_q6(client* clnt);
 extern void simulate_trinity_q7(client* clnt);
 
 
-void iterative_shell(client* clnt) {
+void
+iterative_shell(client* clnt)
+{
 	//ClientBarrier(clnt->cfg);
 	struct thread_cfg *cfg = clnt->cfg;
 	string mode_str[3];
@@ -240,12 +252,15 @@ void iterative_shell(client* clnt) {
 	}
 }
 
-void batch_execute(client* clnt, string mix_config, batch_logger& logger) {
+void
+batch_execute(client* clnt, string mix_config, batch_logger& logger)
+{
 	ifstream configfile(mix_config);
 	if (!configfile) {
 		cout << "File " << mix_config << " not exist" << endl;
 		return ;
 	}
+
 	int total_query_type;
 	int total_request;
 	int sleep_round = 1;
@@ -296,19 +311,24 @@ void batch_execute(client* clnt, string mix_config, batch_logger& logger) {
 };
 
 
-void nonblocking_execute(client* clnt, string mix_config, batch_logger& logger) {
+void
+nonblocking_execute(client* clnt, string mix_config, batch_logger& logger)
+{
 	ifstream configfile(mix_config);
 	if (!configfile) {
 		cout << "File " << mix_config << " not exist" << endl;
 		return ;
 	}
+
 	int total_query_type;
 	int total_request;
 	int sleep_round = 1;
 	configfile >> total_query_type >> total_request >> sleep_round;
+
 	vector<int > distribution;
 	vector<request_template > vec_template;
 	vector<request_or_reply > vec_req;
+
 	vec_template.resize(total_query_type);
 	vec_req.resize(total_query_type);
 	for (int i = 0; i < total_query_type; i++) {
@@ -340,8 +360,9 @@ void nonblocking_execute(client* clnt, string mix_config, batch_logger& logger) 
 				clnt->Send(vec_req[idx]);
 			}
 		}
+
 		for (int i = 0; i < sleep_round; i++) {
-			timer::myusleep(100);
+			timer::cpu_relax(100);
 			request_or_reply reply;
 			bool success = TryRecvR(clnt->cfg, reply);
 			while (success) {

@@ -3,23 +3,21 @@
 #include <sys/time.h>
 #include <stdint.h>
 
-class timer{
+class timer {
 public:
-    struct timespec ts;
-    static uint64_t get_usec(){
-        struct timespec tmp;
-        clock_gettime(CLOCK_MONOTONIC,&tmp);
-        uint64_t result=tmp.tv_sec;
-        result*=1000*1000;
-        result+=tmp.tv_nsec/1000;
-        return result;
+    static uint64_t get_usec() {
+        struct timespec tp;
+        /* POSIX.1-2008: Applications should use the clock_gettime() function
+           instead of the obsolescent gettimeofday() function. */
+        /* NOTE: The clock_gettime() function is only available on Linux.
+           The mach_absolute_time() function is an alternative on OSX. */
+        clock_gettime(CLOCK_MONOTONIC, &tp);
+        return ((tp.tv_sec * 1000 * 1000) + (tp.tv_nsec / 1000));
     }
 
-    static void myusleep(int u){
-        int t=166*u;
-		while(t>0){
-			t--;
-			_mm_pause();
-		}
+    static void cpu_relax(int u) {
+        int t = 166 * u;
+        while ((t--) > 0)
+            _mm_pause(); // a busy-wait loop
     }
 };
