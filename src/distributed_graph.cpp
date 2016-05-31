@@ -119,11 +119,14 @@ void distributed_graph::load_data_from_allfiles(vector<string>& file_vec){
 	}
 }
 void distributed_graph::load_and_sync_data(vector<string>& file_vec){
-    // load_data(file_vec);
-    // int num_recv_block=world.size();
 
+#ifdef USE_ZEROMQ
     load_data_from_allfiles(file_vec);
     int num_recv_block=global_num_server;
+#else
+    load_data(file_vec);
+    int num_recv_block=world.size();
+#endif
 
     uint64_t t1=timer::get_usec();
 	volatile int finished_count=0;
