@@ -49,7 +49,12 @@ http://zeromq.org/
     export LIBRARY_PATH=${WUKONG_ROOT}/deps/zeromq-4.0.5-install/lib:$LIBRARY_PATH
     export LD_LIBRARY_PATH=${WUKONG_ROOT}/deps/zeromq-4.0.5-install/lib:$LD_LIBRARY_PATH
 
-dir of tbb may need to be changed
+dictionary of tbb may need to be changed
+
+### Without RDMA
+
+modify CMakeLists.txt, only compile wukong_zmq
+
 
 ### RDMA
 
@@ -57,22 +62,22 @@ dir of tbb may need to be changed
 
 copy zeromq-4.0.5-install/ and tbb44_20151115oss/ to deps/ at other machines
 
-### Without RDMA
-
-modiyf CMakeLists.txt, only compile wukong_zmq
 
 # Compile
 
-1. copy wukong/ to all slaves  
-2. modify CMakeLists.txt to set CMAKE_CXX_COMPILER
-3. modify tools/sync.sh to set root_dir  
-4. modify tools/mpd.hosts to set ip addresses of slaves  
-5. compile and sync  
+1. mkdir wukong/ at all slaves
+2. modify tools/mpd.hosts to set ip addresses of slaves
+3. modify CMakeLists.txt to set CMAKE_CXX_COMPILER
+4. compile and sync  
 
 
     cd tools;
     ./make.sh
     ./sync.sh
+5. copy zeromq-4.0.5-install/ and tbb44_20151115oss/ to deps/ at slaves
+
+    scp -r ${WUKONG_ROOT}/deps/zeromq-4.0.5-install/ slave1:${WUKONG_ROOT}/deps/
+    scp -r ${WUKONG_ROOT}/deps/tbb44_20151115oss/ slave1:${WUKONG_ROOT}/deps/
 
 # Execution
 

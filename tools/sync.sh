@@ -1,6 +1,11 @@
 #!/bin/bash
-root_dir=/home/sjx/graph-query/
+root_dir=${WUKONG_ROOT}/
 
+if [ "$root_dir" = "/" ] ;
+then
+	echo  "PLEASE set WUKONG_ROOT"
+	exit 0
+fi
 
 cat mpd.hosts | while read machine
 do
