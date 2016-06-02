@@ -1,9 +1,10 @@
 #!/bin/bash
-root_dir=${WUKONG_ROOT}/
+#e.g. ./sync.sh
 
+root=${WUKONG_ROOT}/
 
 cat mpd.hosts | while read machine
 do
-	#Don't copy things like Makefile, *.o, etc.
-	rsync -rtuv --exclude=deps/* --include=build/wukong* --exclude=build/* --exclude=.git $r{oot_dir} ${machine}:${root_dir}
+	#Don't copy things like Makefile, CMakeFiles, etc in build directory.
+	rsync -rtuvl --include=build/wukong* --exclude=build/* --exclude=.git --exclude=deps/* --exclude=src/* --exclude=include/* --exclude=utils/* --exclude=generate/* --exclude=test/*  ${root} ${machine}:${root}
 done

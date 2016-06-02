@@ -37,17 +37,23 @@ There are however, a few dependencies which must be manually satisfied.
 - *nix build tools (e.g., patch, make)
 - MPICH2: Required for running Wukong distributed.
 
-# Satisfying Dependencies on Ubuntu
+### Satisfying Dependencies on Ubuntu
 
 All the dependencies can be satisfied from the repository:
 
     sudo apt-get update
     sudo apt-get install gcc g++ build-essential libopenmpi-dev openmpi-bin cmake git
 
+### Install Wukong on One Machine
 
-### Install Boost
+Add the root path of Wukong (e.g., `/home/rchen/wukong`) to bash script (i.e., `~/.bashrc`).
 
-    cd  deps/
+    # Wukong configuration
+    export WUKONG_ROOT=[/path/to/wukong]   
+
+#### Install Boost
+
+    cd  ${WUKONG_ROOT}/deps/
     tar jxvf boost_1_58_0.tar.bz2  
     mkdir boost_1_58_0-install
     cd boost_1_58_0/
@@ -61,17 +67,26 @@ Add the following MPI configuration to `project-config.jam`
     ./b2 install  
 
 
-### Install Intel TBB
+#### Install Intel TBB
 
-    cd deps/  
+    cd ${WUKONG_ROOT}/deps/  
     tar zxvf tbb44_20151115oss_src.tgz  
     cd tbb44_20151115oss/
     make
 
+Add below settings to bash script (i.e., `~/.bashrc`).
+ 
+    # Intel TBB configuration
+    source $WUKONG_ROOT/deps/tbb44_20151115oss/build/[version]/tbbvars.sh
 
-### Install ZeroMQ (http://zeromq.org/)
+For example:
 
-    cd  deps/
+	source $WUKONG_ROOT/deps/tbb44_20151115oss/build/linux_intel64_gcc_cc4.8_libc2.19_kernel3.14.27_release/tbbvars.sh
+
+
+#### Install ZeroMQ (http://zeromq.org/)
+
+    cd ${WUKONG_ROOT}/deps/
     tar zxvf zeromq-4.0.5.tar.gz
     mkdir zeromq-4.0.5-install
     cd zeromq-4.0.5/
@@ -81,57 +96,57 @@ Add the following MPI configuration to `project-config.jam`
     cd ..
     cp zmq.hpp  zeromq-4.0.5-install/include/
 
-
-### Setting 
-
-You can add below environment variables to bash script (i.e., `~/.bashrc`).
-
-    # Wukong configuration
-    export WUKONG_ROOT=[/path/to/wukong]   (e.g. export WUKONG_ROOT=/home/rchen/wukong)
+Add below settings to bash script (i.e., `~/.bashrc`).
  
-    # Intel TBB configuration
-    source $WUKONG_ROOT/deps/tbb44_20151115oss/build/[version]/tbbvars.sh
-    (e.g., source $WUKONG_ROOT/deps/tbb44_20151115oss/build/linux_intel64_gcc_cc4.8_libc2.19_kernel3.14.27_release/tbbvars.sh)
-
     ＃ ZeroMQ configuration
     export CPATH=$WUKONG_ROOT/deps/zeromq-4.0.5-install/include:$CPATH
     export LIBRARY_PATH=$WUKONG_ROOT/deps/zeromq-4.0.5-install/lib:$LIBRARY_PATH
     export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/zeromq-4.0.5-install/lib:$LD_LIBRARY_PATH
 
-For running distributed Wukong, you must install ZeroMQ and Intel TBB on all machines. A simple way is to copy the installation directories to other machines (i.e., `deps/zeromq-4.0.5-install` and `deps/tbb44_20151115oss`).
 
+### Copy Wukong Dependencies to All Machines
 
-### Enable/disable RDMA Feature
+1) Setup password-less SSH between the master node and all other machines.
 
-Currently, Wukong will enable RDMA feature by default, and suppose the driver has been well installed and configured. If you want to disable RDMA, you need manually modify `CMakeLists.txt` to compile and build `wukong-zmq`.
+2) Create a file in `tools` directory called `mpd.hosts` with the IP address of all machines.
+
+For example:
+
+    cat ${WUKONG_ROOT}/tools/mpd.hosts
+    10.0.0.100
+    10.0.0.101
+    10.0.0.102
+
+3) Run the following commands to copy Wukong dependencies to the rest of the machines:
+
+	cd ${WUKONG_ROOT}/tools
+	./syncdeps.sh ../deps/dependencies mpd.hosts
 
 
 
 # Compiling and Running
 
-Modify CMakeLists.txt to set CMAKE_CXX_COMPILER (e.g., `/usr/bin/mpic++`)
+1) Modify CMakeLists.txt to set CMAKE_CXX_COMPILER (e.g., `/usr/bin/mpic++`)
 
     set(CMAKE_CXX_COMPILER /usr/bin/mpic++)
 
-Build wukong 
+#### Enable/disable RDMA Feature
 
-    cd tools/
-    ./make.sh
+Currently, Wukong will enable RDMA feature by default, and suppose the driver has been well installed and configured. If you want to disable RDMA, you need manually modify `CMakeLists.txt` to compile and build `wukong-zmq` instead of `wukong`.
 
-Prepare `tools/mpd.hosts` with ip addresses of all machines  
+2) Build wukong 
 
-    e.g.,
-    10.0.0.100
-    10.0.0.101
-    10.0.0.102
+    cd ${WUKONG_ROOT}/tools
+    ./build.sh
 
-Synchronize all executable files to all machines 
+Synchronize all executable files (e.g., `build/wukong`) to all machines 
 
-    cd tools/
+    cd ${WUKONG_ROOT}/tools
     ./sync.sh
 
 Running sever and a naive client console  
 
+    cd ${WUKONG_ROOT}/tools
     ./run.sh [#nodes]
     e.g., ./run.sh 3
 
