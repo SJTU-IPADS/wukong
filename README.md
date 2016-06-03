@@ -41,8 +41,8 @@ There are however, a few dependencies which must be manually satisfied.
 
 All the dependencies can be satisfied from the repository:
 
-    sudo apt-get update
-    sudo apt-get install gcc g++ build-essential libopenmpi-dev openmpi-bin cmake git
+    $sudo apt-get update
+    $sudo apt-get install gcc g++ build-essential libopenmpi-dev openmpi-bin cmake git
 
 ### Install Wukong on One Machine
 
@@ -53,26 +53,26 @@ Add the root path of Wukong (e.g., `/home/rchen/wukong`) to bash script (i.e., `
 
 #### Install Boost
 
-    cd  ${WUKONG_ROOT}/deps/
-    tar jxvf boost_1_58_0.tar.bz2  
-    mkdir boost_1_58_0-install
-    cd boost_1_58_0/
-    ./bootstrap.sh --prefix=../boost_1_58_0-install  
+    $cd  ${WUKONG_ROOT}/deps/
+    $tar jxvf boost_1_58_0.tar.bz2  
+    $mkdir boost_1_58_0-install
+    $cd boost_1_58_0/
+    $./bootstrap.sh --prefix=../boost_1_58_0-install  
 
 Add the following MPI configuration to `project-config.jam`
 
     # MPI configuration
     using mpi ;  
 
-    ./b2 install  
+    $./b2 install  
 
 
 #### Install Intel TBB
 
-    cd ${WUKONG_ROOT}/deps/  
-    tar zxvf tbb44_20151115oss_src.tgz  
-    cd tbb44_20151115oss/
-    make
+    $cd ${WUKONG_ROOT}/deps/  
+    $tar zxvf tbb44_20151115oss_src.tgz  
+    $cd tbb44_20151115oss/
+    $make
 
 Add below settings to bash script (i.e., `~/.bashrc`).
  
@@ -86,15 +86,15 @@ For example:
 
 #### Install ZeroMQ (http://zeromq.org/)
 
-    cd ${WUKONG_ROOT}/deps/
-    tar zxvf zeromq-4.0.5.tar.gz
-    mkdir zeromq-4.0.5-install
-    cd zeromq-4.0.5/
-    ./configure --prefix=$WUKONG_ROOT/deps/zeromq-4.0.5-install/
-    make
-    make install
-    cd ..
-    cp zmq.hpp  zeromq-4.0.5-install/include/
+    $cd ${WUKONG_ROOT}/deps/
+    $tar zxvf zeromq-4.0.5.tar.gz
+    $mkdir zeromq-4.0.5-install
+    $cd zeromq-4.0.5/
+    $./configure --prefix=$WUKONG_ROOT/deps/zeromq-4.0.5-install/
+    $make
+    $make install
+    $cd ..
+    $cp zmq.hpp  zeromq-4.0.5-install/include/
 
 Add below settings to bash script (i.e., `~/.bashrc`).
  
@@ -112,15 +112,15 @@ Add below settings to bash script (i.e., `~/.bashrc`).
 
 For example:
 
-    cat ${WUKONG_ROOT}/tools/mpd.hosts
+    $cat ${WUKONG_ROOT}/tools/mpd.hosts
     10.0.0.100
     10.0.0.101
     10.0.0.102
 
 3) Run the following commands to copy Wukong dependencies to the rest of the machines:
 
-	cd ${WUKONG_ROOT}/tools
-	./syncdeps.sh ../deps/dependencies mpd.hosts
+	$cd ${WUKONG_ROOT}/tools
+	$./syncdeps.sh ../deps/dependencies mpd.hosts
 
 
 
@@ -136,19 +136,19 @@ Currently, Wukong will enable RDMA feature by default, and suppose the driver ha
 
 2) Build wukong 
 
-    cd ${WUKONG_ROOT}/tools
-    ./build.sh
+    $cd ${WUKONG_ROOT}/tools
+    $./build.sh
 
 Synchronize all executable files (e.g., `build/wukong`) to all machines 
 
-    cd ${WUKONG_ROOT}/tools
-    ./sync.sh
+    $cd ${WUKONG_ROOT}/tools
+    $./sync.sh
 
 Running sever and a naive client console  
 
-    cd ${WUKONG_ROOT}/tools
-    ./run.sh [#nodes]
-    e.g., ./run.sh 3
+    $cd ${WUKONG_ROOT}/tools
+    $./run.sh [#nodes]
+    (e.g., ./run.sh 3)
 
 
 
@@ -156,16 +156,21 @@ Running sever and a naive client console
 
 If there is space at the raw_data, convert it to underline first
 
-    cat raw_file | sed -e 's/ /_/g’ > convert_file
+    $cat raw_file | sed -e 's/ /_/g’ > convert_file
+
 
 Use generate_data.cpp to convert raw_data into id_data
 
-    ./generate_data lubm_raw_40/ id_lubm_40/
+    $cd ${WUKONG_ROOT}/generate
+    $g++ -std=c++11 generate_data.cpp -o generate_data
+    $./generate_data lubm_raw_40 id_lubm_40
+
 
 Put `id_data` to distributed storage (e.g., NFS) , and set the `global_input_folder` at `tools/config`
 
 
-use str_normal_minimal if loading str_normal causes too much time
+Create a file (`str_normal_minimal`) with minimal id mappings when loading `str_normal` is too lengthy
 
-    e.g., grep "<http://www.Department0.University0.edu>" str_normal >> str_normal_minimal
+    $grep "<http://www.Department0.University0.edu>" str_normal >> str_normal_minimal
+    ...
 
