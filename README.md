@@ -1,4 +1,4 @@
-
+w
 # Dependence
 
 export WUKONG_ROOT=/home/sjx/graph-query

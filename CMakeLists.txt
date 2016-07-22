@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 2.8)
 project (wukong)
 
-set(WUKONG_ROOT "/home/sjx/graph-query" )
-
+#set(WUKONG_ROOT "/home/sjx/graph-query" )
+set(WUKONG_ROOT $ENV{WUKONG_ROOT} )
 
 
 ADD_DEFINITIONS( -std=c++11)
