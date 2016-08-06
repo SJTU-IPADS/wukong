@@ -7,9 +7,9 @@ Wukong, a distributed graph-based RDF store that leverages efficient graph explo
 
 - High-performance and Scalable
 
-- Support RDMA
+- Support RDMA feature of InfiniBand
 
-- xx
+- Concurrent query processing
 
 
 ### License
@@ -157,7 +157,6 @@ Running sever and a naive client console
 If there is space at the raw_data, convert it to underline first
 
     $cat raw_file | sed -e 's/ /_/g’ > convert_file
-
 
 Use generate_data.cpp to convert raw_data into id_data
 

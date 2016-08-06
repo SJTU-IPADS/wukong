@@ -13,7 +13,26 @@
 
 using namespace std;
 
-/* configure of Cube0-5 */
+/*
+ * The socket setting of our cluster (Cube0-5)
+ *
+ * $numactl --hardware
+ * available: 2 nodes (0-1)
+ * node 0 cpus: 0 2 4 6 8 10 12 14 16 18 20 22 24 26 28 30 32 34 36 38
+ * node 0 size: 64265 MB
+ * node 0 free: 19744 MB
+ * node 1 cpus: 1 3 5 7 9 11 13 15 17 19 21 23 25 27 29 31 33 35 37 39
+ * node 1 size: 64503 MB
+ * node 1 free: 53586 MB
+ * node distances:
+ * node   0   1
+ *   0:  10  21
+ *   1:  21  10
+ *
+ * bind worker-threads to the same socket, at most 8 each.
+ *
+ * TODO: it should be identify by runtime detection
+ */
 int socket_0[] = {
 	0, 2, 4, 6, 8, 10, 12, 14, 16, 18
 };
@@ -33,7 +52,7 @@ pin_to_core(size_t core)
 }
 
 void*
-Run(void *ptr)
+worker_thread(void *ptr)
 {
 	struct thread_cfg *cfg = (struct thread_cfg*) ptr;
 	pin_to_core(socket_1[cfg->t_id]);
@@ -54,7 +73,7 @@ main(int argc, char * argv[])
 {
 	if (argc != 3) {
 		cout << "usage: ./wukong config_file hostfile" << endl;
-		return -1;
+		exit(-1);
 	}
 
 	load_global_cfg(argv[1]);
@@ -136,11 +155,14 @@ main(int argc, char * argv[])
 	*/
 
 	string_server str_server(global_input_folder);
+
 	distributed_graph graph(world, rdma, global_input_folder);
+
 	client** client_array = new client*[global_num_client];
 	for (int i = 0; i < global_num_client; i++) {
 		client_array[i] = new client(&cfg_array[i], &str_server);
 	}
+
 	server** server_array = new server*[global_num_server];
 	for (int i = 0; i < global_num_server; i++) {
 		server_array[i] = new server(graph, &cfg_array[global_num_client + i]);
@@ -150,14 +172,14 @@ main(int argc, char * argv[])
 	}
 
 
-	pthread_t     *thread  = new pthread_t[global_num_thread];
+	pthread_t* thread  = new pthread_t[global_num_thread];
 	for (size_t id = 0; id < global_num_thread; ++id) {
 		if (id < global_num_client) {
 			cfg_array[id].ptr = client_array[id];
 		} else {
 			cfg_array[id].ptr = server_array[id - global_num_client];
 		}
-		pthread_create (&(thread[id]), NULL, Run, (void *) & (cfg_array[id]));
+		pthread_create (&(thread[id]), NULL, worker_thread, (void *) & (cfg_array[id]));
 	}
 	for (size_t t = 0 ; t < global_num_thread; t++) {
 		int rc = pthread_join(thread[t], NULL);

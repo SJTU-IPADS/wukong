@@ -3,6 +3,12 @@
 
 root=${WUKONG_ROOT}/
 
+if [ "$root" = "/" ] ;
+then
+	echo  "PLEASE set WUKONG_ROOT"
+	exit 0
+fi
+
 cat mpd.hosts | while read machine
 do
 	#Don't copy things like Makefile, CMakeFiles, etc in build directory.

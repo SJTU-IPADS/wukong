@@ -151,6 +151,7 @@ distributed_graph::load_and_sync_data(vector<string>& file_vec)
 		uint64_t* recv_buffer = (uint64_t*)(rdma->get_buffer() + offset);
 		total_count += *recv_buffer;
 	}
+
 	triple_spo.clear();
 	triple_ops.clear();
 	triple_spo.resize(nthread_parallel_load);
