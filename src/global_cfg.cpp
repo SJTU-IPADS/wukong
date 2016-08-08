@@ -94,6 +94,7 @@ load_global_cfg(char* filename)
 		iss >> row >> val;
 		config_map[row] = val;
 	}
+
 	global_use_rbf = atoi(config_map["global_use_rbf"].c_str());
 	global_use_rdma = atoi(config_map["global_use_rdma"].c_str());
 	global_rdma_threshold = atoi(config_map["global_rdma_threshold"].c_str());
@@ -116,6 +117,8 @@ load_global_cfg(char* filename)
 	global_verbose = atoi(config_map["global_verbose"].c_str());
 
 	global_rdftype_id = -1;
+
+	// 1 logical queue = N server-thread queues + 1 client-thread queue
 	global_num_thread = global_num_server + global_num_client;
 
 	return;

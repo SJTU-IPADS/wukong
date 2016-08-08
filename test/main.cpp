@@ -83,11 +83,14 @@ main(int argc, char * argv[])
 
 	uint64_t rdma_size = GiB2B(1);
 	rdma_size = rdma_size * global_total_memory_gb;
+
 	uint64_t msg_slot_per_thread = MiB2B(global_perslot_msg_mb);
 	uint64_t rdma_slot_per_thread = MiB2B(global_perslot_rdma_mb);
+
 	uint64_t total_size = rdma_size
 	                      + rdma_slot_per_thread * global_num_thread
 	                      + msg_slot_per_thread * global_num_thread;
+
 	//[0-thread_num-1] are used
 	Network_Node *node = new Network_Node(world.rank(), global_num_thread, string(argv[2]));
 	char *buffer = (char*) malloc(total_size);
