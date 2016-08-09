@@ -5,14 +5,16 @@
 
 
 struct thread_cfg {
-	int m_id; // machine id
-	int m_num; // total machine number
-	int t_id; // thread id
-	int t_num;  // total thread number in each machine
-	int server_num;// server thread number in each machine
-	int client_num;// client thread number in each machine
-	Network_Node* node;
-	RdmaResource* rdma;
+	int sid;    // servert id
+	int nsrvs;  // #servers
+	int wid;    // worker id
+	int nwkrs;  // #workers on each server
+	int nswkrs; // #server-workers on each server
+	int ncwkrs; // #client-workers on each server
+
+	Network_Node* node;  // communicaiton by TCP/IP
+	RdmaResource* rdma;  // communicaiton by RDMA
+
 	unsigned int seed;
 	void* ptr;
 
@@ -20,7 +22,7 @@ struct thread_cfg {
 	int inc_id;//internal
 
 	void init() {
-		inc_id = t_num * m_id + t_id;
+		inc_id = nwkrs * sid + wid;
 		seed = inc_id;
 	}
 
@@ -30,20 +32,20 @@ struct thread_cfg {
 
 	int get_inc_id() {
 		int tmp = inc_id;
-		inc_id += m_num * t_num;
+		inc_id += nsrvs * nwkrs;
 		return tmp;
 	}
 
 	int mid_of(int target_id) {
-		return (target_id % (m_num * t_num)) / t_num;
+		return (target_id % (nsrvs * nwkrs)) / nwkrs;
 	}
 
 	int tid_of(int target_id) {
-		return target_id % t_num;
+		return target_id % nwkrs;
 	}
 
 	bool is_client(int target_id) {
-		if (tid_of(target_id) < client_num) {
+		if (tid_of(target_id) < ncwkrs) {
 			return true;
 		}
 		return false;

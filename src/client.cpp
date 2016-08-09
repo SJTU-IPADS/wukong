@@ -14,22 +14,22 @@ void client::Send(request_or_reply& req) {
     }
     if (req.use_index_vertex() && global_enable_index_partition) {
         int nthread = max(1, min(global_multithread_factor, global_num_server));
-        for (int i = 0; i < cfg->m_num; i++) {
+        for (int i = 0; i < cfg->nsrvs; i++) {
             for (int j = 0; j < nthread; j++) {
                 req.mt_total_thread = nthread;
                 req.mt_current_thread = j;
-                SendR(cfg, i, cfg->client_num + j, req);
+                SendR(cfg, i, cfg->ncwkrs + j, req);
             }
         }
         return ;
     }
-    req.first_target = mymath::hash_mod(req.cmd_chains[0], cfg->m_num);
+    req.first_target = mymath::hash_mod(req.cmd_chains[0], cfg->nsrvs);
     //one-to-one mapping
-//    int server_per_client=  cfg->server_num  / cfg->client_num;
-//    int mid=cfg->client_num + server_per_client*cfg->t_id + cfg->get_random() % server_per_client;
+//    int server_per_client=  cfg->nswkrs  / cfg->ncwkrs;
+//    int mid=cfg->ncwkrs + server_per_client*cfg->wid + cfg->get_random() % server_per_client;
 
     // random
-    int tid = cfg->client_num + cfg->get_random() % cfg->server_num;
+    int tid = cfg->ncwkrs + cfg->get_random() % cfg->nswkrs;
     SendR(cfg, req.first_target, tid, req);
 }
 
@@ -37,7 +37,7 @@ request_or_reply client::Recv() {
     request_or_reply r = RecvR(cfg);
     if (r.use_index_vertex() && global_enable_index_partition ) {
         int nthread = max(1, min(global_multithread_factor, global_num_server));
-        for (int count = 0; count < cfg->m_num * nthread - 1 ; count++) {
+        for (int count = 0; count < cfg->nsrvs * nthread - 1 ; count++) {
             request_or_reply r2 = RecvR(cfg);
             r.silent_row_num += r2.silent_row_num;
             int new_size = r.result_table.size() + r2.result_table.size();

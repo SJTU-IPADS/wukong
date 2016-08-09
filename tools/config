@@ -18,5 +18,3 @@ global_hash_header_million	1000
 global_enable_workstealing	0
 global_enable_index_partition	1
 global_verbose	0
-global_total_memory_gb_tmp 12
-global_hash_header_million_tmp	520

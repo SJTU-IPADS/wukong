@@ -39,5 +39,10 @@ extern bool global_silent;
 extern int global_multithread_factor;	// WARNING: why client?
 extern int global_rdma_threshold;	// WARNING: why client?
 
-void client_reconfig();
-void load_global_cfg(char* filename);
+/* set by command line */
+extern std::string cfg_fname;
+extern std::string host_fname;
+
+void dump_cfg(void);
+void reload_cfg(void);
+void load_cfg(void);

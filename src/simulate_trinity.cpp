@@ -19,7 +19,7 @@ bool simulate_execute_other_step(client* clnt, string cmd, request_or_reply& rep
 	vector<vector<request_or_reply> > request_vec;
 	int num_thread = global_num_server;
 
-	request_vec.resize(clnt->cfg->m_num);
+	request_vec.resize(clnt->cfg->nsrvs);
 	for (int i = 0; i < request_vec.size(); i++) {
 		request_vec[i].resize(num_thread);
 		for (int j = 0; j < num_thread; j++) {
@@ -34,18 +34,18 @@ bool simulate_execute_other_step(client* clnt, string cmd, request_or_reply& rep
 	}
 
 	for (set<int>::iterator iter = s.begin(); iter != s.end(); iter++) {
-		int m_id = mymath::hash_mod(*iter, clnt->cfg->m_num);
-		int t_id = mymath::hash_mod( (*iter) / clnt->cfg->m_num , num_thread);
-		request_vec[m_id][t_id].result_table.push_back(*iter);
+		int sid = mymath::hash_mod(*iter, clnt->cfg->nsrvs);
+		int wid = mymath::hash_mod( (*iter) / clnt->cfg->nsrvs , num_thread);
+		request_vec[sid][wid].result_table.push_back(*iter);
 	}
 	for (int i = 0; i < request_vec.size(); i++) {
 		for (int j = 0; j < num_thread; j++) {
 			clnt->GetId(request_vec[i][j]);
-			SendR(clnt->cfg, i , j + clnt->cfg->client_num, request_vec[i][j]);
+			SendR(clnt->cfg, i , j + clnt->cfg->ncwkrs, request_vec[i][j]);
 		}
 	}
 	reply = RecvR(clnt->cfg);
-	for (int i = 0; i < clnt->cfg->m_num * num_thread - 1; i++) {
+	for (int i = 0; i < clnt->cfg->nsrvs * num_thread - 1; i++) {
 		request_or_reply r = RecvR(clnt->cfg);
 		reply.silent_row_num += r.silent_row_num;
 		int new_size = r.result_table.size() + reply.result_table.size();
@@ -65,7 +65,7 @@ set<int> remove_dup(request_or_reply& reply, int col) {
 }
 
 void simulate_trinity_q1(client* clnt) {
-	if (clnt->cfg->m_id != 0 || clnt->cfg->t_id != 0) {
+	if (clnt->cfg->sid != 0 || clnt->cfg->wid != 0) {
 		return ;
 	}
 	string header = "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> "
@@ -118,7 +118,7 @@ void simulate_trinity_q1(client* clnt) {
 }
 
 void simulate_trinity_q2(client* clnt) {
-	if (clnt->cfg->m_id != 0 || clnt->cfg->t_id != 0) {
+	if (clnt->cfg->sid != 0 || clnt->cfg->wid != 0) {
 		return ;
 	}
 	string header = "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> "
@@ -166,7 +166,7 @@ void simulate_trinity_q2(client* clnt) {
 }
 
 void simulate_trinity_q3(client* clnt) {
-	if (clnt->cfg->m_id != 0 || clnt->cfg->t_id != 0) {
+	if (clnt->cfg->sid != 0 || clnt->cfg->wid != 0) {
 		return ;
 	}
 	string header = "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> "
@@ -218,7 +218,7 @@ void simulate_trinity_q3(client* clnt) {
 
 }
 void simulate_trinity_q4(client* clnt) {
-	if (clnt->cfg->m_id != 0 || clnt->cfg->t_id != 0) {
+	if (clnt->cfg->sid != 0 || clnt->cfg->wid != 0) {
 		return ;
 	}
 	string header = "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> "
@@ -295,7 +295,7 @@ void simulate_trinity_q4(client* clnt) {
 	}
 }
 void simulate_trinity_q5(client* clnt) {
-	if (clnt->cfg->m_id != 0 || clnt->cfg->t_id != 0) {
+	if (clnt->cfg->sid != 0 || clnt->cfg->wid != 0) {
 		return ;
 	}
 	string header = "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> "
@@ -331,7 +331,7 @@ void simulate_trinity_q5(client* clnt) {
 	}
 }
 void simulate_trinity_q6(client* clnt) {
-	if (clnt->cfg->m_id != 0 || clnt->cfg->t_id != 0) {
+	if (clnt->cfg->sid != 0 || clnt->cfg->wid != 0) {
 		return ;
 	}
 	string header = "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> "
@@ -422,7 +422,7 @@ void simulate_trinity_q6(client* clnt) {
 
 }
 void simulate_trinity_q7(client* clnt) {
-	if (clnt->cfg->m_id != 0 || clnt->cfg->t_id != 0) {
+	if (clnt->cfg->sid != 0 || clnt->cfg->wid != 0) {
 		return ;
 	}
 	/*

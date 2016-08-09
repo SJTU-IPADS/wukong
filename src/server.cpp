@@ -25,7 +25,7 @@ server::const_to_unknown(request_or_reply& req)
     }
     int edge_num = 0;
     edge* edge_ptr;
-    edge_ptr = g.get_edges_global(cfg->t_id, start, direction, predict, &edge_num);
+    edge_ptr = g.get_edges_global(cfg->wid, start, direction, predict, &edge_num);
     for (int k = 0; k < edge_num; k++) {
         updated_result_table.push_back(edge_ptr[k].val);
     }
@@ -53,7 +53,7 @@ void server::known_to_unknown(request_or_reply& req) {
         int prev_id = req.get_row_column(i, req.var2column(start));
         int edge_num = 0;
         edge* edge_ptr;
-        edge_ptr = g.get_edges_global(cfg->t_id, prev_id, direction, predict, &edge_num);
+        edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict, &edge_num);
 
         for (int k = 0; k < edge_num; k++) {
             req.append_row_to(i, updated_result_table);
@@ -75,7 +75,7 @@ void server::known_to_known(request_or_reply& req) {
         int prev_id = req.get_row_column(i, req.var2column(start));
         int edge_num = 0;
         edge* edge_ptr;
-        edge_ptr = g.get_edges_global(cfg->t_id, prev_id, direction, predict, &edge_num);
+        edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict, &edge_num);
         int end_id = req.get_row_column(i, req.var2column(end));
         for (int k = 0; k < edge_num; k++) {
             if (edge_ptr[k].val == end_id) {
@@ -98,7 +98,7 @@ void server::known_to_const(request_or_reply& req) {
         int prev_id = req.get_row_column(i, req.var2column(start));
         int edge_num = 0;
         edge* edge_ptr;
-        edge_ptr = g.get_edges_global(cfg->t_id, prev_id, direction, predict, &edge_num);
+        edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict, &edge_num);
         for (int k = 0; k < edge_num; k++) {
             if (edge_ptr[k].val == end) {
                 req.append_row_to(i, updated_result_table);
@@ -128,7 +128,7 @@ void server::index_to_unknown(request_or_reply& req) {
 
     int edge_num = 0;
     edge* edge_ptr;
-    edge_ptr = g.local_storage.get_index_edges_local(cfg->t_id, index_vertex, direction, &edge_num);
+    edge_ptr = g.local_storage.get_index_edges_local(cfg->wid, index_vertex, direction, &edge_num);
     int start_id = req.mt_current_thread;
     for (int k = start_id; k < edge_num; k += req.mt_total_thread) {
         updated_result_table.push_back(edge_ptr[k].val);
@@ -152,12 +152,12 @@ void server::const_unknown_unknown(request_or_reply& req) {
         assert(false);
     }
     int npredict = 0;
-    edge* predict_ptr = g.get_edges_global(cfg->t_id, start, direction, 0, &npredict);
+    edge* predict_ptr = g.get_edges_global(cfg->wid, start, direction, 0, &npredict);
     // foreach possible predict
     for (int p = 0; p < npredict; p++) {
         int edge_num = 0;
         edge* edge_ptr;
-        edge_ptr = g.get_edges_global(cfg->t_id, start, direction, predict_ptr[p].val, &edge_num);
+        edge_ptr = g.get_edges_global(cfg->wid, start, direction, predict_ptr[p].val, &edge_num);
         for (int k = 0; k < edge_num; k++) {
             updated_result_table.push_back(predict_ptr[p].val);
             updated_result_table.push_back(edge_ptr[k].val);
@@ -179,12 +179,12 @@ void server::known_unknown_unknown(request_or_reply& req) {
     for (int i = 0; i < req.row_num(); i++) {
         int prev_id = req.get_row_column(i, req.var2column(start));
         int npredict = 0;
-        edge* predict_ptr = g.get_edges_global(cfg->t_id, prev_id, direction, 0, &npredict);
+        edge* predict_ptr = g.get_edges_global(cfg->wid, prev_id, direction, 0, &npredict);
         // foreach possible predict
         for (int p = 0; p < npredict; p++) {
             int edge_num = 0;
             edge* edge_ptr;
-            edge_ptr = g.get_edges_global(cfg->t_id, prev_id, direction, predict_ptr[p].val, &edge_num);
+            edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict_ptr[p].val, &edge_num);
             for (int k = 0; k < edge_num; k++) {
                 req.append_row_to(i, updated_result_table);
                 updated_result_table.push_back(predict_ptr[p].val);
@@ -209,12 +209,12 @@ void server::known_unknown_const(request_or_reply& req) {
     for (int i = 0; i < req.row_num(); i++) {
         int prev_id = req.get_row_column(i, req.var2column(start));
         int npredict = 0;
-        edge* predict_ptr = g.get_edges_global(cfg->t_id, prev_id, direction, 0, &npredict);
+        edge* predict_ptr = g.get_edges_global(cfg->wid, prev_id, direction, 0, &npredict);
         // foreach possible predict
         for (int p = 0; p < npredict; p++) {
             int edge_num = 0;
             edge* edge_ptr;
-            edge_ptr = g.get_edges_global(cfg->t_id, prev_id, direction, predict_ptr[p].val, &edge_num);
+            edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict_ptr[p].val, &edge_num);
             for (int k = 0; k < edge_num; k++) {
                 if (edge_ptr[k].val == end) {
                     req.append_row_to(i, updated_result_table);
@@ -324,7 +324,7 @@ void server::handle_join(request_or_reply& req) {
         }
         t4 = timer::get_usec();
     }
-    if (cfg->m_id == 0 && cfg->t_id == cfg->client_num) {
+    if (cfg->sid == 0 && cfg->wid == cfg->ncwkrs) {
         cout << "prepare " << (t1 - t0) << " us" << endl;
         cout << "execute sub-request " << (t2 - t1) << " us" << endl;
         cout << "sort " << (t3 - t2) << " us" << endl;
@@ -405,7 +405,7 @@ vector<request_or_reply> server::generate_sub_requests(request_or_reply& req) {
     int end         = req.cmd_chains[req.step * 4 + 3];
 
     vector<request_or_reply> sub_reqs;
-    int num_sub_request = cfg->m_num;
+    int num_sub_request = cfg->nsrvs;
     sub_reqs.resize(num_sub_request);
     for (int i = 0; i < sub_reqs.size(); i++) {
         sub_reqs[i].parent_id = req.id;
@@ -427,7 +427,7 @@ vector<request_or_reply> server::generate_mt_sub_requests(request_or_reply& req)
     int nthread = max(1, min(global_multithread_factor, global_num_server));
 
     vector<request_or_reply> sub_reqs;
-    int num_sub_request = cfg->m_num * nthread ;
+    int num_sub_request = cfg->nsrvs * nthread ;
     sub_reqs.resize(num_sub_request );
     for (int i = 0; i < sub_reqs.size(); i++) {
         sub_reqs[i].parent_id = req.id;
@@ -438,9 +438,9 @@ vector<request_or_reply> server::generate_mt_sub_requests(request_or_reply& req)
         sub_reqs[i].local_var = start;
     }
     for (int i = 0; i < req.row_num(); i++) {
-        // id = t_id*cfg->m_num + m_id
-        //so  m_id = id % cfg->m_num
-        //    t_id = id / cfg->m_num
+        // id = wid*cfg->nsrvs + m_id
+        //so  m_id = id % cfg->nsrvs
+        //    wid = id / cfg->nsrvs
         int id = mymath::hash_mod(req.get_row_column(i, req.var2column(start)), num_sub_request);
         req.append_row_to(i, sub_reqs[id].result_table);
     }
@@ -463,14 +463,14 @@ void server::execute(request_or_reply& req) {
         t1 = timer::get_usec();
         execute_one_step(req);
         t2 = timer::get_usec();
-        if (cfg->m_id == 0 && cfg->t_id == cfg->client_num) {
+        if (cfg->sid == 0 && cfg->wid == cfg->ncwkrs) {
             //cout<<"step "<<req.step <<" "<<t2-t1<<" us"<<endl;
         }
         if (!req.is_finished() && req.cmd_chains[req.step * 4 + 2] == join_cmd) {
             t1 = timer::get_usec();
             handle_join(req);
             t2 = timer::get_usec();
-            if (cfg->m_id == 0 && cfg->t_id == cfg->client_num) {
+            if (cfg->sid == 0 && cfg->wid == cfg->ncwkrs) {
                 //cout<<"handle join "<<" "<<t2-t1<<" us"<<endl;
             }
         }
@@ -486,10 +486,10 @@ void server::execute(request_or_reply& req) {
             assert(!global_enable_workstealing);
             vector<request_or_reply> sub_reqs = generate_mt_sub_requests(req);
             wqueue.put_parent_request(req, sub_reqs.size());
-            //so  m_id = id % cfg->m_num
-            //    t_id = id / cfg->m_num + cfg->client_num
+            //so  m_id = id % cfg->nsrvs
+            //    wid = id / cfg->nsrvs + cfg->ncwkrs
             for (int i = 0; i < sub_reqs.size(); i++) {
-                SendR(cfg, i % cfg->m_num , i / cfg->m_num + cfg->client_num, sub_reqs[i]);
+                SendR(cfg, i % cfg->nsrvs , i / cfg->nsrvs + cfg->ncwkrs, sub_reqs[i]);
             }
             return ;
         }
@@ -497,8 +497,8 @@ void server::execute(request_or_reply& req) {
             vector<request_or_reply> sub_reqs = generate_sub_requests(req);
             wqueue.put_parent_request(req, sub_reqs.size());
             for (int i = 0; i < sub_reqs.size(); i++) {
-                if (i != cfg->m_id) {
-                    SendR(cfg, i, cfg->t_id, sub_reqs[i]);
+                if (i != cfg->sid) {
+                    SendR(cfg, i, cfg->wid, sub_reqs[i]);
                 } else {
                     pthread_spin_lock(&recv_lock);
                     msg_fast_path.push_back(sub_reqs[i]);
@@ -512,8 +512,8 @@ void server::execute(request_or_reply& req) {
 };
 
 void server::run() {
-    int own_id = cfg->t_id - cfg->client_num ;
-    int possible_array[2] = {own_id , cfg->server_num - 1 - own_id};
+    int own_id = cfg->wid - cfg->ncwkrs ;
+    int possible_array[2] = {own_id , cfg->nswkrs - 1 - own_id};
     uint64_t try_count = 0;
     while (true) {
         last_time = timer::get_usec();

@@ -42,13 +42,13 @@ int global_barrier_val = 0;
 void
 ClientBarrier(struct thread_cfg *cfg)
 {
-	if (cfg->t_id == 0) {
+	if (cfg->wid == 0) {
 		MPI_Barrier(MPI_COMM_WORLD);
 		__sync_fetch_and_add(&global_barrier_val, 1);
 	}  else {
 		__sync_fetch_and_add(&global_barrier_val, 1);
 	}
-	while (global_barrier_val < local_barrier_val * cfg->client_num) {
+	while (global_barrier_val < local_barrier_val * cfg->ncwkrs) {
 		usleep(1);
 	}
 	local_barrier_val += 1;
@@ -83,172 +83,168 @@ single_execute(client* clnt, string filename, int execute_count)
 };
 
 void
-display_help(client* clnt)
+print_help(void)
 {
-	if (clnt->cfg->m_id == 0 && clnt->cfg->t_id == 0) {
-		cout << "> reconfig: reload config file" << endl;
-		cout << "> switch_single: execute one query at a time (singlefile [ + count])" << endl;
-		cout << "> switch_batch: execute concurrent queries (batchfile)" << endl;
-		cout << "> switch_mix:  (batch + singlefile [ + count] )" << endl;
-		cout << "> help: display help infomation" << endl;
-	}
+	cout << "  Commands" << endl;
+	cout << "\thelp:          \tdisplay help infomation" << endl;
+	cout << "\tquit:          \tquit from client" << endl;
+	cout << "\treconfig:      \treload config file" << endl;
+	cout << "\tswitch_single: \trun single query (e.g., query [count])" << endl;
+	cout << "\tswitch_batch:  \trun concurrent queries (e.g., queries)" << endl;
+	cout << "\tswitch_mix:    \trun concurrent & single queries)" << endl;
+
 }
 
-extern void simulate_trinity_q1(client* clnt);
-extern void simulate_trinity_q2(client* clnt);
-extern void simulate_trinity_q3(client* clnt);
-extern void simulate_trinity_q4(client* clnt);
-extern void simulate_trinity_q5(client* clnt);
-extern void simulate_trinity_q6(client* clnt);
-extern void simulate_trinity_q7(client* clnt);
+enum { SINGLE_MODE = 0, BATCH_MODE, MIX_MODE, N_MODES };
 
+string mode_str[N_MODES] = {
+	"single mode (i.e., query [count]):",
+	"batch mode (i.e., queries):",
+	"mix mode: (i.e., queries query [count]):"
+};
 
 void
-iterative_shell(client* clnt)
+interactive_shell(client *clnt)
 {
-	//ClientBarrier(clnt->cfg);
 	struct thread_cfg *cfg = clnt->cfg;
-	string mode_str[3];
-	mode_str[0] = "single mode (singlefile [ + count]):";
-	mode_str[1] = "batch mode (batchfile):";
-	mode_str[2] = "mix mode (batchfile + singlefile [ + count]):";
-	if (cfg->m_id == 0 && cfg->t_id == 0) {
+
+	// the master client worker (i.e., sid == 0 and wid == 0)
+	if (cfg->sid == 0 && cfg->wid == 0) {
 		cout << "input help to get more infomation about the shell" << endl;
 		cout << mode_str[global_client_mode] << endl;
 	}
+
 	while (true) {
 		ClientBarrier(clnt->cfg);
+
 		string input_str;
-		//exchange input
-		if (cfg->m_id == 0 && cfg->t_id == 0) {
+		if (cfg->sid == 0 && cfg->wid == 0) {
 			//cout<<mode_str[global_client_mode]<<endl;
 			cout << "> ";
 			std::getline(std::cin, input_str);
-			for (int i = 0; i < cfg->m_num; i++) {
-				for (int j = 0; j < cfg->client_num; j++) {
-					if (i == 0 && j == 0) {
+
+			// send commands to all client workers
+			for (int i = 0; i < cfg->nsrvs; i++) {
+				for (int j = 0; j < cfg->ncwkrs; j++) {
+					if (i == 0 && j == 0)
 						continue;
-					}
 					cfg->node->Send(i, j, input_str);
 				}
 			}
 		} else {
+			// recieve commands
 			input_str = cfg->node->Recv();
 		}
-		//end of exchange input
 
+		//handle commands
 		if (input_str == "help") {
-			display_help(clnt);
-		} else if (input_str == "trinity_q1") {
-			simulate_trinity_q1(clnt);
-		} else if (input_str == "trinity_q2") {
-			simulate_trinity_q2(clnt);
-		} else if (input_str == "trinity_q3") {
-			simulate_trinity_q3(clnt);
-		} else if (input_str == "trinity_q4") {
-			simulate_trinity_q4(clnt);
-		} else if (input_str == "trinity_q5") {
-			simulate_trinity_q5(clnt);
-		} else if (input_str == "trinity_q6") {
-			simulate_trinity_q6(clnt);
-		} else if (input_str == "trinity_q7") {
-			simulate_trinity_q7(clnt);
-		} else if (input_str == "reconfig") {
-			if (cfg->t_id == 0) {
-				client_reconfig();
-			}
+			// TODO: support separate client workers
+			if (cfg->sid == 0 && cfg->wid == 0)
+				print_help();
 		} else if (input_str == "quit") {
-			if (cfg->t_id == 0) {
+			if (cfg->wid == 0)
 				exit(0);
-			}
+		} else if (input_str == "reconfig") {
+			if (cfg->wid == 0)
+				reload_cfg();
 		} else if (input_str == "switch_single") {
-			if (cfg->t_id == 0) {
-				global_client_mode = 0;
-				if (cfg->m_id == 0) {
+			if (cfg->wid == 0) {
+				global_client_mode = SINGLE_MODE;
+				if (cfg->sid == 0)
 					cout << mode_str[global_client_mode] << endl;
-				}
 			}
 		} else if (input_str == "switch_batch") {
-			if (cfg->t_id == 0) {
-				global_client_mode = 1;
-				if (cfg->m_id == 0) {
+			if (cfg->wid == 0) {
+				global_client_mode = BATCH_MODE;
+				if (cfg->sid == 0)
 					cout << mode_str[global_client_mode] << endl;
-				}
 			}
 		} else if (input_str == "switch_mix") {
-			if (cfg->t_id == 0) {
-				global_client_mode = 2;
-				if (cfg->m_id == 0) {
+			if (cfg->wid == 0) {
+				global_client_mode = MIX_MODE;
+				if (cfg->sid == 0)
 					cout << mode_str[global_client_mode] << endl;
-				}
 			}
-		} else {
-			//handle queries here
-			if (global_client_mode == 0) {
-				if (cfg->m_id == 0 && cfg->t_id == 0) {
+		} else { //handle queries here
+			if (global_client_mode == SINGLE_MODE) {
+				if (cfg->sid == 0 && cfg->wid == 0) {
+					// run single-command using the master client
 					istringstream iss(input_str);
-					string filename;
-					int count = 1;
-					iss >> filename;
-					iss >> count;
-					if (count < 1) {
-						count = 1;
-					}
-					single_execute(clnt, filename, count);
+					string fname;
+					int cnt = 1;
+
+					iss >> fname >> cnt;
+					if (cnt < 1) cnt = 1;
+
+					single_execute(clnt, fname, cnt);
 				}
-			} else if (global_client_mode == 1) {
-				istringstream iss(input_str);
-				string batchfile;
-				iss >> batchfile;
+			} else if (global_client_mode == BATCH_MODE) {
 				batch_logger logger;
+
+				// ISSUE: client vs. server
+				// run batch-command on all clients
+				istringstream iss(input_str);
+				string fname;
+
+				iss >> fname;
+
 				logger.init();
-				nonblocking_execute(clnt, batchfile, logger);
+				nonblocking_execute(clnt, fname, logger);
 				//batch_execute(clnt,filename,logger);
 				logger.finish();
+
 				ClientBarrier(clnt->cfg);
 				//MPI_Barrier(MPI_COMM_WORLD);
-				if (cfg->m_id == 0 && cfg->t_id == 0) {
-					for (int i = 0; i < cfg->m_num * cfg->client_num - 1 ; i++) {
-						batch_logger r = RecvObject<batch_logger>(clnt->cfg);
-						logger.merge(r);
+
+				// print results of batch command
+				if (cfg->sid == 0 && cfg->wid == 0) {
+					// collect logs from other clients
+					for (int i = 0; i < cfg->nsrvs * cfg->ncwkrs - 1; i++) {
+						batch_logger log = RecvObject<batch_logger>(clnt->cfg);
+						logger.merge(log);
 					}
 					logger.print();
 				} else {
+					// transport logs to the master client
 					SendObject<batch_logger>(clnt->cfg, 0, 0, logger);
 				}
-			} else if (global_client_mode == 2) {
-				istringstream iss(input_str);
-				string batchfile;
-				string singlefile;
-				int count = 1;
-				iss >> batchfile >> singlefile >> count;
-				if (count < 1) {
-					count = 1;
-				}
+			} else if (global_client_mode == MIX_MODE) {
 				batch_logger logger;
-				if (cfg->m_id == 0 && cfg->t_id == 0) {
-					single_execute(clnt, singlefile, count);
+
+				istringstream iss(input_str);
+				string b_fname;
+				string s_fname;
+				int cnt = 1;
+
+				iss >> b_fname >> s_fname >> cnt;
+				if (cnt < 1) cnt = 1;
+
+				if (cfg->sid == 0 && cfg->wid == 0) {
+					// dedicate the master client to run single-command
+					single_execute(clnt, s_fname, cnt);
 				} else {
+					// run batch-command on other clients
 					logger.init();
-					nonblocking_execute(clnt, batchfile, logger);
+					nonblocking_execute(clnt, b_fname, logger);
 					//batch_execute(clnt,batchfile,logger);
 					logger.finish();
 				}
 				ClientBarrier(clnt->cfg);
 				//MPI_Barrier(MPI_COMM_WORLD);
-				if (cfg->m_id == 0 && cfg->t_id == 0) {
-					for (int i = 0; i < cfg->m_num * cfg->client_num - 1 ; i++) {
-						batch_logger r = RecvObject<batch_logger>(clnt->cfg);
-						logger.merge(r);
+
+				if (cfg->sid == 0 && cfg->wid == 0) {
+					// collect logs from other clients
+					for (int i = 0; i < cfg->nsrvs * cfg->ncwkrs - 1 ; i++) {
+						batch_logger log = RecvObject<batch_logger>(clnt->cfg);
+						logger.merge(log);
 					}
 					logger.print();
 				} else {
+					// transport logs to the master client
 					SendObject<batch_logger>(clnt->cfg, 0, 0, logger);
 				}
 			}
 		}
-
-
 	}
 }
 

@@ -33,19 +33,56 @@ int global_rdma_threshold;
 /* TODO: split the config file and related code
 		 into two parts: client and server */
 
-std::string config_filename;
+std::string cfg_fname;
+std::string host_fname;
+
+/**
+ * dump current global setting
+ */
+void
+dump_cfg(void)
+{
+	cout << "------ global configurations ------" << endl;
+
+	// setting by config file
+	cout << "global_use_rbf: " 				<< global_use_rbf 					<< endl;
+	cout << "global_use_rdma: " 			<< global_use_rdma					<< endl;
+	cout << "global_rdma_threshold: " 		<< global_rdma_threshold			<< endl;
+	cout << "global_num_server:	 " 			<< global_num_server 				<< endl;
+	cout << "global_num_client: " 			<< global_num_client				<< endl;
+	cout << "global_batch_factor: " 		<< global_batch_factor				<< endl;
+	cout << "global_multithread_factor: " 	<< global_multithread_factor  		<< endl;
+	cout << "global_input_folder: " 		<< global_input_folder				<< endl;
+	cout << "global_client_mode: " 			<< global_client_mode				<< endl;
+	cout << "global_use_loc_cache: " 		<< global_use_loc_cache				<< endl;
+	cout << "global_load_minimal_index: " 	<< global_load_minimal_index 		<< endl;
+	cout << "global_silent: " 				<< global_silent					<< endl;
+	cout << "global_max_print_row: " 		<< global_max_print_row				<< endl;
+	cout << "global_total_memory_gb: " 		<< global_total_memory_gb			<< endl;
+	cout << "global_perslot_msg_mb: " 		<< global_perslot_msg_mb   			<< endl;
+	cout << "global_perslot_rdma_mb: " 		<< global_perslot_rdma_mb			<< endl;
+	cout << "global_hash_header_million: " 	<< global_hash_header_million		<< endl;
+	cout << "global_enable_workstealing: " 	<< global_enable_workstealing		<< endl;
+	cout << "global_enable_idx_partition: " << global_enable_index_partition	<< endl;
+	cout << "global_verbose: " 				<< global_verbose					<< endl;
+	cout << "--" << endl;
+
+	// compute from other cfg settings
+	cout << "global_rdftype_id: " 			<< global_rdftype_id				<< endl;
+	cout << "global_num_thread: " 			<< global_num_thread				<< endl;
+}
 
 /**
  * reconfig client
  */
 void
-client_reconfig()
+reload_cfg(void)
 {
-	ifstream file(config_filename.c_str());
+	ifstream file(cfg_fname.c_str());
 	if (!file) {
-		cout << "ERROR: the config file ("
-		     << config_filename
-		     << ") does not exist."
+		cout << "ERROR: the configure file "
+		     << cfg_fname
+		     << " does not exist."
 		     << endl;
 		exit(0);
 	}
@@ -73,12 +110,14 @@ client_reconfig()
 }
 
 void
-load_global_cfg(char* filename)
+load_cfg(void)
 {
-	config_filename = std::string(filename);
-	ifstream file(config_filename.c_str());
+	ifstream file(cfg_fname.c_str());
 	if (!file) {
-		cout << "Config file " << config_filename << " not exist" << endl;
+		cout << "ERROR: the configure file "
+		     << cfg_fname
+		     << " does not exist."
+		     << endl;
 		exit(0);
 	}
 
@@ -118,8 +157,9 @@ load_global_cfg(char* filename)
 
 	global_rdftype_id = -1;
 
-	// 1 logical queue = N server-thread queues + 1 client-thread queue
+	// 1 logical queue = N server-worker queues + 1 client-worker queue
 	global_num_thread = global_num_server + global_num_client;
 
+	if (global_verbose) dump_cfg();
 	return;
 }

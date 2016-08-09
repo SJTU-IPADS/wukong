@@ -14,7 +14,7 @@
 using namespace std;
 
 /*
- * The socket setting of our cluster (Cube0-5)
+ * The processor architecture of our cluster (Cube0-5)
  *
  * $numactl --hardware
  * available: 2 nodes (0-1)
@@ -29,15 +29,11 @@ using namespace std;
  *   0:  10  21
  *   1:  21  10
  *
- * bind worker-threads to the same socket, at most 8 each.
+ * bind server-worker threads to the same socket, at most 8 each.
  *
  * TODO: it should be identify by runtime detection
  */
-int socket_0[] = {
-	0, 2, 4, 6, 8, 10, 12, 14, 16, 18
-};
-
-int socket_1[] = {
+int cores[] = {
 	1, 3, 5, 7, 9, 11, 13, 15, 17, 19,
 	0, 2, 4, 6, 8, 10, 12, 14, 16, 18
 };
@@ -47,71 +43,74 @@ pin_to_core(size_t core)
 {
 	cpu_set_t  mask;
 	CPU_ZERO(&mask);
-	CPU_SET(core , &mask);
+	CPU_SET(core, &mask);
 	int result = sched_setaffinity(0, sizeof(mask), &mask);
 }
 
 void*
-worker_thread(void *ptr)
+worker_thread(void *arg)
 {
-	struct thread_cfg *cfg = (struct thread_cfg*) ptr;
-	pin_to_core(socket_1[cfg->t_id]);
-	// if(cfg->m_id %2==0){
-	// 	pin_to_core(socket_1[cfg->t_id]);
-	// } else {
-	// 	pin_to_core(socket_0[cfg->t_id]);
-	// }
-	if (cfg->t_id >= cfg->client_num) {
-		((server*)(cfg->ptr))->run();
+	struct thread_cfg *cfg = (struct thread_cfg *) arg;
+	pin_to_core(cores[cfg->wid]);
+
+	// reserver ncwkrs threads to client workers
+	if (cfg->wid >= cfg->ncwkrs) {
+		// server-worker threads
+		((server *)(cfg->ptr))->run();
 	} else {
-		iterative_shell(((client*)(cfg->ptr)));
+		// client-worker threads
+		interactive_shell(((client*)(cfg->ptr)));
 	}
 }
 
 int
-main(int argc, char * argv[])
+main(int argc, char *argv[])
 {
+	boost::mpi::environment env(argc, argv);
+	boost::mpi::communicator world;
+
 	if (argc != 3) {
 		cout << "usage: ./wukong config_file hostfile" << endl;
 		exit(-1);
 	}
+	cfg_fname = std::string(argv[1]);
+	host_fname = std::string(argv[2]);
 
-	load_global_cfg(argv[1]);
+	// config global setting
+	load_cfg();
+	assert(global_num_thread == global_num_client + global_num_server);
 
-	boost::mpi::environment env(argc, argv);
-	boost::mpi::communicator world;
-
-	uint64_t rdma_size = GiB2B(1);
-	rdma_size = rdma_size * global_total_memory_gb;
-
+	// calculate memory usage
+	uint64_t rdma_size = GiB2B(global_total_memory_gb);
 	uint64_t msg_slot_per_thread = MiB2B(global_perslot_msg_mb);
 	uint64_t rdma_slot_per_thread = MiB2B(global_perslot_rdma_mb);
+	uint64_t mem_size = rdma_size
+	                    + rdma_slot_per_thread * global_num_thread
+	                    + msg_slot_per_thread * global_num_thread;
+	cout << "memory usage: " << B2GiB(mem_size) << "GB" << endl;
 
-	uint64_t total_size = rdma_size
-	                      + rdma_slot_per_thread * global_num_thread
-	                      + msg_slot_per_thread * global_num_thread;
 
-	//[0-thread_num-1] are used
-	Network_Node *node = new Network_Node(world.rank(), global_num_thread, string(argv[2]));
-	char *buffer = (char*) malloc(total_size);
-	memset(buffer, 0, total_size);
+	// create an RDMA instance
+	char *buffer = (char*) malloc(mem_size);
+	memset(buffer, 0, mem_size);
 	RdmaResource *rdma = new RdmaResource(world.size(), global_num_thread,
-	                                      world.rank(), buffer, total_size,
+	                                      world.rank(), buffer, mem_size,
 	                                      rdma_slot_per_thread, msg_slot_per_thread, rdma_size);
-	rdma->node = node;
+	// a special TCP/IP instance used by RDMA (wid == global_num_threads)
+	rdma->node = new Network_Node(world.rank(), global_num_thread, host_fname);
 	rdma->Servicing();
 	rdma->Connect();
 
-	thread_cfg* cfg_array = new thread_cfg[global_num_thread];
+	thread_cfg *cfg_array = new thread_cfg[global_num_thread];
 	for (int i = 0; i < global_num_thread; i++) {
-		cfg_array[i].t_id = i;
-		cfg_array[i].t_num = global_num_thread;
-		cfg_array[i].m_id = world.rank();
-		cfg_array[i].m_num = world.size();
-		cfg_array[i].client_num = global_num_client;
-		cfg_array[i].server_num = global_num_server;
+		cfg_array[i].wid = i;
+		cfg_array[i].nwkrs = global_num_thread;
+		cfg_array[i].sid = world.rank();
+		cfg_array[i].nsrvs = world.size();
+		cfg_array[i].ncwkrs = global_num_client;
+		cfg_array[i].nswkrs = global_num_server;
 		cfg_array[i].rdma = rdma;
-		cfg_array[i].node = new Network_Node(cfg_array[i].m_id, cfg_array[i].t_id, string(argv[2]));
+		cfg_array[i].node = new Network_Node(cfg_array[i].sid, cfg_array[i].wid, host_fname);
 		cfg_array[i].init();
 	}
 
@@ -161,12 +160,12 @@ main(int argc, char * argv[])
 
 	distributed_graph graph(world, rdma, global_input_folder);
 
-	client** client_array = new client*[global_num_client];
+	client **client_array = new client *[global_num_client];
 	for (int i = 0; i < global_num_client; i++) {
 		client_array[i] = new client(&cfg_array[i], &str_server);
 	}
 
-	server** server_array = new server*[global_num_server];
+	server **server_array = new server*[global_num_server];
 	for (int i = 0; i < global_num_server; i++) {
 		server_array[i] = new server(graph, &cfg_array[global_num_client + i]);
 	}
@@ -174,17 +173,19 @@ main(int argc, char * argv[])
 		server_array[i]->set_server_array(server_array);
 	}
 
-
-	pthread_t* thread  = new pthread_t[global_num_thread];
+	// spawn client and server workers
+	pthread_t *thread  = new pthread_t[global_num_thread];
 	for (size_t id = 0; id < global_num_thread; ++id) {
-		if (id < global_num_client) {
+		if (id < global_num_client)
 			cfg_array[id].ptr = client_array[id];
-		} else {
+		else
 			cfg_array[id].ptr = server_array[id - global_num_client];
-		}
-		pthread_create (&(thread[id]), NULL, worker_thread, (void *) & (cfg_array[id]));
+
+		pthread_create(&(thread[id]), NULL, worker_thread, (void *) & (cfg_array[id]));
 	}
-	for (size_t t = 0 ; t < global_num_thread; t++) {
+
+	// wait to termination
+	for (size_t t = 0; t < global_num_thread; t++) {
 		int rc = pthread_join(thread[t], NULL);
 		if (rc) {
 			printf("ERROR; return code from pthread_join() is %d\n", rc);

@@ -669,7 +669,7 @@ RdmaResource::Connect()
 		zmq::socket_t socket(context, ZMQ_REQ);
 
 		int port = 9576 + j;
-		snprintf(address, 30, "tcp://%s:%d", node->net_def[j].c_str(), port);
+		snprintf(address, 30, "tcp://%s:%d", node->ip_of(j).c_str(), port);
 		fprintf(stdout, "connect to %s\n", address);
 		socket.connect(address);
 
@@ -919,7 +919,7 @@ void* RdmaResource::RecvThread(void * arg)
 	int _current_partition = rdma->_current_partition;
 	int port =  9576 + _current_partition;
 	sprintf(address, "tcp://%s:%d",
-	        rdma->node->net_def[_current_partition].c_str(), port);
+	        rdma->node->ip_of(_current_partition).c_str(), port);
 	fprintf(stdout, "binding: %s\n", address);
 	socket.bind(address);
 

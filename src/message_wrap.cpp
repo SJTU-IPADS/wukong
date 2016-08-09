@@ -5,7 +5,7 @@ void SendR(thread_cfg* cfg, int r_mid, int r_tid, request_or_reply& r) {
     boost::archive::binary_oarchive oa(ss);
     oa << r;
     if (global_use_rbf) {
-        cfg->rdma->rbfSend(cfg->t_id, r_mid, r_tid, ss.str().c_str(), ss.str().size());
+        cfg->rdma->rbfSend(cfg->wid, r_mid, r_tid, ss.str().c_str(), ss.str().size());
     } else {
         cfg->node->Send(r_mid, r_tid, ss.str());
     }
@@ -14,7 +14,7 @@ void SendR(thread_cfg* cfg, int r_mid, int r_tid, request_or_reply& r) {
 request_or_reply RecvR(thread_cfg* cfg) {
     std::string str;
     if (global_use_rbf) {
-        str = cfg->rdma->rbfRecv(cfg->t_id);
+        str = cfg->rdma->rbfRecv(cfg->wid);
     } else {
         str = cfg->node->Recv();
     }
@@ -29,7 +29,7 @@ request_or_reply RecvR(thread_cfg* cfg) {
 bool TryRecvR(thread_cfg* cfg, request_or_reply& r) {
     std::string str;
     if (global_use_rbf) {
-        bool ret = cfg->rdma->rbfTryRecv(cfg->t_id, str);
+        bool ret = cfg->rdma->rbfTryRecv(cfg->wid, str);
         if (!ret) {
             return false;
         }

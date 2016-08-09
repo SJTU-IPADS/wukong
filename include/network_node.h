@@ -11,37 +11,36 @@
 
 class Network_Node {
 public:
-  int pid;
-  int nid;
+  int sid;  // server-id in [0, nsrvs)
+  int wid;  // worker-id in [0, nwkrs)
   zmq::context_t context;
   zmq::socket_t* receiver;
 
-  std::vector<std::string> net_def;
-  std::unordered_map<int, zmq::socket_t*> socket_map;
+  std::vector<std::string> ipset;
+  std::unordered_map<int, zmq::socket_t*> senders;
 
-  inline int hash(int _pid, int _nid) {
-    return _pid * 200 + _nid;
+  inline int code(int _sid, int _wid) {
+    return _sid * 200 + _wid;
   }
 
-  Network_Node(int _pid, int _nid, std::string hostname)
-    : nid(_nid), pid(_pid), context(1) {
+  Network_Node(int _sid, int _wid, std::string fname)
+    : sid(_sid), wid(_wid), context(1) {
 
-    std::ifstream file(hostname);
+    std::ifstream hostfile(fname);
     std::string ip;
 
-    while (file >> ip) {
-      net_def.push_back(ip);
-    }
+    while (hostfile >> ip)
+      ipset.push_back(ip);
 
     receiver = new zmq::socket_t(context, ZMQ_PULL);
     char address[30] = "";
-    sprintf(address, "tcp://*:%d", 5500 + hash(pid, nid));
-    //fprintf(stdout,"tcp binding address %s\n",address);
+    sprintf(address, "tcp://*:%d", 5500 + code(_sid, _wid));
+    //fprintf(stdout, "tcp binding address %s\n", address);
     receiver->bind(address);
   }
 
   ~Network_Node() {
-    for (auto iter : socket_map) {
+    for (auto iter : senders) {
       if (iter.second != NULL) {
         delete iter.second;
         iter.second = NULL;
@@ -50,19 +49,24 @@ public:
     delete receiver;
   }
 
-  void Send(int _pid, int _nid, std::string msg) {
-    int id = hash(_pid, _nid);
-    if (socket_map.find(id) == socket_map.end()) {
-      socket_map[id] = new zmq::socket_t(context, ZMQ_PUSH);
+  std::string ip_of(int _sid) {
+    return ipset[_sid];
+  }
+
+  void Send(int _sid, int _wid, std::string msg) {
+    int id = code(_sid, _wid);
+
+    if (senders.find(id) == senders.end()) {
+      senders[id] = new zmq::socket_t(context, ZMQ_PUSH);
 
       char address[30] = "";
-      snprintf(address, 30, "tcp://%s:%d", net_def[_pid].c_str(), 5500 + id);
+      snprintf(address, 30, "tcp://%s:%d", ipset[_sid].c_str(), 5500 + id);
       //fprintf(stdout,"mul estalabish %s\n",address);
-      socket_map[id]->connect(address);
+      senders[id]->connect(address);
     }
     zmq::message_t request(msg.length());
-    memcpy ((void *) request.data(), msg.c_str(), msg.length());
-    socket_map[id]->send(request);
+    memcpy ((void *)request.data(), msg.c_str(), msg.length());
+    senders[id]->send(request);
   }
 
   std::string Recv() {
