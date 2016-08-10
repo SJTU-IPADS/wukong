@@ -34,24 +34,23 @@ instantiate_request(client* clnt, request_template& req_template, request_or_rep
 		}
 		r.cmd_chains[pos] = (*vecptr)[clnt->cfg->get_random() % (vecptr->size())];
 	}
-	return ;
 }
 
-__thread int local_barrier_val = 1;
-int global_barrier_val = 0;
 void
-ClientBarrier(struct thread_cfg *cfg)
+client_barrier(struct thread_cfg *cfg)
 {
-	if (cfg->wid == 0) {
+	static int _curr = 0;
+	static __thread int _next = 1;
+
+	// inter-node barrier
+	if (cfg->wid == 0)
 		MPI_Barrier(MPI_COMM_WORLD);
-		__sync_fetch_and_add(&global_barrier_val, 1);
-	}  else {
-		__sync_fetch_and_add(&global_barrier_val, 1);
-	}
-	while (global_barrier_val < local_barrier_val * cfg->ncwkrs) {
-		usleep(1);
-	}
-	local_barrier_val += 1;
+
+	// intra-node barrier
+	__sync_fetch_and_add(&_curr, 1);
+	while (_curr < _next)
+		usleep(1); // wait
+	_next += cfg->ncwkrs; // next barrier
 }
 
 void
@@ -80,7 +79,7 @@ single_execute(client* clnt, string filename, int execute_count)
 		clnt->print_result(reply, row_to_print);
 	}
 	cout << "average latency " << sum / execute_count << " us" << endl;
-};
+}
 
 void
 print_help(void)
@@ -115,11 +114,10 @@ interactive_shell(client *clnt)
 	}
 
 	while (true) {
-		ClientBarrier(clnt->cfg);
+		client_barrier(clnt->cfg);
 
 		string input_str;
 		if (cfg->sid == 0 && cfg->wid == 0) {
-			//cout<<mode_str[global_client_mode]<<endl;
 			cout << "> ";
 			std::getline(std::cin, input_str);
 
@@ -193,7 +191,7 @@ interactive_shell(client *clnt)
 				//batch_execute(clnt,filename,logger);
 				logger.finish();
 
-				ClientBarrier(clnt->cfg);
+				client_barrier(clnt->cfg);
 				//MPI_Barrier(MPI_COMM_WORLD);
 
 				// print results of batch command
@@ -229,7 +227,7 @@ interactive_shell(client *clnt)
 					//batch_execute(clnt,batchfile,logger);
 					logger.finish();
 				}
-				ClientBarrier(clnt->cfg);
+				client_barrier(clnt->cfg);
 				//MPI_Barrier(MPI_COMM_WORLD);
 
 				if (cfg->sid == 0 && cfg->wid == 0) {
