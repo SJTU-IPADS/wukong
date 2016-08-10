@@ -83,21 +83,22 @@ void
 print_help(void)
 {
 	cout << "  Commands" << endl;
-	cout << "\thelp:          \tdisplay help infomation" << endl;
-	cout << "\tquit:          \tquit from client" << endl;
-	cout << "\treconfig:      \treload config file" << endl;
-	cout << "\tswitch_single: \trun single query (e.g., query [count])" << endl;
-	cout << "\tswitch_batch:  \trun concurrent queries (e.g., queries)" << endl;
-	cout << "\tswitch_mix:    \trun concurrent & single queries)" << endl;
+	cout << "    help            display help infomation" << endl;
+	cout << "    quit            quit from client" << endl;
+	cout << "    reconfig        reload config file" << endl;
+	cout << "    switch_mode: single|batch|mix " << endl;
+	cout << "        single      run a special query (e.g., query [count])" << endl;
+	cout << "        batch       run a set of queries (e.g., queries)" << endl;
+	cout << "        mix         run a set of queries with a special query" << endl;
 
 }
 
 enum { SINGLE_MODE = 0, BATCH_MODE, MIX_MODE, N_MODES };
 
 string mode_str[N_MODES] = {
-	"single mode (i.e., query [count]):",
-	"batch mode (i.e., queries):",
-	"mix mode: (i.e., queries query [count]):"
+	"\tsingle mode (e.g., query [count]):",
+	"\tbatch mode (e.g., queries):",
+	"\tmix mode: (e.g., queries query [count]):"
 };
 
 void
@@ -114,78 +115,78 @@ interactive_shell(client *clnt)
 	while (true) {
 		client_barrier(clnt->cfg);
 
-		string input_str;
+		string cmd;
 		if (cfg->sid == 0 && cfg->wid == 0) {
+local_done:
 			cout << "> ";
-			std::getline(std::cin, input_str);
+			std::getline(std::cin, cmd);
+
+			// trim input
+			size_t pos = cmd.find_first_not_of(" \t"); // trim blanks from head
+			if (pos == string::npos) goto local_done;
+			cmd.erase(0, pos);
+
+			pos = cmd.find_last_not_of(" \t");  // trim blanks from tail
+			cmd.erase(pos + 1, cmd.length() - (pos + 1));
+
+			if (cmd == "help") {
+				print_help();
+				goto local_done;
+			}
 
 			// send commands to all client workers
 			for (int i = 0; i < cfg->nsrvs; i++) {
 				for (int j = 0; j < cfg->ncwkrs; j++) {
 					if (i == 0 && j == 0)
 						continue;
-					cfg->node->Send(i, j, input_str);
+					cfg->node->Send(i, j, cmd);
 				}
 			}
 		} else {
 			// recieve commands
-			input_str = cfg->node->Recv();
+			cmd = cfg->node->Recv();
 		}
 
-		//handle commands
-		if (input_str == "help") {
-			// TODO: support separate client workers
-			if (cfg->sid == 0 && cfg->wid == 0)
-				print_help();
-		} else if (input_str == "quit") {
+		// handle a command
+		istringstream cmd_stream(cmd);
+		if (cmd_stream.str() == "quit") {
 			if (cfg->wid == 0)
-				exit(0);
-		} else if (input_str == "reconfig") {
+				exit(0); // each server exits once
+		} else if (cmd_stream.str() == "reconfig") {
 			if (cfg->wid == 0)
-				reload_cfg();
-		} else if (input_str == "switch_single") {
+				reload_cfg(); // each server reconfigs once
+		} else if (cmd_stream.str().find("switch_mode:") == 0) {
 			if (cfg->wid == 0) {
-				global_client_mode = SINGLE_MODE;
+				string skip, mode;
+				cmd_stream >> skip >> mode;
+				if (mode == "single")
+					global_client_mode = SINGLE_MODE;
+				else if (mode == "batch")
+					global_client_mode = BATCH_MODE;
+				else if (mode == "mix")
+					global_client_mode = MIX_MODE;
+
 				if (cfg->sid == 0)
 					cout << mode_str[global_client_mode] << endl;
 			}
-		} else if (input_str == "switch_batch") {
-			if (cfg->wid == 0) {
-				global_client_mode = BATCH_MODE;
-				if (cfg->sid == 0)
-					cout << mode_str[global_client_mode] << endl;
-			}
-		} else if (input_str == "switch_mix") {
-			if (cfg->wid == 0) {
-				global_client_mode = MIX_MODE;
-				if (cfg->sid == 0)
-					cout << mode_str[global_client_mode] << endl;
-			}
-		} else { //handle queries here
+		} else { // handle SPARQL queries
+			batch_logger logger;
+			string qfile;
+			int cnt = 1;
+
 			if (global_client_mode == SINGLE_MODE) {
 				if (cfg->sid == 0 && cfg->wid == 0) {
 					// run single-command using the master client
-					istringstream iss(input_str);
-					string fname;
-					int cnt = 1;
-
-					iss >> fname >> cnt;
+					cmd_stream >> qfile >> cnt;
 					if (cnt < 1) cnt = 1;
-
-					single_execute(clnt, fname, cnt);
+					single_execute(clnt, qfile, cnt);
 				}
 			} else if (global_client_mode == BATCH_MODE) {
-				batch_logger logger;
-
-				// ISSUE: client vs. server
-				// run batch-command on all clients
-				istringstream iss(input_str);
-				string fname;
-
-				iss >> fname;
+				// Q: run batch-command on all clients?
+				cmd_stream >> qfile;
 
 				logger.init();
-				nonblocking_execute(clnt, fname, logger);
+				nonblocking_execute(clnt, qfile, logger);
 				//batch_execute(clnt,filename,logger);
 				logger.finish();
 
@@ -205,23 +206,18 @@ interactive_shell(client *clnt)
 					SendObject<batch_logger>(clnt->cfg, 0, 0, logger);
 				}
 			} else if (global_client_mode == MIX_MODE) {
-				batch_logger logger;
+				string qfile2;
 
-				istringstream iss(input_str);
-				string b_fname;
-				string s_fname;
-				int cnt = 1;
-
-				iss >> b_fname >> s_fname >> cnt;
+				cmd_stream >> qfile >> qfile2 >> cnt;
 				if (cnt < 1) cnt = 1;
 
 				if (cfg->sid == 0 && cfg->wid == 0) {
 					// dedicate the master client to run single-command
-					single_execute(clnt, s_fname, cnt);
+					single_execute(clnt, qfile2, cnt);
 				} else {
 					// run batch-command on other clients
 					logger.init();
-					nonblocking_execute(clnt, b_fname, logger);
+					nonblocking_execute(clnt, qfile, logger);
 					//batch_execute(clnt,batchfile,logger);
 					logger.finish();
 				}
