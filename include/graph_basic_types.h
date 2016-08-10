@@ -1,124 +1,148 @@
 #pragma once
 
-
 #include "utils.h"
 #include <functional>
 #include <iostream>
 #include "global_cfg.h"
 
 struct edge_triple {
-	uint64_t s;
-	uint64_t p;
-	uint64_t o;
-	edge_triple(uint64_t _s, uint64_t _p, uint64_t _o): s(_s), p(_p), o(_o) {
+	uint64_t s, p, o;
 
-	}
-	edge_triple(): s(-1), p(-1), o(-1) {
+	edge_triple(uint64_t _s, uint64_t _p, uint64_t _o): s(_s), p(_p), o(_o) { }
 
-	}
+	edge_triple(): s(-1), p(-1), o(-1) { }
+
+
 };
 
 struct edge_sort_by_spo {
-	inline bool operator() (const edge_triple& struct1, const edge_triple& struct2) {
-		if (struct1.s < struct2.s) {
+	inline bool operator() (const edge_triple &s1, const edge_triple &s2) {
+		if (s1.s < s2.s) {
 			return true;
-		} else if (struct1.s == struct2.s) {
-			if (struct1.p < struct2.p) {
+		} else if (s1.s == s2.s) {
+			if (s1.p < s2.p) {
 				return true;
-			} else if (struct1.p == struct2.p && struct1.o < struct2.o) {
+			} else if (s1.p == s2.p && s1.o < s2.o) {
 				return true;
 			}
 		}
-		//otherwise
+
 		return false;
 	}
 };
 
 struct edge_sort_by_ops {
-	inline bool operator() (const edge_triple& struct1, const edge_triple& struct2) {
-		if (struct1.o < struct2.o) {
+	inline bool operator() (const edge_triple &s1, const edge_triple &s2) {
+		if (s1.o < s2.o) {
 			return true;
-		} else if (struct1.o == struct2.o) {
-			if (struct1.p < struct2.p) {
+		} else if (s1.o == s2.o) {
+			if (s1.p < s2.p) {
 				return true;
-			} else if (struct1.p == struct2.p && struct1.s < struct2.s) {
+			} else if ((s1.p == s2.p) && (s1.s < s2.s)) {
 				return true;
 			}
 		}
-		//otherwise
+
 		return false;
 	}
 };
 
-const int nbit_predict = 17;
-const int nbit_id = 63 - nbit_predict;
-static inline bool is_index_vertex(int id) {
-	return id < (1 << nbit_predict);
-}
+// The ID space of predicate/type ID in [0, 2^NBITS_PID)
+enum { NBITS_DIR = 1 };
+enum { NBITS_PID = 17 };
+enum { NBITS_VID = (64 - NBITS_PID - NBITS_DIR) };
+
+//const int nbit_predict = 17;
+//const int nbit_id = 63 - nbit_predict;
+static inline bool is_pid(int id) { return id < (1 << NBITS_PID); }
+
+/**
+ * Predicate-base Key/value Store
+ * Key: vid | t/pid | direction
+ * Val: v/t/pid list
+ */
 struct local_key {
-	uint64_t dir: 1;
-uint64_t predict: nbit_predict;
-uint64_t id: nbit_id;
-	local_key(): dir(0), predict(0), id(0) {
+uint64_t dir : NBITS_DIR;
+uint64_t pid : NBITS_PID;
+uint64_t vid : NBITS_VID;
+
+	//local_key(): dir(0), pid(0), vid(0) {}
+
+	local_key(): dir(0), pid(0), vid(0) {
 		dir -= 1;
-		predict -= 1;
-		id -= 1;
+		pid -= 1;
+		vid -= 1;
 	}
+
+	local_key(uint64_t i, uint64_t d, uint64_t p): vid(i), dir(d), pid(p) {
+		if ((vid != i) || (dir != d) || (pid != p)) {
+			cout << "WARNING: key truncated! "
+			     << "[" << i << "|" << p << "|" << d << "]"
+			     << " => "
+			     << "[" << vid << "|" << pid << "|" << dir << "]"
+			     << endl;
+		}
+	}
+
+	bool operator == (const local_key &_key) {
+		if ((dir == _key.dir) && (pid == _key.pid) && (vid == _key.vid))
+			return true;
+		return false;
+	}
+
+	bool operator != (const local_key &_key) {
+		return !(operator == (_key));
+	}
+
 	void print() {
-		std::cout << "(" << id << "," << dir << "," << predict << ")" << std::endl;
+		cout << "[" << vid << "|" << pid << "|" << dir << "]" << endl;
 	}
+
 	uint64_t hash() {
 		uint64_t r = 0;
+		r += vid;
+		r <<= NBITS_PID;
+		r += pid;
+		r <<= NBITS_DIR;
 		r += dir;
-		r <<= nbit_predict;
-		r += predict;
-		r <<= nbit_id;
-		r += id;
 		//return std::hash<uint64_t>()(r);
 		return mymath::hash(r);
 	}
-	local_key(uint64_t i, uint64_t d, uint64_t p): id(i), dir(d), predict(p) {
-		if (id != i || dir != d || predict != p) {
-			std::cout << "truncated: " << "(" << i << "," << d << "," << p << ")=>"
-			          << "(" << id << "," << dir << "," << predict << ")" << std::endl;
-		}
-	}
-	bool operator==(const local_key& another_key) {
-		if (dir == another_key.dir
-		        && predict == another_key.predict
-		        && id == another_key.id) {
-			return true;
-		}
-		return false;
-	}
-	bool operator!=(const local_key& another_key) {
-		return !(operator==(another_key));
-	}
 };
 
+
+enum { NBITS_SIZE = 28 };
+enum { NBITS_PTR = 36 };
+
 struct local_val {
-	uint64_t size: 28;
-	uint64_t ptr: 36;
+uint64_t size: NBITS_SIZE;
+uint64_t ptr: NBITS_PTR;
+
+	//local_val(): size(0), ptr(0) {}
+
 	local_val(): size(0), ptr(0) {
 		size -= 1;
 		ptr -= 1;
 	}
 
 	local_val(uint64_t s, uint64_t p): size(s), ptr(p) {
-		if (size != s || ptr != p) {
-			std::cout << "truncated: " << "(" << s << "," << p << ")=>"
-			          << "(" << size << "," << ptr << ")" << std::endl;
+		if ((size != s) || (ptr != p)) {
+			cout << "WARNING: key truncated! "
+			     << "[" << p << "|" << s << "]"
+			     << " => "
+			     << "[" << ptr << "|" << size << "]"
+			     << endl;
 		}
 	}
-	bool operator==(const local_val& another_val) {
-		if (size == another_val.size
-		        &&  ptr == another_val.ptr) {
+
+	bool operator == (const local_val &_val) {
+		if ((size == _val.size) && (ptr == _val.ptr))
 			return true;
-		}
 		return false;
 	}
-	bool operator!=(const local_val& another_val) {
-		return !(operator==(another_val));
+
+	bool operator != (const local_val &_val) {
+		return !(operator == (_val));
 	}
 };
 

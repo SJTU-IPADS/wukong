@@ -1,6 +1,6 @@
 #include "client_mode.h"
 
-void
+static void
 translate_req_template(client* clnt, request_template& req_template)
 {
 	req_template.place_holder_vecptr.resize(req_template.place_holder_str.size());
@@ -23,7 +23,7 @@ translate_req_template(client* clnt, request_template& req_template)
 	}
 }
 
-void
+static void
 instantiate_request(client* clnt, request_template& req_template, request_or_reply& r)
 {
 	for (int i = 0; i < req_template.place_holder_position.size(); i++) {
@@ -36,7 +36,7 @@ instantiate_request(client* clnt, request_template& req_template, request_or_rep
 	}
 }
 
-void
+static void
 client_barrier(struct thread_cfg *cfg)
 {
 	static int _curr = 0;
@@ -54,31 +54,29 @@ client_barrier(struct thread_cfg *cfg)
 }
 
 void
-single_execute(client* clnt, string filename, int execute_count)
+single_execute(client* clnt, string fname, int cnt)
 {
-	int sum = 0;
-	int result_count;
-	request_or_reply request;
-	bool success = clnt->parser.parse(filename, request);
-	if (!success) {
-		cout << "sparql parse error" << endl;
-		return ;
+	request_or_reply request, reply;
+
+	if (!clnt->parser.parse(fname, request)) {
+		cout << "SPARQL query parse error" << endl;
+		return;
 	}
 	request.silent = global_silent;
-	request_or_reply reply;
-	for (int i = 0; i < execute_count; i++) {
-		uint64_t t1 = timer::get_usec();
+
+	uint64_t t = timer::get_usec();
+	for (int i = 0; i < cnt; i++) {
 		clnt->Send(request);
 		reply = clnt->Recv();
-		uint64_t t2 = timer::get_usec();
-		sum += t2 - t1;
 	}
-	cout << "result size:" << reply.silent_row_num << endl;
+	t = timer::get_usec() - t;
+
+	cout << "(last) result size: " << reply.silent_row_num << endl;
+	cout << "(average) latency: " << (t / cnt) << " usec" << endl;
+
 	int row_to_print = min(reply.row_num(), (uint64_t)global_max_print_row);
-	if (row_to_print > 0) {
+	if (row_to_print > 0)
 		clnt->print_result(reply, row_to_print);
-	}
-	cout << "average latency " << sum / execute_count << " us" << endl;
 }
 
 void

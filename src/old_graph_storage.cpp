@@ -59,7 +59,7 @@ uint64_t old_graph_storage::insertKey(local_key key) {
 		} else {
 			slot_id = bucket_id * cluster_size + cluster_size - 1;
 			if (vertex_addr[slot_id].key != local_key()) {
-				bucket_id = vertex_addr[slot_id].key.id;
+				bucket_id = vertex_addr[slot_id].key.vid;
 				//continue and jump to next bucket
 				continue;
 			} else {
@@ -67,10 +67,10 @@ uint64_t old_graph_storage::insertKey(local_key key) {
 				if (used_indirect_num >= indirect_num) {
 					assert(false);
 				}
-				vertex_addr[slot_id].key.id = header_num + used_indirect_num;
+				vertex_addr[slot_id].key.vid = header_num + used_indirect_num;
 				used_indirect_num++;
 				pthread_spin_unlock(&allocation_lock);
-				bucket_id = vertex_addr[slot_id].key.id;
+				bucket_id = vertex_addr[slot_id].key.vid;
 				slot_id = bucket_id * cluster_size + 0;
 				vertex_addr[slot_id].key = key;
 				//break the while loop since we successfully insert
@@ -105,7 +105,7 @@ void old_graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo, vector
 	while (start < vec_spo.size()) {
 		uint64_t end = start + 1;
 		while (end < vec_spo.size()
-		       && vec_spo[start].s == vec_spo[end].s
+		        && vec_spo[start].s == vec_spo[end].s
 		      ) {
 			end++;
 		}
@@ -126,7 +126,7 @@ void old_graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo, vector
 	while (start < vec_ops.size()) {
 		uint64_t end = start + 1;
 		while (end < vec_ops.size()
-		       && vec_ops[start].o == vec_ops[end].o
+		        && vec_ops[start].o == vec_ops[end].o
 		      ) {
 			end++;
 		}
@@ -205,7 +205,7 @@ vertex old_graph_storage::get_vertex_local(local_key key) {
 			} else {
 				if (vertex_addr[slot_id].key != local_key()) {
 					//next pointer
-					bucket_id = vertex_addr[slot_id].key.id;
+					bucket_id = vertex_addr[slot_id].key.vid;
 					//break from for loop, will go to next bucket
 					break;
 				} else {
@@ -225,7 +225,7 @@ vertex old_graph_storage::get_vertex_remote(int tid, local_key key) {
 	while (true) {
 		uint64_t start_addr = sizeof(vertex) * bucket_id * cluster_size;
 		uint64_t read_length = sizeof(vertex) * cluster_size;
-		rdma->RdmaRead(tid, mymath::hash_mod(key.id, m_num), (char *)local_buffer, read_length, start_addr);
+		rdma->RdmaRead(tid, mymath::hash_mod(key.vid, m_num), (char *)local_buffer, read_length, start_addr);
 		vertex* ptr = (vertex*)local_buffer;
 		for (uint64_t i = 0; i < cluster_size; i++) {
 			if (i < cluster_size - 1) {
@@ -237,7 +237,7 @@ vertex old_graph_storage::get_vertex_remote(int tid, local_key key) {
 			} else {
 				if (ptr[i].key != local_key()) {
 					//next pointer
-					bucket_id = ptr[i].key.id;
+					bucket_id = ptr[i].key.vid;
 					//break from for loop, will go to next bucket
 					break;
 				} else {
@@ -280,7 +280,7 @@ edge* old_graph_storage::get_edges_global(int tid, uint64_t id, int direction, i
 	return result_ptr;
 }
 edge* old_graph_storage::get_edges_local(int tid, uint64_t id, int direction, int predict, int* size) {
-	assert(mymath::hash_mod(id, m_num) == m_id ||  is_index_vertex(id));
+	assert(mymath::hash_mod(id, m_num) == m_id ||  is_pid(id));
 	local_key key = local_key(id, direction, 1);
 	vertex v = get_vertex_local(key);
 	if (v.key == local_key()) {
@@ -325,7 +325,7 @@ void old_graph_storage::init_index_table() {
 				//empty slot, skip it
 				continue;
 			}
-			uint64_t vid = vertex_addr[i].key.id;
+			uint64_t vid = vertex_addr[i].key.vid;
 			if (vertex_addr[i].key.dir == direction_in) {
 				//TODO
 				//only use type_index now

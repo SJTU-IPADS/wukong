@@ -19,21 +19,20 @@ enum var_type {
     const_var
 };
 
-//defined as constexpr
-//because it's used in switch-case
-constexpr int var_pair(int type1, int type2) {
-    return ((type1 << 4) | type2);
+//defined as constexpr, since it's used in switch-case
+constexpr int var_pair(int t1, int t2) {
+    return ((t1 << 4) | t2);
 };
 
 struct request_template {
     vector<string> place_holder_str;    // no serialize
     vector<int> place_holder_position;  // no serialize
-    vector<vector<int>*  > place_holder_vecptr; // no serialize
+    vector<vector<int> *> place_holder_vecptr; // no serialize
     vector<int> cmd_chains;
 };
 
 struct request_or_reply {
-    int first_target;// no serialize
+    int first_target; // no serialize
 
     int id;
     int parent_id;
@@ -42,7 +41,7 @@ struct request_or_reply {
     bool silent;
     uint64_t silent_row_num;
     int local_var;
-    vector<int> cmd_chains; //n*(start,p,direction,end)
+    vector<int> cmd_chains; // N * (start, p, direction, end)
     vector<int> result_table;
 
     int mt_total_thread;
@@ -59,7 +58,6 @@ struct request_or_reply {
         local_var = 0;
         mt_total_thread = 1;
         mt_current_thread = 0;
-
     }
 
     template <typename Archive>
@@ -77,22 +75,15 @@ struct request_or_reply {
         ar & mt_current_thread;
     }
 
-    void clear_data() {
-        result_table.clear();
-    }
+    void clear_data() { result_table.clear(); }
 
-    bool is_finished() {
-        return step * 4 >= cmd_chains.size();
-    }
+    bool is_finished() { return (step * 4 >= cmd_chains.size()); }
 
-    bool is_request() {
-        return id == -1;
-    }
+    bool is_request() { return (id == -1); }
 
     bool use_index_vertex() {
-        if (cmd_chains[0] >= 0 && cmd_chains[0] < (1 << nbit_predict)) {
+        if ((cmd_chains[0] >= 0) && (cmd_chains[0] < (1 << NBITS_PID)))
             return true;
-        }
         return false;
         // return cmd_chains[2]==pindex_in ||
         //  cmd_chains[2]==pindex_out ||
@@ -100,32 +91,26 @@ struct request_or_reply {
     }
 
     var_type variable_type(int v) {
-        if (v >= 0) {
+        if (v >= 0)
             return const_var;
-        }
-        if ((-v) > column_num()) {
+
+        if ((-v) > column_num())
             return unknown_var;
-        } else {
+        else
             return known_var;
-        }
     };
 
     int var2column(int v) {
-        return (-v - 1);
+        return ((-v) - 1);
     }
 
-    void set_column_num(int n) {
-        col_num = n;
-    }
+    void set_column_num(int n) { col_num = n; }
 
-    int column_num() {
-        return col_num;
-    };
+    int column_num() { return col_num; };
 
     uint64_t row_num() {
-        if (col_num == 0) {
+        if (col_num == 0)
             return 0;
-        }
         return result_table.size() / col_num;
     }
 
@@ -134,8 +119,7 @@ struct request_or_reply {
     }
 
     void append_row_to(int r, vector<int>& updated_result_table) {
-        for (int c = 0; c < column_num(); c++) {
+        for (int c = 0; c < column_num(); c++)
             updated_result_table.push_back(get_row_column(r, c));
-        }
     };
 };

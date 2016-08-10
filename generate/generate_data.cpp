@@ -32,9 +32,9 @@
 using namespace std;
 
 /* logical we split id-mapping table to normal-vertex and index-vertex table,
-   but mapping all strings into the same id space. We reserve 2^NBTITS_IDX ids
+   but mapping all strings into the same id space. We reserve 2^NBITS_IDX ids
    for index vertices. */
-enum { NBTITS_IDX = 17 };
+enum { NBITS_IDX = 17 };
 
 int
 main(int argc, char** argv)
@@ -74,7 +74,7 @@ main(int argc, char** argv)
 
     // reserve the first two ids for the class of index vertex (i.e, predicate and type)
     size_t next_index_id = 2;
-    size_t next_normal_id = 1 << NBTITS_IDX; // reserve 2^NBTITS_IDX ids for index vertices
+    size_t next_normal_id = 1 << NBITS_IDX; // reserve 2^NBITS_IDX ids for index vertices
     int count = 0;
 
     struct dirent *dent;

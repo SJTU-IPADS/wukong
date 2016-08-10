@@ -8,11 +8,9 @@
 #include <boost/unordered_map.hpp>
 #include <set>
 
-
 using namespace std;
 
 void single_execute(client *clnt, string filename, int execute_count);
-
 void batch_execute(client *clnt, string mix_config, batch_logger &logger);
 void nonblocking_execute(client *clnt, string mix_config, batch_logger &logger);
 
