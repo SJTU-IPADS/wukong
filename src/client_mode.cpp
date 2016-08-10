@@ -82,7 +82,7 @@ single_execute(client* clnt, string fname, int cnt)
 void
 print_help(void)
 {
-	cout << "  Commands" << endl;
+	cout << "Wukong's client commands: " << endl;
 	cout << "    help            display help infomation" << endl;
 	cout << "    quit            quit from client" << endl;
 	cout << "    reconfig        reload config file" << endl;

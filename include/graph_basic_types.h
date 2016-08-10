@@ -8,11 +8,9 @@
 struct edge_triple {
 	uint64_t s, p, o;
 
-	edge_triple(uint64_t _s, uint64_t _p, uint64_t _o): s(_s), p(_p), o(_o) { }
+	edge_triple(uint64_t _s, uint64_t _p, uint64_t _o): s(_s), p(_p), o(_o) {}
 
-	edge_triple(): s(-1), p(-1), o(-1) { }
-
-
+	edge_triple(): s(-1), p(-1), o(-1) {}
 };
 
 struct edge_sort_by_spo {
@@ -68,11 +66,7 @@ uint64_t vid : NBITS_VID;
 
 	//local_key(): dir(0), pid(0), vid(0) {}
 
-	local_key(): dir(0), pid(0), vid(0) {
-		dir -= 1;
-		pid -= 1;
-		vid -= 1;
-	}
+	local_key(): dir(0), pid(0), vid(0) { }
 
 	local_key(uint64_t i, uint64_t d, uint64_t p): vid(i), dir(d), pid(p) {
 		if ((vid != i) || (dir != d) || (pid != p)) {
@@ -120,10 +114,7 @@ uint64_t ptr: NBITS_PTR;
 
 	//local_val(): size(0), ptr(0) {}
 
-	local_val(): size(0), ptr(0) {
-		size -= 1;
-		ptr -= 1;
-	}
+	local_val(): size(0), ptr(0) { }
 
 	local_val(uint64_t s, uint64_t p): size(s), ptr(p) {
 		if ((size != s) || (ptr != p)) {
