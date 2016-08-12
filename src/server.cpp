@@ -32,13 +32,17 @@ server::const_to_unknown(request_or_reply& req)
     req.result_table.swap(updated_result_table);
     req.set_column_num(1);
     req.step++;
-};
+}
 
-void server::const_to_known(request_or_reply& req) {
+void
+server::const_to_known(request_or_reply& req)
+{
     //TODO
-};
+}
 
-void server::known_to_unknown(request_or_reply& req) {
+void
+server::known_to_unknown(request_or_reply& req)
+{
     int start       = req.cmd_chains[req.step * 4];
     int predict     = req.cmd_chains[req.step * 4 + 1];
     int direction   = req.cmd_chains[req.step * 4 + 2];
@@ -52,7 +56,7 @@ void server::known_to_unknown(request_or_reply& req) {
     for (int i = 0; i < req.row_num(); i++) {
         int prev_id = req.get_row_column(i, req.var2column(start));
         int edge_num = 0;
-        edge* edge_ptr;
+        edge *edge_ptr;
         edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict, &edge_num);
 
         for (int k = 0; k < edge_num; k++) {
@@ -63,8 +67,11 @@ void server::known_to_unknown(request_or_reply& req) {
     req.set_column_num(req.column_num() + 1);
     req.result_table.swap(updated_result_table);
     req.step++;
-};
-void server::known_to_known(request_or_reply& req) {
+}
+
+void
+server::known_to_known(request_or_reply &req)
+{
     int start       = req.cmd_chains[req.step * 4];
     int predict     = req.cmd_chains[req.step * 4 + 1];
     int direction   = req.cmd_chains[req.step * 4 + 2];
@@ -74,7 +81,7 @@ void server::known_to_known(request_or_reply& req) {
     for (int i = 0; i < req.row_num(); i++) {
         int prev_id = req.get_row_column(i, req.var2column(start));
         int edge_num = 0;
-        edge* edge_ptr;
+        edge *edge_ptr;
         edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict, &edge_num);
         int end_id = req.get_row_column(i, req.var2column(end));
         for (int k = 0; k < edge_num; k++) {
@@ -86,8 +93,11 @@ void server::known_to_known(request_or_reply& req) {
     }
     req.result_table.swap(updated_result_table);
     req.step++;
-};
-void server::known_to_const(request_or_reply& req) {
+}
+
+void
+server::known_to_const(request_or_reply &req)
+{
     int start       = req.cmd_chains[req.step * 4];
     int predict     = req.cmd_chains[req.step * 4 + 1];
     int direction   = req.cmd_chains[req.step * 4 + 2];
@@ -108,13 +118,15 @@ void server::known_to_const(request_or_reply& req) {
     }
     req.result_table.swap(updated_result_table);
     req.step++;
-};
+}
 
-void server::index_to_unknown(request_or_reply& req) {
+void
+server::index_to_unknown(request_or_reply& req)
+{
     int index_vertex = req.cmd_chains[req.step * 4];
-    int nothing     = req.cmd_chains[req.step * 4 + 1];
-    int direction   = req.cmd_chains[req.step * 4 + 2];
-    int var         = req.cmd_chains[req.step * 4 + 3];
+    int nothing      = req.cmd_chains[req.step * 4 + 1];
+    int direction    = req.cmd_chains[req.step * 4 + 2];
+    int var          = req.cmd_chains[req.step * 4 + 3];
     vector<int> updated_result_table;
 
     if (!global_enable_index_partition) {
@@ -138,9 +150,11 @@ void server::index_to_unknown(request_or_reply& req) {
     req.set_column_num(1);
     req.step++;
     req.local_var = -1;
-};
+}
 
-void server::const_unknown_unknown(request_or_reply& req) {
+void
+server::const_unknown_unknown(request_or_reply& req)
+{
     int start       = req.cmd_chains[req.step * 4];
     int predict     = req.cmd_chains[req.step * 4 + 1];
     int direction   = req.cmd_chains[req.step * 4 + 2];
@@ -166,24 +180,26 @@ void server::const_unknown_unknown(request_or_reply& req) {
     req.result_table.swap(updated_result_table);
     req.set_column_num(2);
     req.step++;
-};
+}
 
-void server::known_unknown_unknown(request_or_reply& req) {
-    int start       = req.cmd_chains[req.step * 4];
-    int predict     = req.cmd_chains[req.step * 4 + 1];
-    int direction   = req.cmd_chains[req.step * 4 + 2];
-    int end         = req.cmd_chains[req.step * 4 + 3];
+void
+server::known_unknown_unknown(request_or_reply& req)
+{
+    int start = req.cmd_chains[req.step * 4];
+    int predict = req.cmd_chains[req.step * 4 + 1];
+    int direction = req.cmd_chains[req.step * 4 + 2];
+    int end = req.cmd_chains[req.step * 4 + 3];
     vector<int> updated_result_table;
 
     // foreach vertex
     for (int i = 0; i < req.row_num(); i++) {
         int prev_id = req.get_row_column(i, req.var2column(start));
         int npredict = 0;
-        edge* predict_ptr = g.get_edges_global(cfg->wid, prev_id, direction, 0, &npredict);
+        edge *predict_ptr = g.get_edges_global(cfg->wid, prev_id, direction, 0, &npredict);
         // foreach possible predict
         for (int p = 0; p < npredict; p++) {
             int edge_num = 0;
-            edge* edge_ptr;
+            edge *edge_ptr;
             edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict_ptr[p].val, &edge_num);
             for (int k = 0; k < edge_num; k++) {
                 req.append_row_to(i, updated_result_table);
@@ -196,24 +212,26 @@ void server::known_unknown_unknown(request_or_reply& req) {
     req.set_column_num(req.column_num() + 2);
     req.result_table.swap(updated_result_table);
     req.step++;
-};
+}
 
-void server::known_unknown_const(request_or_reply& req) {
-    int start       = req.cmd_chains[req.step * 4];
-    int predict     = req.cmd_chains[req.step * 4 + 1];
-    int direction   = req.cmd_chains[req.step * 4 + 2];
-    int end         = req.cmd_chains[req.step * 4 + 3];
+void
+server::known_unknown_const(request_or_reply& req)
+{
+    int start = req.cmd_chains[req.step * 4];
+    int predict = req.cmd_chains[req.step * 4 + 1];
+    int direction = req.cmd_chains[req.step * 4 + 2];
+    int end = req.cmd_chains[req.step * 4 + 3];
     vector<int> updated_result_table;
 
     // foreach vertex
     for (int i = 0; i < req.row_num(); i++) {
         int prev_id = req.get_row_column(i, req.var2column(start));
         int npredict = 0;
-        edge* predict_ptr = g.get_edges_global(cfg->wid, prev_id, direction, 0, &npredict);
+        edge *predict_ptr = g.get_edges_global(cfg->wid, prev_id, direction, 0, &npredict);
         // foreach possible predict
         for (int p = 0; p < npredict; p++) {
             int edge_num = 0;
-            edge* edge_ptr;
+            edge *edge_ptr;
             edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict_ptr[p].val, &edge_num);
             for (int k = 0; k < edge_num; k++) {
                 if (edge_ptr[k].val == end) {
@@ -229,14 +247,21 @@ void server::known_unknown_const(request_or_reply& req) {
     req.result_table.swap(updated_result_table);
     req.step++;
 }
+
 typedef std::pair<int, int> v_pair;
-size_t hash_pair(const v_pair &x) {
+
+size_t
+hash_pair(const v_pair &x)
+{
     size_t r = x.first;
     r = r << 32;
     r += x.second;
     return hash<size_t>()(r);
 }
-void server::handle_join(request_or_reply& req) {
+
+void
+server::handle_join(request_or_reply& req)
+{
     // step.1 remove dup;
     uint64_t t0 = timer::get_usec();
 
@@ -334,7 +359,10 @@ void server::handle_join(request_or_reply& req) {
     req.result_table.swap(updated_result_table);
     req.step = join_step;
 }
-bool server::execute_one_step(request_or_reply& req) {
+
+bool
+server::execute_one_step(request_or_reply& req)
+{
     if (req.is_finished()) {
         return false;
     }
@@ -399,10 +427,13 @@ bool server::execute_one_step(request_or_reply& req) {
         break;
     }
     return true;
-};
-vector<request_or_reply> server::generate_sub_requests(request_or_reply& req) {
-    int start       = req.cmd_chains[req.step * 4];
-    int end         = req.cmd_chains[req.step * 4 + 3];
+}
+
+vector<request_or_reply>
+server::generate_sub_requests(request_or_reply& req)
+{
+    int start = req.cmd_chains[req.step * 4];
+    int end = req.cmd_chains[req.step * 4 + 3];
 
     vector<request_or_reply> sub_reqs;
     int num_sub_request = cfg->nsrvs;
@@ -421,9 +452,12 @@ vector<request_or_reply> server::generate_sub_requests(request_or_reply& req) {
     }
     return sub_reqs;
 }
-vector<request_or_reply> server::generate_mt_sub_requests(request_or_reply& req) {
-    int start       = req.cmd_chains[req.step * 4];
-    int end         = req.cmd_chains[req.step * 4 + 3];
+
+vector<request_or_reply>
+server::generate_mt_sub_requests(request_or_reply& req)
+{
+    int start = req.cmd_chains[req.step * 4];
+    int end = req.cmd_chains[req.step * 4 + 3];
     int nthread = max(1, min(global_multithread_factor, global_num_server));
 
     vector<request_or_reply> sub_reqs;
@@ -446,26 +480,35 @@ vector<request_or_reply> server::generate_mt_sub_requests(request_or_reply& req)
     }
     return sub_reqs;
 }
-bool server::need_sub_requests(request_or_reply& req) {
-    int start       = req.cmd_chains[req.step * 4];
-    if (req.local_var == start) {
+
+bool
+server::need_sub_requests(request_or_reply &r)
+{
+    int start = r.cmd_chains[r.step * 4];
+
+    // in-place mode
+    if ((r.local_var == start) || (r.row_num() < global_rdma_threshold))
         return false;
-    }
-    if (req.row_num() < global_rdma_threshold) {
-        return false;
-    }
+
+    // fork-join mode
     return true;
-};
-void server::execute(request_or_reply& req) {
-    uint64_t t1;
-    uint64_t t2;
+}
+
+void
+server::execute(request_or_reply &req)
+{
+    uint64_t t1, t2;
+
     while (true) {
         t1 = timer::get_usec();
         execute_one_step(req);
         t2 = timer::get_usec();
-        if (cfg->sid == 0 && cfg->wid == cfg->ncwkrs) {
+
+        if (cfg->sid == 0 && cfg->wid == cfg->ncwkrs) { // debug
             //cout<<"step "<<req.step <<" "<<t2-t1<<" us"<<endl;
         }
+
+        // join pattern
         if (!req.is_finished() && req.cmd_chains[req.step * 4 + 2] == join_cmd) {
             t1 = timer::get_usec();
             handle_join(req);
@@ -474,25 +517,31 @@ void server::execute(request_or_reply& req) {
                 //cout<<"handle join "<<" "<<t2-t1<<" us"<<endl;
             }
         }
+
         if (req.is_finished()) {
             req.silent_row_num = req.row_num();
-            if (req.silent) {
+            if (req.silent)
                 req.clear_data();
-            }
-            SendR(cfg, cfg->mid_of(req.parent_id), cfg->tid_of(req.parent_id), req);
-            return ;
+
+            SendR(cfg, cfg->sid_of(req.parent_id), cfg->wid_of(req.parent_id), req);
+            return;
         }
+
         if (req.step == 1 && req.use_index_vertex() && !global_enable_index_partition) {
             assert(!global_enable_workstealing);
+
             vector<request_or_reply> sub_reqs = generate_mt_sub_requests(req);
             wqueue.put_parent_request(req, sub_reqs.size());
-            //so  m_id = id % cfg->nsrvs
-            //    wid = id / cfg->nsrvs + cfg->ncwkrs
-            for (int i = 0; i < sub_reqs.size(); i++) {
-                SendR(cfg, i % cfg->nsrvs , i / cfg->nsrvs + cfg->ncwkrs, sub_reqs[i]);
-            }
-            return ;
+
+            // (fork-join) scatter sub-requests
+            // NOTE: distribute to all servers and limit to partial workers
+            //       sid = gid % #srvs, wid = gid / #srvs + #clients
+            for (int i = 0; i < sub_reqs.size(); i++)
+                SendR(cfg, i % cfg->nsrvs , (i / cfg->nsrvs) + cfg->ncwkrs, sub_reqs[i]);
+
+            return;
         }
+
         if (need_sub_requests(req)) {
             vector<request_or_reply> sub_reqs = generate_sub_requests(req);
             wqueue.put_parent_request(req, sub_reqs.size());
@@ -505,24 +554,29 @@ void server::execute(request_or_reply& req) {
                     pthread_spin_unlock(&recv_lock);
                 }
             }
-            return ;
+            return;
         }
     }
     return;
-};
+}
 
-void server::run() {
-    int own_id = cfg->wid - cfg->ncwkrs ;
+void
+server::run(void)
+{
+    int own_id = cfg->wid - cfg->ncwkrs;
     int possible_array[2] = {own_id , cfg->nswkrs - 1 - own_id};
     uint64_t try_count = 0;
+
     while (true) {
         last_time = timer::get_usec();
         request_or_reply r;
         int recvid;
-        // step 1: pool message
+
+        // step 1: pool msg
         while (true) {
-            //check fast path first
+            // fast path (first)
             bool get_from_fast_path = false;
+
             pthread_spin_lock(&recv_lock);
             if (msg_fast_path.size() > 0) {
                 r = msg_fast_path.back();
@@ -530,11 +584,11 @@ void server::run() {
                 get_from_fast_path = true;
             }
             pthread_spin_unlock(&recv_lock);
-            if (get_from_fast_path) {
+
+            if (get_from_fast_path)
                 break;
-            }
 
-
+            // slow path
             int size = global_enable_workstealing ? 2 : 1;
             recvid = possible_array[try_count % size];
             try_count++;
@@ -562,19 +616,18 @@ void server::run() {
             }
         }
 
-        // step 2: handle it
-        if (r.is_request()) {
+        // step 2: handle the msg
+        if (r.is_request()) { // request
             r.id = cfg->get_inc_id();
             int before = r.row_num();
             execute(r);
-        } else {
-            //r is reply
+        } else { // reply
             pthread_spin_lock(&s_array[recvid]->wqueue_lock);
             s_array[recvid]->wqueue.put_reply(r);
             if (s_array[recvid]->wqueue.is_ready(r.parent_id)) {
                 request_or_reply reply = s_array[recvid]->wqueue.get_merged_reply(r.parent_id);
                 pthread_spin_unlock(&s_array[recvid]->wqueue_lock);
-                SendR(cfg, cfg->mid_of(reply.parent_id), cfg->tid_of(reply.parent_id), reply);
+                SendR(cfg, cfg->sid_of(reply.parent_id), cfg->wid_of(reply.parent_id), reply);
             }
             pthread_spin_unlock(&s_array[recvid]->wqueue_lock);
         }
@@ -594,7 +647,7 @@ void server::run() {
 //             wqueue.put_reply(r);
 //             if(wqueue.is_ready(r.parent_id)){
 //                 request_or_reply reply=wqueue.get_merged_reply(r.parent_id);
-//                 SendR(cfg,cfg->mid_of(reply.parent_id),cfg->tid_of(reply.parent_id),reply);
+//                 SendR(cfg,cfg->sid_of(reply.parent_id),cfg->wid_of(reply.parent_id),reply);
 //             }
 //         }
 //     }

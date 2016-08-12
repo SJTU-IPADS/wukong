@@ -46,9 +46,9 @@ struct edge_sort_by_ops {
 };
 
 // The ID space of predicate/type ID in [0, 2^NBITS_PID)
-enum { NBITS_DIR = 1 };
-enum { NBITS_PID = 17 };
-enum { NBITS_VID = (64 - NBITS_PID - NBITS_DIR) };
+enum { NBITS_DIR = 1 };  // direction: 0=in, 1=out
+enum { NBITS_PID = 17 }; // equal to the size of t/pid
+enum { NBITS_VID = (64 - NBITS_PID - NBITS_DIR) }; // 0: index vertex, ID: normal vertex
 
 //const int nbit_predict = 17;
 //const int nbit_id = 63 - nbit_predict;

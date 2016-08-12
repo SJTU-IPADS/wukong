@@ -165,7 +165,7 @@ main(int argc, char *argv[])
 		client_array[i] = new client(&cfg_array[i], &str_server);
 	}
 
-	server **server_array = new server*[global_num_server];
+	server **server_array = new server *[global_num_server];
 	for (int i = 0; i < global_num_server; i++) {
 		server_array[i] = new server(graph, &cfg_array[global_num_client + i]);
 	}
@@ -188,7 +188,7 @@ main(int argc, char *argv[])
 	for (size_t t = 0; t < global_num_thread; t++) {
 		int rc = pthread_join(thread[t], NULL);
 		if (rc) {
-			printf("ERROR; return code from pthread_join() is %d\n", rc);
+			printf("ERROR: return code from pthread_join() is %d\n", rc);
 			exit(-1);
 		}
 	}

@@ -15,20 +15,15 @@
 
 using namespace std;
 
+// reserved ID
+enum { ID_PREDICATE = 0, ID_TYPE = 1 };
+
 class string_server {
-    void load_index(string filename);
-
 public:
-    boost::unordered_map<string, int> subject_to_id;
-    boost::unordered_map<string, int> predict_to_id;
-    boost::unordered_map<int, string> id_to_subject;
-    boost::unordered_map<int, string> id_to_predict;
-
     boost::unordered_map<string, int> str2id;
     boost::unordered_map<int, string> id2str;
 
-    string_server(string dir_name);
-    void load_index_predict(string filename, boost::unordered_map<string, int>& str2id,
-                            boost::unordered_map<int, string>& id2str);
-
+    string_server(string dname);
+private:
+    void load_mapping(string fname);
 };

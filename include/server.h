@@ -11,8 +11,8 @@
 #include <boost/unordered_map.hpp>
 
 class server {
-    distributed_graph& g;
-    thread_cfg* cfg;
+    distributed_graph &g;
+    thread_cfg *cfg;
     wait_queue wqueue;
     uint64_t last_time;
     pthread_spinlock_t recv_lock;
@@ -20,35 +20,37 @@ class server {
     vector<request_or_reply> msg_fast_path;
 
     // all of these means const predict
-    void const_to_unknown(request_or_reply& req);
-    void const_to_known(request_or_reply& req);
-    void known_to_unknown(request_or_reply& req);
-    void known_to_known(request_or_reply& req);
-    void known_to_const(request_or_reply& req);
-    void index_to_unknown(request_or_reply& req);
+    void const_to_unknown(request_or_reply &req);
+    void const_to_known(request_or_reply &req);
+    void known_to_unknown(request_or_reply &req);
+    void known_to_known(request_or_reply &req);
+    void known_to_const(request_or_reply &req);
+    void index_to_unknown(request_or_reply &req);
 
     // unknown_predict
-    void const_unknown_unknown(request_or_reply& req);
-    void known_unknown_unknown(request_or_reply& req);
-    void known_unknown_const(request_or_reply& req);
+    void const_unknown_unknown(request_or_reply &req);
+    void known_unknown_unknown(request_or_reply &req);
+    void known_unknown_const(request_or_reply &req);
 
 
-    vector<request_or_reply> generate_sub_requests(request_or_reply& r);
-    vector<request_or_reply> generate_mt_sub_requests(request_or_reply& r);
+    vector<request_or_reply> generate_sub_requests(request_or_reply &r);
+    vector<request_or_reply> generate_mt_sub_requests(request_or_reply &r);
 
-    bool need_sub_requests(request_or_reply& req);
-    bool execute_one_step(request_or_reply& req);
-    void execute(request_or_reply& req);
+    bool need_sub_requests(request_or_reply &req);
+    bool execute_one_step(request_or_reply &req);
+    void execute(request_or_reply &req);
 
-    server** s_array;// array of server pointers
+    server **s_array;// array of server pointers
 
     //join related functions
-    void handle_join(request_or_reply& req);
+    void handle_join(request_or_reply &req);
 
 public:
-    server(distributed_graph& _g, thread_cfg* _cfg);
-    void set_server_array(server** array) {
+    server(distributed_graph &_g, thread_cfg *_cfg);
+
+    void set_server_array(server **array) {
         s_array = array;
     };
+
     void run();
 };

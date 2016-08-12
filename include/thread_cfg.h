@@ -12,18 +12,18 @@ struct thread_cfg {
 	int nswkrs; // #server-workers on each server
 	int ncwkrs; // #client-workers on each server
 
-	Network_Node* node;  // communicaiton by TCP/IP
-	RdmaResource* rdma;  // communicaiton by RDMA
+	Network_Node *node;  // communicaiton by TCP/IP
+	RdmaResource *rdma;  // communicaiton by RDMA
 
 	unsigned int seed;
 	void* ptr;
 
-	//get_id for requests
-	int inc_id;//internal
+	// unique global ID for SPARQL requests
+	int req_gid;
 
 	void init() {
-		inc_id = nwkrs * sid + wid;
-		seed = inc_id;
+		req_gid = nwkrs * sid + wid;
+		seed = req_gid;
 	}
 
 	unsigned get_random() {
@@ -31,23 +31,22 @@ struct thread_cfg {
 	}
 
 	int get_inc_id() {
-		int tmp = inc_id;
-		inc_id += nsrvs * nwkrs;
+		int tmp = req_gid;
+		req_gid += nsrvs * nwkrs;
 		return tmp;
 	}
 
-	int mid_of(int target_id) {
-		return (target_id % (nsrvs * nwkrs)) / nwkrs;
+	int sid_of(int gid) {
+		return (gid % (nsrvs * nwkrs)) / nwkrs;
 	}
 
-	int tid_of(int target_id) {
-		return target_id % nwkrs;
+	int wid_of(int gid) {
+		return gid % nwkrs;
 	}
 
-	bool is_client(int target_id) {
-		if (tid_of(target_id) < ncwkrs) {
+	bool is_cwkr(int gid) {
+		if (wid_of(gid) < ncwkrs)
 			return true;
-		}
 		return false;
 	}
 };
