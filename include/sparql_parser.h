@@ -16,34 +16,37 @@
 using namespace std;
 
 class sparql_parser {
-    string_server* str_server;
+    string_server *str_server;
 
 
     boost::unordered_map<string, string> prefix_map;
-    boost::unordered_map<string, int> variable_map;
+    boost::unordered_map<string, int> pvars;
 
     const static int place_holder = INT_MIN;
 
     request_template req_template;
     bool valid;
-    void clear();
 
     int fork_step;
     int join_step;
-    vector<string> get_token_vec(string filename);
-    void remove_header(vector<string>& token_vec);
-    void replace_prefix(vector<string>& token_vec);
-    int str2id(string& string);
 
-    void do_parse(vector<string>& token_vec);
+    vector<string> get_tokens(string fname);
+    bool extract_patterns(vector<string> &tokens);
+    void replace_prefix(vector<string> &tokens);
+
+    int token2id(string &token);
+
+    bool do_parse(vector<string> &tokens);
+    void clear();
 
 public:
-    boost::unordered_map<string, vector<int>* > type_to_idvec; // translate %type to a vector
+    boost::unordered_map<string, vector<int> *> type_to_idvec; // translate %type to a vector
 
-    bool find_type_of(string type, request_or_reply& r);
+    sparql_parser(string_server *_str_server);
 
-    sparql_parser(string_server* _str_server);
-    bool parse(string filename, request_or_reply& r);
-    bool parse_string(string input_str, request_or_reply& r);
-    bool parse_template(string filename, request_template& r);
+    bool parse(string filename, request_or_reply &r);
+    bool parse_string(string input_str, request_or_reply &r);
+    bool parse_template(string filename, request_template &r);
+
+    bool find_type_of(string type, request_or_reply &r);
 };

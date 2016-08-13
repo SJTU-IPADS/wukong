@@ -18,10 +18,12 @@ using namespace std;
 // reserved ID
 enum { ID_PREDICATE = 0, ID_TYPE = 1 };
 
+#define INVALID_ID (INT64_MIN)
+
 class string_server {
 public:
-    boost::unordered_map<string, int> str2id;
-    boost::unordered_map<int, string> id2str;
+    boost::unordered_map<string, uint64_t> str2id;
+    boost::unordered_map<uint64_t, string> id2str;
 
     string_server(string dname);
 private:

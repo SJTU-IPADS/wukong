@@ -133,7 +133,7 @@ graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,
 		}
 		accum_predict++;
 		local_key key = local_key(vec_spo[start].s,
-		                          direction_out, vec_spo[start].p);
+		                          OUT, vec_spo[start].p);
 		uint64_t vertex_ptr = insertKey(key);
 		local_val val = local_val(end - start, curr_edge_ptr);
 		vertex_addr[vertex_ptr].val = val;
@@ -154,7 +154,7 @@ graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,
 		}
 		accum_predict++;
 		local_key key = local_key(vec_ops[start].o,
-		                          direction_in, vec_ops[start].p);
+		                          IN, vec_ops[start].p);
 		uint64_t vertex_ptr = insertKey(key);
 		local_val val = local_val(end - start, curr_edge_ptr);
 		vertex_addr[vertex_ptr].val = val;
@@ -172,7 +172,7 @@ graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,
 	    start=0;
 		while(start<vec_spo.size()){
 	        // __PREDICT__
-	        local_key key= local_key(vec_spo[start].s,direction_out,0);
+	        local_key key= local_key(vec_spo[start].s,OUT,0);
 	        local_val val= local_val(0,curr_edge_ptr);
 	        uint64_t vertex_ptr=insertKey(key);
 	        uint64_t end=start;
@@ -190,7 +190,7 @@ graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,
 
 	    start=nedges_to_skip;
 	    while(start<vec_ops.size()){
-	        local_key key= local_key(vec_ops[start].o,direction_in,0);
+	        local_key key= local_key(vec_ops[start].o,IN,0);
 	        local_val val= local_val(0,curr_edge_ptr);
 	        uint64_t vertex_ptr=insertKey(key);
 	        uint64_t end=start;
@@ -431,7 +431,7 @@ graph_storage::init_index_table()
 			}
 			uint64_t vid = vertex_addr[i].key.vid;
 			uint64_t p = vertex_addr[i].key.pid;
-			if (vertex_addr[i].key.dir == direction_in) {
+			if (vertex_addr[i].key.dir == IN) {
 				if (p == global_rdftype_id) {
 					//it means vid is a type vertex
 					//we just skip it
@@ -462,7 +462,7 @@ graph_storage::init_index_table()
 	        i != type_table.end();
 	        ++i ) {
 		uint64_t curr_edge_ptr = atomic_alloc_edges(i->second.size());
-		local_key key = local_key(i->first, direction_in, 0);
+		local_key key = local_key(i->first, IN, 0);
 		uint64_t vertex_ptr = insertKey(key);
 		local_val val = local_val(i->second.size(), curr_edge_ptr);
 		vertex_addr[vertex_ptr].val = val;
@@ -477,7 +477,7 @@ graph_storage::init_index_table()
 	        i != src_predict_table.end();
 	        ++i ) {
 		uint64_t curr_edge_ptr = atomic_alloc_edges(i->second.size());
-		local_key key = local_key(i->first, direction_in, 0);
+		local_key key = local_key(i->first, IN, 0);
 		uint64_t vertex_ptr = insertKey(key);
 		local_val val = local_val(i->second.size(), curr_edge_ptr);
 		vertex_addr[vertex_ptr].val = val;
@@ -492,7 +492,7 @@ graph_storage::init_index_table()
 	        i != dst_predict_table.end();
 	        ++i ) {
 		uint64_t curr_edge_ptr = atomic_alloc_edges(i->second.size());
-		local_key key = local_key(i->first, direction_out, 0);
+		local_key key = local_key(i->first, OUT, 0);
 		uint64_t vertex_ptr = insertKey(key);
 		local_val val = local_val(i->second.size(), curr_edge_ptr);
 		vertex_addr[vertex_ptr].val = val;

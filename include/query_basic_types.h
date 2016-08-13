@@ -19,10 +19,8 @@ enum var_type {
     const_var
 };
 
-//defined as constexpr, since it's used in switch-case
-constexpr int var_pair(int t1, int t2) {
-    return ((t1 << 4) | t2);
-};
+// defined as constexpr due to switch-case
+constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
 struct request_template {
     vector<string> place_holder_str;    // no serialize

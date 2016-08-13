@@ -4,7 +4,7 @@ void
 string_server::load_mapping(string fname) {
     ifstream file(fname.c_str());
     string str;
-    int id;
+    int64_t id;
 
     while (file >> str >> id) {
         // both string and ID are unique

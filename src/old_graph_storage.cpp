@@ -109,7 +109,7 @@ void old_graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo, vector
 		      ) {
 			end++;
 		}
-		local_key key = local_key(vec_spo[start].s, direction_out, 1);
+		local_key key = local_key(vec_spo[start].s, OUT, 1);
 		uint64_t vertex_ptr = insertKey(key);
 		local_val val = local_val(2 * (end - start), curr_edge_ptr);
 		vertex_addr[vertex_ptr].val = val;
@@ -130,7 +130,7 @@ void old_graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo, vector
 		      ) {
 			end++;
 		}
-		local_key key = local_key(vec_ops[start].o, direction_in, 1);
+		local_key key = local_key(vec_ops[start].o, IN, 1);
 		uint64_t vertex_ptr = insertKey(key);
 		local_val val = local_val(2 * (end - start), curr_edge_ptr);
 		vertex_addr[vertex_ptr].val = val;
@@ -326,7 +326,7 @@ void old_graph_storage::init_index_table() {
 				continue;
 			}
 			uint64_t vid = vertex_addr[i].key.vid;
-			if (vertex_addr[i].key.dir == direction_in) {
+			if (vertex_addr[i].key.dir == IN) {
 				//TODO
 				//only use type_index now
 			} else {
@@ -344,7 +344,7 @@ void old_graph_storage::init_index_table() {
 
 	for ( tbb_vector_table::iterator i = type_table.begin(); i != type_table.end(); ++i ) {
 		uint64_t curr_edge_ptr = atomic_alloc_edges(i->second.size());
-		local_key key = local_key(i->first, direction_in, 0);
+		local_key key = local_key(i->first, IN, 0);
 		uint64_t vertex_ptr = insertKey(key);
 		local_val val = local_val(i->second.size(), curr_edge_ptr);
 		vertex_addr[vertex_ptr].val = val;
@@ -356,7 +356,7 @@ void old_graph_storage::init_index_table() {
 	}
 	for ( tbb_vector_table::iterator i = src_predict_table.begin(); i != src_predict_table.end(); ++i ) {
 		uint64_t curr_edge_ptr = atomic_alloc_edges(i->second.size());
-		local_key key = local_key(i->first, direction_in, 0);
+		local_key key = local_key(i->first, IN, 0);
 		uint64_t vertex_ptr = insertKey(key);
 		local_val val = local_val(i->second.size(), curr_edge_ptr);
 		vertex_addr[vertex_ptr].val = val;
@@ -368,7 +368,7 @@ void old_graph_storage::init_index_table() {
 	}
 	for ( tbb_vector_table::iterator i = dst_predict_table.begin(); i != dst_predict_table.end(); ++i ) {
 		uint64_t curr_edge_ptr = atomic_alloc_edges(i->second.size());
-		local_key key = local_key(i->first, direction_out, 0);
+		local_key key = local_key(i->first, OUT, 0);
 		uint64_t vertex_ptr = insertKey(key);
 		local_val val = local_val(i->second.size(), curr_edge_ptr);
 		vertex_addr[vertex_ptr].val = val;

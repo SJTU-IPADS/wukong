@@ -509,7 +509,7 @@ server::execute(request_or_reply &req)
         }
 
         // join pattern
-        if (!req.is_finished() && req.cmd_chains[req.step * 4 + 2] == join_cmd) {
+        if (!req.is_finished() && req.cmd_chains[req.step * 4 + 2] == JOIN) {
             t1 = timer::get_usec();
             handle_join(req);
             t2 = timer::get_usec();

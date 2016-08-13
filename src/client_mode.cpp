@@ -59,7 +59,7 @@ single_execute(client* clnt, string fname, int cnt)
 	request_or_reply request, reply;
 
 	if (!clnt->parser.parse(fname, request)) {
-		cout << "SPARQL query parse error" << endl;
+		cout << "ERROR: parse SPARQL query failed!" << endl;
 		return;
 	}
 	request.silent = global_silent;

@@ -4,247 +4,278 @@ inline static bool is_upper(string str1, string str2) {
     return boost::to_upper_copy<std::string>(str1) == str2;
 }
 
-sparql_parser::sparql_parser(string_server* _str_server): str_server(_str_server) {
+sparql_parser::sparql_parser(string_server *_str_server)
+    : str_server(_str_server) {
     valid = true;
-};
+}
 
 
-void sparql_parser::clear() {
+void
+sparql_parser::clear(void)
+{
     prefix_map.clear();
-    variable_map.clear();
-    req_template =  request_template();
+    pvars.clear();
+
+    req_template = request_template();
     valid = true;
     join_step = -1;
     fork_step = -1;
 };
 
-vector<string> sparql_parser::get_token_vec(string filename) {
-    ifstream file(filename);
-    vector<string> token_vec;
+vector<string>
+sparql_parser::get_tokens(string fname)
+{
+    vector<string> tokens;
+
+    ifstream file(fname);
     if (!file) {
-        cout << "[file not found] " << filename << endl;
+        cout << "ERROR: [file not found] " << fname << endl;
         valid = false;
-        return token_vec;
+        return tokens;
     }
-    string cmd;
-    while (file >> cmd) {
-        token_vec.push_back(cmd);
-        if (cmd == "}") {
+
+    string token;
+    while (file >> token) {
+        tokens.push_back(token);
+
+        if (token == "}")
             break;
-        }
     }
+
     file.close();
-    return token_vec;
+    return tokens;
 }
 
-void sparql_parser::remove_header(vector<string>& token_vec) {
-    vector<string> new_vec;
-    int iter = 0;
-    while (token_vec.size() > iter && token_vec[iter] == "PREFIX") {
-        if (token_vec.size() > iter + 2) {
-            prefix_map[token_vec[iter + 1]] = token_vec[iter + 2];
-            iter += 3;
+bool
+sparql_parser::extract_patterns(vector<string> &tokens)
+{
+    vector<string> patterns;
+    int n = 0;
+    while (tokens.size() > n && tokens[n] == "PREFIX") {
+        // e.g., PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        if (tokens.size() > n + 2) {
+            prefix_map[tokens[n + 1]] = tokens[n + 2];
+            n += 3;
         } else {
             valid = false;
-            return ;
+            return false;
         }
     }
-    /// TODO More Check!
-    while (token_vec[iter] != "{") {
-        iter++;
-    }
-    iter++;
 
-    while (token_vec[iter] != "}") {
-        if (token_vec[iter] == "join") {
-            join_step = new_vec.size() / 4;
-            iter++;
-            continue;
-        }
-        if (token_vec[iter] == "fork") {
-            fork_step = new_vec.size() / 4;
-            iter++;
-            continue;
-        }
-        new_vec.push_back(token_vec[iter]);
-        iter++;
+    /// TODO: add more check!
+    while (tokens[n++] != "{");
+
+    while (tokens[n] != "}") {
+        if (tokens[n] == "join")
+            join_step = patterns.size() / 4;
+        else if (tokens[n] == "fork")
+            fork_step = patterns.size() / 4;
+        else
+            patterns.push_back(tokens[n]);
+
+        n++;
     }
-    token_vec.swap(new_vec);
+
+    tokens.swap(patterns);
+    return true;
 }
 
-void sparql_parser::replace_prefix(vector<string>& token_vec) {
-    for (int i = 0; i < token_vec.size(); i++) {
+void
+sparql_parser::replace_prefix(vector<string> &tokens)
+{
+    for (int i = 0; i < tokens.size(); i++) {
         for (auto iter : prefix_map) {
-            if (token_vec[i].find(iter.first) == 0) {
-                string new_str = iter.second;
-                new_str.pop_back();
-                new_str += token_vec[i].substr(iter.first.size());
-                new_str += ">";
-                token_vec[i] = new_str;
-            } else if (token_vec[i][0] == '%' && token_vec[i].find(iter.first) == 1 ) {
-                string new_str = "%";
-                new_str += iter.second;
-                new_str.pop_back();
-                new_str += token_vec[i].substr(iter.first.size() + 1);
-                new_str += ">";
-                token_vec[i] = new_str;
+            if (tokens[i].find(iter.first) == 0) {
+                string s = iter.second;
+                s.insert(s.find("#") + 1, tokens[i], iter.first.size(), string::npos);
+                tokens[i] = s;
+                break;
+            } else if (tokens[i][0] == '%' && tokens[i].find(iter.first) == 1 ) {
+                string s = "%" + iter.second;
+                s.insert(s.find("#") + 1, tokens[i], iter.first.size() + 1, string::npos);
+                tokens[i] = s;
+                break;
             }
         }
     }
 }
-int sparql_parser::str2id(string& str) {
-    if (str == "") {
-        cout << "[empty string] " << str << endl;
+
+int
+sparql_parser::token2id(string &token)
+{
+    if (token == "") {
+        cout << "ERROR: empty string." << endl;
         valid = false;
         return 0;
     }
-    if (str[0] == '?') {
-        if (variable_map.find(str) == variable_map.end()) {
-            int new_id = -1 - variable_map.size();
-            variable_map[str] = new_id;
+    if (token[0] == '?') {
+        if (pvars.find(token) == pvars.end()) {
+            int new_id = (-pvars.size()) - 1;
+            pvars[token] = new_id;
         }
-        return variable_map[str];
-    } else if (str[0] == '%') {
-        req_template.place_holder_str.push_back(str.substr(1));
+        return pvars[token];
+    } else if (token[0] == '%') {
+        req_template.place_holder_str.push_back(token.substr(1));
         //valid=false;
         return place_holder;
     } else {
-        if (str_server->str2id.find(str) == str_server->str2id.end()) {
-            cout << "unknown str " << str << endl;
+        if (str_server->str2id.find(token) == str_server->str2id.end()) {
+            cout << "ERROR: unknown token \"" << token << "\"" << endl;
             valid = false;
             return 0;
         }
-        return str_server->str2id[str];
+        return str_server->str2id[token];
     }
 }
-void sparql_parser::do_parse(vector<string>& token_vec) {
-    if (!valid) return ;
 
-    remove_header(token_vec);
-    if (!valid) return ;
+bool
+sparql_parser::do_parse(vector<string> &tokens)
+{
+    if (!valid) return false;
 
-    replace_prefix(token_vec);
-    if (!valid) return ;
+    if (!extract_patterns(tokens))
+        return false;
+    replace_prefix(tokens);
 
-    if (token_vec.size() % 4 != 0) {
-        cout << "[error token number] " << endl;
-        valid = false;
-        return ;
+    // Wukong uses an internal 4-element format (SPDO) for each pattern
+    if (tokens.size() % 4 != 0) {
+        cout << "ERROR: invalid token number (" << tokens.size() << ")" << endl;
+        return false;
     }
 
-    int iter = 0;
-    while (iter < token_vec.size()) {
-        string strs[3] = {token_vec[iter + 0], token_vec[iter + 1], token_vec[iter + 2]};
-        int ids[3];
-        if (token_vec[iter + 3] == "<-") {
-            swap(strs[0], strs[2]);
-        }
-        for (int i = 0; i < 3; i++) {
-            ids[i] = str2id(strs[i]);
-        }
-        if (token_vec[iter + 3] == "." || token_vec[iter + 3] == "->") {
-            req_template.cmd_chains.push_back(ids[0]);
-            req_template.cmd_chains.push_back(ids[1]);
-            req_template.cmd_chains.push_back(direction_out);
-            req_template.cmd_chains.push_back(ids[2]);
-            iter += 4;
-        } else if (token_vec[iter + 3] == "<-") {
-            req_template.cmd_chains.push_back(ids[0]);
-            req_template.cmd_chains.push_back(ids[1]);
-            req_template.cmd_chains.push_back(direction_in);
-            req_template.cmd_chains.push_back(ids[2]);
-            iter += 4;
+    for (int i = 0; i < tokens.size(); i += 4) {
+        // SPO
+        string triple[3] = {tokens[i + 0], tokens[i + 1], tokens[i + 2]};
+
+        direction d;
+        if (tokens[i + 3] == "." || tokens[i + 3] == "->") {
+            d = OUT;
+        } else if (tokens[i + 3] == "<-") {
+            d = IN;
+            swap(triple[0], triple[2]);
         } else {
-            cout << "[error seperator] " << endl;
-            valid = false;
-            return ;
+            cout << "ERROR: invalid seperator (" << tokens[i + 3] << ")" << endl;
+            return false;
         }
+
+        req_template.cmd_chains.push_back(token2id(triple[0]));
+        req_template.cmd_chains.push_back(token2id(triple[1]));
+        req_template.cmd_chains.push_back(d);
+        req_template.cmd_chains.push_back(token2id(triple[2]));
     }
+
     for (int i = 0; i < req_template.cmd_chains.size(); i++) {
         if (req_template.cmd_chains[i] == place_holder) {
             req_template.place_holder_position.push_back(i);
-            return ;
+            return true;
         }
     }
+    return true;
 }
 
-bool sparql_parser::parse(string filename, request_or_reply& r) {
+/**
+ * Used by single mode
+ */
+bool
+sparql_parser::parse(string fname, request_or_reply &r)
+{
+    // clear state of parser before a new parsing
     clear();
-    vector<string> token_vec = get_token_vec(filename);
-    do_parse(token_vec);
-    if (!valid) {
+
+    vector<string> tokens = get_tokens(fname);
+    if (!do_parse(tokens))
         return false;
-    }
+
     if (req_template.place_holder_position.size() != 0) {
-        cout << "[error] request with place_holder" << endl;
+        cout << "ERROR: request with place_holder." << endl;
         return false;
     }
+
     r = request_or_reply();
     if (join_step >= 0) {
-        vector<int> join_vec;
-        join_vec.push_back(0);
-        join_vec.push_back(0);
-        join_vec.push_back(join_cmd); //means join
-        join_vec.push_back(join_step + 1); // because we insert a new cmd in the middle
+        vector<int> join_pattern;
+        join_pattern.push_back(0);
+        join_pattern.push_back(0);
+        join_pattern.push_back(JOIN); //means join
+        join_pattern.push_back(join_step + 1); // because we insert a new cmd in the middle
         req_template.cmd_chains.insert(req_template.cmd_chains.begin() + fork_step * 4,
-                                       join_vec.begin(), join_vec.end());
+                                       join_pattern.begin(), join_pattern.end());
     }
     r.cmd_chains = req_template.cmd_chains;
     return true;
-};
-bool sparql_parser::parse_string(string input_str, request_or_reply& r) {
+}
+
+/**
+ * Used to simulate Trinity.RDF
+ */
+bool
+sparql_parser::parse_string(string input_str, request_or_reply &r)
+{
+    // clear state of parser before a new parsing
     clear();
+
     std::stringstream ss(input_str);
-    string str;
-    vector<string> token_vec;
-    while (ss >> str) {
-        token_vec.push_back(str);
-        if (str == "}") {
+    string token;
+    vector<string> tokens;
+    while (ss >> token) {
+        tokens.push_back(token);
+        if (token == "}")
             break;
-        }
     }
-    do_parse(token_vec);
-    if (!valid) {
+
+    if (!do_parse(tokens))
         return false;
-    }
+
     if (req_template.place_holder_position.size() != 0) {
-        cout << "[error] request with place_holder" << endl;
+        cout << "ERROR: request with place_holder" << endl;
         return false;
     }
+
     r = request_or_reply();
     if (join_step >= 0) {
-        vector<int> join_vec;
-        join_vec.push_back(0);
-        join_vec.push_back(0);
-        join_vec.push_back(join_cmd); //means join
-        join_vec.push_back(join_step + 1); // because we insert a new cmd in the middle
+        vector<int> join_pattern;
+        join_pattern.push_back(0);
+        join_pattern.push_back(0);
+        join_pattern.push_back(JOIN); //means join
+        join_pattern.push_back(join_step + 1); // because we insert a new cmd in the middle
         req_template.cmd_chains.insert(req_template.cmd_chains.begin() + fork_step * 4,
-                                       join_vec.begin(), join_vec.end());
+                                       join_pattern.begin(), join_pattern.end());
     }
     r.cmd_chains = req_template.cmd_chains;
     return true;
-};
-bool sparql_parser::parse_template(string filename, request_template& r) {
+}
+
+/**
+ * Used by batching mode
+ */
+bool
+sparql_parser::parse_template(string fname, request_template &r)
+{
+    // clear state of parser before a new parsing
     clear();
-    vector<string> token_vec = get_token_vec(filename);
-    do_parse(token_vec);
-    if (!valid) {
+
+    vector<string> tokens = get_tokens(fname);
+
+    if (!do_parse(tokens))
         return false;
-    }
+
     if (req_template.place_holder_position.size() == 0) {
-        cout << "[error] request_template without place_holder" << endl;
+        cout << "ERROR: request_template without place_holder" << endl;
         return false;
     }
+
     r = req_template;
     return true;
-};
+}
 
-bool sparql_parser::find_type_of(string type, request_or_reply& r) {
+bool
+sparql_parser::find_type_of(string type, request_or_reply &r)
+{
     clear();
     r = request_or_reply();
     r.cmd_chains.push_back(str_server->str2id[type]);
     r.cmd_chains.push_back(global_rdftype_id);
-    r.cmd_chains.push_back(direction_in);
+    r.cmd_chains.push_back(IN);
     r.cmd_chains.push_back(-1);
     return true;
-};
+}

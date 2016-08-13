@@ -148,7 +148,7 @@ struct edge {
 };
 
 enum direction {
-	direction_in,
-	direction_out,
-	join_cmd
+	IN,
+	OUT,
+	JOIN
 };
