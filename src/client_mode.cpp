@@ -3,34 +3,27 @@
 static void
 translate_req_template(client *clnt, request_template &req_template)
 {
-
-	boost::unordered_map<string, vector<int64_t> *> type2grp; // mapping table from %type to a group of IDs
-
 	req_template.ptypes_grp.resize(req_template.ptypes_str.size());
 	for (int i = 0; i < req_template.ptypes_str.size(); i++) {
 		string type = req_template.ptypes_str[i];
-		if (type2grp.find(type) == type2grp.end()) {
-			request_or_reply type_request, type_reply;
 
-			// a TYPE query to collect constants with the certain type
-			if (!clnt->parser.add_type_pattern(type, type_request)) {
-				cout << "ERROR: failed to add a special type pattern (type: "
-				     << type << ")." << endl;
-				assert(false);
-			}
+		request_or_reply type_request, type_reply;
 
-			// do TYPE query
-			clnt->Send(type_request);
-			type_reply = clnt->Recv();
-
-			vector<int64_t> *ptr = new vector<int64_t>();
-			*ptr = type_reply.result_table;
-			type2grp[type] = ptr;
-
-			cout << type << " has " << ptr->size() << " objects." << endl;
+		// a TYPE query to collect constants with the certain type
+		if (!clnt->parser.add_type_pattern(type, type_request)) {
+			cout << "ERROR: failed to add a special type pattern (type: "
+			     << type << ")." << endl;
+			assert(false);
 		}
 
-		req_template.ptypes_grp[i] = type2grp[type];
+		// do TYPE query
+		clnt->Send(type_request);
+		type_reply = clnt->Recv();
+
+		vector<int64_t> *ptr = new vector<int64_t>(type_reply.result_table);
+		req_template.ptypes_grp[i] = ptr;
+
+		cout << type << " has " << ptr->size() << " objects" << endl;
 	}
 }
 
