@@ -391,7 +391,7 @@ void simulate_trinity_q6(client* clnt) {
 		int v2 = r2.get_row_column(i, 1);
 		hashtable1[v1].push_back(v2);
 	}
-	vector<int> updated_result_table;
+	vector<int64_t> updated_result_table;
 	for (int i = 0; i < r1.row_num(); i++) {
 		int vid = r1.get_row_column(i, 0);
 		if (hashtable1.find(vid) != hashtable1.end()) {
@@ -597,7 +597,7 @@ void simulate_trinity_q7(client* clnt) {
 		int v2 = r2.get_row_column(i, 1);
 		hashtable1[v1].push_back(v2);
 	}
-	vector<int> updated_result_table;
+	vector<int64_t> updated_result_table;
 	for (int i = 0; i < r1.row_num(); i++) {
 		int vid = r1.get_row_column(i, 1);
 		if (hashtable1.find(vid) != hashtable1.end()) {

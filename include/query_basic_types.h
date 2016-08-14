@@ -24,9 +24,9 @@ constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
 struct request_template {
     vector<string> place_holder_str;    // no serialize
-    vector<int> place_holder_position;  // no serialize
-    vector<vector<int> *> place_holder_vecptr; // no serialize
-    vector<int> cmd_chains;
+    vector<int64_t> place_holder_position;  // no serialize
+    vector<vector<int64_t> *> place_holder_vecptr; // no serialize
+    vector<int64_t> cmd_chains;
 };
 
 struct request_or_reply {
@@ -37,10 +37,10 @@ struct request_or_reply {
     int step;
     int col_num;
     bool silent;
-    uint64_t silent_row_num;
-    int local_var;
-    vector<int> cmd_chains; // N * (start, p, direction, end)
-    vector<int> result_table;
+    int silent_row_num;
+    int64_t local_var;
+    vector<int64_t> cmd_chains; // N * (subject, predicat, direction, object)
+    vector<int64_t> result_table;
 
     int mt_total_thread;
     int mt_current_thread;
@@ -80,7 +80,7 @@ struct request_or_reply {
     bool is_request() { return (id == -1); }
 
     bool use_index_vertex() {
-        if ((cmd_chains[0] >= 0) && (cmd_chains[0] < (1 << NBITS_PID)))
+        if ((cmd_chains[0] >= 0l) && (cmd_chains[0] < (1l << NBITS_PID)))
             return true;
         return false;
         // return cmd_chains[2]==pindex_in ||
@@ -88,35 +88,36 @@ struct request_or_reply {
         //  cmd_chains[2]==tindex_in ;
     }
 
-    var_type variable_type(int v) {
-        if (v >= 0)
+    var_type variable_type(int64_t vid) {
+        if (vid >= 0)
             return const_var;
 
-        if ((-v) > column_num())
+        if ((- vid) > column_num())
             return unknown_var;
         else
             return known_var;
     };
 
-    int var2column(int v) {
-        return ((-v) - 1);
+    int64_t var2column(int64_t vid) {
+        assert(vid < 0); // pattern variable
+        return ((- vid) - 1);
     }
 
     void set_column_num(int n) { col_num = n; }
 
     int column_num() { return col_num; };
 
-    uint64_t row_num() {
+    int row_num() {
         if (col_num == 0)
             return 0;
         return result_table.size() / col_num;
     }
 
-    int get_row_column(int r, int c) {
+    int64_t get_row_column(int r, int c) {
         return result_table[col_num * r + c];
     }
 
-    void append_row_to(int r, vector<int>& updated_result_table) {
+    void append_row_to(int r, vector<int64_t> &updated_result_table) {
         for (int c = 0; c < column_num(); c++)
             updated_result_table.push_back(get_row_column(r, c));
     };

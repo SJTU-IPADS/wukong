@@ -1,7 +1,7 @@
 #include "client_mode.h"
 
 static void
-translate_req_template(client* clnt, request_template& req_template)
+translate_req_template(client *clnt, request_template &req_template)
 {
 	req_template.place_holder_vecptr.resize(req_template.place_holder_str.size());
 	for (int i = 0; i < req_template.place_holder_str.size(); i++) {
@@ -14,7 +14,7 @@ translate_req_template(client* clnt, request_template& req_template)
 			request_or_reply reply;
 			clnt->Send(type_request);
 			reply = clnt->Recv();
-			vector<int>* ptr = new vector<int>();
+			vector<int64_t> *ptr = new vector<int64_t>();
 			*ptr = reply.result_table;
 			clnt->parser.type_to_idvec[type] = ptr;
 			cout << type << " has " << ptr->size() << " objects" << endl;
@@ -24,11 +24,11 @@ translate_req_template(client* clnt, request_template& req_template)
 }
 
 static void
-instantiate_request(client* clnt, request_template& req_template, request_or_reply& r)
+instantiate_request(client *clnt, request_template &req_template, request_or_reply &r)
 {
 	for (int i = 0; i < req_template.place_holder_position.size(); i++) {
 		int pos = req_template.place_holder_position[i];
-		vector<int>* vecptr = req_template.place_holder_vecptr[i];
+		vector<int64_t> *vecptr = req_template.place_holder_vecptr[i];
 		if (vecptr == NULL || vecptr->size() == 0) {
 			assert(false);
 		}
@@ -74,7 +74,7 @@ single_execute(client* clnt, string fname, int cnt)
 	cout << "(last) result size: " << reply.silent_row_num << endl;
 	cout << "(average) latency: " << (t / cnt) << " usec" << endl;
 
-	int row_to_print = min(reply.row_num(), (uint64_t)global_max_print_row);
+	int row_to_print = min((uint64_t)reply.row_num(), (uint64_t)global_max_print_row);
 	if (row_to_print > 0)
 		clnt->print_result(reply, row_to_print);
 }

@@ -13,22 +13,23 @@ server::server(distributed_graph& _g, thread_cfg* _cfg): g(_g), cfg(_cfg)
 void
 server::const_to_unknown(request_or_reply& req)
 {
-    int start       = req.cmd_chains[req.step * 4];
-    int predict     = req.cmd_chains[req.step * 4 + 1];
-    int direction   = req.cmd_chains[req.step * 4 + 2];
-    int end         = req.cmd_chains[req.step * 4 + 3];
-    vector<int> updated_result_table;
+    int64_t start       = req.cmd_chains[req.step * 4];
+    int64_t predicate   = req.cmd_chains[req.step * 4 + 1];
+    int64_t direction   = req.cmd_chains[req.step * 4 + 2];
+    int64_t end         = req.cmd_chains[req.step * 4 + 3];
+    vector<int64_t> updated_result_table;
 
-    if (!(req.column_num() == 0 && req.column_num() == req.var2column(end)  )) {
+    if (!((req.column_num() == 0) && (req.column_num() == req.var2column(end)))) {
         //it means the query plan is wrong
         assert(false);
     }
     int edge_num = 0;
-    edge* edge_ptr;
-    edge_ptr = g.get_edges_global(cfg->wid, start, direction, predict, &edge_num);
+    edge *edge_ptr;
+    edge_ptr = g.get_edges_global(cfg->wid, start, direction, predicate, &edge_num);
     for (int k = 0; k < edge_num; k++) {
         updated_result_table.push_back(edge_ptr[k].val);
     }
+
     req.result_table.swap(updated_result_table);
     req.set_column_num(1);
     req.step++;
@@ -43,18 +44,19 @@ server::const_to_known(request_or_reply& req)
 void
 server::known_to_unknown(request_or_reply& req)
 {
-    int start       = req.cmd_chains[req.step * 4];
-    int predict     = req.cmd_chains[req.step * 4 + 1];
-    int direction   = req.cmd_chains[req.step * 4 + 2];
-    int end         = req.cmd_chains[req.step * 4 + 3];
-    vector<int> updated_result_table;
+    int64_t start       = req.cmd_chains[req.step * 4];
+    int64_t predict     = req.cmd_chains[req.step * 4 + 1];
+    int64_t direction   = req.cmd_chains[req.step * 4 + 2];
+    int64_t end         = req.cmd_chains[req.step * 4 + 3];
+    vector<int64_t> updated_result_table;
     updated_result_table.reserve(req.result_table.size());
     if (req.column_num() != req.var2column(end) ) {
         //it means the query plan is wrong
         assert(false);
     }
+
     for (int i = 0; i < req.row_num(); i++) {
-        int prev_id = req.get_row_column(i, req.var2column(start));
+        int64_t prev_id = req.get_row_column(i, req.var2column(start));
         int edge_num = 0;
         edge *edge_ptr;
         edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict, &edge_num);
@@ -72,18 +74,18 @@ server::known_to_unknown(request_or_reply& req)
 void
 server::known_to_known(request_or_reply &req)
 {
-    int start       = req.cmd_chains[req.step * 4];
-    int predict     = req.cmd_chains[req.step * 4 + 1];
-    int direction   = req.cmd_chains[req.step * 4 + 2];
-    int end         = req.cmd_chains[req.step * 4 + 3];
-    vector<int> updated_result_table;
+    int64_t start       = req.cmd_chains[req.step * 4];
+    int64_t predict     = req.cmd_chains[req.step * 4 + 1];
+    int64_t direction   = req.cmd_chains[req.step * 4 + 2];
+    int64_t end         = req.cmd_chains[req.step * 4 + 3];
+    vector<int64_t> updated_result_table;
 
     for (int i = 0; i < req.row_num(); i++) {
-        int prev_id = req.get_row_column(i, req.var2column(start));
+        int64_t prev_id = req.get_row_column(i, req.var2column(start));
         int edge_num = 0;
         edge *edge_ptr;
         edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict, &edge_num);
-        int end_id = req.get_row_column(i, req.var2column(end));
+        int64_t end_id = req.get_row_column(i, req.var2column(end));
         for (int k = 0; k < edge_num; k++) {
             if (edge_ptr[k].val == end_id) {
                 req.append_row_to(i, updated_result_table);
@@ -98,16 +100,16 @@ server::known_to_known(request_or_reply &req)
 void
 server::known_to_const(request_or_reply &req)
 {
-    int start       = req.cmd_chains[req.step * 4];
-    int predict     = req.cmd_chains[req.step * 4 + 1];
-    int direction   = req.cmd_chains[req.step * 4 + 2];
-    int end         = req.cmd_chains[req.step * 4 + 3];
-    vector<int> updated_result_table;
+    int64_t start       = req.cmd_chains[req.step * 4];
+    int64_t predict     = req.cmd_chains[req.step * 4 + 1];
+    int64_t direction   = req.cmd_chains[req.step * 4 + 2];
+    int64_t end         = req.cmd_chains[req.step * 4 + 3];
+    vector<int64_t> updated_result_table;
 
     for (int i = 0; i < req.row_num(); i++) {
-        int prev_id = req.get_row_column(i, req.var2column(start));
+        int64_t prev_id = req.get_row_column(i, req.var2column(start));
         int edge_num = 0;
-        edge* edge_ptr;
+        edge *edge_ptr;
         edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict, &edge_num);
         for (int k = 0; k < edge_num; k++) {
             if (edge_ptr[k].val == end) {
@@ -121,27 +123,33 @@ server::known_to_const(request_or_reply &req)
 }
 
 void
-server::index_to_unknown(request_or_reply& req)
+server::index_to_unknown(request_or_reply &req)
 {
-    int index_vertex = req.cmd_chains[req.step * 4];
-    int nothing      = req.cmd_chains[req.step * 4 + 1];
-    int direction    = req.cmd_chains[req.step * 4 + 2];
-    int var          = req.cmd_chains[req.step * 4 + 3];
-    vector<int> updated_result_table;
+    int64_t index_vertex = req.cmd_chains[req.step * 4];
+    int64_t nothing      = req.cmd_chains[req.step * 4 + 1];
+    int64_t direction    = req.cmd_chains[req.step * 4 + 2];
+    int64_t var          = req.cmd_chains[req.step * 4 + 3];
+    vector<int64_t> updated_result_table;
 
+    // disable differentiate partitioning
     if (!global_enable_index_partition) {
         const_to_unknown(req);
         return ;
     }
-    if (!(req.column_num() == 0 && req.column_num() == req.var2column(var)  )) {
+
+    if (!(req.column_num() == 0 && req.column_num() == req.var2column(var))) {
         //it means the query plan is wrong
+        cout << "ncols: " << req.column_num() << "\t"
+             << "var: " << var << "\t"
+             << "var2col: " << req.var2column(var)
+             << endl;
         assert(false);
     }
 
     int edge_num = 0;
-    edge* edge_ptr;
+    edge *edge_ptr;
     edge_ptr = g.local_storage.get_index_edges_local(cfg->wid, index_vertex, direction, &edge_num);
-    int start_id = req.mt_current_thread;
+    int64_t start_id = req.mt_current_thread;
     for (int k = start_id; k < edge_num; k += req.mt_total_thread) {
         updated_result_table.push_back(edge_ptr[k].val);
     }
@@ -153,24 +161,24 @@ server::index_to_unknown(request_or_reply& req)
 }
 
 void
-server::const_unknown_unknown(request_or_reply& req)
+server::const_unknown_unknown(request_or_reply &req)
 {
-    int start       = req.cmd_chains[req.step * 4];
-    int predict     = req.cmd_chains[req.step * 4 + 1];
-    int direction   = req.cmd_chains[req.step * 4 + 2];
-    int end         = req.cmd_chains[req.step * 4 + 3];
-    vector<int> updated_result_table;
+    int64_t start       = req.cmd_chains[req.step * 4];
+    int64_t predict     = req.cmd_chains[req.step * 4 + 1];
+    int64_t direction   = req.cmd_chains[req.step * 4 + 2];
+    int64_t end         = req.cmd_chains[req.step * 4 + 3];
+    vector<int64_t> updated_result_table;
 
     if (req.column_num() != 0 ) {
         //it means the query plan is wrong
         assert(false);
     }
     int npredict = 0;
-    edge* predict_ptr = g.get_edges_global(cfg->wid, start, direction, 0, &npredict);
+    edge *predict_ptr = g.get_edges_global(cfg->wid, start, direction, 0, &npredict);
     // foreach possible predict
     for (int p = 0; p < npredict; p++) {
         int edge_num = 0;
-        edge* edge_ptr;
+        edge *edge_ptr;
         edge_ptr = g.get_edges_global(cfg->wid, start, direction, predict_ptr[p].val, &edge_num);
         for (int k = 0; k < edge_num; k++) {
             updated_result_table.push_back(predict_ptr[p].val);
@@ -185,15 +193,15 @@ server::const_unknown_unknown(request_or_reply& req)
 void
 server::known_unknown_unknown(request_or_reply& req)
 {
-    int start = req.cmd_chains[req.step * 4];
-    int predict = req.cmd_chains[req.step * 4 + 1];
-    int direction = req.cmd_chains[req.step * 4 + 2];
-    int end = req.cmd_chains[req.step * 4 + 3];
-    vector<int> updated_result_table;
+    int64_t start = req.cmd_chains[req.step * 4];
+    int64_t predict = req.cmd_chains[req.step * 4 + 1];
+    int64_t direction = req.cmd_chains[req.step * 4 + 2];
+    int64_t end = req.cmd_chains[req.step * 4 + 3];
+    vector<int64_t> updated_result_table;
 
     // foreach vertex
     for (int i = 0; i < req.row_num(); i++) {
-        int prev_id = req.get_row_column(i, req.var2column(start));
+        int64_t prev_id = req.get_row_column(i, req.var2column(start));
         int npredict = 0;
         edge *predict_ptr = g.get_edges_global(cfg->wid, prev_id, direction, 0, &npredict);
         // foreach possible predict
@@ -217,15 +225,15 @@ server::known_unknown_unknown(request_or_reply& req)
 void
 server::known_unknown_const(request_or_reply& req)
 {
-    int start = req.cmd_chains[req.step * 4];
-    int predict = req.cmd_chains[req.step * 4 + 1];
-    int direction = req.cmd_chains[req.step * 4 + 2];
-    int end = req.cmd_chains[req.step * 4 + 3];
-    vector<int> updated_result_table;
+    int64_t start = req.cmd_chains[req.step * 4];
+    int64_t predict = req.cmd_chains[req.step * 4 + 1];
+    int64_t direction = req.cmd_chains[req.step * 4 + 2];
+    int64_t end = req.cmd_chains[req.step * 4 + 3];
+    vector<int64_t> updated_result_table;
 
     // foreach vertex
     for (int i = 0; i < req.row_num(); i++) {
-        int prev_id = req.get_row_column(i, req.var2column(start));
+        int64_t prev_id = req.get_row_column(i, req.var2column(start));
         int npredict = 0;
         edge *predict_ptr = g.get_edges_global(cfg->wid, prev_id, direction, 0, &npredict);
         // foreach possible predict
@@ -265,21 +273,21 @@ server::handle_join(request_or_reply& req)
     // step.1 remove dup;
     uint64_t t0 = timer::get_usec();
 
-    boost::unordered_set<int> remove_dup_set;
-    int dup_var = req.cmd_chains[req.step * 4 + 4];
+    boost::unordered_set<int64_t> remove_dup_set;
+    int64_t dup_var = req.cmd_chains[req.step * 4 + 4];
     assert(dup_var < 0);
     for (int i = 0; i < req.row_num(); i++) {
         remove_dup_set.insert(req.get_row_column(i, req.var2column(dup_var)));
     }
 
     // step.2 generate cmd_chain for sub-req
-    vector<int> sub_chain;
-    boost::unordered_map<int, int> var_mapping;
+    vector<int64_t> sub_chain;
+    boost::unordered_map<int64_t, int64_t> var_mapping;
     vector<int> reverse_mapping;
     int join_step = req.cmd_chains[req.step * 4 + 3];
     for (int i = req.step * 4 + 4; i < join_step * 4; i++) {
-        if (req.cmd_chains[i] < 0 && ( var_mapping.find(req.cmd_chains[i]) ==  var_mapping.end()) ) {
-            int new_id = -1 - var_mapping.size();
+        if (req.cmd_chains[i] < 0 && ( var_mapping.find(req.cmd_chains[i]) == var_mapping.end()) ) {
+            int64_t new_id = -1 - var_mapping.size();
             var_mapping[req.cmd_chains[i]] = new_id;
             reverse_mapping.push_back(req.var2column(req.cmd_chains[i]));
         }
@@ -293,7 +301,7 @@ server::handle_join(request_or_reply& req)
     // step.3 make sub-req
     request_or_reply sub_req;
     {
-        boost::unordered_set<int>::iterator iter;
+        boost::unordered_set<int64_t>::iterator iter;
         for (iter = remove_dup_set.begin(); iter != remove_dup_set.end(); iter++) {
             sub_req.result_table.push_back(*iter);
         }
@@ -313,12 +321,12 @@ server::handle_join(request_or_reply& req)
     uint64_t t2 = timer::get_usec();
 
     uint64_t t3, t4;
-    vector<int> updated_result_table;
+    vector<int64_t> updated_result_table;
 
     if (sub_req.column_num() > 2) {
         //if(true){ // always use qsort
         mytuple::qsort_tuple(sub_req.column_num(), sub_req.result_table);
-        vector<int> tmp_vec;
+        vector<int64_t> tmp_vec;
         tmp_vec.resize(sub_req.column_num());
         t3 = timer::get_usec();
         for (int i = 0; i < req.row_num(); i++) {
@@ -335,7 +343,7 @@ server::handle_join(request_or_reply& req)
         for (int i = 0; i < sub_req.row_num(); i++) {
             remote_set.insert(v_pair(sub_req.get_row_column(i, 0), sub_req.get_row_column(i, 1)));
         }
-        vector<int> tmp_vec;
+        vector<int64_t> tmp_vec;
         tmp_vec.resize(sub_req.column_num());
         t3 = timer::get_usec();
         for (int i = 0; i < req.row_num(); i++) {
@@ -370,10 +378,10 @@ server::execute_one_step(request_or_reply& req)
         index_to_unknown(req);
         return true;
     }
-    int start       = req.cmd_chains[req.step * 4];
-    int predict     = req.cmd_chains[req.step * 4 + 1];
-    int direction   = req.cmd_chains[req.step * 4 + 2];
-    int end         = req.cmd_chains[req.step * 4 + 3];
+    int64_t start       = req.cmd_chains[req.step * 4];
+    int64_t predict     = req.cmd_chains[req.step * 4 + 1];
+    int64_t direction   = req.cmd_chains[req.step * 4 + 2];
+    int64_t end         = req.cmd_chains[req.step * 4 + 3];
 
     if (predict < 0) {
         switch (var_pair(req.variable_type(start), req.variable_type(end))) {
@@ -432,8 +440,8 @@ server::execute_one_step(request_or_reply& req)
 vector<request_or_reply>
 server::generate_sub_requests(request_or_reply& req)
 {
-    int start = req.cmd_chains[req.step * 4];
-    int end = req.cmd_chains[req.step * 4 + 3];
+    int64_t start = req.cmd_chains[req.step * 4];
+    int64_t end = req.cmd_chains[req.step * 4 + 3];
 
     vector<request_or_reply> sub_reqs;
     int num_sub_request = cfg->nsrvs;
@@ -456,8 +464,8 @@ server::generate_sub_requests(request_or_reply& req)
 vector<request_or_reply>
 server::generate_mt_sub_requests(request_or_reply& req)
 {
-    int start = req.cmd_chains[req.step * 4];
-    int end = req.cmd_chains[req.step * 4 + 3];
+    int64_t start = req.cmd_chains[req.step * 4];
+    int64_t end = req.cmd_chains[req.step * 4 + 3];
     int nthread = max(1, min(global_multithread_factor, global_num_server));
 
     vector<request_or_reply> sub_reqs;
@@ -484,7 +492,7 @@ server::generate_mt_sub_requests(request_or_reply& req)
 bool
 server::need_sub_requests(request_or_reply &r)
 {
-    int start = r.cmd_chains[r.step * 4];
+    int64_t start = r.cmd_chains[r.step * 4];
 
     // in-place mode
     if ((r.local_var == start) || (r.row_num() < global_rdma_threshold))
@@ -509,11 +517,11 @@ server::execute(request_or_reply &req)
         }
 
         // join pattern
-        if (!req.is_finished() && req.cmd_chains[req.step * 4 + 2] == JOIN) {
+        if (!req.is_finished() && (req.cmd_chains[req.step * 4 + 2] == JOIN)) {
             t1 = timer::get_usec();
             handle_join(req);
             t2 = timer::get_usec();
-            if (cfg->sid == 0 && cfg->wid == cfg->ncwkrs) {
+            if ((cfg->sid == 0) && (cfg->wid == cfg->ncwkrs)) {
                 //cout<<"handle join "<<" "<<t2-t1<<" us"<<endl;
             }
         }

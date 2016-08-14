@@ -52,8 +52,8 @@ public:
 };
 
 class mytuple {
-    int static compare_tuple(int N, std::vector<int>& vec,
-                             size_t i, std::vector<int>& vec2, size_t j) {
+    int static compare_tuple(int N, std::vector<int64_t>& vec,
+                             int i, std::vector<int64_t>& vec2, int j) {
         // ture means less or equal
         for (int t = 0; t < N; t++) {
             if (vec[i * N + t] < vec2[j * N + t])
@@ -65,14 +65,12 @@ class mytuple {
         return 0;
     }
 
-    inline void static swap_tuple(int N, std::vector<int>& vec,
-                                  size_t i, size_t j) {
+    inline void static swap_tuple(int N, std::vector<int64_t> &vec, int i, int j) {
         for (int t = 0; t < N; t++)
             std::swap(vec[i * N + t], vec[j * N + t]);
     }
 
-    void static qsort_tuple_recursive(int N, std::vector<int>& vec,
-                                      size_t begin, size_t end) {
+    void static qsort_tuple_recursive(int N, std::vector<int64_t> &vec, int begin, int end) {
         if (begin + 1 >= end)
             return ;
 
@@ -89,8 +87,8 @@ class mytuple {
         qsort_tuple_recursive(N, vec, middle + 1, end);
     }
 
-    bool static binary_search_tuple_recursive(int N, std::vector<int>& vec,
-            std::vector<int>& target,
+    bool static binary_search_tuple_recursive(int N, std::vector<int64_t> &vec,
+            std::vector<int64_t> &target,
             int begin, int end) {
         if (begin >= end)
             return false;
@@ -108,12 +106,12 @@ class mytuple {
 
 
 public:
-    bool static binary_search_tuple(int N, std::vector<int>& vec,
-                                    std::vector<int>& target) {
+    bool static binary_search_tuple(int N, std::vector<int64_t> &vec,
+                                    std::vector<int64_t> &target) {
         binary_search_tuple_recursive(N, vec, target, 0, vec.size() / N);
     }
 
-    void static qsort_tuple(int N, std::vector<int>& vec) {
+    void static qsort_tuple(int N, std::vector<int64_t>& vec) {
         qsort_tuple_recursive(N, vec, 0, vec.size() / N);
     }
 };

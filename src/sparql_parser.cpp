@@ -91,6 +91,7 @@ sparql_parser::replace_prefix(vector<string> &tokens)
                 tokens[i] = s;
                 break;
             } else if (tokens[i][0] == '%' && tokens[i].find(iter.first) == 1 ) {
+                // patent constant with the certain type (batch mode)
                 string s = "%" + iter.second;
                 s.insert(s.find("#") + 1, tokens[i], iter.first.size() + 1, string::npos);
                 tokens[i] = s;
@@ -100,31 +101,42 @@ sparql_parser::replace_prefix(vector<string> &tokens)
     }
 }
 
-int
+int64_t
 sparql_parser::token2id(string &token)
 {
     if (token == "") {
         cout << "ERROR: empty string." << endl;
-        valid = false;
-        return 0;
+        return INVALID_ID;
     }
-    if (token[0] == '?') {
+    if (token[0] == '?') {  // pattern variable (single mode)
         if (pvars.find(token) == pvars.end()) {
-            int new_id = (-pvars.size()) - 1;
-            pvars[token] = new_id;
+            int64_t id = (- pvars.size()) - 1; // ID starts from -1
+            pvars[token] = id;
         }
         return pvars[token];
-    } else if (token[0] == '%') {
+    } else if (token[0] == '%') {  // patent group (batch mode)
         req_template.place_holder_str.push_back(token.substr(1));
-        //valid=false;
         return place_holder;
-    } else {
+    } else {  // pattern constant (single mode)
         if (str_server->str2id.find(token) == str_server->str2id.end()) {
             cout << "ERROR: unknown token \"" << token << "\"" << endl;
-            valid = false;
-            return 0;
+            return INVALID_ID;
         }
         return str_server->str2id[token];
+    }
+}
+
+void
+sparql_parser::dump_cmd_chains(void)
+{
+    cout << "cmd_chain size: " << req_template.cmd_chains.size() << endl;
+    for (int i = 0; i < req_template.cmd_chains.size(); i += 4) {
+        cout << "pattern#" << i / 4 << ": "
+             << req_template.cmd_chains[i] << "\t"
+             << req_template.cmd_chains[i + 1] << "\t"
+             << req_template.cmd_chains[i + 2] << "\t"
+             << req_template.cmd_chains[i + 3] << "\t"
+             << endl;
     }
 }
 
@@ -164,12 +176,14 @@ sparql_parser::do_parse(vector<string> &tokens)
         req_template.cmd_chains.push_back(token2id(triple[2]));
     }
 
+    // record all position of place_holder (batch mode)
     for (int i = 0; i < req_template.cmd_chains.size(); i++) {
         if (req_template.cmd_chains[i] == place_holder) {
             req_template.place_holder_position.push_back(i);
-            return true;
         }
     }
+
+    dump_cmd_chains();
     return true;
 }
 
