@@ -115,8 +115,8 @@ sparql_parser::token2id(string &token)
         }
         return pvars[token];
     } else if (token[0] == '%') {  // patent group (batch mode)
-        req_template.place_holder_str.push_back(token.substr(1));
-        return place_holder;
+        req_template.ptypes_str.push_back(token.substr(1));
+        return PTYPE_PH;
     } else {  // pattern constant (single mode)
         if (str_server->str2id.find(token) == str_server->str2id.end()) {
             cout << "ERROR: unknown token \"" << token << "\"" << endl;
@@ -176,14 +176,12 @@ sparql_parser::do_parse(vector<string> &tokens)
         req_template.cmd_chains.push_back(token2id(triple[2]));
     }
 
-    // record all position of place_holder (batch mode)
-    for (int i = 0; i < req_template.cmd_chains.size(); i++) {
-        if (req_template.cmd_chains[i] == place_holder) {
-            req_template.place_holder_position.push_back(i);
-        }
-    }
+    // record positions of pattern group (batch mode)
+    for (int i = 0; i < req_template.cmd_chains.size(); i++)
+        if (req_template.cmd_chains[i] == PTYPE_PH)
+            req_template.ptypes_pos.push_back(i);
 
-    dump_cmd_chains();
+    //dump_cmd_chains();
     return true;
 }
 
@@ -200,17 +198,17 @@ sparql_parser::parse(string fname, request_or_reply &r)
     if (!do_parse(tokens))
         return false;
 
-    if (req_template.place_holder_position.size() != 0) {
-        cout << "ERROR: request with place_holder." << endl;
+    if (req_template.ptypes_pos.size() != 0) {
+        cout << "ERROR: request with PTYPE_PH." << endl;
         return false;
     }
 
     r = request_or_reply();
     if (join_step >= 0) {
-        vector<int> join_pattern;
-        join_pattern.push_back(0);
-        join_pattern.push_back(0);
-        join_pattern.push_back(JOIN); //means join
+        vector<int64_t> join_pattern;
+        join_pattern.push_back(0); // unused
+        join_pattern.push_back(0); // unused
+        join_pattern.push_back(JOIN);
         join_pattern.push_back(join_step + 1); // because we insert a new cmd in the middle
         req_template.cmd_chains.insert(req_template.cmd_chains.begin() + fork_step * 4,
                                        join_pattern.begin(), join_pattern.end());
@@ -240,8 +238,8 @@ sparql_parser::parse_string(string input_str, request_or_reply &r)
     if (!do_parse(tokens))
         return false;
 
-    if (req_template.place_holder_position.size() != 0) {
-        cout << "ERROR: request with place_holder" << endl;
+    if (req_template.ptypes_pos.size() != 0) {
+        cout << "ERROR: request with PTYPE_PH" << endl;
         return false;
     }
 
@@ -273,8 +271,8 @@ sparql_parser::parse_template(string fname, request_template &r)
     if (!do_parse(tokens))
         return false;
 
-    if (req_template.place_holder_position.size() == 0) {
-        cout << "ERROR: request_template without place_holder" << endl;
+    if (req_template.ptypes_pos.size() == 0) {
+        cout << "ERROR: request_template without PTYPE_PH" << endl;
         return false;
     }
 
@@ -283,12 +281,14 @@ sparql_parser::parse_template(string fname, request_template &r)
 }
 
 bool
-sparql_parser::find_type_of(string type, request_or_reply &r)
+sparql_parser::add_type_pattern(string type, request_or_reply &r)
 {
     clear();
     r = request_or_reply();
-    r.cmd_chains.push_back(str_server->str2id[type]);
-    r.cmd_chains.push_back(global_rdftype_id);
+
+    // add an additonal pattern cmd to collect pattern constants with a certain type
+    r.cmd_chains.push_back(str_server->str2id[type]); // type ID
+    r.cmd_chains.push_back(global_rdftype_id);  // reserved ID for "rdf:type"
     r.cmd_chains.push_back(IN);
     r.cmd_chains.push_back(-1);
     return true;

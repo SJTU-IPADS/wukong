@@ -3,32 +3,43 @@
 static void
 translate_req_template(client *clnt, request_template &req_template)
 {
-	req_template.place_holder_vecptr.resize(req_template.place_holder_str.size());
-	for (int i = 0; i < req_template.place_holder_str.size(); i++) {
-		string type = req_template.place_holder_str[i];
-		if (clnt->parser.type_to_idvec.find(type) != clnt->parser.type_to_idvec.end()) {
-			// do nothing
-		} else {
-			request_or_reply type_request;
-			assert(clnt->parser.find_type_of(type, type_request));
-			request_or_reply reply;
+
+	boost::unordered_map<string, vector<int64_t> *> type2grp; // mapping table from %type to a group of IDs
+
+	req_template.ptypes_grp.resize(req_template.ptypes_str.size());
+	for (int i = 0; i < req_template.ptypes_str.size(); i++) {
+		string type = req_template.ptypes_str[i];
+		if (type2grp.find(type) == type2grp.end()) {
+			request_or_reply type_request, type_reply;
+
+			// a TYPE query to collect constants with the certain type
+			if (!clnt->parser.add_type_pattern(type, type_request)) {
+				cout << "ERROR: failed to add a special type pattern (type: "
+				     << type << ")." << endl;
+				assert(false);
+			}
+
+			// do TYPE query
 			clnt->Send(type_request);
-			reply = clnt->Recv();
+			type_reply = clnt->Recv();
+
 			vector<int64_t> *ptr = new vector<int64_t>();
-			*ptr = reply.result_table;
-			clnt->parser.type_to_idvec[type] = ptr;
-			cout << type << " has " << ptr->size() << " objects" << endl;
+			*ptr = type_reply.result_table;
+			type2grp[type] = ptr;
+
+			cout << type << " has " << ptr->size() << " objects." << endl;
 		}
-		req_template.place_holder_vecptr[i] = clnt->parser.type_to_idvec[type];
+
+		req_template.ptypes_grp[i] = type2grp[type];
 	}
 }
 
 static void
 instantiate_request(client *clnt, request_template &req_template, request_or_reply &r)
 {
-	for (int i = 0; i < req_template.place_holder_position.size(); i++) {
-		int pos = req_template.place_holder_position[i];
-		vector<int64_t> *vecptr = req_template.place_holder_vecptr[i];
+	for (int i = 0; i < req_template.ptypes_pos.size(); i++) {
+		int pos = req_template.ptypes_pos[i];
+		vector<int64_t> *vecptr = req_template.ptypes_grp[i];
 		if (vecptr == NULL || vecptr->size() == 0) {
 			assert(false);
 		}

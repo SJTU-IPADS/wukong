@@ -23,10 +23,12 @@ enum var_type {
 constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
 struct request_template {
-    vector<string> place_holder_str;    // no serialize
-    vector<int64_t> place_holder_position;  // no serialize
-    vector<vector<int64_t> *> place_holder_vecptr; // no serialize
     vector<int64_t> cmd_chains;
+
+    // no serialize
+    vector<string> ptypes_str;  // strings of pattern-types
+    vector<int64_t> ptypes_pos;  // place-holders of pattern-types
+    vector<vector<int64_t> *> ptypes_grp; // a group of IDs matching pattern-types
 };
 
 struct request_or_reply {
