@@ -1,27 +1,49 @@
+#include "hdfs.h"
 #include "distributed_graph.h"
 
 distributed_graph::distributed_graph(boost::mpi::communicator& _world,
                 RdmaResource* _rdma,string dir_name):world(_world),rdma(_rdma){
-    struct dirent *ptr;
-    DIR *dir;
-    dir=opendir(dir_name.c_str());
+
     vector<string> filenames;
-    if(dir==NULL){
-        cout<<"Error folder: "<<dir_name<<" at node "<<world.rank()<<endl;
-        exit(-1);
-    }
-    while((ptr=readdir(dir))!=NULL){
-        if(ptr->d_name[0] == '.'){
-            continue;
+    if (!global_use_hdfs){
+        // using NFS
+        struct dirent *ptr;
+        DIR *dir;
+        dir=opendir(dir_name.c_str());
+        if(dir==NULL){
+            cout<<"Error folder: "<<dir_name<<" at node "<<world.rank()<<endl;
+            exit(-1);
         }
-        string fname(ptr->d_name);
-        string index_prefix="index";
-        string data_prefix="id";
-		if(equal(data_prefix.begin(), data_prefix.end(), fname.begin())){
-			filenames.push_back(dir_name+"/"+fname);
-		} else{
-			//skip the index files
-		}
+        while((ptr=readdir(dir))!=NULL){
+            if(ptr->d_name[0] == '.'){
+                continue;
+            }
+            string fname(ptr->d_name);
+            //string index_prefix="index";
+            string data_prefix="id";
+            if(equal(data_prefix.begin(), data_prefix.end(), fname.begin())){
+                filenames.push_back(dir_name+"/"+fname);
+            } else{
+                //skip the index files
+            }
+        }
+    } else{
+        // using HDFS
+        hdfsFS fs = hdfsConnect("default", 0);
+        int numEntries;
+        hdfsFileInfo *list = hdfsListDirectory(fs, dir_name.c_str(), &numEntries);
+        for(int i = 0; i < numEntries; i++){
+            string fname = list[i].mName;
+            //string index_prefix="index";
+            string data_prefix="id_";
+            std::size_t found = fname.find(data_prefix);
+            if(found!=std::string::npos){
+                filenames.push_back(fname);
+            } else{
+                //skip the index files
+            }
+        }
+        hdfsDisconnect(fs);
     }
 
     edge_num_per_machine.resize(world.size());
@@ -42,26 +64,84 @@ void distributed_graph::load_data(vector<string>& file_vec){
     uint64_t t1=timer::get_usec();
 	int nfile=file_vec.size();
 	volatile int finished_count = 0;
+
+    hdfsFS *fs;
+    if (global_use_hdfs){
+        fs = new hdfsFS[nfile];
+        for(int i = 0; i < nfile; i++)
+            fs[i] = hdfsConnect("default", 0);
+    }
+
 	#pragma omp parallel for num_threads(global_num_server)
 	for(int i=0;i<nfile;i++){
 		int localtid = omp_get_thread_num();
 		if(i%world.size()!=world.rank()){
 			continue;
 		}
-		ifstream file(file_vec[i].c_str());
-		uint64_t s,p,o;
-		while(file>>s>>p>>o){
-			int s_mid=mymath::hash_mod(s,world.size());
-			int o_mid=mymath::hash_mod(o,world.size());
-			if(s_mid==o_mid){
-				send_edge(localtid,s_mid,s,p,o);
-			}
-			else {
-				send_edge(localtid,s_mid,s,p,o);
-				send_edge(localtid,o_mid,s,p,o);
-			}
-		}
-		file.close();
+
+        if (!global_use_hdfs){
+            // use NFS
+    		ifstream file(file_vec[i].c_str());
+    		uint64_t s,p,o;
+    		while(file>>s>>p>>o){
+    			int s_mid=mymath::hash_mod(s,world.size());
+    			int o_mid=mymath::hash_mod(o,world.size());
+    			if(s_mid==o_mid){
+    				send_edge(localtid,s_mid,s,p,o);
+    			}
+    			else {
+    				send_edge(localtid,s_mid,s,p,o);
+    				send_edge(localtid,o_mid,s,p,o);
+    			}
+    		}
+    		file.close();
+        } else{
+            // use HDFS
+            hdfsFile readFile = hdfsOpenFile(fs[i], file_vec[i].c_str(), 
+                                             O_RDONLY, 0, 0, 0);
+            cout << "loading " << file_vec[i].c_str() << endl;
+            const int buffer_size = 256;
+            char buffer[buffer_size];
+            int start = 0, offset;
+            uint64_t s,p,o;
+
+            while(true){
+                offset = hdfsRead(fs[i], readFile, 
+                                  buffer + start, buffer_size - start);
+                // buffer[0..start+offset)
+                string line="";
+                for(int i = 0; i < start+offset; i++){
+                    if (buffer[i] == '\n'){
+                        // current line finish
+                        int id;
+                        string str;
+                        stringstream ss(line);
+                        ss >> s >> p >> o;
+
+                        int s_mid=mymath::hash_mod(s,world.size());
+                        int o_mid=mymath::hash_mod(o,world.size());
+                        if(s_mid==o_mid){
+                            send_edge(localtid,s_mid,s,p,o);
+                        }
+                        else {
+                            send_edge(localtid,s_mid,s,p,o);
+                            send_edge(localtid,o_mid,s,p,o);
+                        }
+                        line = "";
+                    } else{
+                        line = line + buffer[i];
+                    }
+                }
+                if (offset <= 0)
+                    break;
+
+                // copy the rest of buffer to the front for next round
+                start = line.length();
+                memcpy(buffer, line.c_str(), start);
+            }
+            //hdfsDisconnect(fs[i]);
+        }
+
 		int ret=__sync_fetch_and_add( &finished_count, 1 );
 		if(ret%40==39){
 			cout<<"node "<<world.rank()<<" already load "<<ret+1<<" files"<<endl;
@@ -85,6 +165,12 @@ void distributed_graph::load_data(vector<string>& file_vec){
 		}
 	}
 	MPI_Barrier(MPI_COMM_WORLD);
+
+    if (global_use_hdfs){
+        for(int i = 0; i < nfile; i++)
+            hdfsDisconnect(fs[i]);
+    }
+
     uint64_t t2=timer::get_usec();
 	cout<<(t2-t1)/1000<<" ms for loading files"<<endl;
 }

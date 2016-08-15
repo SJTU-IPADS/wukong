@@ -37,5 +37,7 @@ extern int global_enable_index_partition;
 
 extern int global_verbose;
 
+extern bool global_use_hdfs;
+
 void load_changeable_cfg();
 void load_global_cfg(char* filename);

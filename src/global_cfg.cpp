@@ -24,6 +24,7 @@ int global_enable_workstealing;
 int global_enable_index_partition;
 
 int global_verbose;
+bool global_use_hdfs;
 
 std::string config_filename;
 void load_changeable_cfg(){
@@ -93,6 +94,7 @@ void load_global_cfg(char* filename){
 	global_enable_index_partition=atoi(config_map["global_enable_index_partition"].c_str());
 
 	global_verbose=atoi(config_map["global_verbose"].c_str());
+    global_use_hdfs=atoi(config_map["global_use_hdfs"].c_str());
 
 	global_num_thread=global_num_server+global_num_client;
 }

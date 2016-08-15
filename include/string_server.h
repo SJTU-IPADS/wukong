@@ -15,7 +15,8 @@
 using namespace std;
 
 class string_server{
-    void load_index(string filename);
+    void load_index_nfs(string filename);
+    void load_index_hdfs(string filename);
 
 public:
     boost::unordered_map<string,int> subject_to_id;

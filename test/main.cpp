@@ -121,6 +121,7 @@ int main(int argc, char * argv[]) {
 
 	string_server str_server(global_input_folder);
 	distributed_graph graph(world,rdma,global_input_folder);
+
 	client** client_array=new client*[global_num_client];
 	for(int i=0;i<global_num_client;i++){
 		client_array[i]=new client(&cfg_array[i],&str_server);
@@ -132,7 +133,6 @@ int main(int argc, char * argv[]) {
 	for(int i=0;i<global_num_server;i++){
 		server_array[i]->set_server_array(server_array);
 	}
-
 
 	pthread_t     *thread  = new pthread_t[global_num_thread];
 	for(size_t id = 0;id < global_num_thread;++id) {
