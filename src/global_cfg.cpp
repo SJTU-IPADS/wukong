@@ -25,6 +25,7 @@ int global_enable_index_partition;
 
 int global_verbose;
 bool global_use_hdfs;
+string global_hdfs_classpath;
 
 std::string config_filename;
 void load_changeable_cfg(){
@@ -95,6 +96,7 @@ void load_global_cfg(char* filename){
 
 	global_verbose=atoi(config_map["global_verbose"].c_str());
     global_use_hdfs=atoi(config_map["global_use_hdfs"].c_str());
+    global_hdfs_classpath=config_map["global_hdfs_classpath"].c_str();
 
 	global_num_thread=global_num_server+global_num_client;
 }

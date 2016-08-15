@@ -21,3 +21,4 @@ global_verbose	0
 global_total_memory_gb_tmp 12
 global_hash_header_million_tmp	520
 global_use_hdfs 1
+global_hdfs_classpath /home/yhzhang/hadoop/hadoop.jar
