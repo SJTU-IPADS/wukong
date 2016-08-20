@@ -150,7 +150,7 @@ void graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,vector<edge
 
 
     // accum_predict is calculated at previoud phase
-/*
+
     curr_edge_ptr=atomic_alloc_edges(accum_predict);
     start=0;
 	while(start<vec_spo.size()){
@@ -188,7 +188,7 @@ void graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,vector<edge
         vertex_addr[vertex_ptr].val=val;
         start=end;
 	}
-*/
+
 }
 void graph_storage::print_memory_usage(){
     //cout<<"disable print_memory_usage now "<<endl;
