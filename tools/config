@@ -5,10 +5,10 @@ global_num_server		16
 global_num_client		1
 global_batch_factor		20
 global_multithread_factor  16
-global_input_folder		/home/datanfs/nfs0/rdfdata/id_lubm_40/
+global_input_folder		/user/wukong/lsbench1000/
 global_client_mode		0
 global_use_loc_cache	0
-global_load_minimal_index 1
+global_load_minimal_index 0
 global_silent	1
 global_max_print_row	10
 global_total_memory_gb	25
@@ -20,3 +20,5 @@ global_enable_index_partition	1
 global_verbose	0
 global_total_memory_gb_tmp 12
 global_hash_header_million_tmp	520
+global_use_hdfs 1
+global_hdfs_classpath /home/yhzhang/hadoop/hadoop.jar

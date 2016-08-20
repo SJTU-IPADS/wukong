@@ -11,6 +11,8 @@
 #include "client.h"
 #include "client_mode.h"
 
+#include "hdfs.h"
+
 using namespace std;
 
 int socket_0[] = {
@@ -47,7 +49,21 @@ int main(int argc, char * argv[]) {
 		cout<<"usage:./wukong config_file hostfile"<<endl;
 		return -1;
 	}
+
     load_global_cfg(argv[1]);
+    if (global_use_hdfs){
+        int ok = setenv("CLASSPATH", global_hdfs_classpath.c_str(), 1);
+        /*
+        cout << "set " << ok << endl;
+        char *tmp = getenv("CLASSPATH");
+        if (tmp == NULL){
+            cout << "No Classpath!\n";
+        } else{
+            cout << "Classpath: " << tmp << endl;
+        }
+        */
+    }
+
     boost::mpi::environment env(argc, argv);
 	boost::mpi::communicator world;
 
@@ -118,9 +134,9 @@ int main(int argc, char * argv[]) {
 	sleep(1);
 	return 0;
 */
-
 	string_server str_server(global_input_folder);
 	distributed_graph graph(world,rdma,global_input_folder);
+
 	client** client_array=new client*[global_num_client];
 	for(int i=0;i<global_num_client;i++){
 		client_array[i]=new client(&cfg_array[i],&str_server);
@@ -132,7 +148,6 @@ int main(int argc, char * argv[]) {
 	for(int i=0;i<global_num_server;i++){
 		server_array[i]->set_server_array(server_array);
 	}
-
 
 	pthread_t     *thread  = new pthread_t[global_num_thread];
 	for(size_t id = 0;id < global_num_thread;++id) {
