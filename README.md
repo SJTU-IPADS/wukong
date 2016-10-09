@@ -41,6 +41,13 @@ http://zeromq.org/
     cd ..
     cp zmq.hpp  zeromq-4.0.5-install/include/
 
+### HDFS support
+
+Set global_input_folder to hdfs:/... and Wukong will read files from HDFS
+
+    cd  deps/hadoop/
+    ./hadoop_deps.sh
+
 ### add following lines in ~/.bashrc
 
     export WUKONG_ROOT=/home/sjx/graph-query
@@ -48,6 +55,8 @@ http://zeromq.org/
     export CPATH=${WUKONG_ROOT}/deps/zeromq-4.0.5-install/include:$CPATH
     export LIBRARY_PATH=${WUKONG_ROOT}/deps/zeromq-4.0.5-install/lib:$LIBRARY_PATH
     export LD_LIBRARY_PATH=${WUKONG_ROOT}/deps/zeromq-4.0.5-install/lib:$LD_LIBRARY_PATH
+    # specify CLASSPATH if using HDFS
+    export CLASSPATH=${WUKONG_ROOT}/deps/hadoop/hadoop.jar
 
 dictionary of tbb may need to be changed
 

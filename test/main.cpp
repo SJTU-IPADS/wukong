@@ -51,18 +51,6 @@ int main(int argc, char * argv[]) {
 	}
 
     load_global_cfg(argv[1]);
-    if (global_use_hdfs){
-        int ok = setenv("CLASSPATH", global_hdfs_classpath.c_str(), 1);
-        /*
-        cout << "set " << ok << endl;
-        char *tmp = getenv("CLASSPATH");
-        if (tmp == NULL){
-            cout << "No Classpath!\n";
-        } else{
-            cout << "Classpath: " << tmp << endl;
-        }
-        */
-    }
 
     boost::mpi::environment env(argc, argv);
 	boost::mpi::communicator world;
