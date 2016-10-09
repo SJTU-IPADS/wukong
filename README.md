@@ -41,9 +41,9 @@ http://zeromq.org/
     cd ..
     cp zmq.hpp  zeromq-4.0.5-install/include/
 
-### HDFS support
+### HDFS support (Hadoop 2.6.4)
 
-Set global_input_folder to hdfs:/... and Wukong will read files from HDFS
+Set `global_input_folder` to hdfs:/... and Wukong will read files from HDFS. 
 
     cd  deps/hadoop/
     ./hadoop_deps.sh
