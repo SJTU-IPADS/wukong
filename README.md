@@ -7,9 +7,11 @@ Wukong, a distributed graph-based RDF store that leverages efficient graph explo
 
 - High-performance and Scalable
 
-- Support RDMA feature of InfiniBand
-
 - Concurrent query processing
+
+- RDMA feature of InfiniBand
+
+- Evolving graphs
 
 
 ### License
