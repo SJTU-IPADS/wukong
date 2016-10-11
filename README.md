@@ -1,4 +1,3 @@
-
 # Wukong
 
 Wukong, a distributed graph-based RDF store that leverages efficient graph exploration to provide highly concurrent and low-latency queries over large data sets.
@@ -55,7 +54,7 @@ Add the root path of Wukong (e.g., `/home/rchen/wukong`) to bash script (i.e., `
 
 #### Install Boost
 
-    $cd  ${WUKONG_ROOT}/deps/
+    $cd  $WUKONG_ROOT/deps/
     $tar jxvf boost_1_58_0.tar.bz2  
     $mkdir boost_1_58_0-install
     $cd boost_1_58_0/
@@ -71,7 +70,7 @@ Add the following MPI configuration to `project-config.jam`
 
 #### Install Intel TBB
 
-    $cd ${WUKONG_ROOT}/deps/  
+    $cd $WUKONG_ROOT/deps/  
     $tar zxvf tbb44_20151115oss_src.tgz  
     $cd tbb44_20151115oss/
     $make
@@ -83,12 +82,12 @@ Add below settings to bash script (i.e., `~/.bashrc`).
 
 For example:
 
-	source $WUKONG_ROOT/deps/tbb44_20151115oss/build/linux_intel64_gcc_cc4.8_libc2.19_kernel3.14.27_release/tbbvars.sh
+    source $WUKONG_ROOT/deps/tbb44_20151115oss/build/linux_intel64_gcc_cc4.8_libc2.19_kernel3.14.27_release/tbbvars.sh
 
 
 #### Install ZeroMQ (http://zeromq.org/)
 
-    $cd ${WUKONG_ROOT}/deps/
+    $cd $WUKONG_ROOT/deps/
     $tar zxvf zeromq-4.0.5.tar.gz
     $mkdir zeromq-4.0.5-install
     $cd zeromq-4.0.5/
@@ -106,6 +105,42 @@ Add below settings to bash script (i.e., `~/.bashrc`).
     export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/zeromq-4.0.5-install/lib:$LD_LIBRARY_PATH
 
 
+#### Install HDFS support (Optional)
+
+We assume that Hadoop/HDFS has been installed on your cluster. The ENV variable for Hadoop should be set correctly.
+
+    # Build hadoop.jar (assume that the Hadoop has been added on this machine) 
+    $cd $WUKONG_ROOT/deps/hadoop/
+    $./hadoop_deps.sh
+
+Add below settings to bash script (i.e., `~/.bashrc`) according to the installation of Hadoop on your machine.
+
+    # Haddop configuration
+    export HADOOP_HOME=/usr/local/hadoop
+    export PATH=$HADOOP_HOME/bin:$PATH
+    export CPATH=$HADOOP_HOME/include:$CPATH
+
+    # LibJVM configuration
+    export LIBRARY_PATH=/usr/lib/jvm/default-java/jre/lib/amd64/server:$LIBRARY_PATH
+    export LD_LIBRARY_PATH=/usr/lib/jvm/default-java/jre/lib/amd64/server:$LD_LIBRARY_PATH
+
+    # LibHDFS configuration
+    export LIBRARY_PATH=$HADOOP_HOME/lib/native:$LIBRARY_PATH
+    export LD_LIBRARY_PATH=$HADOOP_HOME/lib/native:$LD_LIBRARY_PATH
+
+    export CLASSPATH=$WUKONG_ROOT/deps/hadoop/hadoop.jar
+
+Enable the compile option in CMakeLists.txt  
+
+    # Uncomment two lines below to enble HDFS support.
+    add_definitions(-DHAS_HADOOP)
+    target_link_libraries(wukong hdfs)
+
+
+NOTE: if the `global_input_folder` start with `hdfs:`, then Wukong will read the files from HDFS.
+
+
+
 ### Copy Wukong Dependencies to All Machines
 
 1) Setup password-less SSH between the master node and all other machines.
@@ -121,8 +156,8 @@ For example:
 
 3) Run the following commands to copy Wukong dependencies to the rest of the machines:
 
-	$cd ${WUKONG_ROOT}/tools
-	$./syncdeps.sh ../deps/dependencies mpd.hosts
+    $cd ${WUKONG_ROOT}/tools
+    $./syncdeps.sh ../deps/dependencies mpd.hosts
 
 
 
@@ -174,4 +209,3 @@ Create a file (`str_normal_minimal`) with minimal id mappings when loading `str_
 
     $grep "<http://www.Department0.University0.edu>" str_normal >> str_normal_minimal
     ...
-

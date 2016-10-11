@@ -165,47 +165,49 @@ graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,
 		start = end;
 	}
 
-
-	// accum_predict is calculated at previoud phase
-	/*
-	    curr_edge_ptr=atomic_alloc_edges(accum_predict);
-	    start=0;
-		while(start<vec_spo.size()){
-	        // __PREDICT__
-	        local_key key= local_key(vec_spo[start].s,OUT,0);
-	        local_val val= local_val(0,curr_edge_ptr);
-	        uint64_t vertex_ptr=insertKey(key);
-	        uint64_t end=start;
-			while(end<vec_spo.size() && vec_spo[start].s==vec_spo[end].s){
-	            if(end==start || vec_spo[end].p!=vec_spo[end-1].p){
-	                edge_addr[curr_edge_ptr].val = vec_spo[end].p;
-	    			curr_edge_ptr++;
-	                val.size=val.size+1;
-	            }
-				end++;
+// The following code is used to support a rare case where the predicate is unknown.
+// We disable it to save memory by default.
+// Each normal vertex should add a key/value pair with a reserved ID (i.e., __PREDICT__)
+// to store the list of predicates
+#if 0
+	curr_edge_ptr = atomic_alloc_edges(accum_predict);
+	start = 0;
+	while (start < vec_spo.size()) {
+		// __PREDICT__
+		local_key key = local_key(vec_spo[start].s, OUT, 0);
+		local_val val = local_val(0, curr_edge_ptr);
+		uint64_t vertex_ptr = insertKey(key);
+		uint64_t end = start;
+		while (end < vec_spo.size() && vec_spo[start].s == vec_spo[end].s) {
+			if (end == start || vec_spo[end].p != vec_spo[end - 1].p) {
+				edge_addr[curr_edge_ptr].val = vec_spo[end].p;
+				curr_edge_ptr++;
+				val.size = val.size + 1;
 			}
-	        vertex_addr[vertex_ptr].val=val;
-	    	start=end;
+			end++;
 		}
+		vertex_addr[vertex_ptr].val = val;
+		start = end;
+	}
 
-	    start=nedges_to_skip;
-	    while(start<vec_ops.size()){
-	        local_key key= local_key(vec_ops[start].o,IN,0);
-	        local_val val= local_val(0,curr_edge_ptr);
-	        uint64_t vertex_ptr=insertKey(key);
-	        uint64_t end=start;
-			while(end<vec_ops.size() && vec_ops[start].o==vec_ops[end].o){
-	            if(end==start || vec_ops[end].p!=vec_ops[end-1].p){
-	                edge_addr[curr_edge_ptr].val = vec_ops[end].p;
-	    			curr_edge_ptr++;
-	                val.size=val.size+1;
-	            }
-				end++;
+	start = nedges_to_skip;
+	while (start < vec_ops.size()) {
+		local_key key = local_key(vec_ops[start].o, IN, 0);
+		local_val val = local_val(0, curr_edge_ptr);
+		uint64_t vertex_ptr = insertKey(key);
+		uint64_t end = start;
+		while (end < vec_ops.size() && vec_ops[start].o == vec_ops[end].o) {
+			if (end == start || vec_ops[end].p != vec_ops[end - 1].p) {
+				edge_addr[curr_edge_ptr].val = vec_ops[end].p;
+				curr_edge_ptr++;
+				val.size = val.size + 1;
 			}
-	        vertex_addr[vertex_ptr].val=val;
-	        start=end;
+			end++;
 		}
-	*/
+		vertex_addr[vertex_ptr].val = val;
+		start = end;
+	}
+#endif
 }
 
 void

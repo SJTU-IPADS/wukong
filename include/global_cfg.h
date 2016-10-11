@@ -6,17 +6,16 @@
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h> //atoi
-
 #include <sstream>
 
 using namespace std;
 
 /* non-configurable global variables */
-extern int global_rdftype_id;  // only a global variable, but non-configurable
-extern int global_num_thread;  // the sum of #servers and #clients
+extern int global_rdftype_id;	// only a global variable, but non-configurable
+extern int global_num_thread;	// the sum of #servers and #clients
 
 /* configurable global variables */
-extern bool global_use_rbf;
+extern bool global_use_rbf;		// ring-buffer (by RDMA WRITE)
 extern bool global_use_rdma;
 extern int global_num_server;	// #servers
 extern int global_num_client;	// #clients

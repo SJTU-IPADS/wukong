@@ -1,9 +1,8 @@
-#include <string>
 #include "global_cfg.h"
 
 
 /* non-configurable global variables */
-int global_rdftype_id;
+int global_rdftype_id;	// reserved ID for rdf:type
 int global_num_thread;
 
 /* configurable global variables */
@@ -155,11 +154,24 @@ load_cfg(void)
 	global_enable_index_partition = atoi(config_map["global_enable_index_partition"].c_str());
 	global_verbose = atoi(config_map["global_verbose"].c_str());
 
-	global_rdftype_id = -1;
+	// reserve ID 1 to rdf:type
+	global_rdftype_id = 1;
 
 	// 1 logical queue = N server-worker queues + 1 client-worker queue
 	global_num_thread = global_num_server + global_num_client;
 
+	// make sure to check that the global_input_folder is non-empty.
+	if (global_input_folder.length() == 0) {
+		cout << "ERROR: the directory path of RDF data can not be empty!"
+		     << "You should set \"global_input_folder\" in config file." << endl;
+		exit(-1);
+	}
+
+	// force a "/" at the end of global_input_folder.
+	if (global_input_folder[global_input_folder.length() - 1] != '/')
+		global_input_folder = global_input_folder + "/";
+
+	// debug dump
 	if (global_verbose) dump_cfg();
 	return;
 }

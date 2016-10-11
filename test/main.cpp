@@ -78,7 +78,6 @@ main(int argc, char *argv[])
 
 	// config global setting
 	load_cfg();
-	assert(global_num_thread == global_num_client + global_num_server);
 
 	// calculate memory usage
 	uint64_t rdma_size = GiB2B(global_total_memory_gb);

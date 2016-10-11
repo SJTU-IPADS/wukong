@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <boost/mpi.hpp>
 #include <boost/unordered_map.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 
 #include "utils.h"
 #include "global_cfg.h"
@@ -19,7 +20,6 @@
 #include "omp.h"
 #include "graph_storage.h"
 #include "old_graph_storage.h"
-
 
 using namespace std;
 

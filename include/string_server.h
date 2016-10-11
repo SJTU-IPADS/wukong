@@ -9,9 +9,9 @@
 #include <assert.h>
 #include <boost/mpi.hpp>
 #include <boost/unordered_map.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 
 #include "global_cfg.h"
-
 
 using namespace std;
 
@@ -24,6 +24,8 @@ public:
 	boost::unordered_map<int64_t, string> id2str;
 
 	string_server(string dname);
+
 private:
-	void load_mapping(string fname);
+	void load_from_posixfs(string ffname);
+	void load_from_hdfs(string ffname);
 };

@@ -1,33 +1,50 @@
 #include "distributed_graph.h"
+#include "hdfs.hpp"
 
-distributed_graph::distributed_graph(boost::mpi::communicator& _world,
-                                     RdmaResource* _rdma, string dir_name): world(_world), rdma(_rdma)
+distributed_graph::distributed_graph(boost::mpi::communicator &_world,
+                                     RdmaResource *_rdma, string dname): world(_world), rdma(_rdma)
 {
-	struct dirent *ptr;
-	DIR *dir;
-	dir = opendir(dir_name.c_str());
-	vector<string> filenames;
-	if (dir == NULL) {
-		cout << "Error folder: " << dir_name << " at node " << world.rank() << endl;
-		exit(-1);
-	}
+	vector<string> files;
+	if (boost::starts_with(dname, "hdfs:")) {
+		if (!wukong::hdfs::has_hadoop()) {
+			cout << "ERORR: attempting to load RDF data files from HDFS "
+			     << "but Wukong was built without HDFS."
+			     << endl;
+			exit(-1);
+		}
 
-	while ((ptr = readdir(dir)) != NULL) {
-		if (ptr->d_name[0] == '.')
-			continue;
+		wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
+		files = hdfs.list_files(dname);
+	} else {
+		// files located on a shared filesystem (e.g., NFS)
+		DIR *dir = opendir(dname.c_str());
+		if (dir == NULL) {
+			cout << "ERORR: failed to open directory (" << dname
+			     << ") at node " << world.rank() << endl;
+			exit(-1);
+		}
 
-		string fname(ptr->d_name);
-		string index_prefix = "index";
-		string data_prefix = "id";
-		if (equal(data_prefix.begin(), data_prefix.end(), fname.begin())) {
-			filenames.push_back(dir_name + "/" + fname);
-		} else {
-			//skip the index files
+		struct dirent *ent;
+		while ((ent = readdir(dir)) != NULL) {
+			if (ent->d_name[0] == '.')
+				continue;
+
+			string fname(dname + ent->d_name);
+			// Assume the filenames of RDF data files (ID-format) start with 'id_'.
+			// TODO: move RDF data files and mapping files to different directory
+			if (boost::starts_with(fname, dname + "id_")) {
+				files.push_back(fname);
+			}
 		}
 	}
 
+	if (files.size() == 0) {
+		cout << "ERORR: no files found in directory (" << dname
+		     << ") at node " << world.rank() << endl;
+	}
+
 	edge_num_per_machine.resize(world.size());
-	load_and_sync_data(filenames);
+	load_and_sync_data(files);
 	local_storage.init(rdma, world.size(), world.rank());
 
 	#pragma omp parallel for num_threads(nthread_parallel_load)
@@ -42,10 +59,12 @@ distributed_graph::distributed_graph(boost::mpi::communicator& _world,
 }
 
 void
-distributed_graph::load_data(vector<string>& file_vec)
+distributed_graph::load_data(vector<string> &file_vec)
 {
-	sort(file_vec.begin(), file_vec.end());
+	// timing
 	uint64_t t1 = timer::get_usec();
+
+	sort(file_vec.begin(), file_vec.end());
 	int nfile = file_vec.size();
 	volatile int finished_count = 0;
 
@@ -55,22 +74,40 @@ distributed_graph::load_data(vector<string>& file_vec)
 		if (i % world.size() != world.rank())
 			continue;
 
-		ifstream file(file_vec[i].c_str());
-		uint64_t s, p, o;
-		while (file >> s >> p >> o) {
-			int s_mid = mymath::hash_mod(s, world.size());
-			int o_mid = mymath::hash_mod(o, world.size());
-			if (s_mid == o_mid) {
-				send_edge(localtid, s_mid, s, p, o);
+		if (boost::starts_with(file_vec[i], "hdfs:")) {
+			// files located on HDFS
+			wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
+			wukong::hdfs::fstream file(hdfs, file_vec[i]);
+			uint64_t s, p, o;
+			while (file >> s >> p >> o) {
+				int s_mid = mymath::hash_mod(s, world.size());
+				int o_mid = mymath::hash_mod(o, world.size());
+				if (s_mid == o_mid) {
+					send_edge(localtid, s_mid, s, p, o);
+				} else {
+					send_edge(localtid, s_mid, s, p, o);
+					send_edge(localtid, o_mid, s, p, o);
+				}
 			}
-			else {
-				send_edge(localtid, s_mid, s, p, o);
-				send_edge(localtid, o_mid, s, p, o);
+		} else {
+			// files located on a shared filesystem (e.g., NFS)
+			ifstream file(file_vec[i].c_str());
+			uint64_t s, p, o;
+			while (file >> s >> p >> o) {
+				int s_mid = mymath::hash_mod(s, world.size());
+				int o_mid = mymath::hash_mod(o, world.size());
+				if (s_mid == o_mid) {
+					send_edge(localtid, s_mid, s, p, o);
+				} else {
+					send_edge(localtid, s_mid, s, p, o);
+					send_edge(localtid, o_mid, s, p, o);
+				}
 			}
+			file.close();
 		}
-		file.close();
 
-		int ret = __sync_fetch_and_add( &finished_count, 1 );
+		// debug print
+		int ret = __sync_fetch_and_add(&finished_count, 1);
 		if (ret % 40 == 39) {
 			cout << "node " << world.rank() << " already load " << ret + 1 << " files" << endl;
 		}
@@ -94,12 +131,13 @@ distributed_graph::load_data(vector<string>& file_vec)
 	}
 	MPI_Barrier(MPI_COMM_WORLD);
 
+	// timing
 	uint64_t t2 = timer::get_usec();
-	cout << (t2 - t1) / 1000 << " ms for loading files" << endl;
+	cout << (t2 - t1) / 1000 << " ms for loading RFD data files" << endl;
 }
 
 void
-distributed_graph::load_data_from_allfiles(vector<string>& file_vec)
+distributed_graph::load_data_from_allfiles(vector<string> &file_vec)
 {
 	sort(file_vec.begin(), file_vec.end());
 	int nfile = file_vec.size();
@@ -111,6 +149,7 @@ distributed_graph::load_data_from_allfiles(vector<string>& file_vec)
 		uint64_t offset = max_size * localtid;
 		uint64_t* local_buffer = (uint64_t*)(rdma->get_buffer() + offset);
 
+		// TODO: support HDFS
 		ifstream file(file_vec[i].c_str());
 		uint64_t s, p, o;
 		while (file >> s >> p >> o) {

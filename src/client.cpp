@@ -1,4 +1,5 @@
 #include "client.h"
+
 client::client(thread_cfg* _cfg, string_server* _str_server): cfg(_cfg)
     , str_server(_str_server), parser(_str_server) {
 

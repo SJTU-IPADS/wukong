@@ -696,7 +696,7 @@ RdmaResource::Connect()
 		}
 	}
 
-	fprintf(stdout, "connection done------------\n");
+	fprintf(stdout, "------------ connection done ------------\n");
 }
 
 int
