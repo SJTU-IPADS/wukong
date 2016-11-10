@@ -4,6 +4,7 @@
 #include "thread_cfg.h"
 #include "client.h"
 #include "batch_logger.h"
+#include "proxy.h"
 
 #include <boost/unordered_map.hpp>
 #include <set>
@@ -15,3 +16,7 @@ void batch_execute(client *clnt, string mix_config, batch_logger &logger);
 void nonblocking_execute(client *clnt, string mix_config, batch_logger &logger);
 
 void interactive_shell(client *clnt);
+
+void proxy(client *clnt);
+void *recv_cmd(void *proxy);
+void *resp_cmd(void *proxy);

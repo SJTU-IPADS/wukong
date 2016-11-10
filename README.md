@@ -43,7 +43,7 @@ There are however, a few dependencies which must be manually satisfied.
 All the dependencies can be satisfied from the repository:
 
     $sudo apt-get update
-    $sudo apt-get install gcc g++ build-essential libopenmpi-dev openmpi-bin cmake git
+    $sudo apt-get install gcc g++ build-essential libopenmpi-dev openmpi-bin cmake git libreadline6-dev
 
 ### Install Wukong on One Machine
 
@@ -96,6 +96,8 @@ For example:
     $make install
     $cd ..
     $cp zmq.hpp  zeromq-4.0.5-install/include/
+    $cp zhelpers.hpp  zeromq-4.0.5-install/include/
+
 
 Add below settings to bash script (i.e., `~/.bashrc`).
  

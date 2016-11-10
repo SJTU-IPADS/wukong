@@ -365,3 +365,69 @@ nonblocking_execute(client* clnt, string mix_config, batch_logger& logger)
 		}
 	}
 };
+
+
+void* recv_cmd(void *ptr) {
+	cout << "star to recieve commands from clients" << endl;
+	Proxy *proxy = (Proxy *)ptr;
+	while (true) {
+		cout << "wait to new recv" << endl;
+		proxy->RecvRequest();
+		cout << "recv a new request" << endl;
+	}
+}
+
+void* resp_cmd(void *ptr) {
+	cout << "start to respond commands to clients" << endl;
+	Proxy *proxy = (Proxy *)ptr;
+	while (true) {
+		request_or_reply reply = proxy->clnt->Recv();
+		CS_Reply cs_reply;
+		cs_reply.column = reply.col_num;
+		cs_reply.result_table = reply.result_table;
+		string identity = proxy->GetIdentity(reply.parent_id);
+		proxy->RemoveID(reply.parent_id);
+		proxy->SendReply(identity, cs_reply);
+		int row_to_print = min((uint64_t)reply.row_num(), (uint64_t)global_max_print_row);
+		cout << "row:" << row_to_print << endl;
+		if (row_to_print > 0) {
+			proxy->clnt->print_result(reply, row_to_print);
+		}
+	}
+}
+
+void proxy(client *clnt) {
+	//ClientBarrier(clnt->cfg);
+	Proxy *proxy = new Proxy(clnt);
+	pthread_t thread[2];
+	pthread_create(&(thread[0]), NULL, recv_cmd, (void *)proxy);
+	pthread_create(&(thread[1]), NULL, resp_cmd, (void *)proxy);
+
+	while (true) {
+		client_barrier(clnt->cfg);
+		CS_Request cs_request = proxy->PopRequest();
+		string content = cs_request.content;
+		cout << content << endl;
+		request_or_reply request;
+		bool success = clnt->parser.parse(content, request);
+		if (!success) {
+			cout << "sparql parse error" << endl;
+			CS_Reply cs_reply;
+			cs_reply.type = "error";
+			cs_reply.content = "bad file";
+			proxy->SendReply(cs_request.identity, cs_reply);
+			continue;
+		}
+		request.silent = global_silent;
+		clnt->Send(request);
+		proxy->InsertID(request.parent_id, cs_request.identity);
+	}
+
+	for (int i = 0; i < 2; i++) {
+		int rc = pthread_join(thread[i], NULL);
+		if (rc) {
+			printf("ERROR; return code from pthread_join() is %d\n", rc);
+			exit(-1);
+		}
+	}
+}

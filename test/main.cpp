@@ -58,8 +58,10 @@ worker_thread(void *arg)
 		// server-worker threads
 		((server *)(cfg->ptr))->run();
 	} else {
-		// client-worker threads
-		interactive_shell(((client*)(cfg->ptr)));
+		// built-in client (by default)
+		interactive_shell((client*)(cfg->ptr));
+		// connected client
+		//proxy_mode((client*)(cfg->ptr));
 	}
 }
 
