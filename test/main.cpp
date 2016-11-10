@@ -38,6 +38,9 @@ int cores[] = {
 	0, 2, 4, 6, 8, 10, 12, 14, 16, 18
 };
 
+bool cclient_enable = false;
+int cclient_port = 5450;
+
 void
 pin_to_core(size_t core)
 {
@@ -58,11 +61,22 @@ worker_thread(void *arg)
 		// server-worker threads
 		((server *)(cfg->ptr))->run();
 	} else {
-		// built-in client (by default)
-		interactive_shell((client*)(cfg->ptr));
-		// connected client
-		//proxy_mode((client*)(cfg->ptr));
+		if (!cclient_enable)
+			// built-in client (by default)
+			interactive_shell((client*)(cfg->ptr));
+		else
+			// connected client
+			proxy((client*)(cfg->ptr), cclient_port);
 	}
+}
+
+static void
+usage(char *fn)
+{
+	cout << "usage: << fn <<  <config_fname> <host_fname> [options]" << endl;
+	cout << "options:" << endl;
+	cout << "  -c: enable connected client" << endl;
+	cout << "  -p port_num : the port number of connected client (default: 5450)" << endl;
 }
 
 int
@@ -71,13 +85,28 @@ main(int argc, char *argv[])
 	boost::mpi::environment env(argc, argv);
 	boost::mpi::communicator world;
 
-	if (argc != 3) {
-		cout << "usage: ./wukong config_file hostfile" << endl;
-		exit(-1);
+	if (argc < 3) {
+		usage(argv[0]);
+		exit(EXIT_FAILURE);
 	}
+
 	cfg_fname = std::string(argv[1]);
 	host_fname = std::string(argv[2]);
 
+	int c;
+	while ((c = getopt(argc - 2, argv + 2, "cp:")) != -1) {
+		switch (c) {
+		case 'c':
+			cclient_enable = true;
+			break;
+		case 'p':
+			cclient_port = atoi(optarg);
+			break;
+		default :
+			usage(argv[0]);
+			exit(EXIT_FAILURE);
+		}
+	}
 	// config global setting
 	load_cfg();
 

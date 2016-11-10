@@ -14,6 +14,7 @@
 class Proxy {
 public:
 	client *clnt;
+	int port;
 	zmq::context_t context;
 	zmq::socket_t *router;
 	boost::lockfree::spsc_queue<CS_Request,
@@ -23,14 +24,14 @@ public:
 
 
 
-	Proxy(client *_clnt): clnt(_clnt) {
+	Proxy(client *_clnt, int _port = 5450): clnt(_clnt), port(_port) {
 		pthread_spin_init(&send_lock, 0);
 
 		router = new zmq::socket_t(context, ZMQ_ROUTER);
 		s_set_id(*router);
 		char address[30] = "";
-		sprintf(address, "tcp://*:%d", 5450 + clnt->cfg->wid);
-		cout << "port " << 5450 + clnt->cfg->wid << endl;
+		sprintf(address, "tcp://*:%d", port + clnt->cfg->wid);
+		cout << "port " << port + clnt->cfg->wid << endl;
 		router->bind (address);
 	}
 

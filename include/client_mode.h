@@ -17,6 +17,6 @@ void nonblocking_execute(client *clnt, string mix_config, batch_logger &logger);
 
 void interactive_shell(client *clnt);
 
-void proxy(client *clnt);
+void proxy(client *clnt, int port);
 void *recv_cmd(void *proxy);
 void *resp_cmd(void *proxy);

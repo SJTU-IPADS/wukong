@@ -396,15 +396,14 @@ void* resp_cmd(void *ptr) {
 	}
 }
 
-void proxy(client *clnt) {
+void proxy(client *clnt, int port) {
 	//ClientBarrier(clnt->cfg);
-	Proxy *proxy = new Proxy(clnt);
+	Proxy *proxy = new Proxy(clnt, port);
 	pthread_t thread[2];
 	pthread_create(&(thread[0]), NULL, recv_cmd, (void *)proxy);
 	pthread_create(&(thread[1]), NULL, resp_cmd, (void *)proxy);
 
 	while (true) {
-		client_barrier(clnt->cfg);
 		CS_Request cs_request = proxy->PopRequest();
 		string content = cs_request.content;
 		cout << content << endl;
