@@ -19,8 +19,7 @@ For more details on the Wukong see http://ipads.se.sjtu.edu.cn/projects/wukong.h
 
 Wukong is released under the [Apache 2.0 license](http://www.apache.org/licenses/LICENSE-2.0.html).
 If you use Wukong in your research, please cite our paper:
-
-```    
+   
     @inproceedings{Shi:osdi2016wukong,
      author = {Shi, Jiaxin and Yao, Youyang and Chen, Rong and Chen, Haibo and Li, Feifei},
      title = {Fast and Concurrent RDF Queries with RDMA-based Distributed Graph Exploration},
@@ -34,7 +33,7 @@ If you use Wukong in your research, please cite our paper:
      url = {https://www.usenix.org/conference/osdi16/technical-sessions/presentation/shi},
      publisher = {USENIX Association},
     }
-```
+
 
 ### Building
 
