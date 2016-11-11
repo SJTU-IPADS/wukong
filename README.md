@@ -1,4 +1,4 @@
-# Wukong
+# Wukong v0.8
 
 Wukong, a distributed graph-based RDF store that leverages efficient graph exploration to provide highly concurrent and low-latency queries over large data sets.
 
@@ -12,20 +12,34 @@ Wukong, a distributed graph-based RDF store that leverages efficient graph explo
 
 - Evolving graphs
 
+For more details on the Wukong see http://ipads.se.sjtu.edu.cn/projects/wukong.html, including new features, instructions, etc.
+
 
 ### License
 
-GraphLab PowerGraph is released under the Apache 2 license.
+Wukong is released under the [Apache 2.0 license](http://www.apache.org/licenses/LICENSE-2.0.html).
+If you use Wukong in your research, please cite our paper:
 
-If you use GraphLab PowerGraph in your research, please cite our paper: xx
-
+```    
+    @inproceedings{Shi:osdi2016wukong,
+     author = {Shi, Jiaxin and Yao, Youyang and Chen, Rong and Chen, Haibo and Li, Feifei},
+     title = {Fast and Concurrent RDF Queries with RDMA-based Distributed Graph Exploration},
+     booktitle = {12th USENIX Symposium on Operating Systems Design and Implementation},
+     series = {OSDI '16},
+     year = {2016},
+     month = Nov,
+     isbn = {978-1-931971-33-1},
+     address = {GA},
+     pages = {317--332},
+     url = {https://www.usenix.org/conference/osdi16/technical-sessions/presentation/shi},
+     publisher = {USENIX Association},
+    }
+```
 
 ### Building
 
 The current version of Wukong was tested on Ubuntu Linux 64-bit 14.04.
 It requires a 64-bit operating system.
-
-
 
 
 # Dependencies
@@ -147,18 +161,18 @@ NOTE: if the `global_input_folder` start with `hdfs:`, then Wukong will read the
 
 1) Setup password-less SSH between the master node and all other machines.
 
-2) Create a file in `tools` directory called `mpd.hosts` with the IP address of all machines.
+2) Create a file in `scripts` directory called `mpd.hosts` with the IP address of all machines.
 
 For example:
 
-    $cat ${WUKONG_ROOT}/tools/mpd.hosts
+    $cat ${WUKONG_ROOT}/scripts/mpd.hosts
     10.0.0.100
     10.0.0.101
     10.0.0.102
 
 3) Run the following commands to copy Wukong dependencies to the rest of the machines:
 
-    $cd ${WUKONG_ROOT}/tools
+    $cd ${WUKONG_ROOT}/scripts
     $./syncdeps.sh ../deps/dependencies mpd.hosts
 
 
@@ -175,17 +189,17 @@ Currently, Wukong will enable RDMA feature by default, and suppose the driver ha
 
 2) Build wukong 
 
-    $cd ${WUKONG_ROOT}/tools
+    $cd ${WUKONG_ROOT}/scripts
     $./build.sh
 
 Synchronize all executable files (e.g., `build/wukong`) to all machines 
 
-    $cd ${WUKONG_ROOT}/tools
+    $cd ${WUKONG_ROOT}/scripts
     $./sync.sh
 
 Running sever and a naive client console  
 
-    $cd ${WUKONG_ROOT}/tools
+    $cd ${WUKONG_ROOT}/scripts
     $./run.sh [#nodes]
     (e.g., ./run.sh 3)
 
@@ -204,7 +218,7 @@ Use generate_data.cpp to convert raw_data into id_data
     $./generate_data lubm_raw_40 id_lubm_40
 
 
-Put `id_data` to distributed storage (e.g., NFS) , and set the `global_input_folder` at `tools/config`
+Put `id_data` to distributed storage (e.g., NFS) , and set the `global_input_folder` at `scripts/config`
 
 
 Create a file (`str_normal_minimal`) with minimal id mappings when loading `str_normal` is too lengthy

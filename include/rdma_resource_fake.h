@@ -1,3 +1,25 @@
+/*
+ * Copyright (c) 2016 Shanghai Jiao Tong University.
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://ipads.se.sjtu.edu.cn/projects/wukong.html
+ *
+ */
+
 #pragma once
 
 #ifdef USE_ZEROMQ
@@ -38,15 +60,15 @@ class RdmaResource {
   char *buffer;
 
 public:
-  uint64_t get_memorystore_size(){
+  uint64_t get_memorystore_size() {
     //[0-off) can be used;
     //[off,size) should be reserve
     return off;
   }
-  char * get_buffer(){
+  char * get_buffer() {
     return buffer;
   }
-  uint64_t get_slotsize(){
+  uint64_t get_slotsize() {
     return rdma_slotsize;
   }
   //rdma location hashing
@@ -56,8 +78,8 @@ public:
   Network_Node* node;
 
   //for testing
-  RdmaResource(int t_partition,int t_threads,int current,char *_buffer,uint64_t _size,
-                                        uint64_t rdma_slot,uint64_t msg_slot,uint64_t _off) {
+  RdmaResource(int t_partition, int t_threads, int current, char *_buffer, uint64_t _size,
+               uint64_t rdma_slot, uint64_t msg_slot, uint64_t _off) {
 
     _total_threads = t_threads;
     _total_partition = t_partition;
@@ -69,23 +91,23 @@ public:
     off = _off;
     rdma_slotsize = rdma_slot;
     msg_slotsize = msg_slot;
-    rbf_size=msg_slotsize/(_total_partition);
-    rbf_size=rbf_size-(rbf_size%64);
+    rbf_size = msg_slotsize / (_total_partition);
+    rbf_size = rbf_size - (rbf_size % 64);
   }
-  void Connect(){assert(false);};
-  void Servicing(){assert(false);};
+  void Connect() {assert(false);};
+  void Servicing() {assert(false);};
 
-  int RdmaRead(int t_id,int m_id,char *local,uint64_t size,uint64_t remote_offset){
-      assert(false);
-      return 0;
+  int RdmaRead(int t_id, int m_id, char *local, uint64_t size, uint64_t remote_offset) {
+    assert(false);
+    return 0;
   };
-  int RdmaWrite(int t_id,int m_id,char *local,uint64_t size,uint64_t remote_offset){
-      assert(false);
-      return 0;
+  int RdmaWrite(int t_id, int m_id, char *local, uint64_t size, uint64_t remote_offset) {
+    assert(false);
+    return 0;
   };
-  int RdmaCmpSwap(int t_id,int m_id,char*local,uint64_t compare,uint64_t swap,uint64_t size,uint64_t off){
-      assert(false);
-      return 0;
+  int RdmaCmpSwap(int t_id, int m_id, char*local, uint64_t compare, uint64_t swap, uint64_t size, uint64_t off) {
+    assert(false);
+    return 0;
   };
   // int post(int t_id,int machine_id,char* local,uint64_t size,uint64_t remote_offset,ibv_wr_opcode op){
   //     assert(false);
@@ -98,23 +120,23 @@ public:
 
   //TODO what if batched?
   inline char *GetMsgAddr(int t_id) {
-      assert(false);
-      return (char *)( buffer + off + t_id * rdma_slotsize);
+    assert(false);
+    return (char *)( buffer + off + t_id * rdma_slotsize);
   }
 
 
-  void rbfSend(int local_tid,int remote_mid,int remote_tid,const char * str_ptr, uint64_t str_size){
-      assert(false);
-      return ;
+  void rbfSend(int local_tid, int remote_mid, int remote_tid, const char * str_ptr, uint64_t str_size) {
+    assert(false);
+    return ;
   }
 
-  std::string rbfRecv(int local_tid){
-      assert(false);
-      return std::string("");
+  std::string rbfRecv(int local_tid) {
+    assert(false);
+    return std::string("");
   }
-  bool rbfTryRecv(int local_tid, std::string& ret){
-      assert(false);
-      return false;
+  bool rbfTryRecv(int local_tid, std::string& ret) {
+    assert(false);
+    return false;
   }
 };
 

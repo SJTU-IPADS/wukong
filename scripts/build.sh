@@ -3,4 +3,4 @@ mkdir -p ../build;
 cd ../build;
 cmake ..;
 make;
-cd ../tools;
+cd ../scripts;
