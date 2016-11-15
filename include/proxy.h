@@ -33,6 +33,7 @@
 #include <boost/unordered_map.hpp>
 #include <tbb/concurrent_hash_map.h>
 
+using namespace std;
 
 class Proxy {
 public:
@@ -137,3 +138,7 @@ public:
 		return id_table.erase(id);
 	}
 };
+
+void proxy(client *clnt, int port);
+void *recv_cmd(void *proxy);
+void *send_cmd(void *proxy);

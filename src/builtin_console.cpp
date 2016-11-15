@@ -20,7 +20,7 @@
  *
  */
 
-#include "client_mode.h"
+#include "builtin_console.h"
 
 static void
 client_barrier(struct thread_cfg *cfg)
@@ -257,7 +257,7 @@ static int client_mode = SINGLE_MODE;
  * The Wukong's builtin client
  */
 void
-interactive_shell(client *clnt)
+builtin_console(client *clnt)
 {
 	struct thread_cfg *cfg = clnt->cfg;
 
@@ -390,90 +390,6 @@ local_done:
 					SendObject<batch_logger>(clnt->cfg, 0, 0, logger);
 				}
 			}
-		}
-	}
-}
-
-
-
-
-/**
- * The code for proxy mode
- *
- * TODO: a unified interface for both local builtin and remote proxy clients
- */
-
-void *
-recv_cmd(void *ptr)
-{
-	cout << "star to receive commands from clients" << endl;
-
-	Proxy *proxy = (Proxy *)ptr;
-	while (true) {
-		cout << "wait to new recv" << endl;
-		CS_Request creq = proxy->recv_req();
-		proxy->push(creq);
-		cout << "recv a new request" << endl;
-	}
-}
-
-void *
-send_cmd(void *ptr)
-{
-	cout << "start to send commands to clients" << endl;
-
-	Proxy *p = (Proxy *)ptr;
-	while (true) {
-		request_or_reply r = p->clnt->recv();
-		CS_Reply crep;
-		crep.column = r.col_num;
-		crep.result_table = r.result_table;
-		crep.cid = p->get_cid(r.parent_id);
-		p->send_rep(crep);
-		p->remove_cid(r.parent_id);
-
-		int row_to_print = min((uint64_t)r.row_num(), (uint64_t)global_max_print_row);
-		cout << "row:" << row_to_print << endl;
-		if (row_to_print > 0) {
-			p->clnt->print_result(r, row_to_print);
-		}
-	}
-}
-
-void
-proxy(client *clnt, int port)
-{
-	Proxy *p = new Proxy(clnt, port);
-	pthread_t tid[2];
-	pthread_create(&(tid[0]), NULL, recv_cmd, (void *)p);
-	pthread_create(&(tid[1]), NULL, send_cmd, (void *)p);
-
-	while (true) {
-		CS_Request creq = p->pop();
-		string content = creq.content;
-		cout << content << endl;
-		request_or_reply r;
-		bool ok = clnt->parser.parse(content, r);
-		if (!ok) {
-			cout << "ERROR: SPARQL query parse error" << endl;
-			CS_Reply crep;
-			crep.type = "error";
-			crep.content = "bad file";
-			crep.cid = creq.cid;
-			p->send_rep(crep);
-			continue;
-		}
-		r.silent = global_silent;
-
-		clnt->send(r);
-		p->insert_cid(r.parent_id, creq.cid);
-	}
-
-	for (int i = 0; i < 2; i++) {
-		int rc = pthread_join(tid[i], NULL);
-		if (rc) {
-			printf("ERROR: return code from pthread_join() is %d\n", rc);
-			exit(-1);
 		}
 	}
 }

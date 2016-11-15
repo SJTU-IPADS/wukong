@@ -31,7 +31,8 @@
 #include "distributed_graph.h"
 #include "server.h"
 #include "client.h"
-#include "client_mode.h"
+#include "builtin_console.h"
+#include "proxy.h"
 
 using namespace std;
 
@@ -60,8 +61,8 @@ int cores[] = {
 	0, 2, 4, 6, 8, 10, 12, 14, 16, 18
 };
 
-bool cclient_enable = false;
-int cclient_port = 5450;
+bool proxy_enable = false;
+int proxy_port = 5450;
 
 void
 pin_to_core(size_t core)
@@ -83,12 +84,12 @@ worker_thread(void *arg)
 		// server-worker threads
 		((server *)(cfg->worker))->run();
 	} else {
-		if (!cclient_enable)
-			// built-in client (by default)
-			interactive_shell((client*)(cfg->worker));
+		if (!proxy_enable)
+			// builtin console (by default)
+			builtin_console((client*)(cfg->worker));
 		else
-			// connected client
-			proxy((client*)(cfg->worker), cclient_port);
+			// connected console through proxy
+			proxy((client*)(cfg->worker), proxy_port);
 	}
 }
 
@@ -119,10 +120,10 @@ main(int argc, char *argv[])
 	while ((c = getopt(argc - 2, argv + 2, "cp:")) != -1) {
 		switch (c) {
 		case 'c':
-			cclient_enable = true;
+			proxy_enable = true;
 			break;
 		case 'p':
-			cclient_port = atoi(optarg);
+			proxy_port = atoi(optarg);
 			break;
 		default :
 			usage(argv[0]);
