@@ -647,7 +647,7 @@ server::run(void)
 
         // step 2: handle the msg
         if (r.is_request()) { // request
-            r.id = cfg->get_inc_id();
+            r.id = cfg->get_and_inc_qid();
             int before = r.row_num();
             execute(r);
         } else { // reply
@@ -669,7 +669,7 @@ server::run(void)
 //     while(true){
 //         request_or_reply r=RecvR(cfg);
 //         if(r.is_request()){
-//             r.id=cfg->get_inc_id();
+//             r.id=cfg->get_and_inc_qid();
 //             execute(r);
 //         } else {
 //             //r is reply

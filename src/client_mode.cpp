@@ -28,11 +28,11 @@ client_barrier(struct thread_cfg *cfg)
 	static int _curr = 0;
 	static __thread int _next = 1;
 
-	// inter-node barrier
+	// inter-server barrier
 	if (cfg->wid == 0)
 		MPI_Barrier(MPI_COMM_WORLD);
 
-	// intra-node barrier
+	// intra-server barrier
 	__sync_fetch_and_add(&_curr, 1);
 	while (_curr < _next)
 		usleep(1); // wait
@@ -251,6 +251,8 @@ string mode_str[N_MODES] = {
 	"\tmix mode: (e.g., queries query [count]):"
 };
 
+static int client_mode = SINGLE_MODE;
+
 /**
  * The Wukong's builtin client
  */
@@ -262,7 +264,7 @@ interactive_shell(client *clnt)
 	// the master client worker (i.e., sid == 0 and wid == 0)
 	if (cfg->sid == 0 && cfg->wid == 0) {
 		cout << "input help to get more infomation about the shell" << endl;
-		cout << mode_str[global_client_mode] << endl;
+		cout << mode_str[client_mode] << endl;
 	}
 
 	while (true) {
@@ -313,21 +315,21 @@ local_done:
 				string skip, mode;
 				cmd_stream >> skip >> mode;
 				if (mode == "single")
-					global_client_mode = SINGLE_MODE;
+					client_mode = SINGLE_MODE;
 				else if (mode == "batch")
-					global_client_mode = BATCH_MODE;
+					client_mode = BATCH_MODE;
 				else if (mode == "mix")
-					global_client_mode = MIX_MODE;
+					client_mode = MIX_MODE;
 
 				if (cfg->sid == 0)
-					cout << mode_str[global_client_mode] << endl;
+					cout << mode_str[client_mode] << endl;
 			}
 		} else { // handle SPARQL queries
 			batch_logger logger;
 			string qfile;
 			int cnt = 1;
 
-			if (global_client_mode == SINGLE_MODE) {
+			if (client_mode == SINGLE_MODE) {
 				if (cfg->sid == 0 && cfg->wid == 0) {
 					// run single-command using the master client
 					cmd_stream >> qfile >> cnt;
@@ -335,7 +337,7 @@ local_done:
 
 					single_execute(clnt, qfile, cnt);
 				}
-			} else if (global_client_mode == BATCH_MODE) {
+			} else if (client_mode == BATCH_MODE) {
 				// run batch-command on all clients
 				cmd_stream >> qfile;
 
@@ -357,7 +359,7 @@ local_done:
 					// send logs to the master client
 					SendObject<batch_logger>(clnt->cfg, 0, 0, logger);
 				}
-			} else if (global_client_mode == MIX_MODE) {
+			} else if (client_mode == MIX_MODE) {
 				string qfile2;
 
 				cmd_stream >> qfile >> qfile2 >> cnt;

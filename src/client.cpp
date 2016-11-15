@@ -28,7 +28,7 @@ client::client(thread_cfg *_cfg, string_server *_str_server):
 void
 client::setpid(request_or_reply &req)
 {
-    req.parent_id = cfg->get_inc_id();
+    req.parent_id = cfg->get_and_inc_qid();
 }
 
 void

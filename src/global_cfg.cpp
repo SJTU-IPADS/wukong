@@ -32,8 +32,8 @@ bool global_use_rbf;
 bool global_use_rdma;
 int global_num_server;
 int global_num_client;
+
 std::string global_input_folder;
-int global_client_mode;
 bool global_load_minimal_index;
 int global_max_print_row;
 int global_total_memory_gb;
@@ -74,7 +74,6 @@ dump_cfg(void)
 	cout << "global_batch_factor: " 		<< global_batch_factor				<< endl;
 	cout << "global_multithread_factor: " 	<< global_multithread_factor  		<< endl;
 	cout << "global_input_folder: " 		<< global_input_folder				<< endl;
-	cout << "global_client_mode: " 			<< global_client_mode				<< endl;
 	cout << "global_use_loc_cache: " 		<< global_use_loc_cache				<< endl;
 	cout << "global_load_minimal_index: " 	<< global_load_minimal_index 		<< endl;
 	cout << "global_silent: " 				<< global_silent					<< endl;
@@ -163,7 +162,6 @@ load_cfg(void)
 	global_batch_factor = atoi(config_map["global_batch_factor"].c_str());
 	global_multithread_factor = atoi(config_map["global_multithread_factor"].c_str());
 	global_input_folder = config_map["global_input_folder"];
-	global_client_mode = atoi(config_map["global_client_mode"].c_str());
 	global_use_loc_cache = atoi(config_map["global_use_loc_cache"].c_str());
 	global_load_minimal_index = atoi(config_map["global_load_minimal_index"].c_str());
 	global_silent = atoi(config_map["global_silent"].c_str());

@@ -27,48 +27,47 @@
 
 
 struct thread_cfg {
-	int sid;    // servert id
-	int nsrvs;  // #servers
+	int sid;    // server id
 	int wid;    // worker id
+
+	// TODO: out of thread_cfg
+	int nsrvs;  // #servers
 	int nwkrs;  // #workers on each server
-	int nswkrs; // #server-workers on each server
-	int ncwkrs; // #client-workers on each server
+	int nswkrs; // #backend workers on each server
+	int ncwkrs; // #frontend workers on each server
 
 	Network_Node *node;  // communicaiton by TCP/IP
 	RdmaResource *rdma;  // communicaiton by RDMA
+	void *ptr;
+
+
+	// Note that overflow of qid is innocent if there is no long-running
+	// fork-join query. Because we use qid to recognize the owner sid
+	// and wid, as well as collect the results of sub-queries.
+	int qid;  // The ID of each (sub-)query
 
 	unsigned int seed;
-	void* ptr;
 
-	// unique global ID for SPARQL requests
-	int req_gid;
-
-	void init() {
-		req_gid = nwkrs * sid + wid;
-		seed = req_gid;
+	void init(void) {
+		qid = nwkrs * sid + wid;
+		seed = qid;
 	}
 
-	unsigned get_random() {
+	unsigned get_random(void) {
 		return rand_r(&seed);
 	}
 
-	int get_inc_id() {
-		int tmp = req_gid;
-		req_gid += nsrvs * nwkrs;
+	int get_and_inc_qid(void) {
+		int tmp = qid;
+		qid += nsrvs * nwkrs;
 		return tmp;
 	}
 
-	int sid_of(int gid) {
-		return (gid % (nsrvs * nwkrs)) / nwkrs;
+	int sid_of(int qid) {
+		return (qid % (nsrvs * nwkrs)) / nwkrs;
 	}
 
-	int wid_of(int gid) {
-		return gid % nwkrs;
-	}
-
-	bool is_cwkr(int gid) {
-		if (wid_of(gid) < ncwkrs)
-			return true;
-		return false;
+	int wid_of(int qid) {
+		return qid % nwkrs;
 	}
 };

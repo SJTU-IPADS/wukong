@@ -37,12 +37,13 @@ extern int global_rdftype_id;	// only a global variable, but non-configurable
 extern int global_num_thread;	// the sum of #servers and #clients
 
 /* configurable global variables */
-extern bool global_use_rbf;		// ring-buffer (by RDMA WRITE)
 extern bool global_use_rdma;
-extern int global_num_server;	// #servers
-extern int global_num_client;	// #clients
+extern bool global_use_rbf;		// ring-buffer (by RDMA WRITE)
+
+extern int global_num_server;	// the number of backend workers
+extern int global_num_client;	// the number of frontend workers
+
 extern string global_input_folder;
-extern int global_client_mode;
 extern bool global_load_minimal_index;
 extern int global_max_print_row;
 extern int global_total_memory_gb;
