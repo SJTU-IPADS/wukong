@@ -378,7 +378,7 @@ server::handle_join(request_or_reply& req)
         }
         t4 = timer::get_usec();
     }
-    if (cfg->sid == 0 && cfg->wid == cfg->ncwkrs) {
+    if (cfg->sid == 0 && cfg->wid == global_nfewkrs) {
         cout << "prepare " << (t1 - t0) << " us" << endl;
         cout << "execute sub-request " << (t2 - t1) << " us" << endl;
         cout << "sort " << (t3 - t2) << " us" << endl;
@@ -465,7 +465,7 @@ server::generate_sub_requests(request_or_reply& req)
     int64_t end = req.cmd_chains[req.step * 4 + 3];
 
     vector<request_or_reply> sub_reqs;
-    int num_sub_request = cfg->nsrvs;
+    int num_sub_request = global_nsrvs;
     sub_reqs.resize(num_sub_request);
     for (int i = 0; i < sub_reqs.size(); i++) {
         sub_reqs[i].parent_id = req.id;
@@ -487,10 +487,10 @@ server::generate_mt_sub_requests(request_or_reply& req)
 {
     int64_t start = req.cmd_chains[req.step * 4];
     int64_t end = req.cmd_chains[req.step * 4 + 3];
-    int nthread = max(1, min(global_multithread_factor, global_num_server));
+    int nthread = max(1, min(global_multithread_factor, global_nbewkrs));
 
     vector<request_or_reply> sub_reqs;
-    int num_sub_request = cfg->nsrvs * nthread ;
+    int num_sub_request = global_nsrvs * nthread ;
     sub_reqs.resize(num_sub_request );
     for (int i = 0; i < sub_reqs.size(); i++) {
         sub_reqs[i].parent_id = req.id;
@@ -501,9 +501,9 @@ server::generate_mt_sub_requests(request_or_reply& req)
         sub_reqs[i].local_var = start;
     }
     for (int i = 0; i < req.row_num(); i++) {
-        // id = wid*cfg->nsrvs + m_id
-        //so  m_id = id % cfg->nsrvs
-        //    wid = id / cfg->nsrvs
+        // id = wid*global_nsrvs + m_id
+        //so  m_id = id % global_nsrvs
+        //    wid = id / global_nsrvs
         int id = mymath::hash_mod(req.get_row_column(i, req.var2column(start)), num_sub_request);
         req.append_row_to(i, sub_reqs[id].result_table);
     }
@@ -533,7 +533,7 @@ server::execute(request_or_reply &req)
         execute_one_step(req);
         t2 = timer::get_usec();
 
-        if (cfg->sid == 0 && cfg->wid == cfg->ncwkrs) { // debug
+        if (cfg->sid == 0 && cfg->wid == global_nfewkrs) { // debug
             //cout<<"step "<<req.step <<" "<<t2-t1<<" us"<<endl;
         }
 
@@ -542,7 +542,7 @@ server::execute(request_or_reply &req)
             t1 = timer::get_usec();
             handle_join(req);
             t2 = timer::get_usec();
-            if ((cfg->sid == 0) && (cfg->wid == cfg->ncwkrs)) {
+            if ((cfg->sid == 0) && (cfg->wid == global_nfewkrs)) {
                 //cout<<"handle join "<<" "<<t2-t1<<" us"<<endl;
             }
         }
@@ -566,7 +566,7 @@ server::execute(request_or_reply &req)
             // NOTE: distribute to all servers and limit to partial workers
             //       sid = gid % #srvs, wid = gid / #srvs + #clients
             for (int i = 0; i < sub_reqs.size(); i++)
-                SendR(cfg, i % cfg->nsrvs , (i / cfg->nsrvs) + cfg->ncwkrs, sub_reqs[i]);
+                SendR(cfg, i % global_nsrvs , (i / global_nsrvs) + global_nfewkrs, sub_reqs[i]);
 
             return;
         }
@@ -592,8 +592,8 @@ server::execute(request_or_reply &req)
 void
 server::run(void)
 {
-    int own_id = cfg->wid - cfg->ncwkrs;
-    int possible_array[2] = {own_id , cfg->nswkrs - 1 - own_id};
+    int own_id = cfg->wid - global_nfewkrs;
+    int possible_array[2] = {own_id , global_nbewkrs - 1 - own_id};
     uint64_t try_count = 0;
 
     while (true) {

@@ -36,7 +36,7 @@ client_barrier(struct thread_cfg *cfg)
 	__sync_fetch_and_add(&_curr, 1);
 	while (_curr < _next)
 		usleep(1); // wait
-	_next += cfg->ncwkrs; // next barrier
+	_next += global_nfewkrs; // next barrier
 }
 
 void
@@ -290,8 +290,8 @@ local_done:
 			}
 
 			// send commands to all client workers
-			for (int i = 0; i < cfg->nsrvs; i++) {
-				for (int j = 0; j < cfg->ncwkrs; j++) {
+			for (int i = 0; i < global_nsrvs; i++) {
+				for (int j = 0; j < global_nfewkrs; j++) {
 					if (i == 0 && j == 0)
 						continue;
 					cfg->node->Send(i, j, cmd);
@@ -350,7 +350,7 @@ local_done:
 				// print results of the batch command
 				if (cfg->sid == 0 && cfg->wid == 0) {
 					// collect logs from other clients
-					for (int i = 0; i < cfg->nsrvs * cfg->ncwkrs - 1; i++) {
+					for (int i = 0; i < global_nsrvs * global_nfewkrs - 1; i++) {
 						batch_logger log = RecvObject<batch_logger>(clnt->cfg);
 						logger.merge(log);
 					}
@@ -380,7 +380,7 @@ local_done:
 				// print results of the mix command
 				if (cfg->sid == 0 && cfg->wid == 0) {
 					// collect logs from other clients
-					for (int i = 0; i < cfg->nsrvs * cfg->ncwkrs - 1 ; i++) {
+					for (int i = 0; i < global_nsrvs * global_nfewkrs - 1 ; i++) {
 						batch_logger log = RecvObject<batch_logger>(clnt->cfg);
 						logger.merge(log);
 					}

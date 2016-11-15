@@ -24,22 +24,16 @@
 
 #include "network_node.h"
 #include "rdma_resource.h"
-
+#include "global_cfg.h"
 
 struct thread_cfg {
 	int sid;    // server id
 	int wid;    // worker id
 
-	// TODO: out of thread_cfg
-	int nsrvs;  // #servers
-	int nwkrs;  // #workers on each server
-	int nswkrs; // #backend workers on each server
-	int ncwkrs; // #frontend workers on each server
-
 	Network_Node *node;  // communicaiton by TCP/IP
 	RdmaResource *rdma;  // communicaiton by RDMA
-	void *ptr;
 
+	void *worker;
 
 	// Note that overflow of qid is innocent if there is no long-running
 	// fork-join query. Because we use qid to recognize the owner sid
@@ -49,7 +43,7 @@ struct thread_cfg {
 	unsigned int seed;
 
 	void init(void) {
-		qid = nwkrs * sid + wid;
+		qid = global_nthrs * sid + wid;
 		seed = qid;
 	}
 
@@ -59,15 +53,15 @@ struct thread_cfg {
 
 	int get_and_inc_qid(void) {
 		int tmp = qid;
-		qid += nsrvs * nwkrs;
+		qid += global_nsrvs * global_nthrs;
 		return tmp;
 	}
 
 	int sid_of(int qid) {
-		return (qid % (nsrvs * nwkrs)) / nwkrs;
+		return (qid % (global_nsrvs * global_nthrs)) / global_nthrs;
 	}
 
 	int wid_of(int qid) {
-		return qid % nwkrs;
+		return qid % global_nthrs;
 	}
 };

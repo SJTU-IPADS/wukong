@@ -78,23 +78,23 @@ int main(int argc, char * argv[]) {
 	rdma_size = rdma_size * global_total_memory_gb;
 	uint64_t msg_slot_per_thread = 1024 * 1024 * global_perslot_msg_mb;
 	uint64_t rdma_slot_per_thread = 1024 * 1024 * global_perslot_rdma_mb;
-	uint64_t total_size = rdma_size + rdma_slot_per_thread * global_num_thread + msg_slot_per_thread * global_num_thread;
-	Network_Node *node = new Network_Node(world.rank(), global_num_thread, string(argv[2])); //[0-thread_num-1] are used
+	uint64_t total_size = rdma_size + rdma_slot_per_thread * global_nthrs + msg_slot_per_thread * global_nthrs;
+	Network_Node *node = new Network_Node(world.rank(), global_nthrs, string(argv[2])); //[0-thread_num-1] are used
 	char *buffer = (char*) malloc(total_size);
 	memset(buffer, 0, total_size);
-	RdmaResource *rdma = new RdmaResource(world.size(), global_num_thread,
+	RdmaResource *rdma = new RdmaResource(world.size(), global_nthrs,
 	                                      world.rank(), buffer, total_size, rdma_slot_per_thread, msg_slot_per_thread, rdma_size);
 	rdma->node = node;
 	MPI_Barrier(MPI_COMM_WORLD);
 
-	thread_cfg* cfg_array = new thread_cfg[global_num_thread];
-	for (int i = 0; i < global_num_thread; i++) {
+	thread_cfg* cfg_array = new thread_cfg[global_nthrs];
+	for (int i = 0; i < global_nthrs; i++) {
 		cfg_array[i].t_id = i;
-		cfg_array[i].t_num = global_num_thread;
+		cfg_array[i].t_num = global_nthrs;
 		cfg_array[i].m_id = world.rank();
 		cfg_array[i].m_num = world.size();
-		cfg_array[i].client_num = global_num_client;
-		cfg_array[i].server_num = global_num_server;
+		cfg_array[i].client_num = global_nfewkrs;
+		cfg_array[i].server_num = global_nbewkrs;
 		cfg_array[i].rdma = rdma;
 		cfg_array[i].node = new Network_Node(cfg_array[i].m_id, cfg_array[i].t_id, string(argv[2]));
 		cfg_array[i].init();
@@ -102,29 +102,29 @@ int main(int argc, char * argv[]) {
 
 	string_server str_server(global_input_folder);
 	distributed_graph graph(world, rdma, global_input_folder);
-	client** client_array = new client*[global_num_client];
-	for (int i = 0; i < global_num_client; i++) {
+	client** client_array = new client*[global_nfewkrs];
+	for (int i = 0; i < global_nfewkrs; i++) {
 		client_array[i] = new client(&cfg_array[i], &str_server);
 	}
-	server** server_array = new server*[global_num_server];
-	for (int i = 0; i < global_num_server; i++) {
-		server_array[i] = new server(graph, &cfg_array[global_num_client + i]);
+	server** server_array = new server*[global_nbewkrs];
+	for (int i = 0; i < global_nbewkrs; i++) {
+		server_array[i] = new server(graph, &cfg_array[global_nfewkrs + i]);
 	}
-	for (int i = 0; i < global_num_server; i++) {
+	for (int i = 0; i < global_nbewkrs; i++) {
 		server_array[i]->set_server_array(server_array);
 	}
 
 
-	pthread_t     *thread  = new pthread_t[global_num_thread];
-	for (size_t id = 0; id < global_num_thread; ++id) {
-		if (id < global_num_client) {
+	pthread_t     *thread  = new pthread_t[global_nthrs];
+	for (size_t id = 0; id < global_nthrs; ++id) {
+		if (id < global_nfewkrs) {
 			cfg_array[id].ptr = client_array[id];
 		} else {
-			cfg_array[id].ptr = server_array[id - global_num_client];
+			cfg_array[id].ptr = server_array[id - global_nfewkrs];
 		}
 		pthread_create (&(thread[id]), NULL, Run, (void *) & (cfg_array[id]));
 	}
-	for (size_t t = 0 ; t < global_num_thread; t++) {
+	for (size_t t = 0 ; t < global_nthrs; t++) {
 		int rc = pthread_join(thread[t], NULL);
 		if (rc) {
 			printf("ERROR; return code from pthread_join() is %d\n", rc);

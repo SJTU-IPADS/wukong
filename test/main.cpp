@@ -78,17 +78,17 @@ worker_thread(void *arg)
 	struct thread_cfg *cfg = (struct thread_cfg *) arg;
 	pin_to_core(cores[cfg->wid]);
 
-	// reserver ncwkrs threads to client workers
-	if (cfg->wid >= cfg->ncwkrs) {
+	// reserver threads to frontend-workers
+	if (cfg->wid >= global_nfewkrs) {
 		// server-worker threads
-		((server *)(cfg->ptr))->run();
+		((server *)(cfg->worker))->run();
 	} else {
 		if (!cclient_enable)
 			// built-in client (by default)
-			interactive_shell((client*)(cfg->ptr));
+			interactive_shell((client*)(cfg->worker));
 		else
 			// connected client
-			proxy((client*)(cfg->ptr), cclient_port);
+			proxy((client*)(cfg->worker), cclient_port);
 	}
 }
 
@@ -130,39 +130,33 @@ main(int argc, char *argv[])
 		}
 	}
 	// config global setting
-	load_cfg();
+	load_cfg(world.size());
 
 	// calculate memory usage
 	uint64_t rdma_size = GiB2B(global_total_memory_gb);
 	uint64_t msg_slot_per_thread = MiB2B(global_perslot_msg_mb);
 	uint64_t rdma_slot_per_thread = MiB2B(global_perslot_rdma_mb);
 	uint64_t mem_size = rdma_size
-	                    + rdma_slot_per_thread * global_num_thread
-	                    + msg_slot_per_thread * global_num_thread;
+	                    + rdma_slot_per_thread * global_nthrs
+	                    + msg_slot_per_thread * global_nthrs;
 	cout << "memory usage: " << B2GiB(mem_size) << "GB" << endl;
 
 
 	// create an RDMA instance
 	char *buffer = (char*) malloc(mem_size);
 	memset(buffer, 0, mem_size);
-	RdmaResource *rdma = new RdmaResource(world.size(), global_num_thread,
+	RdmaResource *rdma = new RdmaResource(world.size(), global_nthrs,
 	                                      world.rank(), buffer, mem_size,
 	                                      rdma_slot_per_thread, msg_slot_per_thread, rdma_size);
 	// a special TCP/IP instance used by RDMA (wid == global_num_threads)
-	rdma->node = new Network_Node(world.rank(), global_num_thread, host_fname);
+	rdma->node = new Network_Node(world.rank(), global_nthrs, host_fname);
 	rdma->Servicing();
 	rdma->Connect();
 
-	thread_cfg *cfg_array = new thread_cfg[global_num_thread];
-	for (int i = 0; i < global_num_thread; i++) {
+	thread_cfg *cfg_array = new thread_cfg[global_nthrs];
+	for (int i = 0; i < global_nthrs; i++) {
 		cfg_array[i].wid = i;
 		cfg_array[i].sid = world.rank();
-
-		cfg_array[i].nsrvs = world.size();
-		cfg_array[i].nwkrs = global_num_thread;
-		cfg_array[i].ncwkrs = global_num_client;
-		cfg_array[i].nswkrs = global_num_server;
-
 		cfg_array[i].rdma = rdma;
 		cfg_array[i].node = new Network_Node(cfg_array[i].sid, cfg_array[i].wid, host_fname);
 
@@ -176,33 +170,30 @@ main(int argc, char *argv[])
 	distributed_graph graph(world, rdma, global_input_folder);
 
 
-	client **client_array = new client *[global_num_client];
-	for (int i = 0; i < global_num_client; i++) {
+	client **client_array = new client *[global_nfewkrs];
+	for (int i = 0; i < global_nfewkrs; i++) {
 		client_array[i] = new client(&cfg_array[i], &str_server);
+		cfg_array[i].worker = client_array[i];
 	}
 
-	server **server_array = new server *[global_num_server];
-	for (int i = 0; i < global_num_server; i++) {
-		server_array[i] = new server(graph, &cfg_array[global_num_client + i]);
+	server **server_array = new server *[global_nbewkrs];
+	for (int i = 0; i < global_nbewkrs; i++) {
+		server_array[i] = new server(graph, &cfg_array[global_nfewkrs + i]);
+		cfg_array[i + global_nfewkrs].worker = server_array[i];
 	}
-	for (int i = 0; i < global_num_server; i++) {
+	for (int i = 0; i < global_nbewkrs; i++) {
 		server_array[i]->set_server_array(server_array);
 	}
 
 	// spawn client and server workers
-	pthread_t *thread  = new pthread_t[global_num_thread];
-	for (size_t id = 0; id < global_num_thread; ++id) {
-		if (id < global_num_client)
-			cfg_array[id].ptr = client_array[id];
-		else
-			cfg_array[id].ptr = server_array[id - global_num_client];
-
-		pthread_create(&(thread[id]), NULL, worker_thread, (void *) & (cfg_array[id]));
+	pthread_t *threads  = new pthread_t[global_nthrs];
+	for (size_t id = 0; id < global_nthrs; ++id) {
+		pthread_create(&(threads[id]), NULL, worker_thread, (void *) & (cfg_array[id]));
 	}
 
 	// wait to termination
-	for (size_t t = 0; t < global_num_thread; t++) {
-		int rc = pthread_join(thread[t], NULL);
+	for (size_t t = 0; t < global_nthrs; t++) {
+		int rc = pthread_join(threads[t], NULL);
 		if (rc) {
 			printf("ERROR: return code from pthread_join() is %d\n", rc);
 			exit(-1);

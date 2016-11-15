@@ -226,36 +226,36 @@ main(int argc, char * argv[])
     uint64_t msg_slot_per_thread = MiB2B(global_perslot_msg_mb);
     uint64_t rdma_slot_per_thread = MiB2B(global_perslot_rdma_mb);
     uint64_t total_size = rdma_size
-                          + rdma_slot_per_thread * global_num_thread
-                          + msg_slot_per_thread * global_num_thread;
+                          + rdma_slot_per_thread * global_nthrs
+                          + msg_slot_per_thread * global_nthrs;
     //[0-thread_num-1] are used
-    Network_Node *node = new Network_Node(world_rank, global_num_thread, string(argv[2]));
+    Network_Node *node = new Network_Node(world_rank, global_nthrs, string(argv[2]));
     char *buffer = (char*) malloc(total_size);
     memset(buffer, 0, total_size);
-    RdmaResource *rdma = new RdmaResource(world_size, global_num_thread,
+    RdmaResource *rdma = new RdmaResource(world_size, global_nthrs,
                                           world_rank, buffer, total_size,
                                           rdma_slot_per_thread, msg_slot_per_thread, rdma_size);
     rdma->node = node;
     rdma->Servicing();
     rdma->Connect();
-    thread_cfg* cfg_array = new thread_cfg[global_num_thread];
-    for (int i = 0; i < global_num_thread; i++) {
+    thread_cfg* cfg_array = new thread_cfg[global_nthrs];
+    for (int i = 0; i < global_nthrs; i++) {
         cfg_array[i].t_id = i;
-        cfg_array[i].t_num = global_num_thread;
+        cfg_array[i].t_num = global_nthrs;
         cfg_array[i].m_id = world_rank;
         cfg_array[i].m_num = world_size;
-        cfg_array[i].client_num = global_num_client;
-        cfg_array[i].server_num = global_num_server;
+        cfg_array[i].client_num = global_nfewkrs;
+        cfg_array[i].server_num = global_nbewkrs;
         cfg_array[i].rdma = rdma;
         cfg_array[i].node = new Network_Node(cfg_array[i].m_id, cfg_array[i].t_id, string(argv[2]));
         cfg_array[i].init();
     }
 
-    pthread_t     *thread  = new pthread_t[global_num_thread];
-    for (size_t id = 0; id < global_num_thread; ++id) {
+    pthread_t     *thread  = new pthread_t[global_nthrs];
+    for (size_t id = 0; id < global_nthrs; ++id) {
         pthread_create (&(thread[id]), NULL, Run, (void *) & (cfg_array[id]));
     }
-    for (size_t t = 0 ; t < global_num_thread; t++) {
+    for (size_t t = 0 ; t < global_nthrs; t++) {
         int rc = pthread_join(thread[t], NULL);
         if (rc) {
             printf("ERROR; return code from pthread_join() is %d\n", rc);

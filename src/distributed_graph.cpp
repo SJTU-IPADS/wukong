@@ -90,7 +90,7 @@ distributed_graph::load_data(vector<string> &file_vec)
 	int nfile = file_vec.size();
 	volatile int finished_count = 0;
 
-	#pragma omp parallel for num_threads(global_num_server)
+	#pragma omp parallel for num_threads(global_nbewkrs)
 	for (int i = 0; i < nfile; i++) {
 		int localtid = omp_get_thread_num();
 		if (i % world.size() != world.rank())
@@ -136,7 +136,7 @@ distributed_graph::load_data(vector<string> &file_vec)
 	}
 
 	for (int mid = 0; mid < world.size(); mid++)
-		for (int i = 0; i < global_num_server; i++)
+		for (int i = 0; i < global_nbewkrs; i++)
 			flush_edge(i, mid);
 
 	for (int mid = 0; mid < world.size(); mid++) {
@@ -164,10 +164,10 @@ distributed_graph::load_data_from_allfiles(vector<string> &file_vec)
 	sort(file_vec.begin(), file_vec.end());
 	int nfile = file_vec.size();
 
-	#pragma omp parallel for num_threads(global_num_server)
+	#pragma omp parallel for num_threads(global_nbewkrs)
 	for (int i = 0; i < nfile; i++) {
 		int localtid = omp_get_thread_num();
-		uint64_t max_size = mymath::floor(rdma->get_memorystore_size() / global_num_server, sizeof(uint64_t));
+		uint64_t max_size = mymath::floor(rdma->get_memorystore_size() / global_nbewkrs, sizeof(uint64_t));
 		uint64_t offset = max_size * localtid;
 		uint64_t* local_buffer = (uint64_t*)(rdma->get_buffer() + offset);
 
@@ -197,7 +197,7 @@ distributed_graph::load_and_sync_data(vector<string>& file_vec)
 {
 #ifdef USE_ZEROMQ
 	load_data_from_allfiles(file_vec);
-	int num_recv_block = global_num_server;
+	int num_recv_block = global_nbewkrs;
 #else
 	load_data(file_vec);
 	int num_recv_block = world.size();

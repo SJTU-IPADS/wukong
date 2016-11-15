@@ -25,13 +25,15 @@
 
 /* non-configurable global variables */
 int global_rdftype_id;	// reserved ID for rdf:type
-int global_num_thread;
+int global_nsrvs;
+int global_nthrs;
+
 
 /* configurable global variables */
 bool global_use_rbf;
 bool global_use_rdma;
-int global_num_server;
-int global_num_client;
+int global_nbewkrs;
+int global_nfewkrs;
 
 std::string global_input_folder;
 bool global_load_minimal_index;
@@ -69,8 +71,8 @@ dump_cfg(void)
 	cout << "global_use_rbf: " 				<< global_use_rbf 					<< endl;
 	cout << "global_use_rdma: " 			<< global_use_rdma					<< endl;
 	cout << "global_rdma_threshold: " 		<< global_rdma_threshold			<< endl;
-	cout << "global_num_server:	 " 			<< global_num_server 				<< endl;
-	cout << "global_num_client: " 			<< global_num_client				<< endl;
+	cout << "the number of backend workers: "	<< global_nbewkrs 				<< endl;
+	cout << "the number of frontend workers: "	<< global_nfewkrs				<< endl;
 	cout << "global_batch_factor: " 		<< global_batch_factor				<< endl;
 	cout << "global_multithread_factor: " 	<< global_multithread_factor  		<< endl;
 	cout << "global_input_folder: " 		<< global_input_folder				<< endl;
@@ -89,7 +91,8 @@ dump_cfg(void)
 
 	// compute from other cfg settings
 	cout << "global_rdftype_id: " 			<< global_rdftype_id				<< endl;
-	cout << "global_num_thread: " 			<< global_num_thread				<< endl;
+	cout << "the number of servers: " 		<< global_nsrvs				<< endl;
+	cout << "the number of threads: " 		<< global_nthrs				<< endl;
 }
 
 /**
@@ -130,7 +133,7 @@ reload_cfg(void)
 }
 
 void
-load_cfg(void)
+load_cfg(int nsrvs)
 {
 	ifstream file(cfg_fname.c_str());
 	if (!file) {
@@ -157,8 +160,8 @@ load_cfg(void)
 	global_use_rbf = atoi(config_map["global_use_rbf"].c_str());
 	global_use_rdma = atoi(config_map["global_use_rdma"].c_str());
 	global_rdma_threshold = atoi(config_map["global_rdma_threshold"].c_str());
-	global_num_server = atoi(config_map["global_num_server"].c_str());
-	global_num_client = atoi(config_map["global_num_client"].c_str());
+	global_nbewkrs = atoi(config_map["global_num_backends"].c_str());
+	global_nfewkrs = atoi(config_map["global_num_frontends"].c_str());
 	global_batch_factor = atoi(config_map["global_batch_factor"].c_str());
 	global_multithread_factor = atoi(config_map["global_multithread_factor"].c_str());
 	global_input_folder = config_map["global_input_folder"];
@@ -177,8 +180,9 @@ load_cfg(void)
 	// reserve ID 1 to rdf:type
 	global_rdftype_id = 1;
 
-	// 1 logical queue = N server-worker queues + 1 client-worker queue
-	global_num_thread = global_num_server + global_num_client;
+	global_nsrvs = nsrvs;
+	global_nthrs = global_nbewkrs + global_nfewkrs;
+
 
 	// make sure to check that the global_input_folder is non-empty.
 	if (global_input_folder.length() == 0) {
