@@ -23,46 +23,6 @@
 #include "client_mode.h"
 
 static void
-translate_req_template(client *clnt, request_template &req_template)
-{
-	req_template.ptypes_grp.resize(req_template.ptypes_str.size());
-	for (int i = 0; i < req_template.ptypes_str.size(); i++) {
-		string type = req_template.ptypes_str[i];
-
-		request_or_reply type_request, type_reply;
-
-		// a TYPE query to collect constants with the certain type
-		if (!clnt->parser.add_type_pattern(type, type_request)) {
-			cout << "ERROR: failed to add a special type pattern (type: "
-			     << type << ")." << endl;
-			assert(false);
-		}
-
-		// do TYPE query
-		clnt->Send(type_request);
-		type_reply = clnt->Recv();
-
-		vector<int64_t> *ptr = new vector<int64_t>(type_reply.result_table);
-		req_template.ptypes_grp[i] = ptr;
-
-		cout << type << " has " << ptr->size() << " objects" << endl;
-	}
-}
-
-static void
-instantiate_request(client *clnt, request_template &req_template, request_or_reply &r)
-{
-	for (int i = 0; i < req_template.ptypes_pos.size(); i++) {
-		int pos = req_template.ptypes_pos[i];
-		vector<int64_t> *vecptr = req_template.ptypes_grp[i];
-		if (vecptr == NULL || vecptr->size() == 0) {
-			assert(false);
-		}
-		r.cmd_chains[pos] = (*vecptr)[clnt->cfg->get_random() % (vecptr->size())];
-	}
-}
-
-static void
 client_barrier(struct thread_cfg *cfg)
 {
 	static int _curr = 0;
@@ -92,17 +52,181 @@ single_execute(client* clnt, string fname, int cnt)
 
 	uint64_t t = timer::get_usec();
 	for (int i = 0; i < cnt; i++) {
-		clnt->Send(request);
-		reply = clnt->Recv();
+		clnt->send(request);
+		reply = clnt->recv();
 	}
 	t = timer::get_usec() - t;
 
 	cout << "(last) result size: " << reply.silent_row_num << endl;
 	cout << "(average) latency: " << (t / cnt) << " usec" << endl;
-
-	int row_to_print = min((uint64_t)reply.row_num(), (uint64_t)global_max_print_row);
+	int row_to_print = min((uint64_t)reply.row_num(),
+	                       (uint64_t)global_max_print_row);
 	if (row_to_print > 0)
 		clnt->print_result(reply, row_to_print);
+}
+
+
+static void
+translate_req_template(client *clnt, request_template &req_template)
+{
+	req_template.ptypes_grp.resize(req_template.ptypes_str.size());
+	for (int i = 0; i < req_template.ptypes_str.size(); i++) {
+		string type = req_template.ptypes_str[i];
+
+		request_or_reply type_request, type_reply;
+
+		// a TYPE query to collect constants with the certain type
+		if (!clnt->parser.add_type_pattern(type, type_request)) {
+			cout << "ERROR: failed to add a special type pattern (type: "
+			     << type << ")." << endl;
+			assert(false);
+		}
+
+		// do TYPE query
+		clnt->send(type_request);
+		type_reply = clnt->recv();
+
+		vector<int64_t> *ptr = new vector<int64_t>(type_reply.result_table);
+		req_template.ptypes_grp[i] = ptr;
+
+		cout << type << " has " << ptr->size() << " objects" << endl;
+	}
+}
+
+static void
+instantiate_request(client *clnt, request_template &req_template, request_or_reply &r)
+{
+	for (int i = 0; i < req_template.ptypes_pos.size(); i++) {
+		int pos = req_template.ptypes_pos[i];
+		vector<int64_t> *vecptr = req_template.ptypes_grp[i];
+		if (vecptr == NULL || vecptr->size() == 0) {
+			assert(false);
+		}
+		r.cmd_chains[pos] = (*vecptr)[clnt->cfg->get_random() % (vecptr->size())];
+	}
+}
+
+void
+batch_execute(client* clnt, string mix_config, batch_logger& logger)
+{
+	ifstream configfile(mix_config);
+	if (!configfile) {
+		cout << "File " << mix_config << " not exist" << endl;
+		return ;
+	}
+
+	int total_query_type;
+	int total_request;
+	int sleep_round = 1;
+	configfile >> total_query_type >> total_request >> sleep_round;
+
+	vector<int > distribution;
+	vector<request_template > vec_template;
+	vector<request_or_reply > vec_req;
+	vec_template.resize(total_query_type);
+	vec_req.resize(total_query_type);
+	for (int i = 0; i < total_query_type; i++) {
+		string filename;
+		configfile >> filename;
+		int current_dist;
+		configfile >> current_dist;
+		distribution.push_back(current_dist);
+		bool success = clnt->parser.parse_template(filename, vec_template[i]);
+		translate_req_template(clnt, vec_template[i]);
+		vec_req[i].cmd_chains = vec_template[i].cmd_chains;
+		if (!success) {
+			cout << "sparql parse error" << endl;
+			return ;
+		}
+		vec_req[i].silent = global_silent;
+	}
+	uint64_t start_time = timer::get_usec();
+	for (int i = 0; i < global_batch_factor; i++) {
+		int idx = mymath::get_distribution(clnt->cfg->get_random(), distribution);
+		instantiate_request(clnt, vec_template[idx], vec_req[idx]);
+		clnt->setpid(vec_req[idx]);
+		logger.start_record(vec_req[idx].parent_id, idx);
+		clnt->send(vec_req[idx]);
+	}
+	for (int i = 0; i < total_request; i++) {
+		request_or_reply reply = clnt->recv();
+		logger.end_record(reply.parent_id);
+		int idx = mymath::get_distribution(clnt->cfg->get_random(), distribution);
+		instantiate_request(clnt, vec_template[idx], vec_req[idx]);
+		clnt->setpid(vec_req[idx]);
+		logger.start_record(vec_req[idx].parent_id, idx);
+		clnt->send(vec_req[idx]);
+	}
+	for (int i = 0; i < global_batch_factor; i++) {
+		request_or_reply reply = clnt->recv();
+		logger.end_record(reply.parent_id);
+	}
+	uint64_t end_time = timer::get_usec();
+	cout << 1000.0 * (total_request + global_batch_factor) / (end_time - start_time) << " Kops" << endl;
+}
+
+
+void
+nonblocking_execute(client* clnt, string mix_config, batch_logger& logger)
+{
+	ifstream configfile(mix_config);
+	if (!configfile) {
+		cout << "File " << mix_config << " not exist" << endl;
+		return ;
+	}
+
+	int total_query_type;
+	int total_request;
+	int sleep_round = 1;
+	configfile >> total_query_type >> total_request >> sleep_round;
+
+	vector<int > distribution;
+	vector<request_template > vec_template;
+	vector<request_or_reply > vec_req;
+
+	vec_template.resize(total_query_type);
+	vec_req.resize(total_query_type);
+	for (int i = 0; i < total_query_type; i++) {
+		string filename;
+		configfile >> filename;
+		int current_dist;
+		configfile >> current_dist;
+		distribution.push_back(current_dist);
+		bool success = clnt->parser.parse_template(filename, vec_template[i]);
+		translate_req_template(clnt, vec_template[i]);
+		vec_req[i].cmd_chains = vec_template[i].cmd_chains;
+		if (!success) {
+			cout << "sparql parse error" << endl;
+			return ;
+		}
+		vec_req[i].silent = global_silent;
+	}
+
+	int send_request = 0;
+	int recv_request = 0;
+	while (recv_request != total_request) {
+		for (int t = 0; t < 10; t++) {
+			if (send_request < total_request) {
+				send_request++;
+				int idx = mymath::get_distribution(clnt->cfg->get_random(), distribution);
+				instantiate_request(clnt, vec_template[idx], vec_req[idx]);
+				clnt->setpid(vec_req[idx]);
+				logger.start_record(vec_req[idx].parent_id, idx);
+				clnt->send(vec_req[idx]);
+			}
+		}
+
+		for (int i = 0; i < sleep_round; i++) {
+			timer::cpu_relax(100);
+			request_or_reply reply;
+			bool success = TryRecvR(clnt->cfg, reply);
+			while (success) {
+				recv_request++;
+				logger.end_record(reply.parent_id);
+				success = TryRecvR(clnt->cfg, reply);
+			}
+		}
+	}
 }
 
 void
@@ -127,6 +251,9 @@ string mode_str[N_MODES] = {
 	"\tmix mode: (e.g., queries query [count]):"
 };
 
+/**
+ * The Wukong's builtin client
+ */
 void
 interactive_shell(client *clnt)
 {
@@ -205,21 +332,20 @@ local_done:
 					// run single-command using the master client
 					cmd_stream >> qfile >> cnt;
 					if (cnt < 1) cnt = 1;
+
 					single_execute(clnt, qfile, cnt);
 				}
 			} else if (global_client_mode == BATCH_MODE) {
-				// Q: run batch-command on all clients?
+				// run batch-command on all clients
 				cmd_stream >> qfile;
 
 				logger.init();
 				nonblocking_execute(clnt, qfile, logger);
 				//batch_execute(clnt,filename,logger);
 				logger.finish();
-
 				client_barrier(clnt->cfg);
-				//MPI_Barrier(MPI_COMM_WORLD);
 
-				// print results of batch command
+				// print results of the batch command
 				if (cfg->sid == 0 && cfg->wid == 0) {
 					// collect logs from other clients
 					for (int i = 0; i < cfg->nsrvs * cfg->ncwkrs - 1; i++) {
@@ -228,7 +354,7 @@ local_done:
 					}
 					logger.print();
 				} else {
-					// transport logs to the master client
+					// send logs to the master client
 					SendObject<batch_logger>(clnt->cfg, 0, 0, logger);
 				}
 			} else if (global_client_mode == MIX_MODE) {
@@ -248,8 +374,8 @@ local_done:
 					logger.finish();
 				}
 				client_barrier(clnt->cfg);
-				//MPI_Barrier(MPI_COMM_WORLD);
 
+				// print results of the mix command
 				if (cfg->sid == 0 && cfg->wid == 0) {
 					// collect logs from other clients
 					for (int i = 0; i < cfg->nsrvs * cfg->ncwkrs - 1 ; i++) {
@@ -258,7 +384,7 @@ local_done:
 					}
 					logger.print();
 				} else {
-					// transport logs to the master client
+					// send logs to the master client
 					SendObject<batch_logger>(clnt->cfg, 0, 0, logger);
 				}
 			}
@@ -266,188 +392,85 @@ local_done:
 	}
 }
 
-void
-batch_execute(client* clnt, string mix_config, batch_logger& logger)
+
+
+
+/**
+ * The code for proxy mode
+ *
+ * TODO: a unified interface for both local builtin and remote proxy clients
+ */
+
+void *
+recv_cmd(void *ptr)
 {
-	ifstream configfile(mix_config);
-	if (!configfile) {
-		cout << "File " << mix_config << " not exist" << endl;
-		return ;
-	}
+	cout << "star to receive commands from clients" << endl;
 
-	int total_query_type;
-	int total_request;
-	int sleep_round = 1;
-	configfile >> total_query_type >> total_request >> sleep_round;
-	vector<int > distribution;
-	vector<request_template > vec_template;
-	vector<request_or_reply > vec_req;
-	vec_template.resize(total_query_type);
-	vec_req.resize(total_query_type);
-	for (int i = 0; i < total_query_type; i++) {
-		string filename;
-		configfile >> filename;
-		int current_dist;
-		configfile >> current_dist;
-		distribution.push_back(current_dist);
-		bool success = clnt->parser.parse_template(filename, vec_template[i]);
-		translate_req_template(clnt, vec_template[i]);
-		vec_req[i].cmd_chains = vec_template[i].cmd_chains;
-		if (!success) {
-			cout << "sparql parse error" << endl;
-			return ;
-		}
-		vec_req[i].silent = global_silent;
-	}
-	uint64_t start_time = timer::get_usec();
-	for (int i = 0; i < global_batch_factor; i++) {
-		int idx = mymath::get_distribution(clnt->cfg->get_random(), distribution);
-		instantiate_request(clnt, vec_template[idx], vec_req[idx]);
-		clnt->GetId(vec_req[idx]);
-		logger.start_record(vec_req[idx].parent_id, idx);
-		clnt->Send(vec_req[idx]);
-	}
-	for (int i = 0; i < total_request; i++) {
-		request_or_reply reply = clnt->Recv();
-		logger.end_record(reply.parent_id);
-		int idx = mymath::get_distribution(clnt->cfg->get_random(), distribution);
-		instantiate_request(clnt, vec_template[idx], vec_req[idx]);
-		clnt->GetId(vec_req[idx]);
-		logger.start_record(vec_req[idx].parent_id, idx);
-		clnt->Send(vec_req[idx]);
-	}
-	for (int i = 0; i < global_batch_factor; i++) {
-		request_or_reply reply = clnt->Recv();
-		logger.end_record(reply.parent_id);
-	}
-	uint64_t end_time = timer::get_usec();
-	cout << 1000.0 * (total_request + global_batch_factor) / (end_time - start_time) << " Kops" << endl;
-};
-
-
-void
-nonblocking_execute(client* clnt, string mix_config, batch_logger& logger)
-{
-	ifstream configfile(mix_config);
-	if (!configfile) {
-		cout << "File " << mix_config << " not exist" << endl;
-		return ;
-	}
-
-	int total_query_type;
-	int total_request;
-	int sleep_round = 1;
-	configfile >> total_query_type >> total_request >> sleep_round;
-
-	vector<int > distribution;
-	vector<request_template > vec_template;
-	vector<request_or_reply > vec_req;
-
-	vec_template.resize(total_query_type);
-	vec_req.resize(total_query_type);
-	for (int i = 0; i < total_query_type; i++) {
-		string filename;
-		configfile >> filename;
-		int current_dist;
-		configfile >> current_dist;
-		distribution.push_back(current_dist);
-		bool success = clnt->parser.parse_template(filename, vec_template[i]);
-		translate_req_template(clnt, vec_template[i]);
-		vec_req[i].cmd_chains = vec_template[i].cmd_chains;
-		if (!success) {
-			cout << "sparql parse error" << endl;
-			return ;
-		}
-		vec_req[i].silent = global_silent;
-	}
-
-	int send_request = 0;
-	int recv_request = 0;
-	while (recv_request != total_request) {
-		for (int t = 0; t < 10; t++) {
-			if (send_request < total_request) {
-				send_request++;
-				int idx = mymath::get_distribution(clnt->cfg->get_random(), distribution);
-				instantiate_request(clnt, vec_template[idx], vec_req[idx]);
-				clnt->GetId(vec_req[idx]);
-				logger.start_record(vec_req[idx].parent_id, idx);
-				clnt->Send(vec_req[idx]);
-			}
-		}
-
-		for (int i = 0; i < sleep_round; i++) {
-			timer::cpu_relax(100);
-			request_or_reply reply;
-			bool success = TryRecvR(clnt->cfg, reply);
-			while (success) {
-				recv_request++;
-				logger.end_record(reply.parent_id);
-				success = TryRecvR(clnt->cfg, reply);
-			}
-		}
-	}
-};
-
-
-void* recv_cmd(void *ptr) {
-	cout << "star to recieve commands from clients" << endl;
 	Proxy *proxy = (Proxy *)ptr;
 	while (true) {
 		cout << "wait to new recv" << endl;
-		proxy->RecvRequest();
+		CS_Request creq = proxy->recv_req();
+		proxy->push(creq);
 		cout << "recv a new request" << endl;
 	}
 }
 
-void* resp_cmd(void *ptr) {
-	cout << "start to respond commands to clients" << endl;
-	Proxy *proxy = (Proxy *)ptr;
+void *
+send_cmd(void *ptr)
+{
+	cout << "start to send commands to clients" << endl;
+
+	Proxy *p = (Proxy *)ptr;
 	while (true) {
-		request_or_reply reply = proxy->clnt->Recv();
-		CS_Reply cs_reply;
-		cs_reply.column = reply.col_num;
-		cs_reply.result_table = reply.result_table;
-		string identity = proxy->GetIdentity(reply.parent_id);
-		proxy->RemoveID(reply.parent_id);
-		proxy->SendReply(identity, cs_reply);
-		int row_to_print = min((uint64_t)reply.row_num(), (uint64_t)global_max_print_row);
+		request_or_reply r = p->clnt->recv();
+		CS_Reply crep;
+		crep.column = r.col_num;
+		crep.result_table = r.result_table;
+		crep.cid = p->get_cid(r.parent_id);
+		p->send_rep(crep);
+		p->remove_cid(r.parent_id);
+
+		int row_to_print = min((uint64_t)r.row_num(), (uint64_t)global_max_print_row);
 		cout << "row:" << row_to_print << endl;
 		if (row_to_print > 0) {
-			proxy->clnt->print_result(reply, row_to_print);
+			p->clnt->print_result(r, row_to_print);
 		}
 	}
 }
 
-void proxy(client *clnt, int port) {
-	//ClientBarrier(clnt->cfg);
-	Proxy *proxy = new Proxy(clnt, port);
-	pthread_t thread[2];
-	pthread_create(&(thread[0]), NULL, recv_cmd, (void *)proxy);
-	pthread_create(&(thread[1]), NULL, resp_cmd, (void *)proxy);
+void
+proxy(client *clnt, int port)
+{
+	Proxy *p = new Proxy(clnt, port);
+	pthread_t tid[2];
+	pthread_create(&(tid[0]), NULL, recv_cmd, (void *)p);
+	pthread_create(&(tid[1]), NULL, send_cmd, (void *)p);
 
 	while (true) {
-		CS_Request cs_request = proxy->PopRequest();
-		string content = cs_request.content;
+		CS_Request creq = p->pop();
+		string content = creq.content;
 		cout << content << endl;
-		request_or_reply request;
-		bool success = clnt->parser.parse(content, request);
-		if (!success) {
-			cout << "sparql parse error" << endl;
-			CS_Reply cs_reply;
-			cs_reply.type = "error";
-			cs_reply.content = "bad file";
-			proxy->SendReply(cs_request.identity, cs_reply);
+		request_or_reply r;
+		bool ok = clnt->parser.parse(content, r);
+		if (!ok) {
+			cout << "ERROR: SPARQL query parse error" << endl;
+			CS_Reply crep;
+			crep.type = "error";
+			crep.content = "bad file";
+			crep.cid = creq.cid;
+			p->send_rep(crep);
 			continue;
 		}
-		request.silent = global_silent;
-		clnt->Send(request);
-		proxy->InsertID(request.parent_id, cs_request.identity);
+		r.silent = global_silent;
+
+		clnt->send(r);
+		p->insert_cid(r.parent_id, creq.cid);
 	}
 
 	for (int i = 0; i < 2; i++) {
-		int rc = pthread_join(thread[i], NULL);
+		int rc = pthread_join(tid[i], NULL);
 		if (rc) {
-			printf("ERROR; return code from pthread_join() is %d\n", rc);
+			printf("ERROR: return code from pthread_join() is %d\n", rc);
 			exit(-1);
 		}
 	}

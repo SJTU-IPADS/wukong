@@ -22,19 +22,21 @@
 
 #include "client.h"
 
-client::client(thread_cfg* _cfg, string_server* _str_server): cfg(_cfg)
-    , str_server(_str_server), parser(_str_server) {
+client::client(thread_cfg *_cfg, string_server *_str_server):
+    cfg(_cfg), str_server(_str_server), parser(_str_server) { }
 
-}
-
-void client::GetId(request_or_reply& req) {
+void
+client::setpid(request_or_reply &req)
+{
     req.parent_id = cfg->get_inc_id();
 }
 
-void client::Send(request_or_reply& req) {
-    if (req.parent_id == -1) {
-        GetId(req);
-    }
+void
+client::send(request_or_reply &req)
+{
+    if (req.parent_id == -1)
+        setpid(req);
+
     if (req.use_index_vertex() && global_enable_index_partition) {
         int nthread = max(1, min(global_multithread_factor, global_num_server));
         for (int i = 0; i < cfg->nsrvs; i++) {
@@ -47,16 +49,19 @@ void client::Send(request_or_reply& req) {
         return ;
     }
     req.first_target = mymath::hash_mod(req.cmd_chains[0], cfg->nsrvs);
-    //one-to-one mapping
-//    int server_per_client=  cfg->nswkrs  / cfg->ncwkrs;
-//    int mid=cfg->ncwkrs + server_per_client*cfg->wid + cfg->get_random() % server_per_client;
+
+    // one-to-one mapping
+    //int server_per_client = cfg->nswkrs / cfg->ncwkrs;
+    //int mid = cfg->ncwkrs + server_per_client * cfg->wid + cfg->get_random() % server_per_client;
 
     // random
     int tid = cfg->ncwkrs + cfg->get_random() % cfg->nswkrs;
     SendR(cfg, req.first_target, tid, req);
 }
 
-request_or_reply client::Recv() {
+request_or_reply
+client::recv(void)
+{
     request_or_reply r = RecvR(cfg);
     if (r.use_index_vertex() && global_enable_index_partition ) {
         int nthread = max(1, min(global_multithread_factor, global_num_server));
@@ -68,10 +73,13 @@ request_or_reply client::Recv() {
             r.result_table.insert( r.result_table.end(), r2.result_table.begin(), r2.result_table.end());
         }
     }
+
     return r;
 }
 
-void client::print_result(request_or_reply& reply, int row_to_print) {
+void
+client::print_result(request_or_reply &reply, int row_to_print)
+{
     for (int i = 0; i < row_to_print; i++) {
         cout << i + 1 << ":  ";
         for (int c = 0; c < reply.column_num(); c++) {
@@ -84,4 +92,4 @@ void client::print_result(request_or_reply& reply, int row_to_print) {
         }
         cout << endl;
     }
-};
+}

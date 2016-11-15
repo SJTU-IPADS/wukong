@@ -35,10 +35,10 @@ struct CS_Request {
 	bool use_file;
 	string content;
 
-	string identity;
+	string cid;
 
 	template <typename Archive>
-	void serialize(Archive &ar, const unsigned int version) {
+	void serialize(Archive &ar, const unsigned int v) {
 		ar &type;
 		ar &use_file;
 		ar &content;
@@ -52,8 +52,10 @@ struct CS_Reply {
 	vector<int64_t> column_table;
 	vector<int64_t> result_table;
 
+	string cid;
+
 	template <typename Archive>
-	void serialize(Archive &ar, const unsigned int version) {
+	void serialize(Archive &ar, const unsigned int v) {
 		ar &type;
 		ar &content;
 		ar &column;

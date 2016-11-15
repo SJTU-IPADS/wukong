@@ -41,4 +41,4 @@ void interactive_shell(client *clnt);
 
 void proxy(client *clnt, int port);
 void *recv_cmd(void *proxy);
-void *resp_cmd(void *proxy);
+void *send_cmd(void *proxy);
