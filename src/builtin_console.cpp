@@ -232,26 +232,18 @@ nonblocking_execute(client* clnt, string mix_config, batch_logger& logger)
 void
 print_help(void)
 {
-	cout << "Wukong's client commands: " << endl;
-	cout << "    help            display help infomation" << endl;
-	cout << "    quit            quit from client" << endl;
-	cout << "    reconfig        reload config file" << endl;
-	cout << "    switch_mode: single|batch|mix " << endl;
-	cout << "        single      run a special query (e.g., query [count])" << endl;
-	cout << "        batch       run a set of queries (e.g., queries)" << endl;
-	cout << "        mix         run a set of queries with a special query" << endl;
-
+	cout << "These are common Wukong commands: " << endl;
+	cout << "    help         Display help infomation" << endl;
+	cout << "    quit         Quit from client" << endl;
+	cout << "    reconfig     Reload config file" << endl;
+	cout << "    sparql       Run SPARQL queries" << endl;
+	cout << "        -f <file>   a single query from the <file>" << endl;
+	cout << "        -n <num>    run a single query <num> times" << endl;
+	cout << "        -b <file>   a set of queries configured by the <file>" << endl;
+	cout << "        -s <string> a single query from input string" << endl;
 }
 
-enum { SINGLE_MODE = 0, BATCH_MODE, MIX_MODE, N_MODES };
-
-string mode_str[N_MODES] = {
-	"\tsingle mode (e.g., query [count]):",
-	"\tbatch mode (e.g., queries):",
-	"\tmix mode: (e.g., queries query [count]):"
-};
-
-static int client_mode = SINGLE_MODE;
+#define IS_MASTER(_cfg) ((_cfg)->sid == 0 && (_cfg)->wid == 0)
 
 /**
  * The Wukong's builtin client
@@ -262,23 +254,25 @@ builtin_console(client *clnt)
 	struct thread_cfg *cfg = clnt->cfg;
 
 	// the master client worker (i.e., sid == 0 and wid == 0)
-	if (cfg->sid == 0 && cfg->wid == 0) {
-		cout << "input help to get more infomation about the shell" << endl;
-		cout << mode_str[client_mode] << endl;
-	}
+	client_barrier(cfg);
+	if (IS_MASTER(cfg))
+		cout << endl
+		     << "Input \'help\'' command to get more information"
+		     << endl
+		     << endl;
 
 	while (true) {
-		client_barrier(clnt->cfg);
+		client_barrier(cfg);
 
+next:
 		string cmd;
-		if (cfg->sid == 0 && cfg->wid == 0) {
-local_done:
+		if (IS_MASTER(cfg)) {
 			cout << "> ";
 			std::getline(std::cin, cmd);
 
 			// trim input
 			size_t pos = cmd.find_first_not_of(" \t"); // trim blanks from head
-			if (pos == string::npos) goto local_done;
+			if (pos == string::npos) goto next;
 			cmd.erase(0, pos);
 
 			pos = cmd.find_last_not_of(" \t");  // trim blanks from tail
@@ -286,7 +280,7 @@ local_done:
 
 			if (cmd == "help") {
 				print_help();
-				goto local_done;
+				goto next;
 			}
 
 			// send commands to all client workers
@@ -302,92 +296,96 @@ local_done:
 			cmd = cfg->node->Recv();
 		}
 
-		// handle a command
-		istringstream cmd_stream(cmd);
-		if (cmd_stream.str() == "quit") {
+		if (cmd == "quit" || cmd == "q") {
 			if (cfg->wid == 0)
 				exit(0); // each server exits once
-		} else if (cmd_stream.str() == "reconfig") {
+		} else if (cmd == "reconfig") {
 			if (cfg->wid == 0)
-				reload_cfg(); // each server reconfigs once
-		} else if (cmd_stream.str().find("switch_mode:") == 0) {
-			if (cfg->wid == 0) {
-				string skip, mode;
-				cmd_stream >> skip >> mode;
-				if (mode == "single")
-					client_mode = SINGLE_MODE;
-				else if (mode == "batch")
-					client_mode = BATCH_MODE;
-				else if (mode == "mix")
-					client_mode = MIX_MODE;
+				reload_cfg(); // each server reload config file
+		} else {
+			std::stringstream cmd_ss(cmd);
+			std::string token;
 
-				if (cfg->sid == 0)
-					cout << mode_str[client_mode] << endl;
-			}
-		} else { // handle SPARQL queries
-			batch_logger logger;
-			string qfile;
-			int cnt = 1;
+			// get keyword of command
+			cmd_ss >> token;
 
-			if (client_mode == SINGLE_MODE) {
-				if (cfg->sid == 0 && cfg->wid == 0) {
-					// run single-command using the master client
-					cmd_stream >> qfile >> cnt;
-					if (cnt < 1) cnt = 1;
+			// handle SPARQL queries
+			if (token == "sparql") {
+				string fname, bfname, query;
+				int cnt = 1;
+				bool f_enable = false, b_enable = false, q_enable = false;
 
-					single_execute(clnt, qfile, cnt);
-				}
-			} else if (client_mode == BATCH_MODE) {
-				// run batch-command on all clients
-				cmd_stream >> qfile;
-
-				logger.init();
-				nonblocking_execute(clnt, qfile, logger);
-				//batch_execute(clnt,filename,logger);
-				logger.finish();
-				client_barrier(clnt->cfg);
-
-				// print results of the batch command
-				if (cfg->sid == 0 && cfg->wid == 0) {
-					// collect logs from other clients
-					for (int i = 0; i < global_nsrvs * global_nfewkrs - 1; i++) {
-						batch_logger log = RecvObject<batch_logger>(clnt->cfg);
-						logger.merge(log);
+				// parse parameters
+				while (cmd_ss >> token) {
+					if (token == "-f") {
+						cmd_ss >> fname;
+						f_enable = true;
+					} else if (token == "-n") {
+						cmd_ss >> cnt;
+					} else if (token == "-b") {
+						cmd_ss >> bfname;
+						b_enable = true;
+					} else if (token == "-s") {
+						string start;
+						cmd_ss >> start;
+						query = cmd.substr(cmd.find(start));
+						q_enable = true;
+						break;
+					} else {
+						if (IS_MASTER(cfg)) {
+							cout << "Unknown option: " << token << endl;
+							print_help();
+						}
+						goto next;
 					}
-					logger.print();
-				} else {
-					// send logs to the master client
-					SendObject<batch_logger>(clnt->cfg, 0, 0, logger);
 				}
-			} else if (client_mode == MIX_MODE) {
-				string qfile2;
 
-				cmd_stream >> qfile >> qfile2 >> cnt;
-				if (cnt < 1) cnt = 1;
-
-				if (cfg->sid == 0 && cfg->wid == 0) {
-					// dedicate the master client to run single-command
-					single_execute(clnt, qfile2, cnt);
-				} else {
-					// run batch-command on other clients
-					logger.init();
-					nonblocking_execute(clnt, qfile, logger);
-					//batch_execute(clnt,batchfile,logger);
-					logger.finish();
-				}
-				client_barrier(clnt->cfg);
-
-				// print results of the mix command
-				if (cfg->sid == 0 && cfg->wid == 0) {
-					// collect logs from other clients
-					for (int i = 0; i < global_nsrvs * global_nfewkrs - 1 ; i++) {
-						batch_logger log = RecvObject<batch_logger>(clnt->cfg);
-						logger.merge(log);
+				if (f_enable) {
+					// use the master client to run a single query
+					if (IS_MASTER(cfg)) {
+						single_execute(clnt, fname, cnt);
 					}
-					logger.print();
-				} else {
-					// send logs to the master client
-					SendObject<batch_logger>(clnt->cfg, 0, 0, logger);
+				}
+
+				if (b_enable) {
+					batch_logger logger;
+
+					// dedicate the master frontend worker to run a single query
+					// and others to run a set of queries if '-f' is enabled
+					if (!f_enable || !IS_MASTER(cfg)) {
+						logger.init();
+						nonblocking_execute(clnt, bfname, logger);
+						//batch_execute(clnt,filename,logger);
+						logger.finish();
+					}
+
+					client_barrier(clnt->cfg);
+					// print a statistic of runtime for the batch processing
+					if (IS_MASTER(cfg)) {
+						// collect logs from other clients
+						for (int i = 0; i < global_nsrvs * global_nfewkrs - 1; i++) {
+							batch_logger log = RecvObject<batch_logger>(clnt->cfg);
+							logger.merge(log);
+						}
+						logger.print();
+					} else {
+						// send logs to the master client
+						SendObject<batch_logger>(clnt->cfg, 0, 0, logger);
+					}
+
+				}
+
+				if (q_enable) {
+					// TODO: SPARQL string
+					if (IS_MASTER(cfg)) {
+						cout << "Query: " << query << endl;
+						cout << "The option '-s' is unsupported now!" << endl;
+					}
+				}
+			} else {
+				if (IS_MASTER(cfg)) {
+					cout << "Unknown command: " << token << endl;
+					print_help();
 				}
 			}
 		}

@@ -21,14 +21,16 @@
  */
 
 #include <iostream>
+#include <string>
+#include <boost/unordered_map.hpp>
+#include <set>
+
 #include "utils.h"
 #include "global_cfg.h"
 #include "thread_cfg.h"
 #include "client.h"
 #include "batch_logger.h"
 
-#include <boost/unordered_map.hpp>
-#include <set>
 
 using namespace std;
 
