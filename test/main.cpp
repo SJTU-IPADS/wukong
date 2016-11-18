@@ -130,6 +130,7 @@ main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 	}
+
 	// config global setting
 	load_cfg(world.size());
 
@@ -201,5 +202,6 @@ main(int argc, char *argv[])
 		}
 	}
 
+	// TODO: exit gracefully (properly call MPI_Init() and MPI_Finalize())
 	return 0;
 }
