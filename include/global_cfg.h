@@ -49,6 +49,9 @@ extern int global_perslot_msg_mb;
 extern int global_perslot_rdma_mb;
 extern int global_hash_header_million;
 
+extern int global_eth_port_base;
+extern int global_rdma_port_base;
+
 extern bool global_use_rdma;
 extern bool global_use_rbf;		// ring-buffer (by RDMA WRITE)
 extern int global_enable_workstealing;

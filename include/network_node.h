@@ -31,6 +31,8 @@
 #include <errno.h>
 #include <sstream>
 
+#include "global_cfg.h"
+
 class Network_Node {
 public:
   int sid;  // server-id in [0, nsrvs)
@@ -56,7 +58,7 @@ public:
 
     receiver = new zmq::socket_t(context, ZMQ_PULL);
     char address[30] = "";
-    sprintf(address, "tcp://*:%d", 5500 + code(_sid, _wid));
+    sprintf(address, "tcp://*:%d", global_eth_port_base + code(_sid, _wid));
     //fprintf(stdout, "tcp binding address %s\n", address);
     receiver->bind(address);
   }
@@ -82,7 +84,7 @@ public:
       senders[id] = new zmq::socket_t(context, ZMQ_PUSH);
 
       char address[30] = "";
-      snprintf(address, 30, "tcp://%s:%d", ipset[_sid].c_str(), 5500 + id);
+      snprintf(address, 30, "tcp://%s:%d", ipset[_sid].c_str(), global_eth_port_base + id);
       //fprintf(stdout,"mul estalabish %s\n",address);
       senders[id]->connect(address);
     }

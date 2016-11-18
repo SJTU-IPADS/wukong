@@ -30,6 +30,8 @@ int global_nthrs;
 
 
 /* configurable global variables */
+int global_eth_port_base;
+int global_rdma_port_base;
 bool global_use_rbf;
 bool global_use_rdma;
 int global_nbewkrs;
@@ -68,6 +70,8 @@ dump_cfg(void)
 	cout << "------ global configurations ------" << endl;
 
 	// setting by config file
+	cout << "global_eth_port_base: " 		<< global_eth_port_base				<< endl;
+	cout << "global_rdma_port_base: " 		<< global_rdma_port_base			<< endl;
 	cout << "global_use_rbf: " 				<< global_use_rbf 					<< endl;
 	cout << "global_use_rdma: " 			<< global_use_rdma					<< endl;
 	cout << "global_rdma_threshold: " 		<< global_rdma_threshold			<< endl;
@@ -157,6 +161,8 @@ load_cfg(int nsrvs)
 		config_map[row] = val;
 	}
 
+	global_eth_port_base = atoi(config_map["global_eth_port_base"].c_str());
+	global_rdma_port_base = atoi(config_map["global_rdma_port_base"].c_str());
 	global_use_rbf = atoi(config_map["global_use_rbf"].c_str());
 	global_use_rdma = atoi(config_map["global_use_rdma"].c_str());
 	global_rdma_threshold = atoi(config_map["global_rdma_threshold"].c_str());

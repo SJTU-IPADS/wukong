@@ -63,7 +63,7 @@ enum { NBITS_IDX = 17 };
 int
 main(int argc, char** argv)
 {
-    unordered_map<string, int> str_to_id;
+    unordered_map<string, int64_t> str_to_id;
     vector<string> normal_str;  // normal-vertex id table (vid)
     vector<string> index_str;   // index-vertex (i.e, predicate or type) id  table (p/tid)
 
@@ -97,8 +97,8 @@ main(int argc, char** argv)
     index_str.push_back("<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>");
 
     // reserve the first two ids for the class of index vertex (i.e, predicate and type)
-    size_t next_index_id = 2;
-    size_t next_normal_id = 1 << NBITS_IDX; // reserve 2^NBITS_IDX ids for index vertices
+    int64_t next_index_id = 2;
+    int64_t next_normal_id = 1 << NBITS_IDX; // reserve 2^NBITS_IDX ids for index vertices
     int count = 0;
 
     struct dirent *dent;
@@ -146,7 +146,7 @@ main(int argc, char** argv)
             }
 
             // write (id-format) output file
-            int triple[3];
+            int64_t triple[3];
             triple[0] = str_to_id[subject];
             triple[1] = str_to_id[predict];
             triple[2] = str_to_id[object];
@@ -158,14 +158,14 @@ main(int argc, char** argv)
     /* build ID-mapping (str2id) table file for normal vertices */
     {
         ofstream f_normal((string(ddir_name) + "/str_normal").c_str());
-        for (int i = 0; i < normal_str.size(); i++)
+        for (int64_t i = 0; i < normal_str.size(); i++)
             f_normal << normal_str[i] << "\t" << str_to_id[normal_str[i]] << endl;
     }
 
     /* build ID-mapping (str2id) table file for index vertices */
     {
         ofstream f_index((string(ddir_name) + "/str_index").c_str());
-        for (int i = 0; i < index_str.size(); i++)
+        for (int64_t i = 0; i < index_str.size(); i++)
             f_index << index_str[i] << "\t" << str_to_id[index_str[i]] << endl;
     }
 

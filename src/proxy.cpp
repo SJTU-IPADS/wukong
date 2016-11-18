@@ -69,10 +69,17 @@ proxy(client *clnt, int port)
 
 	while (true) {
 		CS_Request creq = p->pop();
-		string content = creq.content;
-		cout << content << endl;
+		string fname = creq.content;
+		cout << fname << endl;
 		request_or_reply r;
-		bool ok = clnt->parser.parse(content, r);
+
+		ifstream ifs(fname);
+		if (!ifs) {
+			cout << "Query file not found: " << fname << endl;
+			continue;
+		}
+
+		bool ok = clnt->parser.parse(ifs, r);
 		if (!ok) {
 			cout << "ERROR: SPARQL query parse error" << endl;
 			CS_Reply crep;
