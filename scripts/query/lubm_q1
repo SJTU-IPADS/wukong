@@ -1,23 +1,11 @@
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
-SELECT ?X ?Y ?Z
-WHERE
-{
-?Y  rdf:type ub:University <-
-?X  ub:undergraduateDegreeFrom ?Y <-
-?X  rdf:type ub:GraduateStudent .
-?X  ub:memberOf ?Z .
-?Z  ub:subOrganizationOf ?Y .
-?Z  rdf:type ub:Department .
-}
 
-{
-?X  rdf:type ub:GraduateStudent <-
-?X  ub:memberOf ?Z ->
-?X  ub:undergraduateDegreeFrom ?Y ->
-fork
-?Y  rdf:type ub:University ->
-?Z  ub:subOrganizationOf ?Y <-
-join
-?Z  rdf:type ub:Department ->
+SELECT ?X ?Y ?Z WHERE {
+	?Y rdf:type ub:University <-
+	?X ub:undergraduateDegreeFrom ?Y <-
+	?X rdf:type ub:GraduateStudent .
+	?X ub:memberOf ?Z .
+	?Z ub:subOrganizationOf ?Y .
+	?Z rdf:type ub:Department .
 }

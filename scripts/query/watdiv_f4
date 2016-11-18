@@ -1,5 +1,3 @@
-
-
 SELECT ?v0 ?v1 ?v2 ?v4 ?v5 ?v6 ?v7 ?v8 WHERE {
     ?v0 <http://ogp.me/ns#tag> <http://db.uwaterloo.ca/~galuc/wsdbm/Topic245> <-
     ?v0 <http://schema.org/description> ?v4 .

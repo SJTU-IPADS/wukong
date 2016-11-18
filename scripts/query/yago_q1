@@ -1,4 +1,3 @@
-
-select ?x where {
-?x y:livesIn <Athens> <-
+SELECT ?x WHERE {
+	?x y:livesIn <Athens> <-
 }

@@ -1,4 +1,3 @@
-
 SELECT ?v0 ?v1 ?v2 WHERE {
     ?v0 <http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre> <http://db.uwaterloo.ca/~galuc/wsdbm/SubGenre143> <-
 	?v0 <http://purl.org/ontology/mo/conductor> ?v1 .

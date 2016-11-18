@@ -1,5 +1,4 @@
-
-select ?y ?u where {
+SELECT ?y ?u WHERE {
     <Albert_Einstein> y:graduatedFrom ?u .
     ?y y:graduatedFrom ?u <-
 }

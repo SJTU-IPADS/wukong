@@ -3,9 +3,9 @@ PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
 
 SELECT ?X ?Y ?Z WHERE {
 	?Y rdf:type ub:FullProfessor <-
-	?X ub:advisor ?Y <-
-	?X rdf:type ub:UndergraduateStudent .
-	?X ub:takesCourse ?Z .
+	?Y ub:teacherOf ?Z .
 	?Z rdf:type ub:Course .
-	?Y ub:teacherOf ?Z <-
+	?X ub:takesCourse ?Z <-
+	?X ub:advisor    ?Y .
+	?X rdf:type ub:UndergraduateStudent .
 }
