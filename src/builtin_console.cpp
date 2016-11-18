@@ -40,11 +40,11 @@ client_barrier(struct thread_cfg *cfg)
 }
 
 void
-single_execute(client* clnt, string fname, int cnt)
+run_single_query(client *clnt, istream &is, int cnt)
 {
 	request_or_reply request, reply;
 
-	if (!clnt->parser.parse(fname, request)) {
+	if (!clnt->parser.parse(is, request)) {
 		cout << "ERROR: parse SPARQL query failed!" << endl;
 		return;
 	}
@@ -107,42 +107,43 @@ instantiate_request(client *clnt, request_template &req_template, request_or_rep
 }
 
 void
-batch_execute(client* clnt, string mix_config, batch_logger& logger)
+batch_execute(client* clnt, istream &is, batch_logger& logger)
 {
-	ifstream configfile(mix_config);
-	if (!configfile) {
-		cout << "File " << mix_config << " not exist" << endl;
-		return ;
-	}
-
 	int total_query_type;
 	int total_request;
 	int sleep_round = 1;
-	configfile >> total_query_type >> total_request >> sleep_round;
 
-	vector<int > distribution;
+	is >> total_query_type >> total_request >> sleep_round;
+
+	vector<int > loads;
 	vector<request_template > vec_template;
 	vector<request_or_reply > vec_req;
 	vec_template.resize(total_query_type);
 	vec_req.resize(total_query_type);
 	for (int i = 0; i < total_query_type; i++) {
-		string filename;
-		configfile >> filename;
-		int current_dist;
-		configfile >> current_dist;
-		distribution.push_back(current_dist);
-		bool success = clnt->parser.parse_template(filename, vec_template[i]);
+		string fname;
+		is >> fname;
+		ifstream ifs(fname);
+		if (!ifs) {
+			cout << "Query file not found: " << fname << endl;
+			return ;
+		}
+
+		int load;
+		is >> load;
+		loads.push_back(load);
+		bool success = clnt->parser.parse_template(ifs, vec_template[i]);
 		translate_req_template(clnt, vec_template[i]);
 		vec_req[i].cmd_chains = vec_template[i].cmd_chains;
 		if (!success) {
-			cout << "sparql parse error" << endl;
+			cout << "SPARQL parse error" << endl;
 			return ;
 		}
 		vec_req[i].silent = global_silent;
 	}
 	uint64_t start_time = timer::get_usec();
 	for (int i = 0; i < global_batch_factor; i++) {
-		int idx = mymath::get_distribution(clnt->cfg->get_random(), distribution);
+		int idx = mymath::get_distribution(clnt->cfg->get_random(), loads);
 		instantiate_request(clnt, vec_template[idx], vec_req[idx]);
 		clnt->setpid(vec_req[idx]);
 		logger.start_record(vec_req[idx].parent_id, idx);
@@ -151,7 +152,7 @@ batch_execute(client* clnt, string mix_config, batch_logger& logger)
 	for (int i = 0; i < total_request; i++) {
 		request_or_reply reply = clnt->recv();
 		logger.end_record(reply.parent_id);
-		int idx = mymath::get_distribution(clnt->cfg->get_random(), distribution);
+		int idx = mymath::get_distribution(clnt->cfg->get_random(), loads);
 		instantiate_request(clnt, vec_template[idx], vec_req[idx]);
 		clnt->setpid(vec_req[idx]);
 		logger.start_record(vec_req[idx].parent_id, idx);
@@ -167,32 +168,33 @@ batch_execute(client* clnt, string mix_config, batch_logger& logger)
 
 
 void
-nonblocking_execute(client* clnt, string mix_config, batch_logger& logger)
+nonblocking_execute(client* clnt, istream &is, batch_logger& logger)
 {
-	ifstream configfile(mix_config);
-	if (!configfile) {
-		cout << "File " << mix_config << " not exist" << endl;
-		return ;
-	}
-
 	int total_query_type;
 	int total_request;
 	int sleep_round = 1;
-	configfile >> total_query_type >> total_request >> sleep_round;
 
-	vector<int > distribution;
+	is >> total_query_type >> total_request >> sleep_round;
+
+	vector<int > loads;
 	vector<request_template > vec_template;
 	vector<request_or_reply > vec_req;
 
 	vec_template.resize(total_query_type);
 	vec_req.resize(total_query_type);
 	for (int i = 0; i < total_query_type; i++) {
-		string filename;
-		configfile >> filename;
-		int current_dist;
-		configfile >> current_dist;
-		distribution.push_back(current_dist);
-		bool success = clnt->parser.parse_template(filename, vec_template[i]);
+		string fname;
+		is >> fname;
+		ifstream ifs(fname);
+		if (!ifs) {
+			cout << "Query file not found: " << fname << endl;
+			return ;
+		}
+
+		int load;
+		is >> load;
+		loads.push_back(load);
+		bool success = clnt->parser.parse_template(ifs, vec_template[i]);
 		translate_req_template(clnt, vec_template[i]);
 		vec_req[i].cmd_chains = vec_template[i].cmd_chains;
 		if (!success) {
@@ -208,7 +210,7 @@ nonblocking_execute(client* clnt, string mix_config, batch_logger& logger)
 		for (int t = 0; t < 10; t++) {
 			if (send_request < total_request) {
 				send_request++;
-				int idx = mymath::get_distribution(clnt->cfg->get_random(), distribution);
+				int idx = mymath::get_distribution(clnt->cfg->get_random(), loads);
 				instantiate_request(clnt, vec_template[idx], vec_req[idx]);
 				clnt->setpid(vec_req[idx]);
 				logger.start_record(vec_req[idx].parent_id, idx);
@@ -244,6 +246,7 @@ print_help(void)
 }
 
 #define IS_MASTER(_cfg) ((_cfg)->sid == 0 && (_cfg)->wid == 0)
+#define PRINT_ID(_cfg) (cout << "[" << (_cfg)->sid << "-" << (_cfg)->wid << "]$ ")
 
 /**
  * The Wukong's builtin client
@@ -287,7 +290,7 @@ next:
 			for (int i = 0; i < global_nsrvs; i++) {
 				for (int j = 0; j < global_nfewkrs; j++) {
 					if (i == 0 && j == 0)
-						continue;
+						continue ;
 					cfg->node->Send(i, j, cmd);
 				}
 			}
@@ -330,7 +333,7 @@ next:
 						cmd_ss >> start;
 						query = cmd.substr(cmd.find(start));
 						q_enable = true;
-						break;
+						break ;
 					} else {
 						if (IS_MASTER(cfg)) {
 							cout << "Unknown option: " << token << endl;
@@ -343,7 +346,12 @@ next:
 				if (f_enable) {
 					// use the master client to run a single query
 					if (IS_MASTER(cfg)) {
-						single_execute(clnt, fname, cnt);
+						ifstream ifs(fname);
+						if (!ifs) {
+							cout << "Query file not found: " << fname << endl;
+							continue ;
+						}
+						run_single_query(clnt, ifs, cnt);
 					}
 				}
 
@@ -353,8 +361,15 @@ next:
 					// dedicate the master frontend worker to run a single query
 					// and others to run a set of queries if '-f' is enabled
 					if (!f_enable || !IS_MASTER(cfg)) {
+						ifstream ifs(bfname);
+						if (!ifs) {
+							PRINT_ID(cfg);
+							cout << "Configure file not found: " << bfname << endl;
+							continue ;
+						}
+
 						logger.init();
-						nonblocking_execute(clnt, bfname, logger);
+						nonblocking_execute(clnt, ifs, logger);
 						//batch_execute(clnt,filename,logger);
 						logger.finish();
 					}
@@ -378,6 +393,7 @@ next:
 				if (q_enable) {
 					// TODO: SPARQL string
 					if (IS_MASTER(cfg)) {
+						// TODO
 						cout << "Query: " << query << endl;
 						cout << "The option '-s' is unsupported now!" << endl;
 					}

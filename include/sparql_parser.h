@@ -59,7 +59,9 @@ class sparql_parser {
     int fork_step;
     int join_step;
 
-    vector<string> get_tokens(string fname);
+
+    vector<string> get_tokens(istream &is);
+
     bool extract_patterns(vector<string> &tokens);
     void replace_prefix(vector<string> &tokens);
 
@@ -73,9 +75,8 @@ class sparql_parser {
 public:
     sparql_parser(string_server *_str_server);
 
-    bool parse(string fname, request_or_reply &r);
-    bool parse_string(string input_str, request_or_reply &r);
-    bool parse_template(string fname, request_template &r);
+    bool parse(istream &is, request_or_reply &r);
+    bool parse_template(istream &is, request_template &r);
 
     //boost::unordered_map<string, vector<int64_t> *> type2grp; // mapping table from %type to a group of IDs
     bool add_type_pattern(string type, request_or_reply &r);

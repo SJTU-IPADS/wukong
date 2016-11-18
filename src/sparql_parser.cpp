@@ -45,26 +45,16 @@ sparql_parser::clear(void)
 };
 
 vector<string>
-sparql_parser::get_tokens(string fname)
+sparql_parser::get_tokens(istream &is)
 {
     vector<string> tokens;
 
-    ifstream file(fname);
-    if (!file) {
-        cout << "ERROR: [file not found] " << fname << endl;
-        valid = false;
-        return tokens;
-    }
-
-    string token;
-    while (file >> token) {
-        tokens.push_back(token);
-
-        if (token == "}")
+    string t;
+    while (is >> t) {
+        tokens.push_back(t);
+        if (t == "}")
             break;
     }
-
-    file.close();
     return tokens;
 }
 
@@ -208,15 +198,15 @@ sparql_parser::do_parse(vector<string> &tokens)
 }
 
 /**
- * Used by single mode
+ * Used by single-mode
  */
 bool
-sparql_parser::parse(string fname, request_or_reply &r)
+sparql_parser::parse(istream &is, request_or_reply &r)
 {
     // clear state of parser before a new parsing
     clear();
 
-    vector<string> tokens = get_tokens(fname);
+    vector<string> tokens = get_tokens(is);
     if (!do_parse(tokens))
         return false;
 
@@ -239,57 +229,17 @@ sparql_parser::parse(string fname, request_or_reply &r)
     return true;
 }
 
+
 /**
- * Used to simulate Trinity.RDF
+ * Used by batch-mode
  */
 bool
-sparql_parser::parse_string(string input_str, request_or_reply &r)
+sparql_parser::parse_template(istream &is, request_template &r)
 {
     // clear state of parser before a new parsing
     clear();
 
-    std::stringstream ss(input_str);
-    string token;
-    vector<string> tokens;
-    while (ss >> token) {
-        tokens.push_back(token);
-        if (token == "}")
-            break;
-    }
-
-    if (!do_parse(tokens))
-        return false;
-
-    if (req_template.ptypes_pos.size() != 0) {
-        cout << "ERROR: request with PTYPE_PH" << endl;
-        return false;
-    }
-
-    r = request_or_reply();
-    if (join_step >= 0) {
-        vector<int> join_pattern;
-        join_pattern.push_back(0);
-        join_pattern.push_back(0);
-        join_pattern.push_back(JOIN); //means join
-        join_pattern.push_back(join_step + 1); // because we insert a new cmd in the middle
-        req_template.cmd_chains.insert(req_template.cmd_chains.begin() + fork_step * 4,
-                                       join_pattern.begin(), join_pattern.end());
-    }
-    r.cmd_chains = req_template.cmd_chains;
-    return true;
-}
-
-/**
- * Used by batching mode
- */
-bool
-sparql_parser::parse_template(string fname, request_template &r)
-{
-    // clear state of parser before a new parsing
-    clear();
-
-    vector<string> tokens = get_tokens(fname);
-
+    vector<string> tokens = get_tokens(is);
     if (!do_parse(tokens))
         return false;
 

@@ -34,8 +34,9 @@
 
 using namespace std;
 
-void single_execute(client *clnt, string filename, int execute_count);
-void batch_execute(client *clnt, string mix_config, batch_logger &logger);
-void nonblocking_execute(client *clnt, string mix_config, batch_logger &logger);
+void run_single_query(client* clnt, istream &is, int cnt);
+
+void batch_execute(client *clnt, istream &is, batch_logger &logger);
+void nonblocking_execute(client *clnt, istream &is, batch_logger &logger);
 
 void builtin_console(client *clnt);
