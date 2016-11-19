@@ -48,13 +48,10 @@ vector<string>
 sparql_parser::get_tokens(istream &is)
 {
     vector<string> tokens;
-
     string t;
-    while (is >> t) {
+
+    while (is >> t)
         tokens.push_back(t);
-        if (t == "}")
-            break;
-    }
     return tokens;
 }
 
@@ -159,6 +156,7 @@ sparql_parser::do_parse(vector<string> &tokens)
 
     if (!extract_patterns(tokens))
         return false;
+
     replace_prefix(tokens);
 
     // Wukong uses an internal 4-element format (SPDO) for each pattern

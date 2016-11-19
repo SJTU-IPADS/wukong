@@ -44,6 +44,7 @@ using namespace std;
  * 3. pattern group e.g., %ub:GraduateCourse
  */
 class sparql_parser {
+private:
     string_server *str_server;
 
     boost::unordered_map<string, string> prefix_map;
@@ -59,15 +60,14 @@ class sparql_parser {
     int fork_step;
     int join_step;
 
-
     vector<string> get_tokens(istream &is);
+    bool do_parse(vector<string> &tokens);
 
     bool extract_patterns(vector<string> &tokens);
     void replace_prefix(vector<string> &tokens);
 
     int64_t token2id(string &token);
 
-    bool do_parse(vector<string> &tokens);
 
     void dump_cmd_chains(void);
     void clear(void);

@@ -48,8 +48,8 @@ run_single_query(client *clnt, istream &is, int cnt)
 		cout << "ERROR: parse SPARQL query failed!" << endl;
 		return;
 	}
-	request.silent = global_silent;
 
+	request.silent = global_silent;
 	uint64_t t = timer::get_usec();
 	for (int i = 0; i < cnt; i++) {
 		clnt->send(request);
@@ -59,6 +59,7 @@ run_single_query(client *clnt, istream &is, int cnt)
 
 	cout << "(last) result size: " << reply.silent_row_num << endl;
 	cout << "(average) latency: " << (t / cnt) << " usec" << endl;
+
 	int row_to_print = min((uint64_t)reply.row_num(),
 	                       (uint64_t)global_max_print_row);
 	if (row_to_print > 0)
