@@ -38,24 +38,33 @@
 using namespace std;
 
 /**
- * Three types of tokens
- * 1. pattern constant e.g., <http://www.Department0.University0.edu>
- * 2. pattern variable e.g., ?X
- * 3. pattern group e.g., %ub:GraduateCourse
+ * The types of tokens (supported)
+ * 0. SPARQL's Prefix e.g., PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+ * 1. SPARQL's Keyword (incl. SELECT, WHERE)
+ *
+ * 2. pattern's Constant e.g., <http://www.Department0.University0.edu>
+ * 3. pattern's Variable e.g., ?X
+ * 4. pattern's CGroup e.g., %ub:GraduateCourse (extended by Wukong in batch-mode)
+ *
  */
 class sparql_parser {
 private:
-    string_server *str_server;
-
-    boost::unordered_map<string, string> prefix_map;
-
-    boost::unordered_map<string, int64_t> pvars; // pattern variables
-
     const static int64_t PTYPE_PH = (INT64_MIN + 1); // place holder of pattern type (a special group of objects)
     const static int64_t INVALID_ID = (INT64_MIN);
 
+    // mapping string to IDs for tokens in the query
+    string_server *str_server;
+
+    // prefixes in the query (e.g., PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>)
+    boost::unordered_map<string, string> prefixes;
+
+    // pattern's variables in the query (e.g., ?X)
+    boost::unordered_map<string, int64_t> pvars;
+
+
     request_template req_template;
-    bool valid;
+    bool valid; // parse error or not
+    std::string strerror;
 
     int fork_step;
     int join_step;

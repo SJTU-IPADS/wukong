@@ -35,7 +35,7 @@ sparql_parser::sparql_parser(string_server *_str_server)
 void
 sparql_parser::clear(void)
 {
-    prefix_map.clear();
+    prefixes.clear();
     pvars.clear();
 
     req_template = request_template();
@@ -58,31 +58,45 @@ sparql_parser::get_tokens(istream &is)
 bool
 sparql_parser::extract_patterns(vector<string> &tokens)
 {
-    vector<string> patterns;
-    int n = 0;
-    while (tokens.size() > n && tokens[n] == "PREFIX") {
-        // e.g., PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-        if (tokens.size() > n + 2) {
-            prefix_map[tokens[n + 1]] = tokens[n + 2];
-            n += 3;
-        } else {
+    int idx = 0;
+
+    // extract prefixes (e.g., PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>)
+    while (tokens.size() > idx && tokens[idx] == "PREFIX") {
+        if (tokens.size() < idx + 3) {
             valid = false;
-            return false;
+            strerror = "Invalid PREFIX";
+            return valid;
         }
+
+        prefixes[tokens[idx + 1]] = tokens[idx + 2];
+        idx += 3;
     }
 
-    /// TODO: add more check!
-    while (tokens[n++] != "{");
+    /// TODO: support more keywords (e.g., PROCEDURE)
+    if ((tokens.size() > idx) && (tokens[idx++] != "SELECT")) {
+        valid = false;
+        strerror = "Invalid keyword";
+        return valid;
+    }
 
-    while (tokens[n] != "}") {
-        if (tokens[n] == "join")
+    /// TODO: support result description (e.g., ?X ?Z)
+    while ((tokens.size() > idx) && (tokens[idx++] != "WHERE"));
+
+    if (tokens[idx++] != "{") {
+        valid = false;
+        strerror = "Invalid bracket";
+        return valid;
+    }
+
+    vector<string> patterns;
+    while (tokens[idx] != "}") {
+        if (tokens[idx] == "join")
             join_step = patterns.size() / 4;
-        else if (tokens[n] == "fork")
+        else if (tokens[idx] == "fork")
             fork_step = patterns.size() / 4;
         else
-            patterns.push_back(tokens[n]);
-
-        n++;
+            patterns.push_back(tokens[idx]);
+        idx++;
     }
 
     tokens.swap(patterns);
@@ -93,7 +107,7 @@ void
 sparql_parser::replace_prefix(vector<string> &tokens)
 {
     for (int i = 0; i < tokens.size(); i++) {
-        for (auto iter : prefix_map) {
+        for (auto iter : prefixes) {
             if (tokens[i].find(iter.first) == 0) {
                 string s = iter.second;
                 s.insert(s.find("#") + 1, tokens[i], iter.first.size(), string::npos);
@@ -204,7 +218,10 @@ sparql_parser::parse(istream &is, request_or_reply &r)
     // clear state of parser before a new parsing
     clear();
 
+    // spilt stream into tokens
     vector<string> tokens = get_tokens(is);
+
+    // parse the tokens
     if (!do_parse(tokens))
         return false;
 
