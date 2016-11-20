@@ -89,7 +89,6 @@ proxy(client *clnt, int port)
 			p->send_rep(crep);
 			continue;
 		}
-		r.silent = global_silent;
 
 		clnt->send(r);
 		p->insert_cid(r.parent_id, creq.cid);

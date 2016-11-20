@@ -93,13 +93,24 @@ sparql_parser::extract(vector<string> &tokens)
     // triple-patterns in WHERE clause
     vector<string> patterns;
     while (tokens[idx] != "}") {
-        if (tokens[idx] == "join")
-            join_step = patterns.size() / 4;
-        else if (tokens[idx] == "fork")
+        // FORK and JOIN are two extend symbol by Wukong,
+        // which will not be included in triple-patterns.
+        // We just record which pattern will use them.
+        if (tokens[idx] == "FORK")
             fork_step = patterns.size() / 4;
+        else if (tokens[idx] == "JOIN")
+            join_step = patterns.size() / 4;
         else
             patterns.push_back(tokens[idx]);
         idx++;
+    }
+
+    // 4-element tuple for each pattern
+    // e.g., ?Y rdf:type ub:University .
+    if (patterns.size() % 4 != 0) {
+        valid = false;
+        strerror = "Invalid pattern";
+        return valid;
     }
 
     tokens.swap(patterns);
@@ -120,7 +131,9 @@ sparql_parser::resolve(vector<string> &tokens)
                 tokens[i] = s;
                 break;
             } else if (tokens[i][0] == '%' && tokens[i].find(iter.first) == 1 ) {
-                // patent constant with the certain type (batch mode)
+                // a set of patent constants with the certain type,
+                // which is extended by Wukong in batch-mode
+                // e.g., %ub:University (incl. <http://www.Department0.University0.edu>, ..)
                 string s = "%" + iter.second;
                 s.insert(s.find("#") + 1, tokens[i], iter.first.size() + 1, string::npos);
                 tokens[i] = s;
@@ -172,18 +185,12 @@ sparql_parser::dump_cmd_chains(void)
 bool
 sparql_parser::do_parse(vector<string> &tokens)
 {
-    if (!valid) return false;
+    if (!valid)
+        return false;
 
     if (!extract(tokens))
         return false;
-
     resolve(tokens);
-
-    // Wukong uses an internal 4-element format (SPDO) for each pattern
-    if (tokens.size() % 4 != 0) {
-        cout << "ERROR: invalid token number (" << tokens.size() << ")" << endl;
-        return false;
-    }
 
     for (int i = 0; i < tokens.size(); i += 4) {
         // SPO
@@ -196,8 +203,9 @@ sparql_parser::do_parse(vector<string> &tokens)
             d = IN;
             swap(triple[0], triple[2]);
         } else {
-            cout << "ERROR: invalid seperator (" << tokens[i + 3] << ")" << endl;
-            return false;
+            valid = false;
+            strerror = "Invalid seperator";
+            return valid;
         }
 
         req_template.cmd_chains.push_back(token2id(triple[0]));
@@ -247,6 +255,8 @@ sparql_parser::parse(istream &is, request_or_reply &r)
                                        join_pattern.begin(), join_pattern.end());
     }
     r.cmd_chains = req_template.cmd_chains;
+    r.silent = global_silent;
+
     return true;
 }
 

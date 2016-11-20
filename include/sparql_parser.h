@@ -63,10 +63,7 @@ private:
     // pattern's variables in the query (e.g., ?X)
     boost::unordered_map<string, int64_t> pvars;
 
-
     request_template req_template;
-    bool valid; // parse error or not
-    std::string strerror;
 
     int fork_step;
     int join_step;
@@ -86,6 +83,10 @@ private:
     void clear(void);
 
 public:
+    // the stat of query parsing
+    bool valid;
+    std::string strerror;
+
     sparql_parser(string_server *_str_server);
 
     bool parse(istream &is, request_or_reply &r);

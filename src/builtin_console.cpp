@@ -45,11 +45,11 @@ run_single_query(client *clnt, istream &is, int cnt)
 	request_or_reply request, reply;
 
 	if (!clnt->parser.parse(is, request)) {
-		cout << "ERROR: parse SPARQL query failed!" << endl;
+		cout << "ERROR: parse failed! ("
+		     << clnt->parser.strerror << ")" << endl;
 		return;
 	}
 
-	request.silent = global_silent;
 	uint64_t t = timer::get_usec();
 	for (int i = 0; i < cnt; i++) {
 		clnt->send(request);
