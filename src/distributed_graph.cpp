@@ -53,7 +53,7 @@ distributed_graph::distributed_graph(boost::mpi::communicator &_world,
 
 			string fname(dname + ent->d_name);
 			// Assume the filenames of RDF data files (ID-format) start with 'id_'.
-			// TODO: move RDF data files and mapping files to different directory
+			/// TODO: move RDF data files and mapping files to different directory
 			if (boost::starts_with(fname, dname + "id_")) {
 				files.push_back(fname);
 			}

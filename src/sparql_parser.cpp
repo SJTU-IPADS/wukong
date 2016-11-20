@@ -56,11 +56,11 @@ sparql_parser::get_tokens(istream &is)
 }
 
 bool
-sparql_parser::extract_patterns(vector<string> &tokens)
+sparql_parser::extract(vector<string> &tokens)
 {
     int idx = 0;
 
-    // extract prefixes (e.g., PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>)
+    // prefixes (e.g., PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>)
     while (tokens.size() > idx && tokens[idx] == "PREFIX") {
         if (tokens.size() < idx + 3) {
             valid = false;
@@ -72,14 +72,16 @@ sparql_parser::extract_patterns(vector<string> &tokens)
         idx += 3;
     }
 
-    /// TODO: support more keywords (e.g., PROCEDURE)
+    /// TODO: support more (extended) clauses (e.g., PROCEDURE)
+
+    // SELECT clause
     if ((tokens.size() > idx) && (tokens[idx++] != "SELECT")) {
         valid = false;
         strerror = "Invalid keyword";
         return valid;
     }
 
-    /// TODO: support result description (e.g., ?X ?Z)
+    /// TODO: result description (e.g., ?X ?Z)
     while ((tokens.size() > idx) && (tokens[idx++] != "WHERE"));
 
     if (tokens[idx++] != "{") {
@@ -88,6 +90,7 @@ sparql_parser::extract_patterns(vector<string> &tokens)
         return valid;
     }
 
+    // triple-patterns in WHERE clause
     vector<string> patterns;
     while (tokens[idx] != "}") {
         if (tokens[idx] == "join")
@@ -103,8 +106,11 @@ sparql_parser::extract_patterns(vector<string> &tokens)
     return true;
 }
 
+/**
+ * The abbreviated forms in the SPARQL syntax are resolved to produce absolute IRIs
+ */
 void
-sparql_parser::replace_prefix(vector<string> &tokens)
+sparql_parser::resolve(vector<string> &tokens)
 {
     for (int i = 0; i < tokens.size(); i++) {
         for (auto iter : prefixes) {
@@ -168,10 +174,10 @@ sparql_parser::do_parse(vector<string> &tokens)
 {
     if (!valid) return false;
 
-    if (!extract_patterns(tokens))
+    if (!extract(tokens))
         return false;
 
-    replace_prefix(tokens);
+    resolve(tokens);
 
     // Wukong uses an internal 4-element format (SPDO) for each pattern
     if (tokens.size() % 4 != 0) {

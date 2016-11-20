@@ -202,6 +202,6 @@ main(int argc, char *argv[])
 		}
 	}
 
-	// TODO: exit gracefully (properly call MPI_Init() and MPI_Finalize())
+	/// TODO: exit gracefully (properly call MPI_Init() and MPI_Finalize())
 	return 0;
 }

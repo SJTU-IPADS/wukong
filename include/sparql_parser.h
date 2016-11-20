@@ -38,6 +38,8 @@
 using namespace std;
 
 /**
+ * Q := SELECT RD WHERE GP
+ *
  * The types of tokens (supported)
  * 0. SPARQL's Prefix e.g., PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
  * 1. SPARQL's Keyword (incl. SELECT, WHERE)
@@ -70,21 +72,24 @@ private:
     int join_step;
 
     vector<string> get_tokens(istream &is);
-    bool do_parse(vector<string> &tokens);
 
-    bool extract_patterns(vector<string> &tokens);
-    void replace_prefix(vector<string> &tokens);
+    bool extract(vector<string> &tokens);
+
+    void resolve(vector<string> &tokens);
 
     int64_t token2id(string &token);
 
+    bool do_parse(vector<string> &tokens);
 
     void dump_cmd_chains(void);
+
     void clear(void);
 
 public:
     sparql_parser(string_server *_str_server);
 
     bool parse(istream &is, request_or_reply &r);
+
     bool parse_template(istream &is, request_template &r);
 
     //boost::unordered_map<string, vector<int64_t> *> type2grp; // mapping table from %type to a group of IDs
