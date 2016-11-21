@@ -5,9 +5,9 @@ SELECT ?X ?Y ?Z WHERE {
 	?X  rdf:type ub:GraduateStudent <-
 	?X  ub:memberOf ?Z ->
 	?X  ub:undergraduateDegreeFrom ?Y ->
-	FORK
+	CORUN
 	?Y  rdf:type ub:University ->
 	?Z  ub:subOrganizationOf ?Y <-
-	JOIN
+	FETCH
 	?Z  rdf:type ub:Department ->
 }

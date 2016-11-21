@@ -55,17 +55,17 @@ class server {
     void known_unknown_const(request_or_reply &req);
 
 
-    vector<request_or_reply> generate_sub_requests(request_or_reply &r);
+    vector<request_or_reply> generate_sub_query(request_or_reply &r);
     vector<request_or_reply> generate_mt_sub_requests(request_or_reply &r);
 
-    bool need_sub_requests(request_or_reply &req);
+    bool need_fork_join(request_or_reply &req);
+
     bool execute_one_step(request_or_reply &req);
+    void do_corun(request_or_reply &req);
     void execute(request_or_reply &req);
 
     server **s_array;// array of server pointers
 
-    //join related functions
-    void handle_join(request_or_reply &req);
 
 public:
     server(distributed_graph &_g, thread_cfg *_cfg);

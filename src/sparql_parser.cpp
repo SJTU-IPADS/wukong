@@ -40,9 +40,9 @@ sparql_parser::clear(void)
 
     req_template = request_template();
     valid = true;
-    join_step = -1;
-    fork_step = -1;
-};
+    fetch_step = -1;
+    corun_step = -1;
+}
 
 vector<string>
 sparql_parser::get_tokens(istream &is)
@@ -93,13 +93,17 @@ sparql_parser::extract(vector<string> &tokens)
     // triple-patterns in WHERE clause
     vector<string> patterns;
     while (tokens[idx] != "}") {
-        // FORK and JOIN are two extend symbol by Wukong,
-        // which will not be included in triple-patterns.
-        // We just record which pattern will use them.
-        if (tokens[idx] == "FORK")
-            fork_step = patterns.size() / 4;
-        else if (tokens[idx] == "JOIN")
-            join_step = patterns.size() / 4;
+        // CORUN and FETCH are two extend keywork by Wukong to support
+        // collaborative execution. Different to fork-join execution,
+        // the co-run execution will not send full-history. The patterns
+        // within CORUN and FETCH will be executed on remote workers separatly
+        // the results will be fetched back in the end.
+
+        // Since they are not patterns, we just record the range of patterns.
+        if (tokens[idx] == "CORUN")
+            corun_step = patterns.size() / 4;
+        else if (tokens[idx] == "FETCH")
+            fetch_step = patterns.size() / 4;
         else
             patterns.push_back(tokens[idx]);
         idx++;
@@ -130,8 +134,8 @@ sparql_parser::resolve(vector<string> &tokens)
                 s.insert(s.find("#") + 1, tokens[i], iter.first.size(), string::npos);
                 tokens[i] = s;
                 break;
-            } else if (tokens[i][0] == '%' && tokens[i].find(iter.first) == 1 ) {
-                // a set of patent constants with the certain type,
+            } else if (tokens[i][0] == '%' && tokens[i].find(iter.first) == 1) {
+                // random-constants (start with '%') with a certain type,
                 // which is extended by Wukong in batch-mode
                 // e.g., %ub:University (incl. <http://www.Department0.University0.edu>, ..)
                 string s = "%" + iter.second;
@@ -146,23 +150,21 @@ sparql_parser::resolve(vector<string> &tokens)
 int64_t
 sparql_parser::token2id(string &token)
 {
-    if (token == "") {
-        cout << "ERROR: empty string." << endl;
-        return INVALID_ID;
-    }
-    if (token[0] == '?') {  // pattern variable (single mode)
+    if (token[0] == '?') {  // pattern variable
         if (pvars.find(token) == pvars.end()) {
-            int64_t id = (- pvars.size()) - 1; // ID starts from -1
+            // use negatie ID for variable
+            int64_t id = - (pvars.size() + 1); // starts from -1
             pvars[token] = id;
         }
         return pvars[token];
-    } else if (token[0] == '%') {  // patent group (batch mode)
+    } else if (token[0] == '%') {  // pattern random-constant (batch mode)
         req_template.ptypes_str.push_back(token.substr(1));
         return PTYPE_PH;
-    } else {  // pattern constant (single mode)
+    } else {  // pattern constant
         if (str_server->str2id.find(token) == str_server->str2id.end()) {
-            cout << "ERROR: unknown token \"" << token << "\"" << endl;
-            return INVALID_ID;
+            strerror = "Unknown constant: " + token;
+            valid = false;
+            return DUMMY_ID;
         }
         return str_server->str2id[token];
     }
@@ -185,14 +187,13 @@ sparql_parser::dump_cmd_chains(void)
 bool
 sparql_parser::do_parse(vector<string> &tokens)
 {
-    if (!valid)
-        return false;
-
     if (!extract(tokens))
         return false;
+
     resolve(tokens);
 
-    for (int i = 0; i < tokens.size(); i += 4) {
+    // generate ID-format patterns
+    for (int i = 0; (i + 3) < tokens.size(); i += 4) {
         // SPO
         string triple[3] = {tokens[i + 0], tokens[i + 1], tokens[i + 2]};
 
@@ -214,13 +215,25 @@ sparql_parser::do_parse(vector<string> &tokens)
         req_template.cmd_chains.push_back(token2id(triple[2]));
     }
 
-    // record positions of pattern group (batch mode)
+    // insert a new CORUN pattern
+    if (fetch_step >= 0) {
+        vector<int64_t> corun_pattern;
+        corun_pattern.push_back((int64_t)DUMMY_ID); // unused
+        corun_pattern.push_back((int64_t)DUMMY_ID); // unused
+        corun_pattern.push_back(CORUN);
+        corun_pattern.push_back(fetch_step + 1); // because we insert a new cmd in the middle
+
+        req_template.cmd_chains.insert(req_template.cmd_chains.begin() + corun_step * 4,
+                                       corun_pattern.begin(), corun_pattern.end());
+    }
+
+    // record positions of patterns with random-constants (batch mode)
     for (int i = 0; i < req_template.cmd_chains.size(); i++)
         if (req_template.cmd_chains[i] == PTYPE_PH)
             req_template.ptypes_pos.push_back(i);
 
     //dump_cmd_chains();
-    return true;
+    return valid;
 }
 
 /**
@@ -244,16 +257,7 @@ sparql_parser::parse(istream &is, request_or_reply &r)
         return false;
     }
 
-    r = request_or_reply();
-    if (join_step >= 0) {
-        vector<int64_t> join_pattern;
-        join_pattern.push_back(0); // unused
-        join_pattern.push_back(0); // unused
-        join_pattern.push_back(JOIN);
-        join_pattern.push_back(join_step + 1); // because we insert a new cmd in the middle
-        req_template.cmd_chains.insert(req_template.cmd_chains.begin() + fork_step * 4,
-                                       join_pattern.begin(), join_pattern.end());
-    }
+    //r = request_or_reply();
     r.cmd_chains = req_template.cmd_chains;
     r.silent = global_silent;
 

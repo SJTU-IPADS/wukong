@@ -44,29 +44,31 @@ using namespace std;
  * 0. SPARQL's Prefix e.g., PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
  * 1. SPARQL's Keyword (incl. SELECT, WHERE)
  *
- * 2. pattern's Constant e.g., <http://www.Department0.University0.edu>
- * 3. pattern's Variable e.g., ?X
- * 4. pattern's CGroup e.g., %ub:GraduateCourse (extended by Wukong in batch-mode)
+ * 2. pattern's constant e.g., <http://www.Department0.University0.edu>
+ * 3. pattern's variable e.g., ?X
+ * 4. pattern's random-constant e.g., %ub:GraduateCourse (extended by Wukong in batch-mode)
  *
  */
 class sparql_parser {
 private:
     const static int64_t PTYPE_PH = (INT64_MIN + 1); // place holder of pattern type (a special group of objects)
-    const static int64_t INVALID_ID = (INT64_MIN);
+    const static int64_t DUMMY_ID = (INT64_MIN);
 
-    // mapping string to IDs for tokens in the query
+    // str2ID mapping for pattern constants (e.g., <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> 1)
     string_server *str_server;
 
-    // prefixes in the query (e.g., PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>)
+    // str2ID mapping for pattern variables (e.g., ?X -1)
+    boost::unordered_map<string, int64_t> pvars;
+
+    // abbr2str mapping for prefixes (e.g., rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>)
     boost::unordered_map<string, string> prefixes;
 
-    // pattern's variables in the query (e.g., ?X)
-    boost::unordered_map<string, int64_t> pvars;
 
     request_template req_template;
 
-    int fork_step;
-    int join_step;
+    // support at most one fetch-result optimization
+    int corun_step;
+    int fetch_step;
 
     vector<string> get_tokens(istream &is);
 

@@ -172,5 +172,5 @@ struct edge {
 enum direction {
 	IN,
 	OUT,
-	JOIN
+	CORUN
 };

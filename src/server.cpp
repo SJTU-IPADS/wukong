@@ -289,7 +289,7 @@ hash_pair(const v_pair &x)
 }
 
 void
-server::handle_join(request_or_reply& req)
+server::do_corun(request_or_reply& req)
 {
     // step.1 remove dup;
     uint64_t t0 = timer::get_usec();
@@ -305,8 +305,8 @@ server::handle_join(request_or_reply& req)
     vector<int64_t> sub_chain;
     boost::unordered_map<int64_t, int64_t> var_mapping;
     vector<int> reverse_mapping;
-    int join_step = req.cmd_chains[req.step * 4 + 3];
-    for (int i = req.step * 4 + 4; i < join_step * 4; i++) {
+    int fetch_step = req.cmd_chains[req.step * 4 + 3];
+    for (int i = req.step * 4 + 4; i < fetch_step * 4; i++) {
         if (req.cmd_chains[i] < 0 && ( var_mapping.find(req.cmd_chains[i]) == var_mapping.end()) ) {
             int64_t new_id = -1 - var_mapping.size();
             var_mapping[req.cmd_chains[i]] = new_id;
@@ -386,7 +386,7 @@ server::handle_join(request_or_reply& req)
     }
 
     req.result_table.swap(updated_result_table);
-    req.step = join_step;
+    req.step = fetch_step;
 }
 
 bool
@@ -459,7 +459,7 @@ server::execute_one_step(request_or_reply& req)
 }
 
 vector<request_or_reply>
-server::generate_sub_requests(request_or_reply& req)
+server::generate_sub_query(request_or_reply& req)
 {
     int64_t start = req.cmd_chains[req.step * 4];
     int64_t end = req.cmd_chains[req.step * 4 + 3];
@@ -511,16 +511,12 @@ server::generate_mt_sub_requests(request_or_reply& req)
 }
 
 bool
-server::need_sub_requests(request_or_reply &r)
+server::need_fork_join(request_or_reply &r)
 {
     int64_t start = r.cmd_chains[r.step * 4];
 
-    // in-place mode
-    if ((r.local_var == start) || (r.row_num() < global_rdma_threshold))
-        return false;
-
-    // fork-join mode
-    return true;
+    // fork-join or in-place execution
+    return ((r.local_var != start) && (r.row_num() >= global_rdma_threshold));
 }
 
 void
@@ -534,16 +530,16 @@ server::execute(request_or_reply &req)
         t2 = timer::get_usec();
 
         if (cfg->sid == 0 && cfg->wid == global_nfewkrs) { // debug
-            //cout<<"step "<<req.step <<" "<<t2-t1<<" us"<<endl;
+            //cout<<"step#" << req.step << ": " << t2-t1 << " us" <<endl;
         }
 
-        // join pattern
-        if (!req.is_finished() && (req.cmd_chains[req.step * 4 + 2] == JOIN)) {
+        // co-run execution
+        if (!req.is_finished() && (req.cmd_chains[req.step * 4 + 2] == CORUN)) {
             t1 = timer::get_usec();
-            handle_join(req);
+            do_corun(req);
             t2 = timer::get_usec();
             if ((cfg->sid == 0) && (cfg->wid == global_nfewkrs)) {
-                //cout<<"handle join "<<" "<<t2-t1<<" us"<<endl;
+                //cout << "corun: " << t2-t1 <<" us" << endl;
             }
         }
 
@@ -571,15 +567,15 @@ server::execute(request_or_reply &req)
             return;
         }
 
-        if (need_sub_requests(req)) {
-            vector<request_or_reply> sub_reqs = generate_sub_requests(req);
-            wqueue.put_parent_request(req, sub_reqs.size());
-            for (int i = 0; i < sub_reqs.size(); i++) {
+        if (need_fork_join(req)) {
+            vector<request_or_reply> sub_rs = generate_sub_query(req);
+            wqueue.put_parent_request(req, sub_rs.size());
+            for (int i = 0; i < sub_rs.size(); i++) {
                 if (i != cfg->sid) {
-                    SendR(cfg, i, cfg->wid, sub_reqs[i]);
+                    SendR(cfg, i, cfg->wid, sub_rs[i]);
                 } else {
                     pthread_spin_lock(&recv_lock);
-                    msg_fast_path.push_back(sub_reqs[i]);
+                    msg_fast_path.push_back(sub_rs[i]);
                     pthread_spin_unlock(&recv_lock);
                 }
             }
