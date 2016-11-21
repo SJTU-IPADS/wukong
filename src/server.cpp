@@ -152,12 +152,6 @@ server::index_to_unknown(request_or_reply &req)
     int64_t var          = req.cmd_chains[req.step * 4 + 3];
     vector<int64_t> updated_result_table;
 
-    // disable differentiate partitioning
-    if (!global_enable_index_partition) {
-        const_to_unknown(req);
-        return ;
-    }
-
     if (!(req.column_num() == 0 && req.column_num() == req.var2column(var))) {
         //it means the query plan is wrong
         cout << "ncols: " << req.column_num() << "\t"
@@ -549,21 +543,6 @@ server::execute(request_or_reply &req)
                 req.clear_data();
 
             SendR(cfg, cfg->sid_of(req.parent_id), cfg->wid_of(req.parent_id), req);
-            return;
-        }
-
-        if (req.step == 1 && req.use_index_vertex() && !global_enable_index_partition) {
-            assert(!global_enable_workstealing);
-
-            vector<request_or_reply> sub_reqs = generate_mt_sub_requests(req);
-            wqueue.put_parent_request(req, sub_reqs.size());
-
-            // (fork-join) scatter sub-requests
-            // NOTE: distribute to all servers and limit to partial workers
-            //       sid = gid % #srvs, wid = gid / #srvs + #clients
-            for (int i = 0; i < sub_reqs.size(); i++)
-                SendR(cfg, i % global_nsrvs , (i / global_nsrvs) + global_nfewkrs, sub_reqs[i]);
-
             return;
         }
 

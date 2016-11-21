@@ -45,7 +45,6 @@ int global_perslot_msg_mb;
 int global_perslot_rdma_mb;
 int global_hash_header_million;
 int global_enable_workstealing;
-int global_enable_index_partition;
 int global_verbose;
 
 /* shared by client and server */
@@ -89,7 +88,6 @@ dump_cfg(void)
 	cout << "global_perslot_rdma_mb: " 		<< global_perslot_rdma_mb			<< endl;
 	cout << "global_hash_header_million: " 	<< global_hash_header_million		<< endl;
 	cout << "global_enable_workstealing: " 	<< global_enable_workstealing		<< endl;
-	cout << "global_enable_idx_partition: " << global_enable_index_partition	<< endl;
 	cout << "global_verbose: " 				<< global_verbose					<< endl;
 	cout << "--" << endl;
 
@@ -180,7 +178,6 @@ load_cfg(int nsrvs)
 	global_perslot_rdma_mb = atoi(config_map["global_perslot_rdma_mb"].c_str());
 	global_hash_header_million = atoi(config_map["global_hash_header_million"].c_str());
 	global_enable_workstealing = atoi(config_map["global_enable_workstealing"].c_str());
-	global_enable_index_partition = atoi(config_map["global_enable_index_partition"].c_str());
 	global_verbose = atoi(config_map["global_verbose"].c_str());
 
 	// reserve ID 1 to rdf:type

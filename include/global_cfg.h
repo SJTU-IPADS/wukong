@@ -55,7 +55,6 @@ extern int global_rdma_port_base;
 extern bool global_use_rdma;
 extern bool global_use_rbf;		// ring-buffer (by RDMA WRITE)
 extern int global_enable_workstealing;
-extern int global_enable_index_partition;
 extern int global_verbose;
 
 /* shared by client and server */
