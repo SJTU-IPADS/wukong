@@ -33,13 +33,19 @@
 #include <boost/unordered_map.hpp>
 
 class server {
+    const static uint64_t TIMEOUT_THRESHOLD = 10000; // 10 msec
+
     distributed_graph &g;
     thread_cfg *cfg;
-    wait_queue wqueue;
-    uint64_t last_time;
+
+    uint64_t last_time; // busy or not (work-oblige)
+
     pthread_spinlock_t recv_lock;
-    pthread_spinlock_t wqueue_lock;
     vector<request_or_reply> msg_fast_path;
+
+    pthread_spinlock_t wqueue_lock;
+    wait_queue wqueue;
+
 
     // all of these means const predict
     void const_to_unknown(request_or_reply &req);
@@ -60,12 +66,13 @@ class server {
 
     bool need_fork_join(request_or_reply &req);
 
-    bool execute_one_step(request_or_reply &req);
     void do_corun(request_or_reply &req);
-    void execute(request_or_reply &req);
 
-    server **s_array;// array of server pointers
+    bool execute_one_step(request_or_reply &req);
+    void execute_request(request_or_reply &req);
+    void execute(request_or_reply &r, int wid);
 
+    server **s_array; // array of server pointers
 
 public:
     server(distributed_graph &_g, thread_cfg *_cfg);

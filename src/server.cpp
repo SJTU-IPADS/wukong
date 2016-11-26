@@ -514,7 +514,7 @@ server::need_fork_join(request_or_reply &r)
 }
 
 void
-server::execute(request_or_reply &req)
+server::execute_request(request_or_reply &req)
 {
     uint64_t t1, t2;
 
@@ -565,75 +565,88 @@ server::execute(request_or_reply &req)
 }
 
 void
+server::execute(request_or_reply &r, int wid)
+{
+    if (r.is_request()) {
+        // request
+        r.id = cfg->get_and_inc_qid();
+        int before = r.row_num(); // unused
+        execute_request(r);
+    } else {
+        // reply
+        pthread_spin_lock(&s_array[wid]->wqueue_lock);
+        s_array[wid]->wqueue.put_reply(r);
+        if (s_array[wid]->wqueue.is_ready(r.parent_id)) {
+            request_or_reply reply = s_array[wid]->wqueue.get_merged_reply(r.parent_id);
+            pthread_spin_unlock(&s_array[wid]->wqueue_lock);
+            SendR(cfg, cfg->sid_of(reply.parent_id), cfg->wid_of(reply.parent_id), reply);
+        }
+        pthread_spin_unlock(&s_array[wid]->wqueue_lock);
+    }
+}
+
+void
 server::run(void)
 {
     int own_id = cfg->wid - global_nfewkrs;
-    int possible_array[2] = {own_id , global_nbewkrs - 1 - own_id};
-    uint64_t try_count = 0;
+    // TODO: replace pair to ring
+    int nbr_id = (global_nbewkrs - 1) - own_id;
 
     while (true) {
-        last_time = timer::get_usec();
         request_or_reply r;
-        int recvid;
+        bool success;
 
-        // step 1: pool msg
-        while (true) {
-            // fast path (first)
-            bool get_from_fast_path = false;
+        // fast path
+        last_time = timer::get_usec();
+        success = false;
 
-            pthread_spin_lock(&recv_lock);
-            if (msg_fast_path.size() > 0) {
-                r = msg_fast_path.back();
-                msg_fast_path.pop_back();
-                get_from_fast_path = true;
-            }
-            pthread_spin_unlock(&recv_lock);
+        pthread_spin_lock(&recv_lock);
+        if (msg_fast_path.size() > 0) {
+            r = msg_fast_path.back();
+            msg_fast_path.pop_back();
+            success = true;
+        }
+        pthread_spin_unlock(&recv_lock);
 
-            if (get_from_fast_path)
-                break;
-
-            // slow path
-            int size = global_enable_workstealing ? 2 : 1;
-            recvid = possible_array[try_count % size];
-            try_count++;
-            if (recvid == own_id) {
-                // tryrecv
-            } else {
-                uint64_t last_of_other = s_array[recvid]->last_time;
-                if (last_time > last_of_other && (last_time - last_of_other) > 10000 ) {
-                    // tryrecv
-                } else {
-                    continue;
-                }
-            }
-
-            bool success;
-            pthread_spin_lock(&s_array[recvid]->recv_lock);
-            success = TryRecvR(s_array[recvid]->cfg, r);
-            if (success && recvid != own_id && r.use_index_vertex()) {
-                s_array[recvid]->msg_fast_path.push_back(r);
-                success = false;
-            }
-            pthread_spin_unlock(&s_array[recvid]->recv_lock);
-            if (success) {
-                break;
-            }
+        if (success) {
+            execute(r, own_id);
+            continue; // fast-path priority
         }
 
-        // step 2: handle the msg
-        if (r.is_request()) { // request
-            r.id = cfg->get_and_inc_qid();
-            int before = r.row_num();
-            execute(r);
-        } else { // reply
-            pthread_spin_lock(&s_array[recvid]->wqueue_lock);
-            s_array[recvid]->wqueue.put_reply(r);
-            if (s_array[recvid]->wqueue.is_ready(r.parent_id)) {
-                request_or_reply reply = s_array[recvid]->wqueue.get_merged_reply(r.parent_id);
-                pthread_spin_unlock(&s_array[recvid]->wqueue_lock);
-                SendR(cfg, cfg->sid_of(reply.parent_id), cfg->wid_of(reply.parent_id), reply);
-            }
-            pthread_spin_unlock(&s_array[recvid]->wqueue_lock);
+
+        // normal path
+        // own queue
+        last_time = timer::get_usec();
+
+        success = false;
+        pthread_spin_lock(&recv_lock);
+        success = TryRecvR(cfg, r);
+        if (success && r.use_index_vertex()) {
+            msg_fast_path.push_back(r);
+            success = false;
         }
+        pthread_spin_unlock(&recv_lock);
+
+        if (success) execute(r, own_id);
+
+
+        // work-oblige is disabled
+        if (!global_enable_workstealing) continue;
+
+        // nbr queue
+        last_time = timer::get_usec();
+        if (last_time < s_array[nbr_id]->last_time + TIMEOUT_THRESHOLD)
+            continue; // neighboring worker is self-sufficient
+
+        success = false;
+        pthread_spin_lock(&s_array[nbr_id]->recv_lock);
+        success = TryRecvR(s_array[nbr_id]->cfg, r);
+        if (success && r.use_index_vertex()) {
+            s_array[nbr_id]->msg_fast_path.push_back(r);
+            success = false;
+        }
+        pthread_spin_unlock(&s_array[nbr_id]->recv_lock);
+
+        if (success) execute(r, nbr_id);
     }
 }
