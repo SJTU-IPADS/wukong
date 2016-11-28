@@ -136,7 +136,7 @@ graph_storage::atomic_batch_insert(vector<edge_triple>& vec_spo,
 	uint64_t accum_predict = 0;
 	uint64_t nedges_to_skip = 0;
 	while (nedges_to_skip < vec_ops.size()) {
-		if (is_pid(vec_ops[nedges_to_skip].o)) {
+		if (is_idx(vec_ops[nedges_to_skip].o)) {
 			nedges_to_skip++;
 		} else {
 			break;
@@ -418,7 +418,7 @@ edge*
 graph_storage::get_edges_local(int tid, uint64_t id, int direction,
                                int predict, int* size)
 {
-	assert(mymath::hash_mod(id, m_num) == m_id || is_pid(id));
+	assert(mymath::hash_mod(id, m_num) == m_id || is_idx(id));
 
 	local_key key = local_key(id, direction, predict);
 	vertex v = get_vertex_local(key);

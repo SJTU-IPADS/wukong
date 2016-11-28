@@ -389,7 +389,7 @@ server::execute_one_step(request_or_reply& req)
     if (req.is_finished()) {
         return false;
     }
-    if (req.step == 0 && req.use_index_vertex()) {
+    if (req.step == 0 && req.start_from_index()) {
         index_to_unknown(req);
         return true;
     }
@@ -621,7 +621,7 @@ server::run(void)
         success = false;
         pthread_spin_lock(&recv_lock);
         success = TryRecvR(cfg, r);
-        if (success && r.use_index_vertex()) {
+        if (success && r.start_from_index()) {
             msg_fast_path.push_back(r);
             success = false;
         }
@@ -641,7 +641,7 @@ server::run(void)
         success = false;
         pthread_spin_lock(&s_array[nbr_id]->recv_lock);
         success = TryRecvR(s_array[nbr_id]->cfg, r);
-        if (success && r.use_index_vertex()) {
+        if (success && r.start_from_index()) {
             s_array[nbr_id]->msg_fast_path.push_back(r);
             success = false;
         }

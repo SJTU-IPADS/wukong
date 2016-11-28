@@ -67,14 +67,13 @@ struct edge_sort_by_ops {
 	}
 };
 
-// The ID space of predicate/type ID in [0, 2^NBITS_PID)
+// The ID space of predicate/type ID in [0, 2^NBITS_IDX)
 enum { NBITS_DIR = 1 };  // direction: 0=in, 1=out
-enum { NBITS_PID = 17 }; // equal to the size of t/pid
-enum { NBITS_VID = (64 - NBITS_PID - NBITS_DIR) }; // 0: index vertex, ID: normal vertex
+enum { NBITS_IDX = 17 }; // equal to the size of t/pid
+enum { NBITS_VID = (64 - NBITS_IDX - NBITS_DIR) }; // 0: index vertex, ID: normal vertex
+enum { PREDICT_ID = 0, TYPE_ID = 1 }; // reserve two special index IDs
 
-//const int nbit_predict = 17;
-//const int nbit_id = 63 - nbit_predict;
-static inline bool is_pid(int id) { return id < (1 << NBITS_PID); }
+static inline bool is_idx(int id) { return (id > 0) && (id < (1 << NBITS_IDX)); }
 
 /**
  * Predicate-base Key/value Store
@@ -83,7 +82,7 @@ static inline bool is_pid(int id) { return id < (1 << NBITS_PID); }
  */
 struct local_key {
 uint64_t dir : NBITS_DIR;
-uint64_t pid : NBITS_PID;
+uint64_t pid : NBITS_IDX;
 uint64_t vid : NBITS_VID;
 
 	//local_key(): dir(0), pid(0), vid(0) {}
@@ -117,7 +116,7 @@ uint64_t vid : NBITS_VID;
 	uint64_t hash() {
 		uint64_t r = 0;
 		r += vid;
-		r <<= NBITS_PID;
+		r <<= NBITS_IDX;
 		r += pid;
 		r <<= NBITS_DIR;
 		r += dir;

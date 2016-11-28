@@ -30,7 +30,7 @@ client::send(request_or_reply &req)
 {
     assert(req.pid != -1);
 
-    if (req.use_index_vertex()) {
+    if (req.start_from_index()) {
         int nthread = max(1, min(global_mt_threshold, global_nbewkrs));
         for (int i = 0; i < global_nsrvs; i++) {
             for (int j = 0; j < nthread; j++) {
@@ -56,7 +56,7 @@ request_or_reply
 client::recv(void)
 {
     request_or_reply r = RecvR(cfg);
-    if (r.use_index_vertex()) {
+    if (r.start_from_index()) {
         int nthread = max(1, min(global_mt_threshold, global_nbewkrs));
         for (int count = 0; count < global_nsrvs * nthread - 1 ; count++) {
             request_or_reply r2 = RecvR(cfg);

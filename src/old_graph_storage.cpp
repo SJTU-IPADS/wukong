@@ -302,7 +302,7 @@ edge* old_graph_storage::get_edges_global(int tid, uint64_t id, int direction, i
 	return result_ptr;
 }
 edge* old_graph_storage::get_edges_local(int tid, uint64_t id, int direction, int predict, int* size) {
-	assert(mymath::hash_mod(id, m_num) == m_id ||  is_pid(id));
+	assert(mymath::hash_mod(id, m_num) == m_id ||  is_idx(id));
 	local_key key = local_key(id, direction, 1);
 	vertex v = get_vertex_local(key);
 	if (v.key == local_key()) {

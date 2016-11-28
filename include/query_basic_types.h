@@ -103,13 +103,12 @@ struct request_or_reply {
 
     bool is_request(void) { return (id == -1); }
 
-    bool use_index_vertex(void) {
-        if ((cmd_chains[0] >= 0l) && (cmd_chains[0] < (1l << NBITS_PID)))
+    bool start_from_index(void) {
+        if (is_idx(cmd_chains[0])) {
+            assert(cmd_chains[1] == PREDICT_ID || cmd_chains[1] == TYPE_ID);
             return true;
+        }
         return false;
-        // return cmd_chains[2]==pindex_in ||
-        //  cmd_chains[2]==pindex_out ||
-        //  cmd_chains[2]==tindex_in ;
     }
 
     var_type variable_type(int64_t vid) {
