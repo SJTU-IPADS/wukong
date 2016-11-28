@@ -104,6 +104,19 @@ struct request_or_reply {
     bool is_request(void) { return (id == -1); }
 
     bool start_from_index(void) {
+        /*
+         * Wukong assumes that its planner will generate a dummy pattern to hint
+         * the query should start from a certain index (i.e., predicate or type).
+         * For example: ?X __PREDICT__  ub:undergraduateDegreeFrom
+         *
+         * NOTE: the graph exploration does not must start from this index,
+         * on the contrary, starts from another index would prune bindings MORE efficiently
+         * For example, ?X P0 ?Y, ?X P1 ?Z, ...
+         *
+         * ?X __PREDICATE__ PO <- // start from index vertex P0
+         * ?X P1 ?Z .             // then from ?X's edge with P1
+         *
+         */
         if (is_idx(cmd_chains[0])) {
             assert(cmd_chains[1] == PREDICT_ID || cmd_chains[1] == TYPE_ID);
             return true;
