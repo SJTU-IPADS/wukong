@@ -47,9 +47,9 @@ send_cmd(void *ptr)
 		CS_Reply crep;
 		crep.column = r.col_num;
 		crep.result_table = r.result_table;
-		crep.cid = p->get_cid(r.parent_id);
+		crep.cid = p->get_cid(r.pid);
 		p->send_rep(crep);
-		p->remove_cid(r.parent_id);
+		p->remove_cid(r.pid);
 
 		int row_to_print = min((uint64_t)r.row_num(), (uint64_t)global_max_print_row);
 		cout << "row:" << row_to_print << endl;
@@ -90,8 +90,9 @@ proxy(client *clnt, int port)
 			continue;
 		}
 
+		clnt->setpid(r);
 		clnt->send(r);
-		p->insert_cid(r.parent_id, creq.cid);
+		p->insert_cid(r.pid, creq.cid);
 	}
 
 	for (int i = 0; i < 2; i++) {

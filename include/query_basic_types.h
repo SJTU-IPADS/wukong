@@ -57,7 +57,7 @@ struct request_or_reply {
     int first_target; // no serialize
 
     int id;
-    int parent_id;
+    int pid;
     int step;
     int col_num;
     bool silent;
@@ -71,8 +71,8 @@ struct request_or_reply {
 
     request_or_reply() {
         first_target = -1;
-        parent_id = -1;
         id = -1;
+        pid = -1;
         step = 0;
         col_num = 0;
         silent = false;
@@ -85,7 +85,7 @@ struct request_or_reply {
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
         ar & id;
-        ar & parent_id;
+        ar & pid;
         ar & step;
         ar & col_num;
         ar & silent;
@@ -97,13 +97,13 @@ struct request_or_reply {
         ar & mt_current_thread;
     }
 
-    void clear_data() { result_table.clear(); }
+    void clear_data(void) { result_table.clear(); }
 
-    bool is_finished() { return (step * 4 >= cmd_chains.size()); }
+    bool is_finished(void) { return (step * 4 >= cmd_chains.size()); }
 
-    bool is_request() { return (id == -1); }
+    bool is_request(void) { return (id == -1); }
 
-    bool use_index_vertex() {
+    bool use_index_vertex(void) {
         if ((cmd_chains[0] >= 0l) && (cmd_chains[0] < (1l << NBITS_PID)))
             return true;
         return false;

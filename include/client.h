@@ -36,15 +36,17 @@
 class client {
 public:
 	thread_cfg *cfg;
+
 	string_server *str_server;
+
 	sparql_parser parser;
 
 	client(thread_cfg *_cfg, string_server *str_server);
 
-	void setpid(request_or_reply &req);
+	void setpid(request_or_reply &r) { r.pid = cfg->get_and_inc_qid(); }
 
-	void send(request_or_reply &req);
+	void send(request_or_reply &r);
 	request_or_reply recv(void);
 
-	void print_result(request_or_reply &reply, int row_to_print);
+	void print_result(request_or_reply &r, int row2print);
 };

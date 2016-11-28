@@ -52,6 +52,7 @@ run_single_query(client *clnt, istream &is, int cnt)
 
 	uint64_t t = timer::get_usec();
 	for (int i = 0; i < cnt; i++) {
+		clnt->setpid(request);
 		clnt->send(request);
 		reply = clnt->recv();
 	}
@@ -147,21 +148,21 @@ batch_execute(client* clnt, istream &is, batch_logger& logger)
 		int idx = mymath::get_distribution(clnt->cfg->get_random(), loads);
 		instantiate_request(clnt, vec_template[idx], vec_req[idx]);
 		clnt->setpid(vec_req[idx]);
-		logger.start_record(vec_req[idx].parent_id, idx);
+		logger.start_record(vec_req[idx].pid, idx);
 		clnt->send(vec_req[idx]);
 	}
 	for (int i = 0; i < total_request; i++) {
 		request_or_reply reply = clnt->recv();
-		logger.end_record(reply.parent_id);
+		logger.end_record(reply.pid);
 		int idx = mymath::get_distribution(clnt->cfg->get_random(), loads);
 		instantiate_request(clnt, vec_template[idx], vec_req[idx]);
 		clnt->setpid(vec_req[idx]);
-		logger.start_record(vec_req[idx].parent_id, idx);
+		logger.start_record(vec_req[idx].pid, idx);
 		clnt->send(vec_req[idx]);
 	}
 	for (int i = 0; i < global_batch_factor; i++) {
 		request_or_reply reply = clnt->recv();
-		logger.end_record(reply.parent_id);
+		logger.end_record(reply.pid);
 	}
 	uint64_t end_time = timer::get_usec();
 	cout << 1000.0 * (total_request + global_batch_factor) / (end_time - start_time) << " Kops" << endl;
@@ -214,7 +215,7 @@ nonblocking_execute(client* clnt, istream &is, batch_logger& logger)
 				int idx = mymath::get_distribution(clnt->cfg->get_random(), loads);
 				instantiate_request(clnt, vec_template[idx], vec_req[idx]);
 				clnt->setpid(vec_req[idx]);
-				logger.start_record(vec_req[idx].parent_id, idx);
+				logger.start_record(vec_req[idx].pid, idx);
 				clnt->send(vec_req[idx]);
 			}
 		}
@@ -225,7 +226,7 @@ nonblocking_execute(client* clnt, istream &is, batch_logger& logger)
 			bool success = TryRecvR(clnt->cfg, reply);
 			while (success) {
 				recv_request++;
-				logger.end_record(reply.parent_id);
+				logger.end_record(reply.pid);
 				success = TryRecvR(clnt->cfg, reply);
 			}
 		}

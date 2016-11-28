@@ -23,22 +23,22 @@
 #include "wait_queue.h"
 
 bool
-wait_queue::is_ready(int parent_id)
+wait_queue::is_ready(int pid)
 {
-    return internal_item_map[parent_id].count == 0;
+    return internal_item_map[pid].count == 0;
 }
 
 request_or_reply
-wait_queue::get_merged_reply(int parent_id)
+wait_queue::get_merged_reply(int pid)
 {
-    request_or_reply r = internal_item_map[parent_id].parent_request;
-    request_or_reply& merged_reply = internal_item_map[parent_id].merged_reply;
+    request_or_reply r = internal_item_map[pid].parent_request;
+    request_or_reply& merged_reply = internal_item_map[pid].merged_reply;
     r.step = merged_reply.step;
     r.col_num = merged_reply.col_num;
     r.silent = merged_reply.silent;
     r.silent_row_num = merged_reply.silent_row_num;
     r.result_table.swap(merged_reply.result_table);
-    internal_item_map.erase(parent_id);
+    internal_item_map.erase(pid);
     return r;
 }
 
@@ -54,8 +54,8 @@ wait_queue::put_parent_request(request_or_reply &req, int count)
 void
 wait_queue::put_reply(request_or_reply &reply)
 {
-    int parent_id = reply.parent_id;
-    item& data = internal_item_map[parent_id];
+    int pid = reply.pid;
+    item& data = internal_item_map[pid];
     vector<int64_t>& result_table = data.merged_reply.result_table;
     data.count--;
     data.merged_reply.step = reply.step;

@@ -462,7 +462,7 @@ server::generate_sub_query(request_or_reply& req)
     int num_sub_request = global_nsrvs;
     sub_reqs.resize(num_sub_request);
     for (int i = 0; i < sub_reqs.size(); i++) {
-        sub_reqs[i].parent_id = req.id;
+        sub_reqs[i].pid = req.id;
         sub_reqs[i].cmd_chains = req.cmd_chains;
         sub_reqs[i].step = req.step;
         sub_reqs[i].col_num = req.col_num;
@@ -487,7 +487,7 @@ server::generate_mt_sub_requests(request_or_reply& req)
     int num_sub_request = global_nsrvs * nthread ;
     sub_reqs.resize(num_sub_request );
     for (int i = 0; i < sub_reqs.size(); i++) {
-        sub_reqs[i].parent_id = req.id;
+        sub_reqs[i].pid = req.id;
         sub_reqs[i].cmd_chains = req.cmd_chains;
         sub_reqs[i].step = req.step;
         sub_reqs[i].col_num = req.col_num;
@@ -542,7 +542,7 @@ server::execute_request(request_or_reply &req)
             if (req.silent)
                 req.clear_data();
 
-            SendR(cfg, cfg->sid_of(req.parent_id), cfg->wid_of(req.parent_id), req);
+            SendR(cfg, cfg->sid_of(req.pid), cfg->wid_of(req.pid), req);
             return;
         }
 
@@ -576,10 +576,10 @@ server::execute(request_or_reply &r, int wid)
         // reply
         pthread_spin_lock(&s_array[wid]->wqueue_lock);
         s_array[wid]->wqueue.put_reply(r);
-        if (s_array[wid]->wqueue.is_ready(r.parent_id)) {
-            request_or_reply reply = s_array[wid]->wqueue.get_merged_reply(r.parent_id);
+        if (s_array[wid]->wqueue.is_ready(r.pid)) {
+            request_or_reply reply = s_array[wid]->wqueue.get_merged_reply(r.pid);
             pthread_spin_unlock(&s_array[wid]->wqueue_lock);
-            SendR(cfg, cfg->sid_of(reply.parent_id), cfg->wid_of(reply.parent_id), reply);
+            SendR(cfg, cfg->sid_of(reply.pid), cfg->wid_of(reply.pid), reply);
         }
         pthread_spin_unlock(&s_array[wid]->wqueue_lock);
     }

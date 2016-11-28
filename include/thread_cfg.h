@@ -52,9 +52,10 @@ struct thread_cfg {
 	}
 
 	int get_and_inc_qid(void) {
-		int tmp = qid;
+		int _id = qid;
 		qid += global_nsrvs * global_nthrs;
-		return tmp;
+		if (qid < 0) qid = global_nthrs * sid + wid; // reset
+		return _id;
 	}
 
 	int sid_of(int qid) {

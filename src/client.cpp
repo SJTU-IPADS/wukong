@@ -26,16 +26,9 @@ client::client(thread_cfg *_cfg, string_server *_str_server):
     cfg(_cfg), str_server(_str_server), parser(_str_server) { }
 
 void
-client::setpid(request_or_reply &req)
-{
-    req.parent_id = cfg->get_and_inc_qid();
-}
-
-void
 client::send(request_or_reply &req)
 {
-    if (req.parent_id == -1)
-        setpid(req);
+    assert(req.pid != -1);
 
     if (req.use_index_vertex()) {
         int nthread = max(1, min(global_multithread_factor, global_nbewkrs));
@@ -70,7 +63,7 @@ client::recv(void)
             r.silent_row_num += r2.silent_row_num;
             int new_size = r.result_table.size() + r2.result_table.size();
             r.result_table.reserve(new_size);
-            r.result_table.insert( r.result_table.end(), r2.result_table.begin(), r2.result_table.end());
+            r.result_table.insert(r.result_table.end(), r2.result_table.begin(), r2.result_table.end());
         }
     }
 
@@ -78,9 +71,9 @@ client::recv(void)
 }
 
 void
-client::print_result(request_or_reply &reply, int row_to_print)
+client::print_result(request_or_reply &reply, int row2print)
 {
-    for (int i = 0; i < row_to_print; i++) {
+    for (int i = 0; i < row2print; i++) {
         cout << i + 1 << ":  ";
         for (int c = 0; c < reply.column_num(); c++) {
             int id = reply.get_row_column(i, c);
