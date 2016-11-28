@@ -51,7 +51,7 @@ int global_verbose;
 int global_batch_factor;
 bool global_use_loc_cache;
 bool global_silent;
-int global_multithread_factor;
+int global_mt_threshold;
 int global_rdma_threshold;
 
 /* TODO: split the config file and related code
@@ -77,7 +77,7 @@ dump_cfg(void)
 	cout << "the number of backend workers: "	<< global_nbewkrs 				<< endl;
 	cout << "the number of frontend workers: "	<< global_nfewkrs				<< endl;
 	cout << "global_batch_factor: " 		<< global_batch_factor				<< endl;
-	cout << "global_multithread_factor: " 	<< global_multithread_factor  		<< endl;
+	cout << "global_mt_threshold: " 		<< global_mt_threshold  			<< endl;
 	cout << "global_input_folder: " 		<< global_input_folder				<< endl;
 	cout << "global_use_loc_cache: " 		<< global_use_loc_cache				<< endl;
 	cout << "global_load_minimal_index: " 	<< global_load_minimal_index 		<< endl;
@@ -128,7 +128,7 @@ reload_cfg(void)
 	global_batch_factor = atoi(config_map["global_batch_factor"].c_str());
 	global_use_loc_cache = atoi(config_map["global_use_loc_cache"].c_str());
 	global_silent = atoi(config_map["global_silent"].c_str());
-	global_multithread_factor = atoi(config_map["global_multithread_factor"].c_str());
+	global_mt_threshold = atoi(config_map["global_mt_threshold"].c_str());
 	global_rdma_threshold = atoi(config_map["global_rdma_threshold"].c_str());
 
 	return;
@@ -167,7 +167,7 @@ load_cfg(int nsrvs)
 	global_nbewkrs = atoi(config_map["global_num_backends"].c_str());
 	global_nfewkrs = atoi(config_map["global_num_frontends"].c_str());
 	global_batch_factor = atoi(config_map["global_batch_factor"].c_str());
-	global_multithread_factor = atoi(config_map["global_multithread_factor"].c_str());
+	global_mt_threshold = atoi(config_map["global_mt_threshold"].c_str());
 	global_input_folder = config_map["global_input_folder"];
 	global_use_loc_cache = atoi(config_map["global_use_loc_cache"].c_str());
 	global_load_minimal_index = atoi(config_map["global_load_minimal_index"].c_str());

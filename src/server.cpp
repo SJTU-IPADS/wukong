@@ -481,7 +481,7 @@ server::generate_mt_sub_requests(request_or_reply& req)
 {
     int64_t start = req.cmd_chains[req.step * 4];
     int64_t end = req.cmd_chains[req.step * 4 + 3];
-    int nthread = max(1, min(global_multithread_factor, global_nbewkrs));
+    int nthread = max(1, min(global_mt_threshold, global_nbewkrs));
 
     vector<request_or_reply> sub_reqs;
     int num_sub_request = global_nsrvs * nthread ;

@@ -31,7 +31,7 @@ client::send(request_or_reply &req)
     assert(req.pid != -1);
 
     if (req.use_index_vertex()) {
-        int nthread = max(1, min(global_multithread_factor, global_nbewkrs));
+        int nthread = max(1, min(global_mt_threshold, global_nbewkrs));
         for (int i = 0; i < global_nsrvs; i++) {
             for (int j = 0; j < nthread; j++) {
                 req.mt_total_thread = nthread;
@@ -57,7 +57,7 @@ client::recv(void)
 {
     request_or_reply r = RecvR(cfg);
     if (r.use_index_vertex()) {
-        int nthread = max(1, min(global_multithread_factor, global_nbewkrs));
+        int nthread = max(1, min(global_mt_threshold, global_nbewkrs));
         for (int count = 0; count < global_nsrvs * nthread - 1 ; count++) {
             request_or_reply r2 = RecvR(cfg);
             r.silent_row_num += r2.silent_row_num;

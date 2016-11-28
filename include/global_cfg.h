@@ -61,8 +61,8 @@ extern int global_verbose;
 extern int global_batch_factor;
 extern bool global_use_loc_cache;
 extern bool global_silent;
-extern int global_multithread_factor;	// WARNING: why client?
-extern int global_rdma_threshold;	// WARNING: why client?
+extern int global_mt_threshold;
+extern int global_rdma_threshold;
 
 /* set by command line */
 extern std::string cfg_fname;
