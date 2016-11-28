@@ -257,10 +257,9 @@ sparql_parser::parse(istream &is, request_or_reply &r)
         return false;
     }
 
-    //r = request_or_reply();
     r.cmd_chains = req_template.cmd_chains;
-    r.silent = global_silent;
 
+    r.silent = global_silent; // avoid send back results
     return true;
 }
 

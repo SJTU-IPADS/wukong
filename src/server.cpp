@@ -40,7 +40,7 @@ server::const_to_unknown(request_or_reply& req)
     int64_t end         = req.cmd_chains[req.step * 4 + 3];
     vector<int64_t> updated_result_table;
 
-    if (!((req.column_num() == 0) && (req.column_num() == req.var2column(end)))) {
+    if (!((req.get_col_num() == 0) && (req.get_col_num() == req.var2column(end)))) {
         //it means the query plan is wrong
         assert(false);
     }
@@ -52,7 +52,7 @@ server::const_to_unknown(request_or_reply& req)
     }
 
     req.result_table.swap(updated_result_table);
-    req.set_column_num(1);
+    req.set_col_num(1);
     req.step++;
 }
 
@@ -71,13 +71,13 @@ server::known_to_unknown(request_or_reply& req)
     int64_t end         = req.cmd_chains[req.step * 4 + 3];
     vector<int64_t> updated_result_table;
     updated_result_table.reserve(req.result_table.size());
-    if (req.column_num() != req.var2column(end) ) {
+    if (req.get_col_num() != req.var2column(end) ) {
         //it means the query plan is wrong
         assert(false);
     }
 
-    for (int i = 0; i < req.row_num(); i++) {
-        int64_t prev_id = req.get_row_column(i, req.var2column(start));
+    for (int i = 0; i < req.get_row_num(); i++) {
+        int64_t prev_id = req.get_row_col(i, req.var2column(start));
         int edge_num = 0;
         edge *edge_ptr;
         edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict, &edge_num);
@@ -87,7 +87,7 @@ server::known_to_unknown(request_or_reply& req)
             updated_result_table.push_back(edge_ptr[k].val);
         }
     }
-    req.set_column_num(req.column_num() + 1);
+    req.set_col_num(req.get_col_num() + 1);
     req.result_table.swap(updated_result_table);
     req.step++;
 }
@@ -101,12 +101,12 @@ server::known_to_known(request_or_reply &req)
     int64_t end         = req.cmd_chains[req.step * 4 + 3];
     vector<int64_t> updated_result_table;
 
-    for (int i = 0; i < req.row_num(); i++) {
-        int64_t prev_id = req.get_row_column(i, req.var2column(start));
+    for (int i = 0; i < req.get_row_num(); i++) {
+        int64_t prev_id = req.get_row_col(i, req.var2column(start));
         int edge_num = 0;
         edge *edge_ptr;
         edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict, &edge_num);
-        int64_t end_id = req.get_row_column(i, req.var2column(end));
+        int64_t end_id = req.get_row_col(i, req.var2column(end));
         for (int k = 0; k < edge_num; k++) {
             if (edge_ptr[k].val == end_id) {
                 req.append_row_to(i, updated_result_table);
@@ -127,8 +127,8 @@ server::known_to_const(request_or_reply &req)
     int64_t end         = req.cmd_chains[req.step * 4 + 3];
     vector<int64_t> updated_result_table;
 
-    for (int i = 0; i < req.row_num(); i++) {
-        int64_t prev_id = req.get_row_column(i, req.var2column(start));
+    for (int i = 0; i < req.get_row_num(); i++) {
+        int64_t prev_id = req.get_row_col(i, req.var2column(start));
         int edge_num = 0;
         edge *edge_ptr;
         edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict, &edge_num);
@@ -152,9 +152,9 @@ server::index_to_unknown(request_or_reply &req)
     int64_t var          = req.cmd_chains[req.step * 4 + 3];
     vector<int64_t> updated_result_table;
 
-    if (!(req.column_num() == 0 && req.column_num() == req.var2column(var))) {
+    if (!(req.get_col_num() == 0 && req.get_col_num() == req.var2column(var))) {
         //it means the query plan is wrong
-        cout << "ncols: " << req.column_num() << "\t"
+        cout << "ncols: " << req.get_col_num() << "\t"
              << "var: " << var << "\t"
              << "var2col: " << req.var2column(var)
              << endl;
@@ -170,7 +170,7 @@ server::index_to_unknown(request_or_reply &req)
     }
 
     req.result_table.swap(updated_result_table);
-    req.set_column_num(1);
+    req.set_col_num(1);
     req.step++;
     req.local_var = -1;
 }
@@ -184,7 +184,7 @@ server::const_unknown_unknown(request_or_reply &req)
     int64_t end         = req.cmd_chains[req.step * 4 + 3];
     vector<int64_t> updated_result_table;
 
-    if (req.column_num() != 0 ) {
+    if (req.get_col_num() != 0 ) {
         //it means the query plan is wrong
         assert(false);
     }
@@ -201,7 +201,7 @@ server::const_unknown_unknown(request_or_reply &req)
         }
     }
     req.result_table.swap(updated_result_table);
-    req.set_column_num(2);
+    req.set_col_num(2);
     req.step++;
 }
 
@@ -215,8 +215,8 @@ server::known_unknown_unknown(request_or_reply& req)
     vector<int64_t> updated_result_table;
 
     // foreach vertex
-    for (int i = 0; i < req.row_num(); i++) {
-        int64_t prev_id = req.get_row_column(i, req.var2column(start));
+    for (int i = 0; i < req.get_row_num(); i++) {
+        int64_t prev_id = req.get_row_col(i, req.var2column(start));
         int npredict = 0;
         edge *predict_ptr = g.get_edges_global(cfg->wid, prev_id, direction, 0, &npredict);
         // foreach possible predict
@@ -232,7 +232,7 @@ server::known_unknown_unknown(request_or_reply& req)
         }
     }
 
-    req.set_column_num(req.column_num() + 2);
+    req.set_col_num(req.get_col_num() + 2);
     req.result_table.swap(updated_result_table);
     req.step++;
 }
@@ -247,8 +247,8 @@ server::known_unknown_const(request_or_reply& req)
     vector<int64_t> updated_result_table;
 
     // foreach vertex
-    for (int i = 0; i < req.row_num(); i++) {
-        int64_t prev_id = req.get_row_column(i, req.var2column(start));
+    for (int i = 0; i < req.get_row_num(); i++) {
+        int64_t prev_id = req.get_row_col(i, req.var2column(start));
         int npredict = 0;
         edge *predict_ptr = g.get_edges_global(cfg->wid, prev_id, direction, 0, &npredict);
         // foreach possible predict
@@ -266,7 +266,7 @@ server::known_unknown_const(request_or_reply& req)
         }
     }
 
-    req.set_column_num(req.column_num() + 1);
+    req.set_col_num(req.get_col_num() + 1);
     req.result_table.swap(updated_result_table);
     req.step++;
 }
@@ -291,8 +291,8 @@ server::do_corun(request_or_reply& req)
     boost::unordered_set<int64_t> remove_dup_set;
     int64_t dup_var = req.cmd_chains[req.step * 4 + 4];
     assert(dup_var < 0);
-    for (int i = 0; i < req.row_num(); i++) {
-        remove_dup_set.insert(req.get_row_column(i, req.var2column(dup_var)));
+    for (int i = 0; i < req.get_row_num(); i++) {
+        remove_dup_set.insert(req.get_row_col(i, req.var2column(dup_var)));
     }
 
     // step.2 generate cmd_chain for sub-req
@@ -338,32 +338,32 @@ server::do_corun(request_or_reply& req)
     uint64_t t3, t4;
     vector<int64_t> updated_result_table;
 
-    if (sub_req.column_num() > 2) {
+    if (sub_req.get_col_num() > 2) {
         //if(true){ // always use qsort
-        mytuple::qsort_tuple(sub_req.column_num(), sub_req.result_table);
+        mytuple::qsort_tuple(sub_req.get_col_num(), sub_req.result_table);
         vector<int64_t> tmp_vec;
-        tmp_vec.resize(sub_req.column_num());
+        tmp_vec.resize(sub_req.get_col_num());
         t3 = timer::get_usec();
-        for (int i = 0; i < req.row_num(); i++) {
+        for (int i = 0; i < req.get_row_num(); i++) {
             for (int c = 0; c < reverse_mapping.size(); c++) {
-                tmp_vec[c] = req.get_row_column(i, reverse_mapping[c]);
+                tmp_vec[c] = req.get_row_col(i, reverse_mapping[c]);
             }
-            if (mytuple::binary_search_tuple(sub_req.column_num(), sub_req.result_table, tmp_vec)) {
+            if (mytuple::binary_search_tuple(sub_req.get_col_num(), sub_req.result_table, tmp_vec)) {
                 req.append_row_to(i, updated_result_table);
             }
         }
         t4 = timer::get_usec();
     } else { // hash join
         boost::unordered_set<v_pair> remote_set;
-        for (int i = 0; i < sub_req.row_num(); i++) {
-            remote_set.insert(v_pair(sub_req.get_row_column(i, 0), sub_req.get_row_column(i, 1)));
+        for (int i = 0; i < sub_req.get_row_num(); i++) {
+            remote_set.insert(v_pair(sub_req.get_row_col(i, 0), sub_req.get_row_col(i, 1)));
         }
         vector<int64_t> tmp_vec;
-        tmp_vec.resize(sub_req.column_num());
+        tmp_vec.resize(sub_req.get_col_num());
         t3 = timer::get_usec();
-        for (int i = 0; i < req.row_num(); i++) {
+        for (int i = 0; i < req.get_row_num(); i++) {
             for (int c = 0; c < reverse_mapping.size(); c++) {
-                tmp_vec[c] = req.get_row_column(i, reverse_mapping[c]);
+                tmp_vec[c] = req.get_row_col(i, reverse_mapping[c]);
             }
             v_pair target = v_pair(tmp_vec[0], tmp_vec[1]);
             if (remote_set.find(target) != remote_set.end()) {
@@ -372,6 +372,8 @@ server::do_corun(request_or_reply& req)
         }
         t4 = timer::get_usec();
     }
+
+    // debug
     if (cfg->sid == 0 && cfg->wid == global_nfewkrs) {
         cout << "prepare " << (t1 - t0) << " us" << endl;
         cout << "execute sub-request " << (t2 - t1) << " us" << endl;
@@ -469,8 +471,8 @@ server::generate_sub_query(request_or_reply& req)
         sub_reqs[i].silent = req.silent;
         sub_reqs[i].local_var = start;
     }
-    for (int i = 0; i < req.row_num(); i++) {
-        int machine = mymath::hash_mod(req.get_row_column(i, req.var2column(start)), num_sub_request);
+    for (int i = 0; i < req.get_row_num(); i++) {
+        int machine = mymath::hash_mod(req.get_row_col(i, req.var2column(start)), num_sub_request);
         req.append_row_to(i, sub_reqs[machine].result_table);
     }
     return sub_reqs;
@@ -494,11 +496,11 @@ server::generate_mt_sub_requests(request_or_reply& req)
         sub_reqs[i].silent = req.silent;
         sub_reqs[i].local_var = start;
     }
-    for (int i = 0; i < req.row_num(); i++) {
+    for (int i = 0; i < req.get_row_num(); i++) {
         // id = wid*global_nsrvs + m_id
         //so  m_id = id % global_nsrvs
         //    wid = id / global_nsrvs
-        int id = mymath::hash_mod(req.get_row_column(i, req.var2column(start)), num_sub_request);
+        int id = mymath::hash_mod(req.get_row_col(i, req.var2column(start)), num_sub_request);
         req.append_row_to(i, sub_reqs[id].result_table);
     }
     return sub_reqs;
@@ -510,7 +512,7 @@ server::need_fork_join(request_or_reply &r)
     int64_t start = r.cmd_chains[r.step * 4];
 
     // fork-join or in-place execution
-    return ((r.local_var != start) && (r.row_num() >= global_rdma_threshold));
+    return ((r.local_var != start) && (r.get_row_num() >= global_rdma_threshold));
 }
 
 void
@@ -538,7 +540,7 @@ server::execute_request(request_or_reply &req)
         }
 
         if (req.is_finished()) {
-            req.silent_row_num = req.row_num();
+            req.row_num = req.get_row_num();
             if (req.silent)
                 req.clear_data();
 
@@ -570,7 +572,7 @@ server::execute(request_or_reply &r, int wid)
     if (r.is_request()) {
         // request
         r.id = cfg->get_and_inc_qid();
-        int before = r.row_num(); // unused
+        int before = r.get_row_num(); // unused
         execute_request(r);
     } else {
         // reply

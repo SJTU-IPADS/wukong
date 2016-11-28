@@ -58,16 +58,18 @@ struct request_or_reply {
 
     int id;
     int pid;
+
     int step;
     int col_num;
-    bool silent;
-    int silent_row_num;
+    int row_num;
+
     int64_t local_var;
     vector<int64_t> cmd_chains; // N * (subject, predicat, direction, object)
     vector<int64_t> result_table;
 
     int mt_total_thread;
     int mt_current_thread;
+    bool silent;
 
     request_or_reply() {
         first_target = -1;
@@ -75,11 +77,11 @@ struct request_or_reply {
         pid = -1;
         step = 0;
         col_num = 0;
-        silent = false;
-        silent_row_num = 0;
+        row_num = 0;
         local_var = 0;
         mt_total_thread = 1;
         mt_current_thread = 0;
+        silent = false;
     }
 
     template <typename Archive>
@@ -88,13 +90,13 @@ struct request_or_reply {
         ar & pid;
         ar & step;
         ar & col_num;
-        ar & silent;
-        ar & silent_row_num;
+        ar & row_num;
         ar & local_var;
         ar & cmd_chains;
         ar & result_table;
         ar & mt_total_thread;
         ar & mt_current_thread;
+        ar & silent;
     }
 
     void clear_data(void) { result_table.clear(); }
@@ -128,33 +130,32 @@ struct request_or_reply {
         if (vid >= 0)
             return const_var;
 
-        if ((- vid) > column_num())
+        if ((- vid) > col_num)
             return unknown_var;
         else
             return known_var;
-    };
+    }
 
     int64_t var2column(int64_t vid) {
         assert(vid < 0); // pattern variable
         return ((- vid) - 1);
     }
 
-    void set_column_num(int n) { col_num = n; }
+    void set_col_num(int n) { col_num = n; }
 
-    int column_num() { return col_num; };
+    int get_col_num() { return col_num; };
 
-    int row_num() {
-        if (col_num == 0)
-            return 0;
+    int get_row_num() {
+        if (col_num == 0) return 0;
         return result_table.size() / col_num;
     }
 
-    int64_t get_row_column(int r, int c) {
+    int64_t get_row_col(int r, int c) {
         return result_table[col_num * r + c];
     }
 
     void append_row_to(int r, vector<int64_t> &updated_result_table) {
-        for (int c = 0; c < column_num(); c++)
-            updated_result_table.push_back(get_row_column(r, c));
-    };
+        for (int c = 0; c < col_num; c++)
+            updated_result_table.push_back(get_row_col(r, c));
+    }
 };

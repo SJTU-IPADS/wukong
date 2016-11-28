@@ -60,7 +60,7 @@ client::recv(void)
         int nthread = max(1, min(global_mt_threshold, global_nbewkrs));
         for (int count = 0; count < global_nsrvs * nthread - 1 ; count++) {
             request_or_reply r2 = RecvR(cfg);
-            r.silent_row_num += r2.silent_row_num;
+            r.row_num += r2.row_num;
             int new_size = r.result_table.size() + r2.result_table.size();
             r.result_table.reserve(new_size);
             r.result_table.insert(r.result_table.end(), r2.result_table.begin(), r2.result_table.end());
@@ -71,16 +71,17 @@ client::recv(void)
 }
 
 void
-client::print_result(request_or_reply &reply, int row2print)
+client::print_result(request_or_reply &r, int row2print)
 {
+    cout << "The first " << row2print << " rows of results: " << endl;
     for (int i = 0; i < row2print; i++) {
         cout << i + 1 << ":  ";
-        for (int c = 0; c < reply.column_num(); c++) {
-            int id = reply.get_row_column(i, c);
+        for (int c = 0; c < r.get_col_num(); c++) {
+            int id = r.get_row_col(i, c);
             if (str_server->id2str.find(id) == str_server->id2str.end()) {
                 cout << "NULL  ";
             } else {
-                cout << str_server->id2str[reply.get_row_column(i, c)] << "  ";
+                cout << str_server->id2str[r.get_row_col(i, c)] << "  ";
             }
         }
         cout << endl;

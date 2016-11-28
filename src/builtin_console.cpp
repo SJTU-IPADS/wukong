@@ -58,13 +58,11 @@ run_single_query(client *clnt, istream &is, int cnt)
 	}
 	t = timer::get_usec() - t;
 
-	cout << "(last) result size: " << reply.silent_row_num << endl;
+	cout << "(last) result size: " << reply.row_num << endl;
 	cout << "(average) latency: " << (t / cnt) << " usec" << endl;
 
-	int row_to_print = min((uint64_t)reply.row_num(),
-	                       (uint64_t)global_max_print_row);
-	if (row_to_print > 0)
-		clnt->print_result(reply, row_to_print);
+	if (!global_silent)
+		clnt->print_result(reply, min(reply.row_num, global_max_print_row));
 }
 
 
@@ -85,6 +83,7 @@ translate_req_template(client *clnt, request_template &req_template)
 		}
 
 		// do TYPE query
+		clnt->setpid(type_request);
 		clnt->send(type_request);
 		type_reply = clnt->recv();
 

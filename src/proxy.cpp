@@ -44,18 +44,16 @@ send_cmd(void *ptr)
 	Proxy *p = (Proxy *)ptr;
 	while (true) {
 		request_or_reply r = p->clnt->recv();
+		cout << "(last) result size: " << r.row_num << endl;
+		if (!global_silent)
+			p->clnt->print_result(r, min(r.row_num, global_max_print_row));
+
 		CS_Reply crep;
 		crep.column = r.col_num;
 		crep.result_table = r.result_table;
 		crep.cid = p->get_cid(r.pid);
 		p->send_rep(crep);
 		p->remove_cid(r.pid);
-
-		int row_to_print = min((uint64_t)r.row_num(), (uint64_t)global_max_print_row);
-		cout << "row:" << row_to_print << endl;
-		if (row_to_print > 0) {
-			p->clnt->print_result(r, row_to_print);
-		}
 	}
 }
 
