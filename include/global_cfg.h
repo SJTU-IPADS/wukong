@@ -34,12 +34,12 @@ using namespace std;
 
 /* non-configurable global variables */
 extern int global_rdftype_id;	// only a global variable, but non-configurable
-extern int global_nsrvs;	// the number of servers
-extern int global_nthrs;	// the number of threads per server (the sum of FE and BE workers)
+extern int global_nsrvs;		// the number of servers
+extern int global_nthrs;		// the number of threads per server (incl. proxy and engine)
 
 /* configurable global variables */
-extern int global_nbewkrs;	// the number of backend-workers
-extern int global_nfewkrs;	// the number of frontend-workers
+extern int global_num_engines;		// the number of engines
+extern int global_num_proxies;		// the number of proxies
 
 extern string global_input_folder;
 extern bool global_load_minimal_index;
@@ -57,7 +57,7 @@ extern bool global_use_rbf;		// ring-buffer (by RDMA WRITE)
 extern int global_enable_workstealing;
 extern int global_verbose;
 
-/* shared by client and server */
+/* shared by proxy and engine */
 extern int global_batch_factor;
 extern bool global_use_loc_cache;
 extern bool global_silent;

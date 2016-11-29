@@ -244,8 +244,8 @@ main(int argc, char * argv[])
         cfg_array[i].t_num = global_nthrs;
         cfg_array[i].m_id = world_rank;
         cfg_array[i].m_num = world_size;
-        cfg_array[i].client_num = global_nfewkrs;
-        cfg_array[i].server_num = global_nbewkrs;
+        cfg_array[i].client_num = global_num_proxies;
+        cfg_array[i].server_num = global_num_engines;
         cfg_array[i].rdma = rdma;
         cfg_array[i].node = new Network_Node(cfg_array[i].m_id, cfg_array[i].t_id, string(argv[2]));
         cfg_array[i].init();

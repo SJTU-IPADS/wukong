@@ -1,8 +1,8 @@
 global_use_rbf				1
 global_use_rdma				1
 global_rdma_threshold		300
-global_num_backends			16
-global_num_frontends		1
+global_num_engines			16
+global_num_proxies			1
 global_batch_factor			20
 global_mt_threshold			16
 global_input_folder			/home/datanfs/nfs0/rdfdata/id_lubm_40/

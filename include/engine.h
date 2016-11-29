@@ -32,7 +32,7 @@
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
 
-class server {
+class engine {
     const static uint64_t TIMEOUT_THRESHOLD = 10000; // 10 msec
 
     distributed_graph &g;
@@ -73,11 +73,11 @@ class server {
     void execute(request_or_reply &r, int wid);
 
 public:
-    server(distributed_graph &_g, thread_cfg *_cfg);
+    engine(distributed_graph &_g, thread_cfg *_cfg);
 
     void run();
 };
 
-// an array of pointers of benckend workers
-extern std::vector<server *> srvs;
+// a vector of pointers of all local engines
+extern std::vector<engine *> engines;
 

@@ -20,12 +20,12 @@
  *
  */
 
-#include "server.h"
+#include "engine.h"
 #include <stdlib.h> //qsort
 
-std::vector <server *> srvs;
+std::vector <engine *> engines;
 
-server::server(distributed_graph& _g, thread_cfg* _cfg): g(_g), cfg(_cfg)
+engine::engine(distributed_graph& _g, thread_cfg* _cfg): g(_g), cfg(_cfg)
 {
     last_time = -1;
     pthread_spin_init(&recv_lock, 0);
@@ -33,7 +33,7 @@ server::server(distributed_graph& _g, thread_cfg* _cfg): g(_g), cfg(_cfg)
 }
 
 void
-server::const_to_unknown(request_or_reply& req)
+engine::const_to_unknown(request_or_reply& req)
 {
     int64_t start       = req.cmd_chains[req.step * 4];
     int64_t predicate   = req.cmd_chains[req.step * 4 + 1];
@@ -58,13 +58,13 @@ server::const_to_unknown(request_or_reply& req)
 }
 
 void
-server::const_to_known(request_or_reply& req)
+engine::const_to_known(request_or_reply& req)
 {
     //TODO
 }
 
 void
-server::known_to_unknown(request_or_reply& req)
+engine::known_to_unknown(request_or_reply& req)
 {
     int64_t start       = req.cmd_chains[req.step * 4];
     int64_t predict     = req.cmd_chains[req.step * 4 + 1];
@@ -95,7 +95,7 @@ server::known_to_unknown(request_or_reply& req)
 }
 
 void
-server::known_to_known(request_or_reply &req)
+engine::known_to_known(request_or_reply &req)
 {
     int64_t start       = req.cmd_chains[req.step * 4];
     int64_t predict     = req.cmd_chains[req.step * 4 + 1];
@@ -121,7 +121,7 @@ server::known_to_known(request_or_reply &req)
 }
 
 void
-server::known_to_const(request_or_reply &req)
+engine::known_to_const(request_or_reply &req)
 {
     int64_t start       = req.cmd_chains[req.step * 4];
     int64_t predict     = req.cmd_chains[req.step * 4 + 1];
@@ -146,7 +146,7 @@ server::known_to_const(request_or_reply &req)
 }
 
 void
-server::index_to_unknown(request_or_reply &req)
+engine::index_to_unknown(request_or_reply &req)
 {
     int64_t index_vertex = req.cmd_chains[req.step * 4];
     int64_t nothing      = req.cmd_chains[req.step * 4 + 1];
@@ -178,7 +178,7 @@ server::index_to_unknown(request_or_reply &req)
 }
 
 void
-server::const_unknown_unknown(request_or_reply &req)
+engine::const_unknown_unknown(request_or_reply &req)
 {
     int64_t start       = req.cmd_chains[req.step * 4];
     int64_t predict     = req.cmd_chains[req.step * 4 + 1];
@@ -208,7 +208,7 @@ server::const_unknown_unknown(request_or_reply &req)
 }
 
 void
-server::known_unknown_unknown(request_or_reply& req)
+engine::known_unknown_unknown(request_or_reply& req)
 {
     int64_t start = req.cmd_chains[req.step * 4];
     int64_t predict = req.cmd_chains[req.step * 4 + 1];
@@ -240,7 +240,7 @@ server::known_unknown_unknown(request_or_reply& req)
 }
 
 void
-server::known_unknown_const(request_or_reply& req)
+engine::known_unknown_const(request_or_reply& req)
 {
     int64_t start = req.cmd_chains[req.step * 4];
     int64_t predict = req.cmd_chains[req.step * 4 + 1];
@@ -285,7 +285,7 @@ hash_pair(const v_pair &x)
 }
 
 void
-server::do_corun(request_or_reply& req)
+engine::do_corun(request_or_reply& req)
 {
     // step.1 remove dup;
     uint64_t t0 = timer::get_usec();
@@ -376,7 +376,7 @@ server::do_corun(request_or_reply& req)
     }
 
     // debug
-    if (cfg->sid == 0 && cfg->wid == global_nfewkrs) {
+    if (cfg->sid == 0 && cfg->wid == 0) {
         cout << "prepare " << (t1 - t0) << " us" << endl;
         cout << "execute sub-request " << (t2 - t1) << " us" << endl;
         cout << "sort " << (t3 - t2) << " us" << endl;
@@ -388,7 +388,7 @@ server::do_corun(request_or_reply& req)
 }
 
 bool
-server::execute_one_step(request_or_reply& req)
+engine::execute_one_step(request_or_reply& req)
 {
     if (req.is_finished()) {
         return false;
@@ -457,7 +457,7 @@ server::execute_one_step(request_or_reply& req)
 }
 
 vector<request_or_reply>
-server::generate_sub_query(request_or_reply& req)
+engine::generate_sub_query(request_or_reply& req)
 {
     int64_t start = req.cmd_chains[req.step * 4];
     int64_t end = req.cmd_chains[req.step * 4 + 3];
@@ -480,12 +480,12 @@ server::generate_sub_query(request_or_reply& req)
     return sub_reqs;
 }
 
-vector<request_or_reply>
-server::generate_mt_sub_requests(request_or_reply& req)
+std::vector<request_or_reply>
+engine::generate_mt_sub_requests(request_or_reply& req)
 {
     int64_t start = req.cmd_chains[req.step * 4];
     int64_t end = req.cmd_chains[req.step * 4 + 3];
-    int nthread = max(1, min(global_mt_threshold, global_nbewkrs));
+    int nthread = max(1, min(global_mt_threshold, global_num_engines));
 
     vector<request_or_reply> sub_reqs;
     int num_sub_request = global_nsrvs * nthread ;
@@ -509,7 +509,7 @@ server::generate_mt_sub_requests(request_or_reply& req)
 }
 
 bool
-server::need_fork_join(request_or_reply &r)
+engine::need_fork_join(request_or_reply &r)
 {
     int64_t start = r.cmd_chains[r.step * 4];
 
@@ -518,7 +518,7 @@ server::need_fork_join(request_or_reply &r)
 }
 
 void
-server::execute_request(request_or_reply &req)
+engine::execute_request(request_or_reply &req)
 {
     uint64_t t1, t2;
 
@@ -527,7 +527,7 @@ server::execute_request(request_or_reply &req)
         execute_one_step(req);
         t2 = timer::get_usec();
 
-        if (cfg->sid == 0 && cfg->wid == global_nfewkrs) { // debug
+        if (cfg->sid == 0 && cfg->wid == 0) { // debug
             //cout<<"step#" << req.step << ": " << t2-t1 << " us" <<endl;
         }
 
@@ -536,7 +536,7 @@ server::execute_request(request_or_reply &req)
             t1 = timer::get_usec();
             do_corun(req);
             t2 = timer::get_usec();
-            if ((cfg->sid == 0) && (cfg->wid == global_nfewkrs)) {
+            if ((cfg->sid == 0) && (cfg->wid == 0)) {
                 //cout << "corun: " << t2-t1 <<" us" << endl;
             }
         }
@@ -569,7 +569,7 @@ server::execute_request(request_or_reply &req)
 }
 
 void
-server::execute(request_or_reply &r, int wid)
+engine::execute(request_or_reply &r, int wid)
 {
     if (r.is_request()) {
         // request
@@ -578,23 +578,23 @@ server::execute(request_or_reply &r, int wid)
         execute_request(r);
     } else {
         // reply
-        pthread_spin_lock(&srvs[wid]->wqueue_lock);
-        srvs[wid]->wqueue.put_reply(r);
-        if (srvs[wid]->wqueue.is_ready(r.pid)) {
-            request_or_reply reply = srvs[wid]->wqueue.get_merged_reply(r.pid);
-            pthread_spin_unlock(&srvs[wid]->wqueue_lock);
+        pthread_spin_lock(&engines[wid]->wqueue_lock);
+        engines[wid]->wqueue.put_reply(r);
+        if (engines[wid]->wqueue.is_ready(r.pid)) {
+            request_or_reply reply = engines[wid]->wqueue.get_merged_reply(r.pid);
+            pthread_spin_unlock(&engines[wid]->wqueue_lock);
             SendR(cfg, cfg->sid_of(reply.pid), cfg->wid_of(reply.pid), reply);
         }
-        pthread_spin_unlock(&srvs[wid]->wqueue_lock);
+        pthread_spin_unlock(&engines[wid]->wqueue_lock);
     }
 }
 
 void
-server::run(void)
+engine::run(void)
 {
-    int own_id = cfg->wid - global_nfewkrs;
+    int own_id = cfg->wid - global_num_proxies;
     // TODO: replace pair to ring
-    int nbr_id = (global_nbewkrs - 1) - own_id;
+    int nbr_id = (global_num_engines - 1) - own_id;
 
     while (true) {
         request_or_reply r;
@@ -639,17 +639,17 @@ server::run(void)
 
         // nbr queue
         last_time = timer::get_usec();
-        if (last_time < srvs[nbr_id]->last_time + TIMEOUT_THRESHOLD)
+        if (last_time < engines[nbr_id]->last_time + TIMEOUT_THRESHOLD)
             continue; // neighboring worker is self-sufficient
 
         success = false;
-        pthread_spin_lock(&srvs[nbr_id]->recv_lock);
-        success = TryRecvR(srvs[nbr_id]->cfg, r);
+        pthread_spin_lock(&engines[nbr_id]->recv_lock);
+        success = TryRecvR(engines[nbr_id]->cfg, r);
         if (success && r.start_from_index()) {
-            srvs[nbr_id]->msg_fast_path.push_back(r);
+            engines[nbr_id]->msg_fast_path.push_back(r);
             success = false;
         }
-        pthread_spin_unlock(&srvs[nbr_id]->recv_lock);
+        pthread_spin_unlock(&engines[nbr_id]->recv_lock);
 
         if (success) execute(r, nbr_id);
     }

@@ -36,7 +36,7 @@ client_barrier(struct thread_cfg *cfg)
 	__sync_fetch_and_add(&_curr, 1);
 	while (_curr < _next)
 		usleep(1); // wait
-	_next += global_nfewkrs; // next barrier
+	_next += global_num_proxies; // next barrier
 }
 
 void
@@ -289,7 +289,7 @@ next:
 
 			// send commands to all client workers
 			for (int i = 0; i < global_nsrvs; i++) {
-				for (int j = 0; j < global_nfewkrs; j++) {
+				for (int j = 0; j < global_num_proxies; j++) {
 					if (i == 0 && j == 0)
 						continue ;
 					cfg->node->Send(i, j, cmd);
@@ -379,7 +379,7 @@ next:
 					// print a statistic of runtime for the batch processing
 					if (IS_MASTER(cfg)) {
 						// collect logs from other clients
-						for (int i = 0; i < global_nsrvs * global_nfewkrs - 1; i++) {
+						for (int i = 0; i < global_nsrvs * global_num_proxies - 1; i++) {
 							batch_logger log = RecvObject<batch_logger>(clnt->cfg);
 							logger.merge(log);
 						}

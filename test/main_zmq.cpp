@@ -93,8 +93,8 @@ int main(int argc, char * argv[]) {
 		cfg_array[i].t_num = global_nthrs;
 		cfg_array[i].m_id = world.rank();
 		cfg_array[i].m_num = world.size();
-		cfg_array[i].client_num = global_nfewkrs;
-		cfg_array[i].server_num = global_nbewkrs;
+		cfg_array[i].client_num = global_num_proxies;
+		cfg_array[i].server_num = global_num_engines;
 		cfg_array[i].rdma = rdma;
 		cfg_array[i].node = new Network_Node(cfg_array[i].m_id, cfg_array[i].t_id, string(argv[2]));
 		cfg_array[i].init();
@@ -102,25 +102,25 @@ int main(int argc, char * argv[]) {
 
 	string_server str_server(global_input_folder);
 	distributed_graph graph(world, rdma, global_input_folder);
-	client** client_array = new client*[global_nfewkrs];
-	for (int i = 0; i < global_nfewkrs; i++) {
+	client** client_array = new client*[global_num_proxies];
+	for (int i = 0; i < global_num_proxies; i++) {
 		client_array[i] = new client(&cfg_array[i], &str_server);
 	}
-	server** server_array = new server*[global_nbewkrs];
-	for (int i = 0; i < global_nbewkrs; i++) {
-		server_array[i] = new server(graph, &cfg_array[global_nfewkrs + i]);
+	server** server_array = new server*[global_num_engines];
+	for (int i = 0; i < global_num_engines; i++) {
+		server_array[i] = new server(graph, &cfg_array[global_num_proxies + i]);
 	}
-	for (int i = 0; i < global_nbewkrs; i++) {
+	for (int i = 0; i < global_num_engines; i++) {
 		server_array[i]->set_server_array(server_array);
 	}
 
 
 	pthread_t     *thread  = new pthread_t[global_nthrs];
 	for (size_t id = 0; id < global_nthrs; ++id) {
-		if (id < global_nfewkrs) {
+		if (id < global_num_proxies) {
 			cfg_array[id].ptr = client_array[id];
 		} else {
-			cfg_array[id].ptr = server_array[id - global_nfewkrs];
+			cfg_array[id].ptr = server_array[id - global_num_proxies];
 		}
 		pthread_create (&(thread[id]), NULL, Run, (void *) & (cfg_array[id]));
 	}

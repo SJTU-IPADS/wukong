@@ -34,8 +34,9 @@ int global_eth_port_base;
 int global_rdma_port_base;
 bool global_use_rbf;
 bool global_use_rdma;
-int global_nbewkrs;
-int global_nfewkrs;
+
+int global_num_engines;
+int global_num_proxies;
 
 std::string global_input_folder;
 bool global_load_minimal_index;
@@ -47,15 +48,12 @@ int global_hash_header_million;
 int global_enable_workstealing;
 int global_verbose;
 
-/* shared by client and server */
+/* shared by proxies and engines */
 int global_batch_factor;
 bool global_use_loc_cache;
 bool global_silent;
 int global_mt_threshold;
 int global_rdma_threshold;
-
-/* TODO: split the config file and related code
-		 into two parts: client and server */
 
 std::string cfg_fname;
 std::string host_fname;
@@ -74,8 +72,8 @@ dump_cfg(void)
 	cout << "global_use_rbf: " 				<< global_use_rbf 					<< endl;
 	cout << "global_use_rdma: " 			<< global_use_rdma					<< endl;
 	cout << "global_rdma_threshold: " 		<< global_rdma_threshold			<< endl;
-	cout << "the number of backend workers: "	<< global_nbewkrs 				<< endl;
-	cout << "the number of frontend workers: "	<< global_nfewkrs				<< endl;
+	cout << "the number of engines: "		<< global_num_engines 				<< endl;
+	cout << "the number of proxies: "		<< global_num_proxies				<< endl;
 	cout << "global_batch_factor: " 		<< global_batch_factor				<< endl;
 	cout << "global_mt_threshold: " 		<< global_mt_threshold  			<< endl;
 	cout << "global_input_folder: " 		<< global_input_folder				<< endl;
@@ -164,8 +162,8 @@ load_cfg(int nsrvs)
 	global_use_rbf = atoi(config_map["global_use_rbf"].c_str());
 	global_use_rdma = atoi(config_map["global_use_rdma"].c_str());
 	global_rdma_threshold = atoi(config_map["global_rdma_threshold"].c_str());
-	global_nbewkrs = atoi(config_map["global_num_backends"].c_str());
-	global_nfewkrs = atoi(config_map["global_num_frontends"].c_str());
+	global_num_engines = atoi(config_map["global_num_engines"].c_str());
+	global_num_proxies = atoi(config_map["global_num_proxies"].c_str());
 	global_batch_factor = atoi(config_map["global_batch_factor"].c_str());
 	global_mt_threshold = atoi(config_map["global_mt_threshold"].c_str());
 	global_input_folder = config_map["global_input_folder"];
@@ -184,7 +182,7 @@ load_cfg(int nsrvs)
 	global_rdftype_id = 1;
 
 	global_nsrvs = nsrvs;
-	global_nthrs = global_nbewkrs + global_nfewkrs;
+	global_nthrs = global_num_engines + global_num_proxies;
 
 
 	// make sure to check that the global_input_folder is non-empty.

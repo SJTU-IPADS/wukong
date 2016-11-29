@@ -29,7 +29,7 @@
 #include "thread_cfg.h"
 #include "string_server.h"
 #include "distributed_graph.h"
-#include "server.h"
+#include "engine.h"
 #include "client.h"
 #include "builtin_console.h"
 #include "proxy.h"
@@ -52,9 +52,11 @@ using namespace std;
  *   0:  10  21
  *   1:  21  10
  *
- * bind server-worker threads to the same socket, at most 8 each.
+ * TODO:
+ * co-locate proxy and engine threads to the same socket,
+ * and bind them to the same socket. For example, 2 proxy thread with
+ * 8 engine threads for each 10-core processor.
  *
- * TODO: it should be identify by runtime detection
  */
 int cores[] = {
 	1, 3, 5, 7, 9, 11, 13, 15, 17, 19,
@@ -79,10 +81,10 @@ worker_thread(void *arg)
 	struct thread_cfg *cfg = (struct thread_cfg *) arg;
 	pin_to_core(cores[cfg->wid]);
 
-	// reserver threads to frontend-workers
-	if (cfg->wid >= global_nfewkrs) {
-		// server-worker threads
-		((server *)(cfg->worker))->run();
+	// reserver first 'global_num_proxies' threads to proxy
+	if (cfg->wid >= global_num_proxies) {
+		// engine threads
+		((engine *)(cfg->worker))->run();
 	} else {
 		if (!proxy_enable)
 			// builtin console (by default)
@@ -165,24 +167,24 @@ main(int argc, char *argv[])
 		cfg_array[i].init();
 	}
 
-	// load string server (read-only, shared by all frontend workers)
+	// load string server (read-only, shared by all proxies)
 	string_server str_server(global_input_folder);
 
-	// load RDF graph (shared by all backend workers)
+	// load RDF graph (shared by all engines)
 	distributed_graph graph(world, rdma, global_input_folder);
 
 	// init fronted workers
-	for (int i = 0; i < global_nfewkrs; i++)
+	for (int i = 0; i < global_num_proxies; i++)
 		cfg_array[i].worker = new client(&cfg_array[i], &str_server);
 
-	// init backend workers
-	srvs.resize(global_nbewkrs);
-	for (int i = 0; i < global_nbewkrs; i++) {
-		srvs[i] = new server(graph, &cfg_array[global_nfewkrs + i]);
-		cfg_array[i + global_nfewkrs].worker = srvs[i];
+	// initiate engine threads
+	engines.resize(global_num_engines);
+	for (int i = 0; i < global_num_engines; i++) {
+		engines[i] = new engine(graph, &cfg_array[global_num_proxies + i]);
+		cfg_array[i + global_num_proxies].worker = engines[i];
 	}
 
-	// spawn client and server workers
+	// spawn proxy and engine threads
 	pthread_t *threads  = new pthread_t[global_nthrs];
 	for (size_t id = 0; id < global_nthrs; ++id) {
 		pthread_create(&(threads[id]), NULL, worker_thread, (void *) & (cfg_array[id]));

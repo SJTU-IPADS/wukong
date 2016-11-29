@@ -31,12 +31,12 @@ client::send(request_or_reply &req)
     assert(req.pid != -1);
 
     if (req.start_from_index()) {
-        int nthread = max(1, min(global_mt_threshold, global_nbewkrs));
+        int nthread = max(1, min(global_mt_threshold, global_num_engines));
         for (int i = 0; i < global_nsrvs; i++) {
             for (int j = 0; j < nthread; j++) {
                 req.mt_total_thread = nthread;
                 req.mt_current_thread = j;
-                SendR(cfg, i, global_nfewkrs + j, req);
+                SendR(cfg, i, global_num_proxies + j, req);
             }
         }
         return ;
@@ -44,11 +44,11 @@ client::send(request_or_reply &req)
     req.first_target = mymath::hash_mod(req.cmd_chains[0], global_nsrvs);
 
     /* use one-to-one mapping if there are multiple frontend workers */
-    //int server_per_client = global_nbewkrs / global_nfewkrs;
-    //int mid = global_nfewkrs + server_per_client * cfg->wid + cfg->get_random() % server_per_client;
+    //int ratio = global_num_engines / global_num_proxies;
+    //int mid = global_num_proxies + ratio * cfg->wid + cfg->get_random() % ratio;
 
     // random
-    int tid = global_nfewkrs + cfg->get_random() % global_nbewkrs;
+    int tid = global_num_proxies + cfg->get_random() % global_num_engines;
     SendR(cfg, req.first_target, tid, req);
 }
 
@@ -57,7 +57,7 @@ client::recv(void)
 {
     request_or_reply r = RecvR(cfg);
     if (r.start_from_index()) {
-        int nthread = max(1, min(global_mt_threshold, global_nbewkrs));
+        int nthread = max(1, min(global_mt_threshold, global_num_engines));
         for (int count = 0; count < global_nsrvs * nthread - 1 ; count++) {
             request_or_reply r2 = RecvR(cfg);
             r.row_num += r2.row_num;
