@@ -171,20 +171,15 @@ main(int argc, char *argv[])
 	// load RDF graph (shared by all backend workers)
 	distributed_graph graph(world, rdma, global_input_folder);
 
+	// init fronted workers
+	for (int i = 0; i < global_nfewkrs; i++)
+		cfg_array[i].worker = new client(&cfg_array[i], &str_server);
 
-	client **client_array = new client *[global_nfewkrs];
-	for (int i = 0; i < global_nfewkrs; i++) {
-		client_array[i] = new client(&cfg_array[i], &str_server);
-		cfg_array[i].worker = client_array[i];
-	}
-
-	server **server_array = new server *[global_nbewkrs];
+	// init backend workers
+	srvs.resize(global_nbewkrs);
 	for (int i = 0; i < global_nbewkrs; i++) {
-		server_array[i] = new server(graph, &cfg_array[global_nfewkrs + i]);
-		cfg_array[i + global_nfewkrs].worker = server_array[i];
-	}
-	for (int i = 0; i < global_nbewkrs; i++) {
-		server_array[i]->set_server_array(server_array);
+		srvs[i] = new server(graph, &cfg_array[global_nfewkrs + i]);
+		cfg_array[i + global_nfewkrs].worker = srvs[i];
 	}
 
 	// spawn client and server workers

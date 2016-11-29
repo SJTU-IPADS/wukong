@@ -23,6 +23,7 @@
 #include "server.h"
 #include <stdlib.h> //qsort
 
+std::vector <server *> srvs;
 
 server::server(distributed_graph& _g, thread_cfg* _cfg): g(_g), cfg(_cfg)
 {
@@ -38,7 +39,7 @@ server::const_to_unknown(request_or_reply& req)
     int64_t predicate   = req.cmd_chains[req.step * 4 + 1];
     int64_t direction   = req.cmd_chains[req.step * 4 + 2];
     int64_t end         = req.cmd_chains[req.step * 4 + 3];
-    vector<int64_t> updated_result_table;
+    std::vector<int64_t> updated_result_table;
 
     if (!((req.get_col_num() == 0) && (req.get_col_num() == req.var2column(end)))) {
         //it means the query plan is wrong
@@ -69,7 +70,8 @@ server::known_to_unknown(request_or_reply& req)
     int64_t predict     = req.cmd_chains[req.step * 4 + 1];
     int64_t direction   = req.cmd_chains[req.step * 4 + 2];
     int64_t end         = req.cmd_chains[req.step * 4 + 3];
-    vector<int64_t> updated_result_table;
+    std::vector<int64_t> updated_result_table;
+
     updated_result_table.reserve(req.result_table.size());
     if (req.get_col_num() != req.var2column(end) ) {
         //it means the query plan is wrong
@@ -576,14 +578,14 @@ server::execute(request_or_reply &r, int wid)
         execute_request(r);
     } else {
         // reply
-        pthread_spin_lock(&s_array[wid]->wqueue_lock);
-        s_array[wid]->wqueue.put_reply(r);
-        if (s_array[wid]->wqueue.is_ready(r.pid)) {
-            request_or_reply reply = s_array[wid]->wqueue.get_merged_reply(r.pid);
-            pthread_spin_unlock(&s_array[wid]->wqueue_lock);
+        pthread_spin_lock(&srvs[wid]->wqueue_lock);
+        srvs[wid]->wqueue.put_reply(r);
+        if (srvs[wid]->wqueue.is_ready(r.pid)) {
+            request_or_reply reply = srvs[wid]->wqueue.get_merged_reply(r.pid);
+            pthread_spin_unlock(&srvs[wid]->wqueue_lock);
             SendR(cfg, cfg->sid_of(reply.pid), cfg->wid_of(reply.pid), reply);
         }
-        pthread_spin_unlock(&s_array[wid]->wqueue_lock);
+        pthread_spin_unlock(&srvs[wid]->wqueue_lock);
     }
 }
 
@@ -637,17 +639,17 @@ server::run(void)
 
         // nbr queue
         last_time = timer::get_usec();
-        if (last_time < s_array[nbr_id]->last_time + TIMEOUT_THRESHOLD)
+        if (last_time < srvs[nbr_id]->last_time + TIMEOUT_THRESHOLD)
             continue; // neighboring worker is self-sufficient
 
         success = false;
-        pthread_spin_lock(&s_array[nbr_id]->recv_lock);
-        success = TryRecvR(s_array[nbr_id]->cfg, r);
+        pthread_spin_lock(&srvs[nbr_id]->recv_lock);
+        success = TryRecvR(srvs[nbr_id]->cfg, r);
         if (success && r.start_from_index()) {
-            s_array[nbr_id]->msg_fast_path.push_back(r);
+            srvs[nbr_id]->msg_fast_path.push_back(r);
             success = false;
         }
-        pthread_spin_unlock(&s_array[nbr_id]->recv_lock);
+        pthread_spin_unlock(&srvs[nbr_id]->recv_lock);
 
         if (success) execute(r, nbr_id);
     }

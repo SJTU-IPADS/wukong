@@ -41,7 +41,7 @@ class server {
     uint64_t last_time; // busy or not (work-oblige)
 
     pthread_spinlock_t recv_lock;
-    vector<request_or_reply> msg_fast_path;
+    std::vector<request_or_reply> msg_fast_path;
 
     pthread_spinlock_t wqueue_lock;
     wait_queue wqueue;
@@ -61,8 +61,8 @@ class server {
     void known_unknown_const(request_or_reply &req);
 
 
-    vector<request_or_reply> generate_sub_query(request_or_reply &r);
-    vector<request_or_reply> generate_mt_sub_requests(request_or_reply &r);
+    std::vector<request_or_reply> generate_sub_query(request_or_reply &r);
+    std::vector<request_or_reply> generate_mt_sub_requests(request_or_reply &r);
 
     bool need_fork_join(request_or_reply &req);
 
@@ -72,14 +72,12 @@ class server {
     void execute_request(request_or_reply &req);
     void execute(request_or_reply &r, int wid);
 
-    server **s_array; // array of server pointers
-
 public:
     server(distributed_graph &_g, thread_cfg *_cfg);
 
-    void set_server_array(server **array) {
-        s_array = array;
-    };
-
     void run();
 };
+
+// an array of pointers of benckend workers
+extern std::vector<server *> srvs;
+

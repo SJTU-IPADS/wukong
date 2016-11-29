@@ -43,7 +43,7 @@ client::send(request_or_reply &req)
     }
     req.first_target = mymath::hash_mod(req.cmd_chains[0], global_nsrvs);
 
-    // one-to-one mapping
+    /* use one-to-one mapping if there are multiple frontend workers */
     //int server_per_client = global_nbewkrs / global_nfewkrs;
     //int mid = global_nfewkrs + server_per_client * cfg->wid + cfg->get_random() % server_per_client;
 
