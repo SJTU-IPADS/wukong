@@ -30,7 +30,7 @@
 #include "string_server.h"
 #include "distributed_graph.h"
 #include "server.h"
-#include "client.h"
+#include "proxy.h"
 #include "console.h"
 
 using namespace std;
@@ -55,7 +55,7 @@ void* Run(void *ptr) {
 	if (cfg->t_id >= cfg->client_num) {
 		((server*)(cfg->ptr))->run();
 	} else {
-		iterative_shell(((client*)(cfg->ptr)));
+		iterative_shell(((proxy *)(cfg->ptr)));
 	}
 }
 
@@ -102,9 +102,9 @@ int main(int argc, char * argv[]) {
 
 	string_server str_server(global_input_folder);
 	distributed_graph graph(world, rdma, global_input_folder);
-	client** client_array = new client*[global_num_proxies];
+	proxy** client_array = new proxy*[global_num_proxies];
 	for (int i = 0; i < global_num_proxies; i++) {
-		client_array[i] = new client(&cfg_array[i], &str_server);
+		client_array[i] = new proxy(&cfg_array[i], &str_server);
 	}
 	server** server_array = new server*[global_num_engines];
 	for (int i = 0; i < global_num_engines; i++) {

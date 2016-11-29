@@ -20,13 +20,13 @@
  *
  */
 
-#include "client.h"
+#include "proxy.h"
 
-client::client(thread_cfg *_cfg, string_server *_str_server):
+proxy::proxy(thread_cfg *_cfg, string_server *_str_server):
     cfg(_cfg), str_server(_str_server), parser(_str_server) { }
 
 void
-client::send(request_or_reply &req)
+proxy::send(request_or_reply &req)
 {
     assert(req.pid != -1);
 
@@ -53,7 +53,7 @@ client::send(request_or_reply &req)
 }
 
 request_or_reply
-client::recv(void)
+proxy::recv(void)
 {
     request_or_reply r = RecvR(cfg);
     if (r.start_from_index()) {
@@ -71,7 +71,7 @@ client::recv(void)
 }
 
 void
-client::print_result(request_or_reply &r, int row2print)
+proxy::print_result(request_or_reply &r, int row2print)
 {
     cout << "The first " << row2print << " rows of results: " << endl;
     for (int i = 0; i < row2print; i++) {
@@ -92,7 +92,7 @@ client::print_result(request_or_reply &r, int row2print)
 }
 
 void
-client::run_single_query(istream &is, int cnt)
+proxy::run_single_query(istream &is, int cnt)
 {
     request_or_reply request, reply;
 
@@ -119,7 +119,7 @@ client::run_single_query(istream &is, int cnt)
 
 
 void
-client::translate_req_template(request_template &req_template)
+proxy::translate_req_template(request_template &req_template)
 {
     req_template.ptypes_grp.resize(req_template.ptypes_str.size());
     for (int i = 0; i < req_template.ptypes_str.size(); i++) {
@@ -147,7 +147,7 @@ client::translate_req_template(request_template &req_template)
 }
 
 void
-client::instantiate_request(request_template &req_template, request_or_reply &r)
+proxy::instantiate_request(request_template &req_template, request_or_reply &r)
 {
     for (int i = 0; i < req_template.ptypes_pos.size(); i++) {
         int pos = req_template.ptypes_pos[i];
@@ -160,7 +160,7 @@ client::instantiate_request(request_template &req_template, request_or_reply &r)
 }
 
 void
-client::run_batch_query(istream &is, batch_logger& logger)
+proxy::run_batch_query(istream &is, batch_logger& logger)
 {
     int total_query_type;
     int total_request;
@@ -221,7 +221,7 @@ client::run_batch_query(istream &is, batch_logger& logger)
 
 
 void
-client::nonblocking_run_batch_query(istream &is, batch_logger& logger)
+proxy::nonblocking_run_batch_query(istream &is, batch_logger& logger)
 {
     int total_query_type;
     int total_request;

@@ -44,7 +44,7 @@ print_help(void)
 {
 	cout << "These are common Wukong commands: " << endl;
 	cout << "    help         Display help infomation" << endl;
-	cout << "    quit         Quit from client" << endl;
+	cout << "    quit         Quit from console" << endl;
 	cout << "    reconfig     Reload config file" << endl;
 	cout << "    sparql       Run SPARQL queries" << endl;
 	cout << "        -f <file>   a single query from the <file>" << endl;
@@ -57,15 +57,15 @@ print_help(void)
 #define PRINT_ID(_cfg) (cout << "[" << (_cfg)->sid << "-" << (_cfg)->wid << "]$ ")
 
 /**
- * The Wukong's console is co-located with the master proxy (the 1st proxy thread on the 1st server)
+ * The Wukong's console is co-located with the main proxy (the 1st proxy thread on the 1st server)
  * and provide a simple interactive cmdline to tester
  */
 void
-run_console(client *clnt)
+run_console(proxy *clnt)
 {
 	struct thread_cfg *cfg = clnt->cfg;
 
-	// the master client worker (i.e., sid == 0 and wid == 0)
+	// the main proxy thread (i.e., sid == 0 and wid == 0)
 	console_barrier(cfg);
 	if (IS_MASTER(cfg))
 		cout << endl
@@ -95,7 +95,7 @@ next:
 				goto next;
 			}
 
-			// send commands to all client workers
+			// send commands to all proxy threads
 			for (int i = 0; i < global_nsrvs; i++) {
 				for (int j = 0; j < global_num_proxies; j++) {
 					if (i == 0 && j == 0)
@@ -153,7 +153,7 @@ next:
 				}
 
 				if (f_enable) {
-					// use the master client to run a single query
+					// use the main proxy thread to run a single query
 					if (IS_MASTER(cfg)) {
 						ifstream ifs(fname);
 						if (!ifs) {
@@ -186,14 +186,14 @@ next:
 					console_barrier(cfg);
 					// print a statistic of runtime for the batch processing
 					if (IS_MASTER(cfg)) {
-						// collect logs from other clients
+						// collect logs from other proxy threads
 						for (int i = 0; i < global_nsrvs * global_num_proxies - 1; i++) {
 							batch_logger log = RecvObject<batch_logger>(cfg);
 							logger.merge(log);
 						}
 						logger.print();
 					} else {
-						// send logs to the master client
+						// send logs to the main proxy
 						SendObject<batch_logger>(cfg, 0, 0, logger);
 					}
 

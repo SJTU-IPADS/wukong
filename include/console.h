@@ -28,9 +28,9 @@
 #include "utils.h"
 #include "global_cfg.h"
 #include "thread_cfg.h"
-#include "client.h"
+#include "proxy.h"
 #include "batch_logger.h"
 
 using namespace std;
 
-void run_console(client *clnt);
+void run_console(proxy *clnt);

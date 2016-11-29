@@ -33,14 +33,14 @@
 #include <tbb/concurrent_hash_map.h>
 
 #include "cs_basic_type.h"
-#include "client.h"
+#include "proxy.h"
 
 using namespace std;
 
 
 class monitor {
 public:
-	client *clnt;
+	proxy *clnt;
 	int port;
 
 	zmq::context_t context;
@@ -51,7 +51,7 @@ public:
 	pthread_spinlock_t send_lock;
 	tbb::concurrent_hash_map<int, string> id_table; // from id to cid
 
-	monitor(client *_clnt, int _port = 5450): clnt(_clnt), port(_port) {
+	monitor(proxy *_clnt, int _port = 5450): clnt(_clnt), port(_port) {
 		pthread_spin_init(&send_lock, 0);
 
 		router = new zmq::socket_t(context, ZMQ_ROUTER);
@@ -142,4 +142,4 @@ public:
 	}
 };
 
-void run_monitor(client *clnt, int port);
+void run_monitor(proxy *clnt, int port);

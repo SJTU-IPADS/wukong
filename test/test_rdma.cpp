@@ -30,7 +30,7 @@
 #include "string_server.h"
 #include "distributed_graph.h"
 #include "server.h"
-#include "client.h"
+#include "proxy.h"
 #include "console.h"
 
 using namespace std;

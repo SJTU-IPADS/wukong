@@ -196,7 +196,7 @@ Synchronize all executable files (e.g., `build/wukong`) to all machines
     $cd ${WUKONG_ROOT}/scripts
     $./sync.sh
 
-Running sever and a naive client console  
+Running sever with a naive console for testing
 
     $cd ${WUKONG_ROOT}/scripts
     $./run.sh [#nodes]

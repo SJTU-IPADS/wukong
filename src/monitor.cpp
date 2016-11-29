@@ -58,7 +58,7 @@ send_cmd(void *ptr)
 }
 
 void
-run_monitor(client *clnt, int port)
+run_monitor(proxy *clnt, int port)
 {
 	monitor *d = new monitor(clnt, port);
 	pthread_t tid[2];

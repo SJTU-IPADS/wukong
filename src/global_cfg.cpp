@@ -96,7 +96,7 @@ dump_cfg(void)
 }
 
 /**
- * reconfig client
+ * re-configure Wukong
  */
 void
 reload_cfg(void)
