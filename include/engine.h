@@ -80,4 +80,3 @@ public:
 
 // a vector of pointers of all local engines
 extern std::vector<engine *> engines;
-

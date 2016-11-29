@@ -34,7 +34,6 @@
 #include "global_cfg.h"
 #include "utils.h"
 
-
 /*
     normal key  = (id,direction,1)
     normal val  = p1 p2 p3   v1 v2 v3

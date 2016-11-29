@@ -31,12 +31,6 @@
 #include "client.h"
 #include "batch_logger.h"
 
-
 using namespace std;
 
-void run_single_query(client* clnt, istream &is, int cnt);
-
-void batch_execute(client *clnt, istream &is, batch_logger &logger);
-void nonblocking_execute(client *clnt, istream &is, batch_logger &logger);
-
-void builtin_console(client *clnt);
+void run_console(client *clnt);

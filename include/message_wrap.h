@@ -28,7 +28,6 @@
 #include "thread_cfg.h"
 #include "global_cfg.h"
 
-
 void SendR(thread_cfg* cfg, int r_mid, int r_tid, request_or_reply& r);
 request_or_reply RecvR(thread_cfg* cfg);
 bool TryRecvR(thread_cfg* cfg, request_or_reply& r);

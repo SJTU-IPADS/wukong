@@ -22,23 +22,27 @@
 
 #pragma once
 
-#include "client.h"
 #include <zmq.hpp>
 #include <zhelpers.hpp>
 #include <pthread.h>
 #include <iostream>
 #include <sstream>
-#include "cs_basic_type.h"
+
 #include <boost/lockfree/spsc_queue.hpp>
 #include <boost/unordered_map.hpp>
 #include <tbb/concurrent_hash_map.h>
 
+#include "cs_basic_type.h"
+#include "client.h"
+
 using namespace std;
 
-class Proxy {
+
+class monitor {
 public:
 	client *clnt;
 	int port;
+
 	zmq::context_t context;
 	zmq::socket_t *router;
 
@@ -47,7 +51,7 @@ public:
 	pthread_spinlock_t send_lock;
 	tbb::concurrent_hash_map<int, string> id_table; // from id to cid
 
-	Proxy(client *_clnt, int _port = 5450): clnt(_clnt), port(_port) {
+	monitor(client *_clnt, int _port = 5450): clnt(_clnt), port(_port) {
 		pthread_spin_init(&send_lock, 0);
 
 		router = new zmq::socket_t(context, ZMQ_ROUTER);
@@ -55,13 +59,12 @@ public:
 		char address[30] = "";
 		sprintf(address, "tcp://*:%d", port + clnt->cfg->wid);
 		cout << "port " << port + clnt->cfg->wid << endl;
-		router->bind (address);
+		router->bind(address);
 	}
 
-	~Proxy() {
+	~monitor() {
 		delete router;
 	}
-
 
 	string recv(void) {
 		string cid = s_recv(*router);
@@ -139,6 +142,4 @@ public:
 	}
 };
 
-void proxy(client *clnt, int port);
-void *recv_cmd(void *proxy);
-void *send_cmd(void *proxy);
+void run_monitor(client *clnt, int port);

@@ -46,7 +46,6 @@
 #include <vector>
 #include <pthread.h>
 
-
 class RdmaResource {
 
   //site configuration settings
@@ -139,5 +138,4 @@ public:
     return false;
   }
 };
-
 #endif

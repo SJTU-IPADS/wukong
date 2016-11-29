@@ -28,12 +28,18 @@
 #include "message_wrap.h"
 #include "sparql_parser.h"
 #include "string_server.h"
+#include "batch_logger.h"
 
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
 
-
 class client {
+private:
+
+	void instantiate_request(request_template &req_template, request_or_reply &r);
+
+	void translate_req_template(request_template &req_template);
+
 public:
 	thread_cfg *cfg;
 
@@ -49,4 +55,12 @@ public:
 	request_or_reply recv(void);
 
 	void print_result(request_or_reply &r, int row2print);
+
+
+	void run_single_query(istream &is, int cnt);
+
+	void nonblocking_run_batch_query(istream &is, batch_logger& logger);
+
+	// discard
+	void run_batch_query(istream &is, batch_logger& logger);
 };

@@ -393,5 +393,4 @@ public:
         return false;
     }
 };
-
 #endif

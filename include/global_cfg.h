@@ -69,5 +69,7 @@ extern std::string cfg_fname;
 extern std::string host_fname;
 
 void dump_cfg(void);
+
 void reload_cfg(void);
+
 void load_cfg(int nsrvs);

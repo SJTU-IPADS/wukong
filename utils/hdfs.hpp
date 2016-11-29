@@ -220,5 +220,5 @@ public:
 
 #endif
 
-}; // end of namespace graphlab
+}; // end of namespace wukong
 #endif

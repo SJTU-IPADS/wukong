@@ -31,7 +31,7 @@
 #include "distributed_graph.h"
 #include "server.h"
 #include "client.h"
-#include "builtin_console.h"
+#include "console.h"
 
 using namespace std;
 

@@ -29,7 +29,6 @@
 #include "global_cfg.h"
 #include "query_basic_types.h"
 
-
 struct item {
 	int count;
 	request_or_reply parent_request;

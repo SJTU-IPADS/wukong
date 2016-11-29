@@ -31,8 +31,8 @@
 #include "distributed_graph.h"
 #include "engine.h"
 #include "client.h"
-#include "builtin_console.h"
-#include "proxy.h"
+#include "console.h"
+#include "monitor.h"
 
 using namespace std;
 
@@ -63,8 +63,8 @@ int cores[] = {
 	0, 2, 4, 6, 8, 10, 12, 14, 16, 18
 };
 
-bool proxy_enable = false;
-int proxy_port = 5450;
+bool monitor_enable = false;
+int monitor_port = 5450;
 
 void
 pin_to_core(size_t core)
@@ -86,12 +86,12 @@ worker_thread(void *arg)
 		// engine threads
 		((engine *)(cfg->worker))->run();
 	} else {
-		if (!proxy_enable)
-			// builtin console (by default)
-			builtin_console((client*)(cfg->worker));
+		if (!monitor_enable)
+			// Run the Wukong's console (by default)
+			run_console((client*)(cfg->worker));
 		else
-			// connected console through proxy
-			proxy((client*)(cfg->worker), proxy_port);
+			// Run monitor thread for clients
+			run_monitor((client*)(cfg->worker), monitor_port);
 	}
 }
 
@@ -122,10 +122,10 @@ main(int argc, char *argv[])
 	while ((c = getopt(argc - 2, argv + 2, "cp:")) != -1) {
 		switch (c) {
 		case 'c':
-			proxy_enable = true;
+			monitor_enable = true;
 			break;
 		case 'p':
-			proxy_port = atoi(optarg);
+			monitor_port = atoi(optarg);
 			break;
 		default :
 			usage(argv[0]);
@@ -202,3 +202,4 @@ main(int argc, char *argv[])
 	/// TODO: exit gracefully (properly call MPI_Init() and MPI_Finalize())
 	return 0;
 }
+

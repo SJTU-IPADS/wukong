@@ -90,3 +90,198 @@ client::print_result(request_or_reply &r, int row2print)
         cout << endl;
     }
 }
+
+void
+client::run_single_query(istream &is, int cnt)
+{
+    request_or_reply request, reply;
+
+    if (!parser.parse(is, request)) {
+        cout << "ERROR: parse failed! ("
+             << parser.strerror << ")" << endl;
+        return;
+    }
+
+    uint64_t t = timer::get_usec();
+    for (int i = 0; i < cnt; i++) {
+        setpid(request);
+        send(request);
+        reply = recv();
+    }
+    t = timer::get_usec() - t;
+
+    cout << "(last) result size: " << reply.row_num << endl;
+    cout << "(average) latency: " << (t / cnt) << " usec" << endl;
+
+    if (!global_silent)
+        print_result(reply, min(reply.row_num, global_max_print_row));
+}
+
+
+void
+client::translate_req_template(request_template &req_template)
+{
+    req_template.ptypes_grp.resize(req_template.ptypes_str.size());
+    for (int i = 0; i < req_template.ptypes_str.size(); i++) {
+        string type = req_template.ptypes_str[i];
+
+        request_or_reply type_request, type_reply;
+
+        // a TYPE query to collect constants with the certain type
+        if (!parser.add_type_pattern(type, type_request)) {
+            cout << "ERROR: failed to add a special type pattern (type: "
+                 << type << ")." << endl;
+            assert(false);
+        }
+
+        // do TYPE query
+        setpid(type_request);
+        send(type_request);
+        type_reply = recv();
+
+        vector<int64_t> *ptr = new vector<int64_t>(type_reply.result_table);
+        req_template.ptypes_grp[i] = ptr;
+
+        cout << type << " has " << ptr->size() << " objects" << endl;
+    }
+}
+
+void
+client::instantiate_request(request_template &req_template, request_or_reply &r)
+{
+    for (int i = 0; i < req_template.ptypes_pos.size(); i++) {
+        int pos = req_template.ptypes_pos[i];
+        vector<int64_t> *vecptr = req_template.ptypes_grp[i];
+        if (vecptr == NULL || vecptr->size() == 0) {
+            assert(false);
+        }
+        r.cmd_chains[pos] = (*vecptr)[cfg->get_random() % (vecptr->size())];
+    }
+}
+
+void
+client::run_batch_query(istream &is, batch_logger& logger)
+{
+    int total_query_type;
+    int total_request;
+    int sleep_round = 1;
+
+    is >> total_query_type >> total_request >> sleep_round;
+
+    vector<int > loads;
+    vector<request_template > vec_template;
+    vector<request_or_reply > vec_req;
+    vec_template.resize(total_query_type);
+    vec_req.resize(total_query_type);
+    for (int i = 0; i < total_query_type; i++) {
+        string fname;
+        is >> fname;
+        ifstream ifs(fname);
+        if (!ifs) {
+            cout << "Query file not found: " << fname << endl;
+            return ;
+        }
+
+        int load;
+        is >> load;
+        loads.push_back(load);
+        bool success = parser.parse_template(ifs, vec_template[i]);
+        translate_req_template(vec_template[i]);
+        vec_req[i].cmd_chains = vec_template[i].cmd_chains;
+        if (!success) {
+            cout << "SPARQL parse error" << endl;
+            return ;
+        }
+        vec_req[i].silent = global_silent;
+    }
+    uint64_t start_time = timer::get_usec();
+    for (int i = 0; i < global_batch_factor; i++) {
+        int idx = mymath::get_distribution(cfg->get_random(), loads);
+        instantiate_request(vec_template[idx], vec_req[idx]);
+        setpid(vec_req[idx]);
+        logger.start_record(vec_req[idx].pid, idx);
+        send(vec_req[idx]);
+    }
+    for (int i = 0; i < total_request; i++) {
+        request_or_reply reply = recv();
+        logger.end_record(reply.pid);
+        int idx = mymath::get_distribution(cfg->get_random(), loads);
+        instantiate_request(vec_template[idx], vec_req[idx]);
+        setpid(vec_req[idx]);
+        logger.start_record(vec_req[idx].pid, idx);
+        send(vec_req[idx]);
+    }
+    for (int i = 0; i < global_batch_factor; i++) {
+        request_or_reply reply = recv();
+        logger.end_record(reply.pid);
+    }
+    uint64_t end_time = timer::get_usec();
+    cout << 1000.0 * (total_request + global_batch_factor) / (end_time - start_time) << " Kops" << endl;
+}
+
+
+void
+client::nonblocking_run_batch_query(istream &is, batch_logger& logger)
+{
+    int total_query_type;
+    int total_request;
+    int sleep_round = 1;
+
+    is >> total_query_type >> total_request >> sleep_round;
+
+    vector<int > loads;
+    vector<request_template > vec_template;
+    vector<request_or_reply > vec_req;
+
+    vec_template.resize(total_query_type);
+    vec_req.resize(total_query_type);
+    for (int i = 0; i < total_query_type; i++) {
+        string fname;
+        is >> fname;
+        ifstream ifs(fname);
+        if (!ifs) {
+            cout << "Query file not found: " << fname << endl;
+            return ;
+        }
+
+        int load;
+        is >> load;
+        loads.push_back(load);
+        bool success = parser.parse_template(ifs, vec_template[i]);
+        translate_req_template(vec_template[i]);
+        vec_req[i].cmd_chains = vec_template[i].cmd_chains;
+        if (!success) {
+            cout << "sparql parse error" << endl;
+            return ;
+        }
+        vec_req[i].silent = global_silent;
+    }
+
+    int send_request = 0;
+    int recv_request = 0;
+    while (recv_request != total_request) {
+        for (int t = 0; t < 10; t++) {
+            if (send_request < total_request) {
+                send_request++;
+                int idx = mymath::get_distribution(cfg->get_random(), loads);
+                instantiate_request(vec_template[idx], vec_req[idx]);
+                setpid(vec_req[idx]);
+                logger.start_record(vec_req[idx].pid, idx);
+                send(vec_req[idx]);
+            }
+        }
+
+        for (int i = 0; i < sleep_round; i++) {
+            timer::cpu_relax(100);
+            request_or_reply reply;
+            bool success = TryRecvR(cfg, reply);
+            while (success) {
+                recv_request++;
+                logger.end_record(reply.pid);
+                success = TryRecvR(cfg, reply);
+            }
+        }
+    }
+}
+
+
