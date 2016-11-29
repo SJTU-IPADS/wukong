@@ -78,6 +78,10 @@ client::print_result(request_or_reply &r, int row2print)
         cout << i + 1 << ":  ";
         for (int c = 0; c < r.get_col_num(); c++) {
             int id = r.get_row_col(i, c);
+            /*
+             * Must load the entire ID mapping files (incl. normal and index),
+             * If you want to print the query results with strings.
+             */
             if (str_server->id2str.find(id) == str_server->id2str.end())
                 cout << id << "\t";
             else
