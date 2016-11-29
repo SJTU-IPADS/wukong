@@ -78,11 +78,10 @@ client::print_result(request_or_reply &r, int row2print)
         cout << i + 1 << ":  ";
         for (int c = 0; c < r.get_col_num(); c++) {
             int id = r.get_row_col(i, c);
-            if (str_server->id2str.find(id) == str_server->id2str.end()) {
-                cout << "NULL  ";
-            } else {
+            if (str_server->id2str.find(id) == str_server->id2str.end())
+                cout << id << "\t";
+            else
                 cout << str_server->id2str[r.get_row_col(i, c)] << "  ";
-            }
         }
         cout << endl;
     }
