@@ -20,20 +20,20 @@
  *
  */
 
-#include "sparql_parser.h"
+#include "parser.h"
 
 inline static bool is_upper(string str1, string str2) {
     return boost::to_upper_copy<std::string>(str1) == str2;
 }
 
-sparql_parser::sparql_parser(string_server *_str_server)
+Parser::Parser(string_server *_str_server)
     : str_server(_str_server) {
     valid = true;
 }
 
 
 void
-sparql_parser::clear(void)
+Parser::clear(void)
 {
     prefixes.clear();
     pvars.clear();
@@ -45,7 +45,7 @@ sparql_parser::clear(void)
 }
 
 vector<string>
-sparql_parser::get_tokens(istream &is)
+Parser::get_tokens(istream &is)
 {
     vector<string> tokens;
     string t;
@@ -56,7 +56,7 @@ sparql_parser::get_tokens(istream &is)
 }
 
 bool
-sparql_parser::extract(vector<string> &tokens)
+Parser::extract(vector<string> &tokens)
 {
     int idx = 0;
 
@@ -125,7 +125,7 @@ sparql_parser::extract(vector<string> &tokens)
  * The abbreviated forms in the SPARQL syntax are resolved to produce absolute IRIs
  */
 void
-sparql_parser::resolve(vector<string> &tokens)
+Parser::resolve(vector<string> &tokens)
 {
     for (int i = 0; i < tokens.size(); i++) {
         for (auto iter : prefixes) {
@@ -148,7 +148,7 @@ sparql_parser::resolve(vector<string> &tokens)
 }
 
 int64_t
-sparql_parser::token2id(string &token)
+Parser::token2id(string &token)
 {
     if (token[0] == '?') {  // pattern variable
         if (pvars.find(token) == pvars.end()) {
@@ -171,7 +171,7 @@ sparql_parser::token2id(string &token)
 }
 
 void
-sparql_parser::dump_cmd_chains(void)
+Parser::dump_cmd_chains(void)
 {
     cout << "cmd_chain size: " << req_template.cmd_chains.size() << endl;
     for (int i = 0; i < req_template.cmd_chains.size(); i += 4) {
@@ -185,7 +185,7 @@ sparql_parser::dump_cmd_chains(void)
 }
 
 bool
-sparql_parser::do_parse(vector<string> &tokens)
+Parser::do_parse(vector<string> &tokens)
 {
     if (!extract(tokens))
         return false;
@@ -240,7 +240,7 @@ sparql_parser::do_parse(vector<string> &tokens)
  * Used by single-mode
  */
 bool
-sparql_parser::parse(istream &is, request_or_reply &r)
+Parser::parse(istream &is, request_or_reply &r)
 {
     // clear state of parser before a new parsing
     clear();
@@ -268,7 +268,7 @@ sparql_parser::parse(istream &is, request_or_reply &r)
  * Used by batch-mode
  */
 bool
-sparql_parser::parse_template(istream &is, request_template &r)
+Parser::parse_template(istream &is, request_template &r)
 {
     // clear state of parser before a new parsing
     clear();
@@ -287,7 +287,7 @@ sparql_parser::parse_template(istream &is, request_template &r)
 }
 
 bool
-sparql_parser::add_type_pattern(string type, request_or_reply &r)
+Parser::add_type_pattern(string type, request_or_reply &r)
 {
     clear();
     r = request_or_reply();

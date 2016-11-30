@@ -49,7 +49,7 @@ using namespace std;
  * 4. pattern's random-constant e.g., %ub:GraduateCourse (extended by Wukong in batch-mode)
  *
  */
-class sparql_parser {
+class Parser {
 private:
     const static int64_t PTYPE_PH = (INT64_MIN + 1); // place holder of pattern type (a special group of objects)
     const static int64_t DUMMY_ID = (INT64_MIN);
@@ -89,7 +89,7 @@ public:
     bool valid;
     std::string strerror;
 
-    sparql_parser(string_server *_str_server);
+    Parser(string_server *_str_server);
 
     bool parse(istream &is, request_or_reply &r);
 

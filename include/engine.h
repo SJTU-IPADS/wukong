@@ -32,7 +32,7 @@
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
 
-class engine {
+class Engine {
     const static uint64_t TIMEOUT_THRESHOLD = 10000; // 10 msec
 
     distributed_graph &g;
@@ -73,10 +73,10 @@ class engine {
     void execute(request_or_reply &r, int wid);
 
 public:
-    engine(distributed_graph &_g, thread_cfg *_cfg);
+    Engine(distributed_graph &_g, thread_cfg *_cfg);
 
     void run();
 };
 
 // a vector of pointers of all local engines
-extern std::vector<engine *> engines;
+extern std::vector<Engine *> engines;

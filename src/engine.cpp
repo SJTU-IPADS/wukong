@@ -23,9 +23,9 @@
 #include "engine.h"
 #include <stdlib.h> //qsort
 
-std::vector <engine *> engines;
+std::vector <Engine *> engines;
 
-engine::engine(distributed_graph& _g, thread_cfg* _cfg): g(_g), cfg(_cfg)
+Engine::Engine(distributed_graph& _g, thread_cfg* _cfg): g(_g), cfg(_cfg)
 {
     last_time = -1;
     pthread_spin_init(&recv_lock, 0);
@@ -33,7 +33,7 @@ engine::engine(distributed_graph& _g, thread_cfg* _cfg): g(_g), cfg(_cfg)
 }
 
 void
-engine::const_to_unknown(request_or_reply& req)
+Engine::const_to_unknown(request_or_reply& req)
 {
     int64_t start       = req.cmd_chains[req.step * 4];
     int64_t predicate   = req.cmd_chains[req.step * 4 + 1];
@@ -58,13 +58,13 @@ engine::const_to_unknown(request_or_reply& req)
 }
 
 void
-engine::const_to_known(request_or_reply& req)
+Engine::const_to_known(request_or_reply& req)
 {
     //TODO
 }
 
 void
-engine::known_to_unknown(request_or_reply& req)
+Engine::known_to_unknown(request_or_reply& req)
 {
     int64_t start       = req.cmd_chains[req.step * 4];
     int64_t predict     = req.cmd_chains[req.step * 4 + 1];
@@ -95,7 +95,7 @@ engine::known_to_unknown(request_or_reply& req)
 }
 
 void
-engine::known_to_known(request_or_reply &req)
+Engine::known_to_known(request_or_reply &req)
 {
     int64_t start       = req.cmd_chains[req.step * 4];
     int64_t predict     = req.cmd_chains[req.step * 4 + 1];
@@ -121,7 +121,7 @@ engine::known_to_known(request_or_reply &req)
 }
 
 void
-engine::known_to_const(request_or_reply &req)
+Engine::known_to_const(request_or_reply &req)
 {
     int64_t start       = req.cmd_chains[req.step * 4];
     int64_t predict     = req.cmd_chains[req.step * 4 + 1];
@@ -146,7 +146,7 @@ engine::known_to_const(request_or_reply &req)
 }
 
 void
-engine::index_to_unknown(request_or_reply &req)
+Engine::index_to_unknown(request_or_reply &req)
 {
     int64_t index_vertex = req.cmd_chains[req.step * 4];
     int64_t nothing      = req.cmd_chains[req.step * 4 + 1];
@@ -178,7 +178,7 @@ engine::index_to_unknown(request_or_reply &req)
 }
 
 void
-engine::const_unknown_unknown(request_or_reply &req)
+Engine::const_unknown_unknown(request_or_reply &req)
 {
     int64_t start       = req.cmd_chains[req.step * 4];
     int64_t predict     = req.cmd_chains[req.step * 4 + 1];
@@ -208,7 +208,7 @@ engine::const_unknown_unknown(request_or_reply &req)
 }
 
 void
-engine::known_unknown_unknown(request_or_reply& req)
+Engine::known_unknown_unknown(request_or_reply& req)
 {
     int64_t start = req.cmd_chains[req.step * 4];
     int64_t predict = req.cmd_chains[req.step * 4 + 1];
@@ -240,7 +240,7 @@ engine::known_unknown_unknown(request_or_reply& req)
 }
 
 void
-engine::known_unknown_const(request_or_reply& req)
+Engine::known_unknown_const(request_or_reply& req)
 {
     int64_t start = req.cmd_chains[req.step * 4];
     int64_t predict = req.cmd_chains[req.step * 4 + 1];
@@ -285,7 +285,7 @@ hash_pair(const v_pair &x)
 }
 
 void
-engine::do_corun(request_or_reply& req)
+Engine::do_corun(request_or_reply& req)
 {
     // step.1 remove dup;
     uint64_t t0 = timer::get_usec();
@@ -388,7 +388,7 @@ engine::do_corun(request_or_reply& req)
 }
 
 bool
-engine::execute_one_step(request_or_reply& req)
+Engine::execute_one_step(request_or_reply& req)
 {
     if (req.is_finished()) {
         return false;
@@ -457,7 +457,7 @@ engine::execute_one_step(request_or_reply& req)
 }
 
 vector<request_or_reply>
-engine::generate_sub_query(request_or_reply& req)
+Engine::generate_sub_query(request_or_reply& req)
 {
     int64_t start = req.cmd_chains[req.step * 4];
     int64_t end = req.cmd_chains[req.step * 4 + 3];
@@ -481,7 +481,7 @@ engine::generate_sub_query(request_or_reply& req)
 }
 
 std::vector<request_or_reply>
-engine::generate_mt_sub_requests(request_or_reply& req)
+Engine::generate_mt_sub_requests(request_or_reply& req)
 {
     int64_t start = req.cmd_chains[req.step * 4];
     int64_t end = req.cmd_chains[req.step * 4 + 3];
@@ -509,7 +509,7 @@ engine::generate_mt_sub_requests(request_or_reply& req)
 }
 
 bool
-engine::need_fork_join(request_or_reply &r)
+Engine::need_fork_join(request_or_reply &r)
 {
     int64_t start = r.cmd_chains[r.step * 4];
 
@@ -518,7 +518,7 @@ engine::need_fork_join(request_or_reply &r)
 }
 
 void
-engine::execute_request(request_or_reply &req)
+Engine::execute_request(request_or_reply &req)
 {
     uint64_t t1, t2;
 
@@ -569,7 +569,7 @@ engine::execute_request(request_or_reply &req)
 }
 
 void
-engine::execute(request_or_reply &r, int wid)
+Engine::execute(request_or_reply &r, int wid)
 {
     if (r.is_request()) {
         // request
@@ -590,7 +590,7 @@ engine::execute(request_or_reply &r, int wid)
 }
 
 void
-engine::run(void)
+Engine::run(void)
 {
     int own_id = cfg->wid - global_num_proxies;
     // TODO: replace pair to ring

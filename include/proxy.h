@@ -26,7 +26,7 @@
 #include "global_cfg.h"
 #include "thread_cfg.h"
 #include "message_wrap.h"
-#include "sparql_parser.h"
+#include "parser.h"
 #include "string_server.h"
 #include "batch_logger.h"
 
@@ -45,7 +45,7 @@ public:
 
 	string_server *str_server;
 
-	sparql_parser parser;
+	Parser parser;
 
 	Proxy(thread_cfg *_cfg, string_server *str_server);
 

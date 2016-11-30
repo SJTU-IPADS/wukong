@@ -84,7 +84,7 @@ worker_thread(void *arg)
 	// reserver first 'global_num_proxies' threads to proxy
 	if (cfg->wid >= global_num_proxies) {
 		// engine threads
-		((engine *)(cfg->worker))->run();
+		((Engine *)(cfg->worker))->run();
 	} else {
 		if (!monitor_enable)
 			// Run the Wukong's console (by default)
@@ -180,7 +180,7 @@ main(int argc, char *argv[])
 	// initiate engine threads
 	engines.resize(global_num_engines);
 	for (int i = 0; i < global_num_engines; i++) {
-		engines[i] = new engine(graph, &cfg_array[global_num_proxies + i]);
+		engines[i] = new Engine(graph, &cfg_array[global_num_proxies + i]);
 		cfg_array[i + global_num_proxies].worker = engines[i];
 	}
 

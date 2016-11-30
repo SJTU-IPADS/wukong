@@ -27,11 +27,11 @@ recv_cmd(void *ptr)
 {
 	cout << "star to receive commands from clients" << endl;
 
-	monitor *d = (monitor *)ptr;
+	Monitor *monitor = (Monitor *)ptr;
 	while (true) {
 		cout << "wait to new recv" << endl;
-		CS_Request creq = d->recv_req();
-		d->push(creq);
+		CS_Request creq = monitor->recv_req();
+		monitor->push(creq);
 		cout << "recv a new request" << endl;
 	}
 }
@@ -41,32 +41,32 @@ send_cmd(void *ptr)
 {
 	cout << "start to send commands to clients" << endl;
 
-	monitor *d = (monitor *)ptr;
+	Monitor *monitor = (Monitor *)ptr;
 	while (true) {
-		request_or_reply r = d->proxy->recv();
+		request_or_reply r = monitor->proxy->recv();
 		cout << "(last) result size: " << r.row_num << endl;
 		if (!global_silent)
-			d->proxy->print_result(r, min(r.row_num, global_max_print_row));
+			monitor->proxy->print_result(r, min(r.row_num, global_max_print_row));
 
 		CS_Reply crep;
 		crep.column = r.col_num;
 		crep.result_table = r.result_table;
-		crep.cid = d->get_cid(r.pid);
-		d->send_rep(crep);
-		d->remove_cid(r.pid);
+		crep.cid = monitor->get_cid(r.pid);
+		monitor->send_rep(crep);
+		monitor->remove_cid(r.pid);
 	}
 }
 
 void
 run_monitor(Proxy *proxy, int port)
 {
-	monitor *d = new monitor(proxy, port);
+	Monitor *monitor = new Monitor(proxy, port);
 	pthread_t tid[2];
-	pthread_create(&(tid[0]), NULL, recv_cmd, (void *)d);
-	pthread_create(&(tid[1]), NULL, send_cmd, (void *)d);
+	pthread_create(&(tid[0]), NULL, recv_cmd, (void *)monitor);
+	pthread_create(&(tid[1]), NULL, send_cmd, (void *)monitor);
 
 	while (true) {
-		CS_Request creq = d->pop();
+		CS_Request creq = monitor->pop();
 		string fname = creq.content;
 		cout << fname << endl;
 		request_or_reply r;
@@ -84,13 +84,13 @@ run_monitor(Proxy *proxy, int port)
 			crep.type = "error";
 			crep.content = "bad file";
 			crep.cid = creq.cid;
-			d->send_rep(crep);
+			monitor->send_rep(crep);
 			continue;
 		}
 
 		proxy->setpid(r);
 		proxy->send(r);
-		d->insert_cid(r.pid, creq.cid);
+		monitor->insert_cid(r.pid, creq.cid);
 	}
 
 	for (int i = 0; i < 2; i++) {

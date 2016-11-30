@@ -38,7 +38,7 @@
 using namespace std;
 
 
-class monitor {
+class Monitor {
 public:
 	Proxy *proxy;
 	int port;
@@ -51,7 +51,7 @@ public:
 	pthread_spinlock_t send_lock;
 	tbb::concurrent_hash_map<int, string> id_table; // from id to cid
 
-	monitor(Proxy *_proxy, int _port = 5450): proxy(_proxy), port(_port) {
+	Monitor(Proxy *_proxy, int _port = 5450): proxy(_proxy), port(_port) {
 		pthread_spin_init(&send_lock, 0);
 
 		router = new zmq::socket_t(context, ZMQ_ROUTER);
@@ -62,7 +62,7 @@ public:
 		router->bind(address);
 	}
 
-	~monitor() {
+	~Monitor() {
 		delete router;
 	}
 
