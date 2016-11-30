@@ -35,7 +35,10 @@ struct item {
 	request_or_reply merged_reply;
 };
 
-class wait_queue {
+/**
+ * The map is used to colloect the replies of sub-queries in fork-join execution
+ */
+class Reply_Map {
 	boost::unordered_map<int, item> internal_item_map;
 public:
 	void put_parent_request(request_or_reply &r, int count);

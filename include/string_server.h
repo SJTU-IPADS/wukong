@@ -40,12 +40,12 @@ using namespace std;
 // reserved ID
 enum { ID_PREDICATE = 0, ID_TYPE = 1 };
 
-class string_server {
+class String_Server {
 public:
 	boost::unordered_map<string, int64_t> str2id;
 	boost::unordered_map<int64_t, string> id2str;
 
-	string_server(string dname);
+	String_Server(string dname);
 
 private:
 	void load_from_posixfs(string ffname);

@@ -27,7 +27,7 @@
  * load ID mapping files from a shared filesystem (e.g., NFS)
  */
 void
-string_server::load_from_posixfs(string dname)
+String_Server::load_from_posixfs(string dname)
 {
     DIR *dir = opendir(dname.c_str());
     if (dir == NULL) {
@@ -67,7 +67,7 @@ string_server::load_from_posixfs(string dname)
  * load ID mapping files from HDFS
  */
 void
-string_server::load_from_hdfs(string dname)
+String_Server::load_from_hdfs(string dname)
 {
     wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
     vector<string> files = hdfs.list_files(dname);
@@ -96,7 +96,7 @@ string_server::load_from_hdfs(string dname)
     }
 }
 
-string_server::string_server(string dname)
+String_Server::String_Server(string dname)
 {
     if (boost::starts_with(dname, "hdfs:")) {
         if (!wukong::hdfs::has_hadoop()) {

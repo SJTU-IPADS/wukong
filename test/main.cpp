@@ -168,7 +168,7 @@ main(int argc, char *argv[])
 	}
 
 	// load string server (read-only, shared by all proxies)
-	string_server str_server(global_input_folder);
+	String_Server str_server(global_input_folder);
 
 	// load RDF graph (shared by all engines)
 	distributed_graph graph(world, rdma, global_input_folder);

@@ -27,7 +27,7 @@
 #include "query_basic_types.h"
 #include "global_cfg.h"
 #include "thread_cfg.h"
-#include "wait_queue.h"
+#include "reply_map.h"
 
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
@@ -44,7 +44,7 @@ class Engine {
     std::vector<request_or_reply> msg_fast_path;
 
     pthread_spinlock_t wqueue_lock;
-    wait_queue wqueue;
+    Reply_Map wqueue;
 
 
     // all of these means const predict

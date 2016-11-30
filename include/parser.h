@@ -55,7 +55,7 @@ private:
     const static int64_t DUMMY_ID = (INT64_MIN);
 
     // str2ID mapping for pattern constants (e.g., <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> 1)
-    string_server *str_server;
+    String_Server *str_server;
 
     // str2ID mapping for pattern variables (e.g., ?X -1)
     boost::unordered_map<string, int64_t> pvars;
@@ -89,7 +89,7 @@ public:
     bool valid;
     std::string strerror;
 
-    Parser(string_server *_str_server);
+    Parser(String_Server *_ss);
 
     bool parse(istream &is, request_or_reply &r);
 

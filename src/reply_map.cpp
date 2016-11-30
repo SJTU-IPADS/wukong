@@ -20,16 +20,16 @@
  *
  */
 
-#include "wait_queue.h"
+#include "reply_map.h"
 
 bool
-wait_queue::is_ready(int pid)
+Reply_Map::is_ready(int pid)
 {
     return internal_item_map[pid].count == 0;
 }
 
 request_or_reply
-wait_queue::get_merged_reply(int pid)
+Reply_Map::get_merged_reply(int pid)
 {
     request_or_reply r = internal_item_map[pid].parent_request;
     request_or_reply& merged_reply = internal_item_map[pid].merged_reply;
@@ -43,7 +43,7 @@ wait_queue::get_merged_reply(int pid)
 }
 
 void
-wait_queue::put_parent_request(request_or_reply &req, int count)
+Reply_Map::put_parent_request(request_or_reply &req, int count)
 {
     item data;
     data.count = count;
@@ -52,7 +52,7 @@ wait_queue::put_parent_request(request_or_reply &req, int count)
 }
 
 void
-wait_queue::put_reply(request_or_reply &reply)
+Reply_Map::put_reply(request_or_reply &reply)
 {
     int pid = reply.pid;
     item& data = internal_item_map[pid];

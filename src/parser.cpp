@@ -26,8 +26,8 @@ inline static bool is_upper(string str1, string str2) {
     return boost::to_upper_copy<std::string>(str1) == str2;
 }
 
-Parser::Parser(string_server *_str_server)
-    : str_server(_str_server) {
+Parser::Parser(String_Server *_ss)
+    : str_server(_ss) {
     valid = true;
 }
 

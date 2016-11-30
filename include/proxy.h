@@ -43,11 +43,11 @@ private:
 public:
 	thread_cfg *cfg;
 
-	string_server *str_server;
+	String_Server *str_server;
 
 	Parser parser;
 
-	Proxy(thread_cfg *_cfg, string_server *str_server);
+	Proxy(thread_cfg *_cfg, String_Server *str_server);
 
 	void setpid(request_or_reply &r) { r.pid = cfg->get_and_inc_qid(); }
 

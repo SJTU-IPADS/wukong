@@ -22,7 +22,7 @@
 
 #include "proxy.h"
 
-Proxy::Proxy(thread_cfg *_cfg, string_server *_str_server):
+Proxy::Proxy(thread_cfg *_cfg, String_Server *_str_server):
     cfg(_cfg), str_server(_str_server), parser(_str_server) { }
 
 void
