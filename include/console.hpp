@@ -20,7 +20,20 @@
  *
  */
 
-#include "console.h"
+#pragma once
+
+#include <iostream>
+#include <string>
+#include <boost/unordered_map.hpp>
+#include <set>
+
+#include "utils.h"
+#include "global_cfg.h"
+#include "thread_cfg.h"
+#include "proxy.h"
+#include "batch_logger.h"
+
+using namespace std;
 
 static void
 console_barrier(struct thread_cfg *cfg)

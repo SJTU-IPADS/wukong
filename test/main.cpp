@@ -22,8 +22,8 @@
 
 #include <boost/mpi.hpp>
 #include <boost/serialization/string.hpp>
-
 #include <iostream>
+
 #include "utils.h"
 #include "global_cfg.h"
 #include "thread_cfg.h"
@@ -31,7 +31,7 @@
 #include "distributed_graph.h"
 #include "engine.h"
 #include "proxy.h"
-#include "console.h"
+#include "console.hpp"
 #include "monitor.h"
 
 using namespace std;
