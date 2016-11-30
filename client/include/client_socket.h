@@ -25,7 +25,8 @@
 #include <zhelpers.hpp>
 #include <zmq.hpp>
 #include <sstream>
-#include "cs_basic_type.h"
+
+#include "cs_basic_type.hpp"
 
 class Client_Socket {
 public:

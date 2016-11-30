@@ -22,15 +22,15 @@
 
 #pragma once
 
-#include "graph_basic_types.h"
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/vector.hpp>
-
 #include <vector>
+
+#include "graph_basic_types.hpp"
 
 using namespace std;
 using namespace boost::archive;

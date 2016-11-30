@@ -27,13 +27,12 @@
 #include <pthread.h>
 #include <iostream>
 #include <sstream>
-
 #include <boost/lockfree/spsc_queue.hpp>
 #include <boost/unordered_map.hpp>
 #include <tbb/concurrent_hash_map.h>
 
-#include "cs_basic_type.h"
-#include "proxy.h"
+#include "cs_basic_type.hpp"
+#include "proxy.hpp"
 
 using namespace std;
 
@@ -62,9 +61,7 @@ public:
 		router->bind(address);
 	}
 
-	~Monitor() {
-		delete router;
-	}
+	~Monitor() { delete router; }
 
 	string recv(void) {
 		string cid = s_recv(*router);
@@ -142,4 +139,77 @@ public:
 	}
 };
 
-void run_monitor(Proxy *proxy, int port);
+void *recv_cmd(void *ptr) {
+	cout << "star to receive commands from clients" << endl;
+
+	Monitor *monitor = (Monitor *)ptr;
+	while (true) {
+		cout << "wait to new recv" << endl;
+		CS_Request creq = monitor->recv_req();
+		monitor->push(creq);
+		cout << "recv a new request" << endl;
+	}
+}
+
+void *send_cmd(void *ptr) {
+	cout << "start to send commands to clients" << endl;
+
+	Monitor *monitor = (Monitor *)ptr;
+	while (true) {
+		request_or_reply r = monitor->proxy->recv();
+		cout << "(last) result size: " << r.row_num << endl;
+		if (!global_silent)
+			monitor->proxy->print_result(r, min(r.row_num, global_max_print_row));
+
+		CS_Reply crep;
+		crep.column = r.col_num;
+		crep.result_table = r.result_table;
+		crep.cid = monitor->get_cid(r.pid);
+		monitor->send_rep(crep);
+		monitor->remove_cid(r.pid);
+	}
+}
+
+void run_monitor(Proxy *proxy, int port) {
+	Monitor *monitor = new Monitor(proxy, port);
+	pthread_t tid[2];
+	pthread_create(&(tid[0]), NULL, recv_cmd, (void *)monitor);
+	pthread_create(&(tid[1]), NULL, send_cmd, (void *)monitor);
+
+	while (true) {
+		CS_Request creq = monitor->pop();
+		string fname = creq.content;
+		cout << fname << endl;
+		request_or_reply r;
+
+		ifstream ifs(fname);
+		if (!ifs) {
+			cout << "Query file not found: " << fname << endl;
+			continue;
+		}
+
+		bool ok = proxy->parser.parse(ifs, r);
+		if (!ok) {
+			cout << "ERROR: SPARQL query parse error" << endl;
+			CS_Reply crep;
+			crep.type = "error";
+			crep.content = "bad file";
+			crep.cid = creq.cid;
+			monitor->send_rep(crep);
+			continue;
+		}
+
+		proxy->setpid(r);
+		proxy->send(r);
+		monitor->insert_cid(r.pid, creq.cid);
+	}
+
+	for (int i = 0; i < 2; i++) {
+		int rc = pthread_join(tid[i], NULL);
+		if (rc) {
+			printf("ERROR: return code from pthread_join() is %d\n", rc);
+			exit(-1);
+		}
+	}
+}
+

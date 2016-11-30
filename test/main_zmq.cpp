@@ -22,10 +22,10 @@
 
 #include <boost/mpi.hpp>
 #include <boost/serialization/string.hpp>
-
 #include <iostream>
+
 #include "utils.h"
-#include "global_cfg.h"
+#include "global_cfg.hpp"
 #include "thread_cfg.h"
 #include "string_server.h"
 #include "distributed_graph.h"

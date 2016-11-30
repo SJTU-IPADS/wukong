@@ -23,7 +23,7 @@
 #pragma once
 
 #ifdef USE_ZEROMQ
-#include "network_node.h"
+#include "network_node.hpp"
 
 #pragma GCC diagnostic warning "-fpermissive"
 
@@ -41,10 +41,10 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#include "timer.h"
-
 #include <vector>
 #include <pthread.h>
+
+#include "timer.h"
 
 class RdmaResource {
 

@@ -22,10 +22,11 @@
 
 #pragma once
 
-#include "utils.h"
 #include <functional>
 #include <iostream>
-#include "global_cfg.h"
+
+#include "global_cfg.hpp"
+#include "utils.h"
 
 struct edge_triple {
 	uint64_t s, p, o;

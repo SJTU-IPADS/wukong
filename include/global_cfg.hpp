@@ -20,43 +20,50 @@
  *
  */
 
-#include "global_cfg.h"
+#pragma once
 
+#include <map>
+#include <string>
+#include <fstream>
+#include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sstream>
 
-/* non-configurable global variables */
-int global_rdftype_id;	// reserved ID for rdf:type
-int global_nsrvs;
-int global_nthrs;
+using namespace std;
 
+int global_nsrvs;		// the number of servers
+int global_nthrs;		// the number of threads per server (incl. proxy and engine)
 
-/* configurable global variables */
+int global_num_engines;		// the number of engines
+int global_num_proxies;		// the number of proxies
+
+string global_input_folder;
+bool global_load_minimal_index;
+
 int global_eth_port_base;
 int global_rdma_port_base;
-bool global_use_rbf;
-bool global_use_rdma;
 
-int global_num_engines;
-int global_num_proxies;
-
-std::string global_input_folder;
-bool global_load_minimal_index;
-int global_max_print_row;
 int global_total_memory_gb;
 int global_perslot_msg_mb;
 int global_perslot_rdma_mb;
 int global_hash_header_million;
-int global_enable_workstealing;
-int global_verbose;
 
-/* shared by proxies and engines */
-int global_batch_factor;
+bool global_use_rdma;
+bool global_use_rbf;		// ring-buffer (by RDMA WRITE)
 bool global_use_loc_cache;
-bool global_silent;
+int global_enable_workstealing;
+
 int global_mt_threshold;
 int global_rdma_threshold;
 
-std::string cfg_fname;
-std::string host_fname;
+int global_max_print_row;
+bool global_silent;
+
+/* set by command line */
+string cfg_fname;
+string host_fname;
+
 
 /**
  * dump current global setting
@@ -74,7 +81,6 @@ dump_cfg(void)
 	cout << "global_rdma_threshold: " 		<< global_rdma_threshold			<< endl;
 	cout << "the number of engines: "		<< global_num_engines 				<< endl;
 	cout << "the number of proxies: "		<< global_num_proxies				<< endl;
-	cout << "global_batch_factor: " 		<< global_batch_factor				<< endl;
 	cout << "global_mt_threshold: " 		<< global_mt_threshold  			<< endl;
 	cout << "global_input_folder: " 		<< global_input_folder				<< endl;
 	cout << "global_use_loc_cache: " 		<< global_use_loc_cache				<< endl;
@@ -86,11 +92,9 @@ dump_cfg(void)
 	cout << "global_perslot_rdma_mb: " 		<< global_perslot_rdma_mb			<< endl;
 	cout << "global_hash_header_million: " 	<< global_hash_header_million		<< endl;
 	cout << "global_enable_workstealing: " 	<< global_enable_workstealing		<< endl;
-	cout << "global_verbose: " 				<< global_verbose					<< endl;
 	cout << "--" << endl;
 
 	// compute from other cfg settings
-	cout << "global_rdftype_id: " 			<< global_rdftype_id				<< endl;
 	cout << "the number of servers: " 		<< global_nsrvs				<< endl;
 	cout << "the number of threads: " 		<< global_nthrs				<< endl;
 }
@@ -123,11 +127,12 @@ reload_cfg(void)
 		config_map[row] = val;
 	}
 
-	global_batch_factor = atoi(config_map["global_batch_factor"].c_str());
 	global_use_loc_cache = atoi(config_map["global_use_loc_cache"].c_str());
-	global_silent = atoi(config_map["global_silent"].c_str());
+	global_enable_workstealing = atoi(config_map["global_enable_workstealing"].c_str());
 	global_mt_threshold = atoi(config_map["global_mt_threshold"].c_str());
 	global_rdma_threshold = atoi(config_map["global_rdma_threshold"].c_str());
+	global_max_print_row = atoi(config_map["global_max_print_row"].c_str());
+	global_silent = atoi(config_map["global_silent"].c_str());
 
 	return;
 }
@@ -157,33 +162,30 @@ load_cfg(int nsrvs)
 		config_map[row] = val;
 	}
 
-	global_eth_port_base = atoi(config_map["global_eth_port_base"].c_str());
-	global_rdma_port_base = atoi(config_map["global_rdma_port_base"].c_str());
-	global_use_rbf = atoi(config_map["global_use_rbf"].c_str());
-	global_use_rdma = atoi(config_map["global_use_rdma"].c_str());
-	global_rdma_threshold = atoi(config_map["global_rdma_threshold"].c_str());
 	global_num_engines = atoi(config_map["global_num_engines"].c_str());
 	global_num_proxies = atoi(config_map["global_num_proxies"].c_str());
-	global_batch_factor = atoi(config_map["global_batch_factor"].c_str());
-	global_mt_threshold = atoi(config_map["global_mt_threshold"].c_str());
 	global_input_folder = config_map["global_input_folder"];
-	global_use_loc_cache = atoi(config_map["global_use_loc_cache"].c_str());
 	global_load_minimal_index = atoi(config_map["global_load_minimal_index"].c_str());
-	global_silent = atoi(config_map["global_silent"].c_str());
-	global_max_print_row = atoi(config_map["global_max_print_row"].c_str());
+	global_eth_port_base = atoi(config_map["global_eth_port_base"].c_str());
+	global_rdma_port_base = atoi(config_map["global_rdma_port_base"].c_str());
+
 	global_total_memory_gb = atoi(config_map["global_total_memory_gb"].c_str());
 	global_perslot_msg_mb = atoi(config_map["global_perslot_msg_mb"].c_str());
 	global_perslot_rdma_mb = atoi(config_map["global_perslot_rdma_mb"].c_str());
 	global_hash_header_million = atoi(config_map["global_hash_header_million"].c_str());
-	global_enable_workstealing = atoi(config_map["global_enable_workstealing"].c_str());
-	global_verbose = atoi(config_map["global_verbose"].c_str());
 
-	// reserve ID 1 to rdf:type
-	global_rdftype_id = 1;
+	global_use_rdma = atoi(config_map["global_use_rdma"].c_str());
+	global_use_rbf = atoi(config_map["global_use_rbf"].c_str());
+	global_use_loc_cache = atoi(config_map["global_use_loc_cache"].c_str());
+	global_enable_workstealing = atoi(config_map["global_enable_workstealing"].c_str());
+
+	global_rdma_threshold = atoi(config_map["global_rdma_threshold"].c_str());
+	global_mt_threshold = atoi(config_map["global_mt_threshold"].c_str());
+	global_max_print_row = atoi(config_map["global_max_print_row"].c_str());
+	global_silent = atoi(config_map["global_silent"].c_str());
 
 	global_nsrvs = nsrvs;
 	global_nthrs = global_num_engines + global_num_proxies;
-
 
 	// make sure to check that the global_input_folder is non-empty.
 	if (global_input_folder.length() == 0) {
@@ -197,6 +199,7 @@ load_cfg(int nsrvs)
 		global_input_folder = global_input_folder + "/";
 
 	// debug dump
-	if (global_verbose) dump_cfg();
+	if (!global_silent) dump_cfg();
+
 	return;
 }

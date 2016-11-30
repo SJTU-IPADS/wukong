@@ -31,7 +31,7 @@
 #include <errno.h>
 #include <sstream>
 
-#include "global_cfg.h"
+#include "global_cfg.hpp"
 
 class Network_Node {
 public:

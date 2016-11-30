@@ -24,15 +24,15 @@
 #include <boost/serialization/string.hpp>
 #include <iostream>
 
+#include "global_cfg.hpp"
 #include "utils.h"
-#include "global_cfg.h"
-#include "thread_cfg.h"
+#include "thread_cfg.hpp"
 #include "string_server.hpp"
-#include "distributed_graph.h"
-#include "engine.h"
-#include "proxy.h"
+#include "distributed_graph.hpp"
+#include "engine.hpp"
+#include "proxy.hpp"
 #include "console.hpp"
-#include "monitor.h"
+#include "monitor.hpp"
 
 using namespace std;
 

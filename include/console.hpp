@@ -28,9 +28,9 @@
 #include <set>
 
 #include "utils.h"
-#include "global_cfg.h"
-#include "thread_cfg.h"
-#include "proxy.h"
+#include "global_cfg.hpp"
+#include "thread_cfg.hpp"
+#include "proxy.hpp"
 #include "logger.hpp"
 
 using namespace std;

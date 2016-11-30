@@ -20,50 +20,78 @@
  *
  */
 
-#include "message_wrap.h"
+#pragma once
 
-void SendR(thread_cfg* cfg, int r_mid, int r_tid, request_or_reply& r) {
+#include "query_basic_types.hpp"
+#include "network_node.hpp"
+#include "rdma_resource.hpp"
+#include "thread_cfg.hpp"
+#include "global_cfg.hpp"
+
+void SendR(thread_cfg *cfg, int mid, int tid, request_or_reply &r) {
     std::stringstream ss;
     boost::archive::binary_oarchive oa(ss);
+
     oa << r;
-    if (global_use_rbf) {
-        cfg->rdma->rbfSend(cfg->wid, r_mid, r_tid, ss.str().c_str(), ss.str().size());
-    } else {
-        cfg->node->Send(r_mid, r_tid, ss.str());
-    }
+    if (global_use_rbf)
+        cfg->rdma->rbfSend(cfg->wid, mid, tid, ss.str().c_str(), ss.str().size());
+    else
+        cfg->node->Send(mid, tid, ss.str());
 }
 
 request_or_reply RecvR(thread_cfg* cfg) {
     std::string str;
-    if (global_use_rbf) {
+
+    if (global_use_rbf)
         str = cfg->rdma->rbfRecv(cfg->wid);
-    } else {
+    else
         str = cfg->node->Recv();
-    }
+
     std::stringstream s;
     s << str;
+
     boost::archive::binary_iarchive ia(s);
     request_or_reply r;
     ia >> r;
     return r;
 }
 
-bool TryRecvR(thread_cfg* cfg, request_or_reply& r) {
+bool TryRecvR(thread_cfg *cfg, request_or_reply &r) {
     std::string str;
     if (global_use_rbf) {
         bool ret = cfg->rdma->rbfTryRecv(cfg->wid, str);
-        if (!ret) {
-            return false;
-        }
+        if (!ret) return false;
     } else {
         str = cfg->node->tryRecv();
-        if (str == "") {
-            return false;
-        }
+        if (str == "") return false;
     }
+
     std::stringstream s;
     s << str;
+
     boost::archive::binary_iarchive ia(s);
     ia >> r;
     return true;
-};
+}
+
+template<typename T>
+void SendObject(thread_cfg *cfg, int mid, int tid, T &r) {
+    std::stringstream ss;
+    boost::archive::binary_oarchive oa(ss);
+    oa << r;
+    cfg->node->Send(mid, tid, ss.str());
+}
+
+template<typename T>
+T RecvObject(thread_cfg *cfg) {
+    std::string str;
+    str = cfg->node->Recv();
+
+    std::stringstream s;
+    s << str;
+
+    boost::archive::binary_iarchive ia(s);
+    T r;
+    ia >> r;
+    return r;
+}

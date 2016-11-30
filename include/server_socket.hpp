@@ -26,7 +26,8 @@
 #include <zhelpers.hpp>
 #include <string>
 #include <sstream>
-#include "cs_basic_type.h"
+
+#include "cs_basic_type.hpp"
 
 class Server_Socket {
 public:

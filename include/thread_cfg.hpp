@@ -22,9 +22,9 @@
 
 #pragma once
 
-#include "network_node.h"
-#include "rdma_resource.h"
-#include "global_cfg.h"
+#include "network_node.hpp"
+#include "rdma_resource.hpp"
+#include "global_cfg.hpp"
 
 struct thread_cfg {
 	int sid;    // server id

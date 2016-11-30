@@ -33,7 +33,7 @@
 #include <boost/unordered_map.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
-#include "global_cfg.h"
+#include "global_cfg.hpp"
 #include "hdfs.hpp"
 
 using namespace std;
