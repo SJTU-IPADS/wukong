@@ -23,25 +23,26 @@
 #pragma once
 
 #include <iostream>
-#include "utils.h"
 #include <boost/serialization/unordered_map.hpp>
 
+#include "utils.h"
 
 using namespace std;
 
-struct req_stats {
-    int query_type;
-    uint64_t start_time;
-    uint64_t end_time;
-    template <typename Archive>
-    void serialize(Archive &ar, const unsigned int version) {
-        ar & query_type;
-        ar & start_time;
-        ar & end_time;
-    }
-};
+class Logger {
+private:
+    struct req_stats {
+        int query_type;
+        uint64_t start_time;
+        uint64_t end_time;
+        template <typename Archive>
+        void serialize(Archive &ar, const unsigned int version) {
+            ar & query_type;
+            ar & start_time;
+            ar & end_time;
+        }
+    };
 
-class batch_logger {
     uint64_t init_time;
     unordered_map<int, req_stats> stats_map;
 
@@ -63,7 +64,7 @@ public:
 
     }
 
-    void merge(batch_logger& other) {
+    void merge(Logger &other) {
         for (auto iter : other.stats_map) {
             stats_map[iter.first] = iter.second;
         }

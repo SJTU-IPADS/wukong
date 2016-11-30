@@ -160,7 +160,7 @@ Proxy::instantiate_request(request_template &req_template, request_or_reply &r)
 }
 
 void
-Proxy::run_batch_query(istream &is, batch_logger& logger)
+Proxy::run_batch_query(istream &is, Logger& logger)
 {
     int total_query_type;
     int total_request;
@@ -221,7 +221,7 @@ Proxy::run_batch_query(istream &is, batch_logger& logger)
 
 
 void
-Proxy::nonblocking_run_batch_query(istream &is, batch_logger& logger)
+Proxy::nonblocking_run_batch_query(istream &is, Logger& logger)
 {
     int total_query_type;
     int total_request;

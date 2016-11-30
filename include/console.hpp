@@ -31,7 +31,7 @@
 #include "global_cfg.h"
 #include "thread_cfg.h"
 #include "proxy.h"
-#include "batch_logger.h"
+#include "logger.hpp"
 
 using namespace std;
 
@@ -178,7 +178,7 @@ next:
 				}
 
 				if (b_enable) {
-					batch_logger logger;
+					Logger logger;
 
 					// dedicate the master frontend worker to run a single query
 					// and others to run a set of queries if '-f' is enabled
@@ -201,13 +201,13 @@ next:
 					if (IS_MASTER(cfg)) {
 						// collect logs from other proxy threads
 						for (int i = 0; i < global_nsrvs * global_num_proxies - 1; i++) {
-							batch_logger log = RecvObject<batch_logger>(cfg);
+							Logger log = RecvObject<Logger>(cfg);
 							logger.merge(log);
 						}
 						logger.print();
 					} else {
 						// send logs to the main proxy
-						SendObject<batch_logger>(cfg, 0, 0, logger);
+						SendObject<Logger>(cfg, 0, 0, logger);
 					}
 
 				}

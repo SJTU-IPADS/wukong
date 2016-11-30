@@ -28,7 +28,7 @@
 #include "message_wrap.h"
 #include "parser.h"
 #include "string_server.hpp"
-#include "batch_logger.h"
+#include "logger.hpp"
 
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
@@ -59,8 +59,8 @@ public:
 
 	void run_single_query(istream &is, int cnt);
 
-	void nonblocking_run_batch_query(istream &is, batch_logger& logger);
+	void nonblocking_run_batch_query(istream &is, Logger& l);
 
 	// discard
-	void run_batch_query(istream &is, batch_logger& logger);
+	void run_batch_query(istream &is, Logger& l);
 };
