@@ -33,4 +33,4 @@
 
 using namespace std;
 
-void run_console(proxy *clnt);
+void run_console(Proxy *p);

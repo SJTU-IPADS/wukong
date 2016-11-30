@@ -43,10 +43,10 @@ send_cmd(void *ptr)
 
 	monitor *d = (monitor *)ptr;
 	while (true) {
-		request_or_reply r = d->clnt->recv();
+		request_or_reply r = d->proxy->recv();
 		cout << "(last) result size: " << r.row_num << endl;
 		if (!global_silent)
-			d->clnt->print_result(r, min(r.row_num, global_max_print_row));
+			d->proxy->print_result(r, min(r.row_num, global_max_print_row));
 
 		CS_Reply crep;
 		crep.column = r.col_num;
@@ -58,9 +58,9 @@ send_cmd(void *ptr)
 }
 
 void
-run_monitor(proxy *clnt, int port)
+run_monitor(Proxy *proxy, int port)
 {
-	monitor *d = new monitor(clnt, port);
+	monitor *d = new monitor(proxy, port);
 	pthread_t tid[2];
 	pthread_create(&(tid[0]), NULL, recv_cmd, (void *)d);
 	pthread_create(&(tid[1]), NULL, send_cmd, (void *)d);
@@ -77,7 +77,7 @@ run_monitor(proxy *clnt, int port)
 			continue;
 		}
 
-		bool ok = clnt->parser.parse(ifs, r);
+		bool ok = proxy->parser.parse(ifs, r);
 		if (!ok) {
 			cout << "ERROR: SPARQL query parse error" << endl;
 			CS_Reply crep;
@@ -88,8 +88,8 @@ run_monitor(proxy *clnt, int port)
 			continue;
 		}
 
-		clnt->setpid(r);
-		clnt->send(r);
+		proxy->setpid(r);
+		proxy->send(r);
 		d->insert_cid(r.pid, creq.cid);
 	}
 

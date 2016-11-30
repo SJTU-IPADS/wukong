@@ -88,10 +88,10 @@ worker_thread(void *arg)
 	} else {
 		if (!monitor_enable)
 			// Run the Wukong's console (by default)
-			run_console((proxy*)(cfg->worker));
+			run_console((Proxy *)(cfg->worker));
 		else
 			// Run monitor thread for clients
-			run_monitor((proxy*)(cfg->worker), monitor_port);
+			run_monitor((Proxy *)(cfg->worker), monitor_port);
 	}
 }
 
@@ -175,7 +175,7 @@ main(int argc, char *argv[])
 
 	// init fronted workers
 	for (int i = 0; i < global_num_proxies; i++)
-		cfg_array[i].worker = new proxy(&cfg_array[i], &str_server);
+		cfg_array[i].worker = new Proxy(&cfg_array[i], &str_server);
 
 	// initiate engine threads
 	engines.resize(global_num_engines);

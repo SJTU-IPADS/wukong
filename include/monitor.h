@@ -40,7 +40,7 @@ using namespace std;
 
 class monitor {
 public:
-	proxy *clnt;
+	Proxy *proxy;
 	int port;
 
 	zmq::context_t context;
@@ -51,14 +51,14 @@ public:
 	pthread_spinlock_t send_lock;
 	tbb::concurrent_hash_map<int, string> id_table; // from id to cid
 
-	monitor(proxy *_clnt, int _port = 5450): clnt(_clnt), port(_port) {
+	monitor(Proxy *_proxy, int _port = 5450): proxy(_proxy), port(_port) {
 		pthread_spin_init(&send_lock, 0);
 
 		router = new zmq::socket_t(context, ZMQ_ROUTER);
 		s_set_id(*router);
 		char address[30] = "";
-		sprintf(address, "tcp://*:%d", port + clnt->cfg->wid);
-		cout << "port " << port + clnt->cfg->wid << endl;
+		sprintf(address, "tcp://*:%d", port + proxy->cfg->wid);
+		cout << "port " << port + proxy->cfg->wid << endl;
 		router->bind(address);
 	}
 
@@ -142,4 +142,4 @@ public:
 	}
 };
 
-void run_monitor(proxy *clnt, int port);
+void run_monitor(Proxy *proxy, int port);

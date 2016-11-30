@@ -61,9 +61,9 @@ print_help(void)
  * and provide a simple interactive cmdline to tester
  */
 void
-run_console(proxy *clnt)
+run_console(Proxy *proxy)
 {
-	struct thread_cfg *cfg = clnt->cfg;
+	struct thread_cfg *cfg = proxy->cfg;
 
 	// the main proxy thread (i.e., sid == 0 and wid == 0)
 	console_barrier(cfg);
@@ -160,7 +160,7 @@ next:
 							cout << "Query file not found: " << fname << endl;
 							continue ;
 						}
-						clnt->run_single_query(ifs, cnt);
+						proxy->run_single_query(ifs, cnt);
 					}
 				}
 
@@ -178,8 +178,8 @@ next:
 						}
 
 						logger.init();
-						clnt->nonblocking_run_batch_query(ifs, logger);
-						//clnt->run_batch_query(ifs,logger);
+						proxy->nonblocking_run_batch_query(ifs, logger);
+						//proxy->run_batch_query(ifs,logger);
 						logger.finish();
 					}
 

@@ -33,7 +33,7 @@
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
 
-class proxy {
+class Proxy {
 private:
 
 	void instantiate_request(request_template &req_template, request_or_reply &r);
@@ -47,7 +47,7 @@ public:
 
 	sparql_parser parser;
 
-	proxy(thread_cfg *_cfg, string_server *str_server);
+	Proxy(thread_cfg *_cfg, string_server *str_server);
 
 	void setpid(request_or_reply &r) { r.pid = cfg->get_and_inc_qid(); }
 
