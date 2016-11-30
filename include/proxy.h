@@ -27,7 +27,7 @@
 #include "thread_cfg.h"
 #include "message_wrap.h"
 #include "parser.h"
-#include "string_server.h"
+#include "string_server.hpp"
 #include "batch_logger.h"
 
 #include <boost/unordered_set.hpp>

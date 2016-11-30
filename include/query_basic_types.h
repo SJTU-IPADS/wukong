@@ -120,7 +120,7 @@ struct request_or_reply {
          *
          */
         if (is_idx(cmd_chains[0])) {
-            assert(cmd_chains[1] == PREDICT_ID || cmd_chains[1] == TYPE_ID);
+            assert(cmd_chains[1] == PREDICATE_ID || cmd_chains[1] == TYPE_ID);
             return true;
         }
         return false;

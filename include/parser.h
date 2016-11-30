@@ -32,7 +32,7 @@
 #include <boost/algorithm/string.hpp>
 
 #include "query_basic_types.h"
-#include "string_server.h"
+#include "string_server.hpp"
 
 
 using namespace std;

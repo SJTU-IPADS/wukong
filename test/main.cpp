@@ -27,7 +27,7 @@
 #include "utils.h"
 #include "global_cfg.h"
 #include "thread_cfg.h"
-#include "string_server.h"
+#include "string_server.hpp"
 #include "distributed_graph.h"
 #include "engine.h"
 #include "proxy.h"

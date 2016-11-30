@@ -71,7 +71,7 @@ struct edge_sort_by_ops {
 enum { NBITS_DIR = 1 };  // direction: 0=in, 1=out
 enum { NBITS_IDX = 17 }; // equal to the size of t/pid
 enum { NBITS_VID = (64 - NBITS_IDX - NBITS_DIR) }; // 0: index vertex, ID: normal vertex
-enum { PREDICT_ID = 0, TYPE_ID = 1 }; // reserve two special index IDs
+enum { PREDICATE_ID = 0, TYPE_ID = 1 }; // reserve two special index IDs
 
 static inline bool is_idx(int id) { return (id > 0) && (id < (1 << NBITS_IDX)); }
 

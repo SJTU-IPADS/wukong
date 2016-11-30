@@ -10,7 +10,7 @@ set(BOOST_LIB "${ROOT}/deps/boost_1_58_0-install/lib" )
 include_directories(deps/boost_1_58_0-install/include)
 include_directories(include)
 include_directories(utils)
-file(GLOB SOURCES "src/*.cpp" "utils/*.cpp")
+file(GLOB SOURCES "src/*.cpp" "include/*.hpp" "utils/*.cpp")
 
 ### wukong (RDMA-enbled)
 add_executable(wukong ${SOURCES} "test/main.cpp")
