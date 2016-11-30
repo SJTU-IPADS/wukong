@@ -32,9 +32,17 @@
 #include "rdma_resource.hpp"
 #include "graph_basic_types.hpp"
 #include "global_cfg.hpp"
-#include "utils.h"
 
-class graph_storage {
+#include "mymath.hpp"
+#include "timer.hpp"
+
+/*
+    normal key  = (id,direction,1)
+    normal val  = p1 p2 p3   v1 v2 v3
+    so we can get continuous value
+*/
+
+class simple_graph_storage {
     class rdma_cache {
         struct cache_item {
             pthread_spinlock_t lock;
@@ -75,16 +83,16 @@ class graph_storage {
     };
 
     static const int num_locks = 1024;
-    static const int indirect_ratio = 7;  // 1/indirect_ratio of buckets are used as indirect buckets
-    static const int cluster_size = 8;    // each bucket has cluster_size slots
+    static const int indirect_ratio = 7; //   1/indirect_ratio  of buckets are used as indirect buckets
+    static const int cluster_size = 8; //   each bucket has cluster_size slots
     pthread_spinlock_t allocation_lock;
     pthread_spinlock_t fine_grain_locks[num_locks];
 
     rdma_cache rdmacache;
 
-    vertex *vertex_addr;
-    edge *edge_addr;
-    RdmaResource *rdma;
+    vertex* vertex_addr;
+    edge* edge_addr;
+    RdmaResource* rdma;
 
     uint64_t slot_num;
     uint64_t m_num;
@@ -105,7 +113,6 @@ class graph_storage {
         uint64_t lock_id = bucket_id % num_locks;
         uint64_t slot_id = 0;
         bool found = false;
-
         pthread_spin_lock(&fine_grain_locks[lock_id]);
         //last slot is used as next pointer
         while (!found) {
@@ -113,7 +120,6 @@ class graph_storage {
                 slot_id = bucket_id * cluster_size + i;
                 if (vertex_addr[slot_id].key == key) {
                     cout << "inserting duplicate key" << endl;
-                    key.print();
                     assert(false);
                 }
                 if (vertex_addr[slot_id].key == local_key()) {
@@ -193,15 +199,13 @@ class graph_storage {
         char *local_buffer = rdma->GetMsgAddr(tid);
         uint64_t bucket_id = key.hash() % header_num;
         vertex ret;
-
-        if (rdmacache.lookup(key, ret))
+        if (rdmacache.lookup(key, ret)) {
             return ret;
-
+        }
         while (true) {
             uint64_t start_addr = sizeof(vertex) * bucket_id * cluster_size;
             uint64_t read_length = sizeof(vertex) * cluster_size;
-            rdma->RdmaRead(tid, mymath::hash_mod(key.vid, m_num),
-                           (char *)local_buffer, read_length, start_addr);
+            rdma->RdmaRead(tid, mymath::hash_mod(key.vid, m_num), (char *)local_buffer, read_length, start_addr);
             vertex* ptr = (vertex*)local_buffer;
             for (uint64_t i = 0; i < cluster_size; i++) {
                 if (i < cluster_size - 1) {
@@ -225,31 +229,29 @@ class graph_storage {
     }
 
 public:
-    graph_storage() {
+    simple_graph_storage() {
         pthread_spin_init(&allocation_lock, 0);
-        for (int i = 0; i < num_locks; i++)
+        for (int i = 0; i < num_locks; i++) {
             pthread_spin_init(&fine_grain_locks[i], 0);
+        }
     }
 
-    void init(RdmaResource* _rdma, uint64_t machine_num, uint64_t machine_id) {
+    void init(RdmaResource* _rdma, uint64_t machine_num, uint64_t mid) {
         rdma = _rdma;
         m_num = machine_num;
-        m_id = machine_id;
+        m_id = mid;
         slot_num = 1000000 * global_hash_header_million;
-        header_num = (slot_num / cluster_size)
-                     / indirect_ratio
-                     * (indirect_ratio - 1);
+        header_num = (slot_num / cluster_size) / indirect_ratio * (indirect_ratio - 1);
         indirect_num = (slot_num / cluster_size) / indirect_ratio;
 
         vertex_addr = (vertex*)(rdma->get_buffer());
-        edge_addr   = (edge*)(rdma->get_buffer() + slot_num * sizeof(vertex));
+        edge_addr = (edge*)(rdma->get_buffer() + slot_num * sizeof(vertex));
 
         if (rdma->get_memorystore_size() <= slot_num * sizeof(vertex)) {
             std::cout << "No enough memory to store edge" << std::endl;
             exit(-1);
         }
-        max_edge_ptr = (rdma->get_memorystore_size()
-                        - slot_num * sizeof(vertex)) / sizeof(edge);
+        max_edge_ptr = (rdma->get_memorystore_size() - slot_num * sizeof(vertex)) / sizeof(edge);
         new_edge_ptr = 0;
 
         #pragma omp parallel for num_threads(20)
@@ -261,111 +263,57 @@ public:
         // }
     }
 
-    void atomic_batch_insert(vector<edge_triple> &vec_spo,
-                             vector<edge_triple> &vec_ops) {
-        uint64_t accum_predict = 0;
-        uint64_t nedges_to_skip = 0;
-        while (nedges_to_skip < vec_ops.size()) {
-            if (is_idx(vec_ops[nedges_to_skip].o)) {
-                nedges_to_skip++;
-            } else {
-                break;
-            }
-        }
-        uint64_t curr_edge_ptr = atomic_alloc_edges(vec_spo.size()
-                                 + vec_ops.size() - nedges_to_skip);
+    void atomic_batch_insert(vector<edge_triple>& vec_spo, vector<edge_triple>& vec_ops) {
+        uint64_t curr_edge_ptr = atomic_alloc_edges(2 * (vec_spo.size() + vec_ops.size()));
+        uint64_t total_size = 2 * (vec_spo.size() + vec_ops.size());
+        uint64_t curr_edge_ptr_old = curr_edge_ptr;
         uint64_t start;
+
         start = 0;
         while (start < vec_spo.size()) {
             uint64_t end = start + 1;
             while (end < vec_spo.size()
                     && vec_spo[start].s == vec_spo[end].s
-                    && vec_spo[start].p == vec_spo[end].p) {
+                  ) {
                 end++;
             }
-            accum_predict++;
-            local_key key = local_key(vec_spo[start].s,
-                                      OUT, vec_spo[start].p);
+            local_key key = local_key(vec_spo[start].s, OUT, 1);
             uint64_t vertex_ptr = insertKey(key);
-            local_val val = local_val(end - start, curr_edge_ptr);
+            local_val val = local_val(2 * (end - start), curr_edge_ptr);
             vertex_addr[vertex_ptr].val = val;
             for (uint64_t i = start; i < end; i++) {
-                edge_addr[curr_edge_ptr].val = vec_spo[i].o;
+                edge_addr[curr_edge_ptr].val = vec_spo[i].p;
+                edge_addr[curr_edge_ptr + (end - start) ].val = vec_spo[i].o;
                 curr_edge_ptr++;
             }
+            curr_edge_ptr += (end - start);
             start = end;
         }
 
-        start = nedges_to_skip;
+        start = 0;
         while (start < vec_ops.size()) {
             uint64_t end = start + 1;
             while (end < vec_ops.size()
                     && vec_ops[start].o == vec_ops[end].o
-                    && vec_ops[start].p == vec_ops[end].p) {
+                  ) {
                 end++;
             }
-            accum_predict++;
-            local_key key = local_key(vec_ops[start].o,
-                                      IN, vec_ops[start].p);
+            local_key key = local_key(vec_ops[start].o, IN, 1);
             uint64_t vertex_ptr = insertKey(key);
-            local_val val = local_val(end - start, curr_edge_ptr);
+            local_val val = local_val(2 * (end - start), curr_edge_ptr);
             vertex_addr[vertex_ptr].val = val;
             for (uint64_t i = start; i < end; i++) {
-                edge_addr[curr_edge_ptr].val = vec_ops[i].s;
+                edge_addr[curr_edge_ptr].val = vec_ops[i].p;
+                edge_addr[curr_edge_ptr + (end - start)].val = vec_ops[i].s;
                 curr_edge_ptr++;
             }
+            curr_edge_ptr += (end - start);
             start = end;
         }
-
-// The following code is used to support a rare case where the predicate is unknown.
-// We disable it to save memory by default.
-// Each normal vertex should add a key/value pair with a reserved ID (i.e., __PREDICT__)
-// to store the list of predicates
-#if 0
-        curr_edge_ptr = atomic_alloc_edges(accum_predict);
-        start = 0;
-        while (start < vec_spo.size()) {
-            // __PREDICT__
-            local_key key = local_key(vec_spo[start].s, OUT, 0);
-            local_val val = local_val(0, curr_edge_ptr);
-            uint64_t vertex_ptr = insertKey(key);
-            uint64_t end = start;
-            while (end < vec_spo.size() && vec_spo[start].s == vec_spo[end].s) {
-                if (end == start || vec_spo[end].p != vec_spo[end - 1].p) {
-                    edge_addr[curr_edge_ptr].val = vec_spo[end].p;
-                    curr_edge_ptr++;
-                    val.size = val.size + 1;
-                }
-                end++;
-            }
-            vertex_addr[vertex_ptr].val = val;
-            start = end;
-        }
-
-        start = nedges_to_skip;
-        while (start < vec_ops.size()) {
-            local_key key = local_key(vec_ops[start].o, IN, 0);
-            local_val val = local_val(0, curr_edge_ptr);
-            uint64_t vertex_ptr = insertKey(key);
-            uint64_t end = start;
-            while (end < vec_ops.size() && vec_ops[start].o == vec_ops[end].o) {
-                if (end == start || vec_ops[end].p != vec_ops[end - 1].p) {
-                    edge_addr[curr_edge_ptr].val = vec_ops[end].p;
-                    curr_edge_ptr++;
-                    val.size = val.size + 1;
-                }
-                end++;
-            }
-            vertex_addr[vertex_ptr].val = val;
-            start = end;
-        }
-#endif
+        assert(curr_edge_ptr_old + total_size == curr_edge_ptr);
     }
 
-    void print_memory_usage(void) {
-        //cout<<"disable print_memory_usage now "<<endl;
-        //return ;
-
+    void print_memory_usage() {
         uint64_t used_header_slot = 0;
         for (int x = 0; x < header_num + indirect_num; x++) {
             for (int y = 0; y < cluster_size - 1; y++) {
@@ -377,14 +325,10 @@ public:
                 used_header_slot++;
             }
         }
-        cout << "graph_storage direct_header= "
-             << header_num*cluster_size*sizeof(vertex) / 1048576 << " MB " << endl;
-        cout << "                  real_data= "
-             << used_header_slot*sizeof(vertex) / 1048576 << " MB " << endl;
-        cout << "                   next_ptr= "
-             << header_num*sizeof(vertex) / 1048576 << " MB " << endl;
-        cout << "                 empty_slot= "
-             << (header_num * cluster_size - header_num - used_header_slot)
+        cout << "graph_storage direct_header= " << header_num*cluster_size*sizeof(vertex) / 1048576 << " MB " << endl;
+        cout << "                  real_data= " << used_header_slot*sizeof(vertex) / 1048576 << " MB " << endl;
+        cout << "                   next_ptr= " << header_num*sizeof(vertex) / 1048576 << " MB " << endl;
+        cout << "                 empty_slot= " << (header_num * cluster_size - header_num - used_header_slot)
              *sizeof(vertex) / 1048576 << " MB " << endl;
 
         uint64_t used_indirect_slot = 0;
@@ -404,111 +348,94 @@ public:
                 used_indirect_bucket++;
             }
         }
-        cout << "graph_storage indirect_header= "
-             << indirect_num*cluster_size*sizeof(vertex) / 1048576
-             << " MB "
-             << endl;
-        cout << "               not_empty_data= "
-             << used_indirect_bucket*cluster_size*sizeof(vertex) / 1048576
-             << " MB "
-             << endl;
-        cout << "                    real_data= "
-             << used_indirect_slot*sizeof(vertex) / 1048576
-             << " MB "
-             << endl;
+        cout << "graph_storage indirect_header= " << indirect_num*cluster_size*sizeof(vertex) / 1048576 << " MB " << endl;
+        cout << "               not_empty_data= " << used_indirect_bucket*cluster_size*sizeof(vertex) / 1048576 << " MB " << endl;
+        cout << "                    real_data= " << used_indirect_slot*sizeof(vertex) / 1048576 << " MB " << endl;
 
 
-        cout << "graph_storage use "
-             << used_indirect_num
-             << " / "
-             << indirect_num
-             << " indirect_num"
-             << endl;
-        cout << "graph_storage use "
-             << slot_num*sizeof(vertex) / 1048576
-             << " MB for vertex data"
-             << endl;
+        cout << "graph_storage use " << used_indirect_num << " / " << indirect_num  << " indirect_num" << endl;
+        cout << "graph_storage use " << slot_num*sizeof(vertex) / 1048576 << " MB for vertex data" << endl;
 
-        cout << "graph_storage edge_data= "
-             << new_edge_ptr*sizeof(edge) / 1048576
-             << "/"
-             << max_edge_ptr*sizeof(edge) / 1048576
-             << " MB "
-             << endl;
-        cout << "         for type_index= "
-             << type_index_edge_num*sizeof(edge) / 1048576
-             << "/"
-             << max_edge_ptr*sizeof(edge) / 1048576
-             << " MB "
-             << endl;
-        cout << "      for predict_index= "
-             << predict_index_edge_num*sizeof(edge) / 1048576
-             << "/"
-             << max_edge_ptr*sizeof(edge) / 1048576
-             << " MB "
-             << endl;
-        cout << "      for normal_vertex= "
-             << (new_edge_ptr - predict_index_edge_num - type_index_edge_num) * sizeof(edge) / 1048576
-             << "/"
-             << max_edge_ptr*sizeof(edge) / 1048576
-             << " MB " << endl;
+        cout << "graph_storage edge_data= " << new_edge_ptr*sizeof(edge) / 1048576 << "/"
+             << max_edge_ptr*sizeof(edge) / 1048576 << " MB " << endl;
     }
 
-    edge *get_edges_global(int tid, uint64_t id, int direction, int predicate, int* size) {
-        if ( mymath::hash_mod(id, m_num) == m_id)
-            return get_edges_local(tid, id, direction, predicate, size);
-
-        local_key key = local_key(id, direction, predicate);
+    edge *get_edges_global(int tid, uint64_t id, int direction, int predict, int* size) {
+        if ( mymath::hash_mod(id, m_num) == m_id) {
+            return get_edges_local(tid, id, direction, predict, size);
+        }
+        local_key key = local_key(id, direction, 1);
         vertex v = get_vertex_remote(tid, key);
-
         if (v.key == local_key()) {
             *size = 0;
             return NULL;
         }
-
         char *local_buffer = rdma->GetMsgAddr(tid);
         uint64_t start_addr  = sizeof(vertex) * slot_num + sizeof(edge) * (v.val.ptr);
         uint64_t read_length = sizeof(edge) * v.val.size;
-        rdma->RdmaRead(tid, mymath::hash_mod(id, m_num),
-                       (char *)local_buffer, read_length, start_addr);
-        edge *result_ptr = (edge *)local_buffer;
-        *size = v.val.size;
+        rdma->RdmaRead(tid, mymath::hash_mod(id, m_num), (char *)local_buffer, read_length, start_addr);
+        edge* result_ptr = (edge*)local_buffer;
+        //*size=v.val.size;
+        int half_size = v.val.size / 2;
+        int begin = -1;
+        int real_size = 0;
+        for (int i = 0; i < half_size; i++) {
+            if (result_ptr[i].val == predict && begin == -1) {
+                begin = i;
+            }
+            if (result_ptr[i].val == predict) {
+                real_size++;
+            }
+        }
+        result_ptr = result_ptr + half_size + begin;
+        *size = real_size;
         return result_ptr;
     }
 
-    edge *get_edges_local(int tid, uint64_t id, int direction, int predicate, int* size) {
-        assert(mymath::hash_mod(id, m_num) == m_id || is_idx(id));
-
-        local_key key = local_key(id, direction, predicate);
+    edge *get_edges_local(int tid, uint64_t id, int direction, int predict, int* size) {
+        assert(mymath::hash_mod(id, m_num) == m_id ||  is_idx(id));
+        local_key key = local_key(id, direction, 1);
         vertex v = get_vertex_local(key);
         if (v.key == local_key()) {
             *size = 0;
             return NULL;
         }
+        //*size=v.val.size;
+        //uint64_t ptr=v.val.ptr;
 
-        *size = v.val.size;
-        uint64_t ptr = v.val.ptr;
-        return &(edge_addr[ptr]);
+        edge* result_ptr = (edge*)(&(edge_addr[v.val.ptr]));
+        int half_size = v.val.size / 2;
+        int begin = -1;
+        int real_size = 0;
+        for (int i = 0; i < half_size; i++) {
+            if (result_ptr[i].val == predict && begin == -1) {
+                begin = i;
+            }
+            if (result_ptr[i].val == predict) {
+                real_size++;
+            }
+        }
+        result_ptr = result_ptr + half_size + begin;
+        *size = real_size;
+        return result_ptr;
     }
+
 
 //define as public
 //should be refined
     typedef tbb::concurrent_hash_map<uint64_t, vector<uint64_t> > tbb_vector_table;
-    tbb_vector_table src_predicate_table;
-    tbb_vector_table dst_predicate_table;
+    tbb_vector_table src_predict_table;
+    tbb_vector_table dst_predict_table;
     tbb_vector_table type_table;
 
-    void insert_vector(tbb_vector_table &table,
-                       uint64_t index_id,
-                       uint64_t value_id) {
+    void insert_vector(tbb_vector_table &table, uint64_t index_id, uint64_t value_id) {
         tbb_vector_table::accessor a;
         table.insert(a, index_id);
         a->second.push_back(value_id);
     }
 
-    void init_index_table(void) {
+    void init_index_table() {
         uint64_t t1 = timer::get_usec();
-
         #pragma omp parallel for num_threads(8)
         for (int x = 0; x < header_num + indirect_num; x++) {
             for (int y = 0; y < cluster_size - 1; y++) {
@@ -518,36 +445,23 @@ public:
                     continue;
                 }
                 uint64_t vid = vertex_addr[i].key.vid;
-                uint64_t p = vertex_addr[i].key.pid;
                 if (vertex_addr[i].key.dir == IN) {
-                    if (p == TYPE_ID) {
-                        //it means vid is a type vertex
-                        //we just skip it
-                        cout << "[error] type vertices are not skipped" << endl;
-                        assert(false);
-                        continue;
-                    } else {
-                        //this edge is in-direction, so vid is the dst of predict
-                        insert_vector(dst_predicate_table, p, vid);
-                    }
+                    //TODO
+                    //only use type_index now
                 } else {
-                    if (p == TYPE_ID) {
-                        uint64_t degree = vertex_addr[i].val.size;
-                        uint64_t edge_ptr = vertex_addr[i].val.ptr;
-                        for (uint64_t j = 0; j < degree; j++) {
-                            //src may belongs to multiple types
-                            insert_vector(type_table, edge_addr[edge_ptr + j].val, vid);
+                    uint64_t size = vertex_addr[i].val.size;
+                    uint64_t edge_ptr = vertex_addr[i].val.ptr;
+                    for (int j = 0; j < size / 2; j++) {
+                        if (edge_addr[edge_ptr + j].val == TYPE_ID) {
+                            insert_vector(type_table, edge_addr[edge_ptr + j + size / 2].val, vid);
                         }
-                    } else {
-                        insert_vector(src_predicate_table, p, vid);
                     }
                 }
             }
         }
         uint64_t t2 = timer::get_usec();
 
-        for (tbb_vector_table::iterator i = type_table.begin();
-                i != type_table.end(); ++i) {
+        for ( tbb_vector_table::iterator i = type_table.begin(); i != type_table.end(); ++i ) {
             uint64_t curr_edge_ptr = atomic_alloc_edges(i->second.size());
             local_key key = local_key(i->first, IN, 0);
             uint64_t vertex_ptr = insertKey(key);
@@ -559,9 +473,7 @@ public:
                 type_index_edge_num++;
             }
         }
-
-        for (tbb_vector_table::iterator i = src_predicate_table.begin();
-                i != src_predicate_table.end(); ++i) {
+        for ( tbb_vector_table::iterator i = src_predict_table.begin(); i != src_predict_table.end(); ++i ) {
             uint64_t curr_edge_ptr = atomic_alloc_edges(i->second.size());
             local_key key = local_key(i->first, IN, 0);
             uint64_t vertex_ptr = insertKey(key);
@@ -573,9 +485,7 @@ public:
                 predict_index_edge_num++;
             }
         }
-
-        for (tbb_vector_table::iterator i = dst_predicate_table.begin();
-                i != dst_predicate_table.end(); ++i) {
+        for ( tbb_vector_table::iterator i = dst_predict_table.begin(); i != dst_predict_table.end(); ++i ) {
             uint64_t curr_edge_ptr = atomic_alloc_edges(i->second.size());
             local_key key = local_key(i->first, OUT, 0);
             uint64_t vertex_ptr = insertKey(key);
@@ -587,24 +497,29 @@ public:
                 predict_index_edge_num++;
             }
         }
-
-        tbb_vector_table().swap(src_predicate_table);
-        tbb_vector_table().swap(dst_predicate_table);
+        tbb_vector_table().swap(src_predict_table);
+        tbb_vector_table().swap(dst_predict_table);
         uint64_t t3 = timer::get_usec();
-        cout << (t2 - t1) / 1000
-             << " ms for parallel generate tbb_table "
-             << endl;
-        cout << (t3 - t2) / 1000
-             << " ms for sequence insert tbb_table to graph_storage"
-             << endl;
+        cout << (t2 - t1) / 1000 << " ms for parallel generate tbb_table " << endl;
+        cout << (t3 - t2) / 1000 << " ms for sequence insert tbb_table to graph_storage" << endl;
+
     }
 
-    edge *get_index_edges_local(int tid,
-                                uint64_t index_id,
-                                int direction,
-                                int* size) {
-        //predicate is not important , so we set it 0
-        return get_edges_local(tid, index_id, direction, 0, size);
-    }
+    edge *get_index_edges_local(int tid, uint64_t index_id, int direction, int *size) {
+        local_key key = local_key(index_id, direction, 0);
+        vertex v = get_vertex_local(key);
+        if (v.key == local_key()) {
+            *size = 0;
+            return NULL;
+        }
+        *size = v.val.size;
+        edge* result_ptr = (edge*)(&(edge_addr[v.val.ptr]));
+        return result_ptr;
+
+//    * size=0;
+//    return NULL;
+        //return get_edges_local(tid,index_id,direction,0,size);
+    };
+
 
 };

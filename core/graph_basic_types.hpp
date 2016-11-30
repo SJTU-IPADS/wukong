@@ -26,7 +26,7 @@
 #include <iostream>
 
 #include "global_cfg.hpp"
-#include "utils.h"
+#include "mymath.hpp"
 
 struct edge_triple {
 	uint64_t s, p, o;

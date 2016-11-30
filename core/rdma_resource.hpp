@@ -48,7 +48,7 @@
 #include <vector>
 #include <pthread.h>
 
-#include "timer.h"
+#include "timer.hpp"
 
 struct config_t {
     const char *dev_name;         /* IB device name */

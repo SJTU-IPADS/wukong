@@ -23,8 +23,8 @@
 #pragma once
 
 #include <zmq.hpp>
-#include "timer.h"
-#include "mymath.h"
+#include "timer.hpp"
+#include "mymath.hpp"
 
 #define KiB2B(_x)	((_x) * 1024ul)
 #define MiB2B(_x)	(KiB2B((_x)) * 1024ul)

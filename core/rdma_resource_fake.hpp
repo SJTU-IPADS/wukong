@@ -44,7 +44,7 @@
 #include <vector>
 #include <pthread.h>
 
-#include "timer.h"
+#include "timer.hpp"
 
 class RdmaResource {
 

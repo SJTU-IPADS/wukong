@@ -25,7 +25,7 @@
 #include <iostream>
 
 #include "global_cfg.hpp"
-#include "utils.h"
+#include "misc.hpp"
 #include "thread_cfg.hpp"
 #include "string_server.hpp"
 #include "distributed_graph.hpp"

@@ -33,6 +33,9 @@
 #include "string_server.hpp"
 #include "logger.hpp"
 
+#include "mymath.hpp"
+#include "timer.hpp"
+
 int batch_factor = 20; // discard later
 
 class Proxy {

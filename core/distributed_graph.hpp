@@ -36,12 +36,12 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include "omp.h"
 
-#include "utils.h"
 #include "global_cfg.hpp"
 #include "graph_basic_types.hpp"
 #include "rdma_resource.hpp"
 #include "graph_storage.hpp"
 #include "simple_graph_storage.hpp"
+#include "timer.hpp"
 
 using namespace std;
 

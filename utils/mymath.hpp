@@ -21,6 +21,7 @@
  */
 
 #pragma once
+
 #include <vector>
 
 /* NOTE: math will conflict with other lib; so it's named mymath */

@@ -85,7 +85,7 @@ public:
 
   public:
     hdfs_device() : filesystem(NULL), file(NULL) { }
-    hdfs_device(const hdfs& hdfs_fs, const std::string& filename,
+    hdfs_device(const hdfs &hdfs_fs, const std::string &filename,
                 const bool write = false) :
       filesystem(hdfs_fs.filesystem), flushable(write) {
       assert(filesystem != NULL);
@@ -113,7 +113,7 @@ public:
     /** the optimal buffer size is 0. */
     inline std::streamsize optimal_buffer_size() const { return 0; }
 
-    std::streamsize read(char* strm_ptr, std::streamsize n) {
+    std::streamsize read(char *strm_ptr, std::streamsize n) {
       return hdfsRead(filesystem, file, strm_ptr, n);
     } // end of read
     std::streamsize write(const char* strm_ptr, std::streamsize n) {
@@ -131,7 +131,7 @@ public:
    * Open a connection to the filesystem. The default arguments
    * should be sufficient for most uses
    */
-  hdfs(const std::string& host = "default", tPort port = 0) {
+  hdfs(const std::string &host = "default", tPort port = 0) {
     filesystem = hdfsConnect(host.c_str(), port);
     assert(filesystem != NULL);
   } // end of constructor
@@ -141,9 +141,9 @@ public:
     assert(error == 0);
   } // end of ~hdfs
 
-  inline std::vector<std::string> list_files(const std::string& path) {
+  inline std::vector<std::string> list_files(const std::string &path) {
     int num_files = 0;
-    hdfsFileInfo* hdfs_file_list_ptr =
+    hdfsFileInfo *hdfs_file_list_ptr =
       hdfsListDirectory(filesystem, path.c_str(), &num_files);
     // copy the file list to the string array
     std::vector<std::string> files(num_files);
@@ -156,7 +156,10 @@ public:
 
   inline static bool has_hadoop() { return true; }
 
-  static hdfs& get_hdfs();
+  static hdfs &get_hdfs() {
+    static hdfs fs;
+    return fs;
+  }
 }; // end of class hdfs
 #else
 
@@ -170,13 +173,13 @@ public:
     typedef char char_type;
     typedef boost::iostreams::bidirectional_device_tag category;
   public:
-    hdfs_device(const hdfs& hdfs_fs, const std::string& filename,
+    hdfs_device(const hdfs &hdfs_fs, const std::string &filename,
                 const bool write = false) {
       std::cout << "Libhdfs is not installed on this system."
                 << std::endl;
     }
     void close() { }
-    std::streamsize read(char* strm_ptr, std::streamsize n) {
+    std::streamsize read(char *strm_ptr, std::streamsize n) {
       std::cout << "Libhdfs is not installed on this system."
                 << std::endl;
       return 0;
@@ -198,14 +201,14 @@ public:
    * Open a connection to the filesystem. The default arguments
    * should be sufficient for most uses
    */
-  hdfs(const std::string& host = "default", int port = 0) {
+  hdfs(const std::string &host = "default", int port = 0) {
     std::cout << "Libhdfs is not installed on this system."
               << std::endl;
   } // end of constructor
 
 
 
-  inline std::vector<std::string> list_files(const std::string& path) {
+  inline std::vector<std::string> list_files(const std::string &path) {
     std::cout << "Libhdfs is not installed on this system."
               << std::endl;
     return std::vector<std::string>();
@@ -214,7 +217,10 @@ public:
   // No hadoop available
   inline static bool has_hadoop() { return false; }
 
-  static hdfs& get_hdfs();
+  static hdfs &get_hdfs() {
+    static hdfs fs;
+    return fs;
+  }
 }; // end of class hdfs
 
 

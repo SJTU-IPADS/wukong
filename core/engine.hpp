@@ -33,6 +33,9 @@
 #include "thread_cfg.hpp"
 #include "reply_map.hpp"
 
+#include "mymath.hpp"
+#include "timer.hpp"
+
 typedef std::pair<int, int> v_pair;
 
 size_t hash_pair(const v_pair &x) {

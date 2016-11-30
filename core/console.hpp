@@ -27,7 +27,6 @@
 #include <boost/unordered_map.hpp>
 #include <set>
 
-#include "utils.h"
 #include "global_cfg.hpp"
 #include "thread_cfg.hpp"
 #include "proxy.hpp"
