@@ -22,15 +22,15 @@
 
 #pragma once
 
+#include <boost/unordered_set.hpp>
+#include <boost/unordered_map.hpp>
+
 #include "message_wrap.h"
 #include "distributed_graph.h"
 #include "query_basic_types.h"
 #include "global_cfg.h"
 #include "thread_cfg.h"
-#include "reply_map.h"
-
-#include <boost/unordered_set.hpp>
-#include <boost/unordered_map.hpp>
+#include "reply_map.hpp"
 
 class Engine {
     const static uint64_t TIMEOUT_THRESHOLD = 10000; // 10 msec
