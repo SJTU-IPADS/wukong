@@ -4,13 +4,13 @@ Wukong, a distributed graph-based RDF store that leverages efficient graph explo
 
 ### Feature Highlights
 
-- High-performance and Scalable
+- High-performance and Scalable RDF Store
 
-- Concurrent query processing
+- Concurrent SPARQL query processing
 
-- RDMA feature of InfiniBand
+- Enabling RDMA feature of InfiniBand
 
-- Evolving graphs
+- Support evolving graphs (not included)
 
 For more details on the Wukong see http://ipads.se.sjtu.edu.cn/projects/wukong.html, including new features, instructions, etc.
 
@@ -196,7 +196,7 @@ Synchronize all executable files (e.g., `build/wukong`) to all machines
     $cd ${WUKONG_ROOT}/scripts
     $./sync.sh
 
-Running sever with a naive console for testing
+Running sever with a builtin local console for testing
 
     $cd ${WUKONG_ROOT}/scripts
     $./run.sh [#nodes]
@@ -212,15 +212,21 @@ If there is space at the raw_data, convert it to underline first
 
 Use generate_data.cpp to convert raw_data into id_data
 
-    $cd ${WUKONG_ROOT}/generate
+    $cd ${WUKONG_ROOT}/datagen
     $g++ -std=c++11 generate_data.cpp -o generate_data
     $./generate_data lubm_raw_40 id_lubm_40
 
 
-Put `id_data` to distributed storage (e.g., NFS) , and set the `global_input_folder` at `scripts/config`
+Put `id_data` to a distributed storage (e.g., NFS), and set the `global_input_folder` at `scripts/config`
 
 
-Create a file (`str_normal_minimal`) with minimal id mappings when loading `str_normal` is too lengthy
+#### Speedup loading ####
+
+Create a file (`str_normal_minimal`) with minimal ID mappings when loading `str_normal` is too lengthy
 
     $grep "<http://www.Department0.University0.edu>" str_normal >> str_normal_minimal
     ...
+
+Enable the `global_load_minimal_index` at `scripts/config`
+
+

@@ -40,7 +40,6 @@
 #include "graph_basic_types.hpp"
 #include "rdma_resource.hpp"
 #include "graph_storage.hpp"
-#include "simple_graph_storage.hpp"
 #include "timer.hpp"
 
 using namespace std;
@@ -295,7 +294,6 @@ class distributed_graph {
 
 public:
 	graph_storage local_storage;
-	//simple_graph_storage local_storage;
 
 	distributed_graph(boost::mpi::communicator &_world,
 	                  RdmaResource *_rdma, string dname): world(_world), rdma(_rdma) {

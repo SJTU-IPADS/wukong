@@ -25,8 +25,8 @@ include_directories(utils)
 
 file(GLOB SOURCES "core/*.hpp" "utils/*.hpp")
 
-### wukong (RDMA-enbled)
-#add_executable(wukong ${SOURCES} "test/main.cpp")
+
+## Wukong
 add_executable(wukong ${SOURCES} "core/wukong.cpp")
 target_link_libraries(wukong zmq rt ibverbs tbb ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a)
 
