@@ -73,24 +73,25 @@ dump_cfg(void)
 	cout << "------ global configurations ------" << endl;
 
 	// setting by config file
-	cout << "global_eth_port_base: " 		<< global_eth_port_base				<< endl;
-	cout << "global_rdma_port_base: " 		<< global_rdma_port_base			<< endl;
-	cout << "global_use_rbf: " 				<< global_use_rbf 					<< endl;
-	cout << "global_use_rdma: " 			<< global_use_rdma					<< endl;
-	cout << "global_rdma_threshold: " 		<< global_rdma_threshold			<< endl;
 	cout << "the number of engines: "		<< global_num_engines 				<< endl;
 	cout << "the number of proxies: "		<< global_num_proxies				<< endl;
-	cout << "global_mt_threshold: " 		<< global_mt_threshold  			<< endl;
 	cout << "global_input_folder: " 		<< global_input_folder				<< endl;
-	cout << "global_use_loc_cache: " 		<< global_use_loc_cache				<< endl;
 	cout << "global_load_minimal_index: " 	<< global_load_minimal_index 		<< endl;
-	cout << "global_silent: " 				<< global_silent					<< endl;
-	cout << "global_max_print_row: " 		<< global_max_print_row				<< endl;
+	cout << "global_eth_port_base: " 		<< global_eth_port_base				<< endl;
+	cout << "global_rdma_port_base: " 		<< global_rdma_port_base			<< endl;
 	cout << "global_total_memory_gb: " 		<< global_total_memory_gb			<< endl;
 	cout << "global_perslot_msg_mb: " 		<< global_perslot_msg_mb   			<< endl;
 	cout << "global_perslot_rdma_mb: " 		<< global_perslot_rdma_mb			<< endl;
 	cout << "global_hash_header_million: " 	<< global_hash_header_million		<< endl;
+	cout << "global_use_rdma: " 			<< global_use_rdma					<< endl;
+	cout << "global_use_rbf: " 				<< global_use_rbf 					<< endl;
+	cout << "global_use_loc_cache: " 		<< global_use_loc_cache				<< endl;
 	cout << "global_enable_workstealing: " 	<< global_enable_workstealing		<< endl;
+	cout << "global_rdma_threshold: " 		<< global_rdma_threshold			<< endl;
+	cout << "global_mt_threshold: " 		<< global_mt_threshold  			<< endl;
+	cout << "global_max_print_row: " 		<< global_max_print_row				<< endl;
+	cout << "global_silent: " 				<< global_silent					<< endl;
+
 	cout << "--" << endl;
 
 	// compute from other cfg settings

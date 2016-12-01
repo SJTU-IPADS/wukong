@@ -65,7 +65,7 @@ struct request_or_reply {
     int col_num = 0;
     int row_num = 0;
 
-    bool silent = false;
+    bool blind = false;
 
     int64_t local_var = 0;
     vector<int64_t> cmd_chains; // N * (subject, predicat, direction, object)
@@ -83,19 +83,19 @@ struct request_or_reply {
         ar & step;
         ar & col_num;
         ar & row_num;
-        ar & silent;
+        ar & blind;
         ar & local_var;
         ar & cmd_chains;
         ar & result_table;
     }
 
-    void clear_data(void) { result_table.clear(); }
+    void clear_data() { result_table.clear(); }
 
-    bool is_finished(void) { return (step * 4 >= cmd_chains.size()); }
+    bool is_finished() { return (step * 4 >= cmd_chains.size()); }
 
-    bool is_request(void) { return (id == -1); }
+    bool is_request() { return (id == -1); }
 
-    bool start_from_index(void) {
+    bool start_from_index() {
         /*
          * Wukong assumes that its planner will generate a dummy pattern to hint
          * the query should start from a certain index (i.e., predicate or type).

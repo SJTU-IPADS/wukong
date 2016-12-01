@@ -158,7 +158,7 @@ void *send_cmd(void *ptr) {
 	while (true) {
 		request_or_reply r = monitor->proxy->recv();
 		cout << "(last) result size: " << r.row_num << endl;
-		if (!global_silent)
+		if (!global_silent && !r.blind)
 			monitor->proxy->print_result(r, min(r.row_num, global_max_print_row));
 
 		CS_Reply crep;

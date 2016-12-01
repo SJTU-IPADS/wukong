@@ -302,7 +302,7 @@ class Engine {
             sub_reqs[i].cmd_chains = req.cmd_chains;
             sub_reqs[i].step = req.step;
             sub_reqs[i].col_num = req.col_num;
-            sub_reqs[i].silent = req.silent;
+            sub_reqs[i].blind = req.blind;
             sub_reqs[i].local_var = start;
         }
         for (int i = 0; i < req.get_row_num(); i++) {
@@ -324,7 +324,7 @@ class Engine {
             sub_reqs[i].cmd_chains = req.cmd_chains;
             sub_reqs[i].step = req.step;
             sub_reqs[i].col_num = req.col_num;
-            sub_reqs[i].silent = req.silent;
+            sub_reqs[i].blind = req.blind;
             sub_reqs[i].local_var = start;
         }
         for (int i = 0; i < req.get_row_num(); i++) {
@@ -383,7 +383,7 @@ class Engine {
                 sub_req.result_table.push_back(*iter);
             }
             sub_req.cmd_chains = sub_chain;
-            sub_req.silent = false;
+            sub_req.blind = false; // must take back results
             sub_req.col_num = 1;
         }
 
@@ -538,8 +538,8 @@ class Engine {
 
             if (req.is_finished()) {
                 req.row_num = req.get_row_num();
-                if (req.silent)
-                    req.clear_data();
+                if (req.blind)
+                    req.clear_data(); // avoid take back the resuts
 
                 SendR(cfg, cfg->sid_of(req.pid), cfg->wid_of(req.pid), req);
                 return;

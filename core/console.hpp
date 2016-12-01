@@ -55,10 +55,11 @@ void
 print_help(void)
 {
 	cout << "These are common Wukong commands: " << endl;
-	cout << "    help         Display help infomation" << endl;
-	cout << "    quit         Quit from console" << endl;
-	cout << "    reconfig     Reload config file" << endl;
-	cout << "    sparql       Run SPARQL queries" << endl;
+	cout << "    help           Display help infomation" << endl;
+	cout << "    quit           Quit from console" << endl;
+	cout << "    reload-config  Reload config file" << endl;
+	cout << "    show-config    Show current config" << endl;
+	cout << "    sparql         Run SPARQL queries" << endl;
 	cout << "        -f <file>   a single query from the <file>" << endl;
 	cout << "        -n <num>    run a single query <num> times" << endl;
 	cout << "        -b <file>   a set of queries configured by the <file>" << endl;
@@ -102,8 +103,12 @@ next:
 			pos = cmd.find_last_not_of(" \t");  // trim blanks from tail
 			cmd.erase(pos + 1, cmd.length() - (pos + 1));
 
+			// only process on the master console
 			if (cmd == "help") {
 				print_help();
+				goto next;
+			} else if (cmd == "show-config") {
+				dump_cfg();
 				goto next;
 			}
 
@@ -120,10 +125,11 @@ next:
 			cmd = cfg->node->Recv();
 		}
 
+		// process on all consoles
 		if (cmd == "quit" || cmd == "q") {
 			if (cfg->wid == 0)
 				exit(0); // each server exits once
-		} else if (cmd == "reconfig") {
+		} else if (cmd == "reload-config") {
 			if (cfg->wid == 0)
 				reload_cfg(); // each server reload config file
 		} else {
@@ -191,7 +197,7 @@ next:
 
 						logger.init();
 						proxy->nonblocking_run_batch_query(ifs, logger);
-						//proxy->run_batch_query(ifs,logger);
+						//proxy->run_batch_query(ifs, logger);
 						logger.finish();
 					}
 

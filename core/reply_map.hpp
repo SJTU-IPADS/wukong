@@ -60,7 +60,7 @@ public:
 		data.count--;
 		data.merged_reply.step = r.step;
 		data.merged_reply.col_num = r.col_num;
-		data.merged_reply.silent = r.silent;
+		data.merged_reply.blind = r.blind;
 		data.merged_reply.row_num += r.row_num;
 
 		int new_size = result_table.size() + r.result_table.size();
@@ -78,7 +78,7 @@ public:
 
 		r.step = merged_reply.step;
 		r.col_num = merged_reply.col_num;
-		r.silent = merged_reply.silent;
+		r.blind = merged_reply.blind;
 		r.row_num = merged_reply.row_num;
 
 		r.result_table.swap(merged_reply.result_table);

@@ -36,7 +36,7 @@
 #include "mymath.hpp"
 #include "timer.hpp"
 
-int batch_factor = 20; // discard later
+#define PARALLEL_FACTOR 20
 
 class Proxy {
 private:
@@ -65,6 +65,7 @@ private:
 
 			// do a TYPE query to collect all of candidates for a certain type
 			setpid(type_request);
+			type_request.blind = false; // must take back the results
 			send(type_request);
 			type_reply = recv();
 
@@ -147,7 +148,7 @@ public:
 		}
 	}
 
-	void run_single_query(istream &is, int cnt) {
+	void run_single_query(istream &is, int cnt = 1) {
 		request_or_reply request, reply;
 
 		if (!parser.parse(is, request)) {
@@ -159,6 +160,7 @@ public:
 		uint64_t t = timer::get_usec();
 		for (int i = 0; i < cnt; i++) {
 			setpid(request);
+			request.blind = true; // avoid send back results by default
 			send(request);
 			reply = recv();
 		}
@@ -167,24 +169,21 @@ public:
 		cout << "(last) result size: " << reply.row_num << endl;
 		cout << "(average) latency: " << (t / cnt) << " usec" << endl;
 
-		if (!global_silent)
+		if (!global_silent && !reply.blind)
 			print_result(reply, min(reply.row_num, global_max_print_row));
 	}
 
 	void nonblocking_run_batch_query(istream &is, Logger& logger) {
-		int total_query_type;
-		int total_request;
-		int sleep_round = 1;
+		int ntypes;
+		int nqueries;
+		int try_round = 1;
 
-		is >> total_query_type >> total_request >> sleep_round;
+		is >> ntypes >> nqueries >> try_round;
 
-		vector<int > loads;
-		vector<request_template > tpls;
-		//vector<request_or_reply > vec_req;
+		vector<request_template> tpls(ntypes);
+		vector<int> loads(ntypes);
 
-		tpls.resize(total_query_type);
-		//vec_req.resize(total_query_type);
-		for (int i = 0; i < total_query_type; i++) {
+		for (int i = 0; i < ntypes; i++) {
 			string fname;
 			is >> fname;
 			ifstream ifs(fname);
@@ -196,66 +195,66 @@ public:
 			int load;
 			is >> load;
 			assert(load > 0);
-			loads.push_back(load);
+			loads[i] = load;
 
 			bool success = parser.parse_template(ifs, tpls[i]);
 			if (!success) {
 				cout << "sparql parse error" << endl;
 				return ;
 			}
-
 			fill_template(tpls[i]);
-			//vec_req[i].cmd_chains = tpls[i].cmd_chains;
-			//vec_req[i].silent = global_silent;
 		}
 
-		int send_request = 0, recv_request = 0;
-		while (recv_request != total_request) {
-			for (int t = 0; t < 10; t++) {
-				if (send_request < total_request) {
+		cout << "#queries: " << nqueries << endl;
+		uint64_t start_time = timer::get_usec();
+		int send_cnt = 0, recv_cnt = 0, flying_cnt = 0;
+		while (recv_cnt < nqueries) {
+			for (int t = 0; t < PARALLEL_FACTOR; t++) {
+				if (send_cnt < nqueries) {
 					int idx = mymath::get_distribution(cfg->get_random(), loads);
 
-					//request_or_reply r;
-					//r.cmd_chains = tpls[idx].cmd_chains;
 					request_or_reply r(tpls[idx].cmd_chains);
 					fill_request(tpls[idx], r);
 
 					setpid(r);
+					r.blind = true; // avoid send back results by default
 					logger.start_record(r.pid, idx);
 					send(r);
-
-					send_request++;
+					send_cnt ++;
 				}
 			}
 
-			for (int i = 0; i < sleep_round; i++) {
+			for (int i = 0; i < try_round; i++) {
 				timer::cpu_relax(100);
-				request_or_reply reply;
-				bool success = TryRecvR(cfg, reply);
+
+				request_or_reply r;
+				bool success = TryRecvR(cfg, r);
 				while (success) {
-					recv_request++;
-					logger.end_record(reply.pid);
-					success = TryRecvR(cfg, reply);
+					recv_cnt ++;
+					logger.end_record(r.pid);
+					success = TryRecvR(cfg, r);
 				}
 			}
 		}
+		uint64_t end_time = timer::get_usec();
+		cout << 1000.0 * nqueries / (end_time - start_time)
+		     << "K queries/sec per thread"
+		     << endl;
 	}
 
 	// discard later
 	void run_batch_query(istream &is, Logger& logger) {
-		int total_query_type;
-		int total_request;
-		int sleep_round = 1;
+		int ntypes;
+		int nqueries;
+		int try_round = 1; // dummy
 
-		is >> total_query_type >> total_request >> sleep_round;
+		is >> ntypes >> nqueries >> try_round;
 
-		vector<int> loads;
-		vector<request_template> vec_template;
-		vector<request_or_reply> vec_req;
+		vector<int> loads(ntypes);
+		vector<request_template> tpls(ntypes);
 
-		vec_template.resize(total_query_type);
-		vec_req.resize(total_query_type);
-		for (int i = 0; i < total_query_type; i++) {
+		// prepare various temples
+		for (int i = 0; i < ntypes; i++) {
 			string fname;
 			is >> fname;
 			ifstream ifs(fname);
@@ -267,41 +266,57 @@ public:
 			int load;
 			is >> load;
 			assert(load > 0);
-			loads.push_back(load);
+			loads[i] = load;
 
-			bool success = parser.parse_template(ifs, vec_template[i]);
+			bool success = parser.parse_template(ifs, tpls[i]);
 			if (!success) {
-				cout << "SPARQL parse error" << endl;
+				cout << "sparql parse error" << endl;
 				return ;
 			}
+			fill_template(tpls[i]);
+		}
 
-			fill_template(vec_template[i]);
-			vec_req[i].cmd_chains = vec_template[i].cmd_chains;
-			vec_req[i].silent = global_silent;
-		}
 		uint64_t start_time = timer::get_usec();
-		for (int i = 0; i < batch_factor; i++) {
+		// send PARALLEL_FACTOR queries and keep PARALLEL_FACTOR flying queries
+		for (int i = 0; i < PARALLEL_FACTOR; i++) {
 			int idx = mymath::get_distribution(cfg->get_random(), loads);
-			fill_request(vec_template[idx], vec_req[idx]);
-			setpid(vec_req[idx]);
-			logger.start_record(vec_req[idx].pid, idx);
-			send(vec_req[idx]);
+
+			request_or_reply r(tpls[idx].cmd_chains);
+			r.blind = true;  // avoid send back results by default
+			fill_request(tpls[idx], r);
+
+			setpid(r);
+			logger.start_record(r.pid, idx);
+			send(r);
 		}
-		for (int i = 0; i < total_request; i++) {
-			request_or_reply reply = recv();
-			logger.end_record(reply.pid);
+
+		// recv one query, and then send another query
+		for (int i = 0; i < nqueries - PARALLEL_FACTOR; i++) {
+			// recv one query
+			request_or_reply r2 = recv();
+			logger.end_record(r2.pid);
+
+			// send another query
 			int idx = mymath::get_distribution(cfg->get_random(), loads);
-			fill_request(vec_template[idx], vec_req[idx]);
-			setpid(vec_req[idx]);
-			logger.start_record(vec_req[idx].pid, idx);
-			send(vec_req[idx]);
+
+			request_or_reply r(tpls[idx].cmd_chains);
+			r.blind = true;  // avoid send back results by default
+			fill_request(tpls[idx], r);
+
+			setpid(r);
+			logger.start_record(r.pid, idx);
+			send(r);
 		}
-		for (int i = 0; i < batch_factor; i++) {
-			request_or_reply reply = recv();
-			logger.end_record(reply.pid);
+
+		// recv the rest queries
+		for (int i = 0; i < PARALLEL_FACTOR; i++) {
+			request_or_reply r = recv();
+			logger.end_record(r.pid);
 		}
 		uint64_t end_time = timer::get_usec();
-		cout << 1000.0 * (total_request + batch_factor) / (end_time - start_time) << " Kops" << endl;
+		cout << 1000.0 * nqueries / (end_time - start_time)
+		     << "K queries/sec per thread"
+		     << endl;
 	}
 
 };

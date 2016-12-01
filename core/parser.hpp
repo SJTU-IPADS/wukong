@@ -291,8 +291,6 @@ public:
         }
 
         r.cmd_chains = req_template.cmd_chains;
-
-        r.silent = global_silent; // avoid send back results
         return true;
     }
 
