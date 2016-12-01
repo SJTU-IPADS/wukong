@@ -186,8 +186,8 @@ class Engine {
         int edge_num = 0;
         edge *edge_ptr;
         edge_ptr = g.local_storage.get_index_edges_local(cfg->wid, index_vertex, direction, &edge_num);
-        int64_t start_id = req.mt_current_thread;
-        for (int k = start_id; k < edge_num; k += req.mt_total_thread) {
+        int64_t start_id = req.tid;
+        for (int k = start_id; k < edge_num; k += global_mt_threshold) {
             updated_result_table.push_back(edge_ptr[k].val);
         }
 
@@ -315,10 +315,9 @@ class Engine {
     vector<request_or_reply> generate_mt_sub_requests(request_or_reply &req) {
         int64_t start = req.cmd_chains[req.step * 4];
         int64_t end = req.cmd_chains[req.step * 4 + 3];
-        int nthread = max(1, min(global_mt_threshold, global_num_engines));
 
         vector<request_or_reply> sub_reqs;
-        int num_sub_request = global_nsrvs * nthread ;
+        int num_sub_request = global_nsrvs * global_mt_threshold ;
         sub_reqs.resize(num_sub_request );
         for (int i = 0; i < sub_reqs.size(); i++) {
             sub_reqs[i].pid = req.id;

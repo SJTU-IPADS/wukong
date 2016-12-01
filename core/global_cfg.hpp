@@ -32,38 +32,37 @@
 
 using namespace std;
 
-int global_nsrvs;		// the number of servers
-int global_nthrs;		// the number of threads per server (incl. proxy and engine)
+int global_nsrvs = 1;    // the number of servers
+int global_nthrs = 2;    // the number of threads per server (incl. proxy and engine)
 
-int global_num_engines;		// the number of engines
-int global_num_proxies;		// the number of proxies
+int global_num_engines = 1;    // the number of engines
+int global_num_proxies = 1;    // the number of proxies
 
 string global_input_folder;
-bool global_load_minimal_index;
+bool global_load_minimal_index = true;
 
-int global_eth_port_base;
-int global_rdma_port_base;
+int global_eth_port_base = 5500;
+int global_rdma_port_base = 9576;
 
-int global_total_memory_gb;
-int global_perslot_msg_mb;
-int global_perslot_rdma_mb;
-int global_hash_header_million;
+int global_total_memory_gb = 20;
+int global_perslot_msg_mb = 256;
+int global_perslot_rdma_mb = 128;
+int global_hash_header_million = 1000;
 
-bool global_use_rdma;
-bool global_use_rbf;		// ring-buffer (by RDMA WRITE)
-bool global_use_loc_cache;
-int global_enable_workstealing;
+bool global_use_rdma = true;
+bool global_use_rbf = true;		// ring-buffer (by RDMA WRITE)
+bool global_use_loc_cache = false;
+int global_enable_workstealing = false;
 
-int global_mt_threshold;
-int global_rdma_threshold;
+int global_mt_threshold = 16;
+int global_rdma_threshold = 300;
 
-int global_max_print_row;
-bool global_silent;
+int global_max_print_row = 10;
+bool global_silent = true;
 
 /* set by command line */
 string cfg_fname;
 string host_fname;
-
 
 /**
  * dump current global setting
@@ -105,6 +104,8 @@ dump_cfg(void)
 void
 reload_cfg(void)
 {
+	// TODO: it should ensure that there is no outstanding queries.
+
 	ifstream file(cfg_fname.c_str());
 	if (!file) {
 		cout << "ERROR: the configure file "
@@ -134,6 +135,8 @@ reload_cfg(void)
 	global_max_print_row = atoi(config_map["global_max_print_row"].c_str());
 	global_silent = atoi(config_map["global_silent"].c_str());
 
+	// limited the number of engines
+	global_mt_threshold = max(1, min(global_mt_threshold, global_num_engines));
 	return;
 }
 
@@ -149,13 +152,8 @@ load_cfg(int nsrvs)
 		exit(0);
 	}
 
+	string line, row, val;
 	map<string, string> config_map;
-	string row;
-	string val;
-	// while(file>>row>>val){
-	// 	config_map[row]=val;
-	// }
-	string line;
 	while (std::getline(file, line)) {
 		istringstream iss(line);
 		iss >> row >> val;
@@ -186,6 +184,9 @@ load_cfg(int nsrvs)
 
 	global_nsrvs = nsrvs;
 	global_nthrs = global_num_engines + global_num_proxies;
+
+	// limited the number of engines
+	global_mt_threshold = max(1, min(global_mt_threshold, global_num_engines));
 
 	// make sure to check that the global_input_folder is non-empty.
 	if (global_input_folder.length() == 0) {

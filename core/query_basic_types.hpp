@@ -48,55 +48,45 @@ struct request_template {
     vector<int64_t> cmd_chains;
 
     // no serialize
-    vector<string> ptypes_str;  // strings of pattern-types
-    vector<int64_t> ptypes_pos;  // place-holders of pattern-types
-    vector<vector<int64_t> *> ptypes_grp; // a group of IDs matching pattern-types
+    vector<int64_t> ptypes_pos;            // the locations of random-constants
+    vector<string> ptypes_str;             // the Types of random-constants
+    vector<vector<int64_t>> ptypes_grp;  // the candidates for random-constants
 };
 
 struct request_or_reply {
     int first_target; // no serialize
 
-    int id;
-    int pid;
+    int id = -1;     // query id
+    int pid = -1;    // parqnt query id
+    int tid = 0;     // engine thread id
 
-    int step;
-    int col_num;
-    int row_num;
+    // runtime state
+    int step = 0;
+    int col_num = 0;
+    int row_num = 0;
 
-    int64_t local_var;
+    bool silent = false;
+
+    int64_t local_var = 0;
     vector<int64_t> cmd_chains; // N * (subject, predicat, direction, object)
     vector<int64_t> result_table;
 
-    int mt_total_thread;
-    int mt_current_thread;
-    bool silent;
+    request_or_reply() { }
 
-    request_or_reply() {
-        first_target = -1;
-        id = -1;
-        pid = -1;
-        step = 0;
-        col_num = 0;
-        row_num = 0;
-        local_var = 0;
-        mt_total_thread = 1;
-        mt_current_thread = 0;
-        silent = false;
-    }
+    request_or_reply(vector<int64_t> _cc): cmd_chains(_cc) { }
 
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
         ar & id;
         ar & pid;
+        ar & tid;
         ar & step;
         ar & col_num;
         ar & row_num;
+        ar & silent;
         ar & local_var;
         ar & cmd_chains;
         ar & result_table;
-        ar & mt_total_thread;
-        ar & mt_current_thread;
-        ar & silent;
     }
 
     void clear_data(void) { result_table.clear(); }

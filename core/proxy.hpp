@@ -41,21 +41,18 @@ int batch_factor = 20; // discard later
 class Proxy {
 private:
 
-	void instantiate_request(request_template &req_template, request_or_reply &r) {
-		for (int i = 0; i < req_template.ptypes_pos.size(); i++) {
-			int pos = req_template.ptypes_pos[i];
-			vector<int64_t> *vecptr = req_template.ptypes_grp[i];
-			if (vecptr == NULL || vecptr->size() == 0) {
-				assert(false);
-			}
-			r.cmd_chains[pos] = (*vecptr)[cfg->get_random() % (vecptr->size())];
+	void fill_request(request_template &tpl, request_or_reply &r) {
+		for (int i = 0; i < tpl.ptypes_pos.size(); i++) {
+			vector<int64_t> candidates = tpl.ptypes_grp[i];
+			r.cmd_chains[tpl.ptypes_pos[i]] =
+			    candidates[cfg->get_random() % (candidates.size())];
 		}
 	}
 
-	void translate_req_template(request_template &req_template) {
+	void fill_template(request_template &req_template) {
 		req_template.ptypes_grp.resize(req_template.ptypes_str.size());
 		for (int i = 0; i < req_template.ptypes_str.size(); i++) {
-			string type = req_template.ptypes_str[i];
+			string type = req_template.ptypes_str[i]; // the Types of random-constant
 
 			request_or_reply type_request, type_reply;
 
@@ -66,15 +63,19 @@ private:
 				assert(false);
 			}
 
-			// do TYPE query
+			// do a TYPE query to collect all of candidates for a certain type
 			setpid(type_request);
 			send(type_request);
 			type_reply = recv();
 
-			vector<int64_t> *ptr = new vector<int64_t>(type_reply.result_table);
-			req_template.ptypes_grp[i] = ptr;
+			vector<int64_t> candidates(type_reply.result_table);
+			// There is no candidate with the Type for a random-constant in the template
+			// TODO: it should report empty for all queries of the template
+			assert(candidates.size() > 0);
 
-			cout << type << " has " << ptr->size() << " objects" << endl;
+			req_template.ptypes_grp[i] = candidates;
+
+			cout << type << " has " << req_template.ptypes_grp[i].size() << " candidates" << endl;
 		}
 	}
 
@@ -94,11 +95,9 @@ public:
 		assert(req.pid != -1);
 
 		if (req.start_from_index()) {
-			int nthread = max(1, min(global_mt_threshold, global_num_engines));
 			for (int i = 0; i < global_nsrvs; i++) {
-				for (int j = 0; j < nthread; j++) {
-					req.mt_total_thread = nthread;
-					req.mt_current_thread = j;
+				for (int j = 0; j < global_mt_threshold; j++) {
+					req.tid = j;
 					SendR(cfg, i, global_num_proxies + j, req);
 				}
 			}
@@ -118,8 +117,7 @@ public:
 	request_or_reply recv(void) {
 		request_or_reply r = RecvR(cfg);
 		if (r.start_from_index()) {
-			int nthread = max(1, min(global_mt_threshold, global_num_engines));
-			for (int count = 0; count < global_nsrvs * nthread - 1 ; count++) {
+			for (int count = 0; count < global_nsrvs * global_mt_threshold - 1 ; count++) {
 				request_or_reply r2 = RecvR(cfg);
 				r.row_num += r2.row_num;
 				int new_size = r.result_table.size() + r2.result_table.size();
@@ -181,11 +179,11 @@ public:
 		is >> total_query_type >> total_request >> sleep_round;
 
 		vector<int > loads;
-		vector<request_template > vec_template;
-		vector<request_or_reply > vec_req;
+		vector<request_template > tpls;
+		//vector<request_or_reply > vec_req;
 
-		vec_template.resize(total_query_type);
-		vec_req.resize(total_query_type);
+		tpls.resize(total_query_type);
+		//vec_req.resize(total_query_type);
 		for (int i = 0; i < total_query_type; i++) {
 			string fname;
 			is >> fname;
@@ -197,27 +195,36 @@ public:
 
 			int load;
 			is >> load;
+			assert(load > 0);
 			loads.push_back(load);
-			bool success = parser.parse_template(ifs, vec_template[i]);
-			translate_req_template(vec_template[i]);
-			vec_req[i].cmd_chains = vec_template[i].cmd_chains;
+
+			bool success = parser.parse_template(ifs, tpls[i]);
 			if (!success) {
 				cout << "sparql parse error" << endl;
 				return ;
 			}
-			vec_req[i].silent = global_silent;
+
+			fill_template(tpls[i]);
+			//vec_req[i].cmd_chains = tpls[i].cmd_chains;
+			//vec_req[i].silent = global_silent;
 		}
 
 		int send_request = 0, recv_request = 0;
 		while (recv_request != total_request) {
 			for (int t = 0; t < 10; t++) {
 				if (send_request < total_request) {
-					send_request++;
 					int idx = mymath::get_distribution(cfg->get_random(), loads);
-					instantiate_request(vec_template[idx], vec_req[idx]);
-					setpid(vec_req[idx]);
-					logger.start_record(vec_req[idx].pid, idx);
-					send(vec_req[idx]);
+
+					//request_or_reply r;
+					//r.cmd_chains = tpls[idx].cmd_chains;
+					request_or_reply r(tpls[idx].cmd_chains);
+					fill_request(tpls[idx], r);
+
+					setpid(r);
+					logger.start_record(r.pid, idx);
+					send(r);
+
+					send_request++;
 				}
 			}
 
@@ -242,9 +249,10 @@ public:
 
 		is >> total_query_type >> total_request >> sleep_round;
 
-		vector<int > loads;
-		vector<request_template > vec_template;
-		vector<request_or_reply > vec_req;
+		vector<int> loads;
+		vector<request_template> vec_template;
+		vector<request_or_reply> vec_req;
+
 		vec_template.resize(total_query_type);
 		vec_req.resize(total_query_type);
 		for (int i = 0; i < total_query_type; i++) {
@@ -258,20 +266,23 @@ public:
 
 			int load;
 			is >> load;
+			assert(load > 0);
 			loads.push_back(load);
+
 			bool success = parser.parse_template(ifs, vec_template[i]);
-			translate_req_template(vec_template[i]);
-			vec_req[i].cmd_chains = vec_template[i].cmd_chains;
 			if (!success) {
 				cout << "SPARQL parse error" << endl;
 				return ;
 			}
+
+			fill_template(vec_template[i]);
+			vec_req[i].cmd_chains = vec_template[i].cmd_chains;
 			vec_req[i].silent = global_silent;
 		}
 		uint64_t start_time = timer::get_usec();
 		for (int i = 0; i < batch_factor; i++) {
 			int idx = mymath::get_distribution(cfg->get_random(), loads);
-			instantiate_request(vec_template[idx], vec_req[idx]);
+			fill_request(vec_template[idx], vec_req[idx]);
 			setpid(vec_req[idx]);
 			logger.start_record(vec_req[idx].pid, idx);
 			send(vec_req[idx]);
@@ -280,7 +291,7 @@ public:
 			request_or_reply reply = recv();
 			logger.end_record(reply.pid);
 			int idx = mymath::get_distribution(cfg->get_random(), loads);
-			instantiate_request(vec_template[idx], vec_req[idx]);
+			fill_request(vec_template[idx], vec_req[idx]);
 			setpid(vec_req[idx]);
 			logger.start_record(vec_req[idx].pid, idx);
 			send(vec_req[idx]);
