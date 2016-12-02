@@ -178,7 +178,9 @@ next:
 							cout << "Query file not found: " << fname << endl;
 							continue ;
 						}
-						proxy->run_single_query(ifs, cnt);
+						Logger logger;
+						proxy->run_single_query(ifs, cnt, logger);
+						logger.print_latency(cnt);
 					}
 				}
 
@@ -194,27 +196,24 @@ next:
 							cout << "Configure file not found: " << bfname << endl;
 							continue ;
 						}
-
-						logger.init();
 						proxy->nonblocking_run_batch_query(ifs, logger);
 						//proxy->run_batch_query(ifs, logger);
-						logger.finish();
 					}
 
 					console_barrier(cfg);
-					// print a statistic of runtime for the batch processing
+
+					// print a statistic of runtime for the batch processing on all servers
 					if (IS_MASTER(cfg)) {
-						// collect logs from other proxy threads
 						for (int i = 0; i < global_nsrvs * global_num_proxies - 1; i++) {
-							Logger log = RecvObject<Logger>(cfg);
-							logger.merge(log);
+							Logger other = RecvObject<Logger>(cfg);
+							logger.merge(other);
 						}
-						logger.print();
+						logger.print_rdf();
+						logger.print_thpt();
 					} else {
-						// send logs to the main proxy
+						// send logs to the master proxy
 						SendObject<Logger>(cfg, 0, 0, logger);
 					}
-
 				}
 
 				if (q_enable) {

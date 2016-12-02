@@ -35,6 +35,7 @@ private:
         int query_type;
         uint64_t start_time;
         uint64_t end_time;
+
         template <typename Archive>
         void serialize(Archive &ar, const unsigned int version) {
             ar & query_type;
@@ -43,16 +44,17 @@ private:
         }
     };
 
-    uint64_t init_time;
+    uint64_t init_time, done_time;
     unordered_map<int, req_stats> stats_map;
+    float thpt = 0.0;
 
 public:
     void init() {
         init_time = timer::get_usec();
     }
 
-    void start_record(int reqid, int query_type) {
-        stats_map[reqid].query_type = query_type;
+    void start_record(int reqid, int type) {
+        stats_map[reqid].query_type = type;
         stats_map[reqid].start_time = timer::get_usec() - init_time;
     }
 
@@ -61,53 +63,62 @@ public:
     }
 
     void finish() {
-
+        done_time = timer::get_usec();
+        thpt = 1000.0 * stats_map.size() / (done_time - init_time);
     }
 
     void merge(Logger &other) {
-        for (auto iter : other.stats_map) {
-            stats_map[iter.first] = iter.second;
-        }
+        for (auto s : other.stats_map)
+            stats_map[s.first] = s.second;
+        thpt += other.thpt;
     }
 
-    void print() {
-        vector<int> throughput_vec;
-        int print_interval = 200; //100ms
-        cout << "Throughput (Kops)" << endl;
-        for (auto iter : stats_map) {
-            int idx = iter.second.start_time / (1000 * print_interval);
-            if (throughput_vec.size() <= idx) {
-                throughput_vec.resize(idx + 1);
-            }
-            throughput_vec[idx]++;
-        }
-        for (int i = 0; i < throughput_vec.size(); i++) {
-            cout << throughput_vec[i] * 1.0 / print_interval << " ";
-            if (i % 5 == 4 || i == throughput_vec.size() - 1) {
-                cout << endl;
-            }
+    void print_thpt() {
+        cout << "Throughput: " << thpt << "K queries/sec" << endl;
+    }
+
+    void print_latency(int cnt = 1) {
+        cout << "(average) latency: " << ((done_time - init_time) / cnt) << " usec" << endl;
+    }
+
+    void print_rdf() {
+        // print range throughput with 100ms interval
+        vector<int> thpts;
+        int print_interval = 200 * 1000; // 200ms
+
+        for (auto s : stats_map) {
+            int i = s.second.start_time / print_interval;
+            if (thpts.size() <= i)
+                thpts.resize(i + 1);
+            thpts[i]++;
         }
 
-        ///
+        cout << "Range Throughput (K queries/sec)" << endl;
+        for (int i = 0; i < thpts.size(); i++)
+            cout << "[" << (print_interval * i) / 1000 << "ms ~ "
+                 << print_interval * (i + 1) / 1000 << "ms)\t"
+                 << (float)thpts[i] / (print_interval / 1000) << endl;
+
+
+        // print CDF of query latency
+        vector<int> cdf;
+        int print_rate = 100;
+
+        for (auto s : stats_map)
+            cdf.push_back(s.second.end_time - s.second.start_time);
+        sort(cdf.begin(), cdf.end());
+
         cout << "CDF graph" << endl;
-        vector<int> cdf_data;
-        int cdf_pirnt_rate = 100;
-        for (auto iter : stats_map) {
-            cdf_data.push_back(iter.second.end_time - iter.second.start_time);
-        }
-        sort(cdf_data.begin(), cdf_data.end());
-        int count = 0;
-        for (int j = 0; j < cdf_data.size(); j++) {
-            if ((j + 1) % (cdf_data.size() / cdf_pirnt_rate) == 0 ) {
-                count++;
-                if (count != cdf_pirnt_rate) {
-                    cout << cdf_data[j] << "\t";
-                } else {
-                    cout << cdf_data[cdf_data.size() - 1] << "\t";
-                }
-                if (count % 5 == 0) {
-                    cout << endl;
-                }
+        int cnt = 0;
+        for (int i = 0; i < cdf.size(); i++) {
+            if ((i + 1) % (cdf.size() / print_rate) == 0) {
+                cnt++;
+                if (cnt != print_rate)
+                    cout << cdf[i] << "\t";
+                else
+                    cout << cdf[cdf.size() - 1] << "\t";
+
+                if (cnt % 5 == 0) cout << endl;
             }
         }
     }
@@ -115,5 +126,6 @@ public:
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
         ar & stats_map;
+        ar & thpt;
     }
 };

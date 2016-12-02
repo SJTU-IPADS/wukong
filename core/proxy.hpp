@@ -148,7 +148,7 @@ public:
 		}
 	}
 
-	void run_single_query(istream &is, int cnt = 1) {
+	void run_single_query(istream &is, int cnt, Logger &logger) {
 		request_or_reply request, reply;
 
 		if (!parser.parse(is, request)) {
@@ -157,23 +157,21 @@ public:
 			return;
 		}
 
-		uint64_t t = timer::get_usec();
+		logger.init();
 		for (int i = 0; i < cnt; i++) {
 			setpid(request);
 			request.blind = true; // avoid send back results by default
 			send(request);
 			reply = recv();
 		}
-		t = timer::get_usec() - t;
+		logger.finish();
 
 		cout << "(last) result size: " << reply.row_num << endl;
-		cout << "(average) latency: " << (t / cnt) << " usec" << endl;
-
 		if (!global_silent && !reply.blind)
 			print_result(reply, min(reply.row_num, global_max_print_row));
 	}
 
-	void nonblocking_run_batch_query(istream &is, Logger& logger) {
+	void nonblocking_run_batch_query(istream &is, Logger &logger) {
 		int ntypes;
 		int nqueries;
 		int try_round = 1;
@@ -205,8 +203,7 @@ public:
 			fill_template(tpls[i]);
 		}
 
-		cout << "#queries: " << nqueries << endl;
-		uint64_t start_time = timer::get_usec();
+		logger.init();
 		int send_cnt = 0, recv_cnt = 0, flying_cnt = 0;
 		while (recv_cnt < nqueries) {
 			for (int t = 0; t < PARALLEL_FACTOR; t++) {
@@ -224,22 +221,22 @@ public:
 				}
 			}
 
+			// wait a piece of time and try several times
 			for (int i = 0; i < try_round; i++) {
 				timer::cpu_relax(100);
 
+				// try to recieve the replies (best of effort)
 				request_or_reply r;
 				bool success = TryRecvR(cfg, r);
 				while (success) {
 					recv_cnt ++;
 					logger.end_record(r.pid);
+
 					success = TryRecvR(cfg, r);
 				}
 			}
 		}
-		uint64_t end_time = timer::get_usec();
-		cout << 1000.0 * nqueries / (end_time - start_time)
-		     << "K queries/sec per thread"
-		     << endl;
+		logger.finish();
 	}
 
 	// discard later
@@ -276,7 +273,8 @@ public:
 			fill_template(tpls[i]);
 		}
 
-		uint64_t start_time = timer::get_usec();
+		logger.init();
+
 		// send PARALLEL_FACTOR queries and keep PARALLEL_FACTOR flying queries
 		for (int i = 0; i < PARALLEL_FACTOR; i++) {
 			int idx = mymath::get_distribution(cfg->get_random(), loads);
@@ -313,10 +311,9 @@ public:
 			request_or_reply r = recv();
 			logger.end_record(r.pid);
 		}
-		uint64_t end_time = timer::get_usec();
-		cout << 1000.0 * nqueries / (end_time - start_time)
-		     << "K queries/sec per thread"
-		     << endl;
+
+		logger.finish();
+		logger.print_thpt();
 	}
 
 };
