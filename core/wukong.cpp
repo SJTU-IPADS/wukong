@@ -24,9 +24,8 @@
 #include <boost/serialization/string.hpp>
 #include <iostream>
 
-#include "global_cfg.hpp"
+#include "config.hpp"
 #include "misc.hpp"
-#include "thread_cfg.hpp"
 #include "string_server.hpp"
 #include "distributed_graph.hpp"
 #include "engine.hpp"
@@ -133,8 +132,8 @@ main(int argc, char *argv[])
 		}
 	}
 
-	// config global setting
-	load_cfg(world.size());
+	// load global configuration setting
+	load_global_cfg(world.size());
 
 	// calculate memory usage
 	uint64_t rdma_size = GiB2B(global_total_memory_gb);

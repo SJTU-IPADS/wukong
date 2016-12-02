@@ -26,11 +26,10 @@
 #include <boost/unordered_map.hpp>
 #include <stdlib.h> //qsort
 
+#include "config.hpp"
 #include "message_wrap.hpp"
 #include "distributed_graph.hpp"
 #include "query_basic_types.hpp"
-#include "global_cfg.hpp"
-#include "thread_cfg.hpp"
 #include "reply_map.hpp"
 
 #include "mymath.hpp"

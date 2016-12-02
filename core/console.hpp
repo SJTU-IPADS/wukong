@@ -27,8 +27,7 @@
 #include <boost/unordered_map.hpp>
 #include <set>
 
-#include "global_cfg.hpp"
-#include "thread_cfg.hpp"
+#include "config.hpp"
 #include "proxy.hpp"
 #include "logger.hpp"
 
@@ -108,7 +107,7 @@ next:
 				print_help();
 				goto next;
 			} else if (cmd == "show-config") {
-				dump_cfg();
+				show_global_cfg();
 				goto next;
 			}
 
@@ -131,7 +130,7 @@ next:
 				exit(0); // each server exits once
 		} else if (cmd == "reload-config") {
 			if (cfg->wid == 0)
-				reload_cfg(); // each server reload config file
+				reload_global_cfg(); // each server reload config file
 		} else {
 			std::stringstream cmd_ss(cmd);
 			std::string token;

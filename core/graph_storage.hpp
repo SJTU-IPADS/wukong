@@ -29,9 +29,9 @@
 #include <boost/unordered_set.hpp>
 #include <tbb/concurrent_hash_map.h>
 
+#include "config.hpp"
 #include "rdma_resource.hpp"
 #include "graph_basic_types.hpp"
-#include "global_cfg.hpp"
 
 #include "mymath.hpp"
 #include "timer.hpp"

@@ -25,7 +25,7 @@
 #include <functional>
 #include <iostream>
 
-#include "global_cfg.hpp"
+#include "config.hpp"
 #include "mymath.hpp"
 
 struct edge_triple {

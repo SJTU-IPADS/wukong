@@ -36,7 +36,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include "omp.h"
 
-#include "global_cfg.hpp"
+#include "config.hpp"
 #include "graph_basic_types.hpp"
 #include "rdma_resource.hpp"
 #include "graph_storage.hpp"

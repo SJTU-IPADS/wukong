@@ -82,7 +82,8 @@ public:
     }
 
     void print_rdf() {
-        // print range throughput with 100ms interval
+#if 0
+        // print range throughput with certain interval
         vector<int> thpts;
         int print_interval = 200 * 1000; // 200ms
 
@@ -98,7 +99,7 @@ public:
             cout << "[" << (print_interval * i) / 1000 << "ms ~ "
                  << print_interval * (i + 1) / 1000 << "ms)\t"
                  << (float)thpts[i] / (print_interval / 1000) << endl;
-
+#endif
 
         // print CDF of query latency
         vector<int> cdf;

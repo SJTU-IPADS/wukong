@@ -26,7 +26,7 @@
 #include <pthread.h>
 #include <boost/unordered_map.hpp>
 
-#include "global_cfg.hpp"
+#include "config.hpp"
 #include "query_basic_types.hpp"
 
 

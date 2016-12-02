@@ -22,11 +22,10 @@
 
 #pragma once
 
+#include "config.hpp"
 #include "query_basic_types.hpp"
 #include "network_node.hpp"
 #include "rdma_resource.hpp"
-#include "thread_cfg.hpp"
-#include "global_cfg.hpp"
 
 void SendR(thread_cfg *cfg, int mid, int tid, request_or_reply &r) {
     std::stringstream ss;

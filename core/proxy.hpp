@@ -25,9 +25,8 @@
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
 
+#include "config.hpp"
 #include "query_basic_types.hpp"
-#include "global_cfg.hpp"
-#include "thread_cfg.hpp"
 #include "message_wrap.hpp"
 #include "parser.hpp"
 #include "string_server.hpp"
