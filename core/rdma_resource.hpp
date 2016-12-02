@@ -22,10 +22,6 @@
 
 #pragma once
 
-#include "rdma_resource_fake.hpp"
-
-#ifndef USE_ZEROMQ
-
 #include "network_node.hpp"
 
 #pragma GCC diagnostic warning "-fpermissive"
@@ -49,6 +45,9 @@
 #include <pthread.h>
 
 #include "timer.hpp"
+
+
+#ifndef USE_ZEROMQ
 
 struct config_t {
     const char *dev_name;         /* IB device name */
@@ -173,39 +172,33 @@ static int dev_resources_create(struct dev_resource *res,
     int rc = 0;
 
     dev_list = ibv_get_device_list (&num_devices);
-    if (!dev_list)
-    {
+    if (!dev_list) {
         fprintf (stderr, "failed to get IB devices list\n");
         rc = 1;
         goto dev_resources_create_exit;
     }
     /* if there isn't any IB device in host */
-    if (!num_devices)
-    {
+    if (!num_devices) {
         fprintf (stderr, "found %d device(s)\n", num_devices);
         rc = 1;
         goto dev_resources_create_exit;
     }
     //  fprintf (stdout, "found %d device(s)\n", num_devices);
     /* search for the specific device we want to work with */
-    for (i = 0; i < num_devices; i++)
-    {
-        if (!rdma_config.dev_name)
-        {
+    for (i = 0; i < num_devices; i++) {
+        if (!rdma_config.dev_name) {
             rdma_config.dev_name = strdup (ibv_get_device_name (dev_list[i]));
             //fprintf (stdout,
             //           "device not specified, using first one found: %s\n",
             //           rdma_config.dev_name);
         }
-        if (!strcmp (ibv_get_device_name (dev_list[i]), rdma_config.dev_name))
-        {
+        if (!strcmp (ibv_get_device_name (dev_list[i]), rdma_config.dev_name)) {
             ib_dev = dev_list[i];
             break;
         }
     }
     /* if the device wasn't found in host */
-    if (!ib_dev)
-    {
+    if (!ib_dev) {
         fprintf (stderr, "IB device %s wasn't found\n", rdma_config.dev_name);
         rc = 1;
         goto dev_resources_create_exit;
@@ -213,8 +206,7 @@ static int dev_resources_create(struct dev_resource *res,
     /* get device handle */
     res->ib_ctx = ibv_open_device (ib_dev);
 
-    if (!res->ib_ctx)
-    {
+    if (!res->ib_ctx) {
         fprintf (stderr, "failed to open device %s\n", rdma_config.dev_name);
         rc = 1;
         goto dev_resources_create_exit;
@@ -231,7 +223,6 @@ static int dev_resources_create(struct dev_resource *res,
     //fprintf(stdout,"The max size can reg: %ld\n",res->device_attr.max_mr_size);
 
     switch (res->device_attr.atomic_cap) {
-
     case IBV_ATOMIC_NONE:
         fprintf(stdout, "atomic none\n");
         break;
@@ -251,8 +242,7 @@ static int dev_resources_create(struct dev_resource *res,
     dev_list = NULL;
     ib_dev = NULL;
     /* query port properties */
-    if (ibv_query_port (res->ib_ctx, rdma_config.ib_port, &res->port_attr))
-    {
+    if (ibv_query_port(res->ib_ctx, rdma_config.ib_port, &res->port_attr)) {
         fprintf (stderr, "ibv_query_port on port %u failed\n", rdma_config.ib_port);
         rc = 1;
         goto dev_resources_create_exit;
@@ -260,8 +250,7 @@ static int dev_resources_create(struct dev_resource *res,
 
     /* allocate Protection Domain */
     res->pd = ibv_alloc_pd (res->ib_ctx);
-    if (!res->pd)
-    {
+    if (!res->pd) {
         fprintf (stderr, "ibv_alloc_pd failed\n");
         rc = 1;
         goto dev_resources_create_exit;
@@ -276,9 +265,8 @@ static int dev_resources_create(struct dev_resource *res,
                IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_ATOMIC;//add cmp op
 
     fprintf(stdout, "registering memory\n");
-    res->mr = ibv_reg_mr (res->pd, res->buf, size, mr_flags);
-    if (!res->mr)
-    {
+    res->mr = ibv_reg_mr(res->pd, res->buf, size, mr_flags);
+    if (!res->mr) {
         fprintf (stderr, "ibv_reg_mr failed with mr_flags=0x%x\n", mr_flags);
         rc = 1;
         goto dev_resources_create_exit;
@@ -288,26 +276,24 @@ static int dev_resources_create(struct dev_resource *res,
 //     res->buf, res->mr->lkey, res->mr->rkey, mr_flags);
 
 dev_resources_create_exit:
-    if (rc)
-    {
+    if (rc) {
         /* Error encountered, cleanup */
-        if (res->mr)
-        {
+        if (res->mr) {
             ibv_dereg_mr (res->mr);
             res->mr = NULL;
         }
-        if (res->pd)
-        {
+
+        if (res->pd) {
             ibv_dealloc_pd (res->pd);
             res->pd = NULL;
         }
-        if (res->ib_ctx)
-        {
+
+        if (res->ib_ctx) {
             ibv_close_device (res->ib_ctx);
             res->ib_ctx = NULL;
         }
-        if (dev_list)
-        {
+
+        if (dev_list) {
             ibv_free_device_list (dev_list);
             dev_list = NULL;
         }
@@ -535,12 +521,8 @@ connect_qp_exit:
     return rc;
 }
 
-static int post_send(struct QP *res,
-                     ibv_wr_opcode opcode,
-                     char* local_buf,
-                     size_t size,
-                     size_t remote_offset,
-                     bool signal) {
+static int post_send(struct QP *res, ibv_wr_opcode opcode, char* local_buf,
+                     size_t size, size_t remote_offset, bool signal) {
     struct ibv_send_wr sr;
     struct ibv_sge sge;
     struct ibv_send_wr *bad_wr = NULL;
@@ -1244,6 +1226,101 @@ public:
         }
         return false;
     }
-};
+}; // end of class RdmaResource
+
+#else
+
+class RdmaResource {
+
+    //site configuration settings
+    int _total_partition = -1;
+    int _total_threads = -1;
+    int _current_partition = -1;
+
+
+    uint64_t size;//The size of the rdma region,should be the same across machines!
+    uint64_t off ;//The offset to send message
+    char *buffer;
+
+public:
+    uint64_t get_memorystore_size() {
+        //[0-off) can be used;
+        //[off,size) should be reserve
+        return off;
+    }
+    char * get_buffer() {
+        return buffer;
+    }
+    uint64_t get_slotsize() {
+        return rdma_slotsize;
+    }
+    //rdma location hashing
+    uint64_t rdma_slotsize;
+    uint64_t msg_slotsize;
+    uint64_t rbf_size;
+    Network_Node* node;
+
+    //for testing
+    RdmaResource(int t_partition, int t_threads, int current, char *_buffer, uint64_t _size,
+                 uint64_t rdma_slot, uint64_t msg_slot, uint64_t _off) {
+
+        _total_threads = t_threads;
+        _total_partition = t_partition;
+        _current_partition = current;
+
+        buffer = _buffer;
+        size   = _size;
+
+        off = _off;
+        rdma_slotsize = rdma_slot;
+        msg_slotsize = msg_slot;
+        rbf_size = msg_slotsize / (_total_partition);
+        rbf_size = rbf_size - (rbf_size % 64);
+    }
+    void Connect() {assert(false);};
+    void Servicing() {assert(false);};
+
+    int RdmaRead(int t_id, int m_id, char *local, uint64_t size, uint64_t remote_offset) {
+        assert(false);
+        return 0;
+    };
+    int RdmaWrite(int t_id, int m_id, char *local, uint64_t size, uint64_t remote_offset) {
+        assert(false);
+        return 0;
+    };
+    int RdmaCmpSwap(int t_id, int m_id, char*local, uint64_t compare, uint64_t swap, uint64_t size, uint64_t off) {
+        assert(false);
+        return 0;
+    };
+    // int post(int t_id,int machine_id,char* local,uint64_t size,uint64_t remote_offset,ibv_wr_opcode op){
+    //     assert(false);
+    //     return 0;
+    // };
+    // int poll(int t_id,int machine_id){
+    //     assert(false);
+    //     return 0;
+    // };
+
+    //TODO what if batched?
+    inline char *GetMsgAddr(int t_id) {
+        assert(false);
+        return (char *)( buffer + off + t_id * rdma_slotsize);
+    }
+
+
+    void rbfSend(int local_tid, int remote_mid, int remote_tid, const char * str_ptr, uint64_t str_size) {
+        assert(false);
+        return ;
+    }
+
+    std::string rbfRecv(int local_tid) {
+        assert(false);
+        return std::string("");
+    }
+    bool rbfTryRecv(int local_tid, std::string& ret) {
+        assert(false);
+        return false;
+    }
+}; // end of class RdmaResource
 
 #endif

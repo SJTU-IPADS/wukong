@@ -223,7 +223,6 @@ public:
   }
 }; // end of class hdfs
 
-
 #endif
 
 }; // end of namespace wukong
