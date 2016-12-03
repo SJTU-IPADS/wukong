@@ -44,15 +44,6 @@ enum var_type {
 // defined as constexpr due to switch-case
 constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
-struct request_template {
-    vector<int64_t> cmd_chains;
-
-    // no serialize
-    vector<int64_t> ptypes_pos;            // the locations of random-constants
-    vector<string> ptypes_str;             // the Types of random-constants
-    vector<vector<int64_t>> ptypes_grp;  // the candidates for random-constants
-};
-
 struct request_or_reply {
     int first_target; // no serialize
 
@@ -147,5 +138,24 @@ struct request_or_reply {
     void append_row_to(int r, vector<int64_t> &updated_result_table) {
         for (int c = 0; c < col_num; c++)
             updated_result_table.push_back(get_row_col(r, c));
+    }
+};
+
+struct request_template {
+    vector<int64_t> cmd_chains;
+
+    // no serialize
+    vector<int64_t> ptypes_pos;            // the locations of random-constants
+    vector<string> ptypes_str;             // the Types of random-constants
+    vector<vector<int64_t>> ptypes_grp;  // the candidates for random-constants
+
+public:
+    request_or_reply instantiate(int seed) {
+        request_or_reply request(cmd_chains);
+        for (int i = 0; i < ptypes_pos.size(); i++) {
+            request.cmd_chains[ptypes_pos[i]] =
+                ptypes_grp[i][seed % ptypes_grp[i].size()];
+        }
+        return request;
     }
 };

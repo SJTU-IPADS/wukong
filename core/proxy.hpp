@@ -38,16 +38,8 @@
 #define PARALLEL_FACTOR 20
 
 class Proxy {
+
 private:
-
-	void fill_request(request_template &tpl, request_or_reply &r) {
-		for (int i = 0; i < tpl.ptypes_pos.size(); i++) {
-			vector<int64_t> candidates = tpl.ptypes_grp[i];
-			r.cmd_chains[tpl.ptypes_pos[i]] =
-			    candidates[cfg->get_random() % (candidates.size())];
-		}
-	}
-
 	void fill_template(request_template &req_template) {
 		req_template.ptypes_grp.resize(req_template.ptypes_str.size());
 		for (int i = 0; i < req_template.ptypes_str.size(); i++) {
@@ -208,14 +200,12 @@ public:
 			for (int t = 0; t < PARALLEL_FACTOR; t++) {
 				if (send_cnt < nqueries) {
 					int idx = mymath::get_distribution(cfg->get_random(), loads);
+					request_or_reply request = tpls[idx].instantiate(cfg->get_random());
 
-					request_or_reply r(tpls[idx].cmd_chains);
-					fill_request(tpls[idx], r);
-
-					setpid(r);
-					r.blind = true; // avoid send back results by default
-					logger.start_record(r.pid, idx);
-					send(r);
+					setpid(request);
+					request.blind = true; // avoid send back results by default
+					logger.start_record(request.pid, idx);
+					send(request);
 					send_cnt ++;
 				}
 			}
@@ -277,12 +267,10 @@ public:
 		// send PARALLEL_FACTOR queries and keep PARALLEL_FACTOR flying queries
 		for (int i = 0; i < PARALLEL_FACTOR; i++) {
 			int idx = mymath::get_distribution(cfg->get_random(), loads);
-
-			request_or_reply r(tpls[idx].cmd_chains);
-			r.blind = true;  // avoid send back results by default
-			fill_request(tpls[idx], r);
+			request_or_reply r = tpls[idx].instantiate(cfg->get_random());
 
 			setpid(r);
+			r.blind = true;  // avoid send back results by default
 			logger.start_record(r.pid, idx);
 			send(r);
 		}
@@ -295,12 +283,10 @@ public:
 
 			// send another query
 			int idx = mymath::get_distribution(cfg->get_random(), loads);
-
-			request_or_reply r(tpls[idx].cmd_chains);
-			r.blind = true;  // avoid send back results by default
-			fill_request(tpls[idx], r);
+			request_or_reply r = tpls[idx].instantiate(cfg->get_random());
 
 			setpid(r);
+			r.blind = true;  // avoid send back results by default
 			logger.start_record(r.pid, idx);
 			send(r);
 		}
