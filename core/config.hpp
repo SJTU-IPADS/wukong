@@ -227,9 +227,7 @@ struct thread_cfg {
 		seed = qid;
 	}
 
-	unsigned get_random(void) {
-		return rand_r(&seed);
-	}
+	unsigned get_random(void) { return rand_r(&seed); }
 
 	int get_and_inc_qid(void) {
 		int _id = qid;

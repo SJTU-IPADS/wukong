@@ -52,10 +52,9 @@ public:
         return original - original % n;
     }
 
-    inline uint64_t static hash_mod(uint64_t n, uint64_t m) {
+    inline int static hash_mod(uint64_t n, int m) {
         if (m == 0)
             assert(false);
-
         return n % m;
     }
 

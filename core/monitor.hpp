@@ -156,7 +156,7 @@ void *send_cmd(void *ptr) {
 
 	Monitor *monitor = (Monitor *)ptr;
 	while (true) {
-		request_or_reply r = monitor->proxy->recv();
+		request_or_reply r = monitor->proxy->recv_reply();
 		cout << "(last) result size: " << r.row_num << endl;
 		if (!global_silent && !r.blind)
 			monitor->proxy->print_result(r, min(r.row_num, global_max_print_row));
@@ -200,7 +200,7 @@ void run_monitor(Proxy *proxy, int port) {
 		}
 
 		proxy->setpid(r);
-		proxy->send(r);
+		proxy->send_request(r);
 		monitor->insert_cid(r.pid, creq.cid);
 	}
 

@@ -38,7 +38,7 @@ void SendR(thread_cfg *cfg, int mid, int tid, request_or_reply &r) {
         cfg->node->Send(mid, tid, ss.str());
 }
 
-request_or_reply RecvR(thread_cfg* cfg) {
+request_or_reply RecvR(thread_cfg *cfg) {
     std::string str;
 
     if (global_use_rbf)

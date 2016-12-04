@@ -33,8 +33,8 @@ class Logger {
 private:
     struct req_stats {
         int query_type;
-        uint64_t start_time;
-        uint64_t end_time;
+        uint64_t start_time = 0ull;
+        uint64_t end_time = 0ull;
 
         template <typename Archive>
         void serialize(Archive &ar, const unsigned int version) {
@@ -44,7 +44,7 @@ private:
         }
     };
 
-    uint64_t init_time, done_time;
+    uint64_t init_time = 0ull, done_time = 0ull;
     unordered_map<int, req_stats> stats_map;
     float thpt = 0.0;
 

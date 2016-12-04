@@ -40,6 +40,7 @@
 class Proxy {
 
 private:
+
 	void fill_template(request_template &req_template) {
 		req_template.ptypes_grp.resize(req_template.ptypes_str.size());
 		for (int i = 0; i < req_template.ptypes_str.size(); i++) {
@@ -57,8 +58,8 @@ private:
 			// do a TYPE query to collect all of candidates for a certain type
 			setpid(type_request);
 			type_request.blind = false; // must take back the results
-			send(type_request);
-			type_reply = recv();
+			send_request(type_request);
+			type_reply = recv_reply();
 
 			vector<int64_t> candidates(type_reply.result_table);
 			// There is no candidate with the Type for a random-constant in the template
@@ -83,30 +84,30 @@ public:
 
 	void setpid(request_or_reply &r) { r.pid = cfg->get_and_inc_qid(); }
 
-	void send(request_or_reply &req) {
-		assert(req.pid != -1);
+	void send_request(request_or_reply &r) {
+		assert(r.pid != -1);
 
-		if (req.start_from_index()) {
+		if (r.start_from_index()) {
 			for (int i = 0; i < global_nsrvs; i++) {
 				for (int j = 0; j < global_mt_threshold; j++) {
-					req.tid = j;
-					SendR(cfg, i, global_num_proxies + j, req);
+					r.tid = j;
+					SendR(cfg, i, global_num_proxies + j, r);
 				}
 			}
 			return ;
 		}
-		req.first_target = mymath::hash_mod(req.cmd_chains[0], global_nsrvs);
+		int start_srv = mymath::hash_mod(r.cmd_chains[0], global_nsrvs);
 
-		/* use one-to-one mapping if there are multiple frontend workers */
+		/* use partitioned mapping if there are multiple proxies */
 		//int ratio = global_num_engines / global_num_proxies;
-		//int mid = global_num_proxies + ratio * cfg->wid + cfg->get_random() % ratio;
+		//int tid = global_num_proxies + (ratio * cfg->wid + cfg->get_random() % ratio);
 
-		// random
+		// random assign the request to one engine
 		int tid = global_num_proxies + cfg->get_random() % global_num_engines;
-		SendR(cfg, req.first_target, tid, req);
+		SendR(cfg, start_srv, tid, r);
 	}
 
-	request_or_reply recv(void) {
+	request_or_reply recv_reply(void) {
 		request_or_reply r = RecvR(cfg);
 		if (r.start_from_index()) {
 			for (int count = 0; count < global_nsrvs * global_mt_threshold - 1 ; count++) {
@@ -118,6 +119,17 @@ public:
 			}
 		}
 		return r;
+	}
+
+	bool tryrecv_reply(request_or_reply &r) {
+		bool success = TryRecvR(cfg, r);
+		if (success && r.start_from_index()) {
+			// TODO: avoid parallel submit for try recieve mode
+			cout << "Unsupport try recieve parallel query now!" << endl;
+			assert(false);
+		}
+
+		return success;
 	}
 
 	void print_result(request_or_reply &r, int row2print) {
@@ -152,8 +164,8 @@ public:
 		for (int i = 0; i < cnt; i++) {
 			setpid(request);
 			request.blind = true; // avoid send back results by default
-			send(request);
-			reply = recv();
+			send_request(request);
+			reply = recv_reply();
 		}
 		logger.finish();
 
@@ -188,7 +200,7 @@ public:
 
 			bool success = parser.parse_template(ifs, tpls[i]);
 			if (!success) {
-				cout << "sparql parse error" << endl;
+				cout << "Template parse error" << endl;
 				return ;
 			}
 			fill_template(tpls[i]);
@@ -205,7 +217,7 @@ public:
 					setpid(request);
 					request.blind = true; // avoid send back results by default
 					logger.start_record(request.pid, idx);
-					send(request);
+					send_request(request);
 					send_cnt ++;
 				}
 			}
@@ -216,20 +228,19 @@ public:
 
 				// try to recieve the replies (best of effort)
 				request_or_reply r;
-				bool success = TryRecvR(cfg, r);
+				bool success = tryrecv_reply(r);
 				while (success) {
 					recv_cnt ++;
 					logger.end_record(r.pid);
 
-					success = TryRecvR(cfg, r);
+					success = tryrecv_reply(r);
 				}
 			}
 		}
 		logger.finish();
 	}
 
-	// discard later
-	void run_batch_query(istream &is, Logger& logger) {
+	void run_batch_query(istream &is, Logger &logger) {
 		int ntypes;
 		int nqueries;
 		int try_round = 1; // dummy
@@ -263,7 +274,6 @@ public:
 		}
 
 		logger.init();
-
 		// send PARALLEL_FACTOR queries and keep PARALLEL_FACTOR flying queries
 		for (int i = 0; i < PARALLEL_FACTOR; i++) {
 			int idx = mymath::get_distribution(cfg->get_random(), loads);
@@ -272,13 +282,13 @@ public:
 			setpid(r);
 			r.blind = true;  // avoid send back results by default
 			logger.start_record(r.pid, idx);
-			send(r);
+			send_request(r);
 		}
 
 		// recv one query, and then send another query
 		for (int i = 0; i < nqueries - PARALLEL_FACTOR; i++) {
 			// recv one query
-			request_or_reply r2 = recv();
+			request_or_reply r2 = recv_reply();
 			logger.end_record(r2.pid);
 
 			// send another query
@@ -288,12 +298,12 @@ public:
 			setpid(r);
 			r.blind = true;  // avoid send back results by default
 			logger.start_record(r.pid, idx);
-			send(r);
+			send_request(r);
 		}
 
 		// recv the rest queries
 		for (int i = 0; i < PARALLEL_FACTOR; i++) {
-			request_or_reply r = recv();
+			request_or_reply r = recv_reply();
 			logger.end_record(r.pid);
 		}
 

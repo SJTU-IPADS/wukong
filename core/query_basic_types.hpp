@@ -44,9 +44,9 @@ enum var_type {
 // defined as constexpr due to switch-case
 constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
-struct request_or_reply {
-    int first_target; // no serialize
+class request_or_reply {
 
+public:
     int id = -1;     // query id
     int pid = -1;    // parqnt query id
     int tid = 0;     // engine thread id
@@ -141,7 +141,9 @@ struct request_or_reply {
     }
 };
 
-struct request_template {
+class request_template {
+
+public:
     vector<int64_t> cmd_chains;
 
     // no serialize
@@ -149,13 +151,12 @@ struct request_template {
     vector<string> ptypes_str;             // the Types of random-constants
     vector<vector<int64_t>> ptypes_grp;  // the candidates for random-constants
 
-public:
     request_or_reply instantiate(int seed) {
-        request_or_reply request(cmd_chains);
+        //request_or_reply request(cmd_chains);
         for (int i = 0; i < ptypes_pos.size(); i++) {
-            request.cmd_chains[ptypes_pos[i]] =
+            cmd_chains[ptypes_pos[i]] =
                 ptypes_grp[i][seed % ptypes_grp[i].size()];
         }
-        return request;
+        return request_or_reply(cmd_chains);
     }
 };

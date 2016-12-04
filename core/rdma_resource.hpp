@@ -673,12 +673,8 @@ class RdmaResource {
     uint64_t off ;//The offset to send message
     char *buffer;
 
-    int rdmaOp(int t_id,
-               int m_id,
-               char *local,
-               uint64_t size,
-               uint64_t off,
-               ibv_wr_opcode op) {
+    int rdmaOp(int t_id, int m_id, char *local,
+               uint64_t size, uint64_t off, ibv_wr_opcode op) {
         //simple wrapper function for handling rdma compare and swap
 
         assert(off < this->size);
