@@ -153,15 +153,17 @@ main(int argc, char *argv[])
 	                                      rdma_slot_per_thread, msg_slot_per_thread, rdma_size);
 	// a special TCP/IP instance used by RDMA (wid == global_num_threads)
 	rdma->node = new Network_Node(world.rank(), global_num_threads, host_fname);
+#ifdef HAS_RDMA
 	rdma->Servicing();
 	rdma->Connect();
+#endif
 
 	thread_cfg *cfg_array = new thread_cfg[global_num_threads];
 	for (int i = 0; i < global_num_threads; i++) {
 		cfg_array[i].wid = i;
 		cfg_array[i].sid = world.rank();
 		cfg_array[i].rdma = rdma;
-		cfg_array[i].node = new Network_Node(cfg_array[i].sid, cfg_array[i].wid, host_fname);
+		cfg_array[i].node = new Network_Node(world.rank(), i, host_fname);
 
 		cfg_array[i].init();
 	}
