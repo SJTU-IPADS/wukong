@@ -222,12 +222,12 @@ class distributed_graph {
 	}
 
 	void load_and_sync_data(vector<string> &file_vec) {
-#ifdef USE_ZEROMQ
-		load_data_from_allfiles(file_vec);
-		int num_recv_block = global_num_engines;
-#else
+#ifdef HAS_RDMA
 		load_data(file_vec);
 		int num_recv_block = world.size();
+#else
+		load_data_from_allfiles(file_vec);
+		int num_recv_block = global_num_servers;
 #endif
 
 		uint64_t t1 = timer::get_usec();

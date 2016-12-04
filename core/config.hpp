@@ -32,8 +32,8 @@
 
 using namespace std;
 
-int global_nsrvs = 1;    // the number of servers
-int global_nthrs = 2;    // the number of threads per server (incl. proxy and engine)
+int global_num_servers = 1;    // the number of servers
+int global_num_threads = 2;    // the number of threads per server (incl. proxy and engine)
 
 int global_num_engines = 1;    // the number of engines
 int global_num_proxies = 1;    // the number of proxies
@@ -93,8 +93,8 @@ show_global_cfg(void)
 	cout << "--" << endl;
 
 	// compute from other cfg settings
-	cout << "the number of servers: " 		<< global_nsrvs				<< endl;
-	cout << "the number of threads: " 		<< global_nthrs				<< endl;
+	cout << "the number of servers: " 		<< global_num_servers			<< endl;
+	cout << "the number of threads: " 		<< global_num_threads			<< endl;
 }
 
 /**
@@ -180,8 +180,8 @@ load_global_cfg(int nsrvs)
 	global_max_print_row = atoi(config_map["global_max_print_row"].c_str());
 	global_silent = atoi(config_map["global_silent"].c_str());
 
-	global_nsrvs = nsrvs;
-	global_nthrs = global_num_engines + global_num_proxies;
+	global_num_servers = nsrvs;
+	global_num_threads = global_num_engines + global_num_proxies;
 
 	// limited the number of engines
 	global_mt_threshold = max(1, min(global_mt_threshold, global_num_engines));
@@ -220,7 +220,7 @@ struct thread_cfg {
 	unsigned int seed;
 
 	void init(void) {
-		qid = global_nthrs * sid + wid;
+		qid = global_num_threads * sid + wid;
 		seed = qid;
 	}
 
@@ -228,17 +228,17 @@ struct thread_cfg {
 
 	int get_and_inc_qid(void) {
 		int _id = qid;
-		qid += global_nsrvs * global_nthrs;
-		if (qid < 0) qid = global_nthrs * sid + wid; // reset
+		qid += global_num_servers * global_num_threads;
+		if (qid < 0) qid = global_num_threads * sid + wid; // reset
 		return _id;
 	}
 
 	int sid_of(int qid) {
-		return (qid % (global_nsrvs * global_nthrs)) / global_nthrs;
+		return (qid % (global_num_servers * global_num_threads)) / global_num_threads;
 	}
 
 	int wid_of(int qid) {
-		return qid % global_nthrs;
+		return qid % global_num_threads;
 	}
 };
 

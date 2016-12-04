@@ -47,7 +47,7 @@
 #include "timer.hpp"
 
 
-#ifndef USE_ZEROMQ
+#ifdef HAS_RDMA
 
 struct config_t {
     const char *dev_name;         /* IB device name */

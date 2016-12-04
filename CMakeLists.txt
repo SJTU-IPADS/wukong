@@ -18,6 +18,9 @@ set(BOOST_LIB "${ROOT}/deps/boost_1_58_0-install/lib" )
 #add_definitions(-DHAS_HADOOP)
 #target_link_libraries(wukong hdfs)
 
+## Uncomment the line below to enable RDMA support.
+add_definitions(-DHAS_RDMA)
+
 ## Set include path
 include_directories(deps/boost_1_58_0-install/include)
 include_directories(core)

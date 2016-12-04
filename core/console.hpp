@@ -112,7 +112,7 @@ next:
 			}
 
 			// send commands to all proxy threads
-			for (int i = 0; i < global_nsrvs; i++) {
+			for (int i = 0; i < global_num_servers; i++) {
 				for (int j = 0; j < global_num_proxies; j++) {
 					if (i == 0 && j == 0)
 						continue ;
@@ -203,7 +203,7 @@ next:
 
 					// print a statistic of runtime for the batch processing on all servers
 					if (IS_MASTER(cfg)) {
-						for (int i = 0; i < global_nsrvs * global_num_proxies - 1; i++) {
+						for (int i = 0; i < global_num_servers * global_num_proxies - 1; i++) {
 							Logger other = RecvObject<Logger>(cfg);
 							logger.merge(other);
 						}

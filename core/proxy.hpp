@@ -88,7 +88,7 @@ public:
 		assert(r.pid != -1);
 
 		if (r.start_from_index()) {
-			for (int i = 0; i < global_nsrvs; i++) {
+			for (int i = 0; i < global_num_servers; i++) {
 				for (int j = 0; j < global_mt_threshold; j++) {
 					r.tid = j;
 					SendR(cfg, i, global_num_proxies + j, r);
@@ -96,7 +96,7 @@ public:
 			}
 			return ;
 		}
-		int start_srv = mymath::hash_mod(r.cmd_chains[0], global_nsrvs);
+		int start_srv = mymath::hash_mod(r.cmd_chains[0], global_num_servers);
 
 		/* use partitioned mapping if there are multiple proxies */
 		//int ratio = global_num_engines / global_num_proxies;
@@ -110,7 +110,7 @@ public:
 	request_or_reply recv_reply(void) {
 		request_or_reply r = RecvR(cfg);
 		if (r.start_from_index()) {
-			for (int count = 0; count < global_nsrvs * global_mt_threshold - 1 ; count++) {
+			for (int count = 0; count < global_num_servers * global_mt_threshold - 1 ; count++) {
 				request_or_reply r2 = RecvR(cfg);
 				r.row_num += r2.row_num;
 				int new_size = r.result_table.size() + r2.result_table.size();

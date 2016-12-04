@@ -140,24 +140,24 @@ main(int argc, char *argv[])
 	uint64_t msg_slot_per_thread = MiB2B(global_perslot_msg_mb);
 	uint64_t rdma_slot_per_thread = MiB2B(global_perslot_rdma_mb);
 	uint64_t mem_size = rdma_size
-	                    + rdma_slot_per_thread * global_nthrs
-	                    + msg_slot_per_thread * global_nthrs;
+	                    + rdma_slot_per_thread * global_num_threads
+	                    + msg_slot_per_thread * global_num_threads;
 	cout << "memory usage: " << B2GiB(mem_size) << "GB" << endl;
 
 
 	// create an RDMA instance
 	char *buffer = (char*) malloc(mem_size);
 	memset(buffer, 0, mem_size);
-	RdmaResource *rdma = new RdmaResource(world.size(), global_nthrs,
+	RdmaResource *rdma = new RdmaResource(world.size(), global_num_threads,
 	                                      world.rank(), buffer, mem_size,
 	                                      rdma_slot_per_thread, msg_slot_per_thread, rdma_size);
 	// a special TCP/IP instance used by RDMA (wid == global_num_threads)
-	rdma->node = new Network_Node(world.rank(), global_nthrs, host_fname);
+	rdma->node = new Network_Node(world.rank(), global_num_threads, host_fname);
 	rdma->Servicing();
 	rdma->Connect();
 
-	thread_cfg *cfg_array = new thread_cfg[global_nthrs];
-	for (int i = 0; i < global_nthrs; i++) {
+	thread_cfg *cfg_array = new thread_cfg[global_num_threads];
+	for (int i = 0; i < global_num_threads; i++) {
 		cfg_array[i].wid = i;
 		cfg_array[i].sid = world.rank();
 		cfg_array[i].rdma = rdma;
@@ -184,13 +184,13 @@ main(int argc, char *argv[])
 	}
 
 	// spawn proxy and engine threads
-	pthread_t *threads  = new pthread_t[global_nthrs];
-	for (size_t id = 0; id < global_nthrs; ++id) {
+	pthread_t *threads  = new pthread_t[global_num_threads];
+	for (size_t id = 0; id < global_num_threads; ++id) {
 		pthread_create(&(threads[id]), NULL, worker_thread, (void *) & (cfg_array[id]));
 	}
 
 	// wait to termination
-	for (size_t t = 0; t < global_nthrs; t++) {
+	for (size_t t = 0; t < global_num_threads; t++) {
 		int rc = pthread_join(threads[t], NULL);
 		if (rc) {
 			printf("ERROR: return code from pthread_join() is %d\n", rc);

@@ -294,7 +294,7 @@ class Engine {
         int64_t end = req.cmd_chains[req.step * 4 + 3];
 
         vector<request_or_reply> sub_reqs;
-        int num_sub_request = global_nsrvs;
+        int num_sub_request = global_num_servers;
         sub_reqs.resize(num_sub_request);
         for (int i = 0; i < sub_reqs.size(); i++) {
             sub_reqs[i].pid = req.id;
@@ -316,7 +316,7 @@ class Engine {
         int64_t end = req.cmd_chains[req.step * 4 + 3];
 
         vector<request_or_reply> sub_reqs;
-        int num_sub_request = global_nsrvs * global_mt_threshold ;
+        int num_sub_request = global_num_servers * global_mt_threshold ;
         sub_reqs.resize(num_sub_request );
         for (int i = 0; i < sub_reqs.size(); i++) {
             sub_reqs[i].pid = req.id;
@@ -327,9 +327,9 @@ class Engine {
             sub_reqs[i].local_var = start;
         }
         for (int i = 0; i < req.get_row_num(); i++) {
-            // id = wid*global_nsrvs + m_id
-            //so  m_id = id % global_nsrvs
-            //    wid = id / global_nsrvs
+            // id = wid * global_num_servers + m_id
+            //so  m_id = id % global_num_servers
+            //    wid = id / global_num_servers
             int id = mymath::hash_mod(req.get_row_col(i,
                                       req.var2column(start)),
                                       num_sub_request);
