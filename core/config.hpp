@@ -50,7 +50,6 @@ int global_perslot_rdma_mb = 128;
 int global_hash_header_million = 1000;
 
 bool global_use_rdma = true;
-bool global_use_rbf = true;		// ring-buffer (by RDMA WRITE)
 bool global_use_loc_cache = false;
 int global_enable_workstealing = false;
 
@@ -84,7 +83,6 @@ show_global_cfg(void)
 	cout << "global_perslot_rdma_mb: " 		<< global_perslot_rdma_mb			<< endl;
 	cout << "global_hash_header_million: " 	<< global_hash_header_million		<< endl;
 	cout << "global_use_rdma: " 			<< global_use_rdma					<< endl;
-	cout << "global_use_rbf: " 				<< global_use_rbf 					<< endl;
 	cout << "global_use_loc_cache: " 		<< global_use_loc_cache				<< endl;
 	cout << "global_enable_workstealing: " 	<< global_enable_workstealing		<< endl;
 	cout << "global_rdma_threshold: " 		<< global_rdma_threshold			<< endl;
@@ -174,7 +172,6 @@ load_global_cfg(int nsrvs)
 	global_hash_header_million = atoi(config_map["global_hash_header_million"].c_str());
 
 	global_use_rdma = atoi(config_map["global_use_rdma"].c_str());
-	global_use_rbf = atoi(config_map["global_use_rbf"].c_str());
 	global_use_loc_cache = atoi(config_map["global_use_loc_cache"].c_str());
 	global_enable_workstealing = atoi(config_map["global_enable_workstealing"].c_str());
 

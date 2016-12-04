@@ -127,7 +127,7 @@ Run(void *ptr)
             buffer[2] = curr_index;
             uint64_t t1 = timer::get_usec();
 
-            if (!global_use_rbf) { // zero-MQ
+            if (!global_use_rdma) { // zero-MQ
                 for (int i = 0; i < global_batch_factor; i++) {
                     cfg->node->Send(0, cfg->t_id, buffer);
                 }
@@ -176,7 +176,7 @@ Run(void *ptr)
                 buffer[2] = curr_index;
                 uint64_t t1 = timer::get_usec();
 
-                if (!global_use_rbf) { // zero-MQ
+                if (!global_use_rdma) { // zero-MQ
                     for (int i = 0; i < nops; i++) {
                         cfg->node->Send(0, cfg->t_id, buffer);
                         string tmp = cfg->node->Recv();

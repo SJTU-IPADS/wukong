@@ -66,7 +66,6 @@ int main(int argc, char * argv[]) {
 	}
 	load_global_cfg(argv[1]);
 
-	global_use_rbf = false;
 	global_use_rdma = false;
 	global_rdma_threshold = 0;
 
