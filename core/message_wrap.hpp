@@ -57,12 +57,13 @@ request_or_reply RecvR(thread_cfg *cfg) {
 
 bool TryRecvR(thread_cfg *cfg, request_or_reply &r) {
     std::string str;
+    bool ret;
     if (global_use_rdma) {
-        bool ret = cfg->rdma->rbfTryRecv(cfg->wid, str);
+        ret = cfg->rdma->rbfTryRecv(cfg->wid, str);
         if (!ret) return false;
     } else {
-        str = cfg->node->tryRecv();
-        if (str == "") return false;
+        ret = cfg->node->tryRecv(str);
+        if (!ret) return false;
     }
 
     std::stringstream s;

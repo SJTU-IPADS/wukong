@@ -33,6 +33,8 @@
 
 #include "config.hpp"
 
+using namespace std;
+
 class Network_Node {
 public:
     int sid;  // server-id in [0, nsrvs)
@@ -40,18 +42,18 @@ public:
     zmq::context_t context;
     zmq::socket_t *receiver;
 
-    std::vector<std::string> ipset;
-    std::unordered_map<int, zmq::socket_t *> senders;
+    vector<string> ipset;
+    unordered_map<int, zmq::socket_t *> senders;
 
     inline int code(int _sid, int _wid) {
         return _sid * 200 + _wid;
     }
 
-    Network_Node(int _sid, int _wid, std::string fname)
+    Network_Node(int _sid, int _wid, string fname)
         : sid(_sid), wid(_wid), context(1) {
 
-        std::ifstream hostfile(fname);
-        std::string ip;
+        ifstream hostfile(fname);
+        string ip;
 
         while (hostfile >> ip)
             ipset.push_back(ip);
@@ -73,11 +75,11 @@ public:
         delete receiver;
     }
 
-    std::string ip_of(int _sid) {
+    string ip_of(int _sid) {
         return ipset[_sid];
     }
 
-    void Send(int _sid, int _wid, std::string msg) {
+    void Send(int _sid, int _wid, string msg) {
         int id = code(_sid, _wid);
 
         if (senders.find(id) == senders.end()) {
@@ -93,20 +95,20 @@ public:
         senders[id]->send(request);
     }
 
-    std::string Recv() {
-        zmq::message_t reply;
-        if (receiver->recv(&reply) < 0) {
+    string Recv() {
+        zmq::message_t msg;
+        if (receiver->recv(&msg) < 0) {
             fprintf(stderr, "recv with error %s\n", strerror(errno));
             exit(-1);
         }
-        return std::string((char *)reply.data(), reply.size());
+        return string((char *)msg.data(), msg.size());
     }
 
-    std::string tryRecv() {
-        zmq::message_t reply;
-        if (receiver->recv(&reply, ZMQ_NOBLOCK))
-            return std::string((char *)reply.data(), reply.size());
-        else
-            return "";
+    bool tryRecv(string &str) {
+        zmq::message_t msg;
+        bool success = false;
+        if (success = receiver->recv(&msg, ZMQ_NOBLOCK))
+            str = string((char *)msg.data(), msg.size());
+        return success;
     }
 };
