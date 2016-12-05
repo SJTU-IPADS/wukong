@@ -35,76 +35,70 @@
 
 using namespace std;
 
+/**
+ * A distributed messaging based on ZeroMQ over socket
+ */
 class Network_Node {
-public:
-    int sid;  // server-id in [0, nsrvs)
-    int wid;  // worker-id in [0, nwkrs)
+private:
     zmq::context_t context;
     zmq::socket_t *receiver;
-
-    vector<string> ipset;
     unordered_map<int, zmq::socket_t *> senders;
 
-    inline int code(int _sid, int _wid) {
-        return _sid * 200 + _wid;
-    }
+    vector<string> ipset;
 
-    Network_Node(int _sid, int _wid, string fname)
-        : sid(_sid), wid(_wid), context(1) {
+    inline int code(int sid, int wid) { return sid * 200 + wid; }
 
+public:
+    Network_Node(int sid, int wid, string fname): context(1) {
         ifstream hostfile(fname);
         string ip;
-
         while (hostfile >> ip)
             ipset.push_back(ip);
 
         receiver = new zmq::socket_t(context, ZMQ_PULL);
-        char address[30] = "";
-        sprintf(address, "tcp://*:%d", global_eth_port_base + code(_sid, _wid));
-        //fprintf(stdout, "tcp binding address %s\n", address);
+        char address[32] = "";
+        snprintf(address, 32, "tcp://*:%d", global_eth_port_base + code(sid, wid));
         receiver->bind(address);
     }
 
     ~Network_Node() {
-        for (auto iter : senders) {
-            if (iter.second != NULL) {
-                delete iter.second;
-                iter.second = NULL;
+        delete receiver;
+        for (auto s : senders) {
+            if (s.second != NULL) {
+                delete s.second;
+                s.second = NULL;
             }
         }
-        delete receiver;
     }
 
-    string ip_of(int _sid) {
-        return ipset[_sid];
-    }
+    string ip_of(int sid) { return ipset[sid]; }
 
-    void Send(int _sid, int _wid, string msg) {
-        int id = code(_sid, _wid);
+    void send(int sid, int wid, string str) {
+        int id = code(sid, wid);
 
+        // new socket if needed
         if (senders.find(id) == senders.end()) {
             senders[id] = new zmq::socket_t(context, ZMQ_PUSH);
-
-            char address[30] = "";
-            snprintf(address, 30, "tcp://%s:%d", ipset[_sid].c_str(), global_eth_port_base + id);
-            //fprintf(stdout,"mul estalabish %s\n",address);
+            char address[32] = "";
+            snprintf(address, 32, "tcp://%s:%d", ipset[sid].c_str(), global_eth_port_base + id);
             senders[id]->connect(address);
         }
-        zmq::message_t request(msg.length());
-        memcpy ((void *)request.data(), msg.c_str(), msg.length());
-        senders[id]->send(request);
+
+        zmq::message_t msg(str.length());
+        memcpy((void *)msg.data(), str.c_str(), str.length());
+        senders[id]->send(msg);
     }
 
-    string Recv() {
+    string recv() {
         zmq::message_t msg;
         if (receiver->recv(&msg) < 0) {
-            fprintf(stderr, "recv with error %s\n", strerror(errno));
+            cout << "recv with error " << strerror(errno) << endl;
             exit(-1);
         }
         return string((char *)msg.data(), msg.size());
     }
 
-    bool tryRecv(string &str) {
+    bool tryrecv(string &str) {
         zmq::message_t msg;
         bool success = false;
         if (success = receiver->recv(&msg, ZMQ_NOBLOCK))

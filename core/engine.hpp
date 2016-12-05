@@ -27,7 +27,7 @@
 #include <stdlib.h> //qsort
 
 #include "config.hpp"
-#include "message_wrap.hpp"
+#include "adaptor.hpp"
 #include "distributed_graph.hpp"
 #include "query_basic_types.hpp"
 #include "reply_map.hpp"
@@ -540,7 +540,7 @@ class Engine {
                 if (req.blind)
                     req.clear_data(); // avoid take back the resuts
 
-                SendR(cfg, cfg->sid_of(req.pid), cfg->wid_of(req.pid), req);
+                Adaptor::send(cfg, cfg->sid_of(req.pid), cfg->wid_of(req.pid), req);
                 return;
             }
 
@@ -549,7 +549,7 @@ class Engine {
                 wqueue.put_parent_request(req, sub_rs.size());
                 for (int i = 0; i < sub_rs.size(); i++) {
                     if (i != cfg->sid) {
-                        SendR(cfg, i, cfg->wid, sub_rs[i]);
+                        Adaptor::send(cfg, i, cfg->wid, sub_rs[i]);
                     } else {
                         pthread_spin_lock(&recv_lock);
                         msg_fast_path.push_back(sub_rs[i]);
@@ -575,7 +575,7 @@ class Engine {
             if (engines[wid]->wqueue.is_ready(r.pid)) {
                 request_or_reply reply = engines[wid]->wqueue.get_merged_reply(r.pid);
                 pthread_spin_unlock(&engines[wid]->wqueue_lock);
-                SendR(cfg, cfg->sid_of(reply.pid), cfg->wid_of(reply.pid), reply);
+                Adaptor::send(cfg, cfg->sid_of(reply.pid), cfg->wid_of(reply.pid), reply);
             }
             pthread_spin_unlock(&engines[wid]->wqueue_lock);
         }
@@ -616,12 +616,12 @@ public:
 
 
             // normal path
-            // own queue
             last_time = timer::get_usec();
 
+            // own queue
             success = false;
             pthread_spin_lock(&recv_lock);
-            success = TryRecvR(cfg, r);
+            success = Adaptor::tryrecv(cfg, r);
             if (success && r.start_from_index()) {
                 msg_fast_path.push_back(r);
                 success = false;
@@ -634,14 +634,14 @@ public:
             // work-oblige is disabled
             if (!global_enable_workstealing) continue;
 
-            // nbr queue
+            // neighbor queue
             last_time = timer::get_usec();
             if (last_time < engines[nbr_id]->last_time + TIMEOUT_THRESHOLD)
                 continue; // neighboring worker is self-sufficient
 
             success = false;
             pthread_spin_lock(&engines[nbr_id]->recv_lock);
-            success = TryRecvR(engines[nbr_id]->cfg, r);
+            success = Adaptor::tryrecv(engines[nbr_id]->cfg, r);
             if (success && r.start_from_index()) {
                 engines[nbr_id]->msg_fast_path.push_back(r);
                 success = false;

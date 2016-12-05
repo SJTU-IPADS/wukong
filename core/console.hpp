@@ -116,12 +116,12 @@ next:
 				for (int j = 0; j < global_num_proxies; j++) {
 					if (i == 0 && j == 0)
 						continue ;
-					cfg->node->Send(i, j, cmd);
+					cfg->node->send(i, j, cmd);
 				}
 			}
 		} else {
 			// recieve commands
-			cmd = cfg->node->Recv();
+			cmd = cfg->node->recv();
 		}
 
 		// process on all consoles
@@ -204,14 +204,14 @@ next:
 					// print a statistic of runtime for the batch processing on all servers
 					if (IS_MASTER(cfg)) {
 						for (int i = 0; i < global_num_servers * global_num_proxies - 1; i++) {
-							Logger other = RecvObject<Logger>(cfg);
+							Logger other = Adaptor::recv_object<Logger>(cfg);
 							logger.merge(other);
 						}
 						logger.print_rdf();
 						logger.print_thpt();
 					} else {
 						// send logs to the master proxy
-						SendObject<Logger>(cfg, 0, 0, logger);
+						Adaptor::send_object<Logger>(cfg, 0, 0, logger);
 					}
 				}
 

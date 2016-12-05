@@ -27,7 +27,7 @@
 
 #include "config.hpp"
 #include "query_basic_types.hpp"
-#include "message_wrap.hpp"
+#include "adaptor.hpp"
 #include "parser.hpp"
 #include "string_server.hpp"
 #include "logger.hpp"
@@ -87,31 +87,33 @@ public:
 	void send_request(request_or_reply &r) {
 		assert(r.pid != -1);
 
+		// submit the request to all engines (parallel)
 		if (r.start_from_index()) {
 			for (int i = 0; i < global_num_servers; i++) {
 				for (int j = 0; j < global_mt_threshold; j++) {
 					r.tid = j;
-					SendR(cfg, i, global_num_proxies + j, r);
+					Adaptor::send(cfg, i, global_num_proxies + j, r);
 				}
 			}
 			return ;
 		}
+
+		// submit the request to a certain engine
 		int start_srv = mymath::hash_mod(r.cmd_chains[0], global_num_servers);
 
-		/* use partitioned mapping if there are multiple proxies */
-		//int ratio = global_num_engines / global_num_proxies;
-		//int tid = global_num_proxies + (ratio * cfg->wid + cfg->get_random() % ratio);
+		// random assign request to range partitioned engines
+		// NOTE: the partitioned mapping has better tail latency in batch mode
+		int ratio = global_num_engines / global_num_proxies;
+		int tid = global_num_proxies + (ratio * cfg->wid + cfg->get_random() % ratio);
 
-		// random assign the request to one engine
-		int tid = global_num_proxies + cfg->get_random() % global_num_engines;
-		SendR(cfg, start_srv, tid, r);
+		Adaptor::send(cfg, start_srv, tid, r);
 	}
 
 	request_or_reply recv_reply(void) {
-		request_or_reply r = RecvR(cfg);
+		request_or_reply r = Adaptor::recv(cfg);
 		if (r.start_from_index()) {
 			for (int count = 0; count < global_num_servers * global_mt_threshold - 1 ; count++) {
-				request_or_reply r2 = RecvR(cfg);
+				request_or_reply r2 = Adaptor::recv(cfg);
 				r.row_num += r2.row_num;
 				int new_size = r.result_table.size() + r2.result_table.size();
 				r.result_table.reserve(new_size);
@@ -122,7 +124,7 @@ public:
 	}
 
 	bool tryrecv_reply(request_or_reply &r) {
-		bool success = TryRecvR(cfg, r);
+		bool success = Adaptor::tryrecv(cfg, r);
 		if (success && r.start_from_index()) {
 			// TODO: avoid parallel submit for try recieve mode
 			cout << "Unsupport try recieve parallel query now!" << endl;

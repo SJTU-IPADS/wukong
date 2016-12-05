@@ -69,7 +69,7 @@ record_result(struct thread_cfg *cfg)
         uint64_t throughput = 0;
         for (int m = 1; m < cfg->m_num; m++) {
             for (int t = 1; t < cfg->t_num; t++) {
-                throughput += RecvObject<uint64_t>(cfg);
+                throughput += Adaptor::recv_object<uint64_t>(cfg);
             }
         }
         t2 = timer::get_usec();
@@ -77,7 +77,7 @@ record_result(struct thread_cfg *cfg)
         cout << "throughput of sz=" << sz << " is " << 500L * (cfg->m_num - 1)*(cfg->t_num - 1) * 1000000 / ((t2 - t1) ) << endl;
         for (int m = 1; m < cfg->m_num; m++) {
             for (int t = 1; t < cfg->t_num; t++) {
-                SendObject<uint64_t>(cfg, m, t, throughput); // next-round
+                Adaptor::send_object<uint64_t>(cfg, m, t, throughput); // next-round
             }
         }
         t1 = timer::get_usec();
@@ -113,8 +113,8 @@ Run(void *ptr)
             sz *= 2;
         }
         while (true) {
-            buffer = cfg->node->Recv();
-            cfg->node->Send(buffer[0], buffer[1], ret_data[buffer[2]]);
+            buffer = cfg->node->recv();
+            cfg->node->send(buffer[0], buffer[1], ret_data[buffer[2]]);
         }
     } else {
         int curr_index = 0;
@@ -129,14 +129,14 @@ Run(void *ptr)
 
             if (!global_use_rdma) { // zero-MQ
                 for (int i = 0; i < global_batch_factor; i++) {
-                    cfg->node->Send(0, cfg->t_id, buffer);
+                    cfg->node->send(0, cfg->t_id, buffer);
                 }
                 for (int i = 0; i < nops - global_batch_factor; i++) {
                     string tmp = cfg->node->Recv();
-                    cfg->node->Send(0, cfg->t_id, buffer);
+                    cfg->node->send(0, cfg->t_id, buffer);
                 }
                 for (int i = 0; i < global_batch_factor; i++) {
-                    string tmp = cfg->node->Recv();
+                    string tmp = cfg->node->recv();
                 }
             } else {  // rdma-read
                 for (int i = 0; i < global_batch_factor; i++) {
@@ -155,9 +155,9 @@ Run(void *ptr)
 
             uint64_t t2 = timer::get_usec();
             uint64_t throughput = nops * 1000 * 1000 / (t2 - t1);
-            SendObject<uint64_t>(cfg, 0, 0, throughput);
+            Adaptor::send_object<uint64_t>(cfg, 0, 0, throughput);
             //cout<<throughput<<endl;
-            RecvObject<uint64_t>(cfg);
+            Adaptor::recv_object<uint64_t>(cfg);
             //sleep(1);
             curr_index++;
             sz *= 2;
@@ -178,8 +178,8 @@ Run(void *ptr)
 
                 if (!global_use_rdma) { // zero-MQ
                     for (int i = 0; i < nops; i++) {
-                        cfg->node->Send(0, cfg->t_id, buffer);
-                        string tmp = cfg->node->Recv();
+                        cfg->node->send(0, cfg->t_id, buffer);
+                        string tmp = cfg->node->recv();
                     }
                 } else {  // rdma-read
                     for (int i = 0; i < nops; i++) {
