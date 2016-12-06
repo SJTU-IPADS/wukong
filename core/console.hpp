@@ -116,12 +116,12 @@ next:
 				for (int j = 0; j < global_num_proxies; j++) {
 					if (i == 0 && j == 0)
 						continue ;
-					cfg->node->send(i, j, cmd);
+					cfg->tcp->send(i, j, cmd);
 				}
 			}
 		} else {
 			// recieve commands
-			cmd = cfg->node->recv();
+			cmd = cfg->tcp->recv();
 		}
 
 		// process on all consoles

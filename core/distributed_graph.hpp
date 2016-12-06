@@ -161,7 +161,7 @@ class distributed_graph {
 			// debug print
 			int ret = __sync_fetch_and_add(&finished_count, 1);
 			if (ret % 40 == 39) {
-				cout << "node " << world.rank() << " already load " << ret + 1 << " files" << endl;
+				cout << "server " << world.rank() << " already load " << ret + 1 << " files" << endl;
 			}
 		}
 
@@ -314,7 +314,7 @@ public:
 			DIR *dir = opendir(dname.c_str());
 			if (dir == NULL) {
 				cout << "ERORR: failed to open directory (" << dname
-				     << ") at node " << world.rank() << endl;
+				     << ") at server " << world.rank() << endl;
 				exit(-1);
 			}
 
@@ -334,7 +334,7 @@ public:
 
 		if (files.size() == 0) {
 			cout << "ERORR: no files found in directory (" << dname
-			     << ") at node " << world.rank() << endl;
+			     << ") at server " << world.rank() << endl;
 		}
 
 		edge_num_per_machine.resize(world.size());

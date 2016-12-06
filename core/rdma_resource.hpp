@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include "network_node.hpp"
+#include "tcp_adaptor.hpp"
 
 #pragma GCC diagnostic warning "-fpermissive"
 
@@ -161,8 +161,7 @@ static void dev_resources_init(struct dev_resource *res) {
     memset (res, 0, sizeof * res);
 }
 
-static int dev_resources_create(struct dev_resource *res,
-                                char* buf, uint64_t size) {
+static int dev_resources_create(struct dev_resource *res, char* buf, uint64_t size) {
     struct ibv_device **dev_list = NULL;
     struct ibv_qp_init_attr qp_init_attr;
     struct ibv_device *ib_dev = NULL;
@@ -403,10 +402,7 @@ static int modify_qp_to_init (struct ibv_qp *qp) {
     return rc;
 }
 
-static int modify_qp_to_rtr(struct ibv_qp *qp,
-                            uint32_t remote_qpn,
-                            uint16_t dlid,
-                            uint8_t * dgid) {
+static int modify_qp_to_rtr(struct ibv_qp *qp, uint32_t remote_qpn, uint16_t dlid, uint8_t * dgid) {
     struct ibv_qp_attr attr;
     int flags;
     int rc;
@@ -464,8 +460,7 @@ static int modify_qp_to_rts(struct ibv_qp *qp) {
     return rc;
 }
 
-static int connect_qp(struct QP *res,
-                      struct cm_con_data_t tmp_con_data) {
+static int connect_qp(struct QP *res, struct cm_con_data_t tmp_con_data) {
     struct cm_con_data_t remote_con_data;
     int rc = 0;
     char temp_char;
@@ -843,7 +838,8 @@ public:
     uint64_t rdma_slotsize;
     uint64_t msg_slotsize;
     uint64_t rbf_size;
-    Network_Node* node;
+
+    TCP_Adaptor* tcp;
 
     // for testing
     RdmaResource(int t_partition, int t_threads, int current, char *_buffer,
@@ -879,7 +875,7 @@ public:
             zmq::socket_t socket(context, ZMQ_REQ);
 
             int port = global_rdma_port_base + j;
-            snprintf(address, 30, "tcp://%s:%d", node->ip_of(j).c_str(), port);
+            snprintf(address, 30, "tcp://%s:%d", tcp->ip_of(j).c_str(), port);
             fprintf(stdout, "connect to %s\n", address);
             socket.connect(address);
 
@@ -1000,7 +996,7 @@ public:
         int _current_partition = rdma->_current_partition;
         int port =  global_rdma_port_base + _current_partition;
         sprintf(address, "tcp://%s:%d",
-                rdma->node->ip_of(_current_partition).c_str(), port);
+                rdma->tcp->ip_of(_current_partition).c_str(), port);
         fprintf(stdout, "binding: %s\n", address);
         socket.bind(address);
 
@@ -1070,7 +1066,7 @@ public:
     };
 
     std::vector<std::vector<RemoteQueueMeta> > RemoteMeta; // RemoteMeta[0..m-1][0..t-1]
-    std::vector<std::vector< LocalQueueMeta> > LocalMeta;  // LocalMeta[0..t-1][0..m-1]
+    std::vector<std::vector<LocalQueueMeta> > LocalMeta;  // LocalMeta[0..t-1][0..m-1]
 
     uint64_t inline ceil(uint64_t original, uint64_t n) {
         if (n == 0) {
@@ -1254,40 +1250,38 @@ public:
     uint64_t rdma_slotsize;
     uint64_t msg_slotsize;
     uint64_t rbf_size;
-    Network_Node* node;
+
+    TCP_Adaptor *tcp;
 
     //for testing
-    RdmaResource(int t_partition, int t_threads, int current, char *_buffer, uint64_t _size,
+    RdmaResource(int t_partition, int t_threads, int current,
+                 char *_buffer, uint64_t _size,
                  uint64_t rdma_slot, uint64_t msg_slot, uint64_t _off) {
-
-        _total_threads = t_threads;
-        _total_partition = t_partition;
-        _current_partition = current;
-
-        buffer = _buffer;
-        size   = _size;
-
-        off = _off;
-        rdma_slotsize = rdma_slot;
-        msg_slotsize = msg_slot;
-        rbf_size = msg_slotsize / (_total_partition);
-        rbf_size = rbf_size - (rbf_size % 64);
     }
-    void Connect() {assert(false);};
-    void Servicing() {assert(false);};
 
-    int RdmaRead(int t_id, int m_id, char *local, uint64_t size, uint64_t remote_offset) {
+    void Connect() { assert(false); }
+
+    void Servicing() { assert(false); }
+
+    int RdmaRead(int t_id, int m_id, char *local,
+                 uint64_t size, uint64_t remote_offset) {
         assert(false);
         return 0;
-    };
-    int RdmaWrite(int t_id, int m_id, char *local, uint64_t size, uint64_t remote_offset) {
+    }
+
+    int RdmaWrite(int t_id, int m_id, char *local,
+                  uint64_t size, uint64_t remote_offset) {
         assert(false);
         return 0;
-    };
-    int RdmaCmpSwap(int t_id, int m_id, char*local, uint64_t compare, uint64_t swap, uint64_t size, uint64_t off) {
+    }
+
+    int RdmaCmpSwap(int t_id, int m_id, char *local,
+                    uint64_t compare, uint64_t swap,
+                    uint64_t size, uint64_t off) {
         assert(false);
         return 0;
-    };
+    }
+
     // int post(int t_id,int machine_id,char* local,uint64_t size,uint64_t remote_offset,ibv_wr_opcode op){
     //     assert(false);
     //     return 0;
@@ -1297,26 +1291,24 @@ public:
     //     return 0;
     // };
 
-    //TODO what if batched?
     inline char *GetMsgAddr(int t_id) {
         assert(false);
-        return (char *)( buffer + off + t_id * rdma_slotsize);
+        return NULL;
     }
 
-
-    void rbfSend(int local_tid, int remote_mid, int remote_tid, const char * str_ptr, uint64_t str_size) {
-        assert(false);
-        return ;
-    }
+    void rbfSend(int local_tid, int remote_mid, int remote_tid,
+                 const char *str_ptr, uint64_t str_size) { assert(false); }
 
     std::string rbfRecv(int local_tid) {
         assert(false);
         return std::string("");
     }
-    bool rbfTryRecv(int local_tid, std::string& ret) {
+
+    bool rbfTryRecv(int local_tid, std::string &ret) {
         assert(false);
         return false;
     }
+
 }; // end of class RdmaResource
 
 #endif

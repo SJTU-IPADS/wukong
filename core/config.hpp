@@ -200,14 +200,14 @@ load_global_cfg(int nsrvs)
 	return;
 }
 
-#include "network_node.hpp"
+#include "tcp_adaptor.hpp"
 #include "rdma_resource.hpp"
 
 struct thread_cfg {
 	int sid;    // server id
 	int wid;    // worker id
 
-	Network_Node *node;  // communicaiton by TCP/IP
+	TCP_Adaptor *tcp;  // communicaiton by TCP/IP
 	RdmaResource *rdma;  // communicaiton by RDMA
 
 	void *worker;

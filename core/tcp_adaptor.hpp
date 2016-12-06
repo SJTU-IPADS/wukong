@@ -36,11 +36,12 @@
 using namespace std;
 
 /**
- * A distributed messaging based on ZeroMQ over socket
+ * The connection over ZeroMQ, a distributed messaging lib
  */
-class Network_Node {
+class TCP_Adaptor {
 private:
     zmq::context_t context;
+
     zmq::socket_t *receiver;
     unordered_map<int, zmq::socket_t *> senders;
 
@@ -49,7 +50,8 @@ private:
     inline int code(int sid, int wid) { return sid * 200 + wid; }
 
 public:
-    Network_Node(int sid, int wid, string fname): context(1) {
+
+    TCP_Adaptor(int sid, int wid, string fname): context(1) {
         ifstream hostfile(fname);
         string ip;
         while (hostfile >> ip)
@@ -61,7 +63,7 @@ public:
         receiver->bind(address);
     }
 
-    ~Network_Node() {
+    ~TCP_Adaptor() {
         delete receiver;
         for (auto s : senders) {
             if (s.second != NULL) {

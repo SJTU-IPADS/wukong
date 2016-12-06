@@ -24,7 +24,7 @@
 
 #include "config.hpp"
 #include "query_basic_types.hpp"
-#include "network_node.hpp"
+#include "tcp_adaptor.hpp"
 #include "rdma_resource.hpp"
 
 class Adaptor {
@@ -37,7 +37,7 @@ public:
         if (global_use_rdma)
             cfg->rdma->rbfSend(cfg->wid, mid, tid, ss.str().c_str(), ss.str().size());
         else
-            cfg->node->send(mid, tid, ss.str());
+            cfg->tcp->send(mid, tid, ss.str());
     }
 
     static request_or_reply recv(thread_cfg *cfg) {
@@ -46,7 +46,7 @@ public:
         if (global_use_rdma)
             str = cfg->rdma->rbfRecv(cfg->wid);
         else
-            str = cfg->node->recv();
+            str = cfg->tcp->recv();
 
         std::stringstream s;
         s << str;
@@ -63,7 +63,7 @@ public:
             if (!cfg->rdma->rbfTryRecv(cfg->wid, str))
                 return false;
         } else {
-            if (!cfg->node->tryrecv(str))
+            if (!cfg->tcp->tryrecv(str))
                 return false;
         }
 
@@ -80,13 +80,13 @@ public:
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
         oa << r;
-        cfg->node->send(mid, tid, ss.str());
+        cfg->tcp->send(mid, tid, ss.str());
     }
 
     template<typename T>
     static T recv_object(thread_cfg *cfg) {
         std::string str;
-        str = cfg->node->recv();
+        str = cfg->tcp->recv();
 
         std::stringstream s;
         s << str;
