@@ -65,8 +65,7 @@ int cores[] = {
 bool monitor_enable = false;
 int monitor_port = 5450;
 
-void
-pin_to_core(size_t core)
+void pin_to_core(size_t core)
 {
 	cpu_set_t  mask;
 	CPU_ZERO(&mask);
@@ -74,24 +73,23 @@ pin_to_core(size_t core)
 	int result = sched_setaffinity(0, sizeof(mask), &mask);
 }
 
-void*
-worker_thread(void *arg)
+void *engine_thread(void *arg)
 {
-	struct thread_cfg *cfg = (struct thread_cfg *) arg;
-	pin_to_core(cores[cfg->wid]);
+	Engine *engine = (Engine *)arg;
+	pin_to_core(cores[engine->cfg->wid]);
+	engine->run();
+}
 
-	// reserver first 'global_num_proxies' threads to proxy
-	if (cfg->wid >= global_num_proxies) {
-		// engine threads
-		((Engine *)(cfg->worker))->run();
-	} else {
-		if (!monitor_enable)
-			// Run the Wukong's console (by default)
-			run_console((Proxy *)(cfg->worker));
-		else
-			// Run monitor thread for clients
-			run_monitor((Proxy *)(cfg->worker), monitor_port);
-	}
+void *proxy_thread(void *arg)
+{
+	Proxy *proxy = (Proxy *)arg;
+	pin_to_core(cores[proxy->cfg->wid]);
+	if (!monitor_enable)
+		// Run the Wukong's testbed console (by default)
+		run_console(proxy);
+	else
+		// Run monitor thread for clients
+		run_monitor(proxy, monitor_port);
 }
 
 static void
@@ -158,40 +156,29 @@ main(int argc, char *argv[])
 	rdma->Connect();
 #endif
 
-	thread_cfg *cfg_array = new thread_cfg[global_num_threads];
-	for (int i = 0; i < global_num_threads; i++) {
-		cfg_array[i].wid = i;
-		cfg_array[i].sid = world.rank();
-		cfg_array[i].rdma = rdma;
-		cfg_array[i].tcp = new TCP_Adaptor(world.rank(), i, host_fname);
-
-		cfg_array[i].init();
-	}
-
 	// load string server (read-only, shared by all proxies)
 	String_Server str_server(global_input_folder);
 
 	// load RDF graph (shared by all engines)
 	distributed_graph graph(world, rdma, global_input_folder);
 
-	// init fronted workers
-	for (int i = 0; i < global_num_proxies; i++)
-		cfg_array[i].worker = new Proxy(&cfg_array[i], &str_server);
-
-	// initiate engine threads
-	engines.resize(global_num_engines);
-	for (int i = 0; i < global_num_engines; i++) {
-		engines[i] = new Engine(graph, &cfg_array[global_num_proxies + i]);
-		cfg_array[i + global_num_proxies].worker = engines[i];
-	}
-
-	// spawn proxy and engine threads
+	// initiate proxy and engine threads
+	assert(global_num_threads == global_num_proxies + global_num_engines);
 	pthread_t *threads  = new pthread_t[global_num_threads];
-	for (size_t id = 0; id < global_num_threads; ++id) {
-		pthread_create(&(threads[id]), NULL, worker_thread, (void *) & (cfg_array[id]));
+	for (int i = 0; i < global_num_threads; i++) {
+		TCP_Adaptor *tcp = new TCP_Adaptor(world.rank(), i, host_fname);
+		thread_cfg *cfg = new thread_cfg(world.rank(), i, rdma, tcp);
+		if (i < global_num_proxies) {
+			Proxy *proxy = new Proxy(cfg, &str_server);
+			pthread_create(&(threads[i]), NULL, proxy_thread, (void *)proxy);
+		} else {
+			Engine *engine = new Engine(graph, cfg);
+			pthread_create(&(threads[i]), NULL, engine_thread, (void *)engine);
+			engines.push_back(engine);
+		}
 	}
 
-	// wait to termination
+	// wait to all threads termination
 	for (size_t t = 0; t < global_num_threads; t++) {
 		int rc = pthread_join(threads[t], NULL);
 		if (rc) {

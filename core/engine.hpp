@@ -53,7 +53,6 @@ class Engine {
     const static uint64_t TIMEOUT_THRESHOLD = 10000; // 10 msec
 
     distributed_graph &g;
-    thread_cfg *cfg;
 
     uint64_t last_time; // busy or not (work-oblige)
 
@@ -582,7 +581,9 @@ class Engine {
     }
 
 public:
-    Engine(distributed_graph & _g, thread_cfg * _cfg): g(_g), cfg(_cfg) {
+    thread_cfg *cfg;
+
+    Engine(distributed_graph &g, thread_cfg *cfg): g(g), cfg(cfg) {
         last_time = -1;
         pthread_spin_init(&recv_lock, 0);
         pthread_spin_init(&wqueue_lock, 0);

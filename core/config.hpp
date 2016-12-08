@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <assert.h>
 #include <map>
 #include <string>
 #include <fstream>
@@ -203,15 +204,9 @@ load_global_cfg(int nsrvs)
 #include "tcp_adaptor.hpp"
 #include "rdma_resource.hpp"
 
-struct thread_cfg {
-	int sid;    // server id
-	int wid;    // worker id
+class thread_cfg {
 
-	TCP_Adaptor *tcp;  // communicaiton by TCP/IP
-	RdmaResource *rdma;  // communicaiton by RDMA
-
-	void *worker;
-
+private:
 	// Note that overflow of qid is innocent if there is no long-running
 	// fork-join query. Because we use qid to recognize the owner sid
 	// and wid, as well as collect the results of sub-queries.
@@ -219,10 +214,21 @@ struct thread_cfg {
 
 	unsigned int seed;
 
-	void init(void) {
+public:
+
+	int sid;    // server id
+	int wid;    // worker id
+
+	TCP_Adaptor *tcp;  // communicaiton by TCP/IP
+	RdmaResource *rdma;  // communicaiton by RDMA
+
+	thread_cfg(int sid, int wid, RdmaResource *rdma, TCP_Adaptor *tcp)
+		: sid(sid), wid(wid), rdma(rdma), tcp(tcp) {
 		qid = global_num_threads * sid + wid;
 		seed = qid;
 	}
+
+	~thread_cfg() { }
 
 	unsigned get_random(void) { return rand_r(&seed); }
 
