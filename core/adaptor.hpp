@@ -29,24 +29,36 @@
 
 class Adaptor {
 public:
-    static void send(thread_cfg *cfg, int mid, int tid, request_or_reply &r) {
+    int tid; // thread id
+
+    TCP_Adaptor *tcp;  // communicaiton by TCP/IP
+    RdmaResource *rdma;  // communicaiton by RDMA
+
+    Adaptor(int tid, TCP_Adaptor *tcp, RdmaResource *rdma)
+        : tid(tid), tcp(tcp), rdma(rdma) { }
+
+    ~Adaptor() {
+        delete tcp;
+        // currently, 'rdma' is showed by all threads, can not delete here
+    }
+
+    void send(int dst_sid, int dst_tid, request_or_reply &r) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
 
         oa << r;
         if (global_use_rdma)
-            cfg->rdma->rbfSend(cfg->wid, mid, tid, ss.str().c_str(), ss.str().size());
+            rdma->rbfSend(tid, dst_sid, dst_tid, ss.str().c_str(), ss.str().size());
         else
-            cfg->tcp->send(mid, tid, ss.str());
+            tcp->send(dst_sid, dst_tid, ss.str());
     }
 
-    static request_or_reply recv(thread_cfg *cfg) {
+    request_or_reply recv() {
         std::string str;
-
         if (global_use_rdma)
-            str = cfg->rdma->rbfRecv(cfg->wid);
+            str = rdma->rbfRecv(tid);
         else
-            str = cfg->tcp->recv();
+            str = tcp->recv();
 
         std::stringstream s;
         s << str;
@@ -57,13 +69,13 @@ public:
         return r;
     }
 
-    static bool tryrecv(thread_cfg *cfg, request_or_reply &r) {
+    bool tryrecv(request_or_reply &r) {
         std::string str;
         if (global_use_rdma) {
-            if (!cfg->rdma->rbfTryRecv(cfg->wid, str))
+            if (!rdma->rbfTryRecv(tid, str))
                 return false;
         } else {
-            if (!cfg->tcp->tryrecv(str))
+            if (!tcp->tryrecv(str))
                 return false;
         }
 
@@ -76,17 +88,17 @@ public:
     }
 
     template<typename T>
-    static void send_object(thread_cfg *cfg, int mid, int tid, T &r) {
+    void send_object(int dst_sid, int dst_tid, T &r) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
         oa << r;
-        cfg->tcp->send(mid, tid, ss.str());
+        tcp->send(dst_sid, dst_tid, ss.str());
     }
 
     template<typename T>
-    static T recv_object(thread_cfg *cfg) {
+    T recv_object() {
         std::string str;
-        str = cfg->tcp->recv();
+        str = tcp->recv();
 
         std::stringstream s;
         s << str;

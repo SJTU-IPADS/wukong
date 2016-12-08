@@ -37,6 +37,11 @@
 
 #define PARALLEL_FACTOR 20
 
+
+// a vector of pointers of all local proxies
+class Proxy;
+std::vector<Proxy *> proxies;
+
 class Proxy {
 
 private:
@@ -74,13 +79,13 @@ private:
 
 public:
 	thread_cfg *cfg;
-
 	String_Server *str_server;
 
+	Adaptor adaptor;
 	Parser parser;
 
-	Proxy(thread_cfg *_cfg, String_Server *_str_server):
-		cfg(_cfg), str_server(_str_server), parser(_str_server) { }
+	Proxy(thread_cfg *_cfg, String_Server *str_server, TCP_Adaptor *tcp, RdmaResource *rdma):
+		cfg(_cfg), str_server(str_server), parser(str_server), adaptor(cfg->wid, tcp, rdma) { }
 
 	void setpid(request_or_reply &r) { r.pid = cfg->get_and_inc_qid(); }
 
@@ -92,7 +97,7 @@ public:
 			for (int i = 0; i < global_num_servers; i++) {
 				for (int j = 0; j < global_mt_threshold; j++) {
 					r.tid = j;
-					Adaptor::send(cfg, i, global_num_proxies + j, r);
+					adaptor.send(i, global_num_proxies + j, r);
 				}
 			}
 			return ;
@@ -106,14 +111,14 @@ public:
 		int ratio = global_num_engines / global_num_proxies;
 		int tid = global_num_proxies + (ratio * cfg->wid + cfg->get_random() % ratio);
 
-		Adaptor::send(cfg, start_srv, tid, r);
+		adaptor.send(start_srv, tid, r);
 	}
 
 	request_or_reply recv_reply(void) {
-		request_or_reply r = Adaptor::recv(cfg);
+		request_or_reply r = adaptor.recv();
 		if (r.start_from_index()) {
 			for (int count = 0; count < global_num_servers * global_mt_threshold - 1 ; count++) {
-				request_or_reply r2 = Adaptor::recv(cfg);
+				request_or_reply r2 = adaptor.recv();
 				r.row_num += r2.row_num;
 				int new_size = r.result_table.size() + r2.result_table.size();
 				r.result_table.reserve(new_size);
@@ -124,7 +129,7 @@ public:
 	}
 
 	bool tryrecv_reply(request_or_reply &r) {
-		bool success = Adaptor::tryrecv(cfg, r);
+		bool success = adaptor.tryrecv(r);
 		if (success && r.start_from_index()) {
 			// TODO: avoid parallel submit for try recieve mode
 			cout << "Unsupport try recieve parallel query now!" << endl;

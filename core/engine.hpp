@@ -44,15 +44,15 @@ size_t hash_pair(const v_pair &x) {
     return hash<size_t>()(r);
 }
 
-class Engine;
 
 // a vector of pointers of all local engines
+class Engine;
 std::vector<Engine *> engines;
 
 class Engine {
     const static uint64_t TIMEOUT_THRESHOLD = 10000; // 10 msec
 
-    distributed_graph &g;
+    distributed_graph *graph;
 
     uint64_t last_time; // busy or not (work-oblige)
 
@@ -77,7 +77,7 @@ class Engine {
         }
         int edge_num = 0;
         edge *edge_ptr;
-        edge_ptr = g.get_edges_global(cfg->wid, start, direction, predicate, &edge_num);
+        edge_ptr = graph->get_edges_global(cfg->wid, start, direction, predicate, &edge_num);
         for (int k = 0; k < edge_num; k++) {
             updated_result_table.push_back(edge_ptr[k].val);
         }
@@ -106,7 +106,7 @@ class Engine {
             int64_t prev_id = req.get_row_col(i, req.var2column(start));
             int edge_num = 0;
             edge *edge_ptr;
-            edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict, &edge_num);
+            edge_ptr = graph->get_edges_global(cfg->wid, prev_id, direction, predict, &edge_num);
 
             for (int k = 0; k < edge_num; k++) {
                 req.append_row_to(i, updated_result_table);
@@ -129,7 +129,7 @@ class Engine {
             int64_t prev_id = req.get_row_col(i, req.var2column(start));
             int edge_num = 0;
             edge *edge_ptr;
-            edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict, &edge_num);
+            edge_ptr = graph->get_edges_global(cfg->wid, prev_id, direction, predict, &edge_num);
             int64_t end_id = req.get_row_col(i, req.var2column(end));
             for (int k = 0; k < edge_num; k++) {
                 if (edge_ptr[k].val == end_id) {
@@ -153,7 +153,7 @@ class Engine {
             int64_t prev_id = req.get_row_col(i, req.var2column(start));
             int edge_num = 0;
             edge *edge_ptr;
-            edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict, &edge_num);
+            edge_ptr = graph->get_edges_global(cfg->wid, prev_id, direction, predict, &edge_num);
             for (int k = 0; k < edge_num; k++) {
                 if (edge_ptr[k].val == end) {
                     req.append_row_to(i, updated_result_table);
@@ -183,7 +183,7 @@ class Engine {
 
         int edge_num = 0;
         edge *edge_ptr;
-        edge_ptr = g.local_storage.get_index_edges_local(cfg->wid, index_vertex, direction, &edge_num);
+        edge_ptr = graph->local_storage.get_index_edges_local(cfg->wid, index_vertex, direction, &edge_num);
         int64_t start_id = req.tid;
         for (int k = start_id; k < edge_num; k += global_mt_threshold) {
             updated_result_table.push_back(edge_ptr[k].val);
@@ -209,12 +209,12 @@ class Engine {
             assert(false);
         }
         int npredict = 0;
-        edge *predict_ptr = g.get_edges_global(cfg->wid, start, direction, 0, &npredict);
+        edge *predict_ptr = graph->get_edges_global(cfg->wid, start, direction, 0, &npredict);
         // foreach possible predict
         for (int p = 0; p < npredict; p++) {
             int edge_num = 0;
             edge *edge_ptr;
-            edge_ptr = g.get_edges_global(cfg->wid, start, direction, predict_ptr[p].val, &edge_num);
+            edge_ptr = graph->get_edges_global(cfg->wid, start, direction, predict_ptr[p].val, &edge_num);
             for (int k = 0; k < edge_num; k++) {
                 updated_result_table.push_back(predict_ptr[p].val);
                 updated_result_table.push_back(edge_ptr[k].val);
@@ -236,12 +236,12 @@ class Engine {
         for (int i = 0; i < req.get_row_num(); i++) {
             int64_t prev_id = req.get_row_col(i, req.var2column(start));
             int npredict = 0;
-            edge *predict_ptr = g.get_edges_global(cfg->wid, prev_id, direction, 0, &npredict);
+            edge *predict_ptr = graph->get_edges_global(cfg->wid, prev_id, direction, 0, &npredict);
             // foreach possible predict
             for (int p = 0; p < npredict; p++) {
                 int edge_num = 0;
                 edge *edge_ptr;
-                edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict_ptr[p].val, &edge_num);
+                edge_ptr = graph->get_edges_global(cfg->wid, prev_id, direction, predict_ptr[p].val, &edge_num);
                 for (int k = 0; k < edge_num; k++) {
                     req.append_row_to(i, updated_result_table);
                     updated_result_table.push_back(predict_ptr[p].val);
@@ -266,12 +266,12 @@ class Engine {
         for (int i = 0; i < req.get_row_num(); i++) {
             int64_t prev_id = req.get_row_col(i, req.var2column(start));
             int npredict = 0;
-            edge *predict_ptr = g.get_edges_global(cfg->wid, prev_id, direction, 0, &npredict);
+            edge *predict_ptr = graph->get_edges_global(cfg->wid, prev_id, direction, 0, &npredict);
             // foreach possible predict
             for (int p = 0; p < npredict; p++) {
                 int edge_num = 0;
                 edge *edge_ptr;
-                edge_ptr = g.get_edges_global(cfg->wid, prev_id, direction, predict_ptr[p].val, &edge_num);
+                edge_ptr = graph->get_edges_global(cfg->wid, prev_id, direction, predict_ptr[p].val, &edge_num);
                 for (int k = 0; k < edge_num; k++) {
                     if (edge_ptr[k].val == end) {
                         req.append_row_to(i, updated_result_table);
@@ -539,7 +539,7 @@ class Engine {
                 if (req.blind)
                     req.clear_data(); // avoid take back the resuts
 
-                Adaptor::send(cfg, cfg->sid_of(req.pid), cfg->wid_of(req.pid), req);
+                adaptor.send(cfg->sid_of(req.pid), cfg->wid_of(req.pid), req);
                 return;
             }
 
@@ -548,7 +548,7 @@ class Engine {
                 wqueue.put_parent_request(req, sub_rs.size());
                 for (int i = 0; i < sub_rs.size(); i++) {
                     if (i != cfg->sid) {
-                        Adaptor::send(cfg, i, cfg->wid, sub_rs[i]);
+                        adaptor.send(i, cfg->wid, sub_rs[i]);
                     } else {
                         pthread_spin_lock(&recv_lock);
                         msg_fast_path.push_back(sub_rs[i]);
@@ -574,7 +574,7 @@ class Engine {
             if (engines[wid]->wqueue.is_ready(r.pid)) {
                 request_or_reply reply = engines[wid]->wqueue.get_merged_reply(r.pid);
                 pthread_spin_unlock(&engines[wid]->wqueue_lock);
-                Adaptor::send(cfg, cfg->sid_of(reply.pid), cfg->wid_of(reply.pid), reply);
+                adaptor.send(cfg->sid_of(reply.pid), cfg->wid_of(reply.pid), reply);
             }
             pthread_spin_unlock(&engines[wid]->wqueue_lock);
         }
@@ -582,8 +582,10 @@ class Engine {
 
 public:
     thread_cfg *cfg;
+    Adaptor adaptor;
 
-    Engine(distributed_graph &g, thread_cfg *cfg): g(g), cfg(cfg) {
+    Engine(thread_cfg *cfg, distributed_graph *graph, TCP_Adaptor *tcp, RdmaResource *rdma)
+        : cfg(cfg), graph(graph), adaptor(cfg->wid, tcp, rdma) {
         last_time = -1;
         pthread_spin_init(&recv_lock, 0);
         pthread_spin_init(&wqueue_lock, 0);
@@ -622,7 +624,7 @@ public:
             // own queue
             success = false;
             pthread_spin_lock(&recv_lock);
-            success = Adaptor::tryrecv(cfg, r);
+            success = adaptor.tryrecv(r);
             if (success && r.start_from_index()) {
                 msg_fast_path.push_back(r);
                 success = false;
@@ -642,7 +644,7 @@ public:
 
             success = false;
             pthread_spin_lock(&engines[nbr_id]->recv_lock);
-            success = Adaptor::tryrecv(engines[nbr_id]->cfg, r);
+            success = engines[nbr_id]->adaptor.tryrecv(r);
             if (success && r.start_from_index()) {
                 engines[nbr_id]->msg_fast_path.push_back(r);
                 success = false;

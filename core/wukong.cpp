@@ -167,12 +167,14 @@ main(int argc, char *argv[])
 	pthread_t *threads  = new pthread_t[global_num_threads];
 	for (int i = 0; i < global_num_threads; i++) {
 		TCP_Adaptor *tcp = new TCP_Adaptor(world.rank(), i, host_fname);
-		thread_cfg *cfg = new thread_cfg(world.rank(), i, rdma, tcp);
+		thread_cfg *cfg = new thread_cfg(world.rank(), i);
+
 		if (i < global_num_proxies) {
-			Proxy *proxy = new Proxy(cfg, &str_server);
+			Proxy *proxy = new Proxy(cfg, &str_server, tcp, rdma);
 			pthread_create(&(threads[i]), NULL, proxy_thread, (void *)proxy);
+			proxies.push_back(proxy);
 		} else {
-			Engine *engine = new Engine(graph, cfg);
+			Engine *engine = new Engine(cfg, &graph, tcp, rdma);
 			pthread_create(&(threads[i]), NULL, engine_thread, (void *)engine);
 			engines.push_back(engine);
 		}
@@ -187,7 +189,10 @@ main(int argc, char *argv[])
 		}
 	}
 
-	/// TODO: exit gracefully (properly call MPI_Init() and MPI_Finalize())
+	/// TODO: exit gracefully (properly call MPI_Init() and MPI_Finalize(), delete all objects)
+	delete rdma->tcp;
+	delete rdma;
+
 	return 0;
 }
 

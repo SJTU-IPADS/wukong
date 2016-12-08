@@ -33,8 +33,7 @@
 
 using namespace std;
 
-static void
-console_barrier(struct thread_cfg *cfg)
+static void console_barrier(struct thread_cfg *cfg)
 {
 	static int _curr = 0;
 	static __thread int _next = 1;
@@ -50,8 +49,7 @@ console_barrier(struct thread_cfg *cfg)
 	_next += global_num_proxies; // next barrier
 }
 
-void
-print_help(void)
+void print_help(void)
 {
 	cout << "These are common Wukong commands: " << endl;
 	cout << "    help           Display help infomation" << endl;
@@ -72,8 +70,7 @@ print_help(void)
  * The Wukong's console is co-located with the main proxy (the 1st proxy thread on the 1st server)
  * and provide a simple interactive cmdline to tester
  */
-void
-run_console(Proxy *proxy)
+void run_console(Proxy *proxy)
 {
 	struct thread_cfg *cfg = proxy->cfg;
 
@@ -116,12 +113,14 @@ next:
 				for (int j = 0; j < global_num_proxies; j++) {
 					if (i == 0 && j == 0)
 						continue ;
-					cfg->tcp->send(i, j, cmd);
+					//proxy->adaptor.send(i, j, cmd);
+					proxy->adaptor.send_object<string>(i, j, cmd);
 				}
 			}
 		} else {
 			// recieve commands
-			cmd = cfg->tcp->recv();
+			//cmd = proxy->adaptor.recv();
+			cmd = proxy->adaptor.recv_object<string>();
 		}
 
 		// process on all consoles
@@ -204,14 +203,14 @@ next:
 					// print a statistic of runtime for the batch processing on all servers
 					if (IS_MASTER(cfg)) {
 						for (int i = 0; i < global_num_servers * global_num_proxies - 1; i++) {
-							Logger other = Adaptor::recv_object<Logger>(cfg);
+							Logger other = proxy->adaptor.recv_object<Logger>();
 							logger.merge(other);
 						}
 						logger.print_rdf();
 						logger.print_thpt();
 					} else {
 						// send logs to the master proxy
-						Adaptor::send_object<Logger>(cfg, 0, 0, logger);
+						proxy->adaptor.send_object<Logger>(0, 0, logger);
 					}
 				}
 

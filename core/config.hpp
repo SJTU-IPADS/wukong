@@ -201,9 +201,6 @@ load_global_cfg(int nsrvs)
 	return;
 }
 
-#include "tcp_adaptor.hpp"
-#include "rdma_resource.hpp"
-
 class thread_cfg {
 
 private:
@@ -219,11 +216,7 @@ public:
 	int sid;    // server id
 	int wid;    // worker id
 
-	TCP_Adaptor *tcp;  // communicaiton by TCP/IP
-	RdmaResource *rdma;  // communicaiton by RDMA
-
-	thread_cfg(int sid, int wid, RdmaResource *rdma, TCP_Adaptor *tcp)
-		: sid(sid), wid(wid), rdma(rdma), tcp(tcp) {
+	thread_cfg(int sid, int wid): sid(sid), wid(wid) {
 		qid = global_num_threads * sid + wid;
 		seed = qid;
 	}
