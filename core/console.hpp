@@ -33,13 +33,13 @@
 
 using namespace std;
 
-static void console_barrier(struct thread_cfg *cfg)
+static void console_barrier(int tid)
 {
 	static int _curr = 0;
 	static __thread int _next = 1;
 
 	// inter-server barrier
-	if (cfg->wid == 0)
+	if (tid == 0)
 		MPI_Barrier(MPI_COMM_WORLD);
 
 	// intra-server barrier
@@ -63,8 +63,9 @@ void print_help(void)
 	cout << "        -s <string> a single query from input string" << endl;
 }
 
-#define IS_MASTER(_cfg) ((_cfg)->sid == 0 && (_cfg)->wid == 0)
-#define PRINT_ID(_cfg) (cout << "[" << (_cfg)->sid << "-" << (_cfg)->wid << "]$ ")
+// the master proxy is the 1st proxy of the 1st server (i.e., sid == 0 and tid == 0)
+#define IS_MASTER(_p) ((_p)->sid == 0 && (_p)->tid == 0)
+#define PRINT_ID(_p) (cout << "[" << (_p)->sid << "-" << (_p)->tid << "]$ ")
 
 /**
  * The Wukong's console is co-located with the main proxy (the 1st proxy thread on the 1st server)
@@ -72,22 +73,18 @@ void print_help(void)
  */
 void run_console(Proxy *proxy)
 {
-	struct thread_cfg *cfg = proxy->cfg;
-
-	// the main proxy thread (i.e., sid == 0 and wid == 0)
-	console_barrier(cfg);
-	if (IS_MASTER(cfg))
+	console_barrier(proxy->tid);
+	if (IS_MASTER(proxy))
 		cout << endl
 		     << "Input \'help\'' command to get more information"
 		     << endl
 		     << endl;
 
 	while (true) {
-		console_barrier(cfg);
-
+		console_barrier(proxy->tid);
 next:
 		string cmd;
-		if (IS_MASTER(cfg)) {
+		if (IS_MASTER(proxy)) {
 			cout << "> ";
 			std::getline(std::cin, cmd);
 
@@ -125,11 +122,11 @@ next:
 
 		// process on all consoles
 		if (cmd == "quit" || cmd == "q") {
-			if (cfg->wid == 0)
-				exit(0); // each server exits once
+			if (proxy->tid == 0)
+				exit(0); // each server exits once by the 1st proxy thread
 		} else if (cmd == "reload-config") {
-			if (cfg->wid == 0)
-				reload_global_cfg(); // each server reload config file
+			if (proxy->tid == 0)
+				reload_global_cfg(); // each server reload config file once by the 1st proxy
 		} else {
 			std::stringstream cmd_ss(cmd);
 			std::string token;
@@ -160,7 +157,7 @@ next:
 						q_enable = true;
 						break ;
 					} else {
-						if (IS_MASTER(cfg)) {
+						if (IS_MASTER(proxy)) {
 							cout << "Unknown option: " << token << endl;
 							print_help();
 						}
@@ -170,7 +167,7 @@ next:
 
 				if (f_enable) {
 					// use the main proxy thread to run a single query
-					if (IS_MASTER(cfg)) {
+					if (IS_MASTER(proxy)) {
 						ifstream ifs(fname);
 						if (!ifs) {
 							cout << "Query file not found: " << fname << endl;
@@ -187,10 +184,10 @@ next:
 
 					// dedicate the master frontend worker to run a single query
 					// and others to run a set of queries if '-f' is enabled
-					if (!f_enable || !IS_MASTER(cfg)) {
+					if (!f_enable || !IS_MASTER(proxy)) {
 						ifstream ifs(bfname);
 						if (!ifs) {
-							PRINT_ID(cfg);
+							PRINT_ID(proxy);
 							cout << "Configure file not found: " << bfname << endl;
 							continue ;
 						}
@@ -198,10 +195,10 @@ next:
 						//proxy->run_batch_query(ifs, logger);
 					}
 
-					console_barrier(cfg);
+					console_barrier(proxy->tid);
 
 					// print a statistic of runtime for the batch processing on all servers
-					if (IS_MASTER(cfg)) {
+					if (IS_MASTER(proxy)) {
 						for (int i = 0; i < global_num_servers * global_num_proxies - 1; i++) {
 							Logger other = proxy->adaptor.recv_object<Logger>();
 							logger.merge(other);
@@ -216,14 +213,14 @@ next:
 
 				if (q_enable) {
 					// TODO: SPARQL string
-					if (IS_MASTER(cfg)) {
+					if (IS_MASTER(proxy)) {
 						// TODO
 						cout << "Query: " << query << endl;
 						cout << "The option '-s' is unsupported now!" << endl;
 					}
 				}
 			} else {
-				if (IS_MASTER(cfg)) {
+				if (IS_MASTER(proxy)) {
 					cout << "Unknown command: " << token << endl;
 					print_help();
 				}

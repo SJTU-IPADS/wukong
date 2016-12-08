@@ -56,8 +56,8 @@ public:
 		router = new zmq::socket_t(context, ZMQ_ROUTER);
 		s_set_id(*router);
 		char address[30] = "";
-		sprintf(address, "tcp://*:%d", port + proxy->cfg->wid);
-		cout << "port " << port + proxy->cfg->wid << endl;
+		sprintf(address, "tcp://*:%d", port + proxy->tid);
+		cout << "port " << port + proxy->tid << endl;
 		router->bind(address);
 	}
 

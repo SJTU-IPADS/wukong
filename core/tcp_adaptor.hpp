@@ -47,11 +47,11 @@ private:
 
     vector<string> ipset;
 
-    inline int code(int sid, int wid) { return sid * 200 + wid; }
+    inline int code(int sid, int tid) { return sid * 200 + tid; }
 
 public:
 
-    TCP_Adaptor(int sid, int wid, string fname): context(1) {
+    TCP_Adaptor(int sid, int tid, string fname): context(1) {
         ifstream hostfile(fname);
         string ip;
         while (hostfile >> ip)
@@ -59,7 +59,7 @@ public:
 
         receiver = new zmq::socket_t(context, ZMQ_PULL);
         char address[32] = "";
-        snprintf(address, 32, "tcp://*:%d", global_eth_port_base + code(sid, wid));
+        snprintf(address, 32, "tcp://*:%d", global_eth_port_base + code(sid, tid));
         receiver->bind(address);
     }
 
@@ -75,8 +75,8 @@ public:
 
     string ip_of(int sid) { return ipset[sid]; }
 
-    void send(int sid, int wid, string str) {
-        int id = code(sid, wid);
+    void send(int sid, int tid, string str) {
+        int id = code(sid, tid);
 
         // new socket if needed
         if (senders.find(id) == senders.end()) {

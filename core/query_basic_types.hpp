@@ -49,7 +49,7 @@ class request_or_reply {
 public:
     int id = -1;     // query id
     int pid = -1;    // parqnt query id
-    int tid = 0;     // engine thread id
+    int tid = 0;     // engine thread id (MT)
 
     // runtime state
     int step = 0;

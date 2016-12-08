@@ -76,14 +76,14 @@ void pin_to_core(size_t core)
 void *engine_thread(void *arg)
 {
 	Engine *engine = (Engine *)arg;
-	pin_to_core(cores[engine->cfg->wid]);
+	pin_to_core(cores[engine->tid]);
 	engine->run();
 }
 
 void *proxy_thread(void *arg)
 {
 	Proxy *proxy = (Proxy *)arg;
-	pin_to_core(cores[proxy->cfg->wid]);
+	pin_to_core(cores[proxy->tid]);
 	if (!monitor_enable)
 		// Run the Wukong's testbed console (by default)
 		run_console(proxy);
@@ -149,7 +149,7 @@ main(int argc, char *argv[])
 	RdmaResource *rdma = new RdmaResource(world.size(), global_num_threads,
 	                                      world.rank(), buffer, mem_size,
 	                                      rdma_slot_per_thread, msg_slot_per_thread, rdma_size);
-	// a special TCP connection used by RDMA (wid == global_num_threads)
+	// a special TCP connection used by RDMA (tid == global_num_threads)
 	rdma->tcp = new TCP_Adaptor(world.rank(), global_num_threads, host_fname);
 #ifdef HAS_RDMA
 	rdma->Servicing();
@@ -166,15 +166,15 @@ main(int argc, char *argv[])
 	assert(global_num_threads == global_num_proxies + global_num_engines);
 	pthread_t *threads  = new pthread_t[global_num_threads];
 	for (int i = 0; i < global_num_threads; i++) {
+		/// TODO: currently, rdma is shared by all threads,
+		/// therefore, we create tcp in here not within adaptor
 		TCP_Adaptor *tcp = new TCP_Adaptor(world.rank(), i, host_fname);
-		thread_cfg *cfg = new thread_cfg(world.rank(), i);
-
 		if (i < global_num_proxies) {
-			Proxy *proxy = new Proxy(cfg, &str_server, tcp, rdma);
+			Proxy *proxy = new Proxy(world.rank(), i, &str_server, tcp, rdma);
 			pthread_create(&(threads[i]), NULL, proxy_thread, (void *)proxy);
 			proxies.push_back(proxy);
 		} else {
-			Engine *engine = new Engine(cfg, &graph, tcp, rdma);
+			Engine *engine = new Engine(world.rank(), i, &graph, tcp, rdma);
 			pthread_create(&(threads[i]), NULL, engine_thread, (void *)engine);
 			engines.push_back(engine);
 		}

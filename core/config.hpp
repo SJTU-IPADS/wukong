@@ -184,6 +184,10 @@ load_global_cfg(int nsrvs)
 	global_num_servers = nsrvs;
 	global_num_threads = global_num_engines + global_num_proxies;
 
+	assert(nsrvs > 0);
+	assert(global_num_engines > 0);
+	assert(global_num_proxies > 0);
+
 	// limited the number of engines
 	global_mt_threshold = max(1, min(global_mt_threshold, global_num_engines));
 
@@ -204,31 +208,30 @@ load_global_cfg(int nsrvs)
 class thread_cfg {
 
 private:
+	int sid;    // server id
+	int tid;    // thread id
+
 	// Note that overflow of qid is innocent if there is no long-running
 	// fork-join query. Because we use qid to recognize the owner sid
-	// and wid, as well as collect the results of sub-queries.
+	// and tid, as well as collect the results of sub-queries.
 	int qid;  // The ID of each (sub-)query
 
 	unsigned int seed;
 
 public:
-
-	int sid;    // server id
-	int wid;    // worker id
-
-	thread_cfg(int sid, int wid): sid(sid), wid(wid) {
-		qid = global_num_threads * sid + wid;
+	thread_cfg(int sid, int tid): sid(sid), tid(tid) {
+		qid = global_num_threads * sid + tid;
 		seed = qid;
 	}
 
 	~thread_cfg() { }
 
-	unsigned get_random(void) { return rand_r(&seed); }
+	unsigned int get_random(void) { return rand_r(&seed); }
 
 	int get_and_inc_qid(void) {
 		int _id = qid;
 		qid += global_num_servers * global_num_threads;
-		if (qid < 0) qid = global_num_threads * sid + wid; // reset
+		if (qid < 0) qid = global_num_threads * sid + tid; // reset
 		return _id;
 	}
 
@@ -236,7 +239,7 @@ public:
 		return (qid % (global_num_servers * global_num_threads)) / global_num_threads;
 	}
 
-	int wid_of(int qid) {
+	int tid_of(int qid) {
 		return qid % global_num_threads;
 	}
 };
