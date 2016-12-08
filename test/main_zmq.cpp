@@ -26,7 +26,7 @@
 
 #include "utils.h"
 #include "global_cfg.hpp"
-#include "thread_cfg.h"
+#include "coder.h"
 #include "string_server.h"
 #include "distributed_graph.h"
 #include "server.h"
@@ -50,7 +50,7 @@ void pin_to_core(size_t core) {
 }
 
 void* Run(void *ptr) {
-	struct thread_cfg *cfg = (struct thread_cfg*) ptr;
+	Coder *cfg = (Coder *) ptr;
 	pin_to_core(socket_1[cfg->t_id]);
 	if (cfg->t_id >= cfg->client_num) {
 		((server*)(cfg->ptr))->run();

@@ -101,7 +101,7 @@ next:
 				print_help();
 				goto next;
 			} else if (cmd == "show-config") {
-				show_global_cfg();
+				show_config();
 				goto next;
 			}
 
@@ -126,7 +126,7 @@ next:
 				exit(0); // each server exits once by the 1st proxy thread
 		} else if (cmd == "reload-config") {
 			if (proxy->tid == 0)
-				reload_global_cfg(); // each server reload config file once by the 1st proxy
+				reload_config(); // each server reload config file once by the 1st proxy
 		} else {
 			std::stringstream cmd_ss(cmd);
 			std::string token;

@@ -26,6 +26,7 @@
 #include <boost/unordered_map.hpp>
 
 #include "config.hpp"
+#include "coder.hpp"
 #include "query_basic_types.hpp"
 #include "adaptor.hpp"
 #include "parser.hpp"
@@ -81,7 +82,7 @@ public:
 	int sid;    // server id
 	int tid;    // thread id
 
-	thread_cfg cfg;
+	Coder coder;
 
 	String_Server *str_server;
 	Parser parser;
@@ -90,10 +91,10 @@ public:
 
 	Proxy(int sid, int tid, String_Server *str_server,
 	      TCP_Adaptor *tcp, RdmaResource *rdma)
-		: sid(sid), tid(tid), cfg(sid, tid), str_server(str_server),
+		: sid(sid), tid(tid), coder(sid, tid), str_server(str_server),
 		  parser(str_server), adaptor(tid, tcp, rdma) { }
 
-	void setpid(request_or_reply &r) { r.pid = cfg.get_and_inc_qid(); }
+	void setpid(request_or_reply &r) { r.pid = coder.get_and_inc_qid(); }
 
 	void send_request(request_or_reply &r) {
 		assert(r.pid != -1);
@@ -115,7 +116,7 @@ public:
 		// random assign request to range partitioned engines
 		// NOTE: the partitioned mapping has better tail latency in batch mode
 		int ratio = global_num_engines / global_num_proxies;
-		int start_tid = global_num_proxies + (ratio * tid) + (cfg.get_random() % ratio);
+		int start_tid = global_num_proxies + (ratio * tid) + (coder.get_random() % ratio);
 
 		adaptor.send(start_sid, start_tid, r);
 	}
@@ -224,8 +225,8 @@ public:
 		while (recv_cnt < nqueries) {
 			for (int t = 0; t < PARALLEL_FACTOR; t++) {
 				if (send_cnt < nqueries) {
-					int idx = mymath::get_distribution(cfg.get_random(), loads);
-					request_or_reply request = tpls[idx].instantiate(cfg.get_random());
+					int idx = mymath::get_distribution(coder.get_random(), loads);
+					request_or_reply request = tpls[idx].instantiate(coder.get_random());
 
 					setpid(request);
 					request.blind = true; // avoid send back results by default
@@ -289,8 +290,8 @@ public:
 		logger.init();
 		// send PARALLEL_FACTOR queries and keep PARALLEL_FACTOR flying queries
 		for (int i = 0; i < PARALLEL_FACTOR; i++) {
-			int idx = mymath::get_distribution(cfg.get_random(), loads);
-			request_or_reply r = tpls[idx].instantiate(cfg.get_random());
+			int idx = mymath::get_distribution(coder.get_random(), loads);
+			request_or_reply r = tpls[idx].instantiate(coder.get_random());
 
 			setpid(r);
 			r.blind = true;  // avoid send back results by default
@@ -305,8 +306,8 @@ public:
 			logger.end_record(r2.pid);
 
 			// send another query
-			int idx = mymath::get_distribution(cfg.get_random(), loads);
-			request_or_reply r = tpls[idx].instantiate(cfg.get_random());
+			int idx = mymath::get_distribution(coder.get_random(), loads);
+			request_or_reply r = tpls[idx].instantiate(coder.get_random());
 
 			setpid(r);
 			r.blind = true;  // avoid send back results by default

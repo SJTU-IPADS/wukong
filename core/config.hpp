@@ -65,10 +65,9 @@ string cfg_fname;
 string host_fname;
 
 /**
- * dump current global setting
+ * list current global setting
  */
-void
-show_global_cfg(void)
+void show_config(void)
 {
 	cout << "------ global configurations ------" << endl;
 
@@ -93,7 +92,7 @@ show_global_cfg(void)
 
 	cout << "--" << endl;
 
-	// compute from other cfg settings
+	// compute from other settings
 	cout << "the number of servers: " 		<< global_num_servers			<< endl;
 	cout << "the number of threads: " 		<< global_num_threads			<< endl;
 }
@@ -101,8 +100,7 @@ show_global_cfg(void)
 /**
  * re-configure Wukong
  */
-void
-reload_global_cfg(void)
+void reload_config(void)
 {
 	// TODO: it should ensure that there is no outstanding queries.
 
@@ -140,8 +138,7 @@ reload_global_cfg(void)
 	return;
 }
 
-void
-load_global_cfg(int nsrvs)
+void load_config(int nsrvs)
 {
 	ifstream file(cfg_fname.c_str());
 	if (!file) {
@@ -204,43 +201,3 @@ load_global_cfg(int nsrvs)
 
 	return;
 }
-
-class thread_cfg {
-
-private:
-	int sid;    // server id
-	int tid;    // thread id
-
-	// Note that overflow of qid is innocent if there is no long-running
-	// fork-join query. Because we use qid to recognize the owner sid
-	// and tid, as well as collect the results of sub-queries.
-	int qid;  // The ID of each (sub-)query
-
-	unsigned int seed;
-
-public:
-	thread_cfg(int sid, int tid): sid(sid), tid(tid) {
-		qid = global_num_threads * sid + tid;
-		seed = qid;
-	}
-
-	~thread_cfg() { }
-
-	unsigned int get_random(void) { return rand_r(&seed); }
-
-	int get_and_inc_qid(void) {
-		int _id = qid;
-		qid += global_num_servers * global_num_threads;
-		if (qid < 0) qid = global_num_threads * sid + tid; // reset
-		return _id;
-	}
-
-	int sid_of(int qid) {
-		return (qid % (global_num_servers * global_num_threads)) / global_num_threads;
-	}
-
-	int tid_of(int qid) {
-		return qid % global_num_threads;
-	}
-};
-

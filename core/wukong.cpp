@@ -25,13 +25,14 @@
 #include <iostream>
 
 #include "config.hpp"
-#include "misc.hpp"
 #include "string_server.hpp"
 #include "distributed_graph.hpp"
 #include "engine.hpp"
 #include "proxy.hpp"
 #include "console.hpp"
 #include "monitor.hpp"
+
+#include "unit.hpp"
 
 using namespace std;
 
@@ -131,7 +132,7 @@ main(int argc, char *argv[])
 	}
 
 	// load global configuration setting
-	load_global_cfg(world.size());
+	load_config(world.size());
 
 	// calculate memory usage
 	uint64_t rdma_size = GiB2B(global_total_memory_gb);

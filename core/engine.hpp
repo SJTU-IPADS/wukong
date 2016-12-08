@@ -27,6 +27,7 @@
 #include <stdlib.h> //qsort
 
 #include "config.hpp"
+#include "coder.hpp"
 #include "adaptor.hpp"
 #include "distributed_graph.hpp"
 #include "query_basic_types.hpp"
@@ -531,7 +532,7 @@ class Engine {
                 if (req.blind)
                     req.clear_data(); // avoid take back the resuts
 
-                adaptor.send(cfg.sid_of(req.pid), cfg.tid_of(req.pid), req);
+                adaptor.send(coder.sid_of(req.pid), coder.tid_of(req.pid), req);
                 return;
             }
 
@@ -556,7 +557,7 @@ class Engine {
     void execute(request_or_reply &r, Engine *engine) {
         if (r.is_request()) {
             // request
-            r.id = cfg.get_and_inc_qid();
+            r.id = coder.get_and_inc_qid();
             execute_request(r);
         } else {
             // reply
@@ -565,7 +566,7 @@ class Engine {
             if (engine->rmap.is_ready(r.pid)) {
                 request_or_reply reply = engine->rmap.get_merged_reply(r.pid);
                 pthread_spin_unlock(&engine->rmap_lock);
-                adaptor.send(cfg.sid_of(reply.pid), cfg.tid_of(reply.pid), reply);
+                adaptor.send(coder.sid_of(reply.pid), coder.tid_of(reply.pid), reply);
             } else {
                 pthread_spin_unlock(&engine->rmap_lock);
             }
@@ -576,12 +577,12 @@ public:
     int sid;    // server id
     int tid;    // thread id
 
-    thread_cfg cfg;
+    Coder coder;
     Adaptor adaptor;
 
     Engine(int sid, int tid, distributed_graph *graph,
            TCP_Adaptor *tcp, RdmaResource *rdma)
-        : sid(sid), tid(tid), cfg(sid, tid), graph(graph),
+        : sid(sid), tid(tid), coder(sid, tid), graph(graph),
           adaptor(tid, tcp, rdma), last_time(0) {
         pthread_spin_init(&recv_lock, 0);
         pthread_spin_init(&rmap_lock, 0);
