@@ -103,7 +103,7 @@ public:
 
         // print CDF of query latency
         vector<int> cdf;
-        int print_rate = 100;
+        int print_rate = stats_map.size() > 100 ? 100 : stats_map.size();
 
         for (auto s : stats_map)
             cdf.push_back(s.second.end_time - s.second.start_time);
