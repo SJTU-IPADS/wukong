@@ -47,15 +47,16 @@ public:
     String_Server(string dname) {
         if (boost::starts_with(dname, "hdfs:")) {
             if (!wukong::hdfs::has_hadoop()) {
-                cout << "ERORR: attempting to load ID mapping files from HDFS "
+                cout << "ERORR: attempting to load ID-mapping files from HDFS "
                      << "but Wukong was built without HDFS."
                      << endl;
                 exit(-1);
             }
             load_from_hdfs(dname);
-        } else {
+        } else
             load_from_posixfs(dname);
-        }
+
+        cout << "loading String Server is finished." << endl;
     }
 
 private:

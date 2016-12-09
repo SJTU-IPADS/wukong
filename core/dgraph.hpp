@@ -44,16 +44,17 @@
 
 using namespace std;
 
-class distributed_graph {
-	boost::mpi::communicator &world;
-	RdmaResource *rdma;
-
+class DGraph {
 	static const int nthread_parallel_load = 20;
+
+	int sid;
+
+	RdmaResource *rdma;
 
 	vector<vector<edge_triple> > triple_spo;
 	vector<vector<edge_triple> > triple_ops;
 
-	vector<uint64_t> edge_num_per_machine;
+	vector<uint64_t> nedges;
 
 	void remove_duplicate(vector<edge_triple>& elist) {
 		if (elist.size() > 1) {
@@ -72,7 +73,7 @@ class distributed_graph {
 	}
 
 	void inline send_edge(int localtid, int mid, uint64_t s, uint64_t p, uint64_t o) {
-		uint64_t subslot_size = mymath::floor(rdma->get_slotsize() / world.size(), sizeof(uint64_t));
+		uint64_t subslot_size = mymath::floor(rdma->get_slotsize() / global_num_servers, sizeof(uint64_t));
 		uint64_t *local_buffer = (uint64_t *) (rdma->GetMsgAddr(localtid) + subslot_size * mid );
 
 		*(local_buffer + (*local_buffer) * 3 + 1) = s;
@@ -87,14 +88,14 @@ class distributed_graph {
 	}
 
 	void flush_edge(int localtid, int mid) {
-		uint64_t subslot_size = mymath::floor(rdma->get_slotsize() / world.size(), sizeof(uint64_t));
+		uint64_t subslot_size = mymath::floor(rdma->get_slotsize() / global_num_servers, sizeof(uint64_t));
 		uint64_t *local_buffer = (uint64_t *) (rdma->GetMsgAddr(localtid) + subslot_size * mid );
 		uint64_t num_edge_to_send = *local_buffer;
 		//clear and skip the number infomation
 		*local_buffer = 0;
 		local_buffer += 1;
-		uint64_t max_size = mymath::floor(rdma->get_memorystore_size() / world.size(), sizeof(uint64_t));
-		uint64_t old_num = __sync_fetch_and_add( &edge_num_per_machine[mid], num_edge_to_send);
+		uint64_t max_size = mymath::floor(rdma->get_memorystore_size() / global_num_servers, sizeof(uint64_t));
+		uint64_t old_num = __sync_fetch_and_add( &nedges[mid], num_edge_to_send);
 		if ((old_num + num_edge_to_send + 1) * 3 * sizeof(uint64_t) >= max_size) {
 			cout << "old =" << old_num << endl;
 			cout << "num_edge_to_send =" << num_edge_to_send << endl;
@@ -103,10 +104,10 @@ class distributed_graph {
 			exit(-1);
 		}
 		// we need to flush to the same offset of different machine
-		uint64_t remote_offset =	max_size * world.rank();
+		uint64_t remote_offset =	max_size * sid;
 		remote_offset  +=	(old_num * 3 + 1) * sizeof(uint64_t);
 		uint64_t remote_length = num_edge_to_send * 3 * sizeof(uint64_t);
-		if (mid != world.rank()) {
+		if (mid != sid) {
 			rdma->RdmaWrite(localtid, mid, (char*)local_buffer, remote_length, remote_offset);
 		} else {
 			memcpy(rdma->get_buffer() + remote_offset, (char*)local_buffer, remote_length);
@@ -123,7 +124,7 @@ class distributed_graph {
 		#pragma omp parallel for num_threads(global_num_engines)
 		for (int i = 0; i < nfile; i++) {
 			int localtid = omp_get_thread_num();
-			if (i % world.size() != world.rank())
+			if (i % global_num_servers != sid)
 				continue;
 
 			if (boost::starts_with(file_vec[i], "hdfs:")) {
@@ -132,8 +133,8 @@ class distributed_graph {
 				wukong::hdfs::fstream file(hdfs, file_vec[i]);
 				uint64_t s, p, o;
 				while (file >> s >> p >> o) {
-					int s_mid = mymath::hash_mod(s, world.size());
-					int o_mid = mymath::hash_mod(o, world.size());
+					int s_mid = mymath::hash_mod(s, global_num_servers);
+					int o_mid = mymath::hash_mod(o, global_num_servers);
 					if (s_mid == o_mid) {
 						send_edge(localtid, s_mid, s, p, o);
 					} else {
@@ -146,8 +147,8 @@ class distributed_graph {
 				ifstream file(file_vec[i].c_str());
 				uint64_t s, p, o;
 				while (file >> s >> p >> o) {
-					int s_mid = mymath::hash_mod(s, world.size());
-					int o_mid = mymath::hash_mod(o, world.size());
+					int s_mid = mymath::hash_mod(s, global_num_servers);
+					int o_mid = mymath::hash_mod(o, global_num_servers);
 					if (s_mid == o_mid) {
 						send_edge(localtid, s_mid, s, p, o);
 					} else {
@@ -161,21 +162,21 @@ class distributed_graph {
 			// debug print
 			int ret = __sync_fetch_and_add(&finished_count, 1);
 			if (ret % 40 == 39) {
-				cout << "server " << world.rank() << " already load " << ret + 1 << " files" << endl;
+				cout << "server " << sid << " already load " << ret + 1 << " files" << endl;
 			}
 		}
 
-		for (int mid = 0; mid < world.size(); mid++)
+		for (int mid = 0; mid < global_num_servers; mid++)
 			for (int i = 0; i < global_num_engines; i++)
 				flush_edge(i, mid);
 
-		for (int mid = 0; mid < world.size(); mid++) {
+		for (int mid = 0; mid < global_num_servers; mid++) {
 			//after flush all data,we need to write the number of total edges;
 			uint64_t *local_buffer = (uint64_t *) rdma->GetMsgAddr(0);
-			*local_buffer = edge_num_per_machine[mid];
-			uint64_t max_size = mymath::floor(rdma->get_memorystore_size() / world.size(), sizeof(uint64_t));
-			uint64_t remote_offset =	max_size * world.rank();
-			if (mid != world.rank()) {
+			*local_buffer = nedges[mid];
+			uint64_t max_size = mymath::floor(rdma->get_memorystore_size() / global_num_servers, sizeof(uint64_t));
+			uint64_t remote_offset =	max_size * sid;
+			if (mid != sid) {
 				rdma->RdmaWrite(0, mid, (char*)local_buffer, sizeof(uint64_t), remote_offset);
 			} else {
 				memcpy(rdma->get_buffer() + remote_offset, (char*)local_buffer, sizeof(uint64_t));
@@ -204,9 +205,9 @@ class distributed_graph {
 			ifstream file(file_vec[i].c_str());
 			uint64_t s, p, o;
 			while (file >> s >> p >> o) {
-				int s_mid = mymath::hash_mod(s, world.size());
-				int o_mid = mymath::hash_mod(o, world.size());
-				if (s_mid == world.rank() || o_mid == world.rank()) {
+				int s_mid = mymath::hash_mod(s, global_num_servers);
+				int o_mid = mymath::hash_mod(o, global_num_servers);
+				if (s_mid == sid || o_mid == sid) {
 					*(local_buffer + (*local_buffer) * 3 + 1) = s;
 					*(local_buffer + (*local_buffer) * 3 + 2) = p;
 					*(local_buffer + (*local_buffer) * 3 + 3) = o;
@@ -224,7 +225,7 @@ class distributed_graph {
 	void load_and_sync_data(vector<string> &file_vec) {
 #ifdef HAS_RDMA
 		load_data(file_vec);
-		int num_recv_block = world.size();
+		int num_recv_block = global_num_servers;
 #else
 		load_data_from_allfiles(file_vec);
 		int num_recv_block = global_num_servers;
@@ -262,14 +263,14 @@ class distributed_graph {
 					uint64_t s = recv_buffer[1 + i * 3];
 					uint64_t p = recv_buffer[1 + i * 3 + 1];
 					uint64_t o = recv_buffer[1 + i * 3 + 2];
-					if (mymath::hash_mod(s, world.size()) == world.rank()) {
-						int s_tableid = (s / world.size()) % nthread_parallel_load;
+					if (mymath::hash_mod(s, global_num_servers) == sid) {
+						int s_tableid = (s / global_num_servers) % nthread_parallel_load;
 						if ( s_tableid == t)
 							triple_spo[t].push_back(edge_triple(s, p, o));
 					}
 
-					if (mymath::hash_mod(o, world.size()) == world.rank()) {
-						int o_tableid = (o / world.size()) % nthread_parallel_load;
+					if (mymath::hash_mod(o, global_num_servers) == sid) {
+						int o_tableid = (o / global_num_servers) % nthread_parallel_load;
 						if ( o_tableid == t)
 							triple_ops[t].push_back(edge_triple(s, p, o));
 					}
@@ -295,13 +296,13 @@ class distributed_graph {
 public:
 	graph_storage local_storage;
 
-	distributed_graph(boost::mpi::communicator &_world,
-	                  RdmaResource *_rdma, string dname): world(_world), rdma(_rdma) {
-		vector<string> files;
+	DGraph(int sid, RdmaResource *rdma, string dname)
+		: sid(sid), rdma(rdma), nedges(global_num_servers) {
+		vector<string> files; // ID-format data files
 
 		if (boost::starts_with(dname, "hdfs:")) {
 			if (!wukong::hdfs::has_hadoop()) {
-				cout << "ERORR: attempting to load RDF data files from HDFS "
+				cout << "ERORR: attempting to load data files from HDFS "
 				     << "but Wukong was built without HDFS."
 				     << endl;
 				exit(-1);
@@ -314,7 +315,7 @@ public:
 			DIR *dir = opendir(dname.c_str());
 			if (dir == NULL) {
 				cout << "ERORR: failed to open directory (" << dname
-				     << ") at server " << world.rank() << endl;
+				     << ") at server " << sid << endl;
 				exit(-1);
 			}
 
@@ -326,20 +327,18 @@ public:
 				string fname(dname + ent->d_name);
 				// Assume the filenames of RDF data files (ID-format) start with 'id_'.
 				/// TODO: move RDF data files and mapping files to different directory
-				if (boost::starts_with(fname, dname + "id_")) {
+				if (boost::starts_with(fname, dname + "id_"))
 					files.push_back(fname);
-				}
 			}
 		}
 
-		if (files.size() == 0) {
+		if (files.size() == 0)
 			cout << "ERORR: no files found in directory (" << dname
-			     << ") at server " << world.rank() << endl;
-		}
+			     << ") at server " << sid << endl;
 
-		edge_num_per_machine.resize(world.size());
 		load_and_sync_data(files);
-		local_storage.init(rdma, world.size(), world.rank());
+
+		local_storage.init(rdma, global_num_servers, sid);
 
 		#pragma omp parallel for num_threads(nthread_parallel_load)
 		for (int t = 0; t < nthread_parallel_load; t++) {
@@ -347,8 +346,10 @@ public:
 			vector<edge_triple>().swap(triple_spo[t]);
 			vector<edge_triple>().swap(triple_ops[t]);
 		}
+
 		local_storage.init_index_table();
-		cout << world.rank() << " finished " << endl;
+
+		cout << "Server#" << sid << ": loading DGraph is finished." << endl;
 		//local_storage.print_memory_usage();
 	}
 

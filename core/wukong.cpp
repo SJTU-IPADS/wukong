@@ -26,7 +26,7 @@
 
 #include "config.hpp"
 #include "string_server.hpp"
-#include "distributed_graph.hpp"
+#include "dgraph.hpp"
 #include "engine.hpp"
 #include "proxy.hpp"
 #include "console.hpp"
@@ -107,6 +107,7 @@ main(int argc, char *argv[])
 {
 	boost::mpi::environment env(argc, argv);
 	boost::mpi::communicator world;
+	int sid = world.rank(); // server ID
 
 	if (argc < 3) {
 		usage(argv[0]);
@@ -147,11 +148,11 @@ main(int argc, char *argv[])
 	// create an RDMA instance
 	char *buffer = (char*) malloc(mem_size);
 	memset(buffer, 0, mem_size);
-	RdmaResource *rdma = new RdmaResource(world.size(), global_num_threads,
-	                                      world.rank(), buffer, mem_size,
+	RdmaResource *rdma = new RdmaResource(global_num_servers, global_num_threads,
+	                                      sid, buffer, mem_size,
 	                                      rdma_slot_per_thread, msg_slot_per_thread, rdma_size);
 	// a special TCP connection used by RDMA (tid == global_num_threads)
-	rdma->tcp = new TCP_Adaptor(world.rank(), global_num_threads, host_fname);
+	rdma->tcp = new TCP_Adaptor(sid, global_num_threads, host_fname);
 #ifdef HAS_RDMA
 	rdma->Servicing();
 	rdma->Connect();
@@ -161,22 +162,22 @@ main(int argc, char *argv[])
 	String_Server str_server(global_input_folder);
 
 	// load RDF graph (shared by all engines)
-	distributed_graph graph(world, rdma, global_input_folder);
+	DGraph dgraph(sid, rdma, global_input_folder);
 
 	// initiate proxy and engine threads
 	assert(global_num_threads == global_num_proxies + global_num_engines);
 	pthread_t *threads  = new pthread_t[global_num_threads];
-	for (int i = 0; i < global_num_threads; i++) {
+	for (int tid = 0; tid < global_num_threads; tid++) {
 		/// TODO: currently, rdma is shared by all threads,
 		/// therefore, we create tcp in here not within adaptor
-		TCP_Adaptor *tcp = new TCP_Adaptor(world.rank(), i, host_fname);
-		if (i < global_num_proxies) {
-			Proxy *proxy = new Proxy(world.rank(), i, &str_server, tcp, rdma);
-			pthread_create(&(threads[i]), NULL, proxy_thread, (void *)proxy);
+		TCP_Adaptor *tcp = new TCP_Adaptor(sid, tid, host_fname);
+		if (tid < global_num_proxies) {
+			Proxy *proxy = new Proxy(sid, tid, &str_server, tcp, rdma);
+			pthread_create(&(threads[tid]), NULL, proxy_thread, (void *)proxy);
 			proxies.push_back(proxy);
 		} else {
-			Engine *engine = new Engine(world.rank(), i, &graph, tcp, rdma);
-			pthread_create(&(threads[i]), NULL, engine_thread, (void *)engine);
+			Engine *engine = new Engine(sid, tid, &dgraph, tcp, rdma);
+			pthread_create(&(threads[tid]), NULL, engine_thread, (void *)engine);
 			engines.push_back(engine);
 		}
 	}

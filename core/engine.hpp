@@ -29,7 +29,7 @@
 #include "config.hpp"
 #include "coder.hpp"
 #include "adaptor.hpp"
-#include "distributed_graph.hpp"
+#include "dgraph.hpp"
 #include "query_basic_types.hpp"
 #include "reply_map.hpp"
 
@@ -53,7 +53,7 @@ std::vector<Engine *> engines;
 class Engine {
     const static uint64_t TIMEOUT_THRESHOLD = 10000; // 10 msec
 
-    distributed_graph *graph;
+    DGraph *graph;
 
     uint64_t last_time; // busy or not (work-oblige)
 
@@ -580,7 +580,7 @@ public:
     Coder coder;
     Adaptor adaptor;
 
-    Engine(int sid, int tid, distributed_graph *graph,
+    Engine(int sid, int tid, DGraph *graph,
            TCP_Adaptor *tcp, RdmaResource *rdma)
         : sid(sid), tid(tid), coder(sid, tid), graph(graph),
           adaptor(tid, tcp, rdma), last_time(0) {
