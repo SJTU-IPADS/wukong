@@ -71,17 +71,19 @@ class GStore {
                 return ;
             }
             int idx = v.key.hash() % num_cache;
-            pthread_spin_lock(&(array[idx].lock));
+            pthread_spin_lock(&array[idx].lock);
             array[idx].v = v;
-            pthread_spin_unlock(&(array[idx].lock));
+            pthread_spin_unlock(&array[idx].lock);
         }
     };
 
-    static const int num_locks = 1024;
-    static const int indirect_ratio = 7;  // 1/indirect_ratio of buckets are used as indirect buckets
-    static const int cluster_size = 8;    // each bucket has cluster_size slots
+    static const int NUM_LOCKS = 1024;
+
+    static const int KEY_RATIO = 6;  // key_ratio : 1 = direct : indirect in (key) header
+    static const int ASSOCIATIVITY = 8;    // the associativity of slots in each bucket
+
     pthread_spinlock_t allocation_lock;
-    pthread_spinlock_t fine_grain_locks[num_locks];
+    pthread_spinlock_t fine_grain_locks[NUM_LOCKS];
 
     rdma_cache rdmacache;
 
@@ -98,22 +100,23 @@ class GStore {
     uint64_t max_edge_ptr;
     uint64_t new_edge_ptr;
 
-    uint64_t used_indirect_num; // used to print memory usage
-    uint64_t type_index_edge_num; // used to print memory usage
-    uint64_t predicate_index_edge_num; // used to print memory usage
+    // used by print_memory_usage
+    uint64_t used_indirect_num;
+    uint64_t type_index_edge_num;
+    uint64_t predicate_index_edge_num;
 
     uint64_t insertKey(local_key key) {
         uint64_t vertex_ptr;
         uint64_t bucket_id = key.hash() % header_num;
-        uint64_t lock_id = bucket_id % num_locks;
+        uint64_t lock_id = bucket_id % NUM_LOCKS;
         uint64_t slot_id = 0;
         bool found = false;
 
         pthread_spin_lock(&fine_grain_locks[lock_id]);
         //last slot is used as next pointer
         while (!found) {
-            for (uint64_t i = 0; i < cluster_size - 1; i++) {
-                slot_id = bucket_id * cluster_size + i;
+            for (uint64_t i = 0; i < ASSOCIATIVITY - 1; i++) {
+                slot_id = bucket_id * ASSOCIATIVITY + i;
                 if (vertex_addr[slot_id].key == key) {
                     cout << "inserting duplicate key" << endl;
                     key.print();
@@ -128,7 +131,7 @@ class GStore {
             if (found) {
                 break;
             } else {
-                slot_id = bucket_id * cluster_size + cluster_size - 1;
+                slot_id = bucket_id * ASSOCIATIVITY + ASSOCIATIVITY - 1;
                 if (vertex_addr[slot_id].key != local_key()) {
                     bucket_id = vertex_addr[slot_id].key.vid;
                     //continue and jump to next bucket
@@ -142,7 +145,7 @@ class GStore {
                     used_indirect_num++;
                     pthread_spin_unlock(&allocation_lock);
                     bucket_id = vertex_addr[slot_id].key.vid;
-                    slot_id = bucket_id * cluster_size + 0;
+                    slot_id = bucket_id * ASSOCIATIVITY + 0;
                     vertex_addr[slot_id].key = key;
                     //break the while loop since we successfully insert
                     break;
@@ -161,7 +164,7 @@ class GStore {
         new_edge_ptr += num_edge;
         pthread_spin_unlock(&allocation_lock);
         if (new_edge_ptr >= max_edge_ptr) {
-            cout << "atomic_alloc_edges out of memory !!!! " << endl;
+            cout << "Error: Out of memory! @atomic_alloc_edges" << endl;
             exit(-1);
         }
         return curr_edge_ptr;
@@ -170,9 +173,9 @@ class GStore {
     vertex get_vertex_local(local_key key) {
         uint64_t bucket_id = key.hash() % header_num;
         while (true) {
-            for (uint64_t i = 0; i < cluster_size; i++) {
-                uint64_t slot_id = bucket_id * cluster_size + i;
-                if (i < cluster_size - 1) {
+            for (uint64_t i = 0; i < ASSOCIATIVITY; i++) {
+                uint64_t slot_id = bucket_id * ASSOCIATIVITY + i;
+                if (i < ASSOCIATIVITY - 1) {
                     //data part
                     if (vertex_addr[slot_id].key == key) {
                         //we found it
@@ -201,13 +204,13 @@ class GStore {
             return ret;
 
         while (true) {
-            uint64_t start_addr = sizeof(vertex) * bucket_id * cluster_size;
-            uint64_t read_length = sizeof(vertex) * cluster_size;
+            uint64_t start_addr = sizeof(vertex) * bucket_id * ASSOCIATIVITY;
+            uint64_t read_length = sizeof(vertex) * ASSOCIATIVITY;
             rdma->RdmaRead(tid, mymath::hash_mod(key.vid, m_num),
                            (char *)local_buffer, read_length, start_addr);
             vertex* ptr = (vertex*)local_buffer;
-            for (uint64_t i = 0; i < cluster_size; i++) {
-                if (i < cluster_size - 1) {
+            for (uint64_t i = 0; i < ASSOCIATIVITY; i++) {
+                if (i < ASSOCIATIVITY - 1) {
                     if (ptr[i].key == key) {
                         //we found it
                         rdmacache.insert(ptr[i]);
@@ -227,10 +230,23 @@ class GStore {
         }
     }
 
+    // TODO: define as public, should be refined
+    typedef tbb::concurrent_hash_map<uint64_t, vector< uint64_t>> tbb_vector_table;
+
+    tbb_vector_table src_predicate_table;
+    tbb_vector_table dst_predicate_table;
+    tbb_vector_table type_table;
+
+    void insert_vector(tbb_vector_table &table, uint64_t index_id, uint64_t value_id) {
+        tbb_vector_table::accessor a;
+        table.insert(a, index_id);
+        a->second.push_back(value_id);
+    }
+
 public:
     GStore() {
         pthread_spin_init(&allocation_lock, 0);
-        for (int i = 0; i < num_locks; i++)
+        for (int i = 0; i < NUM_LOCKS; i++)
             pthread_spin_init(&fine_grain_locks[i], 0);
     }
 
@@ -239,10 +255,8 @@ public:
         m_num = machine_num;
         m_id = machine_id;
         slot_num = 1000000 * global_hash_header_million;
-        header_num = (slot_num / cluster_size)
-                     / indirect_ratio
-                     * (indirect_ratio - 1);
-        indirect_num = (slot_num / cluster_size) / indirect_ratio;
+        header_num = (slot_num / ASSOCIATIVITY) / (KEY_RATIO + 1) * KEY_RATIO;
+        indirect_num = (slot_num / ASSOCIATIVITY) / (KEY_RATIO + 1);
 
         vertex_addr = (vertex*)(rdma->get_buffer());
         edge_addr   = (edge*)(rdma->get_buffer() + slot_num * sizeof(vertex));
@@ -402,25 +416,13 @@ public:
         return get_edges_local(tid, index_id, d, 0, size);
     }
 
-    // TODO: define as public, should be refined
-    typedef tbb::concurrent_hash_map<uint64_t, vector< uint64_t>> tbb_vector_table;
-    tbb_vector_table src_predicate_table;
-    tbb_vector_table dst_predicate_table;
-    tbb_vector_table type_table;
-
-    void insert_vector(tbb_vector_table &table, uint64_t index_id, uint64_t value_id) {
-        tbb_vector_table::accessor a;
-        table.insert(a, index_id);
-        a->second.push_back(value_id);
-    }
-
     void init_index_table(void) {
         uint64_t t1 = timer::get_usec();
 
         #pragma omp parallel for num_threads(8)
         for (int x = 0; x < header_num + indirect_num; x++) {
-            for (int y = 0; y < cluster_size - 1; y++) {
-                uint64_t i = x * cluster_size + y;
+            for (int y = 0; y < ASSOCIATIVITY - 1; y++) {
+                uint64_t i = x * ASSOCIATIVITY + y;
                 if (vertex_addr[i].key == local_key()) {
                     //empty slot, skip it
                     continue;
@@ -510,8 +512,8 @@ public:
     void print_memory_usage() {
         uint64_t used_header_slot = 0;
         for (int x = 0; x < header_num + indirect_num; x++) {
-            for (int y = 0; y < cluster_size - 1; y++) {
-                uint64_t i = x * cluster_size + y;
+            for (int y = 0; y < ASSOCIATIVITY - 1; y++) {
+                uint64_t i = x * ASSOCIATIVITY + y;
                 if (vertex_addr[i].key == local_key())
                     continue; // skip the empty slot
                 used_header_slot++;
@@ -519,7 +521,7 @@ public:
         }
 
         cout << "gstore direct_header = "
-             << B2MiB(header_num * cluster_size * sizeof(vertex))
+             << B2MiB(header_num * ASSOCIATIVITY * sizeof(vertex))
              << " MB "
              << endl;
         cout << "\t\treal_data = "
@@ -529,15 +531,15 @@ public:
              << B2MiB(header_num * sizeof(vertex))
              << " MB " << endl;
         cout << "\t\tempty_slot = "
-             << B2MiB((header_num * cluster_size - header_num - used_header_slot) * sizeof(vertex))
+             << B2MiB((header_num * ASSOCIATIVITY - header_num - used_header_slot) * sizeof(vertex))
              << " MB " << endl;
 
         uint64_t used_indirect_slot = 0;
         uint64_t used_indirect_bucket = 0;
         for (int x = header_num; x < header_num + indirect_num; x++) {
             bool all_empty = true;
-            for (int y = 0; y < cluster_size - 1; y++) {
-                uint64_t i = x * cluster_size + y;
+            for (int y = 0; y < ASSOCIATIVITY - 1; y++) {
+                uint64_t i = x * ASSOCIATIVITY + y;
                 if (vertex_addr[i].key == local_key())
                     continue; // skip the empty slot
                 all_empty = false;
@@ -549,11 +551,11 @@ public:
         }
 
         cout << "gstore indirect_header= "
-             << B2MiB(indirect_num * cluster_size * sizeof(vertex))
+             << B2MiB(indirect_num * ASSOCIATIVITY * sizeof(vertex))
              << " MB "
              << endl;
         cout << "\t\tnot_empty_data= "
-             << B2MiB(used_indirect_bucket * cluster_size * sizeof(vertex))
+             << B2MiB(used_indirect_bucket * ASSOCIATIVITY * sizeof(vertex))
              << " MB "
              << endl;
         cout << "\t\treal_data= "
