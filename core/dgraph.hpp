@@ -196,8 +196,8 @@ class DGraph {
 		cout << (t2 - t1) / 1000 << " ms for loading RFD data files" << endl;
 	}
 
-
-	void load_data_from_allfiles(vector<string>& file_vec) {
+	// selectively load own partitioned data from allfiles
+	void load_data_from_allfiles(vector<string> &file_vec) {
 		sort(file_vec.begin(), file_vec.end());
 		int nfile = file_vec.size();
 
@@ -232,11 +232,25 @@ class DGraph {
 	void load_and_sync_data(vector<string> &file_vec) {
 		uint64_t t1 = timer::get_usec();
 
-#ifdef HAS_RDMA
-		load_data(file_vec);
-#else
-		load_data_from_allfiles(file_vec);
-#endif
+		/**
+		 * load_data: load partial input files by each server and exchanges triples
+		 *            according to graph partitioning
+		 * load_data_from_allfiles: load all files by each server and select triples
+		 *                          according to graph partitioning
+		 *
+		 * Trade-off: load_data_from_allfiles avoids network traffic and memory,
+		 *            but it requires more I/O from distributed FS.
+		 *
+		 * Wukong adopts load_data_from_allfiles for slow network (w/o RDMA) and
+		 *        adopts load_data for fast network (w/ RDMA).
+		 *
+		 * Tips: the buffer (registered memory) can be reused for further primitives for RDMA
+		 *
+		 */
+		if (global_use_rdma)
+			load_data(file_vec);
+		else
+			load_data_from_allfiles(file_vec);
 
 		int num_recv_block = global_num_servers;
 		volatile int finished_count = 0;
