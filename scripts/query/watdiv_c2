@@ -1,5 +1,5 @@
 SELECT ?v0 ?v3 ?v4 ?v8 WHERE {
-    ?v4 __PREDICT__ <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase> <-
+    ?v4 __PREDICATE__ <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase> <-
     ?v4 <http://schema.org/jobTitle> ?v5 .
 	?v4 <http://xmlns.com/foaf/homepage> ?v6 .
     ?v4 <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase> ?v7 .

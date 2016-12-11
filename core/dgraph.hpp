@@ -362,15 +362,15 @@ public:
 		//gstore.print_memory_usage();
 	}
 
-	edge *get_edges_global(int tid, uint64_t id, int direction, int predict, int* size) {
-		return gstore.get_edges_global(tid, id, direction, predict, size);
+	edge *get_edges_global(int tid, uint64_t vid, int direction, int predicate, int* size) {
+		return gstore.get_edges_global(tid, vid, direction, predicate, size);
 	}
 
-	edge *get_edges_local(int tid, uint64_t id, int direction, int predict, int* size) {
-		return gstore.get_edges_local(tid, id, direction, predict, size);
+	edge *get_edges_local(int tid, uint64_t vid, int direction, int predicate, int* size) {
+		return gstore.get_edges_local(tid, vid, direction, predicate, size);
 	}
 
-	edge *get_index_edges_local(int tid, uint64_t id, int direction, int* size) {
-		return gstore.get_index_edges_local(tid, id, direction, size);
+	edge *get_index_edges_local(int tid, uint64_t vid, int direction, int* size) {
+		return gstore.get_index_edges_local(tid, vid, direction, size);
 	}
 };

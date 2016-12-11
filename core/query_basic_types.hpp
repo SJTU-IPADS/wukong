@@ -90,7 +90,7 @@ public:
         /*
          * Wukong assumes that its planner will generate a dummy pattern to hint
          * the query should start from a certain index (i.e., predicate or type).
-         * For example: ?X __PREDICT__  ub:undergraduateDegreeFrom
+         * For example: ?X __PREDICATE__  ub:undergraduateDegreeFrom
          *
          * NOTE: the graph exploration does not must start from this index,
          * on the contrary, starts from another index would prune bindings MORE efficiently

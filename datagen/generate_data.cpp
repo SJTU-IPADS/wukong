@@ -89,8 +89,8 @@ main(int argc, char** argv)
     }
 
     // reserve t/pid[0] to predicate-index
-    str_to_id["__PREDICT__"] = 0;
-    index_str.push_back("__PREDICT__");
+    str_to_id["__PREDICATE__"] = 0;
+    index_str.push_back("__PREDICATE__");
 
     // reserve t/pid[1] to type-index
     str_to_id["<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"] = 1;
@@ -111,9 +111,9 @@ main(int argc, char** argv)
         cout << "Process No." << ++count << " input file: " << dent->d_name << "." << endl;
 
         // str-format: subject predicate object .
-        string subject, predict, object, dot;
+        string subject, predicate, object, dot;
         // read (str-format) input file
-        while (ifile >> subject >> predict >> object >> dot) {
+        while (ifile >> subject >> predicate >> object >> dot) {
             // add a new normal vertex (i.e., vid)
             if (str_to_id.find(subject) == str_to_id.end()) {
                 str_to_id[subject] = next_normal_id;
@@ -122,14 +122,14 @@ main(int argc, char** argv)
             }
 
             // add a new (predicate) index vertex (i.e., pid)
-            if (str_to_id.find(predict) == str_to_id.end()) {
-                str_to_id[predict] = next_index_id;
+            if (str_to_id.find(predicate) == str_to_id.end()) {
+                str_to_id[predicate] = next_index_id;
                 next_index_id ++;
-                index_str.push_back(predict);
+                index_str.push_back(predicate);
             }
 
             // treat different types as individual indexes
-            if (predict == "<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>") {
+            if (predicate == "<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>") {
                 // add a new (type) index vertex (i.e., tidx)
                 if (str_to_id.find(object) == str_to_id.end()) {
                     str_to_id[object] = next_index_id;
@@ -148,7 +148,7 @@ main(int argc, char** argv)
             // write (id-format) output file
             int64_t triple[3];
             triple[0] = str_to_id[subject];
-            triple[1] = str_to_id[predict];
+            triple[1] = str_to_id[predicate];
             triple[2] = str_to_id[object];
             ofile << triple[0] << "\t" << triple[1] << "\t" << triple[2] << endl;
         }

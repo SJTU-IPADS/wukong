@@ -1,5 +1,5 @@
 SELECT * WHERE {
-	y:hasInternalWikipediaLinkTo __PREDICT__ ?p3 .
+	y:hasInternalWikipediaLinkTo __PREDICATE__ ?p3 .
 	?p2 y:hasInternalWikipediaLinkTo ?p3 <-
 	?p1 y:hasInternalWikipediaLinkTo ?p2 <-
 	?p y:hasInternalWikipediaLinkTo ?p1 <-

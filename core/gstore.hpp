@@ -35,6 +35,7 @@
 
 #include "mymath.hpp"
 #include "timer.hpp"
+#include "unit.hpp"
 
 class GStore {
     class rdma_cache {
@@ -99,7 +100,7 @@ class GStore {
 
     uint64_t used_indirect_num; // used to print memory usage
     uint64_t type_index_edge_num; // used to print memory usage
-    uint64_t predict_index_edge_num; // used to print memory usage
+    uint64_t predicate_index_edge_num; // used to print memory usage
 
     uint64_t insertKey(local_key key) {
         uint64_t vertex_ptr;
@@ -264,200 +265,102 @@ public:
         // }
     }
 
-    void atomic_batch_insert(vector<edge_triple> &vec_spo,
-                             vector<edge_triple> &vec_ops) {
-        uint64_t accum_predict = 0;
+    void atomic_batch_insert(vector<edge_triple> &spo, vector<edge_triple> &ops) {
+        uint64_t accum_predicate = 0;
         uint64_t nedges_to_skip = 0;
-        while (nedges_to_skip < vec_ops.size()) {
-            if (is_idx(vec_ops[nedges_to_skip].o)) {
+        while (nedges_to_skip < ops.size()) {
+            if (is_idx(ops[nedges_to_skip].o))
                 nedges_to_skip++;
-            } else {
+            else
                 break;
-            }
-        }
-        uint64_t curr_edge_ptr = atomic_alloc_edges(vec_spo.size()
-                                 + vec_ops.size() - nedges_to_skip);
-        uint64_t start;
-        start = 0;
-        while (start < vec_spo.size()) {
-            uint64_t end = start + 1;
-            while (end < vec_spo.size()
-                    && vec_spo[start].s == vec_spo[end].s
-                    && vec_spo[start].p == vec_spo[end].p) {
-                end++;
-            }
-            accum_predict++;
-            local_key key = local_key(vec_spo[start].s,
-                                      OUT, vec_spo[start].p);
-            uint64_t vertex_ptr = insertKey(key);
-            local_val val = local_val(end - start, curr_edge_ptr);
-            vertex_addr[vertex_ptr].val = val;
-            for (uint64_t i = start; i < end; i++) {
-                edge_addr[curr_edge_ptr].val = vec_spo[i].o;
-                curr_edge_ptr++;
-            }
-            start = end;
         }
 
-        start = nedges_to_skip;
-        while (start < vec_ops.size()) {
-            uint64_t end = start + 1;
-            while (end < vec_ops.size()
-                    && vec_ops[start].o == vec_ops[end].o
-                    && vec_ops[start].p == vec_ops[end].p) {
-                end++;
-            }
-            accum_predict++;
-            local_key key = local_key(vec_ops[start].o,
-                                      IN, vec_ops[start].p);
+        uint64_t curr_edge_ptr = atomic_alloc_edges(spo.size()
+                                 + ops.size() - nedges_to_skip);
+        uint64_t s = 0;
+        while (s < spo.size()) {
+            uint64_t e = s + 1;
+            while ((e < spo.size())
+                    && (spo[s].s == spo[e].s)
+                    && (spo[s].p == spo[e].p))  { e++; }
+
+            accum_predicate++;
+            local_key key = local_key(spo[s].s, OUT, spo[s].p);
             uint64_t vertex_ptr = insertKey(key);
-            local_val val = local_val(end - start, curr_edge_ptr);
+            local_val val = local_val(e - s, curr_edge_ptr);
             vertex_addr[vertex_ptr].val = val;
-            for (uint64_t i = start; i < end; i++) {
-                edge_addr[curr_edge_ptr].val = vec_ops[i].s;
+            for (uint64_t i = s; i < e; i++) {
+                edge_addr[curr_edge_ptr].val = spo[i].o;
                 curr_edge_ptr++;
             }
-            start = end;
+            s = e;
+        }
+
+        s = nedges_to_skip;
+        while (s < ops.size()) {
+            uint64_t e = s + 1;
+            while ((e < ops.size())
+                    && (ops[s].o == ops[e].o)
+                    && (ops[s].p == ops[e].p)) { e++; }
+
+            accum_predicate++;
+            local_key key = local_key(ops[s].o, IN, ops[s].p);
+            uint64_t vertex_ptr = insertKey(key);
+            local_val val = local_val(e - s, curr_edge_ptr);
+            vertex_addr[vertex_ptr].val = val;
+            for (uint64_t i = s; i < e; i++) {
+                edge_addr[curr_edge_ptr].val = ops[i].s;
+                curr_edge_ptr++;
+            }
+            s = e;
         }
 
 // The following code is used to support a rare case where the predicate is unknown.
 // We disable it to save memory by default.
-// Each normal vertex should add a key/value pair with a reserved ID (i.e., __PREDICT__)
+// Each normal vertex should add a key/value pair with a reserved ID (i.e., __PREDICATE__)
 // to store the list of predicates
 #if 0
-        curr_edge_ptr = atomic_alloc_edges(accum_predict);
-        start = 0;
-        while (start < vec_spo.size()) {
-            // __PREDICT__
-            local_key key = local_key(vec_spo[start].s, OUT, 0);
+        curr_edge_ptr = atomic_alloc_edges(accum_predicate);
+        s = 0;
+        while (s < spo.size()) {
+            // __PREDICATE__
+            local_key key = local_key(spo[s].s, OUT, 0);
             local_val val = local_val(0, curr_edge_ptr);
             uint64_t vertex_ptr = insertKey(key);
-            uint64_t end = start;
-            while (end < vec_spo.size() && vec_spo[start].s == vec_spo[end].s) {
-                if (end == start || vec_spo[end].p != vec_spo[end - 1].p) {
-                    edge_addr[curr_edge_ptr].val = vec_spo[end].p;
+            uint64_t e = s;
+            while (e < spo.size() && vec_spo[s].s == spo[e].s) {
+                if (e == s || spo[e].p != spo[e - 1].p) {
+                    edge_addr[curr_edge_ptr].val = spo[e].p;
                     curr_edge_ptr++;
                     val.size = val.size + 1;
                 }
-                end++;
+                e++;
             }
             vertex_addr[vertex_ptr].val = val;
-            start = end;
+            s = e;
         }
 
-        start = nedges_to_skip;
-        while (start < vec_ops.size()) {
-            local_key key = local_key(vec_ops[start].o, IN, 0);
+        s = nedges_to_skip;
+        while (s < ops.size()) {
+            local_key key = local_key(ops[s].o, IN, 0);
             local_val val = local_val(0, curr_edge_ptr);
             uint64_t vertex_ptr = insertKey(key);
-            uint64_t end = start;
-            while (end < vec_ops.size() && vec_ops[start].o == vec_ops[end].o) {
-                if (end == start || vec_ops[end].p != vec_ops[end - 1].p) {
-                    edge_addr[curr_edge_ptr].val = vec_ops[end].p;
+            uint64_t e = s;
+            while (e < ops.size() && ops[s].o == ops[e].o) {
+                if (e == s || ops[e].p != ops[e - 1].p) {
+                    edge_addr[curr_edge_ptr].val = ops[e].p;
                     curr_edge_ptr++;
                     val.size = val.size + 1;
                 }
-                end++;
+                e++;
             }
             vertex_addr[vertex_ptr].val = val;
-            start = end;
+            s = e;
         }
 #endif
     }
 
-    void print_memory_usage(void) {
-        //cout<<"disable print_memory_usage now "<<endl;
-        //return ;
-
-        uint64_t used_header_slot = 0;
-        for (int x = 0; x < header_num + indirect_num; x++) {
-            for (int y = 0; y < cluster_size - 1; y++) {
-                uint64_t i = x * cluster_size + y;
-                if (vertex_addr[i].key == local_key()) {
-                    //empty slot, skip it
-                    continue;
-                }
-                used_header_slot++;
-            }
-        }
-        cout << "gstore direct_header= "
-             << header_num*cluster_size*sizeof(vertex) / 1048576 << " MB " << endl;
-        cout << "                  real_data= "
-             << used_header_slot*sizeof(vertex) / 1048576 << " MB " << endl;
-        cout << "                   next_ptr= "
-             << header_num*sizeof(vertex) / 1048576 << " MB " << endl;
-        cout << "                 empty_slot= "
-             << (header_num * cluster_size - header_num - used_header_slot)
-             *sizeof(vertex) / 1048576 << " MB " << endl;
-
-        uint64_t used_indirect_slot = 0;
-        uint64_t used_indirect_bucket = 0;
-        for (int x = header_num; x < header_num + indirect_num; x++) {
-            bool all_empty = true;
-            for (int y = 0; y < cluster_size - 1; y++) {
-                uint64_t i = x * cluster_size + y;
-                if (vertex_addr[i].key == local_key()) {
-                    //empty slot, skip it
-                    continue;
-                }
-                all_empty = false;
-                used_indirect_slot++;
-            }
-            if (!all_empty) {
-                used_indirect_bucket++;
-            }
-        }
-        cout << "gstore indirect_header= "
-             << indirect_num*cluster_size*sizeof(vertex) / 1048576
-             << " MB "
-             << endl;
-        cout << "               not_empty_data= "
-             << used_indirect_bucket*cluster_size*sizeof(vertex) / 1048576
-             << " MB "
-             << endl;
-        cout << "                    real_data= "
-             << used_indirect_slot*sizeof(vertex) / 1048576
-             << " MB "
-             << endl;
-
-
-        cout << "gstore use "
-             << used_indirect_num
-             << " / "
-             << indirect_num
-             << " indirect_num"
-             << endl;
-        cout << "gstore use "
-             << slot_num*sizeof(vertex) / 1048576
-             << " MB for vertex data"
-             << endl;
-
-        cout << "gstore edge_data= "
-             << new_edge_ptr*sizeof(edge) / 1048576
-             << "/"
-             << max_edge_ptr*sizeof(edge) / 1048576
-             << " MB "
-             << endl;
-        cout << "         for type_index= "
-             << type_index_edge_num*sizeof(edge) / 1048576
-             << "/"
-             << max_edge_ptr*sizeof(edge) / 1048576
-             << " MB "
-             << endl;
-        cout << "      for predict_index= "
-             << predict_index_edge_num*sizeof(edge) / 1048576
-             << "/"
-             << max_edge_ptr*sizeof(edge) / 1048576
-             << " MB "
-             << endl;
-        cout << "      for normal_vertex= "
-             << (new_edge_ptr - predict_index_edge_num - type_index_edge_num) * sizeof(edge) / 1048576
-             << "/"
-             << max_edge_ptr*sizeof(edge) / 1048576
-             << " MB " << endl;
-    }
-
-    edge *get_edges_global(int tid, uint64_t id, int direction, int predicate, int* size) {
+    edge *get_edges_global(int tid, uint64_t id, int direction, int predicate, int *size) {
         if ( mymath::hash_mod(id, m_num) == m_id)
             return get_edges_local(tid, id, direction, predicate, size);
 
@@ -479,7 +382,7 @@ public:
         return result_ptr;
     }
 
-    edge *get_edges_local(int tid, uint64_t id, int direction, int predicate, int* size) {
+    edge *get_edges_local(int tid, uint64_t id, int direction, int predicate, int *size) {
         assert(mymath::hash_mod(id, m_num) == m_id || is_idx(id));
 
         local_key key = local_key(id, direction, predicate);
@@ -494,16 +397,18 @@ public:
         return &(edge_addr[ptr]);
     }
 
-//define as public
-//should be refined
-    typedef tbb::concurrent_hash_map<uint64_t, vector<uint64_t> > tbb_vector_table;
+    edge *get_index_edges_local(int tid, uint64_t index_id, int d, int *size) {
+        // predicate is not important, so we set it 0
+        return get_edges_local(tid, index_id, d, 0, size);
+    }
+
+    // TODO: define as public, should be refined
+    typedef tbb::concurrent_hash_map<uint64_t, vector< uint64_t>> tbb_vector_table;
     tbb_vector_table src_predicate_table;
     tbb_vector_table dst_predicate_table;
     tbb_vector_table type_table;
 
-    void insert_vector(tbb_vector_table &table,
-                       uint64_t index_id,
-                       uint64_t value_id) {
+    void insert_vector(tbb_vector_table &table, uint64_t index_id, uint64_t value_id) {
         tbb_vector_table::accessor a;
         table.insert(a, index_id);
         a->second.push_back(value_id);
@@ -530,7 +435,7 @@ public:
                         assert(false);
                         continue;
                     } else {
-                        //this edge is in-direction, so vid is the dst of predict
+                        //this edge is in-direction, so vid is the dst of predicate
                         insert_vector(dst_predicate_table, p, vid);
                     }
                 } else {
@@ -573,7 +478,7 @@ public:
             for (uint64_t k = 0; k < i->second.size(); k++) {
                 edge_addr[curr_edge_ptr].val = i->second[k];
                 curr_edge_ptr++;
-                predict_index_edge_num++;
+                predicate_index_edge_num++;
             }
         }
 
@@ -587,7 +492,7 @@ public:
             for (uint64_t k = 0; k < i->second.size(); k++) {
                 edge_addr[curr_edge_ptr].val = i->second[k];
                 curr_edge_ptr++;
-                predict_index_edge_num++;
+                predicate_index_edge_num++;
             }
         }
 
@@ -602,12 +507,93 @@ public:
              << endl;
     }
 
-    edge *get_index_edges_local(int tid,
-                                uint64_t index_id,
-                                int direction,
-                                int* size) {
-        //predicate is not important , so we set it 0
-        return get_edges_local(tid, index_id, direction, 0, size);
-    }
+    void print_memory_usage() {
+        uint64_t used_header_slot = 0;
+        for (int x = 0; x < header_num + indirect_num; x++) {
+            for (int y = 0; y < cluster_size - 1; y++) {
+                uint64_t i = x * cluster_size + y;
+                if (vertex_addr[i].key == local_key())
+                    continue; // skip the empty slot
+                used_header_slot++;
+            }
+        }
 
+        cout << "gstore direct_header = "
+             << B2MiB(header_num * cluster_size * sizeof(vertex))
+             << " MB "
+             << endl;
+        cout << "\t\treal_data = "
+             << B2MiB(used_header_slot * sizeof(vertex))
+             << " MB " << endl;
+        cout << "\t\tnext_ptr = "
+             << B2MiB(header_num * sizeof(vertex))
+             << " MB " << endl;
+        cout << "\t\tempty_slot = "
+             << B2MiB((header_num * cluster_size - header_num - used_header_slot) * sizeof(vertex))
+             << " MB " << endl;
+
+        uint64_t used_indirect_slot = 0;
+        uint64_t used_indirect_bucket = 0;
+        for (int x = header_num; x < header_num + indirect_num; x++) {
+            bool all_empty = true;
+            for (int y = 0; y < cluster_size - 1; y++) {
+                uint64_t i = x * cluster_size + y;
+                if (vertex_addr[i].key == local_key())
+                    continue; // skip the empty slot
+                all_empty = false;
+                used_indirect_slot++;
+            }
+
+            if (!all_empty)
+                used_indirect_bucket++;
+        }
+
+        cout << "gstore indirect_header= "
+             << B2MiB(indirect_num * cluster_size * sizeof(vertex))
+             << " MB "
+             << endl;
+        cout << "\t\tnot_empty_data= "
+             << B2MiB(used_indirect_bucket * cluster_size * sizeof(vertex))
+             << " MB "
+             << endl;
+        cout << "\t\treal_data= "
+             << B2MiB(used_indirect_slot * sizeof(vertex))
+             << " MB "
+             << endl;
+
+        cout << "gstore uses "
+             << used_indirect_num
+             << " / "
+             << indirect_num
+             << " indirect_num"
+             << endl;
+        cout << "gstore uses "
+             << B2MiB(slot_num * sizeof(vertex))
+             << " MB for vertex data"
+             << endl;
+
+        cout << "gstore edge_data= "
+             << B2MiB(new_edge_ptr * sizeof(edge))
+             << "/"
+             << B2MiB(max_edge_ptr * sizeof(edge))
+             << " MB "
+             << endl;
+        cout << "\t\tfor type_index= "
+             << B2MiB(type_index_edge_num * sizeof(edge))
+             << "/"
+             << B2MiB(max_edge_ptr * sizeof(edge))
+             << " MB "
+             << endl;
+        cout << "\t\tfor predicate_index= "
+             << B2MiB(predicate_index_edge_num * sizeof(edge))
+             << "/"
+             << B2MiB(max_edge_ptr * sizeof(edge))
+             << " MB "
+             << endl;
+        cout << "\t\tfor normal_vertex= "
+             << B2MiB((new_edge_ptr - predicate_index_edge_num - type_index_edge_num) * sizeof(edge))
+             << "/"
+             << B2MiB(max_edge_ptr * sizeof(edge))
+             << " MB " << endl;
+    }
 };

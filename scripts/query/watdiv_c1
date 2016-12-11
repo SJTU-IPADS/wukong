@@ -1,5 +1,5 @@
 SELECT ?v0 ?v4 ?v6 ?v7 WHERE {
-	?v0 __PREDICT__ <http://schema.org/caption> <-
+	?v0 __PREDICATE__ <http://schema.org/caption> <-
 	?v0 <http://schema.org/text> ?v2 .
 	?v0 <http://schema.org/contentRating> ?v3 .
 	?v0 <http://schema.org/caption> ?v1 .
