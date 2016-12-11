@@ -183,7 +183,7 @@ class Engine {
 
         int edge_num = 0;
         edge *edge_ptr;
-        edge_ptr = graph->local_storage.get_index_edges_local(tid, index_vertex, direction, &edge_num);
+        edge_ptr = graph->get_index_edges_local(tid, index_vertex, direction, &edge_num);
         int64_t start_id = req.tid;
         for (int k = start_id; k < edge_num; k += global_mt_threshold) {
             updated_result_table.push_back(edge_ptr[k].val);

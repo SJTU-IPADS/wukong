@@ -36,7 +36,7 @@
 #include "mymath.hpp"
 #include "timer.hpp"
 
-class graph_storage {
+class GStore {
     class rdma_cache {
         struct cache_item {
             pthread_spinlock_t lock;
@@ -227,7 +227,7 @@ class graph_storage {
     }
 
 public:
-    graph_storage() {
+    GStore() {
         pthread_spin_init(&allocation_lock, 0);
         for (int i = 0; i < num_locks; i++)
             pthread_spin_init(&fine_grain_locks[i], 0);
@@ -258,6 +258,7 @@ public:
         for (uint64_t i = 0; i < slot_num; i++) {
             vertex_addr[i].key = local_key();
         }
+
         // if(global_use_loc_cache){
         //  assert(false);
         // }
@@ -379,7 +380,7 @@ public:
                 used_header_slot++;
             }
         }
-        cout << "graph_storage direct_header= "
+        cout << "gstore direct_header= "
              << header_num*cluster_size*sizeof(vertex) / 1048576 << " MB " << endl;
         cout << "                  real_data= "
              << used_header_slot*sizeof(vertex) / 1048576 << " MB " << endl;
@@ -406,7 +407,7 @@ public:
                 used_indirect_bucket++;
             }
         }
-        cout << "graph_storage indirect_header= "
+        cout << "gstore indirect_header= "
              << indirect_num*cluster_size*sizeof(vertex) / 1048576
              << " MB "
              << endl;
@@ -420,18 +421,18 @@ public:
              << endl;
 
 
-        cout << "graph_storage use "
+        cout << "gstore use "
              << used_indirect_num
              << " / "
              << indirect_num
              << " indirect_num"
              << endl;
-        cout << "graph_storage use "
+        cout << "gstore use "
              << slot_num*sizeof(vertex) / 1048576
              << " MB for vertex data"
              << endl;
 
-        cout << "graph_storage edge_data= "
+        cout << "gstore edge_data= "
              << new_edge_ptr*sizeof(edge) / 1048576
              << "/"
              << max_edge_ptr*sizeof(edge) / 1048576
@@ -597,7 +598,7 @@ public:
              << " ms for parallel generate tbb_table "
              << endl;
         cout << (t3 - t2) / 1000
-             << " ms for sequence insert tbb_table to graph_storage"
+             << " ms for sequence insert tbb_table to gstore"
              << endl;
     }
 

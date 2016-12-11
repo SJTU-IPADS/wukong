@@ -39,7 +39,7 @@
 #include "config.hpp"
 #include "graph_basic_types.hpp"
 #include "rdma_resource.hpp"
-#include "graph_storage.hpp"
+#include "gstore.hpp"
 #include "timer.hpp"
 
 using namespace std;
@@ -72,30 +72,34 @@ class DGraph {
 		}
 	}
 
-	void inline send_edge(int localtid, int mid, uint64_t s, uint64_t p, uint64_t o) {
+	void inline send_edge(int localtid, int dst_sid, uint64_t s, uint64_t p, uint64_t o) {
+		// The RDMA buffer is shared by all threads to communication to all servers
 		uint64_t subslot_size = mymath::floor(rdma->get_slotsize() / global_num_servers, sizeof(uint64_t));
-		uint64_t *local_buffer = (uint64_t *) (rdma->GetMsgAddr(localtid) + subslot_size * mid );
+		uint64_t *local_buffer = (uint64_t *)(rdma->GetMsgAddr(localtid) + subslot_size * dst_sid);
 
+		// The 1st uint64_t of buffer records the number of triples
 		*(local_buffer + (*local_buffer) * 3 + 1) = s;
 		*(local_buffer + (*local_buffer) * 3 + 2) = p;
 		*(local_buffer + (*local_buffer) * 3 + 3) = o;
 		*local_buffer = *local_buffer + 1;
 
+		// Q: what does means of 10, reserve to what?
 		if (((*local_buffer) * 3 + 10) * sizeof(uint64_t) >= subslot_size) {
 			//full , should be flush!
-			flush_edge(localtid, mid);
+			flush_edge(localtid, dst_sid);
 		}
 	}
 
-	void flush_edge(int localtid, int mid) {
+	void flush_edge(int localtid, int dst_sid) {
 		uint64_t subslot_size = mymath::floor(rdma->get_slotsize() / global_num_servers, sizeof(uint64_t));
-		uint64_t *local_buffer = (uint64_t *) (rdma->GetMsgAddr(localtid) + subslot_size * mid );
+		uint64_t *local_buffer = (uint64_t *) (rdma->GetMsgAddr(localtid) + subslot_size * dst_sid );
 		uint64_t num_edge_to_send = *local_buffer;
+
 		//clear and skip the number infomation
 		*local_buffer = 0;
 		local_buffer += 1;
 		uint64_t max_size = mymath::floor(rdma->get_memorystore_size() / global_num_servers, sizeof(uint64_t));
-		uint64_t old_num = __sync_fetch_and_add( &nedges[mid], num_edge_to_send);
+		uint64_t old_num = __sync_fetch_and_add(&nedges[dst_sid], num_edge_to_send);
 		if ((old_num + num_edge_to_send + 1) * 3 * sizeof(uint64_t) >= max_size) {
 			cout << "old =" << old_num << endl;
 			cout << "num_edge_to_send =" << num_edge_to_send << endl;
@@ -103,12 +107,13 @@ class DGraph {
 			cout << "Don't have enough space to store data" << endl;
 			exit(-1);
 		}
+
 		// we need to flush to the same offset of different machine
-		uint64_t remote_offset =	max_size * sid;
-		remote_offset  +=	(old_num * 3 + 1) * sizeof(uint64_t);
+		uint64_t remote_offset = max_size * sid;
+		remote_offset += (old_num * 3 + 1) * sizeof(uint64_t);
 		uint64_t remote_length = num_edge_to_send * 3 * sizeof(uint64_t);
-		if (mid != sid) {
-			rdma->RdmaWrite(localtid, mid, (char*)local_buffer, remote_length, remote_offset);
+		if (dst_sid != sid) {
+			rdma->RdmaWrite(localtid, dst_sid, (char*)local_buffer, remote_length, remote_offset);
 		} else {
 			memcpy(rdma->get_buffer() + remote_offset, (char*)local_buffer, remote_length);
 		}
@@ -133,13 +138,13 @@ class DGraph {
 				wukong::hdfs::fstream file(hdfs, file_vec[i]);
 				uint64_t s, p, o;
 				while (file >> s >> p >> o) {
-					int s_mid = mymath::hash_mod(s, global_num_servers);
-					int o_mid = mymath::hash_mod(o, global_num_servers);
-					if (s_mid == o_mid) {
-						send_edge(localtid, s_mid, s, p, o);
+					int s_sid = mymath::hash_mod(s, global_num_servers);
+					int o_sid = mymath::hash_mod(o, global_num_servers);
+					if (s_sid == o_sid) {
+						send_edge(localtid, s_sid, s, p, o);
 					} else {
-						send_edge(localtid, s_mid, s, p, o);
-						send_edge(localtid, o_mid, s, p, o);
+						send_edge(localtid, s_sid, s, p, o);
+						send_edge(localtid, o_sid, s, p, o);
 					}
 				}
 			} else {
@@ -147,13 +152,13 @@ class DGraph {
 				ifstream file(file_vec[i].c_str());
 				uint64_t s, p, o;
 				while (file >> s >> p >> o) {
-					int s_mid = mymath::hash_mod(s, global_num_servers);
-					int o_mid = mymath::hash_mod(o, global_num_servers);
-					if (s_mid == o_mid) {
-						send_edge(localtid, s_mid, s, p, o);
+					int s_sid = mymath::hash_mod(s, global_num_servers);
+					int o_sid = mymath::hash_mod(o, global_num_servers);
+					if (s_sid == o_sid) {
+						send_edge(localtid, s_sid, s, p, o);
 					} else {
-						send_edge(localtid, s_mid, s, p, o);
-						send_edge(localtid, o_mid, s, p, o);
+						send_edge(localtid, s_sid, s, p, o);
+						send_edge(localtid, o_sid, s, p, o);
 					}
 				}
 				file.close();
@@ -166,16 +171,18 @@ class DGraph {
 			}
 		}
 
+		// flush rest triples within RDMA buffer
 		for (int mid = 0; mid < global_num_servers; mid++)
 			for (int i = 0; i < global_num_engines; i++)
 				flush_edge(i, mid);
 
+		// exchange #triples among all servers
 		for (int mid = 0; mid < global_num_servers; mid++) {
-			//after flush all data,we need to write the number of total edges;
+			//after flush all data, we need to write the number of total edges;
 			uint64_t *local_buffer = (uint64_t *) rdma->GetMsgAddr(0);
 			*local_buffer = nedges[mid];
 			uint64_t max_size = mymath::floor(rdma->get_memorystore_size() / global_num_servers, sizeof(uint64_t));
-			uint64_t remote_offset =	max_size * sid;
+			uint64_t remote_offset = max_size * sid;
 			if (mid != sid) {
 				rdma->RdmaWrite(0, mid, (char*)local_buffer, sizeof(uint64_t), remote_offset);
 			} else {
@@ -223,21 +230,21 @@ class DGraph {
 	}
 
 	void load_and_sync_data(vector<string> &file_vec) {
+		uint64_t t1 = timer::get_usec();
+
 #ifdef HAS_RDMA
 		load_data(file_vec);
-		int num_recv_block = global_num_servers;
 #else
 		load_data_from_allfiles(file_vec);
-		int num_recv_block = global_num_servers;
 #endif
 
-		uint64_t t1 = timer::get_usec();
+		int num_recv_block = global_num_servers;
 		volatile int finished_count = 0;
 		uint64_t total_count = 0;
 		for (int mid = 0; mid < num_recv_block; mid++) {
 			uint64_t max_size = mymath::floor(rdma->get_memorystore_size() / num_recv_block, sizeof(uint64_t));
 			uint64_t offset = max_size * mid;
-			uint64_t* recv_buffer = (uint64_t*)(rdma->get_buffer() + offset);
+			uint64_t *recv_buffer = (uint64_t*)(rdma->get_buffer() + offset);
 			total_count += *recv_buffer;
 		}
 
@@ -294,12 +301,13 @@ class DGraph {
 	}
 
 public:
-	graph_storage local_storage;
+	GStore gstore;
 
 	DGraph(int sid, RdmaResource *rdma, string dname)
 		: sid(sid), rdma(rdma), nedges(global_num_servers) {
 		vector<string> files; // ID-format data files
 
+		// load the configure file of a batch mode execution
 		if (boost::starts_with(dname, "hdfs:")) {
 			if (!wukong::hdfs::has_hadoop()) {
 				cout << "ERORR: attempting to load data files from HDFS "
@@ -338,30 +346,31 @@ public:
 
 		load_and_sync_data(files);
 
-		local_storage.init(rdma, global_num_servers, sid);
+		// NOTE: the local graph store must be initiated after load_and_sync_data
+		gstore.init(rdma, global_num_servers, sid);
 
-		#pragma omp parallel for num_threads(nthread_parallel_load)
+		//#pragma omp parallel for num_threads(nthread_parallel_load)
 		for (int t = 0; t < nthread_parallel_load; t++) {
-			local_storage.atomic_batch_insert(triple_spo[t], triple_ops[t]);
+			gstore.atomic_batch_insert(triple_spo[t], triple_ops[t]);
 			vector<edge_triple>().swap(triple_spo[t]);
 			vector<edge_triple>().swap(triple_ops[t]);
 		}
 
-		local_storage.init_index_table();
+		gstore.init_index_table();
 
 		cout << "Server#" << sid << ": loading DGraph is finished." << endl;
-		//local_storage.print_memory_usage();
+		//gstore.print_memory_usage();
 	}
 
 	edge *get_edges_global(int tid, uint64_t id, int direction, int predict, int* size) {
-		return local_storage.get_edges_global(tid, id, direction, predict, size);
+		return gstore.get_edges_global(tid, id, direction, predict, size);
 	}
 
 	edge *get_edges_local(int tid, uint64_t id, int direction, int predict, int* size) {
-		return local_storage.get_edges_local(tid, id, direction, predict, size);
+		return gstore.get_edges_local(tid, id, direction, predict, size);
 	}
 
 	edge *get_index_edges_local(int tid, uint64_t id, int direction, int* size) {
-		return local_storage.get_index_edges_local(tid, id, direction, size);
+		return gstore.get_index_edges_local(tid, id, direction, size);
 	}
 };
