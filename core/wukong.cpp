@@ -150,10 +150,8 @@ main(int argc, char *argv[])
 	char *buffer = (char *)malloc(mem_size);
 	memset(buffer, 0, mem_size);
 	RdmaResource *rdma = new RdmaResource(global_num_servers, global_num_threads,
-	                                      sid, buffer, mem_size,
+	                                      sid, host_fname, buffer, mem_size,
 	                                      rdma_slot_per_thread, msg_slot_per_thread, rdma_size);
-	// a special TCP connection used by RDMA (tid == global_num_threads)
-	rdma->tcp = new TCP_Adaptor(sid, global_num_threads, host_fname);
 #ifdef HAS_RDMA
 	rdma->servicing();
 	rdma->connect();
@@ -193,7 +191,6 @@ main(int argc, char *argv[])
 	}
 
 	/// TODO: exit gracefully (properly call MPI_Init() and MPI_Finalize(), delete all objects)
-	delete rdma->tcp;
 	delete rdma;
 
 	return 0;

@@ -103,35 +103,6 @@ struct normal_op_req {
 
 };
 
-struct per_thread_metadata {
-    int prev_recv_tid;
-    int prev_recv_mid;
-    uint64_t own_count;
-    uint64_t recv_count;
-    uint64_t steal_count[40];
-
-    pthread_spinlock_t recv_lock;
-    char padding1[64];
-    volatile bool need_help;
-    char padding2[64];
-
-    void lock() { pthread_spin_lock(&recv_lock); }
-
-    bool trylock() { return pthread_spin_trylock(&recv_lock); }
-
-    void unlock() { pthread_spin_unlock(&recv_lock); }
-
-    per_thread_metadata() {
-        need_help = false;
-        pthread_spin_init(&recv_lock, 0);
-        own_count = 0;
-        recv_count = 0;
-        for (int i = 0; i < 40; i++) {
-            steal_count[i] = 0;
-        }
-    }
-};
-
 struct config_t rdma_config = {
     NULL,                         /* dev_name */
     NULL,                         /* server_name */
@@ -651,49 +622,59 @@ static inline uint64_t internal_rdtsc(void) {
     return ((uint64_t)lo) | (((uint64_t)hi) << 32);
 }
 
+// 1 logical queue = 1 client-queue + N-1 server-queues
+class Logical_Queue {
+    int num_nodes;
+
+    uint64_t cnt; // round robin checking
+
+public:
+    Logical_Queue(int num_nodes): num_nodes(num_nodes), cnt(0) { }
+
+    int next_nid() { return (cnt++) % num_nodes; }
+};
+
 class RdmaResource {
     int num_nodes = -1;
     int num_threads = -1;
     int node_id = -1;
 
-    per_thread_metadata local_meta[40];
-    struct dev_resource *dev0;//for remote usage
-    struct dev_resource *dev1;//for local usage
+    vector<Logical_Queue> logical_queues;
+
+    struct dev_resource *dev0; //for remote usage
+    struct dev_resource *dev1; //for local usage
+
+    vector<string> ipset;
 
     struct QP **res;
 
-    uint64_t size;//The size of the rdma region,should be the same across machines!
-    uint64_t off ;//The offset to send message
     char *buffer;
+    uint64_t bsize; //The size of the RDMA buffer, should be the same across machines!
+    uint64_t off ; //The offset to send message
 
-    int rdmaOp(int t_id, int m_id, char *local,
-               uint64_t size, uint64_t off, ibv_wr_opcode op) {
-        //simple wrapper function for handling rdma compare and swap
 
-        assert(off < this->size);
+    int rdmaOp(int t_id, int m_id, char *buf, uint64_t size,
+               uint64_t off, ibv_wr_opcode op) {
+        assert(off < bsize);
         assert(m_id < num_nodes);
         assert(t_id < num_threads);
 
-
-        if (post_send(res[t_id] + m_id, op,
-                      local, size, off, true) ) {
-            fprintf(stderr, "failed to post request.");
+        if (post_send(res[t_id] + m_id, op, buf, size, off, true)) {
+            cout << "ERROR: failed to post request!" << endl;
             assert(false);
         }
 
         if (poll_completion(res[t_id] + m_id)) {
-            fprintf(stderr, "poll completion failed\n");
+            cout << "poll completion failed!" << endl;
             assert(false);
         }
 
         return 0;
     }
 
-    int batch_rdmaOp(int t_id, int m_id, char *buf,
-                     uint64_t size, uint64_t off, ibv_wr_opcode op) {
-        //simple wrapper function for handling rdma compare and swap
-
-        assert(off < this->size);
+    int batch_rdmaOp(int t_id, int m_id, char *buf, uint64_t size,
+                     uint64_t off, ibv_wr_opcode op) {
+        assert(off < bsize);
         assert(m_id < num_nodes);
         assert(t_id < num_threads);
 
@@ -702,8 +683,7 @@ class RdmaResource {
 
         int batch_factor = 32;
         for (int i = 0; i < batch_factor; i++) {
-            if (post_send(res[t_id] + m_id, op,
-                          buf, size, off, true) ) {
+            if (post_send(res[t_id] + m_id, op, buf, size, off, true) ) {
                 fprintf(stderr, "failed to post request.");
                 assert(false);
             }
@@ -725,10 +705,8 @@ class RdmaResource {
 
 
     void init() {
-        assert(num_nodes >= 0
-               && num_threads >= 0
-               && node_id >= 0);
-        fprintf(stdout, "init devs\n");
+        assert(num_nodes > 0 && num_threads > 0 && node_id >= 0);
+        cout << "init RDMA devs" << endl;
 
         dev0 = new dev_resource;
         dev1 = new dev_resource;
@@ -736,49 +714,42 @@ class RdmaResource {
         dev_resources_init(dev0);
         dev_resources_init(dev1);
 
-        if (dev_resources_create(dev0, buffer, size) ) {
-            fprintf(stderr, "failed to create dev resources");
+        if (dev_resources_create(dev0, buffer, bsize) ) {
+            cout << "ERROR: failed to create dev resources" << endl;
+            assert(false);
         }
 
-        //fprintf(stdout,"creating remote qps\n");
+        //cout << "creating remote QPs" << endl;
         res = new struct QP *[num_threads];
-
         for (int i = 0; i < num_threads ; i++) {
             res[i] = new struct QP[num_nodes];
             for (int j = 0; j < num_nodes; j++) {
-                QP_init (res[i] + j);
-                if (QP_create (res[i] + j, dev0))
-                {
-                    fprintf (stderr, "failed to create qp\n");
+                QP_init(res[i] + j);
+                if (QP_create (res[i] + j, dev0)) {
+                    cout << "ERROR: failed to create QP!" << endl;
                     assert(false);
                 }
             }
         }
 
-        //fprintf(stdout,"creating own qps\n");
-
-        for (int i = 0; i < 40; i++) {
-            local_meta[i].prev_recv_tid = num_threads - 1;
-            local_meta[i].prev_recv_mid = num_nodes - 1;
-        }
+        // init logical queue
+        logical_queues.resize(num_threads, Logical_Queue(num_nodes));
 
         RemoteMeta.resize(num_nodes);
-        for (int i = 0; i < RemoteMeta.size(); i++) {
+        for (int i = 0; i < RemoteMeta.size(); i++)
             RemoteMeta[i].resize(num_threads);
-        }
 
         LocalMeta.resize(num_threads);
-        for (int i = 0; i < LocalMeta.size(); i++) {
+        for (int i = 0; i < LocalMeta.size(); i++)
             LocalMeta[i].resize(num_nodes);
-        }
     }
 
 public:
 
+    char *get_buffer() { return buffer; }
+
     //[0-off) can be used, but [off,size) should be reserve
     uint64_t get_memorystore_size() { return off; }
-
-    char * get_buffer() { return buffer; }
 
     uint64_t get_slotsize() { return rdma_slotsize; }
 
@@ -787,16 +758,21 @@ public:
     uint64_t msg_slotsize; // per thread (no use)
     uint64_t rbf_size; // per thread per node
 
-    TCP_Adaptor *tcp;
-
     // for testing
-    RdmaResource(int num_nodes, int num_threads, int node_id,
-                 char *buffer, uint64_t size,
+    RdmaResource(int num_nodes, int num_threads, int node_id, string fname,
+                 char *buffer, uint64_t bsize,
                  uint64_t rdma_slot, uint64_t msg_slot, uint64_t off = 0)
         : num_nodes(num_nodes), num_threads(num_threads), node_id(node_id),
-          buffer(buffer), size(size), rdma_slotsize(rdma_slot), msg_slotsize(msg_slot), off(off) {
+          buffer(buffer), bsize(bsize), rdma_slotsize(rdma_slot), msg_slotsize(msg_slot), off(off) {
 
         rbf_size = floor(msg_slotsize / (num_nodes), 64);
+
+        // record IPs of ndoes
+        ifstream hostfile(fname);
+        string ip;
+        while (hostfile >> ip)
+            ipset.push_back(ip);
+
         init();
     }
 
@@ -815,7 +791,7 @@ public:
 
             int port = global_rdma_port_base + id;
             char address[32] = "";
-            snprintf(address, 32, "tcp://%s:%d", tcp->ip_of(id).c_str(), port);
+            snprintf(address, 32, "tcp://%s:%d", ip_of(id).c_str(), port);
             socket.connect(address);
 
             // request QP info from all threads of other nodes and build an one-to-one connect
@@ -844,11 +820,12 @@ public:
         cout << "RDMA connect QP done." << endl;
     }
 
+    string ip_of(int sid) { return ipset[sid]; }
+
     // 0 on success, -1 otherwise
     int RdmaRead(int t_id, int m_id, char *local,
                  uint64_t size, uint64_t off) {
         return rdmaOp(t_id, m_id, local, size, off, IBV_WR_RDMA_READ);
-        //return batch_rdmaOp(t_id,m_id,local,size,off,IBV_WR_RDMA_READ);
     }
 
     int RdmaWrite(int t_id, int m_id, char *local,
@@ -899,29 +876,12 @@ public:
         return 0;
     }
 
-    int post(int t_id, int m_id, char *local,
-             uint64_t size, uint64_t off, ibv_wr_opcode op) {
-        if (post_send(res[t_id] + m_id, op, local, size, off, true)) {
-            fprintf(stderr, "failed to post request.");
-            assert(false);
-        }
-        return 0;
-    }
-
-    int poll(int t_id, int m_id) {
-        if (poll_completion(res[t_id] + m_id)) {
-            fprintf(stderr, "poll completion failed\n");
-            assert(false);
-        }
-        return 0;
-    }
-
     // TODO what if batched?
     inline char *GetMsgAddr(int t_id) {
         return (char *)(buffer + off + t_id * rdma_slotsize);
     }
 
-    //
+    // the service thread is used to answer the query about QP info
     static void *service_thread(void * arg) {
         RdmaResource *rdma = (RdmaResource *)arg;
 
@@ -930,7 +890,7 @@ public:
 
         int port = global_rdma_port_base + rdma->node_id;
         char address[32] = "";
-        snprintf(address, 32, "tcp://%s:%d", rdma->tcp->ip_of(rdma->node_id).c_str(), port);
+        snprintf(address, 32, "tcp://%s:%d", rdma->ip_of(rdma->node_id).c_str(), port);
         socket.bind(address);
 
         // wait the connect request from all threads of other nodes
@@ -1069,9 +1029,8 @@ public:
         //       return false;
         //   }
 
-        if (msg_size == 0 ) {
+        if (msg_size == 0)
             return false;
-        }
         return true;
     }
 
@@ -1127,22 +1086,20 @@ public:
         return result;
     }
 
-    std::string rbfRecv(int local_tid) {
+    std::string rbfRecv(int tid) {
         while (true) {
-            int mid = local_meta[local_tid].own_count % num_nodes;
-            local_meta[local_tid].own_count++;
-            //for(int mid=0;mid<num_nodes;mid++){
-            if (check_rbf_msg(local_tid, mid)) {
-                return fetch_rbf_msg(local_tid, mid);
-            }
-            //}
+            // NOTE: a logical queue = (N-1) * physical queue
+            // check the queues for other nodes in round robin
+            int nid = logical_queues[tid].next_nid();
+            if (check_rbf_msg(tid, nid))
+                return fetch_rbf_msg(tid, nid);
         }
     }
 
-    bool rbfTryRecv(int local_tid, std::string& ret) {
-        for (int mid = 0; mid < num_nodes; mid++) {
-            if (check_rbf_msg(local_tid, mid)) {
-                ret = fetch_rbf_msg(local_tid, mid);
+    bool rbfTryRecv(int tid, std::string &msg) {
+        for (int nid = 0; nid < num_nodes; nid++) {
+            if (check_rbf_msg(tid, nid)) {
+                msg = fetch_rbf_msg(tid, nid);
                 return true;
             }
         }
@@ -1154,53 +1111,59 @@ public:
 
 class RdmaResource {
 
-    //site configuration settings
-    int num_nodes = -1;
-    int num_threads = -1;
-    int node_id = -1;
-
-
-    uint64_t size;//The size of the rdma region,should be the same across machines!
-    uint64_t off ;//The offset to send message
-    char *buffer;
-
 public:
     uint64_t get_memorystore_size() {
-        //[0-off) can be used;
-        //[off,size) should be reserve
-        return off;
+        cout << "This system is compiled without RDMA support." << endl;
+        assert(false);
+        return 0ul;
     }
+
     char * get_buffer() {
-        return buffer;
+        cout << "This system is compiled without RDMA support." << endl;
+        assert(false);
+        return NULL;
     }
+
     uint64_t get_slotsize() {
-        return rdma_slotsize;
+        cout << "This system is compiled without RDMA support." << endl;
+        assert(false);
+        return 0ul;
     }
+
     //rdma location hashing
     uint64_t rdma_slotsize;
     uint64_t msg_slotsize;
     uint64_t rbf_size;
 
-    TCP_Adaptor *tcp;
-
     //for testing
     RdmaResource(int t_partition, int t_threads, int current,
                  char *_buffer, uint64_t _size,
-                 uint64_t rdma_slot, uint64_t msg_slot, uint64_t _off) { }
+                 uint64_t rdma_slot, uint64_t msg_slot, uint64_t _off) {
+        cout << "This system is compiled without RDMA support." << endl;
+        assert(false);
+    }
 
-    void servicing() { assert(false); }
+    void servicing() {
+        cout << "This system is compiled without RDMA support." << endl;
+        assert(false);
+    }
 
-    void connect() { assert(false); }
+    void connect() {
+        cout << "This system is compiled without RDMA support." << endl;
+        assert(false);
+    }
 
 
     int RdmaRead(int t_id, int m_id, char *local,
                  uint64_t size, uint64_t remote_offset) {
+        cout << "This system is compiled without RDMA support." << endl;
         assert(false);
         return 0;
     }
 
     int RdmaWrite(int t_id, int m_id, char *local,
                   uint64_t size, uint64_t remote_offset) {
+        cout << "This system is compiled without RDMA support." << endl;
         assert(false);
         return 0;
     }
@@ -1208,33 +1171,31 @@ public:
     int RdmaCmpSwap(int t_id, int m_id, char *local,
                     uint64_t compare, uint64_t swap,
                     uint64_t size, uint64_t off) {
+        cout << "This system is compiled without RDMA support." << endl;
         assert(false);
         return 0;
     }
 
-    // int post(int t_id,int machine_id,char* local,uint64_t size,uint64_t remote_offset,ibv_wr_opcode op){
-    //     assert(false);
-    //     return 0;
-    // };
-    // int poll(int t_id,int machine_id){
-    //     assert(false);
-    //     return 0;
-    // };
-
     inline char *GetMsgAddr(int t_id) {
+        cout << "This system is compiled without RDMA support." << endl;
         assert(false);
         return NULL;
     }
 
     void rbfSend(int local_tid, int remote_mid, int remote_tid,
-                 const char *str_ptr, uint64_t str_size) { assert(false); }
+                 const char *str_ptr, uint64_t str_size) {
+        cout << "This system is compiled without RDMA support." << endl;
+        assert(false);
+    }
 
     std::string rbfRecv(int local_tid) {
+        cout << "This system is compiled without RDMA support." << endl;
         assert(false);
-        return std::string("");
+        return new string();
     }
 
     bool rbfTryRecv(int local_tid, std::string &ret) {
+        cout << "This system is compiled without RDMA support." << endl;
         assert(false);
         return false;
     }

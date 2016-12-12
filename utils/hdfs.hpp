@@ -161,9 +161,8 @@ public:
     return fs;
   }
 }; // end of class hdfs
+
 #else
-
-
 
 class hdfs {
 public:

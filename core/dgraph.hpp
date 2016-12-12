@@ -193,7 +193,7 @@ class DGraph {
 
 		// timing
 		uint64_t t2 = timer::get_usec();
-		cout << (t2 - t1) / 1000 << " ms for loading RFD data files" << endl;
+		cout << (t2 - t1) / 1000 << " ms for loading RDF data files" << endl;
 	}
 
 	// selectively load own partitioned data from allfiles
