@@ -317,7 +317,7 @@ class DGraph {
 public:
 	GStore gstore;
 
-	DGraph(int sid, RdmaResource *rdma, string dname)
+	DGraph(string dname, int sid, RdmaResource *rdma)
 		: sid(sid), rdma(rdma), nedges(global_num_servers) {
 		vector<string> files; // ID-format data files
 

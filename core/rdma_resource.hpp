@@ -90,7 +90,7 @@ struct QP {
 struct normal_op_req {
     ibv_wr_opcode opcode;
     char *local_buf;
-    int size; //default set to sizeof(uint64_t)
+    int size; // default set to sizeof(uint64_t)
     int remote_offset;
 
     //for atomicity operations
@@ -100,7 +100,6 @@ struct normal_op_req {
     //for internal usage!!
     struct ibv_send_wr sr;
     struct ibv_sge sge;
-
 };
 
 struct config_t rdma_config = {
@@ -129,7 +128,7 @@ static inline uint64_t ntohll(uint64_t x) { return x; }
 
 
 static void dev_resources_init(struct dev_resource *res) {
-    memset (res, 0, sizeof * res);
+    memset(res, 0, sizeof * res);
 }
 
 static int dev_resources_create(struct dev_resource *res, char* buf, uint64_t size) {
@@ -141,15 +140,15 @@ static int dev_resources_create(struct dev_resource *res, char* buf, uint64_t si
     int mr_flags = 0;
     int rc = 0;
 
-    dev_list = ibv_get_device_list (&num_devices);
+    dev_list = ibv_get_device_list(&num_devices);
     if (!dev_list) {
-        fprintf (stderr, "failed to get IB devices list\n");
+        fprintf(stderr, "failed to get IB devices list\n");
         rc = 1;
         goto dev_resources_create_exit;
     }
     /* if there isn't any IB device in host */
     if (!num_devices) {
-        fprintf (stderr, "found %d device(s)\n", num_devices);
+        fprintf(stderr, "found %d device(s)\n", num_devices);
         rc = 1;
         goto dev_resources_create_exit;
     }
@@ -157,19 +156,19 @@ static int dev_resources_create(struct dev_resource *res, char* buf, uint64_t si
     /* search for the specific device we want to work with */
     for (i = 0; i < num_devices; i++) {
         if (!rdma_config.dev_name) {
-            rdma_config.dev_name = strdup (ibv_get_device_name (dev_list[i]));
+            rdma_config.dev_name = strdup(ibv_get_device_name(dev_list[i]));
             //fprintf (stdout,
             //           "device not specified, using first one found: %s\n",
             //           rdma_config.dev_name);
         }
-        if (!strcmp (ibv_get_device_name (dev_list[i]), rdma_config.dev_name)) {
+        if (!strcmp(ibv_get_device_name(dev_list[i]), rdma_config.dev_name)) {
             ib_dev = dev_list[i];
             break;
         }
     }
     /* if the device wasn't found in host */
     if (!ib_dev) {
-        fprintf (stderr, "IB device %s wasn't found\n", rdma_config.dev_name);
+        fprintf(stderr, "IB device %s wasn't found\n", rdma_config.dev_name);
         rc = 1;
         goto dev_resources_create_exit;
     }
@@ -177,12 +176,12 @@ static int dev_resources_create(struct dev_resource *res, char* buf, uint64_t si
     res->ib_ctx = ibv_open_device (ib_dev);
 
     if (!res->ib_ctx) {
-        fprintf (stderr, "failed to open device %s\n", rdma_config.dev_name);
+        fprintf(stderr, "failed to open device %s\n", rdma_config.dev_name);
         rc = 1;
         goto dev_resources_create_exit;
     }
 
-    //check the atomicity level for rdma operation
+    // check the atomicity level for rdma operation
     int ret;
     ret = ibv_query_device(res->ib_ctx, &(res->device_attr));
     if (ret) {
@@ -197,7 +196,7 @@ static int dev_resources_create(struct dev_resource *res, char* buf, uint64_t si
         fprintf(stdout, "atomic none\n");
         break;
     case IBV_ATOMIC_HCA:
-        //fprintf(stdout,"atmoic within device\n");
+        fprintf(stdout, "atmoic hca (within device)\n");
         break;
     case IBV_ATOMIC_GLOB:
         fprintf(stdout, "atomic globally\n");
@@ -208,7 +207,7 @@ static int dev_resources_create(struct dev_resource *res, char* buf, uint64_t si
     }
 
     /* We are now done with device list, free it */
-    ibv_free_device_list (dev_list);
+    ibv_free_device_list(dev_list);
     dev_list = NULL;
     ib_dev = NULL;
     /* query port properties */
@@ -219,7 +218,7 @@ static int dev_resources_create(struct dev_resource *res, char* buf, uint64_t si
     }
 
     /* allocate Protection Domain */
-    res->pd = ibv_alloc_pd (res->ib_ctx);
+    res->pd = ibv_alloc_pd(res->ib_ctx);
     if (!res->pd) {
         fprintf (stderr, "ibv_alloc_pd failed\n");
         rc = 1;
@@ -237,34 +236,31 @@ static int dev_resources_create(struct dev_resource *res, char* buf, uint64_t si
     fprintf(stdout, "registering memory\n");
     res->mr = ibv_reg_mr(res->pd, res->buf, size, mr_flags);
     if (!res->mr) {
-        fprintf (stderr, "ibv_reg_mr failed with mr_flags=0x%x\n", mr_flags);
+        fprintf(stderr, "ibv_reg_mr failed with mr_flags=0x%x\n", mr_flags);
         rc = 1;
         goto dev_resources_create_exit;
     }
-//fprintf (stdout,
-//     "MR was registered with addr=%p, lkey=0x%x, rkey=0x%x, flags=0x%x\n",
-//     res->buf, res->mr->lkey, res->mr->rkey, mr_flags);
 
 dev_resources_create_exit:
     if (rc) {
         /* Error encountered, cleanup */
         if (res->mr) {
-            ibv_dereg_mr (res->mr);
+            ibv_dereg_mr(res->mr);
             res->mr = NULL;
         }
 
         if (res->pd) {
-            ibv_dealloc_pd (res->pd);
+            ibv_dealloc_pd(res->pd);
             res->pd = NULL;
         }
 
         if (res->ib_ctx) {
-            ibv_close_device (res->ib_ctx);
+            ibv_close_device(res->ib_ctx);
             res->ib_ctx = NULL;
         }
 
         if (dev_list) {
-            ibv_free_device_list (dev_list);
+            ibv_free_device_list(dev_list);
             dev_list = NULL;
         }
 
@@ -286,14 +282,14 @@ static int QP_create(struct QP *res, struct dev_resource *dev) {
 
     int rc = 0;
     int cq_size = 40;
-    res->cq = ibv_create_cq (dev->ib_ctx, cq_size, NULL, NULL, 0);
+    res->cq = ibv_create_cq(dev->ib_ctx, cq_size, NULL, NULL, 0);
     if (!res->cq) {
-        fprintf (stderr, "failed to create CQ with %u entries\n", cq_size);
+        fprintf(stderr, "failed to create CQ with %u entries\n", cq_size);
         rc = 1;
         goto resources_create_exit;
     }
 
-    memset (&qp_init_attr, 0, sizeof (qp_init_attr));
+    memset(&qp_init_attr, 0, sizeof(qp_init_attr));
     qp_init_attr.qp_type = IBV_QPT_RC;
     qp_init_attr.sq_sig_all = 0;
     qp_init_attr.send_cq = res->cq;
@@ -302,23 +298,21 @@ static int QP_create(struct QP *res, struct dev_resource *dev) {
     qp_init_attr.cap.max_recv_wr = 128;
     qp_init_attr.cap.max_send_sge = 1;
     qp_init_attr.cap.max_recv_sge = 1;
-    res->qp = ibv_create_qp (res->pd, &qp_init_attr);
-    if (!res->qp)
-    {
-        fprintf (stderr, "failed to create QP\n");
+    res->qp = ibv_create_qp(res->pd, &qp_init_attr);
+    if (!res->qp) {
+        fprintf(stderr, "failed to create QP\n");
         rc = 1;
         goto resources_create_exit;
     }
 
 resources_create_exit:
     if (rc) {
-
         /* Error encountered, cleanup */
-        if (res->qp)
-        {
-            ibv_destroy_qp (res->qp);
+        if (res->qp) {
+            ibv_destroy_qp(res->qp);
             res->qp = NULL;
         }
+
         if (res->cq) {
             ibv_destroy_cq(res->cq);
             res->cq  = NULL;
@@ -332,52 +326,55 @@ static struct cm_con_data_t get_local_con_data(struct QP *res) {
     struct cm_con_data_t local_con_data;
     union ibv_gid my_gid;
     int rc;
+
     if (rdma_config.gid_idx >= 0) {
-        rc =
-            ibv_query_gid (res->dev->ib_ctx, rdma_config.ib_port, rdma_config.gid_idx, &my_gid);
+        rc = ibv_query_gid(res->dev->ib_ctx, rdma_config.ib_port, rdma_config.gid_idx, &my_gid);
         if (rc) {
-            fprintf (stderr, "could not get gid for port %d, index %d\n",
-                     rdma_config.ib_port, rdma_config.gid_idx);
+            fprintf(stderr, "could not get gid for port %d, index %d\n",
+                    rdma_config.ib_port, rdma_config.gid_idx);
             assert(false);
         }
-    } else
-        memset (&my_gid, 0, sizeof my_gid);
+    } else {
+        memset(&my_gid, 0, sizeof(my_gid));
+    }
 
-    local_con_data.addr = htonll ((uintptr_t) (res->dev->buf));
-    local_con_data.rkey = htonl (res->mr->rkey);
-    local_con_data.qp_num = htonl (res->qp->qp_num);
-    local_con_data.lid = htons (res->dev->port_attr.lid);
-    memcpy (local_con_data.gid, &my_gid, 16);
-    //  fprintf (stdout, "\nLocal LID = 0x%x\n", res->port_attr.lid);
+    local_con_data.addr = htonll((uintptr_t)(res->dev->buf));
+    local_con_data.rkey = htonl(res->mr->rkey);
+    local_con_data.qp_num = htonl(res->qp->qp_num);
+    local_con_data.lid = htons(res->dev->port_attr.lid);
+    memcpy(local_con_data.gid, &my_gid, 16);
+    // fprintf(stdout, "\nLocal LID = 0x%x\n", res->port_attr.lid);
 
     return local_con_data;
 }
 
-static int modify_qp_to_init (struct ibv_qp *qp) {
+static int modify_qp_to_init(struct ibv_qp *qp) {
     struct ibv_qp_attr attr;
     int flags;
     int rc;
-    memset (&attr, 0, sizeof (attr));
+
+    memset(&attr, 0, sizeof (attr));
     attr.qp_state = IBV_QPS_INIT;
     attr.port_num = rdma_config.ib_port;
     attr.pkey_index = 0;
     attr.qp_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
                            IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_ATOMIC;
 
-    flags =
-        IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS;
-    rc = ibv_modify_qp (qp, &attr, flags);
+    flags = IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS;
+    rc = ibv_modify_qp(qp, &attr, flags);
     if (rc)
-        fprintf (stderr, "failed to modify QP state to INIT\n");
+        fprintf(stderr, "failed to modify QP state to INIT\n");
 
     return rc;
 }
 
-static int modify_qp_to_rtr(struct ibv_qp *qp, uint32_t remote_qpn, uint16_t dlid, uint8_t * dgid) {
+static int modify_qp_to_rtr(struct ibv_qp *qp, uint32_t remote_qpn,
+                            uint16_t dlid, uint8_t * dgid) {
     struct ibv_qp_attr attr;
     int flags;
     int rc;
-    memset (&attr, 0, sizeof (attr));
+
+    memset(&attr, 0, sizeof (attr));
     attr.qp_state = IBV_QPS_RTR;
     attr.path_mtu = IBV_MTU_256;
     attr.dest_qp_num = remote_qpn;
@@ -402,9 +399,9 @@ static int modify_qp_to_rtr(struct ibv_qp *qp, uint32_t remote_qpn, uint16_t dli
 
     flags = IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_DEST_QPN |
             IBV_QP_RQ_PSN | IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER;
-    rc = ibv_modify_qp (qp, &attr, flags);
+    rc = ibv_modify_qp(qp, &attr, flags);
     if (rc)
-        fprintf (stderr, "failed to modify QP state to RTR\n");
+        fprintf(stderr, "failed to modify QP state to RTR\n");
 
     return rc;
 }
@@ -413,7 +410,8 @@ static int modify_qp_to_rts(struct ibv_qp *qp) {
     struct ibv_qp_attr attr;
     int flags;
     int rc;
-    memset (&attr, 0, sizeof (attr));
+
+    memset(&attr, 0, sizeof(attr));
     attr.qp_state = IBV_QPS_RTS;
     attr.timeout = 0x12;
     attr.retry_cnt = 6;
@@ -421,10 +419,10 @@ static int modify_qp_to_rts(struct ibv_qp *qp) {
     attr.sq_psn = 0;
     attr.max_rd_atomic = 16;
     attr.max_dest_rd_atomic = 16;
+
     flags = IBV_QP_STATE | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT |
             IBV_QP_RNR_RETRY | IBV_QP_SQ_PSN | IBV_QP_MAX_QP_RD_ATOMIC;
     rc = ibv_modify_qp (qp, &attr, flags);
-
     if (rc)
         fprintf (stderr, "failed to modify QP state to RTS\n");
 
@@ -433,8 +431,8 @@ static int modify_qp_to_rts(struct ibv_qp *qp) {
 
 static int connect_qp(struct QP *res, struct cm_con_data_t tmp_con_data) {
     struct cm_con_data_t remote_con_data;
-    int rc = 0;
     char temp_char;
+    int rc = 0;
 
     /* exchange using TCP sockets info required to connect QPs */
     remote_con_data.addr = ntohll(tmp_con_data.addr);
@@ -467,26 +465,24 @@ static int connect_qp(struct QP *res, struct cm_con_data_t tmp_con_data) {
     rc = modify_qp_to_rtr(res->qp, remote_con_data.qp_num,
                           remote_con_data.lid, remote_con_data.gid);
     if (rc) {
-        fprintf (stderr, "failed to modify QP state to RTR\n");
+        fprintf(stderr, "failed to modify QP state to RTR\n");
         goto connect_qp_exit;
     }
 
     rc = modify_qp_to_rts(res->qp);
     if (rc) {
-        fprintf (stderr, "failed to modify QP state to RTR\n");
+        fprintf(stderr, "failed to modify QP state to RTR\n");
         goto connect_qp_exit;
     }
 
-    /**
-     * sync to make sure that both sides are in states
-     * that they can connect to prevent packet loose
-     */
+    /* sync to make sure that both sides are in states
+       that they can connect to prevent packet loose */
 
 connect_qp_exit:
     return rc;
 }
 
-static int post_send(struct QP *res, ibv_wr_opcode opcode, char* local_buf,
+static int post_send(struct QP *res, ibv_wr_opcode opcode, char *local_buf,
                      size_t size, size_t remote_offset, bool signal) {
     struct ibv_send_wr sr;
     struct ibv_sge sge;
@@ -508,6 +504,7 @@ static int post_send(struct QP *res, ibv_wr_opcode opcode, char* local_buf,
         sr.send_flags = IBV_SEND_SIGNALED ;
     else
         sr.send_flags = 0;
+
     if (opcode != IBV_WR_SEND) {
         sr.wr.rdma.remote_addr = res->remote_props.addr + remote_offset;
         sr.wr.rdma.rkey = res->remote_props.rkey;
@@ -515,7 +512,7 @@ static int post_send(struct QP *res, ibv_wr_opcode opcode, char* local_buf,
 
     /* there is a Receive Request in the responder side,
     so we won't get any into RNR flow */
-    rc = ibv_post_send (res->qp, &sr, &bad_wr);
+    rc = ibv_post_send(res->qp, &sr, &bad_wr);
     if (rc)
         fprintf (stderr, "failed to post SR\n");
     else {
@@ -565,7 +562,7 @@ static int poll_completion(struct QP *res) {
         /* CQE found */
         //      fprintf (stdout, "completion was found in CQ with status 0x%x\n",
         //               wc.status);
-        /* check the completion status (here we don't care about the completion opcode */
+        /* check the completion status (here we don't care about the completion opcode) */
         if (wc.status != IBV_WC_SUCCESS) {
             fprintf (stderr,
                      "got bad completion with status: 0x%x, vendor syndrome: 0x%x\n",
@@ -625,7 +622,6 @@ static inline uint64_t internal_rdtsc(void) {
 // 1 logical queue = 1 client-queue + N-1 server-queues
 class Logical_Queue {
     int num_nodes;
-
     uint64_t cnt; // round robin checking
 
 public:
@@ -635,11 +631,13 @@ public:
 };
 
 class RdmaResource {
-    int num_nodes = -1;
-    int num_threads = -1;
-    int node_id = -1;
+    const static uint64_t BATCH_FACTOR = 32;
 
-    vector<Logical_Queue> logical_queues;
+    int num_nodes;
+    int num_threads;
+    int node_id;
+
+    vector<Logical_Queue> logical_queues; // pre-thread
 
     struct dev_resource *dev0; //for remote usage
     struct dev_resource *dev1; //for local usage
@@ -648,23 +646,26 @@ class RdmaResource {
 
     struct QP **res;
 
-    char *buffer;
-    uint64_t bsize; //The size of the RDMA buffer, should be the same across machines!
-    uint64_t off ; //The offset to send message
+    char *rdma_mem;     // RDMA memory: kvstore | read_buffer | logical_queue
+    uint64_t mem_sz;    // mem_sz = kvs_sz + rbuf_sz * num_threads + msg_sz * num_threads
+    uint64_t kvs_sz;
+    uint64_t rbuf_sz;
+    uint64_t msg_sz;    // msg_sz = rbf_size * num_nodes
 
+    uint64_t rbf_size;
 
-    int rdmaOp(int t_id, int m_id, char *buf, uint64_t size,
+    int rdmaOp(int dst_tid, int dst_nid, char *buf, uint64_t size,
                uint64_t off, ibv_wr_opcode op) {
-        assert(off < bsize);
-        assert(m_id < num_nodes);
-        assert(t_id < num_threads);
+        assert(off < mem_sz);
+        assert(dst_nid < num_nodes);
+        assert(dst_tid < num_threads);
 
-        if (post_send(res[t_id] + m_id, op, buf, size, off, true)) {
+        if (post_send(res[dst_tid] + dst_nid, op, buf, size, off, true)) {
             cout << "ERROR: failed to post request!" << endl;
             assert(false);
         }
 
-        if (poll_completion(res[t_id] + m_id)) {
+        if (poll_completion(res[dst_tid] + dst_nid)) {
             cout << "poll completion failed!" << endl;
             assert(false);
         }
@@ -672,18 +673,17 @@ class RdmaResource {
         return 0;
     }
 
-    int batch_rdmaOp(int t_id, int m_id, char *buf, uint64_t size,
+    int batch_rdmaOp(int dst_tid, int dst_nid, char *buf, uint64_t size,
                      uint64_t off, ibv_wr_opcode op) {
-        assert(off < bsize);
-        assert(m_id < num_nodes);
-        assert(t_id < num_threads);
+        assert(off < mem_sz);
+        assert(dst_nid < num_nodes);
+        assert(dst_tid < num_threads);
 
         uint64_t start = internal_rdtsc();
         uint64_t sum = 0;
 
-        int batch_factor = 32;
-        for (int i = 0; i < batch_factor; i++) {
-            if (post_send(res[t_id] + m_id, op, buf, size, off, true) ) {
+        for (int i = 0; i < BATCH_FACTOR; i++) {
+            if (post_send(res[dst_tid] + dst_nid, op, buf, size, off, true) ) {
                 fprintf(stderr, "failed to post request.");
                 assert(false);
             }
@@ -692,17 +692,16 @@ class RdmaResource {
         int count = 0;
         while (true) {
             int this_round =
-                batch_poll_completion(res[t_id] + m_id, batch_factor - count);
+                batch_poll_completion(res[dst_tid] + dst_nid, BATCH_FACTOR - count);
             sum = sum + (internal_rdtsc() - start) * this_round;
             count = count + this_round;
-            if (count == batch_factor)
+            if (count == BATCH_FACTOR)
                 break;
         }
 
         //TODO! we need to
-        return sum / batch_factor;
+        return sum / BATCH_FACTOR;
     }
-
 
     void init() {
         assert(num_nodes > 0 && num_threads > 0 && node_id >= 0);
@@ -714,7 +713,7 @@ class RdmaResource {
         dev_resources_init(dev0);
         dev_resources_init(dev1);
 
-        if (dev_resources_create(dev0, buffer, bsize) ) {
+        if (dev_resources_create(dev0, rdma_mem, mem_sz) ) {
             cout << "ERROR: failed to create dev resources" << endl;
             assert(false);
         }
@@ -725,7 +724,7 @@ class RdmaResource {
             res[i] = new struct QP[num_nodes];
             for (int j = 0; j < num_nodes; j++) {
                 QP_init(res[i] + j);
-                if (QP_create (res[i] + j, dev0)) {
+                if (QP_create(res[i] + j, dev0)) {
                     cout << "ERROR: failed to create QP!" << endl;
                     assert(false);
                 }
@@ -746,26 +745,22 @@ class RdmaResource {
 
 public:
 
-    char *get_buffer() { return buffer; }
+    char *get_buffer() { return rdma_mem; }
 
-    //[0-off) can be used, but [off,size) should be reserve
-    uint64_t get_memorystore_size() { return off; }
+    //[0, kvs_sz) can be used, but [kvstore_siz, mem_sz) should be reserve
+    uint64_t get_memorystore_size() { return kvs_sz; }
 
-    uint64_t get_slotsize() { return rdma_slotsize; }
-
-    //rdma location hashing
-    uint64_t rdma_slotsize; // per thread
-    uint64_t msg_slotsize; // per thread (no use)
-    uint64_t rbf_size; // per thread per node
+    uint64_t get_slotsize() { return rbuf_sz; }
 
     // for testing
     RdmaResource(int num_nodes, int num_threads, int node_id, string fname,
-                 char *buffer, uint64_t bsize,
-                 uint64_t rdma_slot, uint64_t msg_slot, uint64_t off = 0)
+                 char *rdma_mem, uint64_t mem_sz,
+                 uint64_t kvs_sz, uint64_t rbuf_sz, uint64_t msg_sz)
         : num_nodes(num_nodes), num_threads(num_threads), node_id(node_id),
-          buffer(buffer), bsize(bsize), rdma_slotsize(rdma_slot), msg_slotsize(msg_slot), off(off) {
+          rdma_mem(rdma_mem), mem_sz(mem_sz),
+          kvs_sz(kvs_sz), rbuf_sz(rbuf_sz), msg_sz(msg_sz) {
 
-        rbf_size = floor(msg_slotsize / (num_nodes), 64);
+        rbf_size = floor(msg_sz / num_nodes, 64);
 
         // record IPs of ndoes
         ifstream hostfile(fname);
@@ -823,20 +818,20 @@ public:
     string ip_of(int sid) { return ipset[sid]; }
 
     // 0 on success, -1 otherwise
-    int RdmaRead(int t_id, int m_id, char *local,
+    int RdmaRead(int dst_tid, int dst_nid, char *local,
                  uint64_t size, uint64_t off) {
-        return rdmaOp(t_id, m_id, local, size, off, IBV_WR_RDMA_READ);
+        return rdmaOp(dst_tid, dst_nid, local, size, off, IBV_WR_RDMA_READ);
     }
 
-    int RdmaWrite(int t_id, int m_id, char *local,
+    int RdmaWrite(int dst_tid, int dst_nid, char *local,
                   uint64_t size, uint64_t off) {
-        return rdmaOp(t_id, m_id, local, size, off, IBV_WR_RDMA_WRITE);
+        return rdmaOp(dst_tid, dst_nid, local, size, off, IBV_WR_RDMA_WRITE);
     }
 
-    int RdmaCmpSwap(int t_id, int m_id, char *local,
+    int RdmaCmpSwap(int dst_tid, int dst_nid, char *local,
                     uint64_t compare, uint64_t swap,
                     uint64_t size, uint64_t off) {
-        struct QP *r = res[t_id] + m_id;
+        struct QP *r = res[dst_tid] + dst_nid;
         assert(r != NULL);
 
         struct ibv_send_wr sr;
@@ -877,8 +872,8 @@ public:
     }
 
     // TODO what if batched?
-    inline char *GetMsgAddr(int t_id) {
-        return (char *)(buffer + off + t_id * rdma_slotsize);
+    inline char *GetMsgAddr(int dst_tid) {
+        return (char *)(rdma_mem + kvs_sz + rbuf_sz * dst_tid);
     }
 
     // the service thread is used to answer the query about QP info
@@ -970,7 +965,7 @@ public:
 
     uint64_t start_of_recv_queue(int local_tid, int remote_mid) {
         //[t0,m0][t0,m1] [t0,m5], [t1,m0],...
-        uint64_t result = off + (num_threads) * rdma_slotsize; //skip data-region and rdma_read-region
+        uint64_t result = kvs_sz + rbuf_sz * num_threads; // skip kvstore and read_buffer
         result = result + rbf_size * (local_tid * num_nodes + remote_mid);
         return result;
     }
@@ -980,7 +975,7 @@ public:
         meta->lock();
         uint64_t remote_start = start_of_recv_queue(remote_tid, node_id);
         if (node_id == remote_mid) {
-            char * ptr = buffer + remote_start;
+            char * ptr = rdma_mem + remote_start;
             uint64_t tail = meta->remote_tail;
             (meta->remote_tail) += sizeof(uint64_t) * 2 + ceil(str_size, sizeof(uint64_t));
             meta->unlock();
@@ -1019,8 +1014,8 @@ public:
     }
 
     bool check_rbf_msg(int local_tid, int mid) {
-        LocalQueueMeta * meta = &LocalMeta[local_tid][mid];
-        char * rbf_ptr = buffer + start_of_recv_queue(local_tid, mid);
+        LocalQueueMeta *meta = &LocalMeta[local_tid][mid];
+        char *rbf_ptr = rdma_mem + start_of_recv_queue(local_tid, mid);
         uint64_t msg_size = *(volatile uint64_t*)(rbf_ptr + meta->local_tail % rbf_size );
         uint64_t skip_size = sizeof(uint64_t) + ceil(msg_size, sizeof(uint64_t));
         //   volatile uint64_t * msg_end_ptr=(uint64_t*)(rbf_ptr+ (meta->local_tail+skip_size)%rbf_size);
@@ -1037,7 +1032,7 @@ public:
     std::string fetch_rbf_msg(int local_tid, int mid) {
         LocalQueueMeta * meta = &LocalMeta[local_tid][mid];
 
-        char * rbf_ptr = buffer + start_of_recv_queue(local_tid, mid);
+        char * rbf_ptr = rdma_mem + start_of_recv_queue(local_tid, mid);
         uint64_t msg_size = *(volatile uint64_t*)(rbf_ptr + meta->local_tail % rbf_size );
         uint64_t t1 = timer::get_usec();
         //clear head
@@ -1130,15 +1125,10 @@ public:
         return 0ul;
     }
 
-    //rdma location hashing
-    uint64_t rdma_slotsize;
-    uint64_t msg_slotsize;
-    uint64_t rbf_size;
-
     //for testing
-    RdmaResource(int t_partition, int t_threads, int current,
-                 char *_buffer, uint64_t _size,
-                 uint64_t rdma_slot, uint64_t msg_slot, uint64_t _off) {
+    RdmaResource(int num_nodes, int num_threads, int node_id, string fname,
+                 char *rdma_mem, uint64_t mem_sz,
+                 uint64_t kvs_sz, uint64_t rbuf_sz, uint64_t msg_sz) {
         cout << "This system is compiled without RDMA support." << endl;
         assert(false);
     }
@@ -1154,21 +1144,21 @@ public:
     }
 
 
-    int RdmaRead(int t_id, int m_id, char *local,
+    int RdmaRead(int dst_tid, int dst_nid, char *local,
                  uint64_t size, uint64_t remote_offset) {
         cout << "This system is compiled without RDMA support." << endl;
         assert(false);
         return 0;
     }
 
-    int RdmaWrite(int t_id, int m_id, char *local,
+    int RdmaWrite(int dst_tid, int dst_nid, char *local,
                   uint64_t size, uint64_t remote_offset) {
         cout << "This system is compiled without RDMA support." << endl;
         assert(false);
         return 0;
     }
 
-    int RdmaCmpSwap(int t_id, int m_id, char *local,
+    int RdmaCmpSwap(int dst_tid, int dst_nid, char *local,
                     uint64_t compare, uint64_t swap,
                     uint64_t size, uint64_t off) {
         cout << "This system is compiled without RDMA support." << endl;
@@ -1176,7 +1166,7 @@ public:
         return 0;
     }
 
-    inline char *GetMsgAddr(int t_id) {
+    inline char *GetMsgAddr(int dst_tid) {
         cout << "This system is compiled without RDMA support." << endl;
         assert(false);
         return NULL;

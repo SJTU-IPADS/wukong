@@ -136,32 +136,35 @@ main(int argc, char *argv[])
 	load_config(world.size());
 
 	// calculate memory usage
-	uint64_t rdma_size = GiB2B(global_total_memory_gb);
-	uint64_t msg_slot_per_thread = MiB2B(global_perslot_msg_mb);
-	uint64_t rdma_slot_per_thread = MiB2B(global_perslot_rdma_mb);
+	uint64_t kvs_sz = GiB2B(global_total_memory_gb);
+	uint64_t rbuf_sz_per_thread = MiB2B(global_perslot_rdma_mb);
+	uint64_t msg_sz_per_thread = MiB2B(global_perslot_msg_mb);
 
-	// RDMA = buffer + msgslot + rdmaslot
-	uint64_t mem_size = rdma_size
-	                    + rdma_slot_per_thread * global_num_threads
-	                    + msg_slot_per_thread * global_num_threads;
-	cout << "INFO: RDMA memory usage (per server): " << B2GiB(mem_size) << "GB" << endl;
+	// rdma_mem = kvstore + read_buffer + logical_queue
+	uint64_t mem_sz = kvs_sz
+	                  + rbuf_sz_per_thread * global_num_threads
+	                  + msg_sz_per_thread * global_num_threads;
+	cout << "INFO: RDMA memory usage (per server): " << B2GiB(mem_sz) << "GB" << endl;
 
 	// create an RDMA instance
-	char *buffer = (char *)malloc(mem_size);
-	memset(buffer, 0, mem_size);
-	RdmaResource *rdma = new RdmaResource(global_num_servers, global_num_threads,
-	                                      sid, host_fname, buffer, mem_size,
-	                                      rdma_slot_per_thread, msg_slot_per_thread, rdma_size);
+	char *rdma_mem = (char *)malloc(mem_sz);
+	memset(rdma_mem, 0, mem_sz);
+
 #ifdef HAS_RDMA
+	RdmaResource *rdma = new RdmaResource(global_num_servers, global_num_threads,
+	                                      sid, host_fname, rdma_mem, mem_sz,
+	                                      kvs_sz, rbuf_sz_per_thread, msg_sz_per_thread);
 	rdma->servicing();
 	rdma->connect();
+#else
+	RdmaResource *rdma = NULL;
 #endif
 
 	// load string server (read-only, shared by all proxies)
 	String_Server str_server(global_input_folder);
 
 	// load RDF graph (shared by all engines)
-	DGraph dgraph(sid, rdma, global_input_folder);
+	DGraph dgraph(global_input_folder, sid, rdma);
 
 	// initiate proxy and engine threads
 	assert(global_num_threads == global_num_proxies + global_num_engines);
