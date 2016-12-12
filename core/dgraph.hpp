@@ -229,7 +229,7 @@ class DGraph {
 		}
 	}
 
-	void load_and_sync_data(vector<string> &file_vec) {
+	void load_and_sync_data(vector<string> &files) {
 		uint64_t t1 = timer::get_usec();
 
 		/**
@@ -248,18 +248,16 @@ class DGraph {
 		 *
 		 */
 		if (global_use_rdma)
-			load_data(file_vec);
+			load_data(files);
 		else
-			load_data_from_allfiles(file_vec);
+			load_data_from_allfiles(files);
 
-		int num_recv_block = global_num_servers;
-		volatile int finished_count = 0;
-		uint64_t total_count = 0;
-		for (int mid = 0; mid < num_recv_block; mid++) {
-			uint64_t max_size = mymath::floor(rdma->get_memorystore_size() / num_recv_block, sizeof(uint64_t));
-			uint64_t offset = max_size * mid;
+		uint64_t total = 0;
+		for (int id = 0; id < global_num_servers; id++) {
+			uint64_t max_size = mymath::floor(rdma->get_memorystore_size() / global_num_servers, sizeof(uint64_t));
+			uint64_t offset = max_size * id;
 			uint64_t *recv_buffer = (uint64_t*)(rdma->get_buffer() + offset);
-			total_count += *recv_buffer;
+			total += *recv_buffer;
 		}
 
 		triple_spo.clear();
@@ -267,16 +265,17 @@ class DGraph {
 		triple_spo.resize(nthread_parallel_load);
 		triple_ops.resize(nthread_parallel_load);
 		for (int i = 0; i < triple_spo.size(); i++) {
-			triple_spo[i].reserve(total_count / nthread_parallel_load * 1.5);
-			triple_ops[i].reserve(total_count / nthread_parallel_load * 1.5);
+			triple_spo[i].reserve(total / nthread_parallel_load * 1.5);
+			triple_ops[i].reserve(total / nthread_parallel_load * 1.5);
 		}
 
+		volatile int done = 0;
 		#pragma omp parallel for num_threads(nthread_parallel_load)
 		for (int t = 0; t < nthread_parallel_load; t++) {
 			int local_count = 0;
-			for (int mid = 0; mid < num_recv_block; mid++) {
+			for (int mid = 0; mid < global_num_servers; mid++) {
 				//recv from different machine
-				uint64_t max_size = mymath::floor(rdma->get_memorystore_size() / num_recv_block, sizeof(uint64_t));
+				uint64_t max_size = mymath::floor(rdma->get_memorystore_size() / global_num_servers, sizeof(uint64_t));
 				uint64_t offset = max_size * mid;
 				uint64_t* recv_buffer = (uint64_t*)(rdma->get_buffer() + offset);
 				uint64_t num_edge = *recv_buffer;
@@ -297,9 +296,9 @@ class DGraph {
 					}
 
 					local_count++;
-					if (local_count == total_count / 100) {
+					if (local_count == total / 100) {
 						local_count = 0;
-						int ret = __sync_fetch_and_add( &finished_count, 1 );
+						int ret = __sync_fetch_and_add( &done, 1 );
 						if ((ret + 1) % (nthread_parallel_load * 5) == 0)
 							cout << "already aggregrate " << (ret + 1) / nthread_parallel_load << " %" << endl;
 					}
@@ -310,6 +309,7 @@ class DGraph {
 			remove_duplicate(triple_spo[t]);
 			remove_duplicate(triple_ops[t]);
 		}
+
 		uint64_t t2 = timer::get_usec();
 		cout << (t2 - t1) / 1000 << " ms for aggregrate edges" << endl;
 	}

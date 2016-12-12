@@ -466,12 +466,12 @@ static int connect_qp(struct QP *res, struct cm_con_data_t tmp_con_data) {
     char temp_char;
 
     /* exchange using TCP sockets info required to connect QPs */
-    remote_con_data.addr = ntohll (tmp_con_data.addr);
-    remote_con_data.rkey = ntohl (tmp_con_data.rkey);
+    remote_con_data.addr = ntohll(tmp_con_data.addr);
+    remote_con_data.rkey = ntohl(tmp_con_data.rkey);
 
-    remote_con_data.qp_num = ntohl (tmp_con_data.qp_num);
-    remote_con_data.lid = ntohs (tmp_con_data.lid);
-    memcpy (remote_con_data.gid, tmp_con_data.gid, 16);
+    remote_con_data.qp_num = ntohl(tmp_con_data.qp_num);
+    remote_con_data.lid = ntohs(tmp_con_data.lid);
+    memcpy(remote_con_data.gid, tmp_con_data.gid, 16);
     /* save the remote side attributes, we will need it for the post SR */
     res->remote_props = remote_con_data;
 
@@ -484,33 +484,32 @@ static int connect_qp(struct QP *res, struct cm_con_data_t tmp_con_data) {
     }
 
     /* modify the QP to init */
-    rc = modify_qp_to_init (res->qp);
+    rc = modify_qp_to_init(res->qp);
     if (rc) {
-        fprintf (stderr, "change QP state to INIT failed\n");
+        fprintf(stderr, "change QP state to INIT failed\n");
         goto connect_qp_exit;
     }
 
     /* let the client post RR to be prepared for incoming messages */
 
     /* modify the QP to RTR */
-    rc =
-        modify_qp_to_rtr (res->qp, remote_con_data.qp_num, remote_con_data.lid,
-                          remote_con_data.gid);
+    rc = modify_qp_to_rtr(res->qp, remote_con_data.qp_num,
+                          remote_con_data.lid, remote_con_data.gid);
     if (rc) {
         fprintf (stderr, "failed to modify QP state to RTR\n");
         goto connect_qp_exit;
     }
 
-    //  fprintf (stderr, "Modified QP state to RTR\n");
-    rc = modify_qp_to_rts (res->qp);
+    rc = modify_qp_to_rts(res->qp);
     if (rc) {
         fprintf (stderr, "failed to modify QP state to RTR\n");
         goto connect_qp_exit;
     }
 
-    //  fprintf (stdout, "QP state was change to RTS\n");
-    /* sync to make sure that both sides are in states
-    that they can connect to prevent packet loose */
+    /**
+     * sync to make sure that both sides are in states
+     * that they can connect to prevent packet loose
+     */
 
 connect_qp_exit:
     return rc;
@@ -653,10 +652,9 @@ static inline uint64_t internal_rdtsc(void) {
 }
 
 class RdmaResource {
-    //site configuration settings
-    int _total_partition = -1;
-    int _total_threads = -1;
-    int _current_partition = -1;
+    int num_nodes = -1;
+    int num_threads = -1;
+    int node_id = -1;
 
     per_thread_metadata local_meta[40];
     struct dev_resource *dev0;//for remote usage
@@ -673,8 +671,8 @@ class RdmaResource {
         //simple wrapper function for handling rdma compare and swap
 
         assert(off < this->size);
-        assert(m_id < _total_partition);
-        assert(t_id < _total_threads);
+        assert(m_id < num_nodes);
+        assert(t_id < num_threads);
 
 
         if (post_send(res[t_id] + m_id, op,
@@ -689,56 +687,6 @@ class RdmaResource {
         }
 
         return 0;
-
-        // uint64_t split_size=1024;
-        // int waiting_count=0;
-        // while(size>0){
-        //     if(waiting_count==16){
-        //         int r=batch_poll_completion(res[t_id] + m_id,4);
-        //         // if(poll_completion(res[t_id] + m_id)) {
-        //         //     fprintf(stderr,"poll completion failed\n");
-        //         //     assert(false);
-        //         // }
-        //         waiting_count-=r;
-        //     }
-        //     uint64_t size_send=std::min(size,split_size);
-        //     if(post_send(res[t_id] + m_id,op,buf,size_send,off,true) ) {
-        //         fprintf(stderr,"failed to post request.");
-        //         assert(false);
-        //     }
-        //     size-=size_send;
-        //     buf+=size_send;
-        //     off+=size_send;
-        //     waiting_count++;
-        // }
-        // while(waiting_count>0){
-        //     if(poll_completion(res[t_id] + m_id)) {
-        //         fprintf(stderr,"poll completion failed\n");
-        //         assert(false);
-        //     }
-        //     waiting_count--;
-        // }
-
-        // uint64_t huge_size=102400000;
-        //
-        //
-        //
-        // //we split the huge rdma_op
-        // while(size>0){
-        //   uint64_t size_send=std::min(size,huge_size);
-        //   if(post_send(res[t_id] + m_id,op,buf,size_send,off,true) ) {
-        //     fprintf(stderr,"failed to post request.");
-        //     assert(false);
-        //   }
-        //   if(poll_completion(res[t_id] + m_id)) {
-        //     fprintf(stderr,"poll completion failed\n");
-        //     assert(false);
-        //   }
-        //   size-=size_send;
-        //   buf+=size_send;
-        //   off+=size_send;
-        // }
-        // return 0;
     }
 
     int batch_rdmaOp(int t_id, int m_id, char *buf,
@@ -746,8 +694,8 @@ class RdmaResource {
         //simple wrapper function for handling rdma compare and swap
 
         assert(off < this->size);
-        assert(m_id < _total_partition);
-        assert(t_id < _total_threads);
+        assert(m_id < num_nodes);
+        assert(t_id < num_threads);
 
         uint64_t start = internal_rdtsc();
         uint64_t sum = 0;
@@ -777,9 +725,9 @@ class RdmaResource {
 
 
     void init() {
-        assert(_total_partition >= 0
-               && _total_threads >= 0
-               && _current_partition >= 0);
+        assert(num_nodes >= 0
+               && num_threads >= 0
+               && node_id >= 0);
         fprintf(stdout, "init devs\n");
 
         dev0 = new dev_resource;
@@ -793,11 +741,11 @@ class RdmaResource {
         }
 
         //fprintf(stdout,"creating remote qps\n");
-        res = new struct QP *[_total_threads];
+        res = new struct QP *[num_threads];
 
-        for (int i = 0; i < _total_threads ; i++) {
-            res[i] = new struct QP[_total_partition];
-            for (int j = 0; j < _total_partition; j++) {
+        for (int i = 0; i < num_threads ; i++) {
+            res[i] = new struct QP[num_nodes];
+            for (int j = 0; j < num_nodes; j++) {
                 QP_init (res[i] + j);
                 if (QP_create (res[i] + j, dev0))
                 {
@@ -810,18 +758,18 @@ class RdmaResource {
         //fprintf(stdout,"creating own qps\n");
 
         for (int i = 0; i < 40; i++) {
-            local_meta[i].prev_recv_tid = _total_threads - 1;
-            local_meta[i].prev_recv_mid = _total_partition - 1;
+            local_meta[i].prev_recv_tid = num_threads - 1;
+            local_meta[i].prev_recv_mid = num_nodes - 1;
         }
 
-        RemoteMeta.resize(_total_partition);
+        RemoteMeta.resize(num_nodes);
         for (int i = 0; i < RemoteMeta.size(); i++) {
-            RemoteMeta[i].resize(_total_threads);
+            RemoteMeta[i].resize(num_threads);
         }
 
-        LocalMeta.resize(_total_threads);
+        LocalMeta.resize(num_threads);
         for (int i = 0; i < LocalMeta.size(); i++) {
-            LocalMeta[i].resize(_total_partition);
+            LocalMeta[i].resize(num_nodes);
         }
     }
 
@@ -835,78 +783,65 @@ public:
     uint64_t get_slotsize() { return rdma_slotsize; }
 
     //rdma location hashing
-    uint64_t rdma_slotsize;
-    uint64_t msg_slotsize;
-    uint64_t rbf_size;
+    uint64_t rdma_slotsize; // per thread
+    uint64_t msg_slotsize; // per thread (no use)
+    uint64_t rbf_size; // per thread per node
 
-    TCP_Adaptor* tcp;
+    TCP_Adaptor *tcp;
 
     // for testing
-    RdmaResource(int t_partition, int t_threads, int current, char *_buffer,
-                 uint64_t _size, uint64_t rdma_slot, uint64_t msg_slot, uint64_t _off = 0) {
-        _total_threads = t_threads;
-        _total_partition = t_partition;
-        _current_partition = current;
+    RdmaResource(int num_nodes, int num_threads, int node_id,
+                 char *buffer, uint64_t size,
+                 uint64_t rdma_slot, uint64_t msg_slot, uint64_t off = 0)
+        : num_nodes(num_nodes), num_threads(num_threads), node_id(node_id),
+          buffer(buffer), size(size), rdma_slotsize(rdma_slot), msg_slotsize(msg_slot), off(off) {
 
-        buffer = _buffer;
-        size   = _size;
-
-        off = _off;
-        rdma_slotsize = rdma_slot;
-        msg_slotsize = msg_slot;
-        rbf_size = msg_slotsize / (_total_partition);
-        rbf_size = rbf_size - (rbf_size % 64);
-
+        rbf_size = floor(msg_slotsize / (num_nodes), 64);
         init();
     }
 
-    void Connect() {
-        std::vector<int> partitions;
-        for (int i = 0; i < _total_partition; ++i) {
-            partitions.push_back(i);
-        }
-        std::random_shuffle(partitions.begin(), partitions.end());
+    void servicing() {
+        pthread_t update_tid;
+        pthread_create(&update_tid, NULL, service_thread, (void *)this);
+    }
 
-        for (int j = 0; j < _total_partition; ++j) {
-            if (j == _current_partition)
-                continue;
-            char address[30];
+    void connect() {
+        // rolling start from next node, i.e., (node_id + j) % num_nodes
+        for (int j = 1; j < num_nodes; j++) {
+            int id = (node_id + j) % num_nodes;
+
             zmq::context_t context(1);
             zmq::socket_t socket(context, ZMQ_REQ);
 
-            int port = global_rdma_port_base + j;
-            snprintf(address, 30, "tcp://%s:%d", tcp->ip_of(j).c_str(), port);
-            fprintf(stdout, "connect to %s\n", address);
+            int port = global_rdma_port_base + id;
+            char address[32] = "";
+            snprintf(address, 32, "tcp://%s:%d", tcp->ip_of(id).c_str(), port);
             socket.connect(address);
 
-            for (int i = 0; i < _total_threads; ++i) {
+            // request QP info from all threads of other nodes and build an one-to-one connect
+            for (int tid = 0; tid < num_threads; tid++) {
+                // 16-bit encoding: nid(8) | tid(8)
+                uint16_t msg = node_id << 8 | tid;
                 zmq::message_t request(2);
-                std::string msg = "00";
-                msg[0] = (char)_current_partition;
-                msg[1] = (char)i;
-
-                memcpy(request.data(), msg.c_str(), 2);
+                memcpy(request.data(), &msg, 2);
                 socket.send(request);
 
                 //get reply
                 zmq::message_t reply;
                 socket.recv(&reply);
                 struct cm_con_data_t remote_con_data;
-
                 memcpy(&remote_con_data, (char *)reply.data(), sizeof(remote_con_data));
-                if (connect_qp(res[i] + j, remote_con_data) ) {
+
+                // a one-to-one mapping between the same thread on each node
+                if (connect_qp(res[tid] + id, remote_con_data) ) {
                     fprintf (stderr, "failed to connect QPs\n");
                     assert(false);
                     exit(-1);
                 }
             }
         }
-        fprintf(stdout, "------------ connection done ------------\n");
-    }
 
-    void Servicing() {
-        pthread_t update_tid;
-        pthread_create(&update_tid, NULL, RecvThread, (void *)this);
+        cout << "RDMA connect QP done." << endl;
     }
 
     // 0 on success, -1 otherwise
@@ -983,45 +918,36 @@ public:
 
     // TODO what if batched?
     inline char *GetMsgAddr(int t_id) {
-        return (char *)( buffer + off + t_id * rdma_slotsize);
+        return (char *)(buffer + off + t_id * rdma_slotsize);
     }
 
-    static void* RecvThread(void * arg) {
+    //
+    static void *service_thread(void * arg) {
         RdmaResource *rdma = (RdmaResource *)arg;
 
         zmq::context_t context(1);
         zmq::socket_t socket(context, ZMQ_REP);
 
-        char address[30] = "";
-        int _current_partition = rdma->_current_partition;
-        int port =  global_rdma_port_base + _current_partition;
-        sprintf(address, "tcp://%s:%d",
-                rdma->tcp->ip_of(_current_partition).c_str(), port);
-        fprintf(stdout, "binding: %s\n", address);
+        int port = global_rdma_port_base + rdma->node_id;
+        char address[32] = "";
+        snprintf(address, 32, "tcp://%s:%d", rdma->tcp->ip_of(rdma->node_id).c_str(), port);
         socket.bind(address);
 
-        while (1) {
+        // wait the connect request from all threads of other nodes
+        for (int i = 0; i < (rdma->num_nodes - 1) * rdma->num_threads; i++) {
             zmq::message_t request;
-
             socket.recv(&request);
-            std::string s((char *)request.data(), request.size());
 
-            int remote_pid = s[0];
-            int remote_tid = s[1];
-            //      fprintf(stdout,"recv %d %d\n",remote_pid,remote_tid);
+            // 16-bit encoding: nid(8) | tid(8)
+            int remote_nid = *(uint16_t *)request.data() >> 8;
+            int remote_tid = *(uint16_t *)request.data() & 0xFF;
             struct cm_con_data_t local_con_data =
-                get_local_con_data((rdma->res)[remote_tid] + remote_pid);
-            zmq::message_t reply(sizeof(local_con_data));
+                get_local_con_data((rdma->res)[remote_tid] + remote_nid);
 
-            memcpy((char *)(reply.data()),
-                   (char *)(&local_con_data),
-                   sizeof(local_con_data));
+            zmq::message_t reply(sizeof(local_con_data));
+            memcpy(reply.data(), &local_con_data, sizeof(local_con_data));
             socket.send(reply);
         }
-    }
-
-    inline int global_tid(int m_id, int t_id) {
-        return m_id * _total_threads + t_id;
     }
 
     //used to send message to remote queue
@@ -1065,31 +991,35 @@ public:
         }
     };
 
-    std::vector<std::vector<RemoteQueueMeta> > RemoteMeta; // RemoteMeta[0..m-1][0..t-1]
-    std::vector<std::vector<LocalQueueMeta> > LocalMeta;  // LocalMeta[0..t-1][0..m-1]
+    std::vector<std::vector<RemoteQueueMeta>> RemoteMeta; // RemoteMeta[0..m-1][0..t-1]
+    std::vector<std::vector<LocalQueueMeta>> LocalMeta;  // LocalMeta[0..t-1][0..m-1]
+
+    uint64_t inline floor(uint64_t original, uint64_t n) {
+        if (n == 0)
+            assert(false);
+        return original - original % n;
+    }
 
     uint64_t inline ceil(uint64_t original, uint64_t n) {
-        if (n == 0) {
+        if (n == 0)
             assert(false);
-        }
-        if (original % n == 0) {
+        if (original % n == 0)
             return original;
-        }
         return original - original % n + n;
     }
 
     uint64_t start_of_recv_queue(int local_tid, int remote_mid) {
         //[t0,m0][t0,m1] [t0,m5], [t1,m0],...
-        uint64_t result = off + (_total_threads) * rdma_slotsize; //skip data-region and rdma_read-region
-        result = result + rbf_size * (local_tid * _total_partition + remote_mid);
+        uint64_t result = off + (num_threads) * rdma_slotsize; //skip data-region and rdma_read-region
+        result = result + rbf_size * (local_tid * num_nodes + remote_mid);
         return result;
     }
 
     void rbfSend(int local_tid, int remote_mid, int remote_tid, const char * str_ptr, uint64_t str_size) {
         RemoteQueueMeta * meta = &RemoteMeta[remote_mid][remote_tid];
         meta->lock();
-        uint64_t remote_start = start_of_recv_queue(remote_tid, _current_partition);
-        if (_current_partition == remote_mid) {
+        uint64_t remote_start = start_of_recv_queue(remote_tid, node_id);
+        if (node_id == remote_mid) {
             char * ptr = buffer + remote_start;
             uint64_t tail = meta->remote_tail;
             (meta->remote_tail) += sizeof(uint64_t) * 2 + ceil(str_size, sizeof(uint64_t));
@@ -1199,9 +1129,9 @@ public:
 
     std::string rbfRecv(int local_tid) {
         while (true) {
-            int mid = local_meta[local_tid].own_count % _total_partition;
+            int mid = local_meta[local_tid].own_count % num_nodes;
             local_meta[local_tid].own_count++;
-            //for(int mid=0;mid<_total_partition;mid++){
+            //for(int mid=0;mid<num_nodes;mid++){
             if (check_rbf_msg(local_tid, mid)) {
                 return fetch_rbf_msg(local_tid, mid);
             }
@@ -1210,7 +1140,7 @@ public:
     }
 
     bool rbfTryRecv(int local_tid, std::string& ret) {
-        for (int mid = 0; mid < _total_partition; mid++) {
+        for (int mid = 0; mid < num_nodes; mid++) {
             if (check_rbf_msg(local_tid, mid)) {
                 ret = fetch_rbf_msg(local_tid, mid);
                 return true;
@@ -1225,9 +1155,9 @@ public:
 class RdmaResource {
 
     //site configuration settings
-    int _total_partition = -1;
-    int _total_threads = -1;
-    int _current_partition = -1;
+    int num_nodes = -1;
+    int num_threads = -1;
+    int node_id = -1;
 
 
     uint64_t size;//The size of the rdma region,should be the same across machines!
@@ -1256,12 +1186,12 @@ public:
     //for testing
     RdmaResource(int t_partition, int t_threads, int current,
                  char *_buffer, uint64_t _size,
-                 uint64_t rdma_slot, uint64_t msg_slot, uint64_t _off) {
-    }
+                 uint64_t rdma_slot, uint64_t msg_slot, uint64_t _off) { }
 
-    void Connect() { assert(false); }
+    void servicing() { assert(false); }
 
-    void Servicing() { assert(false); }
+    void connect() { assert(false); }
+
 
     int RdmaRead(int t_id, int m_id, char *local,
                  uint64_t size, uint64_t remote_offset) {

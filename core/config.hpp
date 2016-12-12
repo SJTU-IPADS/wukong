@@ -138,7 +138,7 @@ void reload_config(void)
 	return;
 }
 
-void load_config(int nsrvs)
+void load_config(int num_servers)
 {
 	ifstream file(cfg_fname.c_str());
 	if (!file) {
@@ -178,10 +178,10 @@ void load_config(int nsrvs)
 	global_max_print_row = atoi(config_map["global_max_print_row"].c_str());
 	global_silent = atoi(config_map["global_silent"].c_str());
 
-	global_num_servers = nsrvs;
+	global_num_servers = num_servers;
 	global_num_threads = global_num_engines + global_num_proxies;
 
-	assert(nsrvs > 0);
+	assert(num_servers > 0);
 	assert(global_num_engines > 0);
 	assert(global_num_proxies > 0);
 

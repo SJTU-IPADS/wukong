@@ -45,10 +45,6 @@ public:
     inline uint64_t static floor(uint64_t original, uint64_t n) {
         if (n == 0)
             assert(false);
-
-        if (original % n == 0)
-            return original;
-
         return original - original % n;
     }
 

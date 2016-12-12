@@ -139,14 +139,15 @@ main(int argc, char *argv[])
 	uint64_t rdma_size = GiB2B(global_total_memory_gb);
 	uint64_t msg_slot_per_thread = MiB2B(global_perslot_msg_mb);
 	uint64_t rdma_slot_per_thread = MiB2B(global_perslot_rdma_mb);
+
+	// RDMA = buffer + msgslot + rdmaslot
 	uint64_t mem_size = rdma_size
 	                    + rdma_slot_per_thread * global_num_threads
 	                    + msg_slot_per_thread * global_num_threads;
-	cout << "memory usage: " << B2GiB(mem_size) << "GB" << endl;
-
+	cout << "INFO: RDMA memory usage (per server): " << B2GiB(mem_size) << "GB" << endl;
 
 	// create an RDMA instance
-	char *buffer = (char*) malloc(mem_size);
+	char *buffer = (char *)malloc(mem_size);
 	memset(buffer, 0, mem_size);
 	RdmaResource *rdma = new RdmaResource(global_num_servers, global_num_threads,
 	                                      sid, buffer, mem_size,
@@ -154,8 +155,8 @@ main(int argc, char *argv[])
 	// a special TCP connection used by RDMA (tid == global_num_threads)
 	rdma->tcp = new TCP_Adaptor(sid, global_num_threads, host_fname);
 #ifdef HAS_RDMA
-	rdma->Servicing();
-	rdma->Connect();
+	rdma->servicing();
+	rdma->connect();
 #endif
 
 	// load string server (read-only, shared by all proxies)
