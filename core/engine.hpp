@@ -36,19 +36,22 @@
 #include "mymath.hpp"
 #include "timer.hpp"
 
-typedef std::pair<int, int> v_pair;
+using namespace std;
 
-size_t hash_pair(const v_pair &x) {
-    size_t r = x.first;
+typedef pair<int64_t, int64_t> v_pair;
+
+int64_t hash_pair(const v_pair &x) {
+    int64_t r = x.first;
     r = r << 32;
     r += x.second;
-    return hash<size_t>()(r);
+    return hash<int64_t>()(r);
 }
 
 
 // a vector of pointers of all local engines
 class Engine;
 std::vector<Engine *> engines;
+
 
 class Engine {
     const static uint64_t TIMEOUT_THRESHOLD = 10000; // 10 msec

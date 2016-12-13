@@ -51,7 +51,7 @@ int global_perslot_rdma_mb = 128;
 int global_hash_header_million = 1000;
 
 bool global_use_rdma = true;
-bool global_use_loc_cache = false;
+bool global_enable_caching = false;
 int global_enable_workstealing = false;
 
 int global_mt_threshold = 16;
@@ -83,7 +83,7 @@ void show_config(void)
 	cout << "global_perslot_rdma_mb: " 		<< global_perslot_rdma_mb			<< endl;
 	cout << "global_hash_header_million: " 	<< global_hash_header_million		<< endl;
 	cout << "global_use_rdma: " 			<< global_use_rdma					<< endl;
-	cout << "global_use_loc_cache: " 		<< global_use_loc_cache				<< endl;
+	cout << "global_enable_caching: " 		<< global_enable_caching			<< endl;
 	cout << "global_enable_workstealing: " 	<< global_enable_workstealing		<< endl;
 	cout << "global_rdma_threshold: " 		<< global_rdma_threshold			<< endl;
 	cout << "global_mt_threshold: " 		<< global_mt_threshold  			<< endl;
@@ -126,7 +126,7 @@ void reload_config(void)
 		config_map[row] = val;
 	}
 
-	global_use_loc_cache = atoi(config_map["global_use_loc_cache"].c_str());
+	global_enable_caching = atoi(config_map["global_enable_caching"].c_str());
 	global_enable_workstealing = atoi(config_map["global_enable_workstealing"].c_str());
 	global_mt_threshold = atoi(config_map["global_mt_threshold"].c_str());
 	global_rdma_threshold = atoi(config_map["global_rdma_threshold"].c_str());
@@ -170,7 +170,7 @@ void load_config(int num_servers)
 	global_hash_header_million = atoi(config_map["global_hash_header_million"].c_str());
 
 	global_use_rdma = atoi(config_map["global_use_rdma"].c_str());
-	global_use_loc_cache = atoi(config_map["global_use_loc_cache"].c_str());
+	global_enable_caching = atoi(config_map["global_enable_caching"].c_str());
 	global_enable_workstealing = atoi(config_map["global_enable_workstealing"].c_str());
 
 	global_rdma_threshold = atoi(config_map["global_rdma_threshold"].c_str());

@@ -90,10 +90,10 @@ uint64_t vid : NBITS_VID;
 
 	local_key(): dir(0), pid(0), vid(0) { }
 
-	local_key(uint64_t i, uint64_t d, uint64_t p): vid(i), dir(d), pid(p) {
-		if ((vid != i) || (dir != d) || (pid != p)) {
+	local_key(uint64_t v, uint64_t d, uint64_t p): vid(v), dir(d), pid(p) {
+		if ((vid != v) || (dir != d) || (pid != p)) {
 			cout << "WARNING: key truncated! "
-			     << "[" << i << "|" << p << "|" << d << "]"
+			     << "[" << v << "|" << p << "|" << d << "]"
 			     << " => "
 			     << "[" << vid << "|" << pid << "|" << dir << "]"
 			     << endl;
@@ -121,8 +121,7 @@ uint64_t vid : NBITS_VID;
 		r += pid;
 		r <<= NBITS_DIR;
 		r += dir;
-		//return std::hash<uint64_t>()(r);
-		return mymath::hash(r);
+		return mymath::hash_u64(r);  // the standard hash is too slow (i.e., std::hash<uint64_t>()(r))
 	}
 };
 

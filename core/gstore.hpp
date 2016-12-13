@@ -38,42 +38,42 @@
 #include "unit.hpp"
 
 class GStore {
-    class rdma_cache {
-        struct cache_item {
+    class RDMA_Cache {
+        struct Item {
             pthread_spinlock_t lock;
             vertex v;
-            cache_item() {
+            Item() {
                 pthread_spin_init(&lock, 0);
             }
         };
 
-        static const int num_cache = 100000;
-        cache_item array[num_cache];
+        static const int NUM_ITEMS = 100000;
+        Item items[NUM_ITEMS];
 
     public:
-        bool lookup(local_key key, vertex& ret) {
-            if (!global_use_loc_cache) {
+        bool lookup(local_key key, vertex &ret) {
+            if (!global_enable_caching)
                 return false;
-            }
-            int idx = key.hash() % num_cache;
+
+            int idx = key.hash() % NUM_ITEMS;
             bool found = false;
-            pthread_spin_lock(&(array[idx].lock));
-            if (array[idx].v.key == key) {
-                ret = array[idx].v;
+            pthread_spin_lock(&(items[idx].lock));
+            if (items[idx].v.key == key) {
+                ret = items[idx].v;
                 found = true;
             }
-            pthread_spin_unlock(&(array[idx].lock));
+            pthread_spin_unlock(&(items[idx].lock));
             return found;
         }
 
-        void insert(vertex& v) {
-            if (!global_use_loc_cache) {
-                return ;
-            }
-            int idx = v.key.hash() % num_cache;
-            pthread_spin_lock(&array[idx].lock);
-            array[idx].v = v;
-            pthread_spin_unlock(&array[idx].lock);
+        void insert(vertex &v) {
+            if (!global_enable_caching)
+                return;
+
+            int idx = v.key.hash() % NUM_ITEMS;
+            pthread_spin_lock(&items[idx].lock);
+            items[idx].v = v;
+            pthread_spin_unlock(&items[idx].lock);
         }
     };
 
@@ -85,7 +85,7 @@ class GStore {
     pthread_spinlock_t allocation_lock;
     pthread_spinlock_t fine_grain_locks[NUM_LOCKS];
 
-    rdma_cache rdmacache;
+    RDMA_Cache rdma_cache;
 
     vertex *vertex_addr;
     edge *edge_addr;
@@ -200,7 +200,7 @@ class GStore {
         uint64_t bucket_id = key.hash() % header_num;
         vertex ret;
 
-        if (rdmacache.lookup(key, ret))
+        if (rdma_cache.lookup(key, ret))
             return ret;
 
         while (true) {
@@ -213,7 +213,7 @@ class GStore {
                 if (i < ASSOCIATIVITY - 1) {
                     if (ptr[i].key == key) {
                         //we found it
-                        rdmacache.insert(ptr[i]);
+                        rdma_cache.insert(ptr[i]);
                         return ptr[i];
                     }
                 } else {
@@ -277,10 +277,6 @@ public:
         for (uint64_t i = 0; i < slot_num; i++) {
             vertex_addr[i].key = local_key();
         }
-
-        // if(global_use_loc_cache){
-        //  assert(false);
-        // }
     }
 
     void atomic_batch_insert(vector<edge_triple> &spo, vector<edge_triple> &ops) {
