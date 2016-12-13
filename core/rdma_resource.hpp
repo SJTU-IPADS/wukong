@@ -744,15 +744,6 @@ class RdmaResource {
     }
 
 public:
-
-    char *get_buffer() { return rdma_mem; }
-
-    //[0, kvs_sz) can be used, but [kvstore_siz, mem_sz) should be reserve
-    uint64_t get_memorystore_size() { return kvs_sz; }
-
-    uint64_t get_slotsize() { return rbuf_sz; }
-
-    // for testing
     RdmaResource(int num_nodes, int num_threads, int node_id, string fname,
                  char *rdma_mem, uint64_t mem_sz,
                  uint64_t kvs_sz, uint64_t rbuf_sz, uint64_t msg_sz)
@@ -816,6 +807,12 @@ public:
     }
 
     string ip_of(int sid) { return ipset[sid]; }
+
+    char *get_kvstore() { return rdma_mem; }
+
+    uint64_t get_kvstore_size() { return kvs_sz; }
+
+    uint64_t get_slotsize() { return rbuf_sz; }
 
     // 0 on success, -1 otherwise
     int RdmaRead(int dst_tid, int dst_nid, char *local,
@@ -950,14 +947,12 @@ public:
     std::vector<std::vector<LocalQueueMeta>> LocalMeta;  // LocalMeta[0..t-1][0..m-1]
 
     uint64_t inline floor(uint64_t original, uint64_t n) {
-        if (n == 0)
-            assert(false);
+        assert(n != 0);
         return original - original % n;
     }
 
     uint64_t inline ceil(uint64_t original, uint64_t n) {
-        if (n == 0)
-            assert(false);
+        assert(n != 0);
         if (original % n == 0)
             return original;
         return original - original % n + n;
@@ -1105,27 +1100,7 @@ public:
 #else
 
 class RdmaResource {
-
 public:
-    uint64_t get_memorystore_size() {
-        cout << "This system is compiled without RDMA support." << endl;
-        assert(false);
-        return 0ul;
-    }
-
-    char * get_buffer() {
-        cout << "This system is compiled without RDMA support." << endl;
-        assert(false);
-        return NULL;
-    }
-
-    uint64_t get_slotsize() {
-        cout << "This system is compiled without RDMA support." << endl;
-        assert(false);
-        return 0ul;
-    }
-
-    //for testing
     RdmaResource(int num_nodes, int num_threads, int node_id, string fname,
                  char *rdma_mem, uint64_t mem_sz,
                  uint64_t kvs_sz, uint64_t rbuf_sz, uint64_t msg_sz) {
@@ -1141,6 +1116,30 @@ public:
     void connect() {
         cout << "This system is compiled without RDMA support." << endl;
         assert(false);
+    }
+
+    string ip_of(int sid) {
+        cout << "This system is compiled without RDMA support." << endl;
+        assert(false);
+        return string();
+    }
+
+    char *get_kvstore() {
+        cout << "This system is compiled without RDMA support." << endl;
+        assert(false);
+        return NULL;
+    }
+
+    uint64_t get_kvstore_size() {
+        cout << "This system is compiled without RDMA support." << endl;
+        assert(false);
+        return 0ul;
+    }
+
+    uint64_t get_slotsize() {
+        cout << "This system is compiled without RDMA support." << endl;
+        assert(false);
+        return 0ul;
     }
 
 
@@ -1181,10 +1180,10 @@ public:
     std::string rbfRecv(int local_tid) {
         cout << "This system is compiled without RDMA support." << endl;
         assert(false);
-        return new string();
+        return string();
     }
 
-    bool rbfTryRecv(int local_tid, std::string &ret) {
+    bool rbfTryRecv(int local_tid, std::string & ret) {
         cout << "This system is compiled without RDMA support." << endl;
         assert(false);
         return false;

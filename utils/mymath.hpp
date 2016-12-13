@@ -42,12 +42,6 @@ public:
         assert(false);
     }
 
-    inline uint64_t static floor(uint64_t original, uint64_t n) {
-        if (n == 0)
-            assert(false);
-        return original - original % n;
-    }
-
     inline int static hash_mod(uint64_t n, int m) {
         if (m == 0)
             assert(false);
@@ -65,8 +59,6 @@ public:
 
         return key;
     }
-
-
 };
 
 class mytuple {

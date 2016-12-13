@@ -74,7 +74,7 @@ class DGraph {
 
 	void inline send_edge(int localtid, int dst_sid, uint64_t s, uint64_t p, uint64_t o) {
 		// The RDMA buffer is shared by all threads to communication to all servers
-		uint64_t subslot_size = mymath::floor(rdma->get_slotsize() / global_num_servers, sizeof(uint64_t));
+		uint64_t subslot_size = floor(rdma->get_slotsize() / global_num_servers, sizeof(uint64_t));
 		uint64_t *local_buffer = (uint64_t *)(rdma->GetMsgAddr(localtid) + subslot_size * dst_sid);
 
 		// The 1st uint64_t of buffer records the number of triples
@@ -91,14 +91,14 @@ class DGraph {
 	}
 
 	void flush_edge(int localtid, int dst_sid) {
-		uint64_t subslot_size = mymath::floor(rdma->get_slotsize() / global_num_servers, sizeof(uint64_t));
+		uint64_t subslot_size = floor(rdma->get_slotsize() / global_num_servers, sizeof(uint64_t));
 		uint64_t *local_buffer = (uint64_t *) (rdma->GetMsgAddr(localtid) + subslot_size * dst_sid );
 		uint64_t num_edge_to_send = *local_buffer;
 
 		//clear and skip the number infomation
 		*local_buffer = 0;
 		local_buffer += 1;
-		uint64_t max_size = mymath::floor(rdma->get_memorystore_size() / global_num_servers, sizeof(uint64_t));
+		uint64_t max_size = floor(rdma->get_kvstore_size() / global_num_servers, sizeof(uint64_t));
 		uint64_t old_num = __sync_fetch_and_add(&nedges[dst_sid], num_edge_to_send);
 		if ((old_num + num_edge_to_send + 1) * 3 * sizeof(uint64_t) >= max_size) {
 			cout << "old =" << old_num << endl;
@@ -109,13 +109,14 @@ class DGraph {
 		}
 
 		// we need to flush to the same offset of different machine
-		uint64_t remote_offset = max_size * sid;
-		remote_offset += (old_num * 3 + 1) * sizeof(uint64_t);
+		uint64_t remote_offset = max_size * sid
+		                         + sizeof(uint64_t)                  // the counter
+		                         + (old_num * 3) * sizeof(uint64_t); // existing triples
 		uint64_t remote_length = num_edge_to_send * 3 * sizeof(uint64_t);
 		if (dst_sid != sid) {
 			rdma->RdmaWrite(localtid, dst_sid, (char*)local_buffer, remote_length, remote_offset);
 		} else {
-			memcpy(rdma->get_buffer() + remote_offset, (char*)local_buffer, remote_length);
+			memcpy(rdma->get_kvstore() + remote_offset, (char*)local_buffer, remote_length);
 		}
 	}
 
@@ -181,12 +182,12 @@ class DGraph {
 			//after flush all data, we need to write the number of total edges;
 			uint64_t *local_buffer = (uint64_t *) rdma->GetMsgAddr(0);
 			*local_buffer = nedges[mid];
-			uint64_t max_size = mymath::floor(rdma->get_memorystore_size() / global_num_servers, sizeof(uint64_t));
+			uint64_t max_size = floor(rdma->get_kvstore_size() / global_num_servers, sizeof(uint64_t));
 			uint64_t remote_offset = max_size * sid;
 			if (mid != sid) {
 				rdma->RdmaWrite(0, mid, (char*)local_buffer, sizeof(uint64_t), remote_offset);
 			} else {
-				memcpy(rdma->get_buffer() + remote_offset, (char*)local_buffer, sizeof(uint64_t));
+				memcpy(rdma->get_kvstore() + remote_offset, (char*)local_buffer, sizeof(uint64_t));
 			}
 		}
 		MPI_Barrier(MPI_COMM_WORLD);
@@ -204,9 +205,9 @@ class DGraph {
 		#pragma omp parallel for num_threads(global_num_engines)
 		for (int i = 0; i < nfile; i++) {
 			int localtid = omp_get_thread_num();
-			uint64_t max_size = mymath::floor(rdma->get_memorystore_size() / global_num_engines, sizeof(uint64_t));
+			uint64_t max_size = floor(rdma->get_kvstore_size() / global_num_engines, sizeof(uint64_t));
 			uint64_t offset = max_size * localtid;
-			uint64_t* local_buffer = (uint64_t*)(rdma->get_buffer() + offset);
+			uint64_t *local_buffer = (uint64_t *)(rdma->get_kvstore() + offset);
 
 			// TODO: support HDFS
 			ifstream file(file_vec[i].c_str());
@@ -254,9 +255,8 @@ class DGraph {
 
 		uint64_t total = 0;
 		for (int id = 0; id < global_num_servers; id++) {
-			uint64_t max_size = mymath::floor(rdma->get_memorystore_size() / global_num_servers, sizeof(uint64_t));
-			uint64_t offset = max_size * id;
-			uint64_t *recv_buffer = (uint64_t*)(rdma->get_buffer() + offset);
+			uint64_t max_size = floor(rdma->get_kvstore_size() / global_num_servers, sizeof(uint64_t));
+			uint64_t *recv_buffer = (uint64_t*)(rdma->get_kvstore() + max_size * id);
 			total += *recv_buffer;
 		}
 
@@ -275,9 +275,8 @@ class DGraph {
 			int local_count = 0;
 			for (int mid = 0; mid < global_num_servers; mid++) {
 				//recv from different machine
-				uint64_t max_size = mymath::floor(rdma->get_memorystore_size() / global_num_servers, sizeof(uint64_t));
-				uint64_t offset = max_size * mid;
-				uint64_t* recv_buffer = (uint64_t*)(rdma->get_buffer() + offset);
+				uint64_t max_size = floor(rdma->get_kvstore_size() / global_num_servers, sizeof(uint64_t));
+				uint64_t* recv_buffer = (uint64_t*)(rdma->get_kvstore() + max_size * mid);
 				uint64_t num_edge = *recv_buffer;
 				for (uint64_t i = 0; i < num_edge; i++) {
 					uint64_t s = recv_buffer[1 + i * 3];
@@ -312,6 +311,18 @@ class DGraph {
 
 		uint64_t t2 = timer::get_usec();
 		cout << (t2 - t1) / 1000 << " ms for aggregrate edges" << endl;
+	}
+
+	uint64_t inline floor(uint64_t original, uint64_t n) {
+		assert(n != 0);
+		return original - original % n;
+	}
+
+	uint64_t inline ceil(uint64_t original, uint64_t n) {
+		assert(n != 0);
+		if (original % n == 0)
+			return original;
+		return original - original % n + n;
 	}
 
 public:

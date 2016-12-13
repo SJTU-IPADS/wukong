@@ -250,25 +250,29 @@ public:
             pthread_spin_init(&fine_grain_locks[i], 0);
     }
 
+    // GStore: key (main-header and indirect-header region) | value (entry region)
+    // The key (head region) is a cluster chaining hash table (with associativity)
+    // The value is a varying-size array
     void init(RdmaResource* _rdma, uint64_t machine_num, uint64_t machine_id) {
         rdma = _rdma;
         m_num = machine_num;
         m_id = machine_id;
-        slot_num = 1000000 * global_hash_header_million;
+        slot_num = global_hash_header_million * 1000 * 1000;
         header_num = (slot_num / ASSOCIATIVITY) / (KEY_RATIO + 1) * KEY_RATIO;
         indirect_num = (slot_num / ASSOCIATIVITY) / (KEY_RATIO + 1);
 
-        vertex_addr = (vertex*)(rdma->get_buffer());
-        edge_addr   = (edge*)(rdma->get_buffer() + slot_num * sizeof(vertex));
+        vertex_addr = (vertex *)(rdma->get_kvstore());
+        edge_addr   = (edge *)(rdma->get_kvstore() + slot_num * sizeof(vertex));
 
-        if (rdma->get_memorystore_size() <= slot_num * sizeof(vertex)) {
+        if (rdma->get_kvstore_size() <= slot_num * sizeof(vertex)) {
             std::cout << "No enough memory to store edge" << std::endl;
             exit(-1);
         }
-        max_edge_ptr = (rdma->get_memorystore_size()
-                        - slot_num * sizeof(vertex)) / sizeof(edge);
+
+        max_edge_ptr = (rdma->get_kvstore_size() - slot_num * sizeof(vertex)) / sizeof(edge);
         new_edge_ptr = 0;
 
+        // initiate keys
         #pragma omp parallel for num_threads(20)
         for (uint64_t i = 0; i < slot_num; i++) {
             vertex_addr[i].key = local_key();
