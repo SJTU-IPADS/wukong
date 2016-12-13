@@ -74,8 +74,8 @@ class DGraph {
 
 	void inline send_edge(int localtid, int dst_sid, uint64_t s, uint64_t p, uint64_t o) {
 		// The RDMA buffer is shared by all threads to communication to all servers
-		uint64_t subslot_size = floor(rdma->get_slotsize() / global_num_servers, sizeof(uint64_t));
-		uint64_t *local_buffer = (uint64_t *)(rdma->GetMsgAddr(localtid) + subslot_size * dst_sid);
+		uint64_t subslot_size = floor(rdma->get_buffer_size() / global_num_servers, sizeof(uint64_t));
+		uint64_t *local_buffer = (uint64_t *)(rdma->get_buffer(localtid) + subslot_size * dst_sid);
 
 		// The 1st uint64_t of buffer records the number of triples
 		*(local_buffer + (*local_buffer) * 3 + 1) = s;
@@ -91,8 +91,8 @@ class DGraph {
 	}
 
 	void flush_edge(int localtid, int dst_sid) {
-		uint64_t subslot_size = floor(rdma->get_slotsize() / global_num_servers, sizeof(uint64_t));
-		uint64_t *local_buffer = (uint64_t *) (rdma->GetMsgAddr(localtid) + subslot_size * dst_sid );
+		uint64_t subslot_size = floor(rdma->get_buffer_size() / global_num_servers, sizeof(uint64_t));
+		uint64_t *local_buffer = (uint64_t *) (rdma->get_buffer(localtid) + subslot_size * dst_sid );
 		uint64_t num_edge_to_send = *local_buffer;
 
 		//clear and skip the number infomation
@@ -180,7 +180,7 @@ class DGraph {
 		// exchange #triples among all servers
 		for (int mid = 0; mid < global_num_servers; mid++) {
 			//after flush all data, we need to write the number of total edges;
-			uint64_t *local_buffer = (uint64_t *) rdma->GetMsgAddr(0);
+			uint64_t *local_buffer = (uint64_t *) rdma->get_buffer(0);
 			*local_buffer = nedges[mid];
 			uint64_t max_size = floor(rdma->get_kvstore_size() / global_num_servers, sizeof(uint64_t));
 			uint64_t remote_offset = max_size * sid;

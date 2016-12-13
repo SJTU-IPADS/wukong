@@ -646,10 +646,10 @@ class RdmaResource {
 
     struct QP **res;
 
-    char *rdma_mem;     // RDMA memory: kvstore | read_buffer | logical_queue
-    uint64_t mem_sz;    // mem_sz = kvs_sz + rbuf_sz * num_threads + msg_sz * num_threads
+    char *rdma_mem;     // RDMA memory: kvstore | local_buffer | logical_queue
+    uint64_t mem_sz;    // mem_sz = kvs_sz + buf_sz * num_threads + msg_sz * num_threads
     uint64_t kvs_sz;
-    uint64_t rbuf_sz;
+    uint64_t buf_sz;
     uint64_t msg_sz;    // msg_sz = rbf_size * num_nodes
 
     uint64_t rbf_size;
@@ -746,10 +746,10 @@ class RdmaResource {
 public:
     RdmaResource(int num_nodes, int num_threads, int node_id, string fname,
                  char *rdma_mem, uint64_t mem_sz,
-                 uint64_t kvs_sz, uint64_t rbuf_sz, uint64_t msg_sz)
+                 uint64_t kvs_sz, uint64_t buf_sz, uint64_t msg_sz)
         : num_nodes(num_nodes), num_threads(num_threads), node_id(node_id),
           rdma_mem(rdma_mem), mem_sz(mem_sz),
-          kvs_sz(kvs_sz), rbuf_sz(rbuf_sz), msg_sz(msg_sz) {
+          kvs_sz(kvs_sz), buf_sz(buf_sz), msg_sz(msg_sz) {
 
         rbf_size = floor(msg_sz / num_nodes, 64);
 
@@ -812,7 +812,14 @@ public:
 
     uint64_t get_kvstore_size() { return kvs_sz; }
 
-    uint64_t get_slotsize() { return rbuf_sz; }
+    // TODO what if batched?
+    inline char *get_buffer(int dst_tid) {
+        return (char *)(rdma_mem + kvs_sz + buf_sz * dst_tid);
+    }
+
+    uint64_t get_buffer_size() { return buf_sz; }
+
+
 
     // 0 on success, -1 otherwise
     int RdmaRead(int dst_tid, int dst_nid, char *local,
@@ -866,11 +873,6 @@ public:
         // }
         //TODO! we need to
         return 0;
-    }
-
-    // TODO what if batched?
-    inline char *GetMsgAddr(int dst_tid) {
-        return (char *)(rdma_mem + kvs_sz + rbuf_sz * dst_tid);
     }
 
     // the service thread is used to answer the query about QP info
@@ -960,7 +962,7 @@ public:
 
     uint64_t start_of_recv_queue(int local_tid, int remote_mid) {
         //[t0,m0][t0,m1] [t0,m5], [t1,m0],...
-        uint64_t result = kvs_sz + rbuf_sz * num_threads; // skip kvstore and read_buffer
+        uint64_t result = kvs_sz + buf_sz * num_threads; // skip kvstore and read_buffer
         result = result + rbf_size * (local_tid * num_nodes + remote_mid);
         return result;
     }
@@ -982,10 +984,9 @@ public:
             }
             tail += ceil(str_size, sizeof(uint64_t));
             *((uint64_t*)(ptr + (tail) % rbf_size)) = str_size;
-
         } else {
             uint64_t total_write_size = sizeof(uint64_t) * 2 + ceil(str_size, sizeof(uint64_t));
-            char* local_buffer = GetMsgAddr(local_tid);
+            char* local_buffer = get_buffer(local_tid);
             *((uint64_t*)local_buffer) = str_size;
             local_buffer += sizeof(uint64_t);
             memcpy(local_buffer, str_ptr, str_size);
@@ -996,14 +997,14 @@ public:
             meta->unlock();
             if (tail / rbf_size == (tail + total_write_size - 1) / rbf_size ) {
                 uint64_t remote_msg_offset = remote_start + (tail % rbf_size);
-                RdmaWrite(local_tid, remote_mid, GetMsgAddr(local_tid), total_write_size, remote_msg_offset);
+                RdmaWrite(local_tid, remote_mid, get_buffer(local_tid), total_write_size, remote_msg_offset);
             } else {
                 uint64_t length1 = rbf_size - (tail % rbf_size);
                 uint64_t length2 = total_write_size - length1;
                 uint64_t remote_msg_offset1 = remote_start + (tail % rbf_size);
                 uint64_t remote_msg_offset2 = remote_start;
-                RdmaWrite(local_tid, remote_mid, GetMsgAddr(local_tid), length1, remote_msg_offset1);
-                RdmaWrite(local_tid, remote_mid, GetMsgAddr(local_tid) + length1, length2, remote_msg_offset2);
+                RdmaWrite(local_tid, remote_mid, get_buffer(local_tid), length1, remote_msg_offset1);
+                RdmaWrite(local_tid, remote_mid, get_buffer(local_tid) + length1, length2, remote_msg_offset2);
             }
         }
     }
@@ -1103,7 +1104,7 @@ class RdmaResource {
 public:
     RdmaResource(int num_nodes, int num_threads, int node_id, string fname,
                  char *rdma_mem, uint64_t mem_sz,
-                 uint64_t kvs_sz, uint64_t rbuf_sz, uint64_t msg_sz) {
+                 uint64_t kvs_sz, uint64_t buf_sz, uint64_t msg_sz) {
         cout << "This system is compiled without RDMA support." << endl;
         assert(false);
     }
@@ -1136,12 +1137,17 @@ public:
         return 0ul;
     }
 
-    uint64_t get_slotsize() {
+    inline char *get_buffer(int dst_tid) {
+        cout << "This system is compiled without RDMA support." << endl;
+        assert(false);
+        return NULL;
+    }
+
+    uint64_t get_buffer_size() {
         cout << "This system is compiled without RDMA support." << endl;
         assert(false);
         return 0ul;
     }
-
 
     int RdmaRead(int dst_tid, int dst_nid, char *local,
                  uint64_t size, uint64_t remote_offset) {
@@ -1163,12 +1169,6 @@ public:
         cout << "This system is compiled without RDMA support." << endl;
         assert(false);
         return 0;
-    }
-
-    inline char *GetMsgAddr(int dst_tid) {
-        cout << "This system is compiled without RDMA support." << endl;
-        assert(false);
-        return NULL;
     }
 
     void rbfSend(int local_tid, int remote_mid, int remote_tid,

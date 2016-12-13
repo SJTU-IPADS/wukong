@@ -196,7 +196,7 @@ class GStore {
     }
 
     vertex get_vertex_remote(int tid, local_key key) {
-        char *local_buffer = rdma->GetMsgAddr(tid);
+        char *local_buffer = rdma->get_buffer(tid);
         uint64_t bucket_id = key.hash() % header_num;
         vertex ret;
 
@@ -390,7 +390,7 @@ public:
             return NULL;
         }
 
-        char *local_buffer = rdma->GetMsgAddr(tid);
+        char *local_buffer = rdma->get_buffer(tid);
         uint64_t start_addr  = sizeof(vertex) * slot_num + sizeof(edge) * (v.val.ptr);
         uint64_t read_length = sizeof(edge) * v.val.size;
         rdma->RdmaRead(tid, mymath::hash_mod(id, m_num),
