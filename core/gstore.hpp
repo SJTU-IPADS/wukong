@@ -41,7 +41,7 @@ class GStore {
     class RDMA_Cache {
         struct Item {
             pthread_spinlock_t lock;
-            vertex v;
+            vertex_t v;
             Item() {
                 pthread_spin_init(&lock, 0);
             }
@@ -51,7 +51,7 @@ class GStore {
         Item items[NUM_ITEMS];
 
     public:
-        bool lookup(ikey_t key, vertex &ret) {
+        bool lookup(ikey_t key, vertex_t &ret) {
             if (!global_enable_caching)
                 return false;
 
@@ -66,7 +66,7 @@ class GStore {
             return found;
         }
 
-        void insert(vertex &v) {
+        void insert(vertex_t &v) {
             if (!global_enable_caching)
                 return;
 
@@ -85,8 +85,8 @@ class GStore {
     uint64_t sid;
     RdmaResource *rdma;
 
-    vertex *vertex_addr;
-    edge *edge_addr;
+    vertex_t *vertex_addr;
+    edge_t *edge_addr;
 
     uint64_t slot_num;
 
@@ -171,7 +171,7 @@ class GStore {
         return orig_num_edges;
     }
 
-    vertex get_vertex_local(ikey_t key) {
+    vertex_t get_vertex_local(ikey_t key) {
         uint64_t bucket_id = key.hash() % num_main_headers;
         while (true) {
             for (uint64_t i = 0; i < ASSOCIATIVITY; i++) {
@@ -189,27 +189,27 @@ class GStore {
                         //break from for loop, will go to next bucket
                         break;
                     } else {
-                        return vertex();
+                        return vertex_t();
                     }
                 }
             }
         }
     }
 
-    vertex get_vertex_remote(int tid, ikey_t key) {
+    vertex_t get_vertex_remote(int tid, ikey_t key) {
         char *local_buffer = rdma->get_buffer(tid);
         uint64_t bucket_id = key.hash() % num_main_headers;
-        vertex ret;
+        vertex_t ret;
 
         if (rdma_cache.lookup(key, ret))
             return ret;
 
         while (true) {
-            uint64_t start_addr = sizeof(vertex) * bucket_id * ASSOCIATIVITY;
-            uint64_t read_length = sizeof(vertex) * ASSOCIATIVITY;
+            uint64_t start_addr = sizeof(vertex_t) * bucket_id * ASSOCIATIVITY;
+            uint64_t read_length = sizeof(vertex_t) * ASSOCIATIVITY;
             rdma->RdmaRead(tid, mymath::hash_mod(key.vid, global_num_servers),
                            (char *)local_buffer, read_length, start_addr);
-            vertex *ptr = (vertex*)local_buffer;
+            vertex_t *ptr = (vertex_t *)local_buffer;
             for (uint64_t i = 0; i < ASSOCIATIVITY; i++) {
                 if (i < ASSOCIATIVITY - 1) {
                     if (ptr[i].key == key) {
@@ -224,7 +224,7 @@ class GStore {
                         //break from for loop, will go to next bucket
                         break;
                     } else {
-                        return vertex();
+                        return vertex_t();
                     }
                 }
             }
@@ -262,17 +262,17 @@ public:
         num_main_headers = (slot_num / ASSOCIATIVITY) / (KEY_RATIO + 1) * KEY_RATIO;
         num_indirect_headers = (slot_num / ASSOCIATIVITY) / (KEY_RATIO + 1);
 
-        vertex_addr = (vertex *)(rdma->get_kvstore());
-        edge_addr   = (edge *)(rdma->get_kvstore() + slot_num * sizeof(vertex));
+        vertex_addr = (vertex_t *)(rdma->get_kvstore());
+        edge_addr   = (edge_t *)(rdma->get_kvstore() + slot_num * sizeof(vertex_t));
 
-        if (rdma->get_kvstore_size() <= slot_num * sizeof(vertex)) {
+        if (rdma->get_kvstore_size() <= slot_num * sizeof(vertex_t)) {
             std::cout << "ERROR: " << global_memstore_size_gb
                       << "GB memory store is not enough to store hash table with "
                       << global_num_keys_million << "M keys" << std::endl;
             exit(-1);
         }
 
-        num_edges = (rdma->get_kvstore_size() - slot_num * sizeof(vertex)) / sizeof(edge);
+        num_edges = (rdma->get_kvstore_size() - slot_num * sizeof(vertex_t)) / sizeof(edge_t);
         last_edge = 0;
 
         // initiate keys
@@ -377,13 +377,13 @@ public:
 #endif
     }
 
-    edge *get_edges_global(int tid, uint64_t vid, int direction, int predicate, int *size) {
+    edge_t *get_edges_global(int tid, uint64_t vid, int direction, int predicate, int *size) {
         int dst_sid = mymath::hash_mod(vid, global_num_servers);
         if (dst_sid == sid)
             return get_edges_local(tid, vid, direction, predicate, size);
 
         ikey_t key = ikey_t(vid, direction, predicate);
-        vertex v = get_vertex_remote(tid, key);
+        vertex_t v = get_vertex_remote(tid, key);
 
         if (v.key == ikey_t()) {
             *size = 0;
@@ -391,19 +391,19 @@ public:
         }
 
         char *local_buffer = rdma->get_buffer(tid);
-        uint64_t read_offset  = sizeof(vertex) * slot_num + sizeof(edge) * (v.val.ptr);
-        uint64_t read_length = sizeof(edge) * v.val.size;
+        uint64_t read_offset  = sizeof(vertex_t) * slot_num + sizeof(edge_t) * (v.val.ptr);
+        uint64_t read_length = sizeof(edge_t) * v.val.size;
         rdma->RdmaRead(tid, dst_sid, (char *)local_buffer, read_length, read_offset);
-        edge *result_ptr = (edge *)local_buffer;
+        edge_t *result_ptr = (edge_t *)local_buffer;
         *size = v.val.size;
         return result_ptr;
     }
 
-    edge *get_edges_local(int tid, uint64_t vid, int direction, int predicate, int *size) {
+    edge_t *get_edges_local(int tid, uint64_t vid, int direction, int predicate, int *size) {
         assert(mymath::hash_mod(vid, global_num_servers) == sid || is_idx(vid));
 
         ikey_t key = ikey_t(vid, direction, predicate);
-        vertex v = get_vertex_local(key);
+        vertex_t v = get_vertex_local(key);
         if (v.key == ikey_t()) {
             *size = 0;
             return NULL;
@@ -414,7 +414,7 @@ public:
         return &(edge_addr[ptr]);
     }
 
-    edge *get_index_edges_local(int tid, uint64_t index_id, int d, int *size) {
+    edge_t *get_index_edges_local(int tid, uint64_t index_id, int d, int *size) {
         // predicate is not important, so we set it 0
         return get_edges_local(tid, index_id, d, 0, size);
     }
@@ -523,17 +523,17 @@ public:
         }
 
         cout << "gstore direct_header = "
-             << B2MiB(num_main_headers * ASSOCIATIVITY * sizeof(vertex))
+             << B2MiB(num_main_headers * ASSOCIATIVITY * sizeof(vertex_t))
              << " MB "
              << endl;
         cout << "\t\treal_data = "
-             << B2MiB(used_header_slot * sizeof(vertex))
+             << B2MiB(used_header_slot * sizeof(vertex_t))
              << " MB " << endl;
         cout << "\t\tnext_ptr = "
-             << B2MiB(num_main_headers * sizeof(vertex))
+             << B2MiB(num_main_headers * sizeof(vertex_t))
              << " MB " << endl;
         cout << "\t\tempty_slot = "
-             << B2MiB((num_main_headers * ASSOCIATIVITY - num_main_headers - used_header_slot) * sizeof(vertex))
+             << B2MiB((num_main_headers * ASSOCIATIVITY - num_main_headers - used_header_slot) * sizeof(vertex_t))
              << " MB " << endl;
 
         uint64_t used_indirect_slot = 0;
@@ -553,15 +553,15 @@ public:
         }
 
         cout << "gstore indirect_header = "
-             << B2MiB(num_indirect_headers * ASSOCIATIVITY * sizeof(vertex))
+             << B2MiB(num_indirect_headers * ASSOCIATIVITY * sizeof(vertex_t))
              << " MB "
              << endl;
         cout << "\t\tnot_empty_data = "
-             << B2MiB(used_indirect_bucket * ASSOCIATIVITY * sizeof(vertex))
+             << B2MiB(used_indirect_bucket * ASSOCIATIVITY * sizeof(vertex_t))
              << " MB "
              << endl;
         cout << "\t\treal_data = "
-             << B2MiB(used_indirect_slot * sizeof(vertex))
+             << B2MiB(used_indirect_slot * sizeof(vertex_t))
              << " MB "
              << endl;
 
@@ -573,14 +573,14 @@ public:
              << endl;
 
         cout << "gstore uses "
-             << B2MiB(slot_num * sizeof(vertex))
+             << B2MiB(slot_num * sizeof(vertex_t))
              << " MB for vertex data"
              << endl;
 
         cout << "gstore edge_data = "
-             << B2MiB(last_edge * sizeof(edge))
+             << B2MiB(last_edge * sizeof(edge_t))
              << " / "
-             << B2MiB(num_edges * sizeof(edge))
+             << B2MiB(num_edges * sizeof(edge_t))
              << " MB "
              << endl;
     }

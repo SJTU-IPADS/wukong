@@ -153,13 +153,13 @@ uint64_t ptr: NBITS_PTR;
 };
 
 // 128-bit vertex (key)
-struct vertex {
+struct vertex_t {
 	ikey_t key; // 64-bit: vertex | predicate | direction
 	iptr_t val; // 64-bit: size | offset
 };
 
 // edge (value)
-struct edge {
+struct edge_t {
 	// uint64_t val;
 	unsigned int val;
 };

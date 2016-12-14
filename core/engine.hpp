@@ -79,7 +79,7 @@ class Engine {
             assert(false);
         }
         int edge_num = 0;
-        edge *edge_ptr;
+        edge_t *edge_ptr;
         edge_ptr = graph->get_edges_global(tid, start, direction, predicate, &edge_num);
         for (int k = 0; k < edge_num; k++) {
             updated_result_table.push_back(edge_ptr[k].val);
@@ -90,7 +90,7 @@ class Engine {
         req.step++;
     }
 
-    void const_to_known(request_or_reply &req) { } //TODO
+    void const_to_known(request_or_reply &req) { assert(false); } //TODO
 
     void known_to_unknown(request_or_reply &req) {
         int64_t start = req.cmd_chains[req.step * 4];
@@ -108,7 +108,7 @@ class Engine {
         for (int i = 0; i < req.get_row_num(); i++) {
             int64_t prev_id = req.get_row_col(i, req.var2column(start));
             int edge_num = 0;
-            edge *edge_ptr;
+            edge_t *edge_ptr;
             edge_ptr = graph->get_edges_global(tid, prev_id, direction, predicate, &edge_num);
 
             for (int k = 0; k < edge_num; k++) {
@@ -131,7 +131,7 @@ class Engine {
         for (int i = 0; i < req.get_row_num(); i++) {
             int64_t prev_id = req.get_row_col(i, req.var2column(start));
             int edge_num = 0;
-            edge *edge_ptr;
+            edge_t *edge_ptr;
             edge_ptr = graph->get_edges_global(tid, prev_id, direction, predicate, &edge_num);
             int64_t end_id = req.get_row_col(i, req.var2column(end));
             for (int k = 0; k < edge_num; k++) {
@@ -155,7 +155,7 @@ class Engine {
         for (int i = 0; i < req.get_row_num(); i++) {
             int64_t prev_id = req.get_row_col(i, req.var2column(start));
             int edge_num = 0;
-            edge *edge_ptr;
+            edge_t *edge_ptr;
             edge_ptr = graph->get_edges_global(tid, prev_id, direction, predicate, &edge_num);
             for (int k = 0; k < edge_num; k++) {
                 if (edge_ptr[k].val == end) {
@@ -185,7 +185,7 @@ class Engine {
         }
 
         int edge_num = 0;
-        edge *edge_ptr;
+        edge_t *edge_ptr;
         edge_ptr = graph->get_index_edges_local(tid, index_vertex, direction, &edge_num);
         int64_t start_id = req.tid;
         for (int k = start_id; k < edge_num; k += global_mt_threshold) {
@@ -200,7 +200,7 @@ class Engine {
 
 
     // unknown_predicate
-    void const_unknown_unknown(request_or_reply & req) {
+    void const_unknown_unknown(request_or_reply &req) {
         int64_t start = req.cmd_chains[req.step * 4];
         int64_t predicate = req.cmd_chains[req.step * 4 + 1];
         int64_t direction = req.cmd_chains[req.step * 4 + 2];
@@ -212,11 +212,11 @@ class Engine {
             assert(false);
         }
         int npredicate = 0;
-        edge *predicate_ptr = graph->get_edges_global(tid, start, direction, 0, &npredicate);
+        edge_t *predicate_ptr = graph->get_edges_global(tid, start, direction, 0, &npredicate);
         // foreach possible predicate
         for (int p = 0; p < npredicate; p++) {
             int edge_num = 0;
-            edge *edge_ptr;
+            edge_t *edge_ptr;
             edge_ptr = graph->get_edges_global(tid, start, direction, predicate_ptr[p].val, &edge_num);
             for (int k = 0; k < edge_num; k++) {
                 updated_result_table.push_back(predicate_ptr[p].val);
@@ -228,7 +228,7 @@ class Engine {
         req.step++;
     }
 
-    void known_unknown_unknown(request_or_reply & req) {
+    void known_unknown_unknown(request_or_reply &req) {
         int64_t start = req.cmd_chains[req.step * 4];
         int64_t predicate = req.cmd_chains[req.step * 4 + 1];
         int64_t direction = req.cmd_chains[req.step * 4 + 2];
@@ -239,11 +239,11 @@ class Engine {
         for (int i = 0; i < req.get_row_num(); i++) {
             int64_t prev_id = req.get_row_col(i, req.var2column(start));
             int npredicate = 0;
-            edge *predicate_ptr = graph->get_edges_global(tid, prev_id, direction, 0, &npredicate);
+            edge_t *predicate_ptr = graph->get_edges_global(tid, prev_id, direction, 0, &npredicate);
             // foreach possible predicate
             for (int p = 0; p < npredicate; p++) {
                 int edge_num = 0;
-                edge *edge_ptr;
+                edge_t *edge_ptr;
                 edge_ptr = graph->get_edges_global(tid, prev_id, direction, predicate_ptr[p].val, &edge_num);
                 for (int k = 0; k < edge_num; k++) {
                     req.append_row_to(i, updated_result_table);
@@ -258,7 +258,7 @@ class Engine {
         req.step++;
     }
 
-    void known_unknown_const(request_or_reply & req) {
+    void known_unknown_const(request_or_reply &req) {
         int64_t start = req.cmd_chains[req.step * 4];
         int64_t predicate = req.cmd_chains[req.step * 4 + 1];
         int64_t direction = req.cmd_chains[req.step * 4 + 2];
@@ -269,11 +269,11 @@ class Engine {
         for (int i = 0; i < req.get_row_num(); i++) {
             int64_t prev_id = req.get_row_col(i, req.var2column(start));
             int npredicate = 0;
-            edge *predicate_ptr = graph->get_edges_global(tid, prev_id, direction, 0, &npredicate);
+            edge_t *predicate_ptr = graph->get_edges_global(tid, prev_id, direction, 0, &npredicate);
             // foreach possible predicate
             for (int p = 0; p < npredicate; p++) {
                 int edge_num = 0;
-                edge *edge_ptr;
+                edge_t *edge_ptr;
                 edge_ptr = graph->get_edges_global(tid, prev_id, direction, predicate_ptr[p].val, &edge_num);
                 for (int k = 0; k < edge_num; k++) {
                     if (edge_ptr[k].val == end) {
