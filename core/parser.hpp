@@ -227,7 +227,7 @@ private:
             // SPO
             string triple[3] = {tokens[i + 0], tokens[i + 1], tokens[i + 2]};
 
-            direction d;
+            dir_t d;
             if (tokens[i + 3] == "." || tokens[i + 3] == "->") {
                 d = OUT;
             } else if (tokens[i + 3] == "<-") {

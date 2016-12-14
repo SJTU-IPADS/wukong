@@ -51,7 +51,7 @@ class GStore {
         Item items[NUM_ITEMS];
 
     public:
-        bool lookup(local_key key, vertex &ret) {
+        bool lookup(ikey_t key, vertex &ret) {
             if (!global_enable_caching)
                 return false;
 
@@ -108,7 +108,7 @@ class GStore {
     pthread_spinlock_t fine_grain_locks[NUM_LOCKS];
 
 
-    uint64_t insertKey(local_key key) {
+    uint64_t insertKey(ikey_t key) {
         uint64_t vertex_ptr;
         uint64_t bucket_id = key.hash() % num_main_headers;
         uint64_t lock_id = bucket_id % NUM_LOCKS;
@@ -125,7 +125,7 @@ class GStore {
                     key.print();
                     assert(false);
                 }
-                if (vertex_addr[slot_id].key == local_key()) {
+                if (vertex_addr[slot_id].key == ikey_t()) {
                     vertex_addr[slot_id].key = key;
                     found = true;
                     break;
@@ -135,7 +135,7 @@ class GStore {
                 break;
             } else {
                 slot_id = bucket_id * ASSOCIATIVITY + ASSOCIATIVITY - 1;
-                if (vertex_addr[slot_id].key != local_key()) {
+                if (vertex_addr[slot_id].key != ikey_t()) {
                     bucket_id = vertex_addr[slot_id].key.vid;
                     //continue and jump to next bucket
                     continue;
@@ -171,7 +171,7 @@ class GStore {
         return orig_num_edges;
     }
 
-    vertex get_vertex_local(local_key key) {
+    vertex get_vertex_local(ikey_t key) {
         uint64_t bucket_id = key.hash() % num_main_headers;
         while (true) {
             for (uint64_t i = 0; i < ASSOCIATIVITY; i++) {
@@ -183,7 +183,7 @@ class GStore {
                         return vertex_addr[slot_id];
                     }
                 } else {
-                    if (vertex_addr[slot_id].key != local_key()) {
+                    if (vertex_addr[slot_id].key != ikey_t()) {
                         //next pointer
                         bucket_id = vertex_addr[slot_id].key.vid;
                         //break from for loop, will go to next bucket
@@ -196,7 +196,7 @@ class GStore {
         }
     }
 
-    vertex get_vertex_remote(int tid, local_key key) {
+    vertex get_vertex_remote(int tid, ikey_t key) {
         char *local_buffer = rdma->get_buffer(tid);
         uint64_t bucket_id = key.hash() % num_main_headers;
         vertex ret;
@@ -209,7 +209,7 @@ class GStore {
             uint64_t read_length = sizeof(vertex) * ASSOCIATIVITY;
             rdma->RdmaRead(tid, mymath::hash_mod(key.vid, global_num_servers),
                            (char *)local_buffer, read_length, start_addr);
-            vertex* ptr = (vertex*)local_buffer;
+            vertex *ptr = (vertex*)local_buffer;
             for (uint64_t i = 0; i < ASSOCIATIVITY; i++) {
                 if (i < ASSOCIATIVITY - 1) {
                     if (ptr[i].key == key) {
@@ -218,7 +218,7 @@ class GStore {
                         return ptr[i];
                     }
                 } else {
-                    if (ptr[i].key != local_key()) {
+                    if (ptr[i].key != ikey_t()) {
                         //next pointer
                         bucket_id = ptr[i].key.vid;
                         //break from for loop, will go to next bucket
@@ -257,6 +257,7 @@ public:
     void init(RdmaResource *_rdma, uint64_t machine_id) {
         rdma = _rdma;
         sid = machine_id;
+
         slot_num = global_num_keys_million * 1000 * 1000;
         num_main_headers = (slot_num / ASSOCIATIVITY) / (KEY_RATIO + 1) * KEY_RATIO;
         num_indirect_headers = (slot_num / ASSOCIATIVITY) / (KEY_RATIO + 1);
@@ -277,11 +278,11 @@ public:
         // initiate keys
         #pragma omp parallel for num_threads(20)
         for (uint64_t i = 0; i < slot_num; i++) {
-            vertex_addr[i].key = local_key();
+            vertex_addr[i].key = ikey_t();
         }
     }
 
-    void atomic_batch_insert(vector<edge_triple> &spo, vector<edge_triple> &ops) {
+    void atomic_batch_insert(vector<triple_t> &spo, vector<triple_t> &ops) {
         uint64_t accum_predicate = 0;
         uint64_t nedges_to_skip = 0;
         while (nedges_to_skip < ops.size()) {
@@ -301,9 +302,9 @@ public:
                     && (spo[s].p == spo[e].p))  { e++; }
 
             accum_predicate++;
-            local_key key = local_key(spo[s].s, OUT, spo[s].p);
+            ikey_t key = ikey_t(spo[s].s, OUT, spo[s].p);
             uint64_t vertex_ptr = insertKey(key);
-            local_val val = local_val(e - s, curr_edge_ptr);
+            iptr_t val = iptr_t(e - s, curr_edge_ptr);
             vertex_addr[vertex_ptr].val = val;
             for (uint64_t i = s; i < e; i++) {
                 edge_addr[curr_edge_ptr].val = spo[i].o;
@@ -320,9 +321,9 @@ public:
                     && (ops[s].p == ops[e].p)) { e++; }
 
             accum_predicate++;
-            local_key key = local_key(ops[s].o, IN, ops[s].p);
+            ikey_t key = ikey_t(ops[s].o, IN, ops[s].p);
             uint64_t vertex_ptr = insertKey(key);
-            local_val val = local_val(e - s, curr_edge_ptr);
+            iptr_t val = iptr_t(e - s, curr_edge_ptr);
             vertex_addr[vertex_ptr].val = val;
             for (uint64_t i = s; i < e; i++) {
                 edge_addr[curr_edge_ptr].val = ops[i].s;
@@ -340,8 +341,8 @@ public:
         s = 0;
         while (s < spo.size()) {
             // __PREDICATE__
-            local_key key = local_key(spo[s].s, OUT, 0);
-            local_val val = local_val(0, curr_edge_ptr);
+            ikey_t key = ikey_t(spo[s].s, OUT, 0);
+            iptr_t val = iptr_t(0, curr_edge_ptr);
             uint64_t vertex_ptr = insertKey(key);
             uint64_t e = s;
             while (e < spo.size() && vec_spo[s].s == spo[e].s) {
@@ -358,8 +359,8 @@ public:
 
         s = nedges_to_skip;
         while (s < ops.size()) {
-            local_key key = local_key(ops[s].o, IN, 0);
-            local_val val = local_val(0, curr_edge_ptr);
+            ikey_t key = ikey_t(ops[s].o, IN, 0);
+            iptr_t val = iptr_t(0, curr_edge_ptr);
             uint64_t vertex_ptr = insertKey(key);
             uint64_t e = s;
             while (e < ops.size() && ops[s].o == ops[e].o) {
@@ -381,10 +382,10 @@ public:
         if (dst_sid == sid)
             return get_edges_local(tid, vid, direction, predicate, size);
 
-        local_key key = local_key(vid, direction, predicate);
+        ikey_t key = ikey_t(vid, direction, predicate);
         vertex v = get_vertex_remote(tid, key);
 
-        if (v.key == local_key()) {
+        if (v.key == ikey_t()) {
             *size = 0;
             return NULL;
         }
@@ -401,9 +402,9 @@ public:
     edge *get_edges_local(int tid, uint64_t vid, int direction, int predicate, int *size) {
         assert(mymath::hash_mod(vid, global_num_servers) == sid || is_idx(vid));
 
-        local_key key = local_key(vid, direction, predicate);
+        ikey_t key = ikey_t(vid, direction, predicate);
         vertex v = get_vertex_local(key);
-        if (v.key == local_key()) {
+        if (v.key == ikey_t()) {
             *size = 0;
             return NULL;
         }
@@ -425,7 +426,7 @@ public:
         for (int x = 0; x < num_main_headers + num_indirect_headers; x++) {
             for (int y = 0; y < ASSOCIATIVITY - 1; y++) {
                 uint64_t i = x * ASSOCIATIVITY + y;
-                if (vertex_addr[i].key == local_key()) {
+                if (vertex_addr[i].key == ikey_t()) {
                     //empty slot, skip it
                     continue;
                 }
@@ -462,9 +463,9 @@ public:
         for (tbb_vector_table::iterator i = type_table.begin();
                 i != type_table.end(); ++i) {
             uint64_t curr_edge_ptr = atomic_alloc_edges(i->second.size());
-            local_key key = local_key(i->first, IN, 0);
+            ikey_t key = ikey_t(i->first, IN, 0);
             uint64_t vertex_ptr = insertKey(key);
-            local_val val = local_val(i->second.size(), curr_edge_ptr);
+            iptr_t val = iptr_t(i->second.size(), curr_edge_ptr);
             vertex_addr[vertex_ptr].val = val;
             for (uint64_t k = 0; k < i->second.size(); k++) {
                 edge_addr[curr_edge_ptr].val = i->second[k];
@@ -476,9 +477,9 @@ public:
         for (tbb_vector_table::iterator i = src_predicate_table.begin();
                 i != src_predicate_table.end(); ++i) {
             uint64_t curr_edge_ptr = atomic_alloc_edges(i->second.size());
-            local_key key = local_key(i->first, IN, 0);
+            ikey_t key = ikey_t(i->first, IN, 0);
             uint64_t vertex_ptr = insertKey(key);
-            local_val val = local_val(i->second.size(), curr_edge_ptr);
+            iptr_t val = iptr_t(i->second.size(), curr_edge_ptr);
             vertex_addr[vertex_ptr].val = val;
             for (uint64_t k = 0; k < i->second.size(); k++) {
                 edge_addr[curr_edge_ptr].val = i->second[k];
@@ -489,9 +490,9 @@ public:
         for (tbb_vector_table::iterator i = dst_predicate_table.begin();
                 i != dst_predicate_table.end(); ++i) {
             uint64_t curr_edge_ptr = atomic_alloc_edges(i->second.size());
-            local_key key = local_key(i->first, OUT, 0);
+            ikey_t key = ikey_t(i->first, OUT, 0);
             uint64_t vertex_ptr = insertKey(key);
-            local_val val = local_val(i->second.size(), curr_edge_ptr);
+            iptr_t val = iptr_t(i->second.size(), curr_edge_ptr);
             vertex_addr[vertex_ptr].val = val;
             for (uint64_t k = 0; k < i->second.size(); k++) {
                 edge_addr[curr_edge_ptr].val = i->second[k];
@@ -515,7 +516,7 @@ public:
         for (int x = 0; x < num_main_headers + num_indirect_headers; x++) {
             for (int y = 0; y < ASSOCIATIVITY - 1; y++) {
                 uint64_t i = x * ASSOCIATIVITY + y;
-                if (vertex_addr[i].key == local_key())
+                if (vertex_addr[i].key == ikey_t())
                     continue; // skip the empty slot
                 used_header_slot++;
             }
@@ -541,7 +542,7 @@ public:
             bool all_empty = true;
             for (int y = 0; y < ASSOCIATIVITY - 1; y++) {
                 uint64_t i = x * ASSOCIATIVITY + y;
-                if (vertex_addr[i].key == local_key())
+                if (vertex_addr[i].key == ikey_t())
                     continue; // skip the empty slot
                 all_empty = false;
                 used_indirect_slot++;

@@ -51,12 +51,12 @@ class DGraph {
 
 	RdmaResource *rdma;
 
-	vector<vector<edge_triple> > triple_spo;
-	vector<vector<edge_triple> > triple_ops;
+	vector<vector<triple_t> > triple_spo;
+	vector<vector<triple_t> > triple_ops;
 
 	vector<uint64_t> nedges;
 
-	void remove_duplicate(vector<edge_triple>& elist) {
+	void remove_duplicate(vector<triple_t>& elist) {
 		if (elist.size() > 1) {
 			uint64_t end = 1;
 			for (uint64_t i = 1; i < elist.size(); i++) {
@@ -285,13 +285,13 @@ class DGraph {
 					if (mymath::hash_mod(s, global_num_servers) == sid) {
 						int s_tableid = (s / global_num_servers) % nthread_parallel_load;
 						if ( s_tableid == t)
-							triple_spo[t].push_back(edge_triple(s, p, o));
+							triple_spo[t].push_back(triple_t(s, p, o));
 					}
 
 					if (mymath::hash_mod(o, global_num_servers) == sid) {
 						int o_tableid = (o / global_num_servers) % nthread_parallel_load;
 						if ( o_tableid == t)
-							triple_ops[t].push_back(edge_triple(s, p, o));
+							triple_ops[t].push_back(triple_t(s, p, o));
 					}
 
 					local_count++;
@@ -376,8 +376,8 @@ public:
 		//#pragma omp parallel for num_threads(nthread_parallel_load)
 		for (int t = 0; t < nthread_parallel_load; t++) {
 			gstore.atomic_batch_insert(triple_spo[t], triple_ops[t]);
-			vector<edge_triple>().swap(triple_spo[t]);
-			vector<edge_triple>().swap(triple_ops[t]);
+			vector<triple_t>().swap(triple_spo[t]);
+			vector<triple_t>().swap(triple_ops[t]);
 		}
 
 		gstore.init_index_table();

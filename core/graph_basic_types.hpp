@@ -28,67 +28,65 @@
 #include "config.hpp"
 #include "mymath.hpp"
 
-struct edge_triple {
-	uint64_t s, p, o;
+struct triple_t {
+	uint64_t s; // subject
+	uint64_t p; // predicate
+	uint64_t o; // object
 
-	edge_triple(uint64_t _s, uint64_t _p, uint64_t _o): s(_s), p(_p), o(_o) {}
+	triple_t(): s(0), p(0), o(0) { }
 
-	edge_triple(): s(-1), p(-1), o(-1) {}
+	triple_t(uint64_t _s, uint64_t _p, uint64_t _o): s(_s), p(_p), o(_o) { }
 };
 
 struct edge_sort_by_spo {
-	inline bool operator() (const edge_triple &s1, const edge_triple &s2) {
-		if (s1.s < s2.s) {
+	inline bool operator()(const triple_t &t1, const triple_t &t2) {
+		if (t1.s < t2.s)
 			return true;
-		} else if (s1.s == s2.s) {
-			if (s1.p < s2.p) {
+		else if (t1.s == t2.s)
+			if (t1.p < t2.p)
 				return true;
-			} else if (s1.p == s2.p && s1.o < s2.o) {
+			else if (t1.p == t2.p && t1.o < t2.o)
 				return true;
-			}
-		}
-
 		return false;
 	}
 };
 
 struct edge_sort_by_ops {
-	inline bool operator() (const edge_triple &s1, const edge_triple &s2) {
-		if (s1.o < s2.o) {
+	inline bool operator()(const triple_t &t1, const triple_t &t2) {
+		if (t1.o < t2.o)
 			return true;
-		} else if (s1.o == s2.o) {
-			if (s1.p < s2.p) {
+		else if (t1.o == t2.o)
+			if (t1.p < t2.p)
 				return true;
-			} else if ((s1.p == s2.p) && (s1.s < s2.s)) {
+			else if ((t1.p == t2.p) && (t1.s < t2.s))
 				return true;
-			}
-		}
-
 		return false;
 	}
 };
 
-// The ID space of predicate/type ID in [0, 2^NBITS_IDX)
-enum { NBITS_DIR = 1 };  // direction: 0=in, 1=out
+// 64-bit internal key
+enum { NBITS_DIR = 1 };
 enum { NBITS_IDX = 17 }; // equal to the size of t/pid
 enum { NBITS_VID = (64 - NBITS_IDX - NBITS_DIR) }; // 0: index vertex, ID: normal vertex
+
 enum { PREDICATE_ID = 0, TYPE_ID = 1 }; // reserve two special index IDs
+enum dir_t { IN, OUT, CORUN }; // direction: IN=0, OUT=1, and optimization hints
 
 static inline bool is_idx(int id) { return (id > 0) && (id < (1 << NBITS_IDX)); }
 
 /**
- * Predicate-base Key/value Store
- * Key: vid | t/pid | direction
- * Val: v/t/pid list
+ * predicate-base key/value store
+ * key: vid | t/pid | direction
+ * value: v/t/pid list
  */
-struct local_key {
-uint64_t dir : NBITS_DIR;
-uint64_t pid : NBITS_IDX;
-uint64_t vid : NBITS_VID;
+struct ikey_t {
+uint64_t dir : NBITS_DIR; // direction
+uint64_t pid : NBITS_IDX; // predicate
+uint64_t vid : NBITS_VID; // vertex
 
-	local_key(): dir(0), pid(0), vid(0) { }
+	ikey_t(): dir(0), pid(0), vid(0) { }
 
-	local_key(uint64_t v, uint64_t d, uint64_t p): vid(v), dir(d), pid(p) {
+	ikey_t(uint64_t v, uint64_t d, uint64_t p): vid(v), dir(d), pid(p) {
 		if ((vid != v) || (dir != d) || (pid != p)) {
 			cout << "WARNING: key truncated! "
 			     << "[" << v << "|" << p << "|" << d << "]"
@@ -98,13 +96,13 @@ uint64_t vid : NBITS_VID;
 		}
 	}
 
-	bool operator == (const local_key &_key) {
+	bool operator == (const ikey_t &_key) {
 		if ((dir == _key.dir) && (pid == _key.pid) && (vid == _key.vid))
 			return true;
 		return false;
 	}
 
-	bool operator != (const local_key &_key) {
+	bool operator != (const ikey_t &_key) {
 		return !(operator == (_key));
 	}
 
@@ -123,19 +121,17 @@ uint64_t vid : NBITS_VID;
 	}
 };
 
-
+// 64-bit internal pointer
 enum { NBITS_SIZE = 28 };
 enum { NBITS_PTR = 36 };
 
-struct local_val {
+struct iptr_t {
 uint64_t size: NBITS_SIZE;
 uint64_t ptr: NBITS_PTR;
 
-	//local_val(): size(0), ptr(0) {}
+	iptr_t(): size(0), ptr(0) { }
 
-	local_val(): size(0), ptr(0) { }
-
-	local_val(uint64_t s, uint64_t p): size(s), ptr(p) {
+	iptr_t(uint64_t s, uint64_t p): size(s), ptr(p) {
 		if ((size != s) || (ptr != p)) {
 			cout << "WARNING: key truncated! "
 			     << "[" << p << "|" << s << "]"
@@ -145,29 +141,26 @@ uint64_t ptr: NBITS_PTR;
 		}
 	}
 
-	bool operator == (const local_val &_val) {
+	bool operator == (const iptr_t &_val) {
 		if ((size == _val.size) && (ptr == _val.ptr))
 			return true;
 		return false;
 	}
 
-	bool operator != (const local_val &_val) {
+	bool operator != (const iptr_t &_val) {
 		return !(operator == (_val));
 	}
 };
 
+// 128-bit vertex (key)
 struct vertex {
-	local_key key;
-	local_val val;
+	ikey_t key; // 64-bit: vertex | predicate | direction
+	iptr_t val; // 64-bit: size | offset
 };
 
+// edge (value)
 struct edge {
-	//	uint64_t val;
+	// uint64_t val;
 	unsigned int val;
 };
 
-enum direction {
-	IN,
-	OUT,
-	CORUN
-};
