@@ -127,35 +127,35 @@ enum { NBITS_PTR = 36 };
 
 struct iptr_t {
 uint64_t size: NBITS_SIZE;
-uint64_t ptr: NBITS_PTR;
+uint64_t off: NBITS_PTR;
 
-	iptr_t(): size(0), ptr(0) { }
+	iptr_t(): size(0), off(0) { }
 
-	iptr_t(uint64_t s, uint64_t p): size(s), ptr(p) {
-		if ((size != s) || (ptr != p)) {
+	iptr_t(uint64_t s, uint64_t o): size(s), off(o) {
+		if ((size != s) || (off != o)) {
 			cout << "WARNING: key truncated! "
-			     << "[" << p << "|" << s << "]"
+			     << "[" << o << "|" << s << "]"
 			     << " => "
-			     << "[" << ptr << "|" << size << "]"
+			     << "[" << off << "|" << size << "]"
 			     << endl;
 		}
 	}
 
-	bool operator == (const iptr_t &_val) {
-		if ((size == _val.size) && (ptr == _val.ptr))
+	bool operator == (const iptr_t &ptr) {
+		if ((size == ptr.size) && (off == ptr.off))
 			return true;
 		return false;
 	}
 
-	bool operator != (const iptr_t &_val) {
-		return !(operator == (_val));
+	bool operator != (const iptr_t &ptr) {
+		return !(operator == (ptr));
 	}
 };
 
 // 128-bit vertex (key)
 struct vertex_t {
 	ikey_t key; // 64-bit: vertex | predicate | direction
-	iptr_t val; // 64-bit: size | offset
+	iptr_t ptr; // 64-bit: size | offset
 };
 
 // edge (value)

@@ -304,8 +304,8 @@ public:
             accum_predicate++;
             ikey_t key = ikey_t(spo[s].s, OUT, spo[s].p);
             uint64_t vertex_ptr = insertKey(key);
-            iptr_t val = iptr_t(e - s, curr_edge_ptr);
-            vertex_addr[vertex_ptr].val = val;
+            iptr_t ptr = iptr_t(e - s, curr_edge_ptr);
+            vertex_addr[vertex_ptr].ptr = ptr;
             for (uint64_t i = s; i < e; i++) {
                 edge_addr[curr_edge_ptr].val = spo[i].o;
                 curr_edge_ptr++;
@@ -323,8 +323,8 @@ public:
             accum_predicate++;
             ikey_t key = ikey_t(ops[s].o, IN, ops[s].p);
             uint64_t vertex_ptr = insertKey(key);
-            iptr_t val = iptr_t(e - s, curr_edge_ptr);
-            vertex_addr[vertex_ptr].val = val;
+            iptr_t ptr = iptr_t(e - s, curr_edge_ptr);
+            vertex_addr[vertex_ptr].ptr = ptr;
             for (uint64_t i = s; i < e; i++) {
                 edge_addr[curr_edge_ptr].val = ops[i].s;
                 curr_edge_ptr++;
@@ -342,36 +342,36 @@ public:
         while (s < spo.size()) {
             // __PREDICATE__
             ikey_t key = ikey_t(spo[s].s, OUT, 0);
-            iptr_t val = iptr_t(0, curr_edge_ptr);
+            iptr_t ptr = iptr_t(0, curr_edge_ptr);
             uint64_t vertex_ptr = insertKey(key);
             uint64_t e = s;
             while (e < spo.size() && vec_spo[s].s == spo[e].s) {
                 if (e == s || spo[e].p != spo[e - 1].p) {
                     edge_addr[curr_edge_ptr].val = spo[e].p;
                     curr_edge_ptr++;
-                    val.size = val.size + 1;
+                    ptr.size = ptr.size + 1;
                 }
                 e++;
             }
-            vertex_addr[vertex_ptr].val = val;
+            vertex_addr[vertex_ptr].ptr = ptr;
             s = e;
         }
 
         s = nedges_to_skip;
         while (s < ops.size()) {
             ikey_t key = ikey_t(ops[s].o, IN, 0);
-            iptr_t val = iptr_t(0, curr_edge_ptr);
+            iptr_t ptr = iptr_t(0, curr_edge_ptr);
             uint64_t vertex_ptr = insertKey(key);
             uint64_t e = s;
             while (e < ops.size() && ops[s].o == ops[e].o) {
                 if (e == s || ops[e].p != ops[e - 1].p) {
                     edge_addr[curr_edge_ptr].val = ops[e].p;
                     curr_edge_ptr++;
-                    val.size = val.size + 1;
+                    ptr.size = ptr.size + 1;
                 }
                 e++;
             }
-            vertex_addr[vertex_ptr].val = val;
+            vertex_addr[vertex_ptr].ptr = ptr;
             s = e;
         }
 #endif
@@ -391,11 +391,11 @@ public:
         }
 
         char *local_buffer = rdma->get_buffer(tid);
-        uint64_t read_offset  = sizeof(vertex_t) * slot_num + sizeof(edge_t) * (v.val.ptr);
-        uint64_t read_length = sizeof(edge_t) * v.val.size;
+        uint64_t read_offset  = sizeof(vertex_t) * slot_num + sizeof(edge_t) * (v.ptr.off);
+        uint64_t read_length = sizeof(edge_t) * v.ptr.size;
         rdma->RdmaRead(tid, dst_sid, (char *)local_buffer, read_length, read_offset);
         edge_t *result_ptr = (edge_t *)local_buffer;
-        *size = v.val.size;
+        *size = v.ptr.size;
         return result_ptr;
     }
 
@@ -409,8 +409,8 @@ public:
             return NULL;
         }
 
-        *size = v.val.size;
-        uint64_t ptr = v.val.ptr;
+        *size = v.ptr.size;
+        uint64_t ptr = v.ptr.off;
         return &(edge_addr[ptr]);
     }
 
@@ -445,8 +445,8 @@ public:
                     }
                 } else {
                     if (p == TYPE_ID) {
-                        uint64_t degree = vertex_addr[i].val.size;
-                        uint64_t edge_ptr = vertex_addr[i].val.ptr;
+                        uint64_t degree = vertex_addr[i].ptr.size;
+                        uint64_t edge_ptr = vertex_addr[i].ptr.off;
                         for (uint64_t j = 0; j < degree; j++) {
                             //src may belongs to multiple types
                             insert_vector(type_table, edge_addr[edge_ptr + j].val, vid);
@@ -465,8 +465,8 @@ public:
             uint64_t curr_edge_ptr = atomic_alloc_edges(i->second.size());
             ikey_t key = ikey_t(i->first, IN, 0);
             uint64_t vertex_ptr = insertKey(key);
-            iptr_t val = iptr_t(i->second.size(), curr_edge_ptr);
-            vertex_addr[vertex_ptr].val = val;
+            iptr_t ptr = iptr_t(i->second.size(), curr_edge_ptr);
+            vertex_addr[vertex_ptr].ptr = ptr;
             for (uint64_t k = 0; k < i->second.size(); k++) {
                 edge_addr[curr_edge_ptr].val = i->second[k];
                 curr_edge_ptr++;
@@ -479,8 +479,8 @@ public:
             uint64_t curr_edge_ptr = atomic_alloc_edges(i->second.size());
             ikey_t key = ikey_t(i->first, IN, 0);
             uint64_t vertex_ptr = insertKey(key);
-            iptr_t val = iptr_t(i->second.size(), curr_edge_ptr);
-            vertex_addr[vertex_ptr].val = val;
+            iptr_t ptr = iptr_t(i->second.size(), curr_edge_ptr);
+            vertex_addr[vertex_ptr].ptr = ptr;
             for (uint64_t k = 0; k < i->second.size(); k++) {
                 edge_addr[curr_edge_ptr].val = i->second[k];
                 curr_edge_ptr++;
@@ -492,8 +492,8 @@ public:
             uint64_t curr_edge_ptr = atomic_alloc_edges(i->second.size());
             ikey_t key = ikey_t(i->first, OUT, 0);
             uint64_t vertex_ptr = insertKey(key);
-            iptr_t val = iptr_t(i->second.size(), curr_edge_ptr);
-            vertex_addr[vertex_ptr].val = val;
+            iptr_t ptr = iptr_t(i->second.size(), curr_edge_ptr);
+            vertex_addr[vertex_ptr].ptr = ptr;
             for (uint64_t k = 0; k < i->second.size(); k++) {
                 edge_addr[curr_edge_ptr].val = i->second[k];
                 curr_edge_ptr++;
