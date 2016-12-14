@@ -113,25 +113,32 @@ void reload_config(void)
 		exit(0);
 	}
 
-	map<string, string> config_map;
-	string row;
-	string val;
-	// while(file>>row>>val){
-	// 	config_map[row]=val;
-	// }
-	string line;
+	map<string, string> configs;
+	string line, row, val;
 	while (std::getline(file, line)) {
 		istringstream iss(line);
 		iss >> row >> val;
-		config_map[row] = val;
+		configs[row] = val;
 	}
 
-	global_enable_caching = atoi(config_map["global_enable_caching"].c_str());
-	global_enable_workstealing = atoi(config_map["global_enable_workstealing"].c_str());
-	global_mt_threshold = atoi(config_map["global_mt_threshold"].c_str());
-	global_rdma_threshold = atoi(config_map["global_rdma_threshold"].c_str());
-	global_max_print_row = atoi(config_map["global_max_print_row"].c_str());
-	global_silent = atoi(config_map["global_silent"].c_str());
+	for (auto const &entry : configs) {
+		if (entry.first == "global_enable_caching")
+			global_enable_caching = atoi(entry.second.c_str());
+		else if (entry.first == "global_enable_workstealing")
+			global_enable_workstealing = atoi(entry.second.c_str());
+		else if (entry.first == "global_rdma_threshold")
+			global_rdma_threshold = atoi(entry.second.c_str());
+		else if (entry.first == "global_mt_threshold")
+			global_mt_threshold = atoi(entry.second.c_str());
+		else if (entry.first == "global_max_print_row")
+			global_max_print_row = atoi(entry.second.c_str());
+		else if (entry.first == "global_silent")
+			global_silent = atoi(entry.second.c_str());
+		else
+			cout << "WARNING: unsupported re-configuration item! ("
+			     << entry.first << ")" << endl;
+	}
+	assert(global_mt_threshold > 0);
 
 	// limited the number of engines
 	global_mt_threshold = max(1, min(global_mt_threshold, global_num_engines));
@@ -193,7 +200,7 @@ void load_config(int num_servers)
 		else if (entry.first == "global_silent")
 			global_silent = atoi(entry.second.c_str());
 		else
-			cout << "WARNNING: unsupported configuration item! ("
+			cout << "WARNING: unsupported configuration item! ("
 			     << entry.first << ")" << endl;
 	}
 
@@ -206,6 +213,7 @@ void load_config(int num_servers)
 	assert(global_memstore_size_gb > 0);
 	assert(global_perslot_msg_mb > 0);
 	assert(global_perslot_rdma_mb > 0);
+	assert(global_mt_threshold > 0);
 
 	// limited the number of engines
 	global_mt_threshold = max(1, min(global_mt_threshold, global_num_engines));
