@@ -45,10 +45,10 @@ bool global_load_minimal_index = true;
 int global_eth_port_base = 5500;
 int global_rdma_port_base = 9576;
 
-int global_total_memory_gb = 20;
+int global_memstore_size_gb = 20;
 int global_perslot_msg_mb = 256;
 int global_perslot_rdma_mb = 128;
-int global_hash_header_million = 1000;
+int global_num_keys_million = 1000;
 
 bool global_use_rdma = true;
 bool global_enable_caching = false;
@@ -78,10 +78,10 @@ void show_config(void)
 	cout << "global_load_minimal_index: " 	<< global_load_minimal_index 		<< endl;
 	cout << "global_eth_port_base: " 		<< global_eth_port_base				<< endl;
 	cout << "global_rdma_port_base: " 		<< global_rdma_port_base			<< endl;
-	cout << "global_total_memory_gb: " 		<< global_total_memory_gb			<< endl;
+	cout << "global_memstore_size_gb: " 	<< global_memstore_size_gb			<< endl;
 	cout << "global_perslot_msg_mb: " 		<< global_perslot_msg_mb   			<< endl;
 	cout << "global_perslot_rdma_mb: " 		<< global_perslot_rdma_mb			<< endl;
-	cout << "global_hash_header_million: " 	<< global_hash_header_million		<< endl;
+	cout << "global_num_keys_million: " 	<< global_num_keys_million			<< endl;
 	cout << "global_use_rdma: " 			<< global_use_rdma					<< endl;
 	cout << "global_enable_caching: " 		<< global_enable_caching			<< endl;
 	cout << "global_enable_workstealing: " 	<< global_enable_workstealing		<< endl;
@@ -164,10 +164,10 @@ void load_config(int num_servers)
 	global_eth_port_base = atoi(config_map["global_eth_port_base"].c_str());
 	global_rdma_port_base = atoi(config_map["global_rdma_port_base"].c_str());
 
-	global_total_memory_gb = atoi(config_map["global_total_memory_gb"].c_str());
+	global_memstore_size_gb = atoi(config_map["global_memstore_size_gb"].c_str());
 	global_perslot_msg_mb = atoi(config_map["global_perslot_msg_mb"].c_str());
 	global_perslot_rdma_mb = atoi(config_map["global_perslot_rdma_mb"].c_str());
-	global_hash_header_million = atoi(config_map["global_hash_header_million"].c_str());
+	global_num_keys_million = atoi(config_map["global_num_keys_million"].c_str());
 
 	global_use_rdma = atoi(config_map["global_use_rdma"].c_str());
 	global_enable_caching = atoi(config_map["global_enable_caching"].c_str());

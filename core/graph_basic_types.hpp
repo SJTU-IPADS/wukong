@@ -86,8 +86,6 @@ uint64_t dir : NBITS_DIR;
 uint64_t pid : NBITS_IDX;
 uint64_t vid : NBITS_VID;
 
-	//local_key(): dir(0), pid(0), vid(0) {}
-
 	local_key(): dir(0), pid(0), vid(0) { }
 
 	local_key(uint64_t v, uint64_t d, uint64_t p): vid(v), dir(d), pid(p) {

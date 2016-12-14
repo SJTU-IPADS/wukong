@@ -136,7 +136,7 @@ main(int argc, char *argv[])
 	load_config(world.size());
 
 	// calculate memory usage
-	uint64_t kvs_sz = GiB2B(global_total_memory_gb);
+	uint64_t kvs_sz = GiB2B(global_memstore_size_gb);
 	uint64_t rbuf_sz_per_thread = MiB2B(global_perslot_rdma_mb);
 	uint64_t msg_sz_per_thread = MiB2B(global_perslot_msg_mb);
 

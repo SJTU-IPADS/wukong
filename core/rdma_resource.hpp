@@ -808,11 +808,10 @@ public:
 
     string ip_of(int sid) { return ipset[sid]; }
 
-    char *get_kvstore() { return rdma_mem; }
+    inline char *get_kvstore() { return rdma_mem; }
 
-    uint64_t get_kvstore_size() { return kvs_sz; }
+    inline uint64_t get_kvstore_size() { return kvs_sz; }
 
-    // TODO what if batched?
     inline char *get_buffer(int dst_tid) {
         return (char *)(rdma_mem + kvs_sz + buf_sz * dst_tid);
     }

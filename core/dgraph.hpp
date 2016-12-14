@@ -332,10 +332,9 @@ public:
 		: sid(sid), rdma(rdma), nedges(global_num_servers) {
 		vector<string> files; // ID-format data files
 
-		// load the configure file of a batch mode execution
 		if (boost::starts_with(dname, "hdfs:")) {
 			if (!wukong::hdfs::has_hadoop()) {
-				cout << "ERORR: attempting to load data files from HDFS "
+				cout << "ERROR: attempting to load data files from HDFS "
 				     << "but Wukong was built without HDFS."
 				     << endl;
 				exit(-1);
@@ -359,7 +358,7 @@ public:
 
 				string fname(dname + ent->d_name);
 				// Assume the filenames of RDF data files (ID-format) start with 'id_'.
-				/// TODO: move RDF data files and mapping files to different directory
+				/// TODO: move RDF data files and metadata files to different directories
 				if (boost::starts_with(fname, dname + "id_"))
 					files.push_back(fname);
 			}
@@ -372,7 +371,7 @@ public:
 		load_and_sync_data(files);
 
 		// NOTE: the local graph store must be initiated after load_and_sync_data
-		gstore.init(rdma, global_num_servers, sid);
+		gstore.init(rdma, sid);
 
 		//#pragma omp parallel for num_threads(nthread_parallel_load)
 		for (int t = 0; t < nthread_parallel_load; t++) {

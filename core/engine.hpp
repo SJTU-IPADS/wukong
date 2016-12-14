@@ -638,8 +638,6 @@ public:
             // work-oblige is disabled
             if (!global_enable_workstealing) continue;
 
-            assert(false);
-
             // neighbor queue
             last_time = timer::get_usec();
             if (last_time < engines[nbr_id]->last_time + TIMEOUT_THRESHOLD)
