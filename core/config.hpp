@@ -51,7 +51,7 @@ int global_perslot_rdma_mb = 128;
 int global_num_keys_million = 1000;
 
 bool global_use_rdma = true;
-bool global_enable_caching = false;
+bool global_enable_caching = true;
 int global_enable_workstealing = false;
 
 int global_mt_threshold = 16;
@@ -150,33 +150,52 @@ void load_config(int num_servers)
 	}
 
 	string line, row, val;
-	map<string, string> config_map;
+	map<string, string> configs;
 	while (std::getline(file, line)) {
 		istringstream iss(line);
 		iss >> row >> val;
-		config_map[row] = val;
+		configs[row] = val;
 	}
 
-	global_num_engines = atoi(config_map["global_num_engines"].c_str());
-	global_num_proxies = atoi(config_map["global_num_proxies"].c_str());
-	global_input_folder = config_map["global_input_folder"];
-	global_load_minimal_index = atoi(config_map["global_load_minimal_index"].c_str());
-	global_eth_port_base = atoi(config_map["global_eth_port_base"].c_str());
-	global_rdma_port_base = atoi(config_map["global_rdma_port_base"].c_str());
-
-	global_memstore_size_gb = atoi(config_map["global_memstore_size_gb"].c_str());
-	global_perslot_msg_mb = atoi(config_map["global_perslot_msg_mb"].c_str());
-	global_perslot_rdma_mb = atoi(config_map["global_perslot_rdma_mb"].c_str());
-	global_num_keys_million = atoi(config_map["global_num_keys_million"].c_str());
-
-	global_use_rdma = atoi(config_map["global_use_rdma"].c_str());
-	global_enable_caching = atoi(config_map["global_enable_caching"].c_str());
-	global_enable_workstealing = atoi(config_map["global_enable_workstealing"].c_str());
-
-	global_rdma_threshold = atoi(config_map["global_rdma_threshold"].c_str());
-	global_mt_threshold = atoi(config_map["global_mt_threshold"].c_str());
-	global_max_print_row = atoi(config_map["global_max_print_row"].c_str());
-	global_silent = atoi(config_map["global_silent"].c_str());
+	for (auto const &entry : configs) {
+		if (entry.first == "global_num_engines")
+			global_num_engines = atoi(entry.second.c_str());
+		else if (entry.first == "global_num_proxies")
+			global_num_proxies = atoi(entry.second.c_str());
+		else if (entry.first == "global_input_folder")
+			global_input_folder = entry.second;
+		else if (entry.first == "global_load_minimal_index")
+			global_load_minimal_index = atoi(entry.second.c_str());
+		else if (entry.first == "global_eth_port_base")
+			global_eth_port_base = atoi(entry.second.c_str());
+		else if (entry.first == "global_rdma_port_base")
+			global_rdma_port_base = atoi(entry.second.c_str());
+		else if (entry.first == "global_memstore_size_gb")
+			global_memstore_size_gb = atoi(entry.second.c_str());
+		else if (entry.first == "global_perslot_msg_mb")
+			global_perslot_msg_mb = atoi(entry.second.c_str());
+		else if (entry.first == "global_perslot_rdma_mb")
+			global_perslot_rdma_mb = atoi(entry.second.c_str());
+		else if (entry.first == "global_num_keys_million")
+			global_num_keys_million = atoi(entry.second.c_str());
+		else if (entry.first == "global_use_rdma")
+			global_use_rdma = atoi(entry.second.c_str());
+		else if (entry.first == "global_enable_caching")
+			global_enable_caching = atoi(entry.second.c_str());
+		else if (entry.first == "global_enable_workstealing")
+			global_enable_workstealing = atoi(entry.second.c_str());
+		else if (entry.first == "global_rdma_threshold")
+			global_rdma_threshold = atoi(entry.second.c_str());
+		else if (entry.first == "global_mt_threshold")
+			global_mt_threshold = atoi(entry.second.c_str());
+		else if (entry.first == "global_max_print_row")
+			global_max_print_row = atoi(entry.second.c_str());
+		else if (entry.first == "global_silent")
+			global_silent = atoi(entry.second.c_str());
+		else
+			cout << "WARNNING: unsupported configuration item! ("
+			     << entry.first << ")" << endl;
+	}
 
 	global_num_servers = num_servers;
 	global_num_threads = global_num_engines + global_num_proxies;
@@ -184,6 +203,9 @@ void load_config(int num_servers)
 	assert(num_servers > 0);
 	assert(global_num_engines > 0);
 	assert(global_num_proxies > 0);
+	assert(global_memstore_size_gb > 0);
+	assert(global_perslot_msg_mb > 0);
+	assert(global_perslot_rdma_mb > 0);
 
 	// limited the number of engines
 	global_mt_threshold = max(1, min(global_mt_threshold, global_num_engines));
