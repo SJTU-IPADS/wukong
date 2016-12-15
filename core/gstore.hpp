@@ -511,6 +511,7 @@ public:
              << endl;
     }
 
+    // analysis and debuging
     void print_memory_usage() {
         uint64_t used_header_slot = 0;
         for (int x = 0; x < num_main_headers + num_indirect_headers; x++) {

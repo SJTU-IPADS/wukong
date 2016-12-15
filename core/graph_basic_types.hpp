@@ -125,6 +125,7 @@ uint64_t vid : NBITS_VID; // vertex
 enum { NBITS_SIZE = 28 };
 enum { NBITS_PTR = 36 };
 
+/// TODO: add sid and edge type in future
 struct iptr_t {
 uint64_t size: NBITS_SIZE;
 uint64_t off: NBITS_PTR;
@@ -158,9 +159,8 @@ struct vertex_t {
 	iptr_t ptr; // 64-bit: size | offset
 };
 
-// edge (value)
+// 32-bit edge (value)
 struct edge_t {
-	// uint64_t val;
-	unsigned int val;
+	uint32_t val;  // vertex ID
 };
 

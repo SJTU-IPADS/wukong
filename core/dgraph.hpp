@@ -54,7 +54,7 @@ class DGraph {
 	vector<vector<triple_t> > triple_spo;
 	vector<vector<triple_t> > triple_ops;
 
-	vector<uint64_t> nedges;
+	vector<uint64_t> num_triples;  // record #triples loaded from input data for each server
 
 	void remove_duplicate(vector<triple_t>& elist) {
 		if (elist.size() > 1) {
@@ -72,71 +72,85 @@ class DGraph {
 		}
 	}
 
-	void inline send_edge(int localtid, int dst_sid, uint64_t s, uint64_t p, uint64_t o) {
-		// The RDMA buffer is shared by all threads to communication to all servers
-		uint64_t subslot_size = floor(rdma->get_buffer_size() / global_num_servers, sizeof(uint64_t));
-		uint64_t *local_buffer = (uint64_t *)(rdma->get_buffer(localtid) + subslot_size * dst_sid);
+	// NOTE: send_edge can be safely called by multiple threads, since the buffer
+	//       is exclusively used by one thread.
+	void send_edge(int tid, int dst_sid, uint64_t s, uint64_t p, uint64_t o) {
+		// the RDMA buffer is first split into T partitions (T is the number of threads)
+		// each partition is further split into S pieces (S is the number of servers)
+		uint64_t buffer_sz = floor(rdma->get_buffer_size() / global_num_servers, sizeof(uint64_t));
+		uint64_t *buffer = (uint64_t *)(rdma->get_buffer(tid) + buffer_sz * dst_sid);
 
-		// The 1st uint64_t of buffer records the number of triples
-		*(local_buffer + (*local_buffer) * 3 + 1) = s;
-		*(local_buffer + (*local_buffer) * 3 + 2) = p;
-		*(local_buffer + (*local_buffer) * 3 + 3) = o;
-		*local_buffer = *local_buffer + 1;
+		// the 1st uint64_t of buffer records #triples
+		uint64_t n = buffer[0];
 
-		// Q: what does means of 10, reserve to what?
-		if (((*local_buffer) * 3 + 10) * sizeof(uint64_t) >= subslot_size) {
-			//full , should be flush!
-			flush_edge(localtid, dst_sid);
+		// flush buffer if there is no enough space to buffer a new triple
+		if ((1 + n * 3 + 3) * sizeof(uint64_t) > buffer_sz) {
+			flush_edges(tid, dst_sid);
+			n = buffer[0]; // reset, it should be 0
 		}
+
+		// buffer the triple and update the counter
+		buffer[1 + n * 3 + 0] = s;
+		buffer[1 + n * 3 + 1] = p;
+		buffer[1 + n * 3 + 2] = o;
+		buffer[0] = n + 1;
 	}
 
-	void flush_edge(int localtid, int dst_sid) {
-		uint64_t subslot_size = floor(rdma->get_buffer_size() / global_num_servers, sizeof(uint64_t));
-		uint64_t *local_buffer = (uint64_t *) (rdma->get_buffer(localtid) + subslot_size * dst_sid );
-		uint64_t num_edge_to_send = *local_buffer;
+	void flush_edges(int tid, int dst_sid) {
+		uint64_t buffer_sz = floor(rdma->get_buffer_size() / global_num_servers, sizeof(uint64_t));
+		uint64_t *buffer = (uint64_t *)(rdma->get_buffer(tid) + buffer_sz * dst_sid);
 
-		//clear and skip the number infomation
-		*local_buffer = 0;
-		local_buffer += 1;
-		uint64_t max_size = floor(rdma->get_kvstore_size() / global_num_servers, sizeof(uint64_t));
-		uint64_t old_num = __sync_fetch_and_add(&nedges[dst_sid], num_edge_to_send);
-		if ((old_num + num_edge_to_send + 1) * 3 * sizeof(uint64_t) >= max_size) {
-			cout << "old =" << old_num << endl;
-			cout << "num_edge_to_send =" << num_edge_to_send << endl;
-			cout << "max_size =" << max_size << endl;
-			cout << "Don't have enough space to store data" << endl;
-			exit(-1);
+		// the 1st uint64_t of buffer records #new-triples
+		uint64_t n = buffer[0];
+
+		// the kvstore is split into S pieces (S is the number of servers).
+		// hence, the kvstore can be directly RDMA write in parallel by all servers
+		uint64_t kvstore_sz = floor(rdma->get_kvstore_size() / global_num_servers, sizeof(uint64_t));
+
+		// serialize the RDMA WRITEs by multiple threads
+		uint64_t exist = __sync_fetch_and_add(&num_triples[dst_sid], n);
+		if ((1 + exist * 3 + n * 3) * sizeof(uint64_t) > kvstore_sz) {
+			cout << "ERROR: no enough space to store input data!" << endl;
+			cout << " kvstore size = " << kvstore_sz
+			     << " #exist-triples = " << exist
+			     << " #new-triples = " << n
+			     << endl;
+			assert(false);
 		}
 
-		// we need to flush to the same offset of different machine
-		uint64_t remote_offset = max_size * sid
-		                         + sizeof(uint64_t)                  // the counter
-		                         + (old_num * 3) * sizeof(uint64_t); // existing triples
-		uint64_t remote_length = num_edge_to_send * 3 * sizeof(uint64_t);
-		if (dst_sid != sid) {
-			rdma->RdmaWrite(localtid, dst_sid, (char*)local_buffer, remote_length, remote_offset);
-		} else {
-			memcpy(rdma->get_kvstore() + remote_offset, (char*)local_buffer, remote_length);
-		}
+		// send triples and clear the buffer
+		uint64_t offset = kvstore_sz * sid
+		                  + 1 * sizeof(uint64_t)          // reserve the 1st uint64_t as #triples
+		                  + exist * 3 * sizeof(uint64_t); // skip #exist-triples
+		uint64_t length = n * 3 * sizeof(uint64_t);       // send #new-triples
+		if (dst_sid != sid)
+			rdma->RdmaWrite(tid, dst_sid, (char *)(buffer + 1), length, offset);
+		else
+			memcpy(rdma->get_kvstore() + offset, (char *)(buffer + 1), length);
+
+		buffer[0] = 0; // clear the buffer
 	}
 
-	void load_data(vector<string>& file_vec) {
+	void load_data(vector<string>& fnames) {
 		uint64_t t1 = timer::get_usec();
 
-		sort(file_vec.begin(), file_vec.end());
-		int nfile = file_vec.size();
-		volatile int finished_count = 0;
+		int num_files = fnames.size();
 
+		// ensure the file name list has the same order on all servers
+		sort(fnames.begin(), fnames.end());
+
+		// load input data and assign to different severs in parallel
 		#pragma omp parallel for num_threads(global_num_engines)
-		for (int i = 0; i < nfile; i++) {
+		for (int i = 0; i < num_files; i++) {
 			int localtid = omp_get_thread_num();
-			if (i % global_num_servers != sid)
-				continue;
 
-			if (boost::starts_with(file_vec[i], "hdfs:")) {
+			// each server only load a part of files
+			if (i % global_num_servers != sid) continue;
+
+			if (boost::starts_with(fnames[i], "hdfs:")) {
 				// files located on HDFS
 				wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
-				wukong::hdfs::fstream file(hdfs, file_vec[i]);
+				wukong::hdfs::fstream file(hdfs, fnames[i]);
 				uint64_t s, p, o;
 				while (file >> s >> p >> o) {
 					int s_sid = mymath::hash_mod(s, global_num_servers);
@@ -150,7 +164,7 @@ class DGraph {
 				}
 			} else {
 				// files located on a shared filesystem (e.g., NFS)
-				ifstream file(file_vec[i].c_str());
+				ifstream file(fnames[i].c_str());
 				uint64_t s, p, o;
 				while (file >> s >> p >> o) {
 					int s_sid = mymath::hash_mod(s, global_num_servers);
@@ -164,31 +178,25 @@ class DGraph {
 				}
 				file.close();
 			}
-
-			// debug print
-			int ret = __sync_fetch_and_add(&finished_count, 1);
-			if (ret % 40 == 39) {
-				cout << "server " << sid << " already load " << ret + 1 << " files" << endl;
-			}
 		}
 
-		// flush rest triples within RDMA buffer
-		for (int mid = 0; mid < global_num_servers; mid++)
-			for (int i = 0; i < global_num_engines; i++)
-				flush_edge(i, mid);
+		// flush rest triples within each RDMA buffer
+		for (int s = 0; s < global_num_servers; s++)
+			for (int t = 0; t < global_num_engines; t++)
+				flush_edges(t, s);
 
 		// exchange #triples among all servers
-		for (int mid = 0; mid < global_num_servers; mid++) {
-			//after flush all data, we need to write the number of total edges;
-			uint64_t *local_buffer = (uint64_t *) rdma->get_buffer(0);
-			*local_buffer = nedges[mid];
-			uint64_t max_size = floor(rdma->get_kvstore_size() / global_num_servers, sizeof(uint64_t));
-			uint64_t remote_offset = max_size * sid;
-			if (mid != sid) {
-				rdma->RdmaWrite(0, mid, (char*)local_buffer, sizeof(uint64_t), remote_offset);
-			} else {
-				memcpy(rdma->get_kvstore() + remote_offset, (char*)local_buffer, sizeof(uint64_t));
-			}
+		for (int s = 0; s < global_num_servers; s++) {
+
+			uint64_t *buffer = (uint64_t *)rdma->get_buffer(0);
+			buffer[0] = num_triples[s];
+
+			uint64_t kvstore_sz = floor(rdma->get_kvstore_size() / global_num_servers, sizeof(uint64_t));
+			uint64_t offset = kvstore_sz * sid;
+			if (s != sid)
+				rdma->RdmaWrite(0, s, (char*)buffer, sizeof(uint64_t), offset);
+			else
+				memcpy(rdma->get_kvstore() + offset, (char*)buffer, sizeof(uint64_t));
 		}
 		MPI_Barrier(MPI_COMM_WORLD);
 
@@ -198,19 +206,19 @@ class DGraph {
 	}
 
 	// selectively load own partitioned data from allfiles
-	void load_data_from_allfiles(vector<string> &file_vec) {
-		sort(file_vec.begin(), file_vec.end());
-		int nfile = file_vec.size();
+	void load_data_from_allfiles(vector<string> &fnames) {
+		sort(fnames.begin(), fnames.end());
+		int num_files = fnames.size();
 
 		#pragma omp parallel for num_threads(global_num_engines)
-		for (int i = 0; i < nfile; i++) {
+		for (int i = 0; i < num_files; i++) {
 			int localtid = omp_get_thread_num();
 			uint64_t max_size = floor(rdma->get_kvstore_size() / global_num_engines, sizeof(uint64_t));
 			uint64_t offset = max_size * localtid;
 			uint64_t *local_buffer = (uint64_t *)(rdma->get_kvstore() + offset);
 
 			// TODO: support HDFS
-			ifstream file(file_vec[i].c_str());
+			ifstream file(fnames[i].c_str());
 			uint64_t s, p, o;
 			while (file >> s >> p >> o) {
 				int s_mid = mymath::hash_mod(s, global_num_servers);
@@ -329,7 +337,7 @@ public:
 	GStore gstore;
 
 	DGraph(string dname, int sid, RdmaResource *rdma)
-		: sid(sid), rdma(rdma), nedges(global_num_servers) {
+		: sid(sid), rdma(rdma), num_triples(global_num_servers) {
 		vector<string> files; // ID-format data files
 
 		if (boost::starts_with(dname, "hdfs:")) {
@@ -364,9 +372,11 @@ public:
 			}
 		}
 
-		if (files.size() == 0)
+		if (files.size() == 0) {
 			cout << "ERORR: no files found in directory (" << dname
 			     << ") at server " << sid << endl;
+			assert(false);
+		}
 
 		load_and_sync_data(files);
 
