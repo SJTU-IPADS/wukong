@@ -51,12 +51,12 @@ class DGraph {
 
 	RdmaResource *rdma;
 
-	vector<vector<triple_t> > triple_spo;
-	vector<vector<triple_t> > triple_ops;
-
 	vector<uint64_t> num_triples;  // record #triples loaded from input data for each server
 
-	void remove_duplicate(vector<triple_t>& elist) {
+	vector<vector<triple_t>> triple_spo;
+	vector<vector<triple_t>> triple_ops;
+
+	void remove_duplicate(vector<triple_t> &elist) {
 		if (elist.size() > 1) {
 			uint64_t end = 1;
 			for (uint64_t i = 1; i < elist.size(); i++) {
@@ -261,17 +261,15 @@ class DGraph {
 		else
 			load_data_from_allfiles(files);
 
+		// calculate #triples on the server
 		uint64_t total = 0;
+		uint64_t kvstore_sz = floor(rdma->get_kvstore_size() / global_num_servers, sizeof(uint64_t));
 		for (int id = 0; id < global_num_servers; id++) {
-			uint64_t max_size = floor(rdma->get_kvstore_size() / global_num_servers, sizeof(uint64_t));
-			uint64_t *recv_buffer = (uint64_t*)(rdma->get_kvstore() + max_size * id);
-			total += *recv_buffer;
+			uint64_t *recv_buffer = (uint64_t *)(rdma->get_kvstore() + kvstore_sz * id);
+			total += recv_buffer[0];
 		}
 
-		triple_spo.clear();
-		triple_ops.clear();
-		triple_spo.resize(nthread_parallel_load);
-		triple_ops.resize(nthread_parallel_load);
+		// pre-expand to avoid frequent reallocation
 		for (int i = 0; i < triple_spo.size(); i++) {
 			triple_spo[i].reserve(total / nthread_parallel_load * 1.5);
 			triple_ops[i].reserve(total / nthread_parallel_load * 1.5);
@@ -282,30 +280,34 @@ class DGraph {
 		for (int t = 0; t < nthread_parallel_load; t++) {
 			int local_count = 0;
 			for (int mid = 0; mid < global_num_servers; mid++) {
-				//recv from different machine
-				uint64_t max_size = floor(rdma->get_kvstore_size() / global_num_servers, sizeof(uint64_t));
-				uint64_t* recv_buffer = (uint64_t*)(rdma->get_kvstore() + max_size * mid);
-				uint64_t num_edge = *recv_buffer;
-				for (uint64_t i = 0; i < num_edge; i++) {
-					uint64_t s = recv_buffer[1 + i * 3];
-					uint64_t p = recv_buffer[1 + i * 3 + 1];
-					uint64_t o = recv_buffer[1 + i * 3 + 2];
+				// recv from different machine
+				uint64_t kvstore_sz = floor(rdma->get_kvstore_size() / global_num_servers, sizeof(uint64_t));
+				uint64_t *kvstore = (uint64_t*)(rdma->get_kvstore() + kvstore_sz * mid);
+
+				uint64_t n = kvstore[0];
+				for (uint64_t i = 0; i < n; i++) {
+					uint64_t s = kvstore[1 + i * 3 + 0];
+					uint64_t p = kvstore[1 + i * 3 + 1];
+					uint64_t o = kvstore[1 + i * 3 + 2];
+
+					// out-edges
 					if (mymath::hash_mod(s, global_num_servers) == sid) {
 						int s_tableid = (s / global_num_servers) % nthread_parallel_load;
-						if ( s_tableid == t)
+						if (s_tableid == t)
 							triple_spo[t].push_back(triple_t(s, p, o));
 					}
 
+					// in-edges
 					if (mymath::hash_mod(o, global_num_servers) == sid) {
 						int o_tableid = (o / global_num_servers) % nthread_parallel_load;
-						if ( o_tableid == t)
+						if (o_tableid == t)
 							triple_ops[t].push_back(triple_t(s, p, o));
 					}
 
 					local_count++;
 					if (local_count == total / 100) {
 						local_count = 0;
-						int ret = __sync_fetch_and_add( &done, 1 );
+						int ret = __sync_fetch_and_add(&done, 1);
 						if ((ret + 1) % (nthread_parallel_load * 5) == 0)
 							cout << "already aggregrate " << (ret + 1) / nthread_parallel_load << " %" << endl;
 					}
@@ -337,7 +339,8 @@ public:
 	GStore gstore;
 
 	DGraph(string dname, int sid, RdmaResource *rdma)
-		: sid(sid), rdma(rdma), num_triples(global_num_servers) {
+		: sid(sid), rdma(rdma), num_triples(global_num_servers),
+		  triple_spo(nthread_parallel_load), triple_ops(nthread_parallel_load) {
 		vector<string> files; // ID-format data files
 
 		if (boost::starts_with(dname, "hdfs:")) {
@@ -383,7 +386,7 @@ public:
 		// NOTE: the local graph store must be initiated after load_and_sync_data
 		gstore.init(rdma, sid);
 
-		//#pragma omp parallel for num_threads(nthread_parallel_load)
+		// #pragma omp parallel for num_threads(nthread_parallel_load)
 		for (int t = 0; t < nthread_parallel_load; t++) {
 			gstore.atomic_batch_insert(triple_spo[t], triple_ops[t]);
 			vector<triple_t>().swap(triple_spo[t]);
@@ -393,7 +396,7 @@ public:
 		gstore.init_index_table();
 
 		cout << "Server#" << sid << ": loading DGraph is finished." << endl;
-		//gstore.print_memory_usage();
+		// gstore.print_memory_usage();
 	}
 
 	edge_t *get_edges_global(int tid, uint64_t vid, int direction, int predicate, int *size) {
