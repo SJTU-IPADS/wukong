@@ -276,7 +276,7 @@ public:
         last_edge = 0;
 
         // initiate keys
-        #pragma omp parallel for num_threads(20)
+        #pragma omp parallel for num_threads(global_num_engines)
         for (uint64_t i = 0; i < slot_num; i++) {
             vertex_addr[i].key = ikey_t();
         }
@@ -422,7 +422,7 @@ public:
     void init_index_table(void) {
         uint64_t t1 = timer::get_usec();
 
-        #pragma omp parallel for num_threads(8)
+        #pragma omp parallel for num_threads(global_num_engines)
         for (int x = 0; x < num_main_headers + num_indirect_headers; x++) {
             for (int y = 0; y < ASSOCIATIVITY - 1; y++) {
                 uint64_t i = x * ASSOCIATIVITY + y;
@@ -458,6 +458,9 @@ public:
             }
         }
         uint64_t t2 = timer::get_usec();
+        cout << (t2 - t1) / 1000
+             << " ms for parallel generate tbb_table "
+             << endl;
 
         // type index
         for (tbb_vector_table::iterator i = type_table.begin();
@@ -502,10 +505,9 @@ public:
 
         tbb_vector_table().swap(src_predicate_table);
         tbb_vector_table().swap(dst_predicate_table);
+
+
         uint64_t t3 = timer::get_usec();
-        cout << (t2 - t1) / 1000
-             << " ms for parallel generate tbb_table "
-             << endl;
         cout << (t3 - t2) / 1000
              << " ms for sequence insert tbb_table to gstore"
              << endl;

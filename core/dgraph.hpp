@@ -45,7 +45,7 @@
 using namespace std;
 
 class DGraph {
-	static const int nthread_parallel_load = 20;
+	static const int nthread_parallel_load = 16;
 
 	int sid;
 
@@ -56,20 +56,20 @@ class DGraph {
 	vector<vector<triple_t>> triple_spo;
 	vector<vector<triple_t>> triple_ops;
 
-	void remove_duplicate(vector<triple_t> &elist) {
-		if (elist.size() > 1) {
-			uint64_t end = 1;
-			for (uint64_t i = 1; i < elist.size(); i++) {
-				if (elist[i].s == elist[i - 1].s &&
-				        elist[i].p == elist[i - 1].p &&
-				        elist[i].o == elist[i - 1].o) {
-					continue;
-				}
-				elist[end] = elist[i];
-				end++;
-			}
-			elist.resize(end);
+	void dedup_triples(vector<triple_t> &triples) {
+		if (triples.size() <= 1)
+			return;
+
+		uint64_t n = 1;
+		for (uint64_t i = 1; i < triples.size(); i++) {
+			if (triples[i].s == triples[i - 1].s
+			        && triples[i].p == triples[i - 1].p
+			        && triples[i].o == triples[i - 1].o)
+				continue;
+
+			triples[n++] = triples[i];
 		}
+		triples.resize(n);
 	}
 
 	// NOTE: send_edge can be safely called by multiple threads, since the buffer
@@ -205,8 +205,10 @@ class DGraph {
 		cout << (t2 - t1) / 1000 << " ms for loading RDF data files" << endl;
 	}
 
-	// selectively load own partitioned data from allfiles
+	// selectively load own partitioned data from all files
 	void load_data_from_allfiles(vector<string> &fnames) {
+		uint64_t t1 = timer::get_usec();
+
 		sort(fnames.begin(), fnames.end());
 		int num_files = fnames.size();
 
@@ -236,32 +238,16 @@ class DGraph {
 			}
 			file.close();
 		}
+
+		// timing
+		uint64_t t2 = timer::get_usec();
+		cout << (t2 - t1) / 1000 << " ms for loading RDF data files" << endl;
 	}
 
-	void load_and_sync_data(vector<string> &files) {
+	void aggregate_data() {
 		uint64_t t1 = timer::get_usec();
 
-		/**
-		 * load_data: load partial input files by each server and exchanges triples
-		 *            according to graph partitioning
-		 * load_data_from_allfiles: load all files by each server and select triples
-		 *                          according to graph partitioning
-		 *
-		 * Trade-off: load_data_from_allfiles avoids network traffic and memory,
-		 *            but it requires more I/O from distributed FS.
-		 *
-		 * Wukong adopts load_data_from_allfiles for slow network (w/o RDMA) and
-		 *        adopts load_data for fast network (w/ RDMA).
-		 *
-		 * Tips: the buffer (registered memory) can be reused for further primitives for RDMA
-		 *
-		 */
-		if (global_use_rdma)
-			load_data(files);
-		else
-			load_data_from_allfiles(files);
-
-		// calculate #triples on the server
+		// calculate #triples on the kvstore from all servers
 		uint64_t total = 0;
 		uint64_t kvstore_sz = floor(rdma->get_kvstore_size() / global_num_servers, sizeof(uint64_t));
 		for (int id = 0; id < global_num_servers; id++) {
@@ -276,8 +262,11 @@ class DGraph {
 		}
 
 		volatile int done = 0;
+		/* each thread will scan all triples (from all servers) and pickup certain triples.
+		   It ensures that the triples belong to the same vertex will be stored in the same
+		   triple_spo/ops. This will simplify the deduplication and insertion to gstore. */
 		#pragma omp parallel for num_threads(nthread_parallel_load)
-		for (int t = 0; t < nthread_parallel_load; t++) {
+		for (int tid = 0; tid < nthread_parallel_load; tid++) {
 			int local_count = 0;
 			for (int mid = 0; mid < global_num_servers; mid++) {
 				// recv from different machine
@@ -291,19 +280,16 @@ class DGraph {
 					uint64_t o = kvstore[1 + i * 3 + 2];
 
 					// out-edges
-					if (mymath::hash_mod(s, global_num_servers) == sid) {
-						int s_tableid = (s / global_num_servers) % nthread_parallel_load;
-						if (s_tableid == t)
-							triple_spo[t].push_back(triple_t(s, p, o));
-					}
+					if (mymath::hash_mod(s, global_num_servers) == sid)
+						if ((s % nthread_parallel_load) == tid)
+							triple_spo[tid].push_back(triple_t(s, p, o));
 
 					// in-edges
-					if (mymath::hash_mod(o, global_num_servers) == sid) {
-						int o_tableid = (o / global_num_servers) % nthread_parallel_load;
-						if (o_tableid == t)
-							triple_ops[t].push_back(triple_t(s, p, o));
-					}
+					if (mymath::hash_mod(o, global_num_servers) == sid)
+						if ((o % nthread_parallel_load) == tid)
+							triple_ops[tid].push_back(triple_t(s, p, o));
 
+					// print progress of
 					local_count++;
 					if (local_count == total / 100) {
 						local_count = 0;
@@ -313,14 +299,17 @@ class DGraph {
 					}
 				}
 			}
-			sort(triple_spo[t].begin(), triple_spo[t].end(), edge_sort_by_spo());
-			sort(triple_ops[t].begin(), triple_ops[t].end(), edge_sort_by_ops());
-			remove_duplicate(triple_spo[t]);
-			remove_duplicate(triple_ops[t]);
+
+			sort(triple_spo[tid].begin(), triple_spo[tid].end(), edge_sort_by_spo());
+			dedup_triples(triple_ops[tid]);
+
+			sort(triple_ops[tid].begin(), triple_ops[tid].end(), edge_sort_by_ops());
+			dedup_triples(triple_spo[tid]);
 		}
 
+		// timing
 		uint64_t t2 = timer::get_usec();
-		cout << (t2 - t1) / 1000 << " ms for aggregrate edges" << endl;
+		cout << (t2 - t1) / 1000 << " ms for aggregrate triples" << endl;
 	}
 
 	uint64_t inline floor(uint64_t original, uint64_t n) {
@@ -381,7 +370,30 @@ public:
 			assert(false);
 		}
 
-		load_and_sync_data(files);
+		/**
+		 * load_data: load partial input files by each server and exchanges triples
+		 *            according to graph partitioning
+		 * load_data_from_allfiles: load all files by each server and select triples
+		 *                          according to graph partitioning
+		 *
+		 * Trade-off: load_data_from_allfiles avoids network traffic and memory,
+		 *            but it requires more I/O from distributed FS.
+		 *
+		 * Wukong adopts load_data_from_allfiles for slow network (w/o RDMA) and
+		 *        adopts load_data for fast network (w/ RDMA).
+		 *
+		 * Tips: the buffer (registered memory) can be reused for further primitives for RDMA
+		 */
+		if (global_use_rdma)
+			load_data(files);
+		else
+			load_data_from_allfiles(files);
+
+		/**
+		 * all triples are temporarily stored in kvstore.
+		 * aggregate, sort and dedup the triples before inserting to gstore (kvstore)
+		 */
+		aggregate_data();
 
 		// NOTE: the local graph store must be initiated after load_and_sync_data
 		gstore.init(rdma, sid);
