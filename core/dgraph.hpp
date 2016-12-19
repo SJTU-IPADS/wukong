@@ -105,13 +105,13 @@ class DGraph {
 
 		// the kvstore is split into S pieces (S is the number of servers).
 		// hence, the kvstore can be directly RDMA write in parallel by all servers
-		uint64_t kvstore_sz = floor(rdma->get_kvstore_size() / global_num_servers, sizeof(uint64_t));
+		uint64_t kvs_sz = floor(rdma->get_kvs_size() / global_num_servers, sizeof(uint64_t));
 
 		// serialize the RDMA WRITEs by multiple threads
 		uint64_t exist = __sync_fetch_and_add(&num_triples[dst_sid], n);
-		if ((1 + exist * 3 + n * 3) * sizeof(uint64_t) > kvstore_sz) {
+		if ((1 + exist * 3 + n * 3) * sizeof(uint64_t) > kvs_sz) {
 			cout << "ERROR: no enough space to store input data!" << endl;
-			cout << " kvstore size = " << kvstore_sz
+			cout << " kvstore size = " << kvs_sz
 			     << " #exist-triples = " << exist
 			     << " #new-triples = " << n
 			     << endl;
@@ -119,14 +119,14 @@ class DGraph {
 		}
 
 		// send triples and clear the buffer
-		uint64_t offset = kvstore_sz * sid
+		uint64_t offset = kvs_sz * sid
 		                  + 1 * sizeof(uint64_t)          // reserve the 1st uint64_t as #triples
 		                  + exist * 3 * sizeof(uint64_t); // skip #exist-triples
 		uint64_t length = n * 3 * sizeof(uint64_t);       // send #new-triples
 		if (dst_sid != sid)
 			rdma->RdmaWrite(tid, dst_sid, (char *)(buffer + 1), length, offset);
 		else
-			memcpy(rdma->get_kvstore() + offset, (char *)(buffer + 1), length);
+			memcpy(rdma->get_kvs() + offset, (char *)(buffer + 1), length);
 
 		buffer[0] = 0; // clear the buffer
 	}
@@ -180,7 +180,7 @@ class DGraph {
 			}
 		}
 
-		// flush rest triples within each RDMA buffer
+		// flush the rest triples within each RDMA buffer
 		for (int s = 0; s < global_num_servers; s++)
 			for (int t = 0; t < global_num_engines; t++)
 				flush_edges(t, s);
@@ -191,12 +191,12 @@ class DGraph {
 			uint64_t *buffer = (uint64_t *)rdma->get_buffer(0);
 			buffer[0] = num_triples[s];
 
-			uint64_t kvstore_sz = floor(rdma->get_kvstore_size() / global_num_servers, sizeof(uint64_t));
-			uint64_t offset = kvstore_sz * sid;
+			uint64_t kvs_sz = floor(rdma->get_kvs_size() / global_num_servers, sizeof(uint64_t));
+			uint64_t offset = kvs_sz * sid;
 			if (s != sid)
 				rdma->RdmaWrite(0, s, (char*)buffer, sizeof(uint64_t), offset);
 			else
-				memcpy(rdma->get_kvstore() + offset, (char*)buffer, sizeof(uint64_t));
+				memcpy(rdma->get_kvs() + offset, (char*)buffer, sizeof(uint64_t));
 		}
 		MPI_Barrier(MPI_COMM_WORLD);
 
@@ -215,9 +215,9 @@ class DGraph {
 		#pragma omp parallel for num_threads(global_num_engines)
 		for (int i = 0; i < num_files; i++) {
 			int localtid = omp_get_thread_num();
-			uint64_t max_size = floor(rdma->get_kvstore_size() / global_num_engines, sizeof(uint64_t));
+			uint64_t max_size = floor(rdma->get_kvs_size() / global_num_engines, sizeof(uint64_t));
 			uint64_t offset = max_size * localtid;
-			uint64_t *local_buffer = (uint64_t *)(rdma->get_kvstore() + offset);
+			uint64_t *local_buffer = (uint64_t *)(rdma->get_kvs() + offset);
 
 			// TODO: support HDFS
 			ifstream file(fnames[i].c_str());
@@ -249,35 +249,32 @@ class DGraph {
 
 		// calculate #triples on the kvstore from all servers
 		uint64_t total = 0;
-		uint64_t kvstore_sz = floor(rdma->get_kvstore_size() / global_num_servers, sizeof(uint64_t));
+		uint64_t kvs_sz = floor(rdma->get_kvs_size() / global_num_servers, sizeof(uint64_t));
 		for (int id = 0; id < global_num_servers; id++) {
-			uint64_t *recv_buffer = (uint64_t *)(rdma->get_kvstore() + kvstore_sz * id);
+			uint64_t *recv_buffer = (uint64_t *)(rdma->get_kvs() + kvs_sz * id);
 			total += recv_buffer[0];
 		}
 
-		// pre-expand to avoid frequent reallocation
+		// pre-expand to avoid frequent reallocation (maybe imbalance)
 		for (int i = 0; i < triple_spo.size(); i++) {
-			triple_spo[i].reserve(total / nthread_parallel_load * 1.5);
-			triple_ops[i].reserve(total / nthread_parallel_load * 1.5);
+			triple_spo[i].reserve(total / nthread_parallel_load);
+			triple_ops[i].reserve(total / nthread_parallel_load);
 		}
 
-		volatile int done = 0;
 		/* each thread will scan all triples (from all servers) and pickup certain triples.
 		   It ensures that the triples belong to the same vertex will be stored in the same
 		   triple_spo/ops. This will simplify the deduplication and insertion to gstore. */
+		volatile int progress = 0;
 		#pragma omp parallel for num_threads(nthread_parallel_load)
 		for (int tid = 0; tid < nthread_parallel_load; tid++) {
-			int local_count = 0;
-			for (int mid = 0; mid < global_num_servers; mid++) {
-				// recv from different machine
-				uint64_t kvstore_sz = floor(rdma->get_kvstore_size() / global_num_servers, sizeof(uint64_t));
-				uint64_t *kvstore = (uint64_t*)(rdma->get_kvstore() + kvstore_sz * mid);
-
-				uint64_t n = kvstore[0];
+			int pcnt = 0; // per thread count for print progress
+			for (int id = 0; id < global_num_servers; id++) {
+				uint64_t *kvs = (uint64_t*)(rdma->get_kvs() + kvs_sz * id);
+				uint64_t n = kvs[0];
 				for (uint64_t i = 0; i < n; i++) {
-					uint64_t s = kvstore[1 + i * 3 + 0];
-					uint64_t p = kvstore[1 + i * 3 + 1];
-					uint64_t o = kvstore[1 + i * 3 + 2];
+					uint64_t s = kvs[1 + i * 3 + 0];
+					uint64_t p = kvs[1 + i * 3 + 1];
+					uint64_t o = kvs[1 + i * 3 + 2];
 
 					// out-edges
 					if (mymath::hash_mod(s, global_num_servers) == sid)
@@ -289,13 +286,12 @@ class DGraph {
 						if ((o % nthread_parallel_load) == tid)
 							triple_ops[tid].push_back(triple_t(s, p, o));
 
-					// print progress of
-					local_count++;
-					if (local_count == total / 100) {
-						local_count = 0;
-						int ret = __sync_fetch_and_add(&done, 1);
-						if ((ret + 1) % (nthread_parallel_load * 5) == 0)
-							cout << "already aggregrate " << (ret + 1) / nthread_parallel_load << " %" << endl;
+					// print the progress (step = 5%) of aggregation
+					if (++pcnt >= total * 0.05) {
+						int now = __sync_add_and_fetch(&progress, 1);
+						if (now % nthread_parallel_load == 0)
+							cout << "already aggregrate " << now / nthread_parallel_load << "%" << endl;
+						pcnt = 0;
 					}
 				}
 			}
@@ -329,7 +325,8 @@ public:
 
 	DGraph(string dname, int sid, RdmaResource *rdma)
 		: sid(sid), rdma(rdma), num_triples(global_num_servers),
-		  triple_spo(nthread_parallel_load), triple_ops(nthread_parallel_load) {
+		  triple_spo(nthread_parallel_load), triple_ops(nthread_parallel_load),
+		  gstore(rdma, sid) {
 		vector<string> files; // ID-format data files
 
 		if (boost::starts_with(dname, "hdfs:")) {
@@ -395,12 +392,14 @@ public:
 		 */
 		aggregate_data();
 
-		// NOTE: the local graph store must be initiated after load_and_sync_data
-		gstore.init(rdma, sid);
+		// initiate gstore (kvstore) after loading and exchanging triples
+		gstore.init();
 
 		// #pragma omp parallel for num_threads(nthread_parallel_load)
 		for (int t = 0; t < nthread_parallel_load; t++) {
 			gstore.atomic_batch_insert(triple_spo[t], triple_ops[t]);
+
+			// release memory
 			vector<triple_t>().swap(triple_spo[t]);
 			vector<triple_t>().swap(triple_ops[t]);
 		}

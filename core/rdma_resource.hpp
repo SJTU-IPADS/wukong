@@ -808,16 +808,19 @@ public:
 
     string ip_of(int sid) { return ipset[sid]; }
 
-    inline char *get_kvstore() { return rdma_mem; }
+    // return the pointer to kvstore
+    inline char *get_kvs() { return rdma_mem; }
 
-    inline uint64_t get_kvstore_size() { return kvs_sz; }
+    // return the size of kvstore
+    inline uint64_t get_kvs_size() { return kvs_sz; }
 
+    // return the pointer to buffer of certain thread
     inline char *get_buffer(int dst_tid) {
         return (char *)(rdma_mem + kvs_sz + buf_sz * dst_tid);
     }
 
+    // return the size of buffer used by one thread
     uint64_t get_buffer_size() { return buf_sz; }
-
 
 
     // 0 on success, -1 otherwise
@@ -1124,13 +1127,13 @@ public:
         return string();
     }
 
-    char *get_kvstore() {
+    char *get_kvs() {
         cout << "This system is compiled without RDMA support." << endl;
         assert(false);
         return NULL;
     }
 
-    uint64_t get_kvstore_size() {
+    uint64_t get_kvs_size() {
         cout << "This system is compiled without RDMA support." << endl;
         assert(false);
         return 0ul;

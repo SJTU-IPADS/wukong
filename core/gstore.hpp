@@ -88,7 +88,7 @@ class GStore {
     vertex_t *vertex_addr;
     edge_t *edge_addr;
 
-    uint64_t slot_num;
+    uint64_t num_verts;
 
     // main headers (v) are pre-allocated
     // indirect headers (v) and entries (e) are dyanmically allocated
@@ -245,46 +245,44 @@ class GStore {
     }
 
 public:
-    GStore() {
-        pthread_spin_init(&allocation_lock, 0);
-        for (int i = 0; i < NUM_LOCKS; i++)
-            pthread_spin_init(&fine_grain_locks[i], 0);
-    }
 
     // GStore: key (main-header and indirect-header region) | value (entry region)
     // The key (head region) is a cluster chaining hash table (with associativity)
     // The value is a varying-size array
-    void init(RdmaResource *_rdma, uint64_t machine_id) {
-        rdma = _rdma;
-        sid = machine_id;
+    GStore(RdmaResource *rdma, uint64_t sid): rdma(rdma), sid(sid) {
+        num_verts = global_num_keys_million * 1000 * 1000;
+        num_main_headers = (num_verts / ASSOCIATIVITY) / (KEY_RATIO + 1) * KEY_RATIO;
+        num_indirect_headers = (num_verts / ASSOCIATIVITY) / (KEY_RATIO + 1);
 
-        slot_num = global_num_keys_million * 1000 * 1000;
-        num_main_headers = (slot_num / ASSOCIATIVITY) / (KEY_RATIO + 1) * KEY_RATIO;
-        num_indirect_headers = (slot_num / ASSOCIATIVITY) / (KEY_RATIO + 1);
+        vertex_addr = (vertex_t *)(rdma->get_kvs());
+        edge_addr   = (edge_t *)(rdma->get_kvs() + num_verts * sizeof(vertex_t));
 
-        vertex_addr = (vertex_t *)(rdma->get_kvstore());
-        edge_addr   = (edge_t *)(rdma->get_kvstore() + slot_num * sizeof(vertex_t));
-
-        if (rdma->get_kvstore_size() <= slot_num * sizeof(vertex_t)) {
+        if (rdma->get_kvs_size() <= num_verts * sizeof(vertex_t)) {
             std::cout << "ERROR: " << global_memstore_size_gb
                       << "GB memory store is not enough to store hash table with "
                       << global_num_keys_million << "M keys" << std::endl;
             exit(-1);
         }
 
-        num_edges = (rdma->get_kvstore_size() - slot_num * sizeof(vertex_t)) / sizeof(edge_t);
+        num_edges = (rdma->get_kvs_size() - num_verts * sizeof(vertex_t)) / sizeof(edge_t);
         last_edge = 0;
 
+        pthread_spin_init(&allocation_lock, 0);
+        for (int i = 0; i < NUM_LOCKS; i++)
+            pthread_spin_init(&fine_grain_locks[i], 0);
+    }
+
+    void init() {
         // initiate keys
         #pragma omp parallel for num_threads(global_num_engines)
-        for (uint64_t i = 0; i < slot_num; i++) {
+        for (uint64_t i = 0; i < num_verts; i++)
             vertex_addr[i].key = ikey_t();
-        }
     }
 
     void atomic_batch_insert(vector<triple_t> &spo, vector<triple_t> &ops) {
         uint64_t accum_predicate = 0;
         uint64_t nedges_to_skip = 0;
+
         while (nedges_to_skip < ops.size()) {
             if (is_idx(ops[nedges_to_skip].o))
                 nedges_to_skip++;
@@ -391,7 +389,7 @@ public:
         }
 
         char *local_buffer = rdma->get_buffer(tid);
-        uint64_t read_offset  = sizeof(vertex_t) * slot_num + sizeof(edge_t) * (v.ptr.off);
+        uint64_t read_offset  = sizeof(vertex_t) * num_verts + sizeof(edge_t) * (v.ptr.off);
         uint64_t read_length = sizeof(edge_t) * v.ptr.size;
         rdma->RdmaRead(tid, dst_sid, (char *)local_buffer, read_length, read_offset);
         edge_t *result_ptr = (edge_t *)local_buffer;
@@ -576,7 +574,7 @@ public:
              << endl;
 
         cout << "gstore uses "
-             << B2MiB(slot_num * sizeof(vertex_t))
+             << B2MiB(num_verts * sizeof(vertex_t))
              << " MB for vertex data"
              << endl;
 
