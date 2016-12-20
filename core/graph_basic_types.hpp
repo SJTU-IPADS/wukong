@@ -121,9 +121,9 @@ uint64_t vid : NBITS_VID; // vertex
 	}
 };
 
-// 64-bit internal pointer
-enum { NBITS_SIZE = 28 };
-enum { NBITS_PTR = 36 };
+// 64-bit internal pointer (size < 16M and off off < 1TB)
+enum { NBITS_SIZE = 24 };
+enum { NBITS_PTR = 40 };
 
 /// TODO: add sid and edge type in future
 struct iptr_t {
@@ -133,13 +133,8 @@ uint64_t off: NBITS_PTR;
 	iptr_t(): size(0), off(0) { }
 
 	iptr_t(uint64_t s, uint64_t o): size(s), off(o) {
-		if ((size != s) || (off != o)) {
-			cout << "WARNING: key truncated! "
-			     << "[" << o << "|" << s << "]"
-			     << " => "
-			     << "[" << off << "|" << size << "]"
-			     << endl;
-		}
+		// no truncated
+		assert ((size == s) && (off == o));
 	}
 
 	bool operator == (const iptr_t &ptr) {

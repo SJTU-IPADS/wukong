@@ -51,6 +51,7 @@ class GStore {
         Item items[NUM_ITEMS];
 
     public:
+        /// TODO: use more clever cache structure with lock-free implementation
         bool lookup(ikey_t key, vertex_t &ret) {
             if (!global_enable_caching)
                 return false;
@@ -79,54 +80,54 @@ class GStore {
 
     static const int NUM_LOCKS = 1024;
 
-    static const int KEY_RATIO = 6;  // key_ratio : 1 = direct : indirect in (key) header
-    static const int ASSOCIATIVITY = 8;    // the associativity of slots in each bucket
+    static const int KEY_RATIO = 6;     // key_ratio : 1 = direct : indirect in (key) header
+    static const int ASSOCIATIVITY = 8; // the associativity of slots in each bucket
 
     uint64_t sid;
     RdmaResource *rdma;
 
-    vertex_t *vertex_addr;
-    edge_t *edge_addr;
+    vertex_t *vertices;
+    edge_t *edges;
 
-    uint64_t num_verts;
 
-    // main headers (v) are pre-allocated
-    // indirect headers (v) and entries (e) are dyanmically allocated
-
-    // capacity
-    uint64_t num_main_headers;
-    uint64_t num_indirect_headers;
-    uint64_t num_edges;
+    // the size of slot is sizeof(vertex_t)
+    // the size of entry is sizeof(edge_t)
+    uint64_t num_slots;       // 1 bucket = ASSOCIATIVITY slots
+    uint64_t num_buckets;     // main-header region (pre-allocated hash-table)
+    uint64_t num_buckets_ext; // indirect-header region (dynamical allocation)
+    uint64_t num_entries;     // entry region (dynamical allocation)
 
     // allocated
-    uint64_t last_edge;
-    uint64_t last_indirect;
+    uint64_t last_ext;
+    uint64_t last_entry;
+
 
     RDMA_Cache rdma_cache;
 
-    pthread_spinlock_t allocation_lock;
-    pthread_spinlock_t fine_grain_locks[NUM_LOCKS];
+    pthread_spinlock_t entry_lock;
+    pthread_spinlock_t bucket_ext_lock;
+    pthread_spinlock_t bucket_locks[NUM_LOCKS]; // lock virtualization (see paper: vLokc CGO'13)
 
 
-    uint64_t insertKey(ikey_t key) {
-        uint64_t vertex_ptr;
-        uint64_t bucket_id = key.hash() % num_main_headers;
+    /* cluster chaining hash-table (see paper: DrTM SOSP'15) */
+    uint64_t insert_key(ikey_t key) {
+        uint64_t bucket_id = key.hash() % num_buckets;
         uint64_t lock_id = bucket_id % NUM_LOCKS;
         uint64_t slot_id = 0;
         bool found = false;
 
-        pthread_spin_lock(&fine_grain_locks[lock_id]);
+        pthread_spin_lock(&bucket_locks[lock_id]);
         //last slot is used as next pointer
         while (!found) {
             for (uint64_t i = 0; i < ASSOCIATIVITY - 1; i++) {
                 slot_id = bucket_id * ASSOCIATIVITY + i;
-                if (vertex_addr[slot_id].key == key) {
+                if (vertices[slot_id].key == key) {
                     cout << "inserting duplicate key" << endl;
                     key.print();
                     assert(false);
                 }
-                if (vertex_addr[slot_id].key == ikey_t()) {
-                    vertex_addr[slot_id].key = key;
+                if (vertices[slot_id].key == ikey_t()) {
+                    vertices[slot_id].key = key;
                     found = true;
                     break;
                 }
@@ -135,57 +136,55 @@ class GStore {
                 break;
             } else {
                 slot_id = bucket_id * ASSOCIATIVITY + ASSOCIATIVITY - 1;
-                if (vertex_addr[slot_id].key != ikey_t()) {
-                    bucket_id = vertex_addr[slot_id].key.vid;
+                if (vertices[slot_id].key != ikey_t()) {
+                    bucket_id = vertices[slot_id].key.vid;
                     //continue and jump to next bucket
                     continue;
                 } else {
-                    pthread_spin_lock(&allocation_lock);
-                    assert(last_indirect < num_indirect_headers);
-                    vertex_addr[slot_id].key.vid = num_main_headers + last_indirect;
-                    last_indirect++;
-                    pthread_spin_unlock(&allocation_lock);
-                    bucket_id = vertex_addr[slot_id].key.vid;
+                    pthread_spin_lock(&bucket_ext_lock);
+                    assert(last_ext < num_buckets_ext);
+                    vertices[slot_id].key.vid = num_buckets + last_ext;
+                    last_ext++;
+                    pthread_spin_unlock(&bucket_ext_lock);
+                    bucket_id = vertices[slot_id].key.vid;
                     slot_id = bucket_id * ASSOCIATIVITY + 0;
-                    vertex_addr[slot_id].key = key;
+                    vertices[slot_id].key = key;
                     //break the while loop since we successfully insert
                     break;
                 }
             }
         }
-        pthread_spin_unlock(&fine_grain_locks[lock_id]);
-        assert(vertex_addr[slot_id].key == key);
+        pthread_spin_unlock(&bucket_locks[lock_id]);
+        assert(vertices[slot_id].key == key);
         return slot_id;
     }
 
-    uint64_t atomic_alloc_edges(uint64_t num) {
-        uint64_t orig_num_edges;
-        pthread_spin_lock(&allocation_lock);
-        orig_num_edges = last_edge;
-        last_edge += num;
-        pthread_spin_unlock(&allocation_lock);
-        if (last_edge >= num_edges) {
-            cout << "ERROR: too many edges (" << last_edge << ")" << endl;
-            exit(-1);
-        }
-        return orig_num_edges;
+    uint64_t sync_fetch_and_alloc_edges(uint64_t n) {
+        uint64_t orig;
+        pthread_spin_lock(&entry_lock);
+        orig = last_entry;
+        last_entry += n;
+        assert(last_entry < num_entries);
+        pthread_spin_unlock(&entry_lock);
+        return orig;
     }
 
+
     vertex_t get_vertex_local(ikey_t key) {
-        uint64_t bucket_id = key.hash() % num_main_headers;
+        uint64_t bucket_id = key.hash() % num_buckets;
         while (true) {
             for (uint64_t i = 0; i < ASSOCIATIVITY; i++) {
                 uint64_t slot_id = bucket_id * ASSOCIATIVITY + i;
                 if (i < ASSOCIATIVITY - 1) {
                     //data part
-                    if (vertex_addr[slot_id].key == key) {
+                    if (vertices[slot_id].key == key) {
                         //we found it
-                        return vertex_addr[slot_id];
+                        return vertices[slot_id];
                     }
                 } else {
-                    if (vertex_addr[slot_id].key != ikey_t()) {
+                    if (vertices[slot_id].key != ikey_t()) {
                         //next pointer
-                        bucket_id = vertex_addr[slot_id].key.vid;
+                        bucket_id = vertices[slot_id].key.vid;
                         //break from for loop, will go to next bucket
                         break;
                     } else {
@@ -197,19 +196,19 @@ class GStore {
     }
 
     vertex_t get_vertex_remote(int tid, ikey_t key) {
-        char *local_buffer = rdma->get_buffer(tid);
-        uint64_t bucket_id = key.hash() % num_main_headers;
+        int dst_sid = mymath::hash_mod(key.vid, global_num_servers);
+        uint64_t bucket_id = key.hash() % num_buckets;
         vertex_t ret;
 
         if (rdma_cache.lookup(key, ret))
             return ret;
 
+        char *buf = rdma->get_buffer(tid);
         while (true) {
-            uint64_t start_addr = sizeof(vertex_t) * bucket_id * ASSOCIATIVITY;
-            uint64_t read_length = sizeof(vertex_t) * ASSOCIATIVITY;
-            rdma->RdmaRead(tid, mymath::hash_mod(key.vid, global_num_servers),
-                           (char *)local_buffer, read_length, start_addr);
-            vertex_t *ptr = (vertex_t *)local_buffer;
+            uint64_t off = bucket_id * ASSOCIATIVITY * sizeof(vertex_t);
+            uint64_t sz = ASSOCIATIVITY * sizeof(vertex_t);
+            rdma->RdmaRead(tid, dst_sid, buf, sz, off);
+            vertex_t *ptr = (vertex_t *)buf;
             for (uint64_t i = 0; i < ASSOCIATIVITY; i++) {
                 if (i < ASSOCIATIVITY - 1) {
                     if (ptr[i].key == key) {
@@ -250,33 +249,34 @@ public:
     // The key (head region) is a cluster chaining hash table (with associativity)
     // The value is a varying-size array
     GStore(RdmaResource *rdma, uint64_t sid): rdma(rdma), sid(sid) {
-        num_verts = global_num_keys_million * 1000 * 1000;
-        num_main_headers = (num_verts / ASSOCIATIVITY) / (KEY_RATIO + 1) * KEY_RATIO;
-        num_indirect_headers = (num_verts / ASSOCIATIVITY) / (KEY_RATIO + 1);
+        num_slots = global_num_keys_million * 1000 * 1000;
+        num_buckets = (num_slots / ASSOCIATIVITY) / (KEY_RATIO + 1) * KEY_RATIO;
+        num_buckets_ext = (num_slots / ASSOCIATIVITY) / (KEY_RATIO + 1);
 
-        vertex_addr = (vertex_t *)(rdma->get_kvs());
-        edge_addr   = (edge_t *)(rdma->get_kvs() + num_verts * sizeof(vertex_t));
+        vertices = (vertex_t *)(rdma->get_kvs());
+        edges = (edge_t *)(rdma->get_kvs() + num_slots * sizeof(vertex_t));
 
-        if (rdma->get_kvs_size() <= num_verts * sizeof(vertex_t)) {
+        if (rdma->get_kvs_size() <= num_slots * sizeof(vertex_t)) {
             std::cout << "ERROR: " << global_memstore_size_gb
                       << "GB memory store is not enough to store hash table with "
                       << global_num_keys_million << "M keys" << std::endl;
-            exit(-1);
+            assert(false);
         }
 
-        num_edges = (rdma->get_kvs_size() - num_verts * sizeof(vertex_t)) / sizeof(edge_t);
-        last_edge = 0;
+        num_entries = (rdma->get_kvs_size() - num_slots * sizeof(vertex_t)) / sizeof(edge_t);
+        last_entry = 0;
 
-        pthread_spin_init(&allocation_lock, 0);
+        pthread_spin_init(&entry_lock, 0);
+        pthread_spin_init(&bucket_ext_lock, 0);
         for (int i = 0; i < NUM_LOCKS; i++)
-            pthread_spin_init(&fine_grain_locks[i], 0);
+            pthread_spin_init(&bucket_locks[i], 0);
     }
 
     void init() {
         // initiate keys
         #pragma omp parallel for num_threads(global_num_engines)
-        for (uint64_t i = 0; i < num_verts; i++)
-            vertex_addr[i].key = ikey_t();
+        for (uint64_t i = 0; i < num_slots; i++)
+            vertices[i].key = ikey_t();
     }
 
     void atomic_batch_insert(vector<triple_t> &spo, vector<triple_t> &ops) {
@@ -290,8 +290,8 @@ public:
                 break;
         }
 
-        uint64_t curr_edge_ptr = atomic_alloc_edges(spo.size()
-                                 + ops.size() - nedges_to_skip);
+        uint64_t curr_edge_ptr = sync_fetch_and_alloc_edges(
+                                     spo.size() + ops.size() - nedges_to_skip);
         uint64_t s = 0;
         while (s < spo.size()) {
             uint64_t e = s + 1;
@@ -301,11 +301,11 @@ public:
 
             accum_predicate++;
             ikey_t key = ikey_t(spo[s].s, OUT, spo[s].p);
-            uint64_t vertex_ptr = insertKey(key);
+            uint64_t vertex_ptr = insert_key(key);
             iptr_t ptr = iptr_t(e - s, curr_edge_ptr);
-            vertex_addr[vertex_ptr].ptr = ptr;
+            vertices[vertex_ptr].ptr = ptr;
             for (uint64_t i = s; i < e; i++) {
-                edge_addr[curr_edge_ptr].val = spo[i].o;
+                edges[curr_edge_ptr].val = spo[i].o;
                 curr_edge_ptr++;
             }
             s = e;
@@ -320,11 +320,11 @@ public:
 
             accum_predicate++;
             ikey_t key = ikey_t(ops[s].o, IN, ops[s].p);
-            uint64_t vertex_ptr = insertKey(key);
+            uint64_t vertex_ptr = insert_key(key);
             iptr_t ptr = iptr_t(e - s, curr_edge_ptr);
-            vertex_addr[vertex_ptr].ptr = ptr;
+            vertices[vertex_ptr].ptr = ptr;
             for (uint64_t i = s; i < e; i++) {
-                edge_addr[curr_edge_ptr].val = ops[i].s;
+                edges[curr_edge_ptr].val = ops[i].s;
                 curr_edge_ptr++;
             }
             s = e;
@@ -335,23 +335,23 @@ public:
         // Each normal vertex should add a key/value pair with a reserved ID (i.e., __PREDICATE__)
         // to store the list of predicates
 #if 0
-        curr_edge_ptr = atomic_alloc_edges(accum_predicate);
+        curr_edge_ptr = sync_fetch_and_alloc_edges(accum_predicate);
         s = 0;
         while (s < spo.size()) {
             // __PREDICATE__
             ikey_t key = ikey_t(spo[s].s, OUT, 0);
             iptr_t ptr = iptr_t(0, curr_edge_ptr);
-            uint64_t vertex_ptr = insertKey(key);
+            uint64_t vertex_ptr = insert_key(key);
             uint64_t e = s;
             while (e < spo.size() && vec_spo[s].s == spo[e].s) {
                 if (e == s || spo[e].p != spo[e - 1].p) {
-                    edge_addr[curr_edge_ptr].val = spo[e].p;
+                    edges[curr_edge_ptr].val = spo[e].p;
                     curr_edge_ptr++;
                     ptr.size = ptr.size + 1;
                 }
                 e++;
             }
-            vertex_addr[vertex_ptr].ptr = ptr;
+            vertices[vertex_ptr].ptr = ptr;
             s = e;
         }
 
@@ -359,28 +359,28 @@ public:
         while (s < ops.size()) {
             ikey_t key = ikey_t(ops[s].o, IN, 0);
             iptr_t ptr = iptr_t(0, curr_edge_ptr);
-            uint64_t vertex_ptr = insertKey(key);
+            uint64_t vertex_ptr = insert_key(key);
             uint64_t e = s;
             while (e < ops.size() && ops[s].o == ops[e].o) {
                 if (e == s || ops[e].p != ops[e - 1].p) {
-                    edge_addr[curr_edge_ptr].val = ops[e].p;
+                    edges[curr_edge_ptr].val = ops[e].p;
                     curr_edge_ptr++;
                     ptr.size = ptr.size + 1;
                 }
                 e++;
             }
-            vertex_addr[vertex_ptr].ptr = ptr;
+            vertices[vertex_ptr].ptr = ptr;
             s = e;
         }
 #endif
     }
 
-    edge_t *get_edges_global(int tid, uint64_t vid, int direction, int predicate, int *size) {
+    edge_t *get_edges_global(int tid, uint64_t vid, int d, int predicate, int *size) {
         int dst_sid = mymath::hash_mod(vid, global_num_servers);
         if (dst_sid == sid)
-            return get_edges_local(tid, vid, direction, predicate, size);
+            return get_edges_local(tid, vid, d, predicate, size);
 
-        ikey_t key = ikey_t(vid, direction, predicate);
+        ikey_t key = ikey_t(vid, d, predicate);
         vertex_t v = get_vertex_remote(tid, key);
 
         if (v.key == ikey_t()) {
@@ -388,19 +388,19 @@ public:
             return NULL;
         }
 
-        char *local_buffer = rdma->get_buffer(tid);
-        uint64_t read_offset  = sizeof(vertex_t) * num_verts + sizeof(edge_t) * (v.ptr.off);
-        uint64_t read_length = sizeof(edge_t) * v.ptr.size;
-        rdma->RdmaRead(tid, dst_sid, (char *)local_buffer, read_length, read_offset);
-        edge_t *result_ptr = (edge_t *)local_buffer;
+        char *buf = rdma->get_buffer(tid);
+        uint64_t off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
+        uint64_t sz = v.ptr.size * sizeof(edge_t);
+        rdma->RdmaRead(tid, dst_sid, buf, sz, off);
+        edge_t *result_ptr = (edge_t *)buf;
         *size = v.ptr.size;
         return result_ptr;
     }
 
-    edge_t *get_edges_local(int tid, uint64_t vid, int direction, int predicate, int *size) {
+    edge_t *get_edges_local(int tid, uint64_t vid, int d, int predicate, int *size) {
         assert(mymath::hash_mod(vid, global_num_servers) == sid || is_idx(vid));
 
-        ikey_t key = ikey_t(vid, direction, predicate);
+        ikey_t key = ikey_t(vid, d, predicate);
         vertex_t v = get_vertex_local(key);
         if (v.key == ikey_t()) {
             *size = 0;
@@ -409,7 +409,7 @@ public:
 
         *size = v.ptr.size;
         uint64_t ptr = v.ptr.off;
-        return &(edge_addr[ptr]);
+        return &(edges[ptr]);
     }
 
     edge_t *get_index_edges_local(int tid, uint64_t index_id, int d, int *size) {
@@ -421,16 +421,16 @@ public:
         uint64_t t1 = timer::get_usec();
 
         #pragma omp parallel for num_threads(global_num_engines)
-        for (int x = 0; x < num_main_headers + num_indirect_headers; x++) {
+        for (int x = 0; x < num_buckets + num_buckets_ext; x++) {
             for (int y = 0; y < ASSOCIATIVITY - 1; y++) {
                 uint64_t i = x * ASSOCIATIVITY + y;
-                if (vertex_addr[i].key == ikey_t()) {
+                if (vertices[i].key == ikey_t()) {
                     //empty slot, skip it
                     continue;
                 }
-                uint64_t vid = vertex_addr[i].key.vid;
-                uint64_t p = vertex_addr[i].key.pid;
-                if (vertex_addr[i].key.dir == IN) {
+                uint64_t vid = vertices[i].key.vid;
+                uint64_t p = vertices[i].key.pid;
+                if (vertices[i].key.dir == IN) {
                     if (p == TYPE_ID) {
                         //it means vid is a type vertex
                         //we just skip it
@@ -443,11 +443,11 @@ public:
                     }
                 } else {
                     if (p == TYPE_ID) {
-                        uint64_t degree = vertex_addr[i].ptr.size;
-                        uint64_t edge_ptr = vertex_addr[i].ptr.off;
+                        uint64_t degree = vertices[i].ptr.size;
+                        uint64_t edge_ptr = vertices[i].ptr.off;
                         for (uint64_t j = 0; j < degree; j++) {
                             //src may belongs to multiple types
-                            insert_vector(type_table, edge_addr[edge_ptr + j].val, vid);
+                            insert_vector(type_table, edges[edge_ptr + j].val, vid);
                         }
                     } else {
                         insert_vector(src_predicate_table, p, vid);
@@ -463,13 +463,13 @@ public:
         // type index
         for (tbb_vector_table::iterator i = type_table.begin();
                 i != type_table.end(); ++i) {
-            uint64_t curr_edge_ptr = atomic_alloc_edges(i->second.size());
+            uint64_t curr_edge_ptr = sync_fetch_and_alloc_edges(i->second.size());
             ikey_t key = ikey_t(i->first, IN, 0);
-            uint64_t vertex_ptr = insertKey(key);
+            uint64_t vertex_ptr = insert_key(key);
             iptr_t ptr = iptr_t(i->second.size(), curr_edge_ptr);
-            vertex_addr[vertex_ptr].ptr = ptr;
+            vertices[vertex_ptr].ptr = ptr;
             for (uint64_t k = 0; k < i->second.size(); k++) {
-                edge_addr[curr_edge_ptr].val = i->second[k];
+                edges[curr_edge_ptr].val = i->second[k];
                 curr_edge_ptr++;
             }
         }
@@ -477,26 +477,26 @@ public:
         // predicate index
         for (tbb_vector_table::iterator i = src_predicate_table.begin();
                 i != src_predicate_table.end(); ++i) {
-            uint64_t curr_edge_ptr = atomic_alloc_edges(i->second.size());
+            uint64_t curr_edge_ptr = sync_fetch_and_alloc_edges(i->second.size());
             ikey_t key = ikey_t(i->first, IN, 0);
-            uint64_t vertex_ptr = insertKey(key);
+            uint64_t vertex_ptr = insert_key(key);
             iptr_t ptr = iptr_t(i->second.size(), curr_edge_ptr);
-            vertex_addr[vertex_ptr].ptr = ptr;
+            vertices[vertex_ptr].ptr = ptr;
             for (uint64_t k = 0; k < i->second.size(); k++) {
-                edge_addr[curr_edge_ptr].val = i->second[k];
+                edges[curr_edge_ptr].val = i->second[k];
                 curr_edge_ptr++;
             }
         }
 
         for (tbb_vector_table::iterator i = dst_predicate_table.begin();
                 i != dst_predicate_table.end(); ++i) {
-            uint64_t curr_edge_ptr = atomic_alloc_edges(i->second.size());
+            uint64_t curr_edge_ptr = sync_fetch_and_alloc_edges(i->second.size());
             ikey_t key = ikey_t(i->first, OUT, 0);
-            uint64_t vertex_ptr = insertKey(key);
+            uint64_t vertex_ptr = insert_key(key);
             iptr_t ptr = iptr_t(i->second.size(), curr_edge_ptr);
-            vertex_addr[vertex_ptr].ptr = ptr;
+            vertices[vertex_ptr].ptr = ptr;
             for (uint64_t k = 0; k < i->second.size(); k++) {
-                edge_addr[curr_edge_ptr].val = i->second[k];
+                edges[curr_edge_ptr].val = i->second[k];
                 curr_edge_ptr++;
             }
         }
@@ -514,36 +514,36 @@ public:
     // analysis and debuging
     void print_memory_usage() {
         uint64_t used_header_slot = 0;
-        for (int x = 0; x < num_main_headers + num_indirect_headers; x++) {
+        for (int x = 0; x < num_buckets + num_buckets_ext; x++) {
             for (int y = 0; y < ASSOCIATIVITY - 1; y++) {
                 uint64_t i = x * ASSOCIATIVITY + y;
-                if (vertex_addr[i].key == ikey_t())
+                if (vertices[i].key == ikey_t())
                     continue; // skip the empty slot
                 used_header_slot++;
             }
         }
 
         cout << "gstore direct_header = "
-             << B2MiB(num_main_headers * ASSOCIATIVITY * sizeof(vertex_t))
+             << B2MiB(num_buckets * ASSOCIATIVITY * sizeof(vertex_t))
              << " MB "
              << endl;
         cout << "\t\treal_data = "
              << B2MiB(used_header_slot * sizeof(vertex_t))
              << " MB " << endl;
         cout << "\t\tnext_ptr = "
-             << B2MiB(num_main_headers * sizeof(vertex_t))
+             << B2MiB(num_buckets * sizeof(vertex_t))
              << " MB " << endl;
         cout << "\t\tempty_slot = "
-             << B2MiB((num_main_headers * ASSOCIATIVITY - num_main_headers - used_header_slot) * sizeof(vertex_t))
+             << B2MiB((num_buckets * ASSOCIATIVITY - num_buckets - used_header_slot) * sizeof(vertex_t))
              << " MB " << endl;
 
         uint64_t used_indirect_slot = 0;
         uint64_t used_indirect_bucket = 0;
-        for (int x = num_main_headers; x < num_main_headers + num_indirect_headers; x++) {
+        for (int x = num_buckets; x < num_buckets + num_buckets_ext; x++) {
             bool all_empty = true;
             for (int y = 0; y < ASSOCIATIVITY - 1; y++) {
                 uint64_t i = x * ASSOCIATIVITY + y;
-                if (vertex_addr[i].key == ikey_t())
+                if (vertices[i].key == ikey_t())
                     continue; // skip the empty slot
                 all_empty = false;
                 used_indirect_slot++;
@@ -554,7 +554,7 @@ public:
         }
 
         cout << "gstore indirect_header = "
-             << B2MiB(num_indirect_headers * ASSOCIATIVITY * sizeof(vertex_t))
+             << B2MiB(num_buckets_ext * ASSOCIATIVITY * sizeof(vertex_t))
              << " MB "
              << endl;
         cout << "\t\tnot_empty_data = "
@@ -567,21 +567,21 @@ public:
              << endl;
 
         cout << "gstore uses "
-             << last_indirect
+             << last_ext
              << " / "
-             << num_indirect_headers
-             << " num_indirect_headers"
+             << num_buckets_ext
+             << " num_buckets_ext"
              << endl;
 
         cout << "gstore uses "
-             << B2MiB(num_verts * sizeof(vertex_t))
+             << B2MiB(num_slots * sizeof(vertex_t))
              << " MB for vertex data"
              << endl;
 
         cout << "gstore edge_data = "
-             << B2MiB(last_edge * sizeof(edge_t))
+             << B2MiB(last_entry * sizeof(edge_t))
              << " / "
-             << B2MiB(num_edges * sizeof(edge_t))
+             << B2MiB(num_entries * sizeof(edge_t))
              << " MB "
              << endl;
     }

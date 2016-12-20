@@ -290,7 +290,7 @@ class DGraph {
 					if (++pcnt >= total * 0.05) {
 						int now = __sync_add_and_fetch(&progress, 1);
 						if (now % nthread_parallel_load == 0)
-							cout << "already aggregrate " << now / nthread_parallel_load << "%" << endl;
+							cout << "already aggregrate " << (now / nthread_parallel_load) * 5 << "%" << endl;
 						pcnt = 0;
 					}
 				}
