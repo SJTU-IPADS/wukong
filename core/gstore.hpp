@@ -164,7 +164,6 @@ done:
         return orig;
     }
 
-
     vertex_t get_vertex_local(ikey_t key) {
         uint64_t bucket_id = key.hash() % num_buckets;
         while (true) {
@@ -274,54 +273,60 @@ public:
             vertices[i].key = ikey_t();
     }
 
+    // skip all TYPE triples (e.g., <http://www.Department0.University0.edu> rdf:type ub:University)
+    // because Wukong treats all TYPE triples as index vertices. In addition, the triples in triple_ops
+    // has been sorted by the vid of object, and IDs of types are always smaller than normal vertex IDs.
+    // Consequently, all TYPE triples are aggregated at the beggining of triple_ops
     void atomic_batch_insert(vector<triple_t> &spo, vector<triple_t> &ops) {
+        uint64_t type_triples = 0;
+        while (type_triples < ops.size() && is_idx(ops[type_triples].o))
+            type_triples++;
+
+        uint64_t off = sync_fetch_and_alloc_edges(spo.size() + ops.size() - type_triples);
         uint64_t accum_predicate = 0;
-        uint64_t nedges_to_skip = 0;
-
-        while (nedges_to_skip < ops.size()) {
-            if (is_idx(ops[nedges_to_skip].o))
-                nedges_to_skip++;
-            else
-                break;
-        }
-
-        uint64_t curr_edge_ptr = sync_fetch_and_alloc_edges(
-                                     spo.size() + ops.size() - nedges_to_skip);
         uint64_t s = 0;
         while (s < spo.size()) {
+            // predicate-based key (subject + predicate)
             uint64_t e = s + 1;
             while ((e < spo.size())
                     && (spo[s].s == spo[e].s)
                     && (spo[s].p == spo[e].p))  { e++; }
 
             accum_predicate++;
+
+            // insert vertex
             ikey_t key = ikey_t(spo[s].s, OUT, spo[s].p);
+            iptr_t ptr = iptr_t(e - s, off);
             uint64_t vertex_ptr = insert_key(key);
-            iptr_t ptr = iptr_t(e - s, curr_edge_ptr);
             vertices[vertex_ptr].ptr = ptr;
-            for (uint64_t i = s; i < e; i++) {
-                edges[curr_edge_ptr].val = spo[i].o;
-                curr_edge_ptr++;
-            }
+
+            // insert edges
+            for (uint64_t i = s; i < e; i++)
+                edges[off++].val = spo[i].o;
+
             s = e;
         }
 
-        s = nedges_to_skip;
+        s = type_triples;
         while (s < ops.size()) {
+            // predicate-based key (object + predicate)
             uint64_t e = s + 1;
             while ((e < ops.size())
                     && (ops[s].o == ops[e].o)
                     && (ops[s].p == ops[e].p)) { e++; }
 
             accum_predicate++;
+
+            // insert vertex
             ikey_t key = ikey_t(ops[s].o, IN, ops[s].p);
+            iptr_t ptr = iptr_t(e - s, off);
             uint64_t vertex_ptr = insert_key(key);
-            iptr_t ptr = iptr_t(e - s, curr_edge_ptr);
             vertices[vertex_ptr].ptr = ptr;
-            for (uint64_t i = s; i < e; i++) {
-                edges[curr_edge_ptr].val = ops[i].s;
-                curr_edge_ptr++;
-            }
+
+            // insert edges
+            for (uint64_t i = s; i < e; i++)
+                edges[off++].val = ops[i].s;
+
             s = e;
         }
 
