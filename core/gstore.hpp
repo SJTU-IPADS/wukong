@@ -38,6 +38,7 @@
 #include "unit.hpp"
 
 class GStore {
+private:
     class RDMA_Cache {
         struct Item {
             pthread_spinlock_t lock;
@@ -108,53 +109,47 @@ class GStore {
     pthread_spinlock_t bucket_ext_lock;
     pthread_spinlock_t bucket_locks[NUM_LOCKS]; // lock virtualization (see paper: vLokc CGO'13)
 
-
     /* cluster chaining hash-table (see paper: DrTM SOSP'15) */
     uint64_t insert_key(ikey_t key) {
         uint64_t bucket_id = key.hash() % num_buckets;
+        uint64_t slot_id = bucket_id * ASSOCIATIVITY;
         uint64_t lock_id = bucket_id % NUM_LOCKS;
-        uint64_t slot_id = 0;
-        bool found = false;
 
+        bool found = false;
         pthread_spin_lock(&bucket_locks[lock_id]);
-        //last slot is used as next pointer
-        while (!found) {
-            for (uint64_t i = 0; i < ASSOCIATIVITY - 1; i++) {
-                slot_id = bucket_id * ASSOCIATIVITY + i;
-                if (vertices[slot_id].key == key) {
-                    cout << "inserting duplicate key" << endl;
-                    key.print();
-                    assert(false);
-                }
+        while (slot_id < num_slots) {
+            // the last slot of each bucket is always reserved for pointer to indirect header
+            /// TODO: add type info to slot and resue the last slot to store key
+            for (uint64_t i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
+                assert(vertices[slot_id].key != key); // no duplicate key
+
+                // insert to an empty slot
                 if (vertices[slot_id].key == ikey_t()) {
                     vertices[slot_id].key = key;
-                    found = true;
-                    break;
+                    goto done;
                 }
             }
-            if (found) {
-                break;
-            } else {
-                slot_id = bucket_id * ASSOCIATIVITY + ASSOCIATIVITY - 1;
-                if (vertices[slot_id].key != ikey_t()) {
-                    bucket_id = vertices[slot_id].key.vid;
-                    //continue and jump to next bucket
-                    continue;
-                } else {
-                    pthread_spin_lock(&bucket_ext_lock);
-                    assert(last_ext < num_buckets_ext);
-                    vertices[slot_id].key.vid = num_buckets + last_ext;
-                    last_ext++;
-                    pthread_spin_unlock(&bucket_ext_lock);
-                    bucket_id = vertices[slot_id].key.vid;
-                    slot_id = bucket_id * ASSOCIATIVITY + 0;
-                    vertices[slot_id].key = key;
-                    //break the while loop since we successfully insert
-                    break;
-                }
+
+            // move to the last slot of bucket and check whether a bucket_ext is used
+            if (vertices[++slot_id].key != ikey_t()) {
+                slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY;
+                continue; // continue and jump to next bucket
             }
+
+
+            // allocate and link a new indirect header
+            pthread_spin_lock(&bucket_ext_lock);
+            assert(last_ext < num_buckets_ext);
+            vertices[slot_id].key.vid = num_buckets + (last_ext++);
+            pthread_spin_unlock(&bucket_ext_lock);
+
+            slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY; // move to a new bucket_ext
+            vertices[slot_id].key = key; // insert to the first slot
+            goto done;
         }
+done:
         pthread_spin_unlock(&bucket_locks[lock_id]);
+        assert(slot_id < num_slots);
         assert(vertices[slot_id].key == key);
         return slot_id;
     }
