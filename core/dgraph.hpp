@@ -407,18 +407,14 @@ public:
 		gstore.insert_index();
 
 		cout << "Server#" << sid << ": loading DGraph is finished." << endl;
-		// gstore.print_memory_usage();
+		// gstore.print_mem_usage();
 	}
 
-	edge_t *get_edges_global(int tid, uint64_t vid, int direction, int predicate, int *size) {
-		return gstore.get_edges_global(tid, vid, direction, predicate, size);
+	edge_t *get_edges_global(int tid, int64_t vid, int64_t direction, int64_t pid, int *size) {
+		return gstore.get_edges_global(tid, vid, direction, pid, size);
 	}
 
-	edge_t *get_edges_local(int tid, uint64_t vid, int direction, int predicate, int *size) {
-		return gstore.get_edges_local(tid, vid, direction, predicate, size);
-	}
-
-	edge_t *get_index_edges_local(int tid, uint64_t vid, int direction, int *size) {
+	edge_t *get_index_edges_local(int tid, int64_t vid, int64_t direction, int *size) {
 		return gstore.get_index_edges_local(tid, vid, direction, size);
 	}
 };

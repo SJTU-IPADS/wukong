@@ -72,7 +72,8 @@ enum { NBITS_VID = (64 - NBITS_IDX - NBITS_DIR) }; // 0: index vertex, ID: norma
 enum { PREDICATE_ID = 0, TYPE_ID = 1 }; // reserve two special index IDs
 enum dir_t { IN, OUT, CORUN }; // direction: IN=0, OUT=1, and optimization hints
 
-static inline bool is_idx(int id) { return (id > 0) && (id < (1 << NBITS_IDX)); }
+static inline bool is_tpid(int id) { return (id > 1) && (id < (1 << NBITS_IDX)); }
+static inline bool is_idx(int vid) { return (vid == 0); }
 
 /**
  * predicate-base key/value store

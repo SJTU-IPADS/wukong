@@ -100,7 +100,7 @@ public:
          * ?X P1 ?Z .             // then from ?X's edge with P1
          *
          */
-        if (is_idx(cmd_chains[0])) {
+        if (is_tpid(cmd_chains[0])) {
             assert(cmd_chains[1] == PREDICATE_ID || cmd_chains[1] == TYPE_ID);
             return true;
         }

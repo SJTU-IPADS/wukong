@@ -21,8 +21,8 @@ set(BOOST_LIB "${ROOT}/deps/boost_1_58_0-install/lib" )
 ## Uncomment the line below to enable RDMA support.
 add_definitions(-DHAS_RDMA)
 
-## Uncomment the line below to allow the variable at predicate.
-#add_definitions(-DVAR_PREDICATE)
+## Uncomment the line below to support versatile queries (e.g., ?S ?P ?O).
+#add_definitions(-DVERSATILE)
 
 ## Set include path
 include_directories(deps/boost_1_58_0-install/include)

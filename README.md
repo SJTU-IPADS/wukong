@@ -186,9 +186,9 @@ For example:
 
 Currently, Wukong will enable RDMA feature by default, and suppose the driver has been well installed and configured. If you want to disable RDMA, you need manually modify `CMakeLists.txt` to compile and build `wukong-zmq` instead of `wukong`.
 
-#### Enable/disable variable at predicate
+#### Enable/disable the support to versatile queries
 
-To support a rare type of queries that the variable at predicate, you need manually uncomment `#add_definitions(-DVAR_PREDICATE)` in `CMakeLists.txt`. The triple pattern with variable at predicate looks like S1 ?P O1, S1 ?P ?O, or ?S ?P ?O. It should be noted that this setting will use more main memory to store RDF graph.
+To support versatile queries (e.g., ?S ?P ?O), you need manually uncomment `#add_definitions(-DVERSATILE)` in `CMakeLists.txt`. It should be noted that enabling this feature will use more main memory to store RDF graph.
 
 
 2) Build wukong 

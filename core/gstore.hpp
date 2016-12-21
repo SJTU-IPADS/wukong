@@ -82,8 +82,8 @@ private:
 
     static const int NUM_LOCKS = 1024;
 
-    static const int KEY_RATIO = 6;     // key_ratio : 1 = direct : indirect in (key) header
-    static const int ASSOCIATIVITY = 8; // the associativity of slots in each bucket
+    static const int MAIN_RATIO = 80; // the percentage of main headers (e.g., 80%)
+    static const int ASSOCIATIVITY = 8;  // the associativity of slots in each bucket
 
     uint64_t sid;
     RdmaResource *rdma;
@@ -102,7 +102,6 @@ private:
     // allocated
     uint64_t last_ext;
     uint64_t last_entry;
-
 
     RDMA_Cache rdma_cache;
 
@@ -170,31 +169,6 @@ done:
         return orig;
     }
 
-    vertex_t get_vertex_local(ikey_t key) {
-        uint64_t bucket_id = key.hash() % num_buckets;
-        while (true) {
-            for (uint64_t i = 0; i < ASSOCIATIVITY; i++) {
-                uint64_t slot_id = bucket_id * ASSOCIATIVITY + i;
-                if (i < ASSOCIATIVITY - 1) {
-                    //data part
-                    if (vertices[slot_id].key == key) {
-                        //we found it
-                        return vertices[slot_id];
-                    }
-                } else {
-                    if (vertices[slot_id].key != ikey_t()) {
-                        //next pointer
-                        bucket_id = vertices[slot_id].key.vid;
-                        //break from for loop, will go to next bucket
-                        break;
-                    } else {
-                        return vertex_t();
-                    }
-                }
-            }
-        }
-    }
-
     vertex_t get_vertex_remote(int tid, ikey_t key) {
         int dst_sid = mymath::hash_mod(key.vid, global_num_servers);
         uint64_t bucket_id = key.hash() % num_buckets;
@@ -230,33 +204,80 @@ done:
         }
     }
 
-    // TODO: define as public, should be refined
-    typedef tbb::concurrent_hash_map<uint64_t, vector< uint64_t>> tbb_hash_map;
-    typedef tbb::concurrent_unordered_set<uint64_t> tbb_unordered_set;
+    vertex_t get_vertex_local(int tid, ikey_t key) {
+        uint64_t bucket_id = key.hash() % num_buckets;
+        while (true) {
+            for (uint64_t i = 0; i < ASSOCIATIVITY; i++) {
+                uint64_t slot_id = bucket_id * ASSOCIATIVITY + i;
+                if (i < ASSOCIATIVITY - 1) {
+                    //data part
+                    if (vertices[slot_id].key == key) {
+                        //we found it
+                        return vertices[slot_id];
+                    }
+                } else {
+                    if (vertices[slot_id].key != ikey_t()) {
+                        //next pointer
+                        bucket_id = vertices[slot_id].key.vid;
+                        //break from for loop, will go to next bucket
+                        break;
+                    } else {
+                        return vertex_t();
+                    }
+                }
+            }
+        }
+    }
 
+    edge_t *get_edges_remote(int tid, int64_t vid, int64_t d, int64_t pid, int *size) {
+        int dst_sid = mymath::hash_mod(vid, global_num_servers);
+        ikey_t key = ikey_t(vid, d, pid);
+        vertex_t v = get_vertex_remote(tid, key);
+
+        if (v.key == ikey_t()) {
+            *size = 0;
+            return NULL;
+        }
+
+        char *buf = rdma->get_buffer(tid);
+        uint64_t off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
+        uint64_t sz = v.ptr.size * sizeof(edge_t);
+        rdma->RdmaRead(tid, dst_sid, buf, sz, off);
+        edge_t *result_ptr = (edge_t *)buf;
+
+        *size = v.ptr.size;
+        return result_ptr;
+    }
+
+    edge_t *get_edges_local(int tid, int64_t vid, int64_t d, int64_t pid, int *size) {
+        ikey_t key = ikey_t(vid, d, pid);
+        vertex_t v = get_vertex_local(tid, key);
+
+        if (v.key == ikey_t()) {
+            *size = 0;
+            return NULL;
+        }
+
+        *size = v.ptr.size;
+        uint64_t off = v.ptr.off;
+        return &(edges[off]);
+    }
+
+
+    typedef tbb::concurrent_hash_map<int64_t, vector< int64_t>> tbb_hash_map;
+    typedef tbb::concurrent_unordered_set<int64_t> tbb_unordered_set;
 
     tbb_hash_map pidx_in_map; // predicate-index (IN)
     tbb_hash_map pidx_out_map; // predicate-index (OUT)
     tbb_hash_map tidx_map; // type-index
 
-#ifdef VAR_PREDICATE
-    tbb_unordered_set p_set; // all of predicates
-    tbb_unordered_set v_set; // all of vertices (subjects and objects)
-#endif
-
-    void insert_hash_map(tbb_hash_map &c, uint64_t key, uint64_t value) {
-        tbb_hash_map::accessor a;
-        c.insert(a, key);
-        a->second.push_back(value);
-    }
-
-    void internal_insert_index(tbb_hash_map &map, dir_t d) {
+    void insert_index_map(tbb_hash_map &map, dir_t d) {
         for (auto const &e : map) {
-            uint64_t tpid = e.first;
+            int64_t id = e.first;
             uint64_t sz = e.second.size();
             uint64_t off = sync_fetch_and_alloc_edges(sz);
 
-            ikey_t key = ikey_t(tpid, d, 0);
+            ikey_t key = ikey_t(0, d, id);
             uint64_t slot_id = insert_key(key);
             iptr_t ptr = iptr_t(sz, off);
             vertices[slot_id].ptr = ptr;
@@ -265,6 +286,25 @@ done:
                 edges[off++].val = vid;
         }
     }
+
+#ifdef VERSATILE
+    tbb_unordered_set p_set; // all of predicates
+    tbb_unordered_set v_set; // all of vertices (subjects and objects)
+
+    void insert_index_set(tbb_unordered_set &set, dir_t d) {
+        int64_t id = TYPE_ID;
+        uint64_t sz = set.size();
+        uint64_t off = sync_fetch_and_alloc_edges(sz);
+
+        ikey_t key = ikey_t(0, d, id);
+        uint64_t slot_id = insert_key(key);
+        iptr_t ptr = iptr_t(sz, off);
+        vertices[slot_id].ptr = ptr;
+
+        for (auto const &e : set)
+            edges[off++].val = e;
+    }
+#endif
 
 public:
     // encoding rules of gstore
@@ -288,8 +328,9 @@ public:
     // The value (entry region) is a varying-size array
     GStore(RdmaResource *rdma, uint64_t sid): rdma(rdma), sid(sid) {
         num_slots = global_num_keys_million * 1000 * 1000;
-        num_buckets = (num_slots / ASSOCIATIVITY) / (KEY_RATIO + 1) * KEY_RATIO;
-        num_buckets_ext = (num_slots / ASSOCIATIVITY) / (KEY_RATIO + 1);
+        num_buckets = (uint64_t)((num_slots / ASSOCIATIVITY) * MAIN_RATIO / 100);
+        //num_buckets_ext = (num_slots / ASSOCIATIVITY) / (KEY_RATIO + 1);
+        num_buckets_ext = (num_slots / ASSOCIATIVITY) - num_buckets;
 
         vertices = (vertex_t *)(rdma->get_kvs());
         edges = (edge_t *)(rdma->get_kvs() + num_slots * sizeof(vertex_t));
@@ -322,13 +363,15 @@ public:
     // has been sorted by the vid of object, and IDs of types are always smaller than normal vertex IDs.
     // Consequently, all TYPE triples are aggregated at the beggining of triple_ops
     void insert_normal(vector<triple_t> &spo, vector<triple_t> &ops) {
+        // treat type triples as index vertices
         uint64_t type_triples = 0;
-        while (type_triples < ops.size() && is_idx(ops[type_triples].o))
+        while (type_triples < ops.size() && is_tpid(ops[type_triples].o))
             type_triples++;
 
+#ifdef VERSATILE
         // the number of separate combinations of subject/object and predicate
         uint64_t accum_predicate = 0;
-
+#endif
         // allocate edges in entry region for triples
         uint64_t off = sync_fetch_and_alloc_edges(spo.size() + ops.size() - type_triples);
 
@@ -339,14 +382,14 @@ public:
             while ((e < spo.size())
                     && (spo[s].s == spo[e].s)
                     && (spo[s].p == spo[e].p))  { e++; }
-
+#ifdef VERSATILE
             accum_predicate++;
-
+#endif
             // insert vertex
             ikey_t key = ikey_t(spo[s].s, OUT, spo[s].p);
-            uint64_t vertex_ptr = insert_key(key);
+            uint64_t slot_id = insert_key(key);
             iptr_t ptr = iptr_t(e - s, off);
-            vertices[vertex_ptr].ptr = ptr;
+            vertices[slot_id].ptr = ptr;
 
             // insert edges
             for (uint64_t i = s; i < e; i++)
@@ -362,9 +405,9 @@ public:
             while ((e < ops.size())
                     && (ops[s].o == ops[e].o)
                     && (ops[s].p == ops[e].p)) { e++; }
-
+#ifdef VERSATILE
             accum_predicate++;
-
+#endif
             // insert vertex
             ikey_t key = ikey_t(ops[s].o, IN, ops[s].p);
             uint64_t slot_id = insert_key(key);
@@ -378,7 +421,7 @@ public:
             s = e;
         }
 
-#ifdef VAR_PREDICATE
+#ifdef VERSATILE
         // The following code is used to support a rare case where the predicate is unknown
         // (e.g., <http://www.Department0.University0.edu> ?P ?O). Each normal vertex should
         // add two key/value pairs with a reserved ID (i.e., PREDICATE_ID) as the predicate
@@ -455,8 +498,8 @@ public:
                 // empty slot, skip it
                 if (vertices[slot_id].key == ikey_t()) continue;
 
-                uint64_t vid = vertices[slot_id].key.vid;
-                uint64_t pid = vertices[slot_id].key.pid;
+                int64_t vid = vertices[slot_id].key.vid;
+                int64_t pid = vertices[slot_id].key.pid;
                 dir_t dir = (dir_t)vertices[slot_id].key.dir;
 
                 uint64_t sz = vertices[slot_id].ptr.size;
@@ -464,174 +507,123 @@ public:
 
                 if (dir == IN) {
                     if (pid == PREDICATE_ID) {
-#ifdef VAR_PREDICATE
+#ifdef VERSATILE
                         v_set.insert(vid);
                         for (uint64_t e = 0; e < sz; e++)
                             p_set.insert(edges[off + e].val);
 #endif
                     } else if (pid == TYPE_ID) {
-                        // the (IN) type triples has been skipped
-                        assert(false);
-                    } else {
-                        // predicate-index (OUT) vid
-                        insert_hash_map(pidx_out_map, pid, vid);
+                        assert(false); // (IN) type triples should be skipped
+                    } else { // predicate-index (OUT) vid
+                        tbb_hash_map::accessor a;
+                        pidx_out_map.insert(a, pid);
+                        a->second.push_back(vid);
                     }
                 } else {
                     if (pid == PREDICATE_ID) {
-#ifdef VAR_PREDICATE
+#ifdef VERSATILE
                         v_set.insert(vid);
                         for (uint64_t e = 0; e < sz; e++)
                             p_set.insert(edges[off + e].val);
 #endif
                     } else if (pid == TYPE_ID) {
                         // type-index (IN) vid
-                        for (uint64_t e = 0; e < sz; e++)
-                            insert_hash_map(tidx_map, edges[off + e].val, vid);
-                    } else {
-                        // predicate-index (IN) vid
-                        insert_hash_map(pidx_in_map, pid, vid);
+                        for (uint64_t e = 0; e < sz; e++) {
+                            tbb_hash_map::accessor a;
+                            tidx_map.insert(a, edges[off + e].val);
+                            a->second.push_back(vid);
+                        }
+                    } else { // predicate-index (IN) vid
+                        tbb_hash_map::accessor a;
+                        pidx_in_map.insert(a, pid);
+                        a->second.push_back(vid);
                     }
                 }
             }
         }
 
         uint64_t t2 = timer::get_usec();
-        cout << (t2 - t1) / 1000 << " ms for parallel generate tbb_table" << endl;
+        cout << (t2 - t1) / 1000 << " ms for (parallel) prepare index info" << endl;
 
         // add type/predicate index vertices
-        internal_insert_index(tidx_map, IN);
-        internal_insert_index(pidx_in_map, IN);
-        internal_insert_index(pidx_out_map, OUT);
+        insert_index_map(tidx_map, IN);
+        insert_index_map(pidx_in_map, IN);
+        insert_index_map(pidx_out_map, OUT);
 
         tbb_hash_map().swap(pidx_in_map);
         tbb_hash_map().swap(pidx_out_map);
         tbb_hash_map().swap(tidx_map);
 
-#ifdef VAR_PREDICATE
-        tbb_unordered_set().swap(p_set);
+#ifdef VERSATILE
+        insert_index_set(v_set, IN);
+        insert_index_set(p_set, OUT);
+
         tbb_unordered_set().swap(v_set);
+        tbb_unordered_set().swap(p_set);
 #endif
 
         uint64_t t3 = timer::get_usec();
-        cout << (t3 - t2) / 1000
-             << " ms for sequence insert tbb_table to gstore"
-             << endl;
+        cout << (t3 - t2) / 1000 << " ms for insert index data into gstore" << endl;
     }
 
-    edge_t *get_edges_global(int tid, uint64_t vid, int d, int predicate, int *size) {
-        int dst_sid = mymath::hash_mod(vid, global_num_servers);
-        if (dst_sid == sid)
-            return get_edges_local(tid, vid, d, predicate, size);
-
-        ikey_t key = ikey_t(vid, d, predicate);
-        vertex_t v = get_vertex_remote(tid, key);
-
-        if (v.key == ikey_t()) {
-            *size = 0;
-            return NULL;
-        }
-
-        char *buf = rdma->get_buffer(tid);
-        uint64_t off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
-        uint64_t sz = v.ptr.size * sizeof(edge_t);
-        rdma->RdmaRead(tid, dst_sid, buf, sz, off);
-        edge_t *result_ptr = (edge_t *)buf;
-        *size = v.ptr.size;
-        return result_ptr;
+    edge_t *get_edges_global(int tid, int64_t vid, int64_t d, int64_t pid, int *sz) {
+        if (mymath::hash_mod(vid, global_num_servers) == sid)
+            return get_edges_local(tid, vid, d, pid, sz);
+        else
+            return get_edges_remote(tid, vid, d, pid, sz);
     }
 
-    edge_t *get_edges_local(int tid, uint64_t vid, int d, int predicate, int *size) {
-        assert(mymath::hash_mod(vid, global_num_servers) == sid || is_idx(vid));
-
-        ikey_t key = ikey_t(vid, d, predicate);
-        vertex_t v = get_vertex_local(key);
-        if (v.key == ikey_t()) {
-            *size = 0;
-            return NULL;
-        }
-
-        *size = v.ptr.size;
-        uint64_t ptr = v.ptr.off;
-        return &(edges[ptr]);
-    }
-
-    edge_t *get_index_edges_local(int tid, uint64_t index_id, int d, int *size) {
+    edge_t *get_index_edges_local(int tid, int64_t pid, int64_t d, int *sz) {
         // predicate is not important, so we set it 0
-        return get_edges_local(tid, index_id, d, 0, size);
+        return get_edges_local(tid, 0, d, pid, sz);
     }
 
     // analysis and debuging
-    void print_memory_usage() {
-        uint64_t used_header_slot = 0;
-        for (int x = 0; x < num_buckets + num_buckets_ext; x++) {
-            for (int y = 0; y < ASSOCIATIVITY - 1; y++) {
-                uint64_t i = x * ASSOCIATIVITY + y;
-                if (vertices[i].key == ikey_t())
-                    continue; // skip the empty slot
-                used_header_slot++;
+    void print_mem_usage() {
+        uint64_t used_slots = 0;
+        for (int x = 0; x < num_buckets; x++) {
+            uint64_t slot_id = x * ASSOCIATIVITY;
+            for (int y = 0; y < ASSOCIATIVITY - 1; y++, slot_id++) {
+                if (vertices[slot_id].key == ikey_t())
+                    continue;
+                used_slots++;
             }
         }
 
-        cout << "gstore direct_header = "
-             << B2MiB(num_buckets * ASSOCIATIVITY * sizeof(vertex_t))
-             << " MB "
-             << endl;
-        cout << "\t\treal_data = "
-             << B2MiB(used_header_slot * sizeof(vertex_t))
-             << " MB " << endl;
-        cout << "\t\tnext_ptr = "
-             << B2MiB(num_buckets * sizeof(vertex_t))
-             << " MB " << endl;
-        cout << "\t\tempty_slot = "
-             << B2MiB((num_buckets * ASSOCIATIVITY - num_buckets - used_header_slot) * sizeof(vertex_t))
-             << " MB " << endl;
+        cout << "main header: " << B2MiB(num_buckets * ASSOCIATIVITY * sizeof(vertex_t))
+             << " MB (" << num_buckets * ASSOCIATIVITY << " slots)" << endl;
+        cout << "\tused: " << 100.0 * used_slots / (num_buckets * ASSOCIATIVITY)
+             << " % (" << used_slots << " slots)" << endl;
+        cout << "\tchain: " << 100.0 * num_buckets / (num_buckets * ASSOCIATIVITY)
+             << " % (" << num_buckets << " slots)" << endl;
 
-        uint64_t used_indirect_slot = 0;
-        uint64_t used_indirect_bucket = 0;
+        used_slots = 0;
         for (int x = num_buckets; x < num_buckets + num_buckets_ext; x++) {
-            bool all_empty = true;
-            for (int y = 0; y < ASSOCIATIVITY - 1; y++) {
-                uint64_t i = x * ASSOCIATIVITY + y;
-                if (vertices[i].key == ikey_t())
-                    continue; // skip the empty slot
-                all_empty = false;
-                used_indirect_slot++;
+            uint64_t slot_id = x * ASSOCIATIVITY;
+            for (int y = 0; y < ASSOCIATIVITY - 1; y++, slot_id++) {
+                if (vertices[slot_id].key == ikey_t())
+                    continue;
+                used_slots++;
             }
-
-            if (!all_empty)
-                used_indirect_bucket++;
         }
 
-        cout << "gstore indirect_header = "
-             << B2MiB(num_buckets_ext * ASSOCIATIVITY * sizeof(vertex_t))
-             << " MB "
-             << endl;
-        cout << "\t\tnot_empty_data = "
-             << B2MiB(used_indirect_bucket * ASSOCIATIVITY * sizeof(vertex_t))
-             << " MB "
-             << endl;
-        cout << "\t\treal_data = "
-             << B2MiB(used_indirect_slot * sizeof(vertex_t))
-             << " MB "
-             << endl;
+        cout << "indirect header: " << B2MiB(num_buckets_ext * ASSOCIATIVITY * sizeof(vertex_t))
+             << " MB (" << num_buckets_ext * ASSOCIATIVITY << " slots)" << endl;
+        cout << "\talloced: " << 100.0 * last_ext / num_buckets_ext
+             << " % (" << last_ext << " buckets)" << endl;
+        cout << "\tused: " << 100.0 * used_slots / (num_buckets_ext * ASSOCIATIVITY)
+             << " % (" << used_slots << " slots)" << endl;
 
-        cout << "gstore uses "
-             << last_ext
-             << " / "
-             << num_buckets_ext
-             << " num_buckets_ext"
-             << endl;
+        cout << "entry: " << B2MiB(num_entries * sizeof(edge_t))
+             << " MB (" << num_entries << " entries)" << endl;
+        cout << "\tused: " << 100.0 * last_entry / num_entries
+             << " % (" << last_entry << " entries)" << endl;
 
-        cout << "gstore uses "
-             << B2MiB(num_slots * sizeof(vertex_t))
-             << " MB for vertex data"
-             << endl;
 
-        cout << "gstore edge_data = "
-             << B2MiB(last_entry * sizeof(edge_t))
-             << " / "
-             << B2MiB(num_entries * sizeof(edge_t))
-             << " MB "
-             << endl;
+        int sz = 0;
+        get_edges_local(0, 0, IN, TYPE_ID, &sz);
+        cout << "#vertices: " << sz << endl;
+        get_edges_local(0, 0, OUT, TYPE_ID, &sz);
+        cout << "#predicates: " << sz << endl;
     }
 };
