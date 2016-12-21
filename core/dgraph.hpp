@@ -37,7 +37,6 @@
 #include "omp.h"
 
 #include "config.hpp"
-#include "graph_basic_types.hpp"
 #include "rdma_resource.hpp"
 #include "gstore.hpp"
 #include "timer.hpp"

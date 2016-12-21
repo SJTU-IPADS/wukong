@@ -30,8 +30,6 @@
 #include <boost/serialization/vector.hpp>
 #include <vector>
 
-#include "graph_basic_types.hpp"
-
 using namespace std;
 using namespace boost::archive;
 
