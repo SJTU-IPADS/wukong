@@ -68,54 +68,48 @@ class Engine {
 
     // all of these means const predicate
     void const_to_unknown(request_or_reply &req) {
-        int64_t start       = req.cmd_chains[req.step * 4];
-        int64_t predicate   = req.cmd_chains[req.step * 4 + 1];
-        int64_t direction   = req.cmd_chains[req.step * 4 + 2];
-        int64_t end         = req.cmd_chains[req.step * 4 + 3];
+        int64_t start = req.cmd_chains[req.step * 4];
+        int64_t pid   = req.cmd_chains[req.step * 4 + 1];
+        int64_t d     = req.cmd_chains[req.step * 4 + 2];
+        int64_t end   = req.cmd_chains[req.step * 4 + 3];
         std::vector<int64_t> updated_result_table;
 
-        if (!((req.get_col_num() == 0) && (req.get_col_num() == req.var2column(end)))) {
-            //it means the query plan is wrong
-            assert(false);
-        }
-        int edge_num = 0;
-        edge_t *edge_ptr;
-        edge_ptr = graph->get_edges_global(tid, start, direction, predicate, &edge_num);
-        for (int k = 0; k < edge_num; k++) {
-            updated_result_table.push_back(edge_ptr[k].val);
-        }
+        // the query plan is wrong
+        assert ((req.get_col_num() == 0) && (req.get_col_num() == req.var2column(end)));
+
+        int sz = 0;
+        edge_t *res = graph->get_edges_global(tid, start, d, pid, &sz);
+        for (int k = 0; k < sz; k++)
+            updated_result_table.push_back(res[k].val);
 
         req.result_table.swap(updated_result_table);
         req.set_col_num(1);
         req.step++;
     }
 
-    void const_to_known(request_or_reply &req) { assert(false); } //TODO
+    void const_to_known(request_or_reply &req) { assert(false); } /// TODO
 
     void known_to_unknown(request_or_reply &req) {
         int64_t start = req.cmd_chains[req.step * 4];
-        int64_t predicate = req.cmd_chains[req.step * 4 + 1];
-        int64_t direction = req.cmd_chains[req.step * 4 + 2];
-        int64_t end = req.cmd_chains[req.step * 4 + 3];
+        int64_t pid   = req.cmd_chains[req.step * 4 + 1];
+        int64_t d     = req.cmd_chains[req.step * 4 + 2];
+        int64_t end   = req.cmd_chains[req.step * 4 + 3];
         std::vector<int64_t> updated_result_table;
 
-        updated_result_table.reserve(req.result_table.size());
-        if (req.get_col_num() != req.var2column(end) ) {
-            //it means the query plan is wrong
-            assert(false);
-        }
+        // the query plan is wrong
+        assert (req.get_col_num() == req.var2column(end));
 
+        updated_result_table.reserve(req.result_table.size());
         for (int i = 0; i < req.get_row_num(); i++) {
             int64_t prev_id = req.get_row_col(i, req.var2column(start));
-            int edge_num = 0;
-            edge_t *edge_ptr;
-            edge_ptr = graph->get_edges_global(tid, prev_id, direction, predicate, &edge_num);
-
-            for (int k = 0; k < edge_num; k++) {
+            int sz = 0;
+            edge_t *res = graph->get_edges_global(tid, prev_id, d, pid, &sz);
+            for (int k = 0; k < sz; k++) {
                 req.append_row_to(i, updated_result_table);
-                updated_result_table.push_back(edge_ptr[k].val);
+                updated_result_table.push_back(res[k].val);
             }
         }
+
         req.set_col_num(req.get_col_num() + 1);
         req.result_table.swap(updated_result_table);
         req.step++;
@@ -123,74 +117,66 @@ class Engine {
 
     void known_to_known(request_or_reply &req) {
         int64_t start = req.cmd_chains[req.step * 4];
-        int64_t predicate = req.cmd_chains[req.step * 4 + 1];
-        int64_t direction = req.cmd_chains[req.step * 4 + 2];
-        int64_t end = req.cmd_chains[req.step * 4 + 3];
+        int64_t pid   = req.cmd_chains[req.step * 4 + 1];
+        int64_t d     = req.cmd_chains[req.step * 4 + 2];
+        int64_t end   = req.cmd_chains[req.step * 4 + 3];
         vector<int64_t> updated_result_table;
 
         for (int i = 0; i < req.get_row_num(); i++) {
             int64_t prev_id = req.get_row_col(i, req.var2column(start));
-            int edge_num = 0;
-            edge_t *edge_ptr;
-            edge_ptr = graph->get_edges_global(tid, prev_id, direction, predicate, &edge_num);
-            int64_t end_id = req.get_row_col(i, req.var2column(end));
-            for (int k = 0; k < edge_num; k++) {
-                if (edge_ptr[k].val == end_id) {
+            int sz = 0;
+            edge_t *res = graph->get_edges_global(tid, prev_id, d, pid, &sz);
+            int64_t end2 = req.get_row_col(i, req.var2column(end));
+            for (int k = 0; k < sz; k++) {
+                if (res[k].val == end2) {
                     req.append_row_to(i, updated_result_table);
                     break;
                 }
             }
         }
+
         req.result_table.swap(updated_result_table);
         req.step++;
     }
 
     void known_to_const(request_or_reply &req) {
         int64_t start = req.cmd_chains[req.step * 4];
-        int64_t predicate = req.cmd_chains[req.step * 4 + 1];
-        int64_t direction = req.cmd_chains[req.step * 4 + 2];
-        int64_t end = req.cmd_chains[req.step * 4 + 3];
+        int64_t pid   = req.cmd_chains[req.step * 4 + 1];
+        int64_t d     = req.cmd_chains[req.step * 4 + 2];
+        int64_t end   = req.cmd_chains[req.step * 4 + 3];
         vector<int64_t> updated_result_table;
 
         for (int i = 0; i < req.get_row_num(); i++) {
             int64_t prev_id = req.get_row_col(i, req.var2column(start));
-            int edge_num = 0;
-            edge_t *edge_ptr;
-            edge_ptr = graph->get_edges_global(tid, prev_id, direction, predicate, &edge_num);
-            for (int k = 0; k < edge_num; k++) {
-                if (edge_ptr[k].val == end) {
+            int sz = 0;
+            edge_t *res = graph->get_edges_global(tid, prev_id, d, pid, &sz);
+            for (int k = 0; k < sz; k++) {
+                if (res[k].val == end) {
                     req.append_row_to(i, updated_result_table);
                     break;
                 }
             }
         }
+
         req.result_table.swap(updated_result_table);
         req.step++;
     }
 
     void index_to_unknown(request_or_reply &req) {
-        int64_t index_vertex = req.cmd_chains[req.step * 4];
+        int64_t idx = req.cmd_chains[req.step * 4];
         int64_t nothing = req.cmd_chains[req.step * 4 + 1];
-        int64_t direction = req.cmd_chains[req.step * 4 + 2];
+        int64_t d = req.cmd_chains[req.step * 4 + 2];
         int64_t var = req.cmd_chains[req.step * 4 + 3];
         vector<int64_t> updated_result_table;
 
-        if (!(req.get_col_num() == 0 && req.get_col_num() == req.var2column(var))) {
-            //it means the query plan is wrong
-            cout << "ncols: " << req.get_col_num() << "\t"
-                 << "var: " << var << "\t"
-                 << "var2col: " << req.var2column(var)
-                 << endl;
-            assert(false);
-        }
+        // the query plan is wrong
+        assert(req.get_col_num() == 0 && req.get_col_num() == req.var2column(var));
 
-        int edge_num = 0;
-        edge_t *edge_ptr;
-        edge_ptr = graph->get_index_edges_local(tid, index_vertex, direction, &edge_num);
-        int64_t start_id = req.tid;
-        for (int k = start_id; k < edge_num; k += global_mt_threshold) {
-            updated_result_table.push_back(edge_ptr[k].val);
-        }
+        int sz = 0;
+        edge_t *res = graph->get_index_edges_local(tid, idx, d, &sz);
+        int64_t start = req.tid;
+        for (int k = start; k < sz; k += global_mt_threshold)
+            updated_result_table.push_back(res[k].val);
 
         req.result_table.swap(updated_result_table);
         req.set_col_num(1);
@@ -198,31 +184,27 @@ class Engine {
         req.local_var = -1;
     }
 
-
-    // unknown_predicate
     void const_unknown_unknown(request_or_reply &req) {
         int64_t start = req.cmd_chains[req.step * 4];
-        int64_t predicate = req.cmd_chains[req.step * 4 + 1];
-        int64_t direction = req.cmd_chains[req.step * 4 + 2];
-        int64_t end = req.cmd_chains[req.step * 4 + 3];
+        int64_t pid   = req.cmd_chains[req.step * 4 + 1];
+        int64_t d     = req.cmd_chains[req.step * 4 + 2];
+        int64_t end   = req.cmd_chains[req.step * 4 + 3];
         vector<int64_t> updated_result_table;
 
-        if (req.get_col_num() != 0 ) {
-            //it means the query plan is wrong
-            assert(false);
-        }
-        int npredicate = 0;
-        edge_t *predicate_ptr = graph->get_edges_global(tid, start, direction, 0, &npredicate);
-        // foreach possible predicate
-        for (int p = 0; p < npredicate; p++) {
-            int edge_num = 0;
-            edge_t *edge_ptr;
-            edge_ptr = graph->get_edges_global(tid, start, direction, predicate_ptr[p].val, &edge_num);
-            for (int k = 0; k < edge_num; k++) {
-                updated_result_table.push_back(predicate_ptr[p].val);
-                updated_result_table.push_back(edge_ptr[k].val);
+        // the query plan is wrong
+        assert (req.get_col_num() == 0);
+
+        int npids = 0;
+        edge_t *pids = graph->get_edges_global(tid, start, d, PREDICATE_ID, &npids);
+        for (int p = 0; p < npids; p++) {
+            int sz = 0;
+            edge_t *res = graph->get_edges_global(tid, start, d, pids[p].val, &sz);
+            for (int k = 0; k < sz; k++) {
+                updated_result_table.push_back(pids[p].val);
+                updated_result_table.push_back(res[k].val);
             }
         }
+
         req.result_table.swap(updated_result_table);
         req.set_col_num(2);
         req.step++;
@@ -230,25 +212,22 @@ class Engine {
 
     void known_unknown_unknown(request_or_reply &req) {
         int64_t start = req.cmd_chains[req.step * 4];
-        int64_t predicate = req.cmd_chains[req.step * 4 + 1];
-        int64_t direction = req.cmd_chains[req.step * 4 + 2];
-        int64_t end = req.cmd_chains[req.step * 4 + 3];
+        int64_t pid   = req.cmd_chains[req.step * 4 + 1];
+        int64_t d     = req.cmd_chains[req.step * 4 + 2];
+        int64_t end   = req.cmd_chains[req.step * 4 + 3];
         vector<int64_t> updated_result_table;
 
-        // foreach vertex
         for (int i = 0; i < req.get_row_num(); i++) {
             int64_t prev_id = req.get_row_col(i, req.var2column(start));
-            int npredicate = 0;
-            edge_t *predicate_ptr = graph->get_edges_global(tid, prev_id, direction, 0, &npredicate);
-            // foreach possible predicate
-            for (int p = 0; p < npredicate; p++) {
-                int edge_num = 0;
-                edge_t *edge_ptr;
-                edge_ptr = graph->get_edges_global(tid, prev_id, direction, predicate_ptr[p].val, &edge_num);
-                for (int k = 0; k < edge_num; k++) {
+            int npids = 0;
+            edge_t *pids = graph->get_edges_global(tid, prev_id, d, PREDICATE_ID, &npids);
+            for (int p = 0; p < npids; p++) {
+                int sz = 0;
+                edge_t *res = graph->get_edges_global(tid, prev_id, d, pids[p].val, &sz);
+                for (int k = 0; k < sz; k++) {
                     req.append_row_to(i, updated_result_table);
-                    updated_result_table.push_back(predicate_ptr[p].val);
-                    updated_result_table.push_back(edge_ptr[k].val);
+                    updated_result_table.push_back(pids[p].val);
+                    updated_result_table.push_back(res[k].val);
                 }
             }
         }
@@ -260,25 +239,22 @@ class Engine {
 
     void known_unknown_const(request_or_reply &req) {
         int64_t start = req.cmd_chains[req.step * 4];
-        int64_t predicate = req.cmd_chains[req.step * 4 + 1];
-        int64_t direction = req.cmd_chains[req.step * 4 + 2];
-        int64_t end = req.cmd_chains[req.step * 4 + 3];
+        int64_t pid   = req.cmd_chains[req.step * 4 + 1];
+        int64_t d     = req.cmd_chains[req.step * 4 + 2];
+        int64_t end   = req.cmd_chains[req.step * 4 + 3];
         vector<int64_t> updated_result_table;
 
-        // foreach vertex
         for (int i = 0; i < req.get_row_num(); i++) {
             int64_t prev_id = req.get_row_col(i, req.var2column(start));
-            int npredicate = 0;
-            edge_t *predicate_ptr = graph->get_edges_global(tid, prev_id, direction, 0, &npredicate);
-            // foreach possible predicate
-            for (int p = 0; p < npredicate; p++) {
-                int edge_num = 0;
-                edge_t *edge_ptr;
-                edge_ptr = graph->get_edges_global(tid, prev_id, direction, predicate_ptr[p].val, &edge_num);
-                for (int k = 0; k < edge_num; k++) {
-                    if (edge_ptr[k].val == end) {
+            int npids = 0;
+            edge_t *pids = graph->get_edges_global(tid, prev_id, d, PREDICATE_ID, &npids);
+            for (int p = 0; p < npids; p++) {
+                int sz = 0;
+                edge_t *res = graph->get_edges_global(tid, prev_id, d, pids[p].val, &sz);
+                for (int k = 0; k < sz; k++) {
+                    if (res[k].val == end) {
                         req.append_row_to(i, updated_result_table);
-                        updated_result_table.push_back(predicate_ptr[p].val);
+                        updated_result_table.push_back(pids[p].val);
                         break;
                     }
                 }
@@ -290,10 +266,9 @@ class Engine {
         req.step++;
     }
 
-
     vector<request_or_reply> generate_sub_query(request_or_reply &req) {
         int64_t start = req.cmd_chains[req.step * 4];
-        int64_t end = req.cmd_chains[req.step * 4 + 3];
+        int64_t end   = req.cmd_chains[req.step * 4 + 3];
 
         vector<request_or_reply> sub_reqs;
         int num_sub_request = global_num_servers;
@@ -306,20 +281,22 @@ class Engine {
             sub_reqs[i].blind = req.blind;
             sub_reqs[i].local_var = start;
         }
+
         for (int i = 0; i < req.get_row_num(); i++) {
-            int machine = mymath::hash_mod(req.get_row_col(i, req.var2column(start)), num_sub_request);
-            req.append_row_to(i, sub_reqs[machine].result_table);
+            int id = mymath::hash_mod(req.get_row_col(i, req.var2column(start)),
+                                      num_sub_request);
+            req.append_row_to(i, sub_reqs[id].result_table);
         }
         return sub_reqs;
     }
 
     vector<request_or_reply> generate_mt_sub_requests(request_or_reply &req) {
         int64_t start = req.cmd_chains[req.step * 4];
-        int64_t end = req.cmd_chains[req.step * 4 + 3];
+        int64_t end   = req.cmd_chains[req.step * 4 + 3];
 
         vector<request_or_reply> sub_reqs;
         int num_sub_request = global_num_servers * global_mt_threshold ;
-        sub_reqs.resize(num_sub_request );
+        sub_reqs.resize(num_sub_request);
         for (int i = 0; i < sub_reqs.size(); i++) {
             sub_reqs[i].pid = req.id;
             sub_reqs[i].cmd_chains = req.cmd_chains;
@@ -328,12 +305,9 @@ class Engine {
             sub_reqs[i].blind = req.blind;
             sub_reqs[i].local_var = start;
         }
+
         for (int i = 0; i < req.get_row_num(); i++) {
-            // id = tid * global_num_servers + sid
-            // Hence, sid = id % global_num_servers
-            //        tid = id / global_num_servers
-            int id = mymath::hash_mod(req.get_row_col(i,
-                                      req.var2column(start)),
+            int id = mymath::hash_mod(req.get_row_col(i, req.var2column(start)),
                                       num_sub_request);
             req.append_row_to(i, sub_reqs[id].result_table);
         }
@@ -462,6 +436,7 @@ class Engine {
         int64_t end = req.cmd_chains[req.step * 4 + 3];
 
         if (predicate < 0) {
+#ifdef VERSATILE
             switch (var_pair(req.variable_type(start), req.variable_type(end))) {
             case var_pair(const_var, unknown_var):
                 const_unknown_unknown(req);
@@ -474,24 +449,27 @@ class Engine {
                 break;
             }
             return true;
+#else
+            cout << "ERROR: unsupport variable at predicate." << endl;
+            cout << "Please add definition VERSATILE in CMakeLists.txt." << endl;
+            assert(false);
+#endif
         }
 
         // known_predicate
         switch (var_pair(req.variable_type(start), req.variable_type(end))) {
-        ///start from const_var
+        // start from const_var
         case var_pair(const_var, const_var):
-            cout << "error:const_var->const_var" << endl;
+            cout << "ERROR: unsupported triple pattern (from const_var to const_var)" << endl;
             assert(false);
-            break;
         case var_pair(const_var, unknown_var):
             const_to_unknown(req);
             break;
         case var_pair(const_var, known_var):
-            cout << "error:const_var->known_var" << endl;
+            cout << "ERROR: unsupported triple pattern (from const_var to known_var)" << endl;
             assert(false);
-            break;
 
-        ///start from known_var
+        // start from known_var
         case var_pair(known_var, const_var):
             known_to_const(req);
             break;
@@ -502,16 +480,17 @@ class Engine {
             known_to_unknown(req);
             break;
 
-        ///start from unknown_var
+        // start from unknown_var
         case var_pair(unknown_var, const_var):
         case var_pair(unknown_var, known_var):
         case var_pair(unknown_var, unknown_var):
-            cout << "error:unknown_var->" << endl;
+            cout << "ERROR: unsupported triple pattern (from unknown_var)" << endl;
             assert(false);
+
         default :
-            cout << "default" << endl;
-            break;
+            assert(false);
         }
+
         return true;
     }
 
