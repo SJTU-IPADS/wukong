@@ -397,14 +397,14 @@ public:
 
 		#pragma omp parallel for num_threads(nthread_parallel_load)
 		for (int t = 0; t < nthread_parallel_load; t++) {
-			gstore.atomic_batch_insert(triple_spo[t], triple_ops[t]);
+			gstore.insert_normal(triple_spo[t], triple_ops[t]);
 
 			// release memory
 			vector<triple_t>().swap(triple_spo[t]);
 			vector<triple_t>().swap(triple_ops[t]);
 		}
 
-		gstore.init_index_table();
+		gstore.insert_index();
 
 		cout << "Server#" << sid << ": loading DGraph is finished." << endl;
 		// gstore.print_memory_usage();

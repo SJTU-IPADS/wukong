@@ -235,8 +235,8 @@ done:
     typedef tbb::concurrent_unordered_set<uint64_t> tbb_unordered_set;
 
 
-    tbb_hash_map src_predicate_table; // predicate-index (IN)
-    tbb_hash_map dst_predicate_table; // predicate-index (OUT)
+    tbb_hash_map pidx_in_map; // predicate-index (IN)
+    tbb_hash_map pidx_out_map; // predicate-index (OUT)
     tbb_hash_map tidx_map; // type-index
 
 #ifdef VAR_PREDICATE
@@ -250,22 +250,38 @@ done:
         a->second.push_back(value);
     }
 
+    void internal_insert_index(tbb_hash_map &map, dir_t d) {
+        for (auto const &e : map) {
+            uint64_t tpid = e.first;
+            uint64_t sz = e.second.size();
+            uint64_t off = sync_fetch_and_alloc_edges(sz);
+
+            ikey_t key = ikey_t(tpid, d, 0);
+            uint64_t slot_id = insert_key(key);
+            iptr_t ptr = iptr_t(sz, off);
+            vertices[slot_id].ptr = ptr;
+
+            for (auto const &vid : e.second)
+                edges[off++].val = vid;
+        }
+    }
+
 public:
-    // Encoding Rule
+    // encoding rules of gstore
     // subject/object (vid) >= 2^17, 2^17 > predicate/type (p/tid) > 2^1,
     // TYPE_ID = 1, PREDICATE_ID = 0, OUT = 1, IN = 0
     //
     // NORMAL key/value pair
-    //  key = [vid |    predicate | IN/OUT]  value = [vid0, vid1, ..]  i.e., vid's ngbrs w/ predicate
-    //  key = [vid |      TYPE_ID |    OUT]  value = [tid0, tid1, ..]  i.e., vid's all types
-    //  key = [vid | PREDICATE_ID | IN/OUT]  value = [pid0, pid1, ..]  i.e., vid's all predicates
+    //   key = [vid |    predicate | IN/OUT]  value = [vid0, vid1, ..]  i.e., vid's ngbrs w/ predicate
+    //   key = [vid |      TYPE_ID |    OUT]  value = [tid0, tid1, ..]  i.e., vid's all types
+    //   key = [vid | PREDICATE_ID | IN/OUT]  value = [pid0, pid1, ..]  i.e., vid's all predicates
     // INDEX key/value pair
-    //  key = [  0 |          pid | IN/OUT]  value = [vid0, vid1, ..]  i.e., predicate-index
-    //  key = [  0 |          tid |     IN]  value = [vid0, vid1, ..]  i.e., type-index
-    //  key = [  0 | PREDICATE_ID |    OUT]  value = [vid0, vid1, ..]  i.e., all objects/subjects
+    //   key = [  0 |          pid | IN/OUT]  value = [vid0, vid1, ..]  i.e., predicate-index
+    //   key = [  0 |          tid |     IN]  value = [vid0, vid1, ..]  i.e., type-index
+    //   key = [  0 |      TYPE_ID |    OUT]  value = [vid0, vid1, ..]  i.e., all objects/subjects
+    //   key = [  0 |      TYPE_ID |    OUT]  value = [vid0, vid1, ..]  i.e., all predicates
     // Empty key
-    //  key = [  0 |            0 |      0]  value = [vid0, vid1, ..]  i.e., init
-
+    //   key = [  0 |            0 |      0]  value = [vid0, vid1, ..]  i.e., init
 
     // GStore: key (main-header and indirect-header region) | value (entry region)
     // The key (head region) is a cluster chaining hash-table (with associativity)
@@ -305,7 +321,7 @@ public:
     // because Wukong treats all TYPE triples as index vertices. In addition, the triples in triple_ops
     // has been sorted by the vid of object, and IDs of types are always smaller than normal vertex IDs.
     // Consequently, all TYPE triples are aggregated at the beggining of triple_ops
-    void atomic_batch_insert(vector<triple_t> &spo, vector<triple_t> &ops) {
+    void insert_normal(vector<triple_t> &spo, vector<triple_t> &ops) {
         uint64_t type_triples = 0;
         while (type_triples < ops.size() && is_idx(ops[type_triples].o))
             type_triples++;
@@ -428,21 +444,10 @@ public:
 #endif
     }
 
-    // NORMAL key/value pair
-    //   key = [vid |    predicate | IN/OUT]  value = [vid0, vid1, ..]  i.e., vid's ngbrs w/ predicate
-    //   key = [vid |      TYPE_ID |    OUT]  value = [tid0, tid1, ..]  i.e., vid's all types
-    //   key = [vid | PREDICATE_ID | IN/OUT]  value = [pid0, pid1, ..]  i.e., vid's all predicates
-    // INDEX key/value pair
-    //   key = [  0 |          pid | IN/OUT]  value = [vid0, vid1, ..]  i.e., predicate-index
-    //   key = [  0 |          tid |     IN]  value = [vid0, vid1, ..]  i.e., type-index
-    //   key = [  0 |      TYPE_ID |    OUT]  value = [vid0, vid1, ..]  i.e., all objects/subjects
-    //   key = [  0 |      TYPE_ID |    OUT]  value = [vid0, vid1, ..]  i.e., all predicates
-    // Empty key
-    //   key = [  0 |            0 |      0]  value = [vid0, vid1, ..]  i.e., init
-
-    void init_index_table(void) {
+    void insert_index() {
         uint64_t t1 = timer::get_usec();
 
+        // scan raw data to generate index data in parallel
         #pragma omp parallel for num_threads(global_num_engines)
         for (int bucket_id = 0; bucket_id < num_buckets + num_buckets_ext; bucket_id++) {
             uint64_t slot_id = bucket_id * ASSOCIATIVITY;
@@ -452,10 +457,12 @@ public:
 
                 uint64_t vid = vertices[slot_id].key.vid;
                 uint64_t pid = vertices[slot_id].key.pid;
+                dir_t dir = (dir_t)vertices[slot_id].key.dir;
+
                 uint64_t sz = vertices[slot_id].ptr.size;
                 uint64_t off = vertices[slot_id].ptr.off;
 
-                if (vertices[slot_id].key.dir == IN) {
+                if (dir == IN) {
                     if (pid == PREDICATE_ID) {
 #ifdef VAR_PREDICATE
                         v_set.insert(vid);
@@ -467,7 +474,7 @@ public:
                         assert(false);
                     } else {
                         // predicate-index (OUT) vid
-                        insert_hash_map(dst_predicate_table, pid, vid);
+                        insert_hash_map(pidx_out_map, pid, vid);
                     }
                 } else {
                     if (pid == PREDICATE_ID) {
@@ -482,7 +489,7 @@ public:
                             insert_hash_map(tidx_map, edges[off + e].val, vid);
                     } else {
                         // predicate-index (IN) vid
-                        insert_hash_map(src_predicate_table, pid, vid);
+                        insert_hash_map(pidx_in_map, pid, vid);
                     }
                 }
             }
@@ -491,53 +498,13 @@ public:
         uint64_t t2 = timer::get_usec();
         cout << (t2 - t1) / 1000 << " ms for parallel generate tbb_table" << endl;
 
-        // add type-index
-        for (tbb_hash_map::iterator i = tidx_map.begin();
-                i != tidx_map.end(); ++i) {
-            uint64_t sz = i->second.size();
-            uint64_t off = sync_fetch_and_alloc_edges(sz);
-            uint64_t tid = i->first;
+        // add type/predicate index vertices
+        internal_insert_index(tidx_map, IN);
+        internal_insert_index(pidx_in_map, IN);
+        internal_insert_index(pidx_out_map, OUT);
 
-            // insert vertex
-            ikey_t key = ikey_t(tid, IN, 0);
-            uint64_t slot_id = insert_key(key);
-            iptr_t ptr = iptr_t(sz, off);
-            vertices[slot_id].ptr = ptr;
-
-            // insert edges
-            for (uint64_t k = 0; k < sz; k++)
-                edges[off++].val = i->second[k];
-        }
-
-        // add predicate-index
-        for (tbb_hash_map::iterator i = src_predicate_table.begin();
-                i != src_predicate_table.end(); ++i) {
-            uint64_t curr_edge_ptr = sync_fetch_and_alloc_edges(i->second.size());
-            ikey_t key = ikey_t(i->first, IN, 0);
-            uint64_t vertex_ptr = insert_key(key);
-            iptr_t ptr = iptr_t(i->second.size(), curr_edge_ptr);
-            vertices[vertex_ptr].ptr = ptr;
-            for (uint64_t k = 0; k < i->second.size(); k++) {
-                edges[curr_edge_ptr].val = i->second[k];
-                curr_edge_ptr++;
-            }
-        }
-
-        for (tbb_hash_map::iterator i = dst_predicate_table.begin();
-                i != dst_predicate_table.end(); ++i) {
-            uint64_t curr_edge_ptr = sync_fetch_and_alloc_edges(i->second.size());
-            ikey_t key = ikey_t(i->first, OUT, 0);
-            uint64_t vertex_ptr = insert_key(key);
-            iptr_t ptr = iptr_t(i->second.size(), curr_edge_ptr);
-            vertices[vertex_ptr].ptr = ptr;
-            for (uint64_t k = 0; k < i->second.size(); k++) {
-                edges[curr_edge_ptr].val = i->second[k];
-                curr_edge_ptr++;
-            }
-        }
-
-        tbb_hash_map().swap(src_predicate_table);
-        tbb_hash_map().swap(dst_predicate_table);
+        tbb_hash_map().swap(pidx_in_map);
+        tbb_hash_map().swap(pidx_out_map);
         tbb_hash_map().swap(tidx_map);
 
 #ifdef VAR_PREDICATE
