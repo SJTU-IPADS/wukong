@@ -85,25 +85,23 @@ uint64_t dir : NBITS_DIR; // direction
 uint64_t pid : NBITS_IDX; // predicate
 uint64_t vid : NBITS_VID; // vertex
 
-	ikey_t(): vid(0), dir(0), pid(0) { }
+	ikey_t(): vid(0), pid(0), dir(0) { }
 
-	ikey_t(uint64_t v, uint64_t d, uint64_t p): vid(v), dir(d), pid(p) {
+	ikey_t(uint64_t v, uint64_t p, uint64_t d): vid(v), pid(p), dir(d) {
 		assert((vid == v) && (dir == d) && (pid == p)); // no key truncate
 	}
 
 	bool operator == (const ikey_t &key) {
-		if ((dir == key.dir) && (pid == key.pid) && (vid == key.vid))
+		if ((vid == key.vid) && (pid == key.pid) && (dir == key.dir))
 			return true;
 		return false;
 	}
 
-	bool operator != (const ikey_t &key) {
-		return !(operator == (key));
-	}
+	bool operator != (const ikey_t &key) { return !(operator == (key)); }
 
-	void print() {
-		cout << "[" << vid << "|" << pid << "|" << dir << "]" << endl;
-	}
+	bool is_empty() { return ((vid == 0) && (pid == 0) && (dir == 0)); }
+
+	void print() { cout << "[" << vid << "|" << pid << "|" << dir << "]" << endl; }
 
 	uint64_t hash() {
 		uint64_t r = 0;
@@ -112,7 +110,7 @@ uint64_t vid : NBITS_VID; // vertex
 		r += pid;
 		r <<= NBITS_DIR;
 		r += dir;
-		return mymath::hash_u64(r);  // the standard hash is too slow (i.e., std::hash<uint64_t>()(r))
+		return mymath::hash_u64(r); // the standard hash is too slow (i.e., std::hash<uint64_t>()(r))
 	}
 };
 

@@ -129,14 +129,14 @@ private:
                 }
 
                 // insert to an empty slot
-                if (vertices[slot_id].key == ikey_t()) {
+                if (vertices[slot_id].key.is_empty()) {
                     vertices[slot_id].key = key;
                     goto done;
                 }
             }
 
             // move to the last slot of bucket and check whether a bucket_ext is used
-            if (vertices[++slot_id].key != ikey_t()) {
+            if (!vertices[++slot_id].key.is_empty()) {
                 slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY;
                 continue; // continue and jump to next bucket
             }
@@ -172,33 +172,29 @@ done:
     vertex_t get_vertex_remote(int tid, ikey_t key) {
         int dst_sid = mymath::hash_mod(key.vid, global_num_servers);
         uint64_t bucket_id = key.hash() % num_buckets;
-        vertex_t ret;
+        vertex_t vert;
 
-        if (rdma_cache.lookup(key, ret))
-            return ret;
+        if (rdma_cache.lookup(key, vert))
+            return vert; // found
 
         char *buf = rdma->get_buffer(tid);
         while (true) {
             uint64_t off = bucket_id * ASSOCIATIVITY * sizeof(vertex_t);
             uint64_t sz = ASSOCIATIVITY * sizeof(vertex_t);
             rdma->RdmaRead(tid, dst_sid, buf, sz, off);
-            vertex_t *ptr = (vertex_t *)buf;
+            vertex_t *verts = (vertex_t *)buf;
             for (uint64_t i = 0; i < ASSOCIATIVITY; i++) {
                 if (i < ASSOCIATIVITY - 1) {
-                    if (ptr[i].key == key) {
-                        //we found it
-                        rdma_cache.insert(ptr[i]);
-                        return ptr[i];
+                    if (verts[i].key == key) {
+                        rdma_cache.insert(verts[i]);
+                        return verts[i]; // found
                     }
                 } else {
-                    if (ptr[i].key != ikey_t()) {
-                        //next pointer
-                        bucket_id = ptr[i].key.vid;
-                        //break from for loop, will go to next bucket
-                        break;
-                    } else {
-                        return vertex_t();
-                    }
+                    if (verts[i].key.is_empty())
+                        return vertex_t(); // not found
+
+                    bucket_id = verts[i].key.vid; // move to next bucket
+                    break; // break for-loop
                 }
             }
         }
@@ -216,14 +212,11 @@ done:
                         return vertices[slot_id];
                     }
                 } else {
-                    if (vertices[slot_id].key != ikey_t()) {
-                        //next pointer
-                        bucket_id = vertices[slot_id].key.vid;
-                        //break from for loop, will go to next bucket
-                        break;
-                    } else {
-                        return vertex_t();
-                    }
+                    if (vertices[slot_id].key.is_empty())
+                        return vertex_t(); // not found
+
+                    bucket_id = vertices[slot_id].key.vid; // move to next bucket
+                    break; // break for-loop
                 }
             }
         }
@@ -231,12 +224,12 @@ done:
 
     edge_t *get_edges_remote(int tid, int64_t vid, int64_t d, int64_t pid, int *size) {
         int dst_sid = mymath::hash_mod(vid, global_num_servers);
-        ikey_t key = ikey_t(vid, d, pid);
+        ikey_t key = ikey_t(vid, pid, d);
         vertex_t v = get_vertex_remote(tid, key);
 
-        if (v.key == ikey_t()) {
+        if (v.key.is_empty()) {
             *size = 0;
-            return NULL;
+            return NULL; // not found
         }
 
         char *buf = rdma->get_buffer(tid);
@@ -250,10 +243,10 @@ done:
     }
 
     edge_t *get_edges_local(int tid, int64_t vid, int64_t d, int64_t pid, int *size) {
-        ikey_t key = ikey_t(vid, d, pid);
+        ikey_t key = ikey_t(vid, pid, d);
         vertex_t v = get_vertex_local(tid, key);
 
-        if (v.key == ikey_t()) {
+        if (v.key.is_empty()) {
             *size = 0;
             return NULL;
         }
@@ -273,11 +266,11 @@ done:
 
     void insert_index_map(tbb_hash_map &map, dir_t d) {
         for (auto const &e : map) {
-            int64_t id = e.first;
+            int64_t pid = e.first;
             uint64_t sz = e.second.size();
             uint64_t off = sync_fetch_and_alloc_edges(sz);
 
-            ikey_t key = ikey_t(0, d, id);
+            ikey_t key = ikey_t(0, pid, d);
             uint64_t slot_id = insert_key(key);
             iptr_t ptr = iptr_t(sz, off);
             vertices[slot_id].ptr = ptr;
@@ -292,11 +285,10 @@ done:
     tbb_unordered_set v_set; // all of vertices (subjects and objects)
 
     void insert_index_set(tbb_unordered_set &set, dir_t d) {
-        int64_t id = TYPE_ID;
         uint64_t sz = set.size();
         uint64_t off = sync_fetch_and_alloc_edges(sz);
 
-        ikey_t key = ikey_t(0, d, id);
+        ikey_t key = ikey_t(0, TYPE_ID, d);
         uint64_t slot_id = insert_key(key);
         iptr_t ptr = iptr_t(sz, off);
         vertices[slot_id].ptr = ptr;
@@ -386,7 +378,7 @@ public:
             accum_predicate++;
 #endif
             // insert vertex
-            ikey_t key = ikey_t(spo[s].s, OUT, spo[s].p);
+            ikey_t key = ikey_t(spo[s].s, spo[s].p, OUT);
             uint64_t slot_id = insert_key(key);
             iptr_t ptr = iptr_t(e - s, off);
             vertices[slot_id].ptr = ptr;
@@ -409,7 +401,7 @@ public:
             accum_predicate++;
 #endif
             // insert vertex
-            ikey_t key = ikey_t(ops[s].o, IN, ops[s].p);
+            ikey_t key = ikey_t(ops[s].o, ops[s].p, IN);
             uint64_t slot_id = insert_key(key);
             iptr_t ptr = iptr_t(e - s, off);
             vertices[slot_id].ptr = ptr;
@@ -436,7 +428,7 @@ public:
         s = 0;
         while (s < spo.size()) {
             // insert vertex
-            ikey_t key = ikey_t(spo[s].s, OUT, PREDICATE_ID);
+            ikey_t key = ikey_t(spo[s].s, PREDICATE_ID, OUT);
             uint64_t slot_id = insert_key(key);
 
             // insert edges
@@ -462,7 +454,7 @@ public:
         s = type_triples;
         while (s < ops.size()) {
             // insert vertex
-            ikey_t key = ikey_t(ops[s].o, IN, PREDICATE_ID);
+            ikey_t key = ikey_t(ops[s].o, PREDICATE_ID, IN);
             uint64_t slot_id = insert_key(key);
 
             // insert edges
@@ -495,17 +487,16 @@ public:
         for (int bucket_id = 0; bucket_id < num_buckets + num_buckets_ext; bucket_id++) {
             uint64_t slot_id = bucket_id * ASSOCIATIVITY;
             for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
-                // empty slot, skip it
-                if (vertices[slot_id].key == ikey_t()) continue;
+                // skip empty slot
+                if (vertices[slot_id].key.is_empty()) continue;
 
                 int64_t vid = vertices[slot_id].key.vid;
                 int64_t pid = vertices[slot_id].key.pid;
-                dir_t dir = (dir_t)vertices[slot_id].key.dir;
 
                 uint64_t sz = vertices[slot_id].ptr.size;
                 uint64_t off = vertices[slot_id].ptr.off;
 
-                if (dir == IN) {
+                if (vertices[slot_id].key.dir == IN) {
                     if (pid == PREDICATE_ID) {
 #ifdef VERSATILE
                         v_set.insert(vid);
@@ -584,7 +575,7 @@ public:
         for (int x = 0; x < num_buckets; x++) {
             uint64_t slot_id = x * ASSOCIATIVITY;
             for (int y = 0; y < ASSOCIATIVITY - 1; y++, slot_id++) {
-                if (vertices[slot_id].key == ikey_t())
+                if (vertices[slot_id].key.is_empty())
                     continue;
                 used_slots++;
             }
@@ -601,7 +592,7 @@ public:
         for (int x = num_buckets; x < num_buckets + num_buckets_ext; x++) {
             uint64_t slot_id = x * ASSOCIATIVITY;
             for (int y = 0; y < ASSOCIATIVITY - 1; y++, slot_id++) {
-                if (vertices[slot_id].key == ikey_t())
+                if (vertices[slot_id].key.is_empty())
                     continue;
                 used_slots++;
             }
