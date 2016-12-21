@@ -84,26 +84,20 @@ uint64_t dir : NBITS_DIR; // direction
 uint64_t pid : NBITS_IDX; // predicate
 uint64_t vid : NBITS_VID; // vertex
 
-	ikey_t(): dir(0), pid(0), vid(0) { }
+	ikey_t(): vid(0), dir(0), pid(0) { }
 
 	ikey_t(uint64_t v, uint64_t d, uint64_t p): vid(v), dir(d), pid(p) {
-		if ((vid != v) || (dir != d) || (pid != p)) {
-			cout << "WARNING: key truncated! "
-			     << "[" << v << "|" << p << "|" << d << "]"
-			     << " => "
-			     << "[" << vid << "|" << pid << "|" << dir << "]"
-			     << endl;
-		}
+		assert((vid == v) && (dir == d) && (pid == p)); // no key truncate
 	}
 
-	bool operator == (const ikey_t &_key) {
-		if ((dir == _key.dir) && (pid == _key.pid) && (vid == _key.vid))
+	bool operator == (const ikey_t &key) {
+		if ((dir == key.dir) && (pid == key.pid) && (vid == key.vid))
 			return true;
 		return false;
 	}
 
-	bool operator != (const ikey_t &_key) {
-		return !(operator == (_key));
+	bool operator != (const ikey_t &key) {
+		return !(operator == (key));
 	}
 
 	void print() {

@@ -21,6 +21,9 @@ set(BOOST_LIB "${ROOT}/deps/boost_1_58_0-install/lib" )
 ## Uncomment the line below to enable RDMA support.
 add_definitions(-DHAS_RDMA)
 
+## Uncomment the line below to allow the variable at predicate.
+#add_definitions(-DVAR_PREDICATE)
+
 ## Set include path
 include_directories(deps/boost_1_58_0-install/include)
 include_directories(core)
@@ -33,14 +36,3 @@ file(GLOB SOURCES "core/*.hpp" "utils/*.hpp")
 add_executable(wukong ${SOURCES} "core/wukong.cpp")
 target_link_libraries(wukong zmq rt ibverbs tbb ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a)
 
-
-
-### discard in future ###
-## wukong (RDMA-disabled)
-# add_executable(wukong_zmq ${SOURCES} "test/main_zmq.cpp")
-# target_link_libraries(wukong_zmq zmq rt tbb ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a)
-# target_compile_definitions(wukong_zmq PRIVATE USE_ZEROMQ=1)
-
-## RDMA performance evaluation
-# add_executable(wukong_test ${SOURCES} "test/test_rdma.cpp")
-# target_link_libraries(wukong_test zmq rt ibverbs tbb ${BOOST_ROOT}/lib/libboost_mpi.a ${BOOST_ROOT}/lib/libboost_serialization.a)

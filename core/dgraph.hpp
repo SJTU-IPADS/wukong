@@ -395,7 +395,7 @@ public:
 		// initiate gstore (kvstore) after loading and exchanging triples
 		gstore.init();
 
-		// #pragma omp parallel for num_threads(nthread_parallel_load)
+		#pragma omp parallel for num_threads(nthread_parallel_load)
 		for (int t = 0; t < nthread_parallel_load; t++) {
 			gstore.atomic_batch_insert(triple_spo[t], triple_ops[t]);
 

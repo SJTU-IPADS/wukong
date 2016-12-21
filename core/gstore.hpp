@@ -28,6 +28,7 @@
 #include <pthread.h>
 #include <boost/unordered_set.hpp>
 #include <tbb/concurrent_hash_map.h>
+#include <tbb/concurrent_unordered_set.h>
 
 #include "config.hpp"
 #include "rdma_resource.hpp"
@@ -109,7 +110,7 @@ private:
     pthread_spinlock_t bucket_ext_lock;
     pthread_spinlock_t bucket_locks[NUM_LOCKS]; // lock virtualization (see paper: vLokc CGO'13)
 
-    /* cluster chaining hash-table (see paper: DrTM SOSP'15) */
+    // cluster chaining hash-table (see paper: DrTM SOSP'15)
     uint64_t insert_key(ikey_t key) {
         uint64_t bucket_id = key.hash() % num_buckets;
         uint64_t slot_id = bucket_id * ASSOCIATIVITY;
@@ -121,7 +122,12 @@ private:
             // the last slot of each bucket is always reserved for pointer to indirect header
             /// TODO: add type info to slot and resue the last slot to store key
             for (uint64_t i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
-                assert(vertices[slot_id].key != key); // no duplicate key
+                //assert(vertices[slot_id].key != key); // no duplicate key
+                if (vertices[slot_id].key == key) {
+                    key.print();
+                    vertices[slot_id].key.print();
+                    assert(false);
+                }
 
                 // insert to an empty slot
                 if (vertices[slot_id].key == ikey_t()) {
@@ -225,23 +231,45 @@ done:
     }
 
     // TODO: define as public, should be refined
-    typedef tbb::concurrent_hash_map<uint64_t, vector< uint64_t>> tbb_vector_table;
+    typedef tbb::concurrent_hash_map<uint64_t, vector< uint64_t>> tbb_hash_map;
+    typedef tbb::concurrent_unordered_set<uint64_t> tbb_unordered_set;
 
-    tbb_vector_table src_predicate_table;
-    tbb_vector_table dst_predicate_table;
-    tbb_vector_table type_table;
 
-    void insert_vector(tbb_vector_table &table, uint64_t index_id, uint64_t value_id) {
-        tbb_vector_table::accessor a;
-        table.insert(a, index_id);
-        a->second.push_back(value_id);
+    tbb_hash_map src_predicate_table; // predicate-index (IN)
+    tbb_hash_map dst_predicate_table; // predicate-index (OUT)
+    tbb_hash_map tidx_map; // type-index
+
+#ifdef VAR_PREDICATE
+    tbb_unordered_set p_set; // all of predicates
+    tbb_unordered_set v_set; // all of vertices (subjects and objects)
+#endif
+
+    void insert_hash_map(tbb_hash_map &c, uint64_t key, uint64_t value) {
+        tbb_hash_map::accessor a;
+        c.insert(a, key);
+        a->second.push_back(value);
     }
 
 public:
+    // Encoding Rule
+    // subject/object (vid) >= 2^17, 2^17 > predicate/type (p/tid) > 2^1,
+    // TYPE_ID = 1, PREDICATE_ID = 0, OUT = 1, IN = 0
+    //
+    // NORMAL key/value pair
+    //  key = [vid |    predicate | IN/OUT]  value = [vid0, vid1, ..]  i.e., vid's ngbrs w/ predicate
+    //  key = [vid |      TYPE_ID |    OUT]  value = [tid0, tid1, ..]  i.e., vid's all types
+    //  key = [vid | PREDICATE_ID | IN/OUT]  value = [pid0, pid1, ..]  i.e., vid's all predicates
+    // INDEX key/value pair
+    //  key = [  0 |          pid | IN/OUT]  value = [vid0, vid1, ..]  i.e., predicate-index
+    //  key = [  0 |          tid |     IN]  value = [vid0, vid1, ..]  i.e., type-index
+    //  key = [  0 | PREDICATE_ID |    OUT]  value = [vid0, vid1, ..]  i.e., all objects/subjects
+    // Empty key
+    //  key = [  0 |            0 |      0]  value = [vid0, vid1, ..]  i.e., init
+
 
     // GStore: key (main-header and indirect-header region) | value (entry region)
-    // The key (head region) is a cluster chaining hash table (with associativity)
-    // The value is a varying-size array
+    // The key (head region) is a cluster chaining hash-table (with associativity)
+    // The value (entry region) is a varying-size array
     GStore(RdmaResource *rdma, uint64_t sid): rdma(rdma), sid(sid) {
         num_slots = global_num_keys_million * 1000 * 1000;
         num_buckets = (num_slots / ASSOCIATIVITY) / (KEY_RATIO + 1) * KEY_RATIO;
@@ -251,9 +279,9 @@ public:
         edges = (edge_t *)(rdma->get_kvs() + num_slots * sizeof(vertex_t));
 
         if (rdma->get_kvs_size() <= num_slots * sizeof(vertex_t)) {
-            std::cout << "ERROR: " << global_memstore_size_gb
-                      << "GB memory store is not enough to store hash table with "
-                      << global_num_keys_million << "M keys" << std::endl;
+            cout << "ERROR: " << global_memstore_size_gb
+                 << "GB memory store is not enough to store hash table with "
+                 << global_num_keys_million << "M keys" << std::endl;
             assert(false);
         }
 
@@ -282,8 +310,12 @@ public:
         while (type_triples < ops.size() && is_idx(ops[type_triples].o))
             type_triples++;
 
-        uint64_t off = sync_fetch_and_alloc_edges(spo.size() + ops.size() - type_triples);
+        // the number of separate combinations of subject/object and predicate
         uint64_t accum_predicate = 0;
+
+        // allocate edges in entry region for triples
+        uint64_t off = sync_fetch_and_alloc_edges(spo.size() + ops.size() - type_triples);
+
         uint64_t s = 0;
         while (s < spo.size()) {
             // predicate-based key (subject + predicate)
@@ -296,8 +328,8 @@ public:
 
             // insert vertex
             ikey_t key = ikey_t(spo[s].s, OUT, spo[s].p);
-            iptr_t ptr = iptr_t(e - s, off);
             uint64_t vertex_ptr = insert_key(key);
+            iptr_t ptr = iptr_t(e - s, off);
             vertices[vertex_ptr].ptr = ptr;
 
             // insert edges
@@ -319,9 +351,9 @@ public:
 
             // insert vertex
             ikey_t key = ikey_t(ops[s].o, IN, ops[s].p);
+            uint64_t slot_id = insert_key(key);
             iptr_t ptr = iptr_t(e - s, off);
-            uint64_t vertex_ptr = insert_key(key);
-            vertices[vertex_ptr].ptr = ptr;
+            vertices[slot_id].ptr = ptr;
 
             // insert edges
             for (uint64_t i = s; i < e; i++)
@@ -330,49 +362,193 @@ public:
             s = e;
         }
 
-        // The following code is used to support a rare case where the predicate is unknown.
-        // We disable it to save memory by default.
-        // Each normal vertex should add a key/value pair with a reserved ID (i.e., __PREDICATE__)
-        // to store the list of predicates
-#if 0
-        curr_edge_ptr = sync_fetch_and_alloc_edges(accum_predicate);
+#ifdef VAR_PREDICATE
+        // The following code is used to support a rare case where the predicate is unknown
+        // (e.g., <http://www.Department0.University0.edu> ?P ?O). Each normal vertex should
+        // add two key/value pairs with a reserved ID (i.e., PREDICATE_ID) as the predicate
+        // to store the IN and OUT lists of its predicates.
+        // e.g., key=(vid, PREDICATE_ID, IN/OUT), val=(predicate0, predicate1, ...)
+        //
+        // NOTE, it is disabled by default in order to save memory.
+
+        // allocate edges in entry region for special PREDICATE triples
+        off = sync_fetch_and_alloc_edges(accum_predicate);
+
         s = 0;
         while (s < spo.size()) {
-            // __PREDICATE__
-            ikey_t key = ikey_t(spo[s].s, OUT, 0);
-            iptr_t ptr = iptr_t(0, curr_edge_ptr);
-            uint64_t vertex_ptr = insert_key(key);
-            uint64_t e = s;
-            while (e < spo.size() && vec_spo[s].s == spo[e].s) {
-                if (e == s || spo[e].p != spo[e - 1].p) {
-                    edges[curr_edge_ptr].val = spo[e].p;
-                    curr_edge_ptr++;
-                    ptr.size = ptr.size + 1;
-                }
-                e++;
-            }
-            vertices[vertex_ptr].ptr = ptr;
+            // insert vertex
+            ikey_t key = ikey_t(spo[s].s, OUT, PREDICATE_ID);
+            uint64_t slot_id = insert_key(key);
+
+            // insert edges
+            uint64_t e = s, sz = 0;
+            do {
+                uint64_t m = e;
+                edges[off++].val = spo[e++].p; // insert a new predicate
+                sz++;
+
+                // skip the triples with the same subject and predicate
+                while ((e < spo.size())
+                        && (spo[s].s == spo[e].s)
+                        && (spo[m].p == spo[e].p)) { e++; }
+            } while (e < spo.size() && spo[s].s == spo[e].s);
+
+            // link to edges
+            iptr_t ptr = iptr_t(sz, off - sz);
+            vertices[slot_id].ptr = ptr;
+
             s = e;
         }
 
-        s = nedges_to_skip;
+        s = type_triples;
         while (s < ops.size()) {
-            ikey_t key = ikey_t(ops[s].o, IN, 0);
-            iptr_t ptr = iptr_t(0, curr_edge_ptr);
-            uint64_t vertex_ptr = insert_key(key);
-            uint64_t e = s;
-            while (e < ops.size() && ops[s].o == ops[e].o) {
-                if (e == s || ops[e].p != ops[e - 1].p) {
-                    edges[curr_edge_ptr].val = ops[e].p;
-                    curr_edge_ptr++;
-                    ptr.size = ptr.size + 1;
-                }
-                e++;
-            }
-            vertices[vertex_ptr].ptr = ptr;
+            // insert vertex
+            ikey_t key = ikey_t(ops[s].o, IN, PREDICATE_ID);
+            uint64_t slot_id = insert_key(key);
+
+            // insert edges
+            uint64_t e = s, sz = 0;
+            do {
+                uint64_t m = e;
+                edges[off++].val = ops[e++].p; // insert a new predicate
+                sz++;
+
+                // skip the triples with the same object and predicate
+                while ((e < ops.size())
+                        && (ops[s].o == ops[e].o)
+                        && (ops[m].p == ops[e].p)) { e++; }
+            } while (e < ops.size() && ops[s].o == ops[e].o);
+
+            // link to edges
+            iptr_t ptr = iptr_t(sz, off - sz);
+            vertices[slot_id].ptr = ptr;
+
             s = e;
         }
 #endif
+    }
+
+    // NORMAL key/value pair
+    //   key = [vid |    predicate | IN/OUT]  value = [vid0, vid1, ..]  i.e., vid's ngbrs w/ predicate
+    //   key = [vid |      TYPE_ID |    OUT]  value = [tid0, tid1, ..]  i.e., vid's all types
+    //   key = [vid | PREDICATE_ID | IN/OUT]  value = [pid0, pid1, ..]  i.e., vid's all predicates
+    // INDEX key/value pair
+    //   key = [  0 |          pid | IN/OUT]  value = [vid0, vid1, ..]  i.e., predicate-index
+    //   key = [  0 |          tid |     IN]  value = [vid0, vid1, ..]  i.e., type-index
+    //   key = [  0 |      TYPE_ID |    OUT]  value = [vid0, vid1, ..]  i.e., all objects/subjects
+    //   key = [  0 |      TYPE_ID |    OUT]  value = [vid0, vid1, ..]  i.e., all predicates
+    // Empty key
+    //   key = [  0 |            0 |      0]  value = [vid0, vid1, ..]  i.e., init
+
+    void init_index_table(void) {
+        uint64_t t1 = timer::get_usec();
+
+        #pragma omp parallel for num_threads(global_num_engines)
+        for (int bucket_id = 0; bucket_id < num_buckets + num_buckets_ext; bucket_id++) {
+            uint64_t slot_id = bucket_id * ASSOCIATIVITY;
+            for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
+                // empty slot, skip it
+                if (vertices[slot_id].key == ikey_t()) continue;
+
+                uint64_t vid = vertices[slot_id].key.vid;
+                uint64_t pid = vertices[slot_id].key.pid;
+                uint64_t sz = vertices[slot_id].ptr.size;
+                uint64_t off = vertices[slot_id].ptr.off;
+
+                if (vertices[slot_id].key.dir == IN) {
+                    if (pid == PREDICATE_ID) {
+#ifdef VAR_PREDICATE
+                        v_set.insert(vid);
+                        for (uint64_t e = 0; e < sz; e++)
+                            p_set.insert(edges[off + e].val);
+#endif
+                    } else if (pid == TYPE_ID) {
+                        // the (IN) type triples has been skipped
+                        assert(false);
+                    } else {
+                        // predicate-index (OUT) vid
+                        insert_hash_map(dst_predicate_table, pid, vid);
+                    }
+                } else {
+                    if (pid == PREDICATE_ID) {
+#ifdef VAR_PREDICATE
+                        v_set.insert(vid);
+                        for (uint64_t e = 0; e < sz; e++)
+                            p_set.insert(edges[off + e].val);
+#endif
+                    } else if (pid == TYPE_ID) {
+                        // type-index (IN) vid
+                        for (uint64_t e = 0; e < sz; e++)
+                            insert_hash_map(tidx_map, edges[off + e].val, vid);
+                    } else {
+                        // predicate-index (IN) vid
+                        insert_hash_map(src_predicate_table, pid, vid);
+                    }
+                }
+            }
+        }
+
+        uint64_t t2 = timer::get_usec();
+        cout << (t2 - t1) / 1000 << " ms for parallel generate tbb_table" << endl;
+
+        // add type-index
+        for (tbb_hash_map::iterator i = tidx_map.begin();
+                i != tidx_map.end(); ++i) {
+            uint64_t sz = i->second.size();
+            uint64_t off = sync_fetch_and_alloc_edges(sz);
+            uint64_t tid = i->first;
+
+            // insert vertex
+            ikey_t key = ikey_t(tid, IN, 0);
+            uint64_t slot_id = insert_key(key);
+            iptr_t ptr = iptr_t(sz, off);
+            vertices[slot_id].ptr = ptr;
+
+            // insert edges
+            for (uint64_t k = 0; k < sz; k++)
+                edges[off++].val = i->second[k];
+        }
+
+        // add predicate-index
+        for (tbb_hash_map::iterator i = src_predicate_table.begin();
+                i != src_predicate_table.end(); ++i) {
+            uint64_t curr_edge_ptr = sync_fetch_and_alloc_edges(i->second.size());
+            ikey_t key = ikey_t(i->first, IN, 0);
+            uint64_t vertex_ptr = insert_key(key);
+            iptr_t ptr = iptr_t(i->second.size(), curr_edge_ptr);
+            vertices[vertex_ptr].ptr = ptr;
+            for (uint64_t k = 0; k < i->second.size(); k++) {
+                edges[curr_edge_ptr].val = i->second[k];
+                curr_edge_ptr++;
+            }
+        }
+
+        for (tbb_hash_map::iterator i = dst_predicate_table.begin();
+                i != dst_predicate_table.end(); ++i) {
+            uint64_t curr_edge_ptr = sync_fetch_and_alloc_edges(i->second.size());
+            ikey_t key = ikey_t(i->first, OUT, 0);
+            uint64_t vertex_ptr = insert_key(key);
+            iptr_t ptr = iptr_t(i->second.size(), curr_edge_ptr);
+            vertices[vertex_ptr].ptr = ptr;
+            for (uint64_t k = 0; k < i->second.size(); k++) {
+                edges[curr_edge_ptr].val = i->second[k];
+                curr_edge_ptr++;
+            }
+        }
+
+        tbb_hash_map().swap(src_predicate_table);
+        tbb_hash_map().swap(dst_predicate_table);
+        tbb_hash_map().swap(tidx_map);
+
+#ifdef VAR_PREDICATE
+        tbb_unordered_set().swap(p_set);
+        tbb_unordered_set().swap(v_set);
+#endif
+
+        uint64_t t3 = timer::get_usec();
+        cout << (t3 - t2) / 1000
+             << " ms for sequence insert tbb_table to gstore"
+             << endl;
     }
 
     edge_t *get_edges_global(int tid, uint64_t vid, int d, int predicate, int *size) {
@@ -415,100 +591,6 @@ public:
     edge_t *get_index_edges_local(int tid, uint64_t index_id, int d, int *size) {
         // predicate is not important, so we set it 0
         return get_edges_local(tid, index_id, d, 0, size);
-    }
-
-    void init_index_table(void) {
-        uint64_t t1 = timer::get_usec();
-
-        #pragma omp parallel for num_threads(global_num_engines)
-        for (int x = 0; x < num_buckets + num_buckets_ext; x++) {
-            for (int y = 0; y < ASSOCIATIVITY - 1; y++) {
-                uint64_t i = x * ASSOCIATIVITY + y;
-                if (vertices[i].key == ikey_t()) {
-                    //empty slot, skip it
-                    continue;
-                }
-                uint64_t vid = vertices[i].key.vid;
-                uint64_t p = vertices[i].key.pid;
-                if (vertices[i].key.dir == IN) {
-                    if (p == TYPE_ID) {
-                        //it means vid is a type vertex
-                        //we just skip it
-                        cout << "ERROR: type vertices are not skipped" << endl;
-                        assert(false);
-                        continue;
-                    } else {
-                        //this edge is in-direction, so vid is the dst of predicate
-                        insert_vector(dst_predicate_table, p, vid);
-                    }
-                } else {
-                    if (p == TYPE_ID) {
-                        uint64_t degree = vertices[i].ptr.size;
-                        uint64_t edge_ptr = vertices[i].ptr.off;
-                        for (uint64_t j = 0; j < degree; j++) {
-                            //src may belongs to multiple types
-                            insert_vector(type_table, edges[edge_ptr + j].val, vid);
-                        }
-                    } else {
-                        insert_vector(src_predicate_table, p, vid);
-                    }
-                }
-            }
-        }
-        uint64_t t2 = timer::get_usec();
-        cout << (t2 - t1) / 1000
-             << " ms for parallel generate tbb_table "
-             << endl;
-
-        // type index
-        for (tbb_vector_table::iterator i = type_table.begin();
-                i != type_table.end(); ++i) {
-            uint64_t curr_edge_ptr = sync_fetch_and_alloc_edges(i->second.size());
-            ikey_t key = ikey_t(i->first, IN, 0);
-            uint64_t vertex_ptr = insert_key(key);
-            iptr_t ptr = iptr_t(i->second.size(), curr_edge_ptr);
-            vertices[vertex_ptr].ptr = ptr;
-            for (uint64_t k = 0; k < i->second.size(); k++) {
-                edges[curr_edge_ptr].val = i->second[k];
-                curr_edge_ptr++;
-            }
-        }
-
-        // predicate index
-        for (tbb_vector_table::iterator i = src_predicate_table.begin();
-                i != src_predicate_table.end(); ++i) {
-            uint64_t curr_edge_ptr = sync_fetch_and_alloc_edges(i->second.size());
-            ikey_t key = ikey_t(i->first, IN, 0);
-            uint64_t vertex_ptr = insert_key(key);
-            iptr_t ptr = iptr_t(i->second.size(), curr_edge_ptr);
-            vertices[vertex_ptr].ptr = ptr;
-            for (uint64_t k = 0; k < i->second.size(); k++) {
-                edges[curr_edge_ptr].val = i->second[k];
-                curr_edge_ptr++;
-            }
-        }
-
-        for (tbb_vector_table::iterator i = dst_predicate_table.begin();
-                i != dst_predicate_table.end(); ++i) {
-            uint64_t curr_edge_ptr = sync_fetch_and_alloc_edges(i->second.size());
-            ikey_t key = ikey_t(i->first, OUT, 0);
-            uint64_t vertex_ptr = insert_key(key);
-            iptr_t ptr = iptr_t(i->second.size(), curr_edge_ptr);
-            vertices[vertex_ptr].ptr = ptr;
-            for (uint64_t k = 0; k < i->second.size(); k++) {
-                edges[curr_edge_ptr].val = i->second[k];
-                curr_edge_ptr++;
-            }
-        }
-
-        tbb_vector_table().swap(src_predicate_table);
-        tbb_vector_table().swap(dst_predicate_table);
-
-
-        uint64_t t3 = timer::get_usec();
-        cout << (t3 - t2) / 1000
-             << " ms for sequence insert tbb_table to gstore"
-             << endl;
     }
 
     // analysis and debuging
