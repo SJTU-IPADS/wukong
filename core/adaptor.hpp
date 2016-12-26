@@ -27,6 +27,7 @@
 #include "tcp_adaptor.hpp"
 #include "rdma_resource.hpp"
 
+/// TODO: define adaptor as a C++ interface and make tcp and rdma implement it
 class Adaptor {
 public:
     int tid; // thread id

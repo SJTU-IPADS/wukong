@@ -762,6 +762,7 @@ public:
         init();
     }
 
+    // spawn a service thread to answer the query about QP info
     void servicing() {
         pthread_t update_tid;
         pthread_create(&update_tid, NULL, service_thread, (void *)this);
@@ -807,21 +808,6 @@ public:
     }
 
     string ip_of(int sid) { return ipset[sid]; }
-
-    // return the pointer to kvstore
-    inline char *get_kvs() { return rdma_mem; }
-
-    // return the size of kvstore
-    inline uint64_t get_kvs_size() { return kvs_sz; }
-
-    // return the pointer to buffer of certain thread
-    inline char *get_buffer(int dst_tid) {
-        return (char *)(rdma_mem + kvs_sz + buf_sz * dst_tid);
-    }
-
-    // return the size of buffer used by one thread
-    uint64_t get_buffer_size() { return buf_sz; }
-
 
     // 0 on success, -1 otherwise
     int RdmaRead(int dst_tid, int dst_nid, char *local,
@@ -906,6 +892,29 @@ public:
         }
     }
 
+    // return the pointer to kvstore
+    inline char *get_kvs() { return rdma_mem; }
+
+    // return the size of kvstore
+    inline uint64_t get_kvs_size() { return kvs_sz; }
+
+    // return the pointer to buffer of certain thread
+    inline char *get_buffer(int tid) {
+        return (char *)(rdma_mem + kvs_sz + buf_sz * tid);
+    }
+
+    // return the size of buffer used by one thread
+    inline uint64_t get_buffer_size() { return buf_sz; }
+
+    // return the pointer to buffer of certain thread
+    inline char *get_queue(int tid) {
+        return (char *)(rdma_mem + kvs_sz + buf_sz * num_threads + (rbf_size * num_nodes) * tid);
+    }
+
+    // return the size of buffer used by one thread
+    inline uint64_t get_queue_size() { return rbf_size * num_nodes; }
+
+
     //used to send message to remote queue
     struct RemoteQueueMeta {
         uint64_t remote_tail; // directly write to remote_tail of remote machine
@@ -973,30 +982,28 @@ public:
         RemoteQueueMeta * meta = &RemoteMeta[remote_mid][remote_tid];
         meta->lock();
         uint64_t remote_start = start_of_recv_queue(remote_tid, node_id);
+        uint64_t total_write_size = sizeof(uint64_t) * 2 + ceil(str_size, sizeof(uint64_t));
+        uint64_t tail = meta->remote_tail;
+        meta->remote_tail += total_write_size;
+        meta->unlock();
+
         if (node_id == remote_mid) {
             char * ptr = rdma_mem + remote_start;
-            uint64_t tail = meta->remote_tail;
-            (meta->remote_tail) += sizeof(uint64_t) * 2 + ceil(str_size, sizeof(uint64_t));
-            meta->unlock();
-
             *((uint64_t*)(ptr + (tail) % rbf_size )) = str_size;
             tail += sizeof(uint64_t);
-            for (uint64_t i = 0; i < str_size; i++) {
+            for (uint64_t i = 0; i < str_size; i++)
                 *(ptr + (tail + i) % rbf_size) = str_ptr[i];
-            }
             tail += ceil(str_size, sizeof(uint64_t));
             *((uint64_t*)(ptr + (tail) % rbf_size)) = str_size;
         } else {
-            uint64_t total_write_size = sizeof(uint64_t) * 2 + ceil(str_size, sizeof(uint64_t));
             char* local_buffer = get_buffer(local_tid);
             *((uint64_t*)local_buffer) = str_size;
             local_buffer += sizeof(uint64_t);
             memcpy(local_buffer, str_ptr, str_size);
             local_buffer += ceil(str_size, sizeof(uint64_t));
             *((uint64_t*)local_buffer) = str_size;
-            uint64_t tail = meta->remote_tail;
-            meta->remote_tail = meta->remote_tail + total_write_size;
-            meta->unlock();
+
+            /// TODO: check the overflow of physical queue
             if (tail / rbf_size == (tail + total_write_size - 1) / rbf_size ) {
                 uint64_t remote_msg_offset = remote_start + (tail % rbf_size);
                 RdmaWrite(local_tid, remote_mid, get_buffer(local_tid), total_write_size, remote_msg_offset);

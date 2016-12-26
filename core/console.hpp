@@ -110,13 +110,11 @@ next:
 				for (int j = 0; j < global_num_proxies; j++) {
 					if (i == 0 && j == 0)
 						continue ;
-					//proxy->adaptor.send(i, j, cmd);
 					proxy->adaptor.send_object<string>(i, j, cmd);
 				}
 			}
 		} else {
 			// recieve commands
-			//cmd = proxy->adaptor.recv();
 			cmd = proxy->adaptor.recv_object<string>();
 		}
 
