@@ -30,7 +30,7 @@
 #include "coder.hpp"
 #include "adaptor.hpp"
 #include "dgraph.hpp"
-#include "query_basic_types.hpp"
+#include "query.hpp"
 
 #include "mymath.hpp"
 #include "timer.hpp"

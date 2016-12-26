@@ -23,7 +23,7 @@
 #pragma once
 
 #include "config.hpp"
-#include "query_basic_types.hpp"
+#include "query.hpp"
 #include "tcp_adaptor.hpp"
 #include "rdma_resource.hpp"
 

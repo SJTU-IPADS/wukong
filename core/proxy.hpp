@@ -27,7 +27,7 @@
 
 #include "config.hpp"
 #include "coder.hpp"
-#include "query_basic_types.hpp"
+#include "query.hpp"
 #include "adaptor.hpp"
 #include "parser.hpp"
 #include "string_server.hpp"

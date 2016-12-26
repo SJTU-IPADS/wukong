@@ -31,7 +31,7 @@
 #include <boost/unordered_map.hpp>
 #include <boost/algorithm/string.hpp>
 
-#include "query_basic_types.hpp"
+#include "query.hpp"
 #include "string_server.hpp"
 
 using namespace std;
