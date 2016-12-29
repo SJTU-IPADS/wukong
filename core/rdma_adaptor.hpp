@@ -56,14 +56,8 @@ private:
     int num_nodes;
     int num_threads;
 
-    char *rdma_mem;     // RDMA memory: kvstore | local_buffer | logical_queue
-    uint64_t kvs_sz;
-    uint64_t buf_sz;
-    uint64_t queue_sz;
-    uint64_t rbf_size;
-
-    //char *buf;
-    //char *queue;
+    char *rdma_mem;
+    uint64_t rbf_size;  // split a logical-queue into num_servers physical queues
 
     vector<Scheduler> schedulers;
 
@@ -128,14 +122,8 @@ public:
     RDMA_Adaptor(RdmaResource *rdma, int sid, int num_nodes, int num_threads)
         : rdma(rdma), sid(sid), num_nodes(num_nodes), num_threads(num_threads) {
 
-        //queue = rdma->get_queue();
-        //buf = rdma->get_buffer();
-
-        rdma_mem = rdma->get_kvs();
-        kvs_sz = rdma->get_kvs_size();
-        buf_sz = rdma->get_buffer_size();
-        queue_sz = rdma->get_queue_size();
-        rbf_size = queue_sz / num_nodes;
+        rdma_mem = rdma->kvstore();
+        rbf_size = floor(rdma->queue_size() / num_nodes, 64);
 
         schedulers.resize(num_threads, Scheduler(num_nodes));
 
@@ -150,23 +138,13 @@ public:
 
     ~RDMA_Adaptor() { }
 
-    // first split (RDMA) queue space into num_threads logical-queues
-    // further split a logical-queue into num_servers physical queue
-    uint64_t start_of_recv_queue(int local_tid, int remote_mid) {
-        //[t0,m0][t0,m1] [t0,m5], [t1,m0],...
-        uint64_t result = kvs_sz + buf_sz * num_threads; // skip kvstore and read_buffer
-        result = result + rbf_size * (local_tid * num_nodes + remote_mid);
-        return result;
-    }
-
-
     void rbfSend(int local_tid, int remote_mid, int remote_tid, const char * str_ptr, uint64_t str_size) {
         // msg: header + string + footer (use str_size as header and footer)
         RemoteQueueMeta * meta = &RemoteMeta[remote_mid][remote_tid];
         meta->lock();
-        uint64_t remote_start = start_of_recv_queue(remote_tid, sid);
+        uint64_t remote_off = rdma->queue_offset(remote_tid) + sid * rbf_size;
         if (sid == remote_mid) {  // MT
-            char * ptr = rdma_mem + remote_start;
+            char *ptr = rdma_mem + remote_off;
             uint64_t tail = meta->remote_tail;
             (meta->remote_tail) += sizeof(uint64_t) * 2 + ceil(str_size, sizeof(uint64_t));
             meta->unlock();
@@ -181,7 +159,7 @@ public:
         } else {
             uint64_t total_write_size = sizeof(uint64_t) * 2 + ceil(str_size, sizeof(uint64_t));
 
-            char* local_buffer = rdma->get_buffer(local_tid);
+            char* local_buffer = rdma->buffer(local_tid);
             *((uint64_t*)local_buffer) = str_size;
             local_buffer += sizeof(uint64_t);
             memcpy(local_buffer, str_ptr, str_size);
@@ -195,22 +173,22 @@ public:
             /// TODO: check the overflow of physical queue
             assert(total_write_size < rbf_size);
             if (tail / rbf_size == (tail + total_write_size - 1) / rbf_size ) {
-                uint64_t remote_msg_offset = remote_start + (tail % rbf_size);
-                rdma->RdmaWrite(local_tid, remote_mid, rdma->get_buffer(local_tid), total_write_size, remote_msg_offset);
+                uint64_t remote_msg_offset = remote_off + (tail % rbf_size);
+                rdma->RdmaWrite(local_tid, remote_mid, rdma->buffer(local_tid), total_write_size, remote_msg_offset);
             } else {
                 uint64_t first = rbf_size - (tail % rbf_size);
                 uint64_t second = total_write_size - first;
-                uint64_t first_off = remote_start + (tail % rbf_size);
-                uint64_t second_off = remote_start;
-                rdma->RdmaWrite(local_tid, remote_mid, rdma->get_buffer(local_tid), first, first_off);
-                rdma->RdmaWrite(local_tid, remote_mid, rdma->get_buffer(local_tid) + first, second, second_off);
+                uint64_t first_off = remote_off + (tail % rbf_size);
+                uint64_t second_off = remote_off;
+                rdma->RdmaWrite(local_tid, remote_mid, rdma->buffer(local_tid), first, first_off);
+                rdma->RdmaWrite(local_tid, remote_mid, rdma->buffer(local_tid) + first, second, second_off);
             }
         }
     }
 
     bool check_rbf_msg(int local_tid, int mid) {
         LocalQueueMeta *meta = &LocalMeta[local_tid][mid];
-        char *rbf_ptr = rdma_mem + start_of_recv_queue(local_tid, mid);
+        char *rbf_ptr = rdma_mem + rdma->queue_offset(local_tid) + mid * rbf_size;
 
         volatile uint64_t msg_size = *(volatile uint64_t *)(rbf_ptr + meta->local_tail % rbf_size);
         //uint64_t skip_size = sizeof(uint64_t) + ceil(msg_size, sizeof(uint64_t));
@@ -225,7 +203,7 @@ public:
 
     std::string fetch_rbf_msg(int local_tid, int mid) {
         LocalQueueMeta * meta = &LocalMeta[local_tid][mid];
-        char * rbf_ptr = rdma_mem + start_of_recv_queue(local_tid, mid);
+        char * rbf_ptr = rdma_mem + rdma->queue_offset(local_tid) + mid * rbf_size;
 
         volatile uint64_t msg_size = *(volatile uint64_t *)(rbf_ptr + meta->local_tail % rbf_size);
         uint64_t t1 = timer::get_usec();

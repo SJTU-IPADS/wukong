@@ -302,7 +302,7 @@ done:
         if (rdma_cache.lookup(key, vert))
             return vert; // found
 
-        char *buf = rdma->get_buffer(tid);
+        char *buf = rdma->buffer(tid);
         while (true) {
             uint64_t off = bucket_id * ASSOCIATIVITY * sizeof(vertex_t);
             uint64_t sz = ASSOCIATIVITY * sizeof(vertex_t);
@@ -357,7 +357,7 @@ done:
             return NULL; // not found
         }
 
-        char *buf = rdma->get_buffer(tid);
+        char *buf = rdma->buffer(tid);
         uint64_t off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
         uint64_t sz = v.ptr.size * sizeof(edge_t);
         rdma->RdmaRead(tid, dst_sid, buf, sz, off);
@@ -449,17 +449,17 @@ public:
         //num_buckets_ext = (num_slots / ASSOCIATIVITY) / (KEY_RATIO + 1);
         num_buckets_ext = (num_slots / ASSOCIATIVITY) - num_buckets;
 
-        vertices = (vertex_t *)(rdma->get_kvs());
-        edges = (edge_t *)(rdma->get_kvs() + num_slots * sizeof(vertex_t));
+        vertices = (vertex_t *)(rdma->kvstore());
+        edges = (edge_t *)(rdma->kvstore() + num_slots * sizeof(vertex_t));
 
-        if (rdma->get_kvs_size() <= num_slots * sizeof(vertex_t)) {
+        if (rdma->kvstore_size() <= num_slots * sizeof(vertex_t)) {
             cout << "ERROR: " << global_memstore_size_gb
                  << "GB memory store is not enough to store hash table with "
                  << global_num_keys_million << "M keys" << std::endl;
             assert(false);
         }
 
-        num_entries = (rdma->get_kvs_size() - num_slots * sizeof(vertex_t)) / sizeof(edge_t);
+        num_entries = (rdma->kvstore_size() - num_slots * sizeof(vertex_t)) / sizeof(edge_t);
         last_entry = 0;
 
         pthread_spin_init(&entry_lock, 0);
