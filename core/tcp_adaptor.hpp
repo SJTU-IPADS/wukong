@@ -36,7 +36,7 @@
 using namespace std;
 
 /**
- * The connection over ZeroMQ, a distributed messaging lib
+ * The communication over ZeroMQ, a distributed messaging lib
  */
 class TCP_Adaptor {
 private:

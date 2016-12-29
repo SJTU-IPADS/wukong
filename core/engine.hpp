@@ -617,7 +617,7 @@ public:
     Adaptor adaptor;
 
     Engine(int sid, int tid, DGraph *graph,
-           TCP_Adaptor *tcp, RdmaResource *rdma)
+           TCP_Adaptor *tcp, RDMA_Adaptor *rdma)
         : sid(sid), tid(tid), coder(sid, tid), graph(graph),
           adaptor(tid, tcp, rdma), last_time(0) {
         pthread_spin_init(&recv_lock, 0);

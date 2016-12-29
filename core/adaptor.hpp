@@ -25,17 +25,17 @@
 #include "config.hpp"
 #include "query.hpp"
 #include "tcp_adaptor.hpp"
-#include "rdma_resource.hpp"
+#include "rdma_adaptor.hpp"
 
 /// TODO: define adaptor as a C++ interface and make tcp and rdma implement it
 class Adaptor {
 public:
     int tid; // thread id
 
-    TCP_Adaptor *tcp;  // communicaiton by TCP/IP
-    RdmaResource *rdma;  // communicaiton by RDMA
+    TCP_Adaptor *tcp;   // communicaiton by TCP/IP
+    RDMA_Adaptor *rdma; // communicaiton by RDMA
 
-    Adaptor(int tid, TCP_Adaptor *tcp, RdmaResource *rdma)
+    Adaptor(int tid, TCP_Adaptor *tcp, RDMA_Adaptor *rdma)
         : tid(tid), tcp(tcp), rdma(rdma) { }
 
     ~Adaptor() {

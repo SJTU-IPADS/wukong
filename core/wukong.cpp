@@ -31,6 +31,8 @@
 #include "proxy.hpp"
 #include "console.hpp"
 #include "monitor.hpp"
+#include "rdma_resource.hpp"
+#include "rdma_adaptor.hpp"
 
 #include "unit.hpp"
 
@@ -160,6 +162,8 @@ main(int argc, char *argv[])
 	RdmaResource *rdma = NULL;
 #endif
 
+	RDMA_Adaptor *ra = new RDMA_Adaptor(rdma, sid, global_num_servers, global_num_threads);
+
 	// load string server (read-only, shared by all proxies)
 	String_Server str_server(global_input_folder);
 
@@ -174,11 +178,11 @@ main(int argc, char *argv[])
 		/// therefore, we create tcp in here not within adaptor
 		TCP_Adaptor *tcp = new TCP_Adaptor(sid, tid, host_fname);
 		if (tid < global_num_proxies) {
-			Proxy *proxy = new Proxy(sid, tid, &str_server, tcp, rdma);
+			Proxy *proxy = new Proxy(sid, tid, &str_server, tcp, ra);
 			pthread_create(&(threads[tid]), NULL, proxy_thread, (void *)proxy);
 			proxies.push_back(proxy);
 		} else {
-			Engine *engine = new Engine(sid, tid, &dgraph, tcp, rdma);
+			Engine *engine = new Engine(sid, tid, &dgraph, tcp, ra);
 			pthread_create(&(threads[tid]), NULL, engine_thread, (void *)engine);
 			engines.push_back(engine);
 		}

@@ -90,7 +90,7 @@ public:
 	Adaptor adaptor;
 
 	Proxy(int sid, int tid, String_Server *str_server,
-	      TCP_Adaptor *tcp, RdmaResource *rdma)
+	      TCP_Adaptor *tcp, RDMA_Adaptor *rdma)
 		: sid(sid), tid(tid), coder(sid, tid), str_server(str_server),
 		  parser(str_server), adaptor(tid, tcp, rdma) { }
 
