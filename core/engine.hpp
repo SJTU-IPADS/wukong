@@ -110,10 +110,6 @@ std::vector<Engine *> engines;
 class Engine {
     const static uint64_t TIMEOUT_THRESHOLD = 10000; // 10 msec
 
-    DGraph *graph;
-
-    uint64_t last_time; // busy or not (work-oblige)
-
     pthread_spinlock_t recv_lock;
     std::vector<request_or_reply> msg_fast_path;
 
@@ -568,7 +564,7 @@ class Engine {
                 if (req.blind)
                     req.clear_data(); // avoid take back the resuts
 
-                adaptor.send(coder.sid_of(req.pid), coder.tid_of(req.pid), req);
+                adaptor->send(coder.sid_of(req.pid), coder.tid_of(req.pid), req);
                 return;
             }
 
@@ -577,7 +573,7 @@ class Engine {
                 rmap.put_parent_request(req, sub_rs.size());
                 for (int i = 0; i < sub_rs.size(); i++) {
                     if (i != sid) {
-                        adaptor.send(i, tid, sub_rs[i]);
+                        adaptor->send(i, tid, sub_rs[i]);
                     } else {
                         pthread_spin_lock(&recv_lock);
                         msg_fast_path.push_back(sub_rs[i]);
@@ -602,7 +598,7 @@ class Engine {
             if (engine->rmap.is_ready(r.pid)) {
                 request_or_reply reply = engine->rmap.get_merged_reply(r.pid);
                 pthread_spin_unlock(&engine->rmap_lock);
-                adaptor.send(coder.sid_of(reply.pid), coder.tid_of(reply.pid), reply);
+                adaptor->send(coder.sid_of(reply.pid), coder.tid_of(reply.pid), reply);
             } else {
                 pthread_spin_unlock(&engine->rmap_lock);
             }
@@ -613,13 +609,16 @@ public:
     int sid;    // server id
     int tid;    // thread id
 
-    Coder coder;
-    Adaptor adaptor;
+    DGraph *graph;
+    Adaptor *adaptor;
 
-    Engine(int sid, int tid, DGraph *graph,
-           TCP_Adaptor *tcp, RDMA_Adaptor *rdma)
-        : sid(sid), tid(tid), coder(sid, tid), graph(graph),
-          adaptor(tid, tcp, rdma), last_time(0) {
+    Coder coder;
+
+    uint64_t last_time; // busy or not (work-oblige)
+
+    Engine(int sid, int tid, DGraph *graph, Adaptor *adaptor)
+        : sid(sid), tid(tid), graph(graph), adaptor(adaptor),
+          coder(sid, tid), last_time(0) {
         pthread_spin_init(&recv_lock, 0);
         pthread_spin_init(&rmap_lock, 0);
     }
@@ -659,7 +658,7 @@ public:
             // own queue
             success = false;
             pthread_spin_lock(&recv_lock);
-            success = adaptor.tryrecv(r);
+            success = adaptor->tryrecv(r);
             if (success && r.start_from_index()) {
                 msg_fast_path.push_back(r);
                 success = false;
@@ -678,7 +677,7 @@ public:
 
             success = false;
             pthread_spin_lock(&engines[nbr_id]->recv_lock);
-            success = engines[nbr_id]->adaptor.tryrecv(r);
+            success = engines[nbr_id]->adaptor->tryrecv(r);
             if (success && r.start_from_index()) {
                 engines[nbr_id]->msg_fast_path.push_back(r);
                 success = false;

@@ -82,17 +82,16 @@ public:
 	int sid;    // server id
 	int tid;    // thread id
 
-	Coder coder;
-
 	String_Server *str_server;
+	Adaptor *adaptor;
+
+	Coder coder;
 	Parser parser;
 
-	Adaptor adaptor;
 
-	Proxy(int sid, int tid, String_Server *str_server,
-	      TCP_Adaptor *tcp, RDMA_Adaptor *rdma)
-		: sid(sid), tid(tid), coder(sid, tid), str_server(str_server),
-		  parser(str_server), adaptor(tid, tcp, rdma) { }
+	Proxy(int sid, int tid, String_Server *str_server, Adaptor *adaptor)
+		: sid(sid), tid(tid), str_server(str_server), adaptor(adaptor),
+		  coder(sid, tid), parser(str_server) { }
 
 	void setpid(request_or_reply &r) { r.pid = coder.get_and_inc_qid(); }
 
@@ -104,7 +103,7 @@ public:
 			for (int i = 0; i < global_num_servers; i++) {
 				for (int j = 0; j < global_mt_threshold; j++) {
 					r.tid = j;
-					adaptor.send(i, global_num_proxies + j, r);
+					adaptor->send(i, global_num_proxies + j, r);
 				}
 			}
 			return ;
@@ -118,14 +117,14 @@ public:
 		int ratio = global_num_engines / global_num_proxies;
 		int start_tid = global_num_proxies + (ratio * tid) + (coder.get_random() % ratio);
 
-		adaptor.send(start_sid, start_tid, r);
+		adaptor->send(start_sid, start_tid, r);
 	}
 
 	request_or_reply recv_reply(void) {
-		request_or_reply r = adaptor.recv();
+		request_or_reply r = adaptor->recv();
 		if (r.start_from_index()) {
 			for (int count = 0; count < global_num_servers * global_mt_threshold - 1 ; count++) {
-				request_or_reply r2 = adaptor.recv();
+				request_or_reply r2 = adaptor->recv();
 				r.row_num += r2.row_num;
 				int new_size = r.result_table.size() + r2.result_table.size();
 				r.result_table.reserve(new_size);
@@ -136,7 +135,7 @@ public:
 	}
 
 	bool tryrecv_reply(request_or_reply &r) {
-		bool success = adaptor.tryrecv(r);
+		bool success = adaptor->tryrecv(r);
 		if (success && r.start_from_index()) {
 			// TODO: avoid parallel submit for try recieve mode
 			cout << "Unsupport try recieve parallel query now!" << endl;

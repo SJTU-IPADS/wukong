@@ -174,15 +174,14 @@ main(int argc, char *argv[])
 	assert(global_num_threads == global_num_proxies + global_num_engines);
 	pthread_t *threads  = new pthread_t[global_num_threads];
 	for (int tid = 0; tid < global_num_threads; tid++) {
-		/// TODO: currently, rdma is shared by all threads,
-		/// therefore, we create tcp in here not within adaptor
 		TCP_Adaptor *tcp = new TCP_Adaptor(sid, tid, host_fname);
+		Adaptor *adaptor = new Adaptor(tid, tcp, ra);
 		if (tid < global_num_proxies) {
-			Proxy *proxy = new Proxy(sid, tid, &str_server, tcp, ra);
+			Proxy *proxy = new Proxy(sid, tid, &str_server, adaptor);
 			pthread_create(&(threads[tid]), NULL, proxy_thread, (void *)proxy);
 			proxies.push_back(proxy);
 		} else {
-			Engine *engine = new Engine(sid, tid, &dgraph, tcp, ra);
+			Engine *engine = new Engine(sid, tid, &dgraph, adaptor);
 			pthread_create(&(threads[tid]), NULL, engine_thread, (void *)engine);
 			engines.push_back(engine);
 		}
