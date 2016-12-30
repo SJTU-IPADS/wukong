@@ -119,8 +119,8 @@ private:
 
 public:
 
-    RDMA_Adaptor(RdmaResource *rdma, int sid, int num_nodes, int num_threads)
-        : rdma(rdma), sid(sid), num_nodes(num_nodes), num_threads(num_threads) {
+    RDMA_Adaptor(int sid, RdmaResource *rdma)
+        : sid(sid), rdma(rdma), num_nodes(global_num_servers), num_threads(global_num_threads) {
 
         rdma_mem = rdma->kvstore();
         rbf_size = floor(rdma->queue_size() / num_nodes, 64);

@@ -59,7 +59,7 @@ public:
         if (global_use_rdma)
             str = rdma->rbfRecv(tid);
         else
-            str = tcp->recv();
+            str = tcp->recv(tid);
 
         std::stringstream s;
         s << str;
@@ -76,7 +76,7 @@ public:
             if (!rdma->rbfTryRecv(tid, str))
                 return false;
         } else {
-            if (!tcp->tryrecv(str))
+            if (!tcp->tryrecv(tid, str))
                 return false;
         }
 
@@ -99,7 +99,7 @@ public:
     template<typename T>
     T recv_object() {
         std::string str;
-        str = tcp->recv();
+        str = tcp->recv(tid);
 
         std::stringstream s;
         s << str;

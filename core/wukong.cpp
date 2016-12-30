@@ -148,34 +148,37 @@ main(int argc, char *argv[])
 	                  + msg_sz_per_thread * global_num_threads;
 	cout << "INFO: RDMA memory usage (per server): " << B2GiB(mem_sz) << "GB" << endl;
 
-	// create an RDMA instance
+	// create an RDMA registed memory
 	char *rdma_mem = (char *)malloc(mem_sz);
 	memset(rdma_mem, 0, mem_sz);
 
+	// create RDMA communication
 #ifdef HAS_RDMA
-	RdmaResource *rdma = new RdmaResource(global_num_servers, global_num_threads,
-	                                      sid, host_fname, rdma_mem, mem_sz,
-	                                      kvs_sz, rbuf_sz_per_thread, msg_sz_per_thread);
-	rdma->servicing();
-	rdma->connect();
+	RdmaResource *rdma_dev = new RdmaResource(global_num_servers, global_num_threads,
+	        sid, host_fname, rdma_mem, mem_sz,
+	        kvs_sz, rbuf_sz_per_thread, msg_sz_per_thread);
+	rdma_dev->servicing();
+	rdma_dev->connect();
+	RDMA_Adaptor *rdma = new RDMA_Adaptor(sid, rdma_dev);
 #else
-	RdmaResource *rdma = NULL;
+	RdmaResource *rdma_dev = NULL;
+	RDMA_Adaptor *rdma = NULL;
 #endif
 
-	RDMA_Adaptor *ra = new RDMA_Adaptor(rdma, sid, global_num_servers, global_num_threads);
+	// create TCP adaptor
+	TCP_Adaptor *tcp = new TCP_Adaptor(sid, host_fname);
 
 	// load string server (read-only, shared by all proxies)
 	String_Server str_server(global_input_folder);
 
 	// load RDF graph (shared by all engines)
-	DGraph dgraph(global_input_folder, sid, rdma);
+	DGraph dgraph(global_input_folder, sid, rdma_dev);
 
 	// initiate proxy and engine threads
 	assert(global_num_threads == global_num_proxies + global_num_engines);
 	pthread_t *threads  = new pthread_t[global_num_threads];
 	for (int tid = 0; tid < global_num_threads; tid++) {
-		TCP_Adaptor *tcp = new TCP_Adaptor(sid, tid, host_fname);
-		Adaptor *adaptor = new Adaptor(tid, tcp, ra);
+		Adaptor *adaptor = new Adaptor(tid, tcp, rdma);
 		if (tid < global_num_proxies) {
 			Proxy *proxy = new Proxy(sid, tid, &str_server, adaptor);
 			pthread_create(&(threads[tid]), NULL, proxy_thread, (void *)proxy);
@@ -197,7 +200,7 @@ main(int argc, char *argv[])
 	}
 
 	/// TODO: exit gracefully (properly call MPI_Init() and MPI_Finalize(), delete all objects)
-	delete rdma;
+	delete rdma_dev;
 
 	return 0;
 }
