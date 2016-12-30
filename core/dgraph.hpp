@@ -48,7 +48,6 @@ class DGraph {
 
 	int sid;
 
-	RdmaResource *rdma;
 	Mem *mem;
 
 	vector<uint64_t> num_triples;  // record #triples loaded from input data for each server
@@ -123,10 +122,12 @@ class DGraph {
 		                  + 1 * sizeof(uint64_t)          // reserve the 1st uint64_t as #triples
 		                  + exist * 3 * sizeof(uint64_t); // skip #exist-triples
 		uint64_t length = n * 3 * sizeof(uint64_t);       // send #new-triples
-		if (dst_sid != sid)
-			rdma->RdmaWrite(tid, dst_sid, (char *)(buffer + 1), length, offset);
-		else
+		if (dst_sid != sid) {
+			RDMA &rdma = RDMA::get_rdma();
+			rdma.dev->RdmaWrite(tid, dst_sid, (char *)(buffer + 1), length, offset);
+		} else {
 			memcpy(mem->kvstore() + offset, (char *)(buffer + 1), length);
+		}
 
 		buffer[0] = 0; // clear the buffer
 	}
@@ -193,10 +194,12 @@ class DGraph {
 
 			uint64_t kvs_sz = floor(mem->kvstore_size() / global_num_servers, sizeof(uint64_t));
 			uint64_t offset = kvs_sz * sid;
-			if (s != sid)
-				rdma->RdmaWrite(0, s, (char*)buffer, sizeof(uint64_t), offset);
-			else
+			if (s != sid) {
+				RDMA &rdma = RDMA::get_rdma();
+				rdma.dev->RdmaWrite(0, s, (char*)buffer, sizeof(uint64_t), offset);
+			} else {
 				memcpy(mem->kvstore() + offset, (char*)buffer, sizeof(uint64_t));
+			}
 		}
 		MPI_Barrier(MPI_COMM_WORLD);
 
@@ -323,10 +326,10 @@ class DGraph {
 public:
 	GStore gstore;
 
-	DGraph(int sid, string dname, RdmaResource *rdma, Mem *mem)
-		: sid(sid), rdma(rdma), mem(mem), num_triples(global_num_servers),
-		  triple_spo(nthread_parallel_load), triple_ops(nthread_parallel_load),
-		  gstore(sid, rdma, mem) {
+	DGraph(int sid, Mem *mem, string dname): sid(sid), mem(mem), gstore(sid, mem) {
+		num_triples.resize(global_num_servers);
+		triple_spo.resize(nthread_parallel_load);
+		triple_ops.resize(nthread_parallel_load);
 
 		vector<string> files; // ID-format data files
 		if (boost::starts_with(dname, "hdfs:")) {

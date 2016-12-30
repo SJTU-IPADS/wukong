@@ -144,30 +144,31 @@ main(int argc, char *argv[])
 
 	// create RDMA communication
 #ifdef HAS_RDMA
-	RdmaResource *rdma_dev = new RdmaResource(global_num_servers, global_num_threads,
-	        sid, host_fname, mem->memory(), mem->memory_size());
-	rdma_dev->servicing();
-	rdma_dev->connect();
-	RDMA_Adaptor *rdma = new RDMA_Adaptor(sid, rdma_dev, mem);
+	RDMA &rdma = RDMA::get_rdma();
+	rdma.init_dev(global_num_servers, global_num_threads,
+	              sid, host_fname, mem->memory(), mem->memory_size());
+	rdma.dev->servicing();
+	rdma.dev->connect();
+
+	RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mem);
 #else
-	RdmaResource *rdma_dev = NULL;
-	RDMA_Adaptor *rdma = NULL;
+	RDMA_Adaptor *rdma_adaptor = NULL;
 #endif
 
 	// create TCP adaptor
-	TCP_Adaptor *tcp = new TCP_Adaptor(sid, host_fname);
+	TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname);
 
 	// load string server (read-only, shared by all proxies)
 	String_Server str_server(global_input_folder);
 
 	// load RDF graph (shared by all engines)
-	DGraph dgraph(sid, global_input_folder, rdma_dev, mem);
+	DGraph dgraph(sid, mem, global_input_folder);
 
 	// initiate proxy and engine threads
 	assert(global_num_threads == global_num_proxies + global_num_engines);
 	pthread_t *threads  = new pthread_t[global_num_threads];
 	for (int tid = 0; tid < global_num_threads; tid++) {
-		Adaptor *adaptor = new Adaptor(tid, tcp, rdma);
+		Adaptor *adaptor = new Adaptor(tid, tcp_adaptor, rdma_adaptor);
 		if (tid < global_num_proxies) {
 			Proxy *proxy = new Proxy(sid, tid, &str_server, adaptor);
 			pthread_create(&(threads[tid]), NULL, proxy_thread, (void *)proxy);

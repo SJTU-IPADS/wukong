@@ -211,7 +211,6 @@ private:
     static const int ASSOCIATIVITY = 8;  // the associativity of slots in each bucket
 
     uint64_t sid;
-    RdmaResource *rdma;
     Mem *mem;
 
     vertex_t *vertices;
@@ -307,7 +306,9 @@ done:
         while (true) {
             uint64_t off = bucket_id * ASSOCIATIVITY * sizeof(vertex_t);
             uint64_t sz = ASSOCIATIVITY * sizeof(vertex_t);
-            rdma->RdmaRead(tid, dst_sid, buf, sz, off);
+
+            RDMA &rdma = RDMA::get_rdma();
+            rdma.dev->RdmaRead(tid, dst_sid, buf, sz, off);
             vertex_t *verts = (vertex_t *)buf;
             for (uint64_t i = 0; i < ASSOCIATIVITY; i++) {
                 if (i < ASSOCIATIVITY - 1) {
@@ -361,7 +362,8 @@ done:
         char *buf = mem->buffer(tid);
         uint64_t off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
         uint64_t sz = v.ptr.size * sizeof(edge_t);
-        rdma->RdmaRead(tid, dst_sid, buf, sz, off);
+        RDMA &rdma = RDMA::get_rdma();
+        rdma.dev->RdmaRead(tid, dst_sid, buf, sz, off);
         edge_t *result_ptr = (edge_t *)buf;
 
         *size = v.ptr.size;
@@ -444,7 +446,7 @@ public:
     // GStore: key (main-header and indirect-header region) | value (entry region)
     // The key (head region) is a cluster chaining hash-table (with associativity)
     // The value (entry region) is a varying-size array
-    GStore(uint64_t sid, RdmaResource *rdma, Mem *mem): sid(sid), rdma(rdma), mem(mem) {
+    GStore(uint64_t sid, Mem *mem): sid(sid), mem(mem) {
         num_slots = global_num_keys_million * 1000 * 1000;
         num_buckets = (uint64_t)((num_slots / ASSOCIATIVITY) * MAIN_RATIO / 100);
         //num_buckets_ext = (num_slots / ASSOCIATIVITY) / (KEY_RATIO + 1);

@@ -76,24 +76,24 @@ public:
 
 	~Mem() { free(mem); }
 
-	char *memory() { return mem; }
-	uint64_t memory_size() { return mem_sz; }
+	inline char *memory() { return mem; }
+	inline uint64_t memory_size() { return mem_sz; }
 
 	// kvstore
-	char *kvstore() { return kvs; }
-	uint64_t kvstore_size() { return kvs_sz; }
-	uint64_t kvstore_offset() { return kvs_off; }
+	inline char *kvstore() { return kvs; }
+	inline uint64_t kvstore_size() { return kvs_sz; }
+	inline uint64_t kvstore_offset() { return kvs_off; }
 
 #ifdef HAS_RDMA
 	// buffer
-	char *buffer(int tid) { return buf + buf_sz * tid; }
-	uint64_t buffer_size() { return buf_sz; }
-	uint64_t buffer_offset(int tid) { return buf_off + buf_sz * tid; }
+	inline char *buffer(int tid) { return buf + buf_sz * tid; }
+	inline uint64_t buffer_size() { return buf_sz; }
+	inline uint64_t buffer_offset(int tid) { return buf_off + buf_sz * tid; }
 
 	// queue
-	char *queue(int tid) { return que + que_sz * tid; }
-	uint64_t queue_size() { return que_sz; }
-	uint64_t queue_offset(int tid) { return que_off + que_sz * tid; }
+	inline char *queue(int tid) { return que + que_sz * tid; }
+	inline uint64_t queue_size() { return que_sz; }
+	inline uint64_t queue_offset(int tid) { return que_off + que_sz * tid; }
 #endif
 
 }; // end of class Mem

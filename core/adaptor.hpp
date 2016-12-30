@@ -38,28 +38,39 @@ public:
     Adaptor(int tid, TCP_Adaptor *tcp, RDMA_Adaptor *rdma)
         : tid(tid), tcp(tcp), rdma(rdma) { }
 
-    ~Adaptor() {
-        delete tcp;
-        // currently, 'rdma' is showed by all threads, can not delete here
-    }
+    ~Adaptor() { }
 
     void send(int dst_sid, int dst_tid, request_or_reply &r) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
 
         oa << r;
-        if (global_use_rdma)
-            rdma->rbfSend(tid, dst_sid, dst_tid, ss.str().c_str(), ss.str().size());
-        else
+        if (global_use_rdma) {
+            if (!rdma) {
+                rdma->rbfSend(tid, dst_sid, dst_tid, ss.str().c_str(), ss.str().size());
+            } else {
+                cout << "ERORR: attempting to use RDMA adaptor, "
+                     << "but Wukong was built without RDMA."
+                     << endl;
+            }
+        } else {
             tcp->send(dst_sid, dst_tid, ss.str());
+        }
     }
 
     request_or_reply recv() {
         std::string str;
-        if (global_use_rdma)
-            str = rdma->rbfRecv(tid);
-        else
+        if (global_use_rdma) {
+            if (rdma != NULL) {
+                str = rdma->rbfRecv(tid);
+            } else {
+                cout << "ERORR: attempting to use RDMA adaptor, "
+                     << "but Wukong was built without RDMA."
+                     << endl;
+            }
+        } else {
             str = tcp->recv(tid);
+        }
 
         std::stringstream s;
         s << str;
@@ -73,11 +84,15 @@ public:
     bool tryrecv(request_or_reply &r) {
         std::string str;
         if (global_use_rdma) {
-            if (!rdma->rbfTryRecv(tid, str))
-                return false;
+            if (rdma != NULL) {
+                if (!rdma->rbfTryRecv(tid, str)) return false;
+            } else {
+                cout << "ERORR: attempting to use RDMA adaptor, "
+                     << "but Wukong was built without RDMA."
+                     << endl;
+            }
         } else {
-            if (!tcp->tryrecv(tid, str))
-                return false;
+            if (!tcp->tryrecv(tid, str)) return false;
         }
 
         std::stringstream s;

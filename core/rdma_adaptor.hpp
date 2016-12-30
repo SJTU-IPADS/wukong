@@ -51,7 +51,6 @@ private:
         int next_qid() { return (cnt++) % num_nodes; }
     };
 
-    RdmaResource *rdma;
     Mem *mem;
 
     int sid;
@@ -121,9 +120,8 @@ private:
 
 public:
 
-    RDMA_Adaptor(int sid, RdmaResource *rdma, Mem *mem)
-        : sid(sid), rdma(rdma), mem(mem),
-          num_nodes(global_num_servers), num_threads(global_num_threads) {
+    RDMA_Adaptor(int sid, Mem *mem)
+        : sid(sid), mem(mem), num_nodes(global_num_servers), num_threads(global_num_threads) {
 
         rdma_mem = mem->kvstore();
         rbf_size = floor(mem->queue_size() / num_nodes, 64);
@@ -175,16 +173,17 @@ public:
 
             /// TODO: check the overflow of physical queue
             assert(total_write_size < rbf_size);
+            RDMA &rdma = RDMA::get_rdma();
             if (tail / rbf_size == (tail + total_write_size - 1) / rbf_size ) {
                 uint64_t remote_msg_offset = remote_off + (tail % rbf_size);
-                rdma->RdmaWrite(local_tid, remote_mid, mem->buffer(local_tid), total_write_size, remote_msg_offset);
+                rdma.dev->RdmaWrite(local_tid, remote_mid, mem->buffer(local_tid), total_write_size, remote_msg_offset);
             } else {
                 uint64_t first = rbf_size - (tail % rbf_size);
                 uint64_t second = total_write_size - first;
                 uint64_t first_off = remote_off + (tail % rbf_size);
                 uint64_t second_off = remote_off;
-                rdma->RdmaWrite(local_tid, remote_mid, mem->buffer(local_tid), first, first_off);
-                rdma->RdmaWrite(local_tid, remote_mid, mem->buffer(local_tid) + first, second, second_off);
+                rdma.dev->RdmaWrite(local_tid, remote_mid, mem->buffer(local_tid), first, first_off);
+                rdma.dev->RdmaWrite(local_tid, remote_mid, mem->buffer(local_tid) + first, second, second_off);
             }
         }
     }
