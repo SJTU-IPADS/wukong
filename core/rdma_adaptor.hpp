@@ -52,6 +52,8 @@ private:
     };
 
     RdmaResource *rdma;
+    Mem *mem;
+
     int sid;
     int num_nodes;
     int num_threads;
@@ -119,11 +121,12 @@ private:
 
 public:
 
-    RDMA_Adaptor(int sid, RdmaResource *rdma)
-        : sid(sid), rdma(rdma), num_nodes(global_num_servers), num_threads(global_num_threads) {
+    RDMA_Adaptor(int sid, RdmaResource *rdma, Mem *mem)
+        : sid(sid), rdma(rdma), mem(mem),
+          num_nodes(global_num_servers), num_threads(global_num_threads) {
 
-        rdma_mem = rdma->kvstore();
-        rbf_size = floor(rdma->queue_size() / num_nodes, 64);
+        rdma_mem = mem->kvstore();
+        rbf_size = floor(mem->queue_size() / num_nodes, 64);
 
         schedulers.resize(num_threads, Scheduler(num_nodes));
 
@@ -142,7 +145,7 @@ public:
         // msg: header + string + footer (use str_size as header and footer)
         RemoteQueueMeta * meta = &RemoteMeta[remote_mid][remote_tid];
         meta->lock();
-        uint64_t remote_off = rdma->queue_offset(remote_tid) + sid * rbf_size;
+        uint64_t remote_off = mem->queue_offset(remote_tid) + sid * rbf_size;
         if (sid == remote_mid) {  // MT
             char *ptr = rdma_mem + remote_off;
             uint64_t tail = meta->remote_tail;
@@ -159,7 +162,7 @@ public:
         } else {
             uint64_t total_write_size = sizeof(uint64_t) * 2 + ceil(str_size, sizeof(uint64_t));
 
-            char* local_buffer = rdma->buffer(local_tid);
+            char* local_buffer = mem->buffer(local_tid);
             *((uint64_t*)local_buffer) = str_size;
             local_buffer += sizeof(uint64_t);
             memcpy(local_buffer, str_ptr, str_size);
@@ -174,21 +177,21 @@ public:
             assert(total_write_size < rbf_size);
             if (tail / rbf_size == (tail + total_write_size - 1) / rbf_size ) {
                 uint64_t remote_msg_offset = remote_off + (tail % rbf_size);
-                rdma->RdmaWrite(local_tid, remote_mid, rdma->buffer(local_tid), total_write_size, remote_msg_offset);
+                rdma->RdmaWrite(local_tid, remote_mid, mem->buffer(local_tid), total_write_size, remote_msg_offset);
             } else {
                 uint64_t first = rbf_size - (tail % rbf_size);
                 uint64_t second = total_write_size - first;
                 uint64_t first_off = remote_off + (tail % rbf_size);
                 uint64_t second_off = remote_off;
-                rdma->RdmaWrite(local_tid, remote_mid, rdma->buffer(local_tid), first, first_off);
-                rdma->RdmaWrite(local_tid, remote_mid, rdma->buffer(local_tid) + first, second, second_off);
+                rdma->RdmaWrite(local_tid, remote_mid, mem->buffer(local_tid), first, first_off);
+                rdma->RdmaWrite(local_tid, remote_mid, mem->buffer(local_tid) + first, second, second_off);
             }
         }
     }
 
     bool check_rbf_msg(int local_tid, int mid) {
         LocalQueueMeta *meta = &LocalMeta[local_tid][mid];
-        char *rbf_ptr = rdma_mem + rdma->queue_offset(local_tid) + mid * rbf_size;
+        char *rbf_ptr = rdma_mem + mem->queue_offset(local_tid) + mid * rbf_size;
 
         volatile uint64_t msg_size = *(volatile uint64_t *)(rbf_ptr + meta->local_tail % rbf_size);
         //uint64_t skip_size = sizeof(uint64_t) + ceil(msg_size, sizeof(uint64_t));
@@ -203,7 +206,7 @@ public:
 
     std::string fetch_rbf_msg(int local_tid, int mid) {
         LocalQueueMeta * meta = &LocalMeta[local_tid][mid];
-        char * rbf_ptr = rdma_mem + rdma->queue_offset(local_tid) + mid * rbf_size;
+        char * rbf_ptr = rdma_mem + mem->queue_offset(local_tid) + mid * rbf_size;
 
         volatile uint64_t msg_size = *(volatile uint64_t *)(rbf_ptr + meta->local_tail % rbf_size);
         uint64_t t1 = timer::get_usec();

@@ -633,11 +633,8 @@ class RdmaResource {
 
     struct QP **res;
 
-    char *rdma_mem;     // RDMA memory: kvstore | local_buffer | logical_queue
-    uint64_t mem_sz;    // mem_sz = kvs_sz + buf_sz * num_threads + queue_sz * num_threads
-    uint64_t kvs_sz;
-    uint64_t buf_sz;
-    uint64_t queue_sz;
+    char *mem;
+    uint64_t mem_sz;
 
     int rdmaOp(int dst_tid, int dst_nid, char *buf, uint64_t size,
                uint64_t off, ibv_wr_opcode op) {
@@ -698,7 +695,7 @@ class RdmaResource {
         dev_resources_init(dev0);
         dev_resources_init(dev1);
 
-        if (dev_resources_create(dev0, rdma_mem, mem_sz) ) {
+        if (dev_resources_create(dev0, mem, mem_sz) ) {
             cout << "ERROR: failed to create dev resources" << endl;
             assert(false);
         }
@@ -718,13 +715,10 @@ class RdmaResource {
     }
 
 public:
-    RdmaResource(int num_nodes, int num_threads, int node_id, string fname,
-                 char *rdma_mem, uint64_t mem_sz,
-                 uint64_t kvs_sz, uint64_t buf_sz, uint64_t queue_sz)
+    RdmaResource(int num_nodes, int num_threads, int node_id,
+                 string fname, char *mem, uint64_t mem_sz)
         : num_nodes(num_nodes), num_threads(num_threads), node_id(node_id),
-          rdma_mem(rdma_mem), mem_sz(mem_sz),
-          kvs_sz(kvs_sz), buf_sz(buf_sz), queue_sz(queue_sz) {
-
+          mem(mem), mem_sz(mem_sz) {
 
         // record IPs of ndoes
         ifstream hostfile(fname);
@@ -864,31 +858,14 @@ public:
             socket.send(reply);
         }
     }
-
-    // kvstore
-    inline  uint64_t kvstore_offset() { return 0; }
-    inline uint64_t kvstore_size() { return kvs_sz; }
-    inline char *kvstore() { return (char *)(rdma_mem + kvstore_offset()); }
-
-    // buffer
-    inline uint64_t buffer_offset(int tid) { return kvs_sz + buf_sz * tid; }
-    inline uint64_t buffer_size() { return buf_sz; }
-    inline char *buffer(int tid) { return (char *)(rdma_mem + buffer_offset(tid)); }
-
-    // queue
-    inline uint64_t queue_offset(int tid) { return kvs_sz + buf_sz * num_threads + queue_sz * tid; }
-    inline uint64_t queue_size() { return queue_sz; }
-    inline char *queue(int tid) { return (char *)(rdma_mem + queue_offset(tid)); }
-
 }; // end of class RdmaResource
 
 #else
 
 class RdmaResource {
 public:
-    RdmaResource(int num_nodes, int num_threads, int node_id, string fname,
-                 char *rdma_mem, uint64_t mem_sz,
-                 uint64_t kvs_sz, uint64_t buf_sz, uint64_t queue_sz) {
+    RdmaResource(int num_nodes, int num_threads, int node_id,
+                 string fname, char *mem, uint64_t mem_sz) {
         cout << "This system is compiled without RDMA support." << endl;
         assert(false);
     }

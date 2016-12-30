@@ -212,6 +212,7 @@ private:
 
     uint64_t sid;
     RdmaResource *rdma;
+    Mem *mem;
 
     vertex_t *vertices;
     edge_t *edges;
@@ -302,7 +303,7 @@ done:
         if (rdma_cache.lookup(key, vert))
             return vert; // found
 
-        char *buf = rdma->buffer(tid);
+        char *buf = mem->buffer(tid);
         while (true) {
             uint64_t off = bucket_id * ASSOCIATIVITY * sizeof(vertex_t);
             uint64_t sz = ASSOCIATIVITY * sizeof(vertex_t);
@@ -357,7 +358,7 @@ done:
             return NULL; // not found
         }
 
-        char *buf = rdma->buffer(tid);
+        char *buf = mem->buffer(tid);
         uint64_t off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
         uint64_t sz = v.ptr.size * sizeof(edge_t);
         rdma->RdmaRead(tid, dst_sid, buf, sz, off);
@@ -443,23 +444,23 @@ public:
     // GStore: key (main-header and indirect-header region) | value (entry region)
     // The key (head region) is a cluster chaining hash-table (with associativity)
     // The value (entry region) is a varying-size array
-    GStore(RdmaResource *rdma, uint64_t sid): rdma(rdma), sid(sid) {
+    GStore(uint64_t sid, RdmaResource *rdma, Mem *mem): sid(sid), rdma(rdma), mem(mem) {
         num_slots = global_num_keys_million * 1000 * 1000;
         num_buckets = (uint64_t)((num_slots / ASSOCIATIVITY) * MAIN_RATIO / 100);
         //num_buckets_ext = (num_slots / ASSOCIATIVITY) / (KEY_RATIO + 1);
         num_buckets_ext = (num_slots / ASSOCIATIVITY) - num_buckets;
 
-        vertices = (vertex_t *)(rdma->kvstore());
-        edges = (edge_t *)(rdma->kvstore() + num_slots * sizeof(vertex_t));
+        vertices = (vertex_t *)(mem->kvstore());
+        edges = (edge_t *)(mem->kvstore() + num_slots * sizeof(vertex_t));
 
-        if (rdma->kvstore_size() <= num_slots * sizeof(vertex_t)) {
+        if (mem->kvstore_size() <= num_slots * sizeof(vertex_t)) {
             cout << "ERROR: " << global_memstore_size_gb
                  << "GB memory store is not enough to store hash table with "
                  << global_num_keys_million << "M keys" << std::endl;
             assert(false);
         }
 
-        num_entries = (rdma->kvstore_size() - num_slots * sizeof(vertex_t)) / sizeof(edge_t);
+        num_entries = (mem->kvstore_size() - num_slots * sizeof(vertex_t)) / sizeof(edge_t);
         last_entry = 0;
 
         pthread_spin_init(&entry_lock, 0);

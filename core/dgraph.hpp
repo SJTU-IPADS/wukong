@@ -49,6 +49,7 @@ class DGraph {
 	int sid;
 
 	RdmaResource *rdma;
+	Mem *mem;
 
 	vector<uint64_t> num_triples;  // record #triples loaded from input data for each server
 
@@ -76,8 +77,8 @@ class DGraph {
 	void send_edge(int tid, int dst_sid, uint64_t s, uint64_t p, uint64_t o) {
 		// the RDMA buffer is first split into T partitions (T is the number of threads)
 		// each partition is further split into S pieces (S is the number of servers)
-		uint64_t buffer_sz = floor(rdma->buffer_size() / global_num_servers, sizeof(uint64_t));
-		uint64_t *buffer = (uint64_t *)(rdma->buffer(tid) + buffer_sz * dst_sid);
+		uint64_t buffer_sz = floor(mem->buffer_size() / global_num_servers, sizeof(uint64_t));
+		uint64_t *buffer = (uint64_t *)(mem->buffer(tid) + buffer_sz * dst_sid);
 
 		// the 1st uint64_t of buffer records #triples
 		uint64_t n = buffer[0];
@@ -96,15 +97,15 @@ class DGraph {
 	}
 
 	void flush_edges(int tid, int dst_sid) {
-		uint64_t buffer_sz = floor(rdma->buffer_size() / global_num_servers, sizeof(uint64_t));
-		uint64_t *buffer = (uint64_t *)(rdma->buffer(tid) + buffer_sz * dst_sid);
+		uint64_t buffer_sz = floor(mem->buffer_size() / global_num_servers, sizeof(uint64_t));
+		uint64_t *buffer = (uint64_t *)(mem->buffer(tid) + buffer_sz * dst_sid);
 
 		// the 1st uint64_t of buffer records #new-triples
 		uint64_t n = buffer[0];
 
 		// the kvstore is split into S pieces (S is the number of servers).
 		// hence, the kvstore can be directly RDMA write in parallel by all servers
-		uint64_t kvs_sz = floor(rdma->kvstore_size() / global_num_servers, sizeof(uint64_t));
+		uint64_t kvs_sz = floor(mem->kvstore_size() / global_num_servers, sizeof(uint64_t));
 
 		// serialize the RDMA WRITEs by multiple threads
 		uint64_t exist = __sync_fetch_and_add(&num_triples[dst_sid], n);
@@ -125,7 +126,7 @@ class DGraph {
 		if (dst_sid != sid)
 			rdma->RdmaWrite(tid, dst_sid, (char *)(buffer + 1), length, offset);
 		else
-			memcpy(rdma->kvstore() + offset, (char *)(buffer + 1), length);
+			memcpy(mem->kvstore() + offset, (char *)(buffer + 1), length);
 
 		buffer[0] = 0; // clear the buffer
 	}
@@ -187,15 +188,15 @@ class DGraph {
 		// exchange #triples among all servers
 		for (int s = 0; s < global_num_servers; s++) {
 
-			uint64_t *buffer = (uint64_t *)rdma->buffer(0);
+			uint64_t *buffer = (uint64_t *)mem->buffer(0);
 			buffer[0] = num_triples[s];
 
-			uint64_t kvs_sz = floor(rdma->kvstore_size() / global_num_servers, sizeof(uint64_t));
+			uint64_t kvs_sz = floor(mem->kvstore_size() / global_num_servers, sizeof(uint64_t));
 			uint64_t offset = kvs_sz * sid;
 			if (s != sid)
 				rdma->RdmaWrite(0, s, (char*)buffer, sizeof(uint64_t), offset);
 			else
-				memcpy(rdma->kvstore() + offset, (char*)buffer, sizeof(uint64_t));
+				memcpy(mem->kvstore() + offset, (char*)buffer, sizeof(uint64_t));
 		}
 		MPI_Barrier(MPI_COMM_WORLD);
 
@@ -214,9 +215,9 @@ class DGraph {
 		#pragma omp parallel for num_threads(global_num_engines)
 		for (int i = 0; i < num_files; i++) {
 			int localtid = omp_get_thread_num();
-			uint64_t max_size = floor(rdma->kvstore_size() / global_num_engines, sizeof(uint64_t));
+			uint64_t max_size = floor(mem->kvstore_size() / global_num_engines, sizeof(uint64_t));
 			uint64_t offset = max_size * localtid;
-			uint64_t *local_buffer = (uint64_t *)(rdma->kvstore() + offset);
+			uint64_t *local_buffer = (uint64_t *)(mem->kvstore() + offset);
 
 			// TODO: support HDFS
 			ifstream file(fnames[i].c_str());
@@ -248,9 +249,9 @@ class DGraph {
 
 		// calculate #triples on the kvstore from all servers
 		uint64_t total = 0;
-		uint64_t kvs_sz = floor(rdma->kvstore_size() / global_num_servers, sizeof(uint64_t));
+		uint64_t kvs_sz = floor(mem->kvstore_size() / global_num_servers, sizeof(uint64_t));
 		for (int id = 0; id < global_num_servers; id++) {
-			uint64_t *recv_buffer = (uint64_t *)(rdma->kvstore() + kvs_sz * id);
+			uint64_t *recv_buffer = (uint64_t *)(mem->kvstore() + kvs_sz * id);
 			total += recv_buffer[0];
 		}
 
@@ -268,7 +269,7 @@ class DGraph {
 		for (int tid = 0; tid < nthread_parallel_load; tid++) {
 			int pcnt = 0; // per thread count for print progress
 			for (int id = 0; id < global_num_servers; id++) {
-				uint64_t *kvs = (uint64_t*)(rdma->kvstore() + kvs_sz * id);
+				uint64_t *kvs = (uint64_t*)(mem->kvstore() + kvs_sz * id);
 				uint64_t n = kvs[0];
 				for (uint64_t i = 0; i < n; i++) {
 					uint64_t s = kvs[1 + i * 3 + 0];
@@ -322,12 +323,12 @@ class DGraph {
 public:
 	GStore gstore;
 
-	DGraph(string dname, int sid, RdmaResource *rdma)
-		: sid(sid), rdma(rdma), num_triples(global_num_servers),
+	DGraph(int sid, string dname, RdmaResource *rdma, Mem *mem)
+		: sid(sid), rdma(rdma), mem(mem), num_triples(global_num_servers),
 		  triple_spo(nthread_parallel_load), triple_ops(nthread_parallel_load),
-		  gstore(rdma, sid) {
-		vector<string> files; // ID-format data files
+		  gstore(sid, rdma, mem) {
 
+		vector<string> files; // ID-format data files
 		if (boost::starts_with(dname, "hdfs:")) {
 			if (!wukong::hdfs::has_hadoop()) {
 				cout << "ERROR: attempting to load data files from HDFS "
@@ -405,7 +406,7 @@ public:
 
 		gstore.insert_index();
 
-		cout << "Server#" << sid << ": loading DGraph is finished." << endl;
+		cout << "INFO#" << sid << ": loading DGraph is finished." << endl;
 		// gstore.print_mem_usage();
 	}
 

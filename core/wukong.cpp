@@ -25,6 +25,7 @@
 #include <iostream>
 
 #include "config.hpp"
+#include "mem.hpp"
 #include "string_server.hpp"
 #include "dgraph.hpp"
 #include "engine.hpp"
@@ -32,7 +33,7 @@
 #include "console.hpp"
 #include "monitor.hpp"
 #include "rdma_resource.hpp"
-#include "rdma_adaptor.hpp"
+#include "adaptor.hpp"
 
 #include "unit.hpp"
 
@@ -137,29 +138,17 @@ main(int argc, char *argv[])
 	// load global configuration setting
 	load_config(world.size());
 
-	// calculate memory usage
-	uint64_t kvs_sz = GiB2B(global_memstore_size_gb);
-	uint64_t rbuf_sz_per_thread = MiB2B(global_perslot_rdma_mb);
-	uint64_t msg_sz_per_thread = MiB2B(global_perslot_msg_mb);
-
-	// rdma_mem = kvstore + read_buffer + logical_queue
-	uint64_t mem_sz = kvs_sz
-	                  + rbuf_sz_per_thread * global_num_threads
-	                  + msg_sz_per_thread * global_num_threads;
-	cout << "INFO: RDMA memory usage (per server): " << B2GiB(mem_sz) << "GB" << endl;
-
-	// create an RDMA registed memory
-	char *rdma_mem = (char *)malloc(mem_sz);
-	memset(rdma_mem, 0, mem_sz);
+	// allocate memory
+	Mem *mem = new Mem(global_num_threads);
+	cout << "INFO#" << sid << ": allocate " << B2GiB(mem->memory_size()) << "GB memory" << endl;
 
 	// create RDMA communication
 #ifdef HAS_RDMA
 	RdmaResource *rdma_dev = new RdmaResource(global_num_servers, global_num_threads,
-	        sid, host_fname, rdma_mem, mem_sz,
-	        kvs_sz, rbuf_sz_per_thread, msg_sz_per_thread);
+	        sid, host_fname, mem->memory(), mem->memory_size());
 	rdma_dev->servicing();
 	rdma_dev->connect();
-	RDMA_Adaptor *rdma = new RDMA_Adaptor(sid, rdma_dev);
+	RDMA_Adaptor *rdma = new RDMA_Adaptor(sid, rdma_dev, mem);
 #else
 	RdmaResource *rdma_dev = NULL;
 	RDMA_Adaptor *rdma = NULL;
@@ -172,7 +161,7 @@ main(int argc, char *argv[])
 	String_Server str_server(global_input_folder);
 
 	// load RDF graph (shared by all engines)
-	DGraph dgraph(global_input_folder, sid, rdma_dev);
+	DGraph dgraph(sid, global_input_folder, rdma_dev, mem);
 
 	// initiate proxy and engine threads
 	assert(global_num_threads == global_num_proxies + global_num_engines);
@@ -200,7 +189,5 @@ main(int argc, char *argv[])
 	}
 
 	/// TODO: exit gracefully (properly call MPI_Init() and MPI_Finalize(), delete all objects)
-	delete rdma_dev;
-
 	return 0;
 }
