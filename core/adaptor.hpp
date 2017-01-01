@@ -32,10 +32,10 @@ class Adaptor {
 public:
     int tid; // thread id
 
-    TCP_Adaptor *tcp;   // communicaiton by TCP/IP
-    RDMA_Adaptor *rdma; // communicaiton by RDMA
+    TCP_Adaptor *tcp = NULL;   // communicaiton by TCP/IP
+    RDMA_Adaptor *rdma = NULL; // communicaiton by RDMA
 
-    Adaptor(int tid, TCP_Adaptor *tcp, RDMA_Adaptor *rdma)
+    Adaptor(int tid, TCP_Adaptor *tcp = NULL, RDMA_Adaptor *rdma = NULL)
         : tid(tid), tcp(tcp), rdma(rdma) { }
 
     ~Adaptor() { }
@@ -46,7 +46,7 @@ public:
 
         oa << r;
         if (global_use_rdma) {
-            if (!rdma) {
+            if (rdma) {
                 rdma->rbfSend(tid, dst_sid, dst_tid, ss.str().c_str(), ss.str().size());
             } else {
                 cout << "ERORR: attempting to use RDMA adaptor, "
@@ -61,7 +61,7 @@ public:
     request_or_reply recv() {
         std::string str;
         if (global_use_rdma) {
-            if (rdma != NULL) {
+            if (rdma) {
                 str = rdma->rbfRecv(tid);
             } else {
                 cout << "ERORR: attempting to use RDMA adaptor, "
@@ -84,7 +84,7 @@ public:
     bool tryrecv(request_or_reply &r) {
         std::string str;
         if (global_use_rdma) {
-            if (rdma != NULL) {
+            if (rdma) {
                 if (!rdma->rbfTryRecv(tid, str)) return false;
             } else {
                 cout << "ERORR: attempting to use RDMA adaptor, "
