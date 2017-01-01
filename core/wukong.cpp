@@ -144,16 +144,13 @@ main(int argc, char *argv[])
 
 	// create RDMA communication
 #ifdef HAS_RDMA
-	RDMA &rdma = RDMA::get_rdma();
-	rdma.init_dev(global_num_servers, global_num_threads,
-	              sid, host_fname, mem->memory(), mem->memory_size());
-	rdma.dev->servicing();
-	rdma.dev->connect();
-
-	RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mem);
-#else
-	RDMA_Adaptor *rdma_adaptor = NULL;
+	RDMA_init(global_num_servers, global_num_threads,
+	          sid, mem->memory(), mem->memory_size(), host_fname);
 #endif
+
+	RDMA_Adaptor *rdma_adaptor = NULL;
+	if (RDMA::get_rdma().has_rdma())
+		rdma_adaptor = new RDMA_Adaptor(sid, mem, global_num_servers, global_num_threads);
 
 	// create TCP adaptor
 	TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname);

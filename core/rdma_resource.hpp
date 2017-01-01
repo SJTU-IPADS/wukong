@@ -131,7 +131,7 @@ static void dev_resources_init(struct dev_resource *res) {
     memset(res, 0, sizeof * res);
 }
 
-static int dev_resources_create(struct dev_resource *res, char* buf, uint64_t size) {
+static int dev_resources_create(struct dev_resource *res, char *buf, uint64_t size) {
     struct ibv_device **dev_list = NULL;
     struct ibv_qp_init_attr qp_init_attr;
     struct ibv_device *ib_dev = NULL;
@@ -269,7 +269,7 @@ dev_resources_create_exit:
 }
 
 static void QP_init(struct QP *res) {
-    memset (res, 0, sizeof * res);
+    memset(res, 0, sizeof * res);
 }
 
 static int QP_create(struct QP *res, struct dev_resource *dev) {
@@ -368,8 +368,7 @@ static int modify_qp_to_init(struct ibv_qp *qp) {
     return rc;
 }
 
-static int modify_qp_to_rtr(struct ibv_qp *qp, uint32_t remote_qpn,
-                            uint16_t dlid, uint8_t * dgid) {
+static int modify_qp_to_rtr(struct ibv_qp *qp, uint32_t remote_qpn, uint16_t dlid, uint8_t * dgid) {
     struct ibv_qp_attr attr;
     int flags;
     int rc;
@@ -482,8 +481,7 @@ connect_qp_exit:
     return rc;
 }
 
-static int post_send(struct QP *res, ibv_wr_opcode opcode, char *local_buf,
-                     size_t size, size_t remote_offset, bool signal) {
+static int post_send(struct QP *res, ibv_wr_opcode opcode, char *local_buf, size_t size, size_t remote_offset, bool signal) {
     struct ibv_send_wr sr;
     struct ibv_sge sge;
     struct ibv_send_wr *bad_wr = NULL;
@@ -613,7 +611,7 @@ static int batch_poll_completion(struct QP *res, int total) {
     return poll_result;
 }
 
-static inline uint64_t internal_rdtsc(void) {
+static inline uint64_t internal_rdtsc() {
     uint32_t hi, lo;
     __asm volatile("rdtsc" : "=a"(lo), "=d"(hi));
     return ((uint64_t)lo) | (((uint64_t)hi) << 32);
@@ -626,16 +624,15 @@ class RDMA {
         int num_nodes;
         int num_threads;
         int node_id;
+        char *mem;
+        uint64_t mem_sz;
+
+        vector<string> ipset;
 
         struct dev_resource *dev0; //for remote usage
         struct dev_resource *dev1; //for local usage
 
-        vector<string> ipset;
-
         struct QP **res;
-
-        char *mem;
-        uint64_t mem_sz;
 
         int rdmaOp(int dst_tid, int dst_nid, char *buf, uint64_t size,
                    uint64_t off, ibv_wr_opcode op) {
@@ -717,14 +714,14 @@ class RDMA {
 
     public:
         RDMA_Device(int num_nodes, int num_threads, int node_id,
-                    string fname, char *mem, uint64_t mem_sz)
+                    char *mem, uint64_t mem_sz, string ipfn)
             : num_nodes(num_nodes), num_threads(num_threads), node_id(node_id),
               mem(mem), mem_sz(mem_sz) {
 
             // record IPs of ndoes
-            ifstream hostfile(fname);
+            ifstream ipfile(ipfn);
             string ip;
-            while (hostfile >> ip)
+            while (ipfile >> ip)
                 ipset.push_back(ip);
 
             init();
@@ -866,8 +863,8 @@ public:
     ~RDMA() { if (dev != NULL) delete dev; }
 
     void init_dev(int num_nodes, int num_threads, int node_id,
-                  string fname, char *mem, uint64_t mem_sz) {
-        dev = new RDMA_Device(num_nodes, num_threads, node_id, fname, mem, mem_sz);
+                  char *mem, uint64_t mem_sz, string ipfn) {
+        dev = new RDMA_Device(num_nodes, num_threads, node_id, mem, mem_sz, ipfn);
     }
 
     inline static bool has_rdma() { return true; }
@@ -877,6 +874,19 @@ public:
         return rdma;
     }
 }; // end of clase RDMA
+
+void RDMA_init(int num_nodes, int num_threads, int node_id, char *mem, uint64_t mem_sz, string ipfn) {
+    RDMA &rdma = RDMA::get_rdma();
+
+    // init RDMA device
+    rdma.init_dev(num_nodes, num_threads, node_id, mem, mem_sz, ipfn);
+
+    // start a service thread
+    rdma.dev->servicing();
+
+    // connect to other nodes
+    rdma.dev->connect();
+}
 
 #else
 
@@ -993,7 +1003,7 @@ public:
     ~RDMA() { }
 
     void init_dev(int num_nodes, int num_threads, int node_id,
-                  string fname, char *mem, uint64_t mem_sz) {
+                  char *mem, uint64_t mem_sz, string ipfn) {
         std::cout << "This system is compiled without RDMA support."
                   << std::endl;
     }
@@ -1006,5 +1016,11 @@ public:
     }
 
 };
+
+void RDMA_init(int num_nodes, int num_threads, int node_id,
+               char *mem, uint64_t mem_sz, string ipfn) {
+    std::cout << "This system is compiled without RDMA support."
+              << std::endl;
+}
 
 #endif
