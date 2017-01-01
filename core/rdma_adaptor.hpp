@@ -84,15 +84,10 @@ private:
             remote_tail = 0;
             pthread_spin_init(&remote_lock, 0);
         }
-        void lock() {
-            pthread_spin_lock(&remote_lock);
-        }
-        bool trylock() {
-            return pthread_spin_trylock(&remote_lock);
-        }
-        void unlock() {
-            pthread_spin_unlock(&remote_lock);
-        }
+
+        void lock() { pthread_spin_lock(&remote_lock); }
+        void unlock() { pthread_spin_unlock(&remote_lock); }
+        bool trylock() { return pthread_spin_trylock(&remote_lock); }
     };
 
     struct LocalQueueMeta {
@@ -104,15 +99,10 @@ private:
             local_tail = 0;
             pthread_spin_init(&local_lock, 0);
         }
-        void lock() {
-            pthread_spin_lock(&local_lock);
-        }
-        bool trylock() {
-            return pthread_spin_trylock(&local_lock);
-        }
-        void unlock() {
-            pthread_spin_unlock(&local_lock);
-        }
+
+        void lock() { pthread_spin_lock(&local_lock); }
+        void unlock() { pthread_spin_unlock(&local_lock); }
+        bool trylock() { return pthread_spin_trylock(&local_lock); }
     };
 
     std::vector<std::vector<RemoteQueueMeta>> RemoteMeta; // RemoteMeta[0..m-1][0..t-1]
@@ -124,7 +114,7 @@ public:
         : sid(sid), mem(mem), num_nodes(num_nodes), num_threads(num_threads) {
 
         rdma_mem = mem->kvstore();
-        rbf_size = floor(mem->queue_size() / num_nodes, 64);
+        rbf_size = floor(mem->queue_size() / num_nodes, sizeof(uint64_t));
 
         schedulers.resize(num_threads, Scheduler(num_nodes));
 
@@ -139,33 +129,33 @@ public:
 
     ~RDMA_Adaptor() { }
 
-    void rbfSend(int local_tid, int remote_mid, int remote_tid, const char * str_ptr, uint64_t str_size) {
-        // msg: header + string + footer (use str_size as header and footer)
-        RemoteQueueMeta * meta = &RemoteMeta[remote_mid][remote_tid];
+    void send(int local_tid, int remote_mid, int remote_tid, const char *start, uint64_t size) {
+        // msg: header + string + footer (use size as header and footer)
+        RemoteQueueMeta *meta = &RemoteMeta[remote_mid][remote_tid];
         meta->lock();
         uint64_t remote_off = mem->queue_offset(remote_tid) + sid * rbf_size;
         if (sid == remote_mid) {  // MT
             char *ptr = rdma_mem + remote_off;
             uint64_t tail = meta->remote_tail;
-            (meta->remote_tail) += sizeof(uint64_t) * 2 + ceil(str_size, sizeof(uint64_t));
+            (meta->remote_tail) += sizeof(uint64_t) * 2 + ceil(size, sizeof(uint64_t));
             meta->unlock();
 
             // write msg to physical queue
-            *((uint64_t*)(ptr + (tail) % rbf_size)) = str_size;
+            *((uint64_t*)(ptr + (tail) % rbf_size)) = size;
             tail += sizeof(uint64_t);
-            for (uint64_t i = 0; i < str_size; i++)
-                *(ptr + (tail + i) % rbf_size) = str_ptr[i];
-            tail += ceil(str_size, sizeof(uint64_t));
-            *((uint64_t*)(ptr + (tail) % rbf_size)) = str_size;
+            for (uint64_t i = 0; i < size; i++)
+                *(ptr + (tail + i) % rbf_size) = start[i];
+            tail += ceil(size, sizeof(uint64_t));
+            *((uint64_t*)(ptr + (tail) % rbf_size)) = size;
         } else {
-            uint64_t total_write_size = sizeof(uint64_t) * 2 + ceil(str_size, sizeof(uint64_t));
+            uint64_t total_write_size = sizeof(uint64_t) * 2 + ceil(size, sizeof(uint64_t));
 
             char* local_buffer = mem->buffer(local_tid);
-            *((uint64_t*)local_buffer) = str_size;
+            *((uint64_t*)local_buffer) = size;
             local_buffer += sizeof(uint64_t);
-            memcpy(local_buffer, str_ptr, str_size);
-            local_buffer += ceil(str_size, sizeof(uint64_t));
-            *((uint64_t*)local_buffer) = str_size;
+            memcpy(local_buffer, start, size);
+            local_buffer += ceil(size, sizeof(uint64_t));
+            *((uint64_t*)local_buffer) = size;
 
             uint64_t tail = meta->remote_tail;
             meta->remote_tail = meta->remote_tail + total_write_size;
@@ -255,7 +245,7 @@ public:
         return result;
     }
 
-    std::string rbfRecv(int tid) {
+    std::string recv(int tid) {
         while (true) {
             // NOTE: a logical queue = (N-1) * physical queue
             // check the queues for other nodes in round robin
@@ -265,13 +255,14 @@ public:
         }
     }
 
-    bool rbfTryRecv(int tid, std::string &msg) {
+    bool tryrecv(int tid, std::string &msg) {
         for (int nid = 0; nid < num_nodes; nid++) {
             if (check_rbf_msg(tid, nid)) {
                 msg = fetch_rbf_msg(tid, nid);
                 return true;
             }
         }
+
         return false;
     }
 };

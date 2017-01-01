@@ -47,7 +47,7 @@ public:
         oa << r;
         if (global_use_rdma) {
             if (rdma) {
-                rdma->rbfSend(tid, dst_sid, dst_tid, ss.str().c_str(), ss.str().size());
+                rdma->send(tid, dst_sid, dst_tid, ss.str().c_str(), ss.str().size());
             } else {
                 cout << "ERORR: attempting to use RDMA adaptor, "
                      << "but Wukong was built without RDMA."
@@ -62,7 +62,7 @@ public:
         std::string str;
         if (global_use_rdma) {
             if (rdma) {
-                str = rdma->rbfRecv(tid);
+                str = rdma->recv(tid);
             } else {
                 cout << "ERORR: attempting to use RDMA adaptor, "
                      << "but Wukong was built without RDMA."
@@ -85,7 +85,7 @@ public:
         std::string str;
         if (global_use_rdma) {
             if (rdma) {
-                if (!rdma->rbfTryRecv(tid, str)) return false;
+                if (!rdma->tryrecv(tid, str)) return false;
             } else {
                 cout << "ERORR: attempting to use RDMA adaptor, "
                      << "but Wukong was built without RDMA."

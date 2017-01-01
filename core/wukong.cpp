@@ -142,12 +142,13 @@ main(int argc, char *argv[])
 	Mem *mem = new Mem(global_num_threads);
 	cout << "INFO#" << sid << ": allocate " << B2GiB(mem->memory_size()) << "GB memory" << endl;
 
-	// create RDMA communication
+	// init RDMA devices and connections
 #ifdef HAS_RDMA
 	RDMA_init(global_num_servers, global_num_threads,
 	          sid, mem->memory(), mem->memory_size(), host_fname);
 #endif
 
+	// create RDMA adaptor
 	RDMA_Adaptor *rdma_adaptor = NULL;
 	if (RDMA::get_rdma().has_rdma())
 		rdma_adaptor = new RDMA_Adaptor(sid, mem, global_num_servers, global_num_threads);
