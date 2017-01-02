@@ -50,8 +50,7 @@ private:
     // the X physical-queue (ring-buffer) is written by the responding threads
     // (proxies and engine with the same "tid") on the X server.
     //
-    // the access mode is N writers (from the same server) and 1 reader.
-
+    // access mode of physical queue is N writers (from the same server) and 1 reader.
     struct rbf_rmeta_t {
         uint64_t tail; // write from here
         pthread_spinlock_t lock;
