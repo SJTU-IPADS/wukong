@@ -139,7 +139,7 @@ main(int argc, char *argv[])
 	load_config(world.size());
 
 	// allocate memory
-	Mem *mem = new Mem(global_num_threads);
+	Mem *mem = new Mem(global_num_servers, global_num_threads);
 	cout << "INFO#" << sid << ": allocate " << B2GiB(mem->memory_size()) << "GB memory" << endl;
 
 	// init RDMA devices and connections

@@ -28,8 +28,11 @@ using namespace std;
 
 class Mem {
 private:
-	// The Wukong's memory layout: kvstore | buffer | queue
-	// The buffer and queue are only used by RDMA communication
+	int num_servers;
+	int num_threads;
+
+	// The Wukong's memory layout: kvstore | rdma-buffer | ring-buffer
+	// The rdma-buffer and ring-buffer are only used when HAS_RDMA
 	char *mem;
 	uint64_t mem_sz;
 
@@ -38,26 +41,28 @@ private:
 	uint64_t kvs_off;
 
 #ifdef HAS_RDMA
-	char *buf;
+	char *buf; // #threads
 	uint64_t buf_sz;
 	uint64_t buf_off;
 
-	char *que;
-	uint64_t que_sz;
-	uint64_t que_off;
+	char *rbf; // #thread x #servers
+	uint64_t rbf_sz;
+	uint64_t rbf_off;
 #endif
 
 public:
-	Mem(int num_threads) {
+	Mem(int num_servers, int num_threads)
+		: num_servers(num_servers), num_threads(num_threads) {
+
 		// calculate memory usage
 		kvs_sz = GiB2B(global_memstore_size_gb);
 #ifdef HAS_RDMA
 		buf_sz = MiB2B(global_perslot_rdma_mb);
-		que_sz = MiB2B(global_perslot_msg_mb);
+		rbf_sz = MiB2B(global_rbf_size_mb);
 #endif
 
 #ifdef HAS_RDMA
-		mem_sz = kvs_sz + buf_sz * num_threads + que_sz * num_threads;
+		mem_sz = kvs_sz + buf_sz * num_threads + rbf_sz * num_servers * num_threads;
 #else
 		mem_sz = kvs_sz;
 #endif
@@ -69,8 +74,8 @@ public:
 #ifdef HAS_RDMA
 		buf_off = kvs_off + kvs_sz;
 		buf = mem + buf_off;
-		que_off = buf_off + buf_sz * num_threads;
-		que = mem + que_off;
+		rbf_off = buf_off + buf_sz * num_threads;
+		rbf = mem + rbf_off;
 #endif
 	}
 
@@ -90,10 +95,10 @@ public:
 	inline uint64_t buffer_size() { return buf_sz; }
 	inline uint64_t buffer_offset(int tid) { return buf_off + buf_sz * tid; }
 
-	// queue
-	inline char *queue(int tid) { return que + que_sz * tid; }
-	inline uint64_t queue_size() { return que_sz; }
-	inline uint64_t queue_offset(int tid) { return que_off + que_sz * tid; }
+	// ring-buffer
+	inline char *ring(int tid, int sid) { return rbf + (rbf_sz * num_servers) * tid + rbf_sz * sid; }
+	inline uint64_t ring_size() { return rbf_sz; }
+	inline uint64_t ring_offset(int tid, int sid) { return rbf_off + (rbf_sz * num_servers) * tid + rbf_sz * sid; }
 #endif
 
 }; // end of class Mem

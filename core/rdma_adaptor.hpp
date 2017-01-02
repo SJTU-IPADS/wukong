@@ -35,22 +35,13 @@
 
 using namespace std;
 
+#define WK_CLINE 64
+
 /**
  * The communication over RDMA-based logical queue
  */
 class RDMA_Adaptor {
 private:
-    // 1 logical queue = 1 client-queue + N-1 server-queues
-    class Scheduler {
-        int num_nodes;
-        uint64_t cnt; // round robin checking
-
-    public:
-        Scheduler(int num_nodes): num_nodes(num_nodes), cnt(0) { }
-
-        int next_qid() { return (cnt++) % num_nodes; }
-    };
-
     Mem *mem;
 
     int sid;
@@ -60,7 +51,32 @@ private:
     char *rdma_mem;
     uint64_t rbf_size;  // split a logical-queue into num_servers physical queues
 
+    // 1 logical queue = 1 client-queue + N-1 server-queues
+    class Scheduler {
+        int num_nodes;
+        uint64_t cnt; // round-robin checking
+
+    public:
+        Scheduler(int num_nodes): num_nodes(num_nodes), cnt(0) { }
+
+        int next_qid() { return (cnt++) % num_nodes; }
+    };
+
     vector<Scheduler> schedulers;
+
+    struct rbf_rmeta_t {
+        uint64_t tail; // write from here
+        pthread_spinlock_t lock;
+    } __attribute__ ((aligned (WK_CLINE)));
+
+    struct rbf_lmeta_t {
+        uint64_t head; // read from here
+        pthread_spinlock_t lock;
+    } __attribute__ ((aligned (WK_CLINE)));
+
+    rbf_rmeta_t *remote_meta;
+    rbf_lmeta_t *local_meta;
+
 
     uint64_t inline floor(uint64_t original, uint64_t n) {
         assert(n != 0);
@@ -74,71 +90,46 @@ private:
         return original - original % n + n;
     }
 
-    // used to send message to remote queue
-    struct RemoteQueueMeta {
-        uint64_t remote_tail; // directly write to remote_tail of remote machine
-        pthread_spinlock_t remote_lock;
-        char padding1[64];
-
-        RemoteQueueMeta() {
-            remote_tail = 0;
-            pthread_spin_init(&remote_lock, 0);
-        }
-
-        void lock() { pthread_spin_lock(&remote_lock); }
-        void unlock() { pthread_spin_unlock(&remote_lock); }
-        bool trylock() { return pthread_spin_trylock(&remote_lock); }
-    };
-
-    struct LocalQueueMeta {
-        uint64_t local_tail; // recv from here
-        pthread_spinlock_t local_lock;
-        char padding1[64];
-
-        LocalQueueMeta() {
-            local_tail = 0;
-            pthread_spin_init(&local_lock, 0);
-        }
-
-        void lock() { pthread_spin_lock(&local_lock); }
-        void unlock() { pthread_spin_unlock(&local_lock); }
-        bool trylock() { return pthread_spin_trylock(&local_lock); }
-    };
-
-    std::vector<std::vector<RemoteQueueMeta>> RemoteMeta; // RemoteMeta[0..m-1][0..t-1]
-    std::vector<std::vector<LocalQueueMeta>> LocalMeta;  // LocalMeta[0..t-1][0..m-1]
-
 public:
-
     RDMA_Adaptor(int sid, Mem *mem, int num_nodes, int num_threads)
         : sid(sid), mem(mem), num_nodes(num_nodes), num_threads(num_threads) {
 
         rdma_mem = mem->kvstore();
-        rbf_size = floor(mem->queue_size() / num_nodes, sizeof(uint64_t));
+        rbf_size = mem->ring_size();
 
         schedulers.resize(num_threads, Scheduler(num_nodes));
 
-        RemoteMeta.resize(num_nodes);
-        for (int i = 0; i < RemoteMeta.size(); i++)
-            RemoteMeta[i].resize(num_threads);
+        // init the metadata of remote and local ring-buffers
+        int num = num_nodes * num_threads;
 
-        LocalMeta.resize(num_threads);
-        for (int i = 0; i < LocalMeta.size(); i++)
-            LocalMeta[i].resize(num_nodes);
+        remote_meta = (rbf_rmeta_t *)malloc(sizeof(rbf_rmeta_t) * num);
+        memset(remote_meta, 0, sizeof(rbf_rmeta_t) * num);
+        for (int i = 0; i < num; i++) {
+            remote_meta[i].tail = 0;
+            pthread_spin_init(&remote_meta[i].lock, 0);
+        }
+
+        local_meta = (rbf_lmeta_t *)malloc(sizeof(rbf_lmeta_t) * num);
+        memset(local_meta, 0, sizeof(rbf_lmeta_t) * num);
+        for (int i = 0; i < num; i++) {
+            local_meta[i].head = 0;
+            pthread_spin_init(&local_meta[i].lock, 0);
+        }
     }
 
     ~RDMA_Adaptor() { }
 
     void send(int local_tid, int remote_mid, int remote_tid, const char *start, uint64_t size) {
         // msg: header + string + footer (use size as header and footer)
-        RemoteQueueMeta *meta = &RemoteMeta[remote_mid][remote_tid];
-        meta->lock();
-        uint64_t remote_off = mem->queue_offset(remote_tid) + sid * rbf_size;
+        rbf_rmeta_t *rmeta = &remote_meta[remote_mid * num_threads + remote_tid];
+
+        pthread_spin_lock(&rmeta->lock);
+        uint64_t remote_off = mem->ring_offset(remote_tid, sid);
         if (sid == remote_mid) {  // MT
             char *ptr = rdma_mem + remote_off;
-            uint64_t tail = meta->remote_tail;
-            (meta->remote_tail) += sizeof(uint64_t) * 2 + ceil(size, sizeof(uint64_t));
-            meta->unlock();
+            uint64_t tail = rmeta->tail;
+            rmeta->tail += sizeof(uint64_t) * 2 + ceil(size, sizeof(uint64_t));
+            pthread_spin_unlock(&rmeta->lock);
 
             // write msg to physical queue
             *((uint64_t*)(ptr + (tail) % rbf_size)) = size;
@@ -157,9 +148,9 @@ public:
             local_buffer += ceil(size, sizeof(uint64_t));
             *((uint64_t*)local_buffer) = size;
 
-            uint64_t tail = meta->remote_tail;
-            meta->remote_tail = meta->remote_tail + total_write_size;
-            meta->unlock();
+            uint64_t tail = rmeta->tail;
+            rmeta->tail += total_write_size;
+            pthread_spin_unlock(&rmeta->lock);
 
             /// TODO: check the overflow of physical queue
             assert(total_write_size < rbf_size);
@@ -179,12 +170,12 @@ public:
     }
 
     bool check_rbf_msg(int local_tid, int mid) {
-        LocalQueueMeta *meta = &LocalMeta[local_tid][mid];
-        char *rbf_ptr = rdma_mem + mem->queue_offset(local_tid) + mid * rbf_size;
+        rbf_lmeta_t *lmeta = &local_meta[local_tid * num_nodes + mid];
+        char *rbf_ptr = rdma_mem + mem->ring_offset(local_tid, mid);
 
-        volatile uint64_t msg_size = *(volatile uint64_t *)(rbf_ptr + meta->local_tail % rbf_size);
+        volatile uint64_t msg_size = *(volatile uint64_t *)(rbf_ptr + lmeta->head % rbf_size);
         //uint64_t skip_size = sizeof(uint64_t) + ceil(msg_size, sizeof(uint64_t));
-        //volatile uint64_t * msg_end_ptr=(uint64_t*)(rbf_ptr+ (meta->local_tail+skip_size)%rbf_size);
+        //volatile uint64_t * msg_end_ptr=(uint64_t*)(rbf_ptr+ (lmeta->head+skip_size)%rbf_size);
         //   wait for longer time
         //   if(msg_size==0 || *msg_end_ptr !=msg_size){
         //       return false;
@@ -194,16 +185,16 @@ public:
     }
 
     std::string fetch_rbf_msg(int local_tid, int mid) {
-        LocalQueueMeta * meta = &LocalMeta[local_tid][mid];
-        char * rbf_ptr = rdma_mem + mem->queue_offset(local_tid) + mid * rbf_size;
+        rbf_lmeta_t *lmeta = &local_meta[local_tid * num_nodes + mid];
+        char * rbf_ptr = rdma_mem + mem->ring_offset(local_tid, mid);
 
-        volatile uint64_t msg_size = *(volatile uint64_t *)(rbf_ptr + meta->local_tail % rbf_size);
+        volatile uint64_t msg_size = *(volatile uint64_t *)(rbf_ptr + lmeta->head % rbf_size);
         uint64_t t1 = timer::get_usec();
         //clear head
-        *(uint64_t *)(rbf_ptr + meta->local_tail % rbf_size) = 0;
+        *(uint64_t *)(rbf_ptr + lmeta->head % rbf_size) = 0;
 
         uint64_t skip_size = sizeof(uint64_t) + ceil(msg_size, sizeof(uint64_t));
-        volatile uint64_t * msg_end_ptr = (volatile uint64_t *)(rbf_ptr + (meta->local_tail + skip_size) % rbf_size);
+        volatile uint64_t * msg_end_ptr = (volatile uint64_t *)(rbf_ptr + (lmeta->head + skip_size) % rbf_size);
         while (*msg_end_ptr != msg_size) {
             //timer::cpu_relax(10);
             uint64_t tmp = *msg_end_ptr;
@@ -215,13 +206,13 @@ public:
         //clear tail
         *msg_end_ptr = 0;
         uint64_t t2 = timer::get_usec();
-        //copy from (meta->local_tail+sizeof(uint64_t) , meta->local_tail+sizeof(uint64_t)+ msg_size )
+        //copy from (lmeta->head+sizeof(uint64_t) , lmeta->head+sizeof(uint64_t)+ msg_size )
         //      or
         std::string result;
         result.reserve(msg_size);
         {
-            size_t msg_head = (meta->local_tail + sizeof(uint64_t)) % rbf_size;
-            size_t msg_tail = (meta->local_tail + sizeof(uint64_t) + msg_size) % rbf_size;
+            size_t msg_head = (lmeta->head + sizeof(uint64_t)) % rbf_size;
+            size_t msg_tail = (lmeta->head + sizeof(uint64_t) + msg_size) % rbf_size;
             if (msg_head < msg_tail) {
                 result.append(rbf_ptr + msg_head, msg_size);
                 memset(rbf_ptr + msg_head, 0, ceil(msg_size, sizeof(uint64_t)));
@@ -233,14 +224,14 @@ public:
             }
         }
         //   for(uint64_t i=0;i<ceil(msg_size,sizeof(uint64_t));i++){
-        //     char * tmp=rbf_ptr+(meta->local_tail+sizeof(uint64_t)+i)%rbf_size;
+        //     char * tmp=rbf_ptr+(lmeta->head+sizeof(uint64_t)+i)%rbf_size;
         //     if(i<msg_size)
         //       result.push_back(*tmp);
         //     //clear data
         //     *tmp=0;
         //   }
 
-        meta->local_tail += 2 * sizeof(uint64_t) + ceil(msg_size, sizeof(uint64_t));
+        lmeta->head += 2 * sizeof(uint64_t) + ceil(msg_size, sizeof(uint64_t));
         uint64_t t3 = timer::get_usec();
         return result;
     }

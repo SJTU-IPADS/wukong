@@ -46,8 +46,8 @@ int global_eth_port_base = 5500;
 int global_rdma_port_base = 9576;
 
 int global_memstore_size_gb = 20;
-int global_perslot_msg_mb = 256;
 int global_perslot_rdma_mb = 128;
+int global_rbf_size_mb = 32;
 int global_num_keys_million = 1000;
 
 bool global_use_rdma = true;
@@ -79,7 +79,7 @@ void show_config(void)
 	cout << "global_eth_port_base: " 		<< global_eth_port_base				<< endl;
 	cout << "global_rdma_port_base: " 		<< global_rdma_port_base			<< endl;
 	cout << "global_memstore_size_gb: " 	<< global_memstore_size_gb			<< endl;
-	cout << "global_perslot_msg_mb: " 		<< global_perslot_msg_mb   			<< endl;
+	cout << "global_rbf_size_mb: " 			<< global_rbf_size_mb   			<< endl;
 	cout << "global_perslot_rdma_mb: " 		<< global_perslot_rdma_mb			<< endl;
 	cout << "global_num_keys_million: " 	<< global_num_keys_million			<< endl;
 	cout << "global_use_rdma: " 			<< global_use_rdma					<< endl;
@@ -179,8 +179,8 @@ void load_config(int num_servers)
 			global_rdma_port_base = atoi(entry.second.c_str());
 		else if (entry.first == "global_memstore_size_gb")
 			global_memstore_size_gb = atoi(entry.second.c_str());
-		else if (entry.first == "global_perslot_msg_mb")
-			global_perslot_msg_mb = atoi(entry.second.c_str());
+		else if (entry.first == "global_rbf_size_mb")
+			global_rbf_size_mb = atoi(entry.second.c_str());
 		else if (entry.first == "global_perslot_rdma_mb")
 			global_perslot_rdma_mb = atoi(entry.second.c_str());
 		else if (entry.first == "global_num_keys_million")
@@ -211,7 +211,7 @@ void load_config(int num_servers)
 	assert(global_num_engines > 0);
 	assert(global_num_proxies > 0);
 	assert(global_memstore_size_gb > 0);
-	assert(global_perslot_msg_mb > 0);
+	assert(global_rbf_size_mb > 0);
 	assert(global_perslot_rdma_mb > 0);
 	assert(global_mt_threshold > 0);
 

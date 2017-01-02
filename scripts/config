@@ -5,8 +5,8 @@ global_load_minimal_index	1
 global_eth_port_base		5500
 global_rdma_port_base		9576
 global_memstore_size_gb		20
-global_perslot_msg_mb		256
 global_perslot_rdma_mb		128
+global_rbf_size_mb			32
 global_num_keys_million		1000
 global_use_rdma				1
 global_rdma_threshold		300

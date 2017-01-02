@@ -936,60 +936,6 @@ class RDMA {
             assert(false);
             return 0;
         }
-
-        inline  uint64_t kvstore_offset() {
-            cout << "This system is compiled without RDMA support." << endl;
-            assert(false);
-            return 0;
-        }
-
-        inline uint64_t kvstore_size() {
-            cout << "This system is compiled without RDMA support." << endl;
-            assert(false);
-            return 0;
-        }
-
-        inline char *kvstore() {
-            cout << "This system is compiled without RDMA support." << endl;
-            assert(false);
-            return NULL;
-        }
-
-        inline uint64_t buffer_offset() {
-            cout << "This system is compiled without RDMA support." << endl;
-            assert(false);
-            return 0;
-        }
-
-        inline uint64_t buffer_size() {
-            cout << "This system is compiled without RDMA support." << endl;
-            assert(false);
-            return 0;
-        }
-
-        inline char *buffer(int tid) {
-            cout << "This system is compiled without RDMA support." << endl;
-            assert(false);
-            return NULL;
-        }
-
-        inline uint64_t queue_offset() {
-            cout << "This system is compiled without RDMA support." << endl;
-            assert(false);
-            return 0;
-        }
-
-        inline uint64_t queue_size() {
-            cout << "This system is compiled without RDMA support." << endl;
-            assert(false);
-            return 0;
-        }
-
-        inline char *queue(int tid) {
-            cout << "This system is compiled without RDMA support." << endl;
-            assert(false);
-            return NULL;
-        }
     }; // end of class RdmaResource
 
 public:
