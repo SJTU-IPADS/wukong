@@ -47,7 +47,7 @@ public:
         oa << r;
         if (global_use_rdma) {
             if (rdma) {
-                rdma->send(tid, dst_sid, dst_tid, ss.str().c_str(), ss.str().size());
+                rdma->send(tid, dst_sid, dst_tid, ss.str());
             } else {
                 cout << "ERORR: attempting to use RDMA adaptor, "
                      << "but Wukong was built without RDMA."
@@ -72,10 +72,10 @@ public:
             str = tcp->recv(tid);
         }
 
-        std::stringstream s;
-        s << str;
+        std::stringstream ss;
+        ss << str;
 
-        boost::archive::binary_iarchive ia(s);
+        boost::archive::binary_iarchive ia(ss);
         request_or_reply r;
         ia >> r;
         return r;
@@ -95,10 +95,10 @@ public:
             if (!tcp->tryrecv(tid, str)) return false;
         }
 
-        std::stringstream s;
-        s << str;
+        std::stringstream ss;
+        ss << str;
 
-        boost::archive::binary_iarchive ia(s);
+        boost::archive::binary_iarchive ia(ss);
         ia >> r;
         return true;
     }
@@ -116,10 +116,10 @@ public:
         std::string str;
         str = tcp->recv(tid);
 
-        std::stringstream s;
-        s << str;
+        std::stringstream ss;
+        ss << str;
 
-        boost::archive::binary_iarchive ia(s);
+        boost::archive::binary_iarchive ia(ss);
         T r;
         ia >> r;
         return r;
