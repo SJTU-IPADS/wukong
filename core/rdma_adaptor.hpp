@@ -168,7 +168,10 @@ public:
 
         // msg: header + data + footer (use data_sz as header and footer)
         uint64_t msg_sz = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
-        assert(msg_sz < rbf_sz); /// TODO: check the overflow of physical queue (tail >= head + rbf_sz)
+
+        assert(msg_sz < rbf_sz);
+        /// TODO: check overwriting (i.e., (tail + msg_sz) % rbf_sz >= head)
+        /// maintain a stale header for each remote ring buffer, and update it when may occur overwriting
 
         pthread_spin_lock(&rmeta->lock);
         if (sid == dst_sid) { // local physical-queue

@@ -47,7 +47,6 @@ class DGraph {
 	static const int nthread_parallel_load = 16;
 
 	int sid;
-
 	Mem *mem;
 
 	vector<uint64_t> num_triples;  // record #triples loaded from input data for each server
@@ -71,38 +70,38 @@ class DGraph {
 		triples.resize(n);
 	}
 
-	// NOTE: send_edge can be safely called by multiple threads, since the buffer
-	//       is exclusively used by one thread.
+	// send_edge can be safely called by multiple threads,
+	// since the buffer is exclusively used by one thread.
 	void send_edge(int tid, int dst_sid, uint64_t s, uint64_t p, uint64_t o) {
-		// the RDMA buffer is first split into T partitions (T is the number of threads)
-		// each partition is further split into S pieces (S is the number of servers)
-		uint64_t buffer_sz = floor(mem->buffer_size() / global_num_servers, sizeof(uint64_t));
-		uint64_t *buffer = (uint64_t *)(mem->buffer(tid) + buffer_sz * dst_sid);
+		// the RDMA buffer is first split into #threads partitions
+		// each partition is further split into #servers pieces
+		uint64_t buf_sz = floor(mem->buffer_size() / global_num_servers, sizeof(uint64_t));
+		uint64_t *buf = (uint64_t *)(mem->buffer(tid) + buf_sz * dst_sid);
 
 		// the 1st uint64_t of buffer records #triples
-		uint64_t n = buffer[0];
+		uint64_t n = buf[0];
 
 		// flush buffer if there is no enough space to buffer a new triple
-		if ((1 + n * 3 + 3) * sizeof(uint64_t) > buffer_sz) {
+		if ((1 + n * 3 + 3) * sizeof(uint64_t) > buf_sz) {
 			flush_edges(tid, dst_sid);
-			n = buffer[0]; // reset, it should be 0
+			n = buf[0]; // reset, it should be 0
 		}
 
 		// buffer the triple and update the counter
-		buffer[1 + n * 3 + 0] = s;
-		buffer[1 + n * 3 + 1] = p;
-		buffer[1 + n * 3 + 2] = o;
-		buffer[0] = n + 1;
+		buf[1 + n * 3 + 0] = s;
+		buf[1 + n * 3 + 1] = p;
+		buf[1 + n * 3 + 2] = o;
+		buf[0] = n + 1;
 	}
 
 	void flush_edges(int tid, int dst_sid) {
-		uint64_t buffer_sz = floor(mem->buffer_size() / global_num_servers, sizeof(uint64_t));
-		uint64_t *buffer = (uint64_t *)(mem->buffer(tid) + buffer_sz * dst_sid);
+		uint64_t buf_sz = floor(mem->buffer_size() / global_num_servers, sizeof(uint64_t));
+		uint64_t *buf = (uint64_t *)(mem->buffer(tid) + buf_sz * dst_sid);
 
 		// the 1st uint64_t of buffer records #new-triples
-		uint64_t n = buffer[0];
+		uint64_t n = buf[0];
 
-		// the kvstore is split into S pieces (S is the number of servers).
+		// the kvstore is temporally split into #servers pieces.
 		// hence, the kvstore can be directly RDMA write in parallel by all servers
 		uint64_t kvs_sz = floor(mem->kvstore_size() / global_num_servers, sizeof(uint64_t));
 
@@ -118,29 +117,29 @@ class DGraph {
 		}
 
 		// send triples and clear the buffer
-		uint64_t offset = kvs_sz * sid
-		                  + 1 * sizeof(uint64_t)          // reserve the 1st uint64_t as #triples
-		                  + exist * 3 * sizeof(uint64_t); // skip #exist-triples
-		uint64_t length = n * 3 * sizeof(uint64_t);       // send #new-triples
+		uint64_t off = kvs_sz * sid
+		               + sizeof(uint64_t)          // reserve the 1st uint64_t as #triples
+		               + exist * 3 * sizeof(uint64_t); // skip #exist-triples
+		uint64_t sz = n * 3 * sizeof(uint64_t);       // send #new-triples
 		if (dst_sid != sid) {
 			RDMA &rdma = RDMA::get_rdma();
-			rdma.dev->RdmaWrite(tid, dst_sid, (char *)(buffer + 1), length, offset);
+			rdma.dev->RdmaWrite(tid, dst_sid, (char *)(buf + 1), sz, off);
 		} else {
-			memcpy(mem->kvstore() + offset, (char *)(buffer + 1), length);
+			memcpy(mem->kvstore() + off, (char *)(buf + 1), sz);
 		}
 
-		buffer[0] = 0; // clear the buffer
+		// clear the buffer
+		buf[0] = 0;
 	}
 
-	void load_data(vector<string>& fnames) {
+	int load_data(vector<string>& fnames) {
 		uint64_t t1 = timer::get_usec();
-
-		int num_files = fnames.size();
 
 		// ensure the file name list has the same order on all servers
 		sort(fnames.begin(), fnames.end());
 
 		// load input data and assign to different severs in parallel
+		int num_files = fnames.size();
 		#pragma omp parallel for num_threads(global_num_engines)
 		for (int i = 0; i < num_files; i++) {
 			int localtid = omp_get_thread_num();
@@ -188,17 +187,16 @@ class DGraph {
 
 		// exchange #triples among all servers
 		for (int s = 0; s < global_num_servers; s++) {
-
-			uint64_t *buffer = (uint64_t *)mem->buffer(0);
-			buffer[0] = num_triples[s];
+			uint64_t *buf = (uint64_t *)mem->buffer(0);
+			buf[0] = num_triples[s];
 
 			uint64_t kvs_sz = floor(mem->kvstore_size() / global_num_servers, sizeof(uint64_t));
 			uint64_t offset = kvs_sz * sid;
 			if (s != sid) {
 				RDMA &rdma = RDMA::get_rdma();
-				rdma.dev->RdmaWrite(0, s, (char*)buffer, sizeof(uint64_t), offset);
+				rdma.dev->RdmaWrite(0, s, (char*)buf, sizeof(uint64_t), offset);
 			} else {
-				memcpy(mem->kvstore() + offset, (char*)buffer, sizeof(uint64_t));
+				memcpy(mem->kvstore() + offset, (char*)buf, sizeof(uint64_t));
 			}
 		}
 		MPI_Barrier(MPI_COMM_WORLD);
@@ -206,56 +204,63 @@ class DGraph {
 		// timing
 		uint64_t t2 = timer::get_usec();
 		cout << (t2 - t1) / 1000 << " ms for loading RDF data files" << endl;
+
+		return global_num_servers;
 	}
 
 	// selectively load own partitioned data from all files
-	void load_data_from_allfiles(vector<string> &fnames) {
+	int load_data_from_allfiles(vector<string> &fnames) {
 		uint64_t t1 = timer::get_usec();
 
 		sort(fnames.begin(), fnames.end());
-		int num_files = fnames.size();
 
+		int num_files = fnames.size();
 		#pragma omp parallel for num_threads(global_num_engines)
 		for (int i = 0; i < num_files; i++) {
 			int localtid = omp_get_thread_num();
-			uint64_t max_size = floor(mem->kvstore_size() / global_num_engines, sizeof(uint64_t));
-			uint64_t offset = max_size * localtid;
-			uint64_t *local_buffer = (uint64_t *)(mem->kvstore() + offset);
+			uint64_t kvs_sz = floor(mem->kvstore_size() / global_num_engines, sizeof(uint64_t));
+			uint64_t *kvs = (uint64_t *)(mem->kvstore() + kvs_sz * localtid);
+
+			// the 1st uint64_t of kvs records #triples
+			uint64_t n = kvs[0];
 
 			// TODO: support HDFS
 			ifstream file(fnames[i].c_str());
 			uint64_t s, p, o;
 			while (file >> s >> p >> o) {
-				int s_mid = mymath::hash_mod(s, global_num_servers);
-				int o_mid = mymath::hash_mod(o, global_num_servers);
-				if (s_mid == sid || o_mid == sid) {
-					*(local_buffer + (*local_buffer) * 3 + 1) = s;
-					*(local_buffer + (*local_buffer) * 3 + 2) = p;
-					*(local_buffer + (*local_buffer) * 3 + 3) = o;
-					*local_buffer = *local_buffer + 1;
-					if ((*local_buffer + 1) * 3 * sizeof(uint64_t) >= max_size) {
-						cout << "[fail to execute load_data_from_allfiles] Out of memory" << endl;
-						exit(-1);
-					}
+				int s_sid = mymath::hash_mod(s, global_num_servers);
+				int o_sid = mymath::hash_mod(o, global_num_servers);
+				if ((s_sid == sid) || (o_sid == sid)) {
+					assert((1 + n * 3 + 3) * sizeof(uint64_t) <= kvs_sz);
+
+					// buffer the triple and update the counter
+					kvs[1 + n * 3 + 0] = s;
+					kvs[1 + n * 3 + 1] = p;
+					kvs[1 + n * 3 + 2] = o;
+					n++;
 				}
 			}
 			file.close();
+
+			kvs[0] = n;
 		}
 
 		// timing
 		uint64_t t2 = timer::get_usec();
-		cout << (t2 - t1) / 1000 << " ms for loading RDF data files" << endl;
+		cout << (t2 - t1) / 1000 << " ms for loading RDF data files (w/o networking)" << endl;
+
+		return global_num_engines;
 	}
 
-	void aggregate_data() {
+	void aggregate_data(int num_partitions) {
 		uint64_t t1 = timer::get_usec();
 
 		// calculate #triples on the kvstore from all servers
 		uint64_t total = 0;
-		uint64_t kvs_sz = floor(mem->kvstore_size() / global_num_servers, sizeof(uint64_t));
-		for (int id = 0; id < global_num_servers; id++) {
-			uint64_t *recv_buffer = (uint64_t *)(mem->kvstore() + kvs_sz * id);
-			total += recv_buffer[0];
+		uint64_t kvs_sz = floor(mem->kvstore_size() / num_partitions, sizeof(uint64_t));
+		for (int id = 0; id < num_partitions; id++) {
+			uint64_t *kvs = (uint64_t *)(mem->kvstore() + kvs_sz * id);
+			total += kvs[0];
 		}
 
 		// pre-expand to avoid frequent reallocation (maybe imbalance)
@@ -264,14 +269,14 @@ class DGraph {
 			triple_ops[i].reserve(total / nthread_parallel_load);
 		}
 
-		/* each thread will scan all triples (from all servers) and pickup certain triples.
-		   It ensures that the triples belong to the same vertex will be stored in the same
-		   triple_spo/ops. This will simplify the deduplication and insertion to gstore. */
+		// each thread will scan all triples (from all servers) and pickup certain triples.
+		// It ensures that the triples belong to the same vertex will be stored in the same
+		// triple_spo/ops. This will simplify the deduplication and insertion to gstore.
 		volatile int progress = 0;
 		#pragma omp parallel for num_threads(nthread_parallel_load)
 		for (int tid = 0; tid < nthread_parallel_load; tid++) {
 			int pcnt = 0; // per thread count for print progress
-			for (int id = 0; id < global_num_servers; id++) {
+			for (int id = 0; id < num_partitions; id++) {
 				uint64_t *kvs = (uint64_t*)(mem->kvstore() + kvs_sz * id);
 				uint64_t n = kvs[0];
 				for (uint64_t i = 0; i < n; i++) {
@@ -326,7 +331,9 @@ class DGraph {
 public:
 	GStore gstore;
 
-	DGraph(int sid, Mem *mem, string dname): sid(sid), mem(mem), gstore(sid, mem) {
+	DGraph(int sid, Mem *mem, string dname)
+		: sid(sid), mem(mem), gstore(sid, mem) {
+
 		num_triples.resize(global_num_servers);
 		triple_spo.resize(nthread_parallel_load);
 		triple_ops.resize(nthread_parallel_load);
@@ -357,7 +364,7 @@ public:
 					continue;
 
 				string fname(dname + ent->d_name);
-				// Assume the filenames of RDF data files (ID-format) start with 'id_'.
+				// Assume the fnames of RDF data files (ID-format) start with 'id_'.
 				/// TODO: move RDF data files and metadata files to different directories
 				if (boost::starts_with(fname, dname + "id_"))
 					files.push_back(fname);
@@ -370,30 +377,29 @@ public:
 			assert(false);
 		}
 
-		/**
-		 * load_data: load partial input files by each server and exchanges triples
-		 *            according to graph partitioning
-		 * load_data_from_allfiles: load all files by each server and select triples
-		 *                          according to graph partitioning
-		 *
-		 * Trade-off: load_data_from_allfiles avoids network traffic and memory,
-		 *            but it requires more I/O from distributed FS.
-		 *
-		 * Wukong adopts load_data_from_allfiles for slow network (w/o RDMA) and
-		 *        adopts load_data for fast network (w/ RDMA).
-		 *
-		 * Tips: the buffer (registered memory) can be reused for further primitives for RDMA
-		 */
+		// load_data: load partial input files by each server and exchanges triples
+		//            according to graph partitioning
+		// load_data_from_allfiles: load all files by each server and select triples
+		//                          according to graph partitioning
+		//
+		// Trade-off: load_data_from_allfiles avoids network traffic and memory,
+		//            but it requires more I/O from distributed FS.
+		//
+		// Wukong adopts load_data_from_allfiles for slow network (w/o RDMA) and
+		//        adopts load_data for fast network (w/ RDMA).
+		int num_partitons = 0;
+#ifdef HAS_RDMA
 		if (global_use_rdma)
-			load_data(files);
+			num_partitons = load_data(files);
 		else
-			load_data_from_allfiles(files);
+#endif
+			num_partitons = load_data_from_allfiles(files);
 
-		/**
-		 * all triples are temporarily stored in kvstore.
-		 * aggregate, sort and dedup the triples before inserting to gstore (kvstore)
-		 */
-		aggregate_data();
+		// all triples are partitioned and temporarily stored in the kvstore on each server.
+		// the kvstore is split into num_partitions partitions, each contains #triples and triples
+		//
+		// Wukong aggregates, sorts and dedups all triples before finally inserting them to gstore (kvstore)
+		aggregate_data(num_partitons);
 
 		// initiate gstore (kvstore) after loading and exchanging triples
 		gstore.init();

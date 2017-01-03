@@ -77,6 +77,7 @@ public:
 		rbf_off = buf_off + buf_sz * num_threads;
 		rbf = mem + rbf_off;
 #endif
+
 	}
 
 	~Mem() { free(mem); }
