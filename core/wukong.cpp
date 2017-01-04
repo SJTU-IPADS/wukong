@@ -148,13 +148,12 @@ main(int argc, char *argv[])
 	          sid, mem->memory(), mem->memory_size(), host_fname);
 #endif
 
-	// create RDMA adaptor
+	// init data communication
 	RDMA_Adaptor *rdma_adaptor = NULL;
 	if (RDMA::get_rdma().has_rdma())
 		rdma_adaptor = new RDMA_Adaptor(sid, mem, global_num_servers, global_num_threads);
 
-	// create TCP adaptor
-	TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_num_threads);
+	TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_num_threads, global_data_port_base);
 
 	// load string server (read-only, shared by all proxies)
 	String_Server str_server(global_input_folder);
@@ -162,7 +161,10 @@ main(int argc, char *argv[])
 	// load RDF graph (shared by all engines)
 	DGraph dgraph(sid, mem, global_input_folder);
 
-	// initiate proxy and engine threads
+	// init control communicaiton
+	con_adaptor = new TCP_Adaptor(sid, host_fname, global_num_proxies, global_ctrl_port_base);
+
+	// launch proxy and engine threads
 	assert(global_num_threads == global_num_proxies + global_num_engines);
 	pthread_t *threads  = new pthread_t[global_num_threads];
 	for (int tid = 0; tid < global_num_threads; tid++) {

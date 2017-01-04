@@ -620,6 +620,7 @@ static inline uint64_t internal_rdtsc() {
 class RDMA {
     class RDMA_Device {
         const static uint64_t BATCH_FACTOR = 32;
+        const static int SERVICE_PORT_BASE = 19975;
 
         int num_nodes;
         int num_threads;
@@ -741,7 +742,7 @@ class RDMA {
                 zmq::context_t context(1);
                 zmq::socket_t socket(context, ZMQ_REQ);
 
-                int port = global_rdma_port_base + id;
+                int port = SERVICE_PORT_BASE + id;
                 char address[32] = "";
                 snprintf(address, 32, "tcp://%s:%d", ip_of(id).c_str(), port);
                 socket.connect(address);
@@ -832,7 +833,7 @@ class RDMA {
             zmq::context_t context(1);
             zmq::socket_t socket(context, ZMQ_REP);
 
-            int port = global_rdma_port_base + dev->node_id;
+            int port = SERVICE_PORT_BASE + dev->node_id;
             char address[32] = "";
             snprintf(address, 32, "tcp://%s:%d", dev->ip_of(dev->node_id).c_str(), port);
             socket.bind(address);

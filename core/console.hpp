@@ -24,14 +24,41 @@
 
 #include <iostream>
 #include <string>
-#include <boost/unordered_map.hpp>
 #include <set>
+#include <boost/unordered_map.hpp>
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
 
 #include "config.hpp"
 #include "proxy.hpp"
 #include "logger.hpp"
 
 using namespace std;
+
+// communicate between proxy threads
+TCP_Adaptor *con_adaptor;
+
+template<typename T>
+static void console_send(int sid, int tid, T &r) {
+	std::stringstream ss;
+	boost::archive::binary_oarchive oa(ss);
+	oa << r;
+	con_adaptor->send(sid, tid, ss.str());
+}
+
+template<typename T>
+static T console_recv(int tid) {
+	std::string str;
+	str = con_adaptor->recv(tid);
+
+	std::stringstream ss;
+	ss << str;
+
+	boost::archive::binary_iarchive ia(ss);
+	T r;
+	ia >> r;
+	return r;
+}
 
 static void console_barrier(int tid)
 {
@@ -110,12 +137,12 @@ next:
 				for (int j = 0; j < global_num_proxies; j++) {
 					if (i == 0 && j == 0)
 						continue ;
-					proxy->adaptor->send_object<string>(i, j, cmd);
+					console_send<string>(i, j, cmd);
 				}
 			}
 		} else {
 			// recieve commands
-			cmd = proxy->adaptor->recv_object<string>();
+			cmd = console_recv<string>(proxy->tid);
 		}
 
 		// process on all consoles
@@ -198,14 +225,14 @@ next:
 					// print a statistic of runtime for the batch processing on all servers
 					if (IS_MASTER(proxy)) {
 						for (int i = 0; i < global_num_servers * global_num_proxies - 1; i++) {
-							Logger other = proxy->adaptor->recv_object<Logger>();
+							Logger other = console_recv<Logger>(proxy->tid);
 							logger.merge(other);
 						}
 						logger.print_rdf();
 						logger.print_thpt();
 					} else {
 						// send logs to the master proxy
-						proxy->adaptor->send_object<Logger>(0, 0, logger);
+						console_send<Logger>(0, 0, logger);
 					}
 				}
 

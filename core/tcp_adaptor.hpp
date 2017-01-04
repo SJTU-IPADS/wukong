@@ -45,6 +45,7 @@ class TCP_Adaptor {
 private:
     typedef tbb::concurrent_unordered_map<int, zmq::socket_t *> tbb_unordered_map;
 
+    int port_base;
     zmq::context_t context;
 
     vector<zmq::socket_t *> receivers;  // exclusive
@@ -58,7 +59,7 @@ private:
 
 public:
 
-    TCP_Adaptor(int sid, string fname, int num_threads): context(1) {
+    TCP_Adaptor(int sid, string fname, int num_threads, int port_base): port_base(port_base), context(1) {
         ifstream hostfile(fname);
         string ip;
         while (hostfile >> ip)
@@ -68,7 +69,7 @@ public:
         for (int tid = 0; tid < global_num_threads; tid++) {
             receivers[tid] = new zmq::socket_t(context, ZMQ_PULL);
             char address[32] = "";
-            snprintf(address, 32, "tcp://*:%d", global_eth_port_base + port_code(sid, tid));
+            snprintf(address, 32, "tcp://*:%d", port_base + port_code(sid, tid));
             receivers[tid]->bind(address);
         }
 
@@ -99,7 +100,7 @@ public:
         if (senders.find(pid) == senders.end()) {
             senders[pid] = new zmq::socket_t(context, ZMQ_PUSH);
             char address[32] = "";
-            snprintf(address, 32, "tcp://%s:%d", ipset[sid].c_str(), global_eth_port_base + pid);
+            snprintf(address, 32, "tcp://%s:%d", ipset[sid].c_str(), port_base + pid);
             senders[pid]->connect(address);
         }
 

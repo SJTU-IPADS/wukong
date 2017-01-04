@@ -42,8 +42,8 @@ int global_num_proxies = 1;    // the number of proxies
 string global_input_folder;
 bool global_load_minimal_index = true;
 
-int global_eth_port_base = 5500;
-int global_rdma_port_base = 9576;
+int global_data_port_base = 5500;
+int global_ctrl_port_base = 9576;
 
 int global_memstore_size_gb = 20;
 int global_perslot_rdma_mb = 128;
@@ -76,8 +76,8 @@ void show_config(void)
 	cout << "the number of proxies: "		<< global_num_proxies				<< endl;
 	cout << "global_input_folder: " 		<< global_input_folder				<< endl;
 	cout << "global_load_minimal_index: " 	<< global_load_minimal_index 		<< endl;
-	cout << "global_eth_port_base: " 		<< global_eth_port_base				<< endl;
-	cout << "global_rdma_port_base: " 		<< global_rdma_port_base			<< endl;
+	cout << "global_data_port_base: " 		<< global_data_port_base			<< endl;
+	cout << "global_ctrl_port_base: " 		<< global_ctrl_port_base			<< endl;
 	cout << "global_memstore_size_gb: " 	<< global_memstore_size_gb			<< endl;
 	cout << "global_rbf_size_mb: " 			<< global_rbf_size_mb   			<< endl;
 	cout << "global_perslot_rdma_mb: " 		<< global_perslot_rdma_mb			<< endl;
@@ -173,10 +173,10 @@ void load_config(int num_servers)
 			global_input_folder = entry.second;
 		else if (entry.first == "global_load_minimal_index")
 			global_load_minimal_index = atoi(entry.second.c_str());
-		else if (entry.first == "global_eth_port_base")
-			global_eth_port_base = atoi(entry.second.c_str());
-		else if (entry.first == "global_rdma_port_base")
-			global_rdma_port_base = atoi(entry.second.c_str());
+		else if (entry.first == "global_data_port_base")
+			global_data_port_base = atoi(entry.second.c_str());
+		else if (entry.first == "global_ctrl_port_base")
+			global_ctrl_port_base = atoi(entry.second.c_str());
 		else if (entry.first == "global_memstore_size_gb")
 			global_memstore_size_gb = atoi(entry.second.c_str());
 		else if (entry.first == "global_rbf_size_mb")

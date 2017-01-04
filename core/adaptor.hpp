@@ -105,26 +105,4 @@ public:
         ia >> r;
         return true;
     }
-
-    template<typename T>
-    void send_object(int dst_sid, int dst_tid, T &r) {
-        std::stringstream ss;
-        boost::archive::binary_oarchive oa(ss);
-        oa << r;
-        tcp->send(dst_sid, dst_tid, ss.str());
-    }
-
-    template<typename T>
-    T recv_object() {
-        std::string str;
-        str = tcp->recv(tid);
-
-        std::stringstream ss;
-        ss << str;
-
-        boost::archive::binary_iarchive ia(ss);
-        T r;
-        ia >> r;
-        return r;
-    }
 };
