@@ -57,8 +57,8 @@ public:
 		// calculate memory usage
 		kvs_sz = GiB2B(global_memstore_size_gb);
 #ifdef HAS_RDMA
-		buf_sz = MiB2B(global_perslot_rdma_mb);
-		rbf_sz = MiB2B(global_rbf_size_mb);
+		buf_sz = MiB2B(global_rdma_buf_size_mb);
+		rbf_sz = MiB2B(global_rdma_rbf_size_mb);
 #endif
 
 #ifdef HAS_RDMA
