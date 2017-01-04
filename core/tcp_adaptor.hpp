@@ -23,13 +23,16 @@
 #pragma once
 
 #include <zmq.hpp>
-#include <string>
-#include <iostream>
 #include <unistd.h>
-#include <unordered_map>
-#include <fstream>
+#include <string.h>
 #include <errno.h>
+#include <pthread.h>
+#include <iostream>
+#include <unordered_map>
+#include <string>
+#include <fstream>
 #include <sstream>
+#include <tbb/concurrent_unordered_map.h>
 
 #include "config.hpp"
 
@@ -40,10 +43,14 @@ using namespace std;
  */
 class TCP_Adaptor {
 private:
+    typedef tbb::concurrent_unordered_map<int, zmq::socket_t *> tbb_unordered_map;
+
     zmq::context_t context;
 
-    vector<zmq::socket_t *> receivers;
-    unordered_map<int, zmq::socket_t *> senders;
+    vector<zmq::socket_t *> receivers;  // exclusive
+    tbb_unordered_map senders;          // shared
+
+    pthread_spinlock_t *locks;
 
     vector<string> ipset;
 
@@ -51,7 +58,7 @@ private:
 
 public:
 
-    TCP_Adaptor(int sid, string fname): context(1) {
+    TCP_Adaptor(int sid, string fname, int num_threads): context(1) {
         ifstream hostfile(fname);
         string ip;
         while (hostfile >> ip)
@@ -64,6 +71,10 @@ public:
             snprintf(address, 32, "tcp://*:%d", global_eth_port_base + port_code(sid, tid));
             receivers[tid]->bind(address);
         }
+
+        locks = (pthread_spinlock_t *)malloc(sizeof(pthread_spinlock_t) * num_threads);
+        for (int i = 0; i < num_threads; i++)
+            pthread_spin_init(&locks[i], 0);
     }
 
     ~TCP_Adaptor() {
@@ -84,6 +95,7 @@ public:
         int pid = port_code(sid, tid);
 
         // new socket if needed
+        pthread_spin_lock(&locks[tid]);
         if (senders.find(pid) == senders.end()) {
             senders[pid] = new zmq::socket_t(context, ZMQ_PUSH);
             char address[32] = "";
@@ -94,6 +106,7 @@ public:
         zmq::message_t msg(str.length());
         memcpy((void *)msg.data(), str.c_str(), str.length());
         senders[pid]->send(msg);
+        pthread_spin_unlock(&locks[tid]);
     }
 
     string recv(int tid) {

@@ -154,7 +154,7 @@ main(int argc, char *argv[])
 		rdma_adaptor = new RDMA_Adaptor(sid, mem, global_num_servers, global_num_threads);
 
 	// create TCP adaptor
-	TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname);
+	TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_num_threads);
 
 	// load string server (read-only, shared by all proxies)
 	String_Server str_server(global_input_folder);
