@@ -211,27 +211,42 @@ Running sever with a builtin local console for testing
 
 # Prepare RDF Data
 
-If there is space at the raw_data, convert it to underline first
+#### Install LUBM-generator (include a bug fix about linux paths)
+    
+    $cd ~;
+    $wget http://swat.cse.lehigh.edu/projects/lubm/uba1.7.zip
+    $wget http://swat.cse.lehigh.edu/projects/lubm/GeneratorLinuxFix.zip
+    $unzip uba1.7.zip -d ./uba1.7
+    $unzip GeneratorLinuxFix.zip -d .
+    $cp Generator.java uba1.7/src/edu/lehigh/swat/bench/uba/Generator.java
+    $cd uba1.7/src/
+    $javac edu/lehigh/swat/bench/uba/Generator.java
+    $cd ~
+    $cp uba1.7/src/edu/lehigh/swat/bench/uba/*.class uba1.7/classes/edu/lehigh/swat/bench/uba/
 
-    $cat raw_file | sed -e 's/ /_/g’ > convert_file
+#### Install Jena (Convert LUBM data format)
+    
+    $cd ~;
+    $wget http://archive.apache.org/dist/jena/binaries/apache-jena-2.7.4.zip
+    $unzip apache-jena-2.7.4.zip -d .
+    $export JENA_HOME=~/apache-jena-2.7.4/
 
-Use generate_data.cpp to convert raw_data into id_data
+#### Generate LUBM-1 ( .nt format)
+    
+    $cd uba1.7
+    $java -cp ./classes/ edu.lehigh.swat.bench.uba.Generator -univ 1 -onto http://swat.cse.lehigh.edu/onto/univ-bench.owl
+    $find . -type f -name "University*.owl" -exec $JENA_HOME/bin/rdfcat -out N-TRIPLE -x {} >> uni0.nt \;
+    # Now we get NT format of LUBM data
+    # each row consists of S P O and '.'
+    
 
-    $cd ${WUKONG_ROOT}/datagen
+#### Generate LUBM (wukong internal format)
+    
+    $cd ${WUKONG_ROOT}/datagen;
     $g++ -std=c++11 generate_data.cpp -o generate_data
-    $./generate_data lubm_raw_40 id_lubm_40
+    $mkdir lubm_raw_1
+    $mv ~/uba1.7/uni0.nt lubm_raw_1/
+    ./generate_data lubm_raw_1 id_lubm_1
 
-
-Put `id_data` to a distributed storage (e.g., NFS), and set the `global_input_folder` at `scripts/config`
-
-
-#### Speedup loading ####
-
-Create a file (`str_normal_minimal`) with minimal ID mappings when loading `str_normal` is too lengthy
-
-    $grep "<http://www.Department0.University0.edu>" str_normal >> str_normal_minimal
-    ...
-
-Enable the `global_load_minimal_index` at `scripts/config`
 
 
