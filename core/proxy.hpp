@@ -36,6 +36,9 @@
 #include "mymath.hpp"
 #include "timer.hpp"
 
+#include "planner.hpp"
+#include "data_statistic.hpp"
+
 #define PARALLEL_FACTOR 20
 
 
@@ -87,11 +90,13 @@ public:
 
 	Coder coder;
 	Parser parser;
+  Planner planner;
+  data_statistic *statistic;
 
 
-	Proxy(int sid, int tid, String_Server *str_server, Adaptor *adaptor)
+	Proxy(int sid, int tid, String_Server *str_server, Adaptor *adaptor, data_statistic *statistic )
 		: sid(sid), tid(tid), str_server(str_server), adaptor(adaptor),
-		  coder(sid, tid), parser(str_server) { }
+		  coder(sid, tid), parser(str_server), statistic(statistic) { }
 
 	void setpid(request_or_reply &r) { r.pid = coder.get_and_inc_qid(); }
 
@@ -167,11 +172,26 @@ public:
 	void run_single_query(istream &is, int cnt, Logger &logger) {
 		request_or_reply request, reply;
 
+    uint64_t t_parse1 =timer::get_usec();
 		if (!parser.parse(is, request)) {
 			cout << "ERROR: parse failed! ("
 			     << parser.strerror << ")" << endl;
 			return;
 		}
+    uint64_t t_parse2 =timer::get_usec();
+
+    if (global_enable_planner) {
+      // planner
+      uint64_t t_plan1 =timer::get_usec();
+      bool exec = planner.generate_plan(request, statistic);
+      uint64_t t_plan2 =timer::get_usec();
+      cout << "parse time : " << t_parse2 - t_parse1 << " usec" << endl;
+      cout << "plan time : " << t_plan2 - t_plan1 << " usec" << endl;
+      if (exec == false) { // for empty result
+        cout<< "(last) result size: 0" << endl;
+        return ;
+      }
+    }
 
 		logger.init();
 		for (int i = 0; i < cnt; i++) {

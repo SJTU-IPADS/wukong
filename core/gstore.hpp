@@ -37,6 +37,8 @@
 #include "timer.hpp"
 #include "unit.hpp"
 
+#include "data_statistic.hpp"
+
 using namespace std;
 
 struct triple_t {
@@ -683,6 +685,126 @@ public:
 
         uint64_t t3 = timer::get_usec();
         cout << (t3 - t2) / 1000 << " ms for insert index data into gstore" << endl;
+    }
+
+    // prepare data for planner
+    void generate_statistic(data_statistic& statistic) {
+      for (int bucket_id = 0; bucket_id < num_buckets + num_buckets_ext; bucket_id++) {
+        uint64_t slot_id = bucket_id * ASSOCIATIVITY;
+        for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
+          // skip empty slot
+          if (vertices[slot_id].key.is_empty()) continue;
+
+          int64_t vid = vertices[slot_id].key.vid;
+          int64_t pid = vertices[slot_id].key.pid;
+
+          uint64_t off = vertices[slot_id].ptr.off;
+          if (pid == PREDICATE_ID) continue; // skip for index vertex
+
+          unordered_map<int,int>& ptcount = statistic.predicate_to_triple;
+          unordered_map<int,int>& pscount = statistic.predicate_to_subject;
+          unordered_map<int,int>& pocount = statistic.predicate_to_object;
+          unordered_map<int,int>& tyscount = statistic.type_to_subject;
+          unordered_map<int,vector<direct_p> >& ipcount = statistic.id_to_predicate;
+
+          if(vertices[slot_id].key.dir == IN) {
+            uint64_t sz = vertices[slot_id].ptr.size;
+            // triples only count from one direction
+            if (ptcount.find(pid) == ptcount.end()) {
+              ptcount[pid] = sz;
+            }
+            else {
+              ptcount[pid] += sz;
+            }
+            // count objects
+            if (pocount.find(pid) == pocount.end()) {
+              pocount[pid] = 1;
+            }
+            else {
+              pocount[pid] ++;
+            }
+            // count in predicates for specific id
+            ipcount[vid].push_back(direct_p(IN,pid));
+          }
+          else {
+            // count subjects
+            if (pscount.find(pid) == pscount.end()) {
+              pscount[pid] = 1;
+            }
+            else {
+              pscount[pid]++;
+            }
+            // count out predicates for specific id
+            ipcount[vid].push_back(direct_p(OUT,pid));
+            // count type predicate
+            if (pid == TYPE_ID) {
+              uint64_t sz = vertices[slot_id].ptr.size;
+              uint64_t off = vertices[slot_id].ptr.off;
+              for(uint64_t j = 0; j < sz; j++){
+                //src may belongs to multiple types
+                uint64_t obid = edges[off+j].val;
+                if (tyscount.find(obid) == tyscount.end()) {
+                  tyscount[obid] = 1;
+                }
+                else {
+                  tyscount[obid] ++;
+                }
+                if (pscount.find(obid) == pscount.end()) {
+                  pscount[obid] = 1;
+                } else {
+                  pscount[obid] ++;
+                }
+                ipcount[vid].push_back(direct_p(OUT, obid));
+              }
+            }
+          }
+        }
+      }
+
+      //cout<<"sizeof predicate_to_triple = "<<statistic.predicate_to_triple.size()<<endl;
+      //cout<<"sizeof predicate_to_subject = "<<statistic.predicate_to_subject.size()<<endl;
+      //cout<<"sizeof predicate_to_object = "<<statistic.predicate_to_object.size()<<endl;
+      //cout<<"sizeof type_to_subject = "<<statistic.type_to_subject.size()<<endl;
+      //cout<<"sizeof id_to_predicate = "<<statistic.id_to_predicate.size()<<endl;
+
+      unordered_map<pair<int,int>,four_num,boost::hash<pair<int,int> > >& ppcount = statistic.correlation;
+
+      // do statistic for correlation
+      for (unordered_map<int,vector<direct_p> >::iterator it = statistic.id_to_predicate.begin();
+          it != statistic.id_to_predicate.end(); it++ ) {
+        int vid = it->first;
+        vector<direct_p>& vec = it->second;
+        for (int i = 0; i < vec.size(); i++) {
+          for (int j = i+1; j < vec.size(); j++) {
+            int p1,d1,p2,d2;
+            if (vec[i].p < vec[j].p) {
+              p1 = vec[i].p;
+              d1 = vec[i].dir;
+              p2 = vec[j].p;
+              d2 = vec[j].dir;
+            } else {
+              p1 = vec[j].p;
+              d1 = vec[j].dir;
+              p2 = vec[i].p;
+              d2 = vec[i].dir;
+            }
+            if (d1 == OUT && d2 == OUT) {
+              ppcount[make_pair(p1, p2)].out_out++;
+            }
+            if (d1 == OUT && d2 == IN) {
+              ppcount[make_pair(p1, p2)].out_in++;
+            }
+            if (d1 == IN && d2 == IN) {
+              ppcount[make_pair(p1, p2)].in_in++;
+            }
+            if (d1 == IN && d2 == OUT) {
+              ppcount[make_pair(p1, p2)].in_out++;
+            }
+          }
+        }
+      }
+      //cout << "sizeof correlation = " << statistic.correlation.size() << endl;
+      cout << "INFO#" << sid << ": generating statistics is finished." << endl;
     }
 
     edge_t *get_edges_global(int tid, int64_t vid, int64_t d, int64_t pid, int *sz) {
