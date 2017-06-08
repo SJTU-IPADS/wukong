@@ -15,3 +15,4 @@ global_enable_caching		0
 global_enable_workstealing	0
 global_silent 				1
 global_max_print_row		10
+global_enable_planner		1

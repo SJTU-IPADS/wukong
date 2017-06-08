@@ -34,10 +34,27 @@
 #include "query.hpp"
 #include "string_server.hpp"
 
+#include "SPARQLParser.hpp"
+
 using namespace std;
 
 inline bool is_upper(string str1, string str2) {
     return boost::to_upper_copy<std::string>(str1) == str2;
+}
+
+static string read_input(istream& in)
+  // Read a stream into a string
+{
+  string result;
+  while (true) {
+    string s;
+    getline(in,s);
+    result+=s;
+    if (!in.good())
+      break;
+    result+='\n';
+  }
+  return result;
 }
 
 /**
@@ -266,6 +283,66 @@ private:
         return valid;
     }
 
+    //_H_ means helper
+    boost::unordered_map<unsigned, int64_t> _H_incVarIdMap;
+    int64_t varId = -1;
+    int64_t _H_inc_var_id(unsigned ori_id){
+      if(_H_incVarIdMap.find(ori_id) == _H_incVarIdMap.end()){
+        _H_incVarIdMap[ori_id] = varId;
+        return varId--;
+      }else{
+        return _H_incVarIdMap[ori_id];
+      }
+    }
+    int64_t _H_encode(const SPARQLParser::Element& element) {//const
+      switch (element.type) {
+        case SPARQLParser::Element::Variable:
+          return _H_inc_var_id(element.id);
+        case SPARQLParser::Element::Literal:
+          cout<< "Not Support Literal" << endl;
+          return DUMMY_ID;
+        case SPARQLParser::Element::IRI:
+          {
+            string strIRI = "<"+element.value+">" ;
+            if (str_server->str2id.find(strIRI) == str_server->str2id.end()) {
+              cout<< "Unknown IRI: " + strIRI << endl;
+              return DUMMY_ID;
+            }
+            return str_server->str2id[strIRI];
+          }
+        default:
+          return DUMMY_ID;
+      }
+      return DUMMY_ID;
+    }
+    void _H_simplist_transfer(const SPARQLParser & parser, request_or_reply &r) {
+      vector<int64_t> temp_cmd_chains ;
+      SPARQLParser::PatternGroup group = parser.getPatterns();
+      for (std::vector<SPARQLParser::Pattern>::const_iterator iter=group.patterns.begin(),limit=group.patterns.end();iter!=limit;++iter) {
+        temp_cmd_chains.push_back(_H_encode(iter->subject));
+        temp_cmd_chains.push_back(_H_encode(iter->predicate));
+        temp_cmd_chains.push_back(OUT);
+        temp_cmd_chains.push_back(_H_encode(iter->object));
+      }
+      r.cmd_chains = temp_cmd_chains;
+    }
+
+    bool _H_do_parse(istream & is, request_or_reply &r){
+      string query = read_input(is);
+      SPARQLLexer lexer(query);
+      SPARQLParser parser(lexer);
+      varId = -1;
+      _H_incVarIdMap.clear();
+      try {
+         parser.parse();//sparql -f query/lubm_q1
+         _H_simplist_transfer(parser,r);
+      } catch (const SPARQLParser::ParserException& e) {
+         cerr << "parse error: " << e.message << endl;
+         return false;
+      }
+      return true;
+    }
+
 public:
     // the stat of query parsing
     bool valid;
@@ -275,8 +352,23 @@ public:
 
     /* Used in single-mode */
     bool parse(istream &is, request_or_reply &r) {
+      if (global_enable_planner) {
         // clear state of parser before a new parsing
         clear();
+        //----------------------------------
+        //printf("_H_do_parse(is) start\n");
+        if(_H_do_parse(is,r)){
+          //cout<<"------------------------------_H_do_parse(is)    success---------------------------------"<<endl;
+          cout << "parsing triples is finished." << endl;
+          return true;
+        }
+        is.clear();
+        is.seekg(0);
+        //printf("_H_do_parse(is) end\n");
+        //----------------------------------
+        
+        assert(false);
+      }
 
         // spilt stream into tokens
         vector<string> tokens = get_tokens(is);

@@ -835,7 +835,7 @@ class RDMA {
 
             int port = SERVICE_PORT_BASE + dev->node_id;
             char address[32] = "";
-            snprintf(address, 32, "tcp://%s:%d", dev->ip_of(dev->node_id).c_str(), port);
+            snprintf(address, 32, "tcp://*:%d", port);
             socket.bind(address);
 
             // wait the connect request from all threads of other nodes

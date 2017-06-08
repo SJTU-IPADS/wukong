@@ -60,6 +60,9 @@ int global_rdma_threshold = 300;
 int global_max_print_row = 10;
 bool global_silent = true;
 
+// for planner
+bool global_enable_planner = true;
+
 /* set by command line */
 string cfg_fname;
 string host_fname;
@@ -89,6 +92,7 @@ void show_config(void)
 	cout << "global_mt_threshold: " 		<< global_mt_threshold  			<< endl;
 	cout << "global_max_print_row: " 		<< global_max_print_row				<< endl;
 	cout << "global_silent: " 				<< global_silent					<< endl;
+	cout << "global_enable_planner: " 				<< global_enable_planner << endl;
 
 	cout << "--" << endl;
 
@@ -134,6 +138,8 @@ void reload_config(void)
 			global_max_print_row = atoi(entry.second.c_str());
 		else if (entry.first == "global_silent")
 			global_silent = atoi(entry.second.c_str());
+		else if (entry.first == "global_enable_planner")
+			global_enable_planner = atoi(entry.second.c_str());
 		else
 			cout << "WARNING: unsupported re-configuration item! ("
 			     << entry.first << ")" << endl;
@@ -199,6 +205,8 @@ void load_config(int num_servers)
 			global_max_print_row = atoi(entry.second.c_str());
 		else if (entry.first == "global_silent")
 			global_silent = atoi(entry.second.c_str());
+		else if (entry.first == "global_enable_planner")
+			global_enable_planner = atoi(entry.second.c_str());
 		else
 			cout << "WARNING: unsupported configuration item! ("
 			     << entry.first << ")" << endl;
