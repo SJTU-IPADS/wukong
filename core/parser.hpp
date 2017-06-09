@@ -370,6 +370,8 @@ public:
         assert(false);
       }
 
+      clear();
+
         // spilt stream into tokens
         vector<string> tokens = get_tokens(is);
 
