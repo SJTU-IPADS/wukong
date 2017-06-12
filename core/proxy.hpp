@@ -30,14 +30,14 @@
 #include "query.hpp"
 #include "adaptor.hpp"
 #include "parser.hpp"
+#include "planner.hpp"
+#include "data_statistic.hpp"
 #include "string_server.hpp"
 #include "logger.hpp"
 
 #include "mymath.hpp"
 #include "timer.hpp"
 
-#include "planner.hpp"
-#include "data_statistic.hpp"
 
 #define PARALLEL_FACTOR 20
 
@@ -90,11 +90,11 @@ public:
 
 	Coder coder;
 	Parser parser;
-  Planner planner;
-  data_statistic *statistic;
+	Planner planner;
+	data_statistic *statistic;
 
 
-	Proxy(int sid, int tid, String_Server *str_server, Adaptor *adaptor, data_statistic *statistic )
+	Proxy(int sid, int tid, String_Server *str_server, Adaptor *adaptor, data_statistic *statistic)
 		: sid(sid), tid(tid), str_server(str_server), adaptor(adaptor),
 		  coder(sid, tid), parser(str_server), statistic(statistic) { }
 
@@ -172,26 +172,28 @@ public:
 	void run_single_query(istream &is, int cnt, Logger &logger) {
 		request_or_reply request, reply;
 
-    uint64_t t_parse1 =timer::get_usec();
+		uint64_t t_parse1 = timer::get_usec();
 		if (!parser.parse(is, request)) {
-			cout << "ERROR: parse failed! ("
+			cout << "ERROR: Parsing failed! ("
 			     << parser.strerror << ")" << endl;
+			is.clear();
+			is.seekg(0);
 			return;
 		}
-    uint64_t t_parse2 =timer::get_usec();
+		uint64_t t_parse2 = timer::get_usec();
 
-    if (global_enable_planner) {
-      // planner
-      uint64_t t_plan1 =timer::get_usec();
-      bool exec = planner.generate_plan(request, statistic);
-      uint64_t t_plan2 =timer::get_usec();
-      cout << "parse time : " << t_parse2 - t_parse1 << " usec" << endl;
-      cout << "plan time : " << t_plan2 - t_plan1 << " usec" << endl;
-      if (exec == false) { // for empty result
-        cout<< "(last) result size: 0" << endl;
-        return ;
-      }
-    }
+		if (global_enable_planner) {
+			// planner
+			uint64_t t_plan1 = timer::get_usec();
+			bool exec = planner.generate_plan(request, statistic);
+			uint64_t t_plan2 = timer::get_usec();
+			cout << "parsing time : " << t_parse2 - t_parse1 << " usec" << endl;
+			cout << "planning time : " << t_plan2 - t_plan1 << " usec" << endl;
+			if (exec == false) { // for empty result
+				cout << "(last) result size: 0" << endl;
+				return ;
+			}
+		}
 
 		logger.init();
 		for (int i = 0; i < cnt; i++) {
@@ -222,7 +224,7 @@ public:
 			is >> fname;
 			ifstream ifs(fname);
 			if (!ifs) {
-				cout << "Query file not found: " << fname << endl;
+				cout << "ERROR: Query file not found: " << fname << endl;
 				return ;
 			}
 
@@ -233,7 +235,7 @@ public:
 
 			bool success = parser.parse_template(ifs, tpls[i]);
 			if (!success) {
-				cout << "Template parse error" << endl;
+				cout << "ERROR: Template parsing failed!" << endl;
 				return ;
 			}
 			fill_template(tpls[i]);

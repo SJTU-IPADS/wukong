@@ -43,18 +43,18 @@ inline bool is_upper(string str1, string str2) {
 }
 
 static string read_input(istream& in)
-  // Read a stream into a string
+// Read a stream into a string
 {
-  string result;
-  while (true) {
-    string s;
-    getline(in,s);
-    result+=s;
-    if (!in.good())
-      break;
-    result+='\n';
-  }
-  return result;
+    string result;
+    while (true) {
+        string s;
+        getline(in, s);
+        result += s;
+        if (!in.good())
+            break;
+        result += '\n';
+    }
+    return result;
 }
 
 /**
@@ -286,61 +286,64 @@ private:
     //_H_ means helper
     boost::unordered_map<unsigned, int64_t> _H_incVarIdMap;
     int64_t varId = -1;
-    int64_t _H_inc_var_id(unsigned ori_id){
-      if(_H_incVarIdMap.find(ori_id) == _H_incVarIdMap.end()){
-        _H_incVarIdMap[ori_id] = varId;
-        return varId--;
-      }else{
-        return _H_incVarIdMap[ori_id];
-      }
-    }
-    int64_t _H_encode(const SPARQLParser::Element& element) {//const
-      switch (element.type) {
-        case SPARQLParser::Element::Variable:
-          return _H_inc_var_id(element.id);
-        case SPARQLParser::Element::Literal:
-          cout<< "Not Support Literal" << endl;
-          return DUMMY_ID;
-        case SPARQLParser::Element::IRI:
-          {
-            string strIRI = "<"+element.value+">" ;
-            if (str_server->str2id.find(strIRI) == str_server->str2id.end()) {
-              cout<< "Unknown IRI: " + strIRI << endl;
-              return DUMMY_ID;
-            }
-            return str_server->str2id[strIRI];
-          }
-        default:
-          return DUMMY_ID;
-      }
-      return DUMMY_ID;
-    }
-    void _H_simplist_transfer(const SPARQLParser & parser, request_or_reply &r) {
-      vector<int64_t> temp_cmd_chains ;
-      SPARQLParser::PatternGroup group = parser.getPatterns();
-      for (std::vector<SPARQLParser::Pattern>::const_iterator iter=group.patterns.begin(),limit=group.patterns.end();iter!=limit;++iter) {
-        temp_cmd_chains.push_back(_H_encode(iter->subject));
-        temp_cmd_chains.push_back(_H_encode(iter->predicate));
-        temp_cmd_chains.push_back(OUT);
-        temp_cmd_chains.push_back(_H_encode(iter->object));
-      }
-      r.cmd_chains = temp_cmd_chains;
+
+    int64_t _H_inc_var_id(unsigned ori_id) {
+        if (_H_incVarIdMap.find(ori_id) == _H_incVarIdMap.end()) {
+            _H_incVarIdMap[ori_id] = varId;
+            return varId--;
+        } else {
+            return _H_incVarIdMap[ori_id];
+        }
     }
 
-    bool _H_do_parse(istream & is, request_or_reply &r){
-      string query = read_input(is);
-      SPARQLLexer lexer(query);
-      SPARQLParser parser(lexer);
-      varId = -1;
-      _H_incVarIdMap.clear();
-      try {
-         parser.parse();//sparql -f query/lubm_q1
-         _H_simplist_transfer(parser,r);
-      } catch (const SPARQLParser::ParserException& e) {
-         cerr << "parse error: " << e.message << endl;
-         return false;
-      }
-      return true;
+    int64_t _H_encode(const SPARQLParser::Element& element) {//const
+        switch (element.type) {
+        case SPARQLParser::Element::Variable:
+            return _H_inc_var_id(element.id);
+        case SPARQLParser::Element::Literal:
+            cout << "Not Support Literal" << endl;
+            return DUMMY_ID;
+        case SPARQLParser::Element::IRI:
+        {
+            string strIRI = "<" + element.value + ">" ;
+            if (str_server->str2id.find(strIRI) == str_server->str2id.end()) {
+                cout << "Unknown IRI: " + strIRI << endl;
+                return DUMMY_ID;
+            }
+            return str_server->str2id[strIRI];
+        }
+        default:
+            return DUMMY_ID;
+        }
+        return DUMMY_ID;
+    }
+
+    void _H_simplist_transfer(const SPARQLParser & parser, request_or_reply &r) {
+        vector<int64_t> temp_cmd_chains ;
+        SPARQLParser::PatternGroup group = parser.getPatterns();
+        for (std::vector<SPARQLParser::Pattern>::const_iterator iter = group.patterns.begin(), limit = group.patterns.end(); iter != limit; ++iter) {
+            temp_cmd_chains.push_back(_H_encode(iter->subject));
+            temp_cmd_chains.push_back(_H_encode(iter->predicate));
+            temp_cmd_chains.push_back(OUT);
+            temp_cmd_chains.push_back(_H_encode(iter->object));
+        }
+        r.cmd_chains = temp_cmd_chains;
+    }
+
+    bool _H_do_parse(istream & is, request_or_reply &r) {
+        string query = read_input(is);
+        SPARQLLexer lexer(query);
+        SPARQLParser parser(lexer);
+        varId = -1;
+        _H_incVarIdMap.clear();
+        try {
+            parser.parse();//sparql -f query/lubm_q1
+            _H_simplist_transfer(parser, r);
+        } catch (const SPARQLParser::ParserException& e) {
+            cerr << "parse error: " << e.message << endl;
+            return false;
+        }
+        return true;
     }
 
 public:
@@ -352,45 +355,47 @@ public:
 
     /* Used in single-mode */
     bool parse(istream &is, request_or_reply &r) {
-      if (global_enable_planner) {
-        // clear state of parser before a new parsing
+        // clear intermediate states of parser
         clear();
-        //----------------------------------
-        //printf("_H_do_parse(is) start\n");
-        if(_H_do_parse(is,r)){
-          //cout<<"------------------------------_H_do_parse(is)    success---------------------------------"<<endl;
-          cout << "parsing triples is finished." << endl;
-          return true;
+
+        if (global_enable_planner) {
+            // ASSUMPTION: a normal SPARQL query
+
+            if (!_H_do_parse(is, r))
+                return false;
+
+            cout << "parsing triples is finished." << endl;
+            return true;
+        } else {
+            // ASSUMPTION: an extended SPARQL query w/o planning
+            // TODO: only support the clause "SELECT ... WHERE { ... }"
+
+            // spilt stream into tokens
+            vector<string> tokens = get_tokens(is);
+
+            // parse the tokens
+            if (!do_parse(tokens))
+                return false;
+
+            if (req_template.ptypes_pos.size() != 0) {
+                cout << "ERROR: there is unsupported tempate pattern." << endl;
+                return false;
+            }
+
+            r.cmd_chains = req_template.cmd_chains;
+            return true;
         }
-        is.clear();
-        is.seekg(0);
-        //printf("_H_do_parse(is) end\n");
-        //----------------------------------
-        
-        assert(false);
-      }
-
-      clear();
-
-        // spilt stream into tokens
-        vector<string> tokens = get_tokens(is);
-
-        // parse the tokens
-        if (!do_parse(tokens))
-            return false;
-
-        if (req_template.ptypes_pos.size() != 0) {
-            cout << "ERROR: request with PTYPE_PH." << endl;
-            return false;
-        }
-
-        r.cmd_chains = req_template.cmd_chains;
-        return true;
     }
 
     /* Used in batch-mode */
     bool parse_template(istream &is, request_template &r) {
-        // clear state of parser before a new parsing
+        // TODO: "template" is not supported by default SPARQL parser
+        if (global_enable_planner) {
+            cout << "ERROR: template pattern is unsupported by default SPARQL parser!" << endl;
+            return false;
+        }
+
+        // clear intermediate states of parser
         clear();
 
         vector<string> tokens = get_tokens(is);
@@ -398,7 +403,7 @@ public:
             return false;
 
         if (req_template.ptypes_pos.size() == 0) {
-            cout << "ERROR: request_template without PTYPE_PH" << endl;
+            cout << "ERROR: there is no template pattern!" << endl;
             return false;
         }
 

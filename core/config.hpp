@@ -75,24 +75,24 @@ void show_config(void)
 	cout << "------ global configurations ------" << endl;
 
 	// setting by config file
-	cout << "the number of engines: "		<< global_num_engines 				<< endl;
-	cout << "the number of proxies: "		<< global_num_proxies				<< endl;
-	cout << "global_input_folder: " 		<< global_input_folder				<< endl;
-	cout << "global_load_minimal_index: " 	<< global_load_minimal_index 		<< endl;
-	cout << "global_data_port_base: " 		<< global_data_port_base			<< endl;
-	cout << "global_ctrl_port_base: " 		<< global_ctrl_port_base			<< endl;
-	cout << "global_memstore_size_gb: " 	<< global_memstore_size_gb			<< endl;
-	cout << "global_rdma_rbf_size_mb: " 	<< global_rdma_rbf_size_mb   		<< endl;
-	cout << "global_rdma_buf_size_mb: " 	<< global_rdma_buf_size_mb			<< endl;
-	cout << "global_num_keys_million: " 	<< global_num_keys_million			<< endl;
-	cout << "global_use_rdma: " 			<< global_use_rdma					<< endl;
-	cout << "global_enable_caching: " 		<< global_enable_caching			<< endl;
-	cout << "global_enable_workstealing: " 	<< global_enable_workstealing		<< endl;
-	cout << "global_rdma_threshold: " 		<< global_rdma_threshold			<< endl;
-	cout << "global_mt_threshold: " 		<< global_mt_threshold  			<< endl;
-	cout << "global_max_print_row: " 		<< global_max_print_row				<< endl;
-	cout << "global_silent: " 				<< global_silent					<< endl;
-	cout << "global_enable_planner: " 				<< global_enable_planner << endl;
+	cout << "the number of engines: "		<< global_num_engines 			<< endl;
+	cout << "the number of proxies: "		<< global_num_proxies			<< endl;
+	cout << "global_input_folder: " 		<< global_input_folder			<< endl;
+	cout << "global_load_minimal_index: " 	<< global_load_minimal_index 	<< endl;
+	cout << "global_data_port_base: " 		<< global_data_port_base		<< endl;
+	cout << "global_ctrl_port_base: " 		<< global_ctrl_port_base		<< endl;
+	cout << "global_memstore_size_gb: " 	<< global_memstore_size_gb		<< endl;
+	cout << "global_rdma_rbf_size_mb: " 	<< global_rdma_rbf_size_mb   	<< endl;
+	cout << "global_rdma_buf_size_mb: " 	<< global_rdma_buf_size_mb		<< endl;
+	cout << "global_num_keys_million: " 	<< global_num_keys_million		<< endl;
+	cout << "global_use_rdma: " 			<< global_use_rdma				<< endl;
+	cout << "global_enable_caching: " 		<< global_enable_caching		<< endl;
+	cout << "global_enable_workstealing: " 	<< global_enable_workstealing	<< endl;
+	cout << "global_rdma_threshold: " 		<< global_rdma_threshold		<< endl;
+	cout << "global_mt_threshold: " 		<< global_mt_threshold  		<< endl;
+	cout << "global_max_print_row: " 		<< global_max_print_row			<< endl;
+	cout << "global_silent: " 				<< global_silent				<< endl;
+	cout << "global_enable_planner: " 		<< global_enable_planner 		<< endl;
 
 	cout << "--" << endl;
 
