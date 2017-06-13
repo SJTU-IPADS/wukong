@@ -157,7 +157,7 @@ public:
 
         }
 
-        cout << "INFO#" << world->rank() << ": loading DGraph is finished." << endl;
+        cout << "INFO#" << world->rank() << ": gathering stats of DGraph is finished." << endl;
 
     }
 

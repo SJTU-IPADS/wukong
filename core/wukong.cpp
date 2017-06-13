@@ -163,10 +163,10 @@ main(int argc, char *argv[])
 	// load RDF graph (shared by all engines)
 	DGraph dgraph(sid, mem, global_input_folder);
 
-  // prepare data for planner
-  data_statistic data(tcp_adaptor, &world);
-  dgraph.gstore.generate_statistic(data);
-  data.gather_data();
+	// prepare data for planner
+	data_statistic stat(tcp_adaptor, &world);
+	dgraph.gstore.generate_statistic(stat);
+	stat.gather_data();
 
 	// init control communicaiton
 	con_adaptor = new TCP_Adaptor(sid, host_fname, global_num_proxies, global_ctrl_port_base);
@@ -177,7 +177,7 @@ main(int argc, char *argv[])
 	for (int tid = 0; tid < global_num_threads; tid++) {
 		Adaptor *adaptor = new Adaptor(tid, tcp_adaptor, rdma_adaptor);
 		if (tid < global_num_proxies) {
-			Proxy *proxy = new Proxy(sid, tid, &str_server, adaptor, &data);
+			Proxy *proxy = new Proxy(sid, tid, &str_server, adaptor, &stat);
 			pthread_create(&(threads[tid]), NULL, proxy_thread, (void *)proxy);
 			proxies.push_back(proxy);
 		} else {

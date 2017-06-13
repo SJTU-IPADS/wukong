@@ -416,7 +416,7 @@ public:
 		gstore.insert_index();
 
 		cout << "INFO#" << sid << ": loading DGraph is finished." << endl;
-		// gstore.print_mem_usage();
+		gstore.print_mem_usage();
 	}
 
 	edge_t *get_edges_global(int tid, int64_t vid, int64_t direction, int64_t pid, int *sz) {
