@@ -313,7 +313,7 @@ class DGraph {
 
 		// timing
 		uint64_t t2 = timer::get_usec();
-		cout << (t2 - t1) / 1000 << " ms for aggregrate triples" << endl;
+		cout << (t2 - t1) / 1000 << " ms for aggregrating triples" << endl;
 	}
 
 	uint64_t inline floor(uint64_t original, uint64_t n) {
@@ -404,6 +404,7 @@ public:
 		// initiate gstore (kvstore) after loading and exchanging triples
 		gstore.init();
 
+		uint64_t t1 = timer::get_usec();
 		#pragma omp parallel for num_threads(nthread_parallel_load)
 		for (int t = 0; t < nthread_parallel_load; t++) {
 			gstore.insert_normal(triple_spo[t], triple_ops[t]);
@@ -412,6 +413,8 @@ public:
 			vector<triple_t>().swap(triple_spo[t]);
 			vector<triple_t>().swap(triple_ops[t]);
 		}
+		uint64_t t2 = timer::get_usec();
+		cout << (t2 - t1) / 1000 << " ms for inserting normal data into gstore" << endl;
 
 		gstore.insert_index();
 

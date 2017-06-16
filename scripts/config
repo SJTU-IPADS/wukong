@@ -7,7 +7,6 @@ global_ctrl_port_base		9576
 global_memstore_size_gb		20
 global_rdma_buf_size_mb		128
 global_rdma_rbf_size_mb		32
-global_num_keys_million		1000
 global_use_rdma				1
 global_rdma_threshold		300
 global_mt_threshold			16

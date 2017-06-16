@@ -96,6 +96,33 @@ public:
         return key;
     }
 
+    static uint64_t hash_prime_u64(uint64_t upper) {
+        if (upper >= (1l << 31)) {
+            cout << "WARNING: " << upper << " is too large!"
+                 << std::endl;
+            return upper;
+        }
+
+        if (upper >= 1610612741l) return 1610612741l;     // 2^30 ~ 2^31
+        else if (upper >= 805306457l) return 805306457l;  // 2^29 ~ 2^30
+        else if (upper >= 402653189l) return 402653189l;  // 2^28 ~ 2^29
+        else if (upper >= 201326611l) return 201326611l;  // 2^27 ~ 2^28
+        else if (upper >= 100663319l) return 100663319l;  // 2^26 ~ 2^27
+        else if (upper >= 50331653l) return 50331653l;    // 2^25 ~ 2^26
+        else if (upper >= 25165843l) return 25165843l;    // 2^24 ~ 2^25
+        else if (upper >= 12582917l) return 12582917l;    // 2^23 ~ 2^24
+        else if (upper >= 6291469l) return 6291469l;      // 2^22 ~ 2^23
+        else if (upper >= 3145739l) return 3145739l;      // 2^21 ~ 2^22
+        else if (upper >= 1572869l) return 1572869l;      // 2^20 ~ 2^21
+        else if (upper >= 786433l) return 786433l;        // 2^19 ~ 2^20
+        else if (upper >= 393241l) return 393241l;        // 2^18 ~ 2^19
+        else if (upper >= 196613l) return 196613l;        // 2^17 ~ 2^18
+        else if (upper >= 98317l) return 98317l;          // 2^16 ~ 2^17
+
+        cout << "WARNING: " << upper << " is too small!"
+             << std::endl;
+        return upper;
+    }
 };
 
 class mytuple {

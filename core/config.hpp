@@ -46,9 +46,9 @@ int global_data_port_base = 5500;
 int global_ctrl_port_base = 9576;
 
 int global_memstore_size_gb = 20;
-int global_rdma_buf_size_mb = 128;
-int global_rdma_rbf_size_mb = 32;
-int global_num_keys_million = 1000;
+int global_rdma_buf_size_mb = 64;
+int global_rdma_rbf_size_mb = 16;
+//int global_num_keys_million = 1000;
 
 bool global_use_rdma = true;
 bool global_enable_caching = true;
@@ -84,7 +84,7 @@ void show_config(void)
 	cout << "global_memstore_size_gb: " 	<< global_memstore_size_gb		<< endl;
 	cout << "global_rdma_rbf_size_mb: " 	<< global_rdma_rbf_size_mb   	<< endl;
 	cout << "global_rdma_buf_size_mb: " 	<< global_rdma_buf_size_mb		<< endl;
-	cout << "global_num_keys_million: " 	<< global_num_keys_million		<< endl;
+	//cout << "global_num_keys_million: " 	<< global_num_keys_million		<< endl;
 	cout << "global_use_rdma: " 			<< global_use_rdma				<< endl;
 	cout << "global_enable_caching: " 		<< global_enable_caching		<< endl;
 	cout << "global_enable_workstealing: " 	<< global_enable_workstealing	<< endl;
@@ -189,8 +189,8 @@ void load_config(int num_servers)
 			global_rdma_rbf_size_mb = atoi(entry.second.c_str());
 		else if (entry.first == "global_rdma_buf_size_mb")
 			global_rdma_buf_size_mb = atoi(entry.second.c_str());
-		else if (entry.first == "global_num_keys_million")
-			global_num_keys_million = atoi(entry.second.c_str());
+		//else if (entry.first == "global_num_keys_million")
+		//	global_num_keys_million = atoi(entry.second.c_str());
 		else if (entry.first == "global_use_rdma")
 			global_use_rdma = atoi(entry.second.c_str());
 		else if (entry.first == "global_enable_caching")

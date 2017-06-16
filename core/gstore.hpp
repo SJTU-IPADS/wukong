@@ -126,7 +126,7 @@ uint64_t vid : NBITS_VID; // vertex
     }
 };
 
-// 64-bit internal pointer (size < 256M and off off < 64GB)
+// 64-bit internal pointer (size < 256M and off < 64GB)
 enum { NBITS_SIZE = 28 };
 enum { NBITS_PTR = 36 };
 
@@ -209,8 +209,17 @@ private:
 
     static const int NUM_LOCKS = 1024;
 
-    static const int MAIN_RATIO = 80; // the percentage of main headers (e.g., 80%)
     static const int ASSOCIATIVITY = 8;  // the associativity of slots in each bucket
+
+    // Memory Usage (estimation):
+    //   header region: |vertex| = 128-bit; #verts = (#S + #O) * AVG(#P) ～= #T
+    //   entry region:    |edge| =  32-bit; #edges = #T * 2 + (#S + #O) * AVG(#P) ～= #T * 3
+    //
+    //                                      (+VERSATILE)
+    //                                      #verts += #S + #O
+    //                                      #edges += (#S + #O) * AVG(#P) ~= #T
+    static const int MHD_RATIO = 80; // main-header / (main-header + indirect-header)
+    static const int HD_RATIO = 60; // header / (header + entry)
 
     uint64_t sid;
     Mem *mem;
@@ -218,15 +227,12 @@ private:
     vertex_t *vertices;
     edge_t *edges;
 
-
-    // the size of slot is sizeof(vertex_t)
-    // the size of entry is sizeof(edge_t)
     uint64_t num_slots;       // 1 bucket = ASSOCIATIVITY slots
-    uint64_t num_buckets;     // main-header region (pre-allocated hash-table)
-    uint64_t num_buckets_ext; // indirect-header region (dynamical allocation)
-    uint64_t num_entries;     // entry region (dynamical allocation)
+    uint64_t num_buckets;     // main-header region (static)
+    uint64_t num_buckets_ext; // indirect-header region (dynamical)
+    uint64_t num_entries;     // entry region (dynamical)
 
-    // allocated
+    // used
     uint64_t last_ext;
     uint64_t last_entry;
 
@@ -271,7 +277,10 @@ private:
 
             // allocate and link a new indirect header
             pthread_spin_lock(&bucket_ext_lock);
-            assert(last_ext < num_buckets_ext);
+            if (last_ext >= num_buckets_ext) {
+                cout << "ERROR: out of indirect-header region." << endl;
+                assert(last_ext < num_buckets_ext);
+            }
             vertices[slot_id].key.vid = num_buckets + (last_ext++);
             pthread_spin_unlock(&bucket_ext_lock);
 
@@ -291,7 +300,10 @@ done:
         pthread_spin_lock(&entry_lock);
         orig = last_entry;
         last_entry += n;
-        assert(last_entry < num_entries);
+        if (last_entry >= num_entries) {
+            cout << "ERROR: out of entry region." << endl;
+            assert(last_entry < num_entries);
+        }
         pthread_spin_unlock(&entry_lock);
         return orig;
     }
@@ -429,6 +441,7 @@ done:
 #endif
 
 public:
+
     // encoding rules of gstore
     // subject/object (vid) >= 2^17, 2^17 > predicate/type (p/tid) > 2^1,
     // TYPE_ID = 1, PREDICATE_ID = 0, OUT = 1, IN = 0
@@ -446,26 +459,29 @@ public:
     //   key = [  0 |            0 |      0]  value = [vid0, vid1, ..]  i.e., init
 
     // GStore: key (main-header and indirect-header region) | value (entry region)
-    // The key (head region) is a cluster chaining hash-table (with associativity)
-    // The value (entry region) is a varying-size array
+    //         head region is a cluster chaining hash-table (with associativity)
+    //         entry region is a varying-size array
     GStore(uint64_t sid, Mem *mem): sid(sid), mem(mem) {
-        num_slots = global_num_keys_million * 1000 * 1000;
-        num_buckets = (uint64_t)((num_slots / ASSOCIATIVITY) * MAIN_RATIO / 100);
-        //num_buckets_ext = (num_slots / ASSOCIATIVITY) / (KEY_RATIO + 1);
+        uint64_t header_region = mem->kvstore_size() * HD_RATIO / 100;
+        uint64_t entry_region = mem->kvstore_size() - header_region;
+
+        // header region
+        num_slots = header_region / sizeof(vertex_t);
+        num_buckets = mymath::hash_prime_u64((num_slots / ASSOCIATIVITY) * MHD_RATIO / 100);
         num_buckets_ext = (num_slots / ASSOCIATIVITY) - num_buckets;
+        last_ext = 0;
+
+        // entry region
+        num_entries = entry_region / sizeof(edge_t);
+        last_entry = 0;
+
+        cout << "INFO: gstore = " << mem->kvstore_size() << " bytes " << std::endl
+             << "      header region: " << num_slots << " slots"
+             << " (main = " << num_buckets << ", indirect = " << num_buckets_ext << ")" << std::endl
+             << "      entry region: " << num_entries << " entries" << std::endl;
 
         vertices = (vertex_t *)(mem->kvstore());
         edges = (edge_t *)(mem->kvstore() + num_slots * sizeof(vertex_t));
-
-        if (mem->kvstore_size() <= num_slots * sizeof(vertex_t)) {
-            cout << "ERROR: " << global_memstore_size_gb
-                 << "GB memory store is not enough to store hash table with "
-                 << global_num_keys_million << "M keys" << std::endl;
-            assert(false);
-        }
-
-        num_entries = (mem->kvstore_size() - num_slots * sizeof(vertex_t)) / sizeof(edge_t);
-        last_entry = 0;
 
         pthread_spin_init(&entry_lock, 0);
         pthread_spin_init(&bucket_ext_lock, 0);
@@ -612,13 +628,15 @@ public:
     void insert_index() {
         uint64_t t1 = timer::get_usec();
 
+        cout << " start (parallel) prepare index info " << endl;
+
         // scan raw data to generate index data in parallel
         #pragma omp parallel for num_threads(global_num_engines)
-        for (int bucket_id = 0; bucket_id < num_buckets + num_buckets_ext; bucket_id++) {
+        for (uint64_t bucket_id = 0; bucket_id < num_buckets + last_ext; bucket_id++) {
             uint64_t slot_id = bucket_id * ASSOCIATIVITY;
             for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
                 // skip empty slot
-                if (vertices[slot_id].key.is_empty()) continue;
+                if (vertices[slot_id].key.is_empty()) break;
 
                 int64_t vid = vertices[slot_id].key.vid;
                 int64_t pid = vertices[slot_id].key.pid;
@@ -662,7 +680,6 @@ public:
                 }
             }
         }
-
         uint64_t t2 = timer::get_usec();
         cout << (t2 - t1) / 1000 << " ms for (parallel) prepare index info" << endl;
 
@@ -688,8 +705,8 @@ public:
     }
 
     // prepare data for planner
-    void generate_statistic(data_statistic& statistic) {
-        for (int bucket_id = 0; bucket_id < num_buckets + num_buckets_ext; bucket_id++) {
+    void generate_statistic(data_statistic & stat) {
+        for (uint64_t bucket_id = 0; bucket_id < num_buckets + num_buckets_ext; bucket_id++) {
             uint64_t slot_id = bucket_id * ASSOCIATIVITY;
             for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
                 // skip empty slot
@@ -701,39 +718,35 @@ public:
                 uint64_t off = vertices[slot_id].ptr.off;
                 if (pid == PREDICATE_ID) continue; // skip for index vertex
 
-                unordered_map<int, int>& ptcount = statistic.predicate_to_triple;
-                unordered_map<int, int>& pscount = statistic.predicate_to_subject;
-                unordered_map<int, int>& pocount = statistic.predicate_to_object;
-                unordered_map<int, int>& tyscount = statistic.type_to_subject;
-                unordered_map<int, vector<direct_p> >& ipcount = statistic.id_to_predicate;
+                unordered_map<int, int>& ptcount = stat.predicate_to_triple;
+                unordered_map<int, int>& pscount = stat.predicate_to_subject;
+                unordered_map<int, int>& pocount = stat.predicate_to_object;
+                unordered_map<int, int>& tyscount = stat.type_to_subject;
+                unordered_map<int, vector<direct_p> >& ipcount = stat.id_to_predicate;
 
                 if (vertices[slot_id].key.dir == IN) {
                     uint64_t sz = vertices[slot_id].ptr.size;
                     // triples only count from one direction
-                    if (ptcount.find(pid) == ptcount.end()) {
+                    if (ptcount.find(pid) == ptcount.end())
                         ptcount[pid] = sz;
-                    }
-                    else {
+                    else
                         ptcount[pid] += sz;
-                    }
+
                     // count objects
-                    if (pocount.find(pid) == pocount.end()) {
+                    if (pocount.find(pid) == pocount.end())
                         pocount[pid] = 1;
-                    }
-                    else {
+                    else
                         pocount[pid] ++;
-                    }
+
                     // count in predicates for specific id
                     ipcount[vid].push_back(direct_p(IN, pid));
-                }
-                else {
+                } else {
                     // count subjects
-                    if (pscount.find(pid) == pscount.end()) {
+                    if (pscount.find(pid) == pscount.end())
                         pscount[pid] = 1;
-                    }
-                    else {
+                    else
                         pscount[pid]++;
-                    }
+
                     // count out predicates for specific id
                     ipcount[vid].push_back(direct_p(OUT, pid));
                     // count type predicate
@@ -743,17 +756,16 @@ public:
                         for (uint64_t j = 0; j < sz; j++) {
                             //src may belongs to multiple types
                             uint64_t obid = edges[off + j].val;
-                            if (tyscount.find(obid) == tyscount.end()) {
+                            if (tyscount.find(obid) == tyscount.end())
                                 tyscount[obid] = 1;
-                            }
-                            else {
+                            else
                                 tyscount[obid] ++;
-                            }
-                            if (pscount.find(obid) == pscount.end()) {
+
+                            if (pscount.find(obid) == pscount.end())
                                 pscount[obid] = 1;
-                            } else {
+                            else
                                 pscount[obid] ++;
-                            }
+
                             ipcount[vid].push_back(direct_p(OUT, obid));
                         }
                     }
@@ -761,17 +773,17 @@ public:
             }
         }
 
-        //cout<<"sizeof predicate_to_triple = "<<statistic.predicate_to_triple.size()<<endl;
-        //cout<<"sizeof predicate_to_subject = "<<statistic.predicate_to_subject.size()<<endl;
-        //cout<<"sizeof predicate_to_object = "<<statistic.predicate_to_object.size()<<endl;
-        //cout<<"sizeof type_to_subject = "<<statistic.type_to_subject.size()<<endl;
-        //cout<<"sizeof id_to_predicate = "<<statistic.id_to_predicate.size()<<endl;
+        //cout<<"sizeof predicate_to_triple = "<<stat.predicate_to_triple.size()<<endl;
+        //cout<<"sizeof predicate_to_subject = "<<stat.predicate_to_subject.size()<<endl;
+        //cout<<"sizeof predicate_to_object = "<<stat.predicate_to_object.size()<<endl;
+        //cout<<"sizeof type_to_subject = "<<stat.type_to_subject.size()<<endl;
+        //cout<<"sizeof id_to_predicate = "<<stat.id_to_predicate.size()<<endl;
 
-        unordered_map<pair<int, int>, four_num, boost::hash<pair<int, int> > >& ppcount = statistic.correlation;
+        unordered_map<pair<int, int>, four_num, boost::hash<pair<int, int> > >& ppcount = stat.correlation;
 
         // do statistic for correlation
-        for (unordered_map<int, vector<direct_p> >::iterator it = statistic.id_to_predicate.begin();
-                it != statistic.id_to_predicate.end(); it++ ) {
+        for (unordered_map<int, vector<direct_p> >::iterator it = stat.id_to_predicate.begin();
+                it != stat.id_to_predicate.end(); it++ ) {
             int vid = it->first;
             vector<direct_p>& vec = it->second;
             for (int i = 0; i < vec.size(); i++) {
@@ -788,23 +800,23 @@ public:
                         p2 = vec[i].p;
                         d2 = vec[i].dir;
                     }
-                    if (d1 == OUT && d2 == OUT) {
+
+                    if (d1 == OUT && d2 == OUT)
                         ppcount[make_pair(p1, p2)].out_out++;
-                    }
-                    if (d1 == OUT && d2 == IN) {
+
+                    if (d1 == OUT && d2 == IN)
                         ppcount[make_pair(p1, p2)].out_in++;
-                    }
-                    if (d1 == IN && d2 == IN) {
+
+                    if (d1 == IN && d2 == IN)
                         ppcount[make_pair(p1, p2)].in_in++;
-                    }
-                    if (d1 == IN && d2 == OUT) {
+
+                    if (d1 == IN && d2 == OUT)
                         ppcount[make_pair(p1, p2)].in_out++;
-                    }
                 }
             }
         }
-        //cout << "sizeof correlation = " << statistic.correlation.size() << endl;
-        cout << "INFO#" << sid << ": generating statistics is finished." << endl;
+        //cout << "sizeof correlation = " << stat.correlation.size() << endl;
+        cout << "INFO#" << sid << ": generating stats is finished." << endl;
     }
 
     edge_t *get_edges_global(int tid, int64_t vid, int64_t d, int64_t pid, int *sz) {
@@ -822,7 +834,7 @@ public:
     // analysis and debuging
     void print_mem_usage() {
         uint64_t used_slots = 0;
-        for (int x = 0; x < num_buckets; x++) {
+        for (uint64_t x = 0; x < num_buckets; x++) {
             uint64_t slot_id = x * ASSOCIATIVITY;
             for (int y = 0; y < ASSOCIATIVITY - 1; y++, slot_id++) {
                 if (vertices[slot_id].key.is_empty())
@@ -839,7 +851,7 @@ public:
              << " % (" << num_buckets << " slots)" << endl;
 
         used_slots = 0;
-        for (int x = num_buckets; x < num_buckets + num_buckets_ext; x++) {
+        for (uint64_t x = num_buckets; x < num_buckets + last_ext; x++) {
             uint64_t slot_id = x * ASSOCIATIVITY;
             for (int y = 0; y < ASSOCIATIVITY - 1; y++, slot_id++) {
                 if (vertices[slot_id].key.is_empty())

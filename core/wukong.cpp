@@ -163,10 +163,13 @@ main(int argc, char *argv[])
 	// load RDF graph (shared by all engines)
 	DGraph dgraph(sid, mem, global_input_folder);
 
+
 	// prepare data for planner
 	data_statistic stat(tcp_adaptor, &world);
-	dgraph.gstore.generate_statistic(stat);
-	stat.gather_data();
+	if (global_enable_planner) {
+		dgraph.gstore.generate_statistic(stat);
+		stat.gather_data();
+	}
 
 	// init control communicaiton
 	con_adaptor = new TCP_Adaptor(sid, host_fname, global_num_proxies, global_ctrl_port_base);
