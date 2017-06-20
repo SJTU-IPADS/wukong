@@ -32,6 +32,7 @@
 #include <boost/algorithm/string.hpp>
 
 #include "query.hpp"
+#include "type.hpp"
 #include "string_server.hpp"
 
 #include "SPARQLParser.hpp"
@@ -71,14 +72,15 @@ static string read_input(istream& in)
  */
 class Parser {
 private:
-    const static int64_t PTYPE_PH = (INT64_MIN + 1); // place holder of pattern type (a special group of objects)
-    const static int64_t DUMMY_ID = (INT64_MIN);
+    // place holder of pattern type (a special group of objects)
+    const static ssid_t PTYPE_PH = std::numeric_limits<ssid_t>::min() + 1;
+    const static ssid_t DUMMY_ID = std::numeric_limits<ssid_t>::min();
 
     // str2ID mapping for pattern constants (e.g., <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> 1)
     String_Server *str_server;
 
     // str2ID mapping for pattern variables (e.g., ?X -1)
-    boost::unordered_map<string, int64_t> pvars;
+    boost::unordered_map<string, ssid_t> pvars;
 
     // abbr2str mapping for prefixes (e.g., rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>)
     boost::unordered_map<string, string> prefixes;
@@ -200,11 +202,11 @@ private:
         }
     }
 
-    int64_t token2id(string &token) {
+    ssid_t token2id(string &token) {
         if (token[0] == '?') {  // pattern variable
             if (pvars.find(token) == pvars.end()) {
                 // use negatie ID for variable
-                int64_t id = - (pvars.size() + 1); // starts from -1
+                ssid_t id = - (pvars.size() + 1); // starts from -1
                 pvars[token] = id;
             }
             return pvars[token];
@@ -264,9 +266,9 @@ private:
 
         // insert a new CORUN pattern
         if (fetch_step >= 0) {
-            vector<int64_t> corun_pattern;
-            corun_pattern.push_back((int64_t)DUMMY_ID); // unused
-            corun_pattern.push_back((int64_t)DUMMY_ID); // unused
+            vector<ssid_t> corun_pattern;
+            corun_pattern.push_back((ssid_t)DUMMY_ID); // unused
+            corun_pattern.push_back((ssid_t)DUMMY_ID); // unused
             corun_pattern.push_back(CORUN);
             corun_pattern.push_back(fetch_step + 1); // because we insert a new cmd in the middle
 
@@ -284,10 +286,10 @@ private:
     }
 
     //_H_ means helper
-    boost::unordered_map<unsigned, int64_t> _H_incVarIdMap;
-    int64_t varId = -1;
+    boost::unordered_map<unsigned, ssid_t> _H_incVarIdMap;
+    ssid_t varId = -1;
 
-    int64_t _H_inc_var_id(unsigned ori_id) {
+    ssid_t _H_inc_var_id(unsigned ori_id) {
         if (_H_incVarIdMap.find(ori_id) == _H_incVarIdMap.end()) {
             _H_incVarIdMap[ori_id] = varId;
             return varId--;
@@ -296,7 +298,7 @@ private:
         }
     }
 
-    int64_t _H_encode(const SPARQLParser::Element& element) {//const
+    ssid_t _H_encode(const SPARQLParser::Element& element) {//const
         switch (element.type) {
         case SPARQLParser::Element::Variable:
             return _H_inc_var_id(element.id);
@@ -318,10 +320,11 @@ private:
         return DUMMY_ID;
     }
 
-    void _H_simplist_transfer(const SPARQLParser & parser, request_or_reply &r) {
-        vector<int64_t> temp_cmd_chains ;
+    void _H_simplist_transfer(const SPARQLParser &parser, request_or_reply &r) {
+        vector<ssid_t> temp_cmd_chains ;
         SPARQLParser::PatternGroup group = parser.getPatterns();
-        for (std::vector<SPARQLParser::Pattern>::const_iterator iter = group.patterns.begin(), limit = group.patterns.end(); iter != limit; ++iter) {
+        for (std::vector<SPARQLParser::Pattern>::const_iterator iter = group.patterns.begin(),
+                limit = group.patterns.end(); iter != limit; ++iter) {
             temp_cmd_chains.push_back(_H_encode(iter->subject));
             temp_cmd_chains.push_back(_H_encode(iter->predicate));
             temp_cmd_chains.push_back(OUT);

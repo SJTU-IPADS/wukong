@@ -27,6 +27,7 @@
 #include <stdlib.h> //qsort
 
 #include "config.hpp"
+#include "type.hpp"
 #include "coder.hpp"
 #include "adaptor.hpp"
 #include "dgraph.hpp"
@@ -61,7 +62,7 @@ public:
         int pid = r.pid;
         Item &data = internal_item_map[pid];
 
-        vector<int64_t> &result_table = data.merged_reply.result_table;
+        vector<sid_t> &result_table = data.merged_reply.result_table;
         data.count--;
         data.merged_reply.step = r.step;
         data.merged_reply.col_num = r.col_num;
@@ -118,18 +119,18 @@ class Engine {
 
     // all of these means const predicate
     void const_to_unknown(request_or_reply &req) {
-        int64_t start = req.cmd_chains[req.step * 4];
-        int64_t pid   = req.cmd_chains[req.step * 4 + 1];
-        int64_t d     = req.cmd_chains[req.step * 4 + 2];
-        int64_t end   = req.cmd_chains[req.step * 4 + 3];
-        std::vector<int64_t> updated_result_table;
+        ssid_t start = req.cmd_chains[req.step * 4];
+        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
+        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        std::vector<sid_t> updated_result_table;
 
         // the query plan is wrong
-        assert ((req.get_col_num() == 0) && (req.get_col_num() == req.var2column(end)));
+        assert((req.get_col_num() == 0) && (req.get_col_num() == req.var2column(end)));
 
-        int sz = 0;
+        uint64_t sz = 0;
         edge_t *res = graph->get_edges_global(tid, start, d, pid, &sz);
-        for (int k = 0; k < sz; k++)
+        for (uint64_t k = 0; k < sz; k++)
             updated_result_table.push_back(res[k].val);
 
         req.result_table.swap(updated_result_table);
@@ -140,21 +141,21 @@ class Engine {
     void const_to_known(request_or_reply &req) { assert(false); } /// TODO
 
     void known_to_unknown(request_or_reply &req) {
-        int64_t start = req.cmd_chains[req.step * 4];
-        int64_t pid   = req.cmd_chains[req.step * 4 + 1];
-        int64_t d     = req.cmd_chains[req.step * 4 + 2];
-        int64_t end   = req.cmd_chains[req.step * 4 + 3];
-        std::vector<int64_t> updated_result_table;
+        ssid_t start = req.cmd_chains[req.step * 4];
+        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
+        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        std::vector<sid_t> updated_result_table;
 
         // the query plan is wrong
-        assert (req.get_col_num() == req.var2column(end));
+        assert(req.get_col_num() == req.var2column(end));
 
         updated_result_table.reserve(req.result_table.size());
         for (int i = 0; i < req.get_row_num(); i++) {
-            int64_t prev_id = req.get_row_col(i, req.var2column(start));
-            int sz = 0;
+            sid_t prev_id = req.get_row_col(i, req.var2column(start));
+            uint64_t sz = 0;
             edge_t *res = graph->get_edges_global(tid, prev_id, d, pid, &sz);
-            for (int k = 0; k < sz; k++) {
+            for (uint64_t k = 0; k < sz; k++) {
                 req.append_row_to(i, updated_result_table);
                 updated_result_table.push_back(res[k].val);
             }
@@ -166,18 +167,18 @@ class Engine {
     }
 
     void known_to_known(request_or_reply &req) {
-        int64_t start = req.cmd_chains[req.step * 4];
-        int64_t pid   = req.cmd_chains[req.step * 4 + 1];
-        int64_t d     = req.cmd_chains[req.step * 4 + 2];
-        int64_t end   = req.cmd_chains[req.step * 4 + 3];
-        vector<int64_t> updated_result_table;
+        ssid_t start = req.cmd_chains[req.step * 4];
+        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
+        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        vector<sid_t> updated_result_table;
 
         for (int i = 0; i < req.get_row_num(); i++) {
-            int64_t prev_id = req.get_row_col(i, req.var2column(start));
-            int sz = 0;
+            sid_t prev_id = req.get_row_col(i, req.var2column(start));
+            uint64_t sz = 0;
             edge_t *res = graph->get_edges_global(tid, prev_id, d, pid, &sz);
-            int64_t end2 = req.get_row_col(i, req.var2column(end));
-            for (int k = 0; k < sz; k++) {
+            sid_t end2 = req.get_row_col(i, req.var2column(end));
+            for (uint64_t k = 0; k < sz; k++) {
                 if (res[k].val == end2) {
                     req.append_row_to(i, updated_result_table);
                     break;
@@ -190,17 +191,17 @@ class Engine {
     }
 
     void known_to_const(request_or_reply &req) {
-        int64_t start = req.cmd_chains[req.step * 4];
-        int64_t pid   = req.cmd_chains[req.step * 4 + 1];
-        int64_t d     = req.cmd_chains[req.step * 4 + 2];
-        int64_t end   = req.cmd_chains[req.step * 4 + 3];
-        vector<int64_t> updated_result_table;
+        ssid_t start = req.cmd_chains[req.step * 4];
+        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
+        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        vector<sid_t> updated_result_table;
 
         for (int i = 0; i < req.get_row_num(); i++) {
-            int64_t prev_id = req.get_row_col(i, req.var2column(start));
-            int sz = 0;
+            sid_t prev_id = req.get_row_col(i, req.var2column(start));
+            uint64_t sz = 0;
             edge_t *res = graph->get_edges_global(tid, prev_id, d, pid, &sz);
-            for (int k = 0; k < sz; k++) {
+            for (uint64_t k = 0; k < sz; k++) {
                 if (res[k].val == end) {
                     req.append_row_to(i, updated_result_table);
                     break;
@@ -213,19 +214,19 @@ class Engine {
     }
 
     void index_to_unknown(request_or_reply &req) {
-        int64_t idx = req.cmd_chains[req.step * 4];
-        int64_t nothing = req.cmd_chains[req.step * 4 + 1];
-        int64_t d = req.cmd_chains[req.step * 4 + 2];
-        int64_t var = req.cmd_chains[req.step * 4 + 3];
-        vector<int64_t> updated_result_table;
+        ssid_t idx = req.cmd_chains[req.step * 4];
+        ssid_t nothing = req.cmd_chains[req.step * 4 + 1];
+        dir_t d = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        ssid_t var = req.cmd_chains[req.step * 4 + 3];
+        vector<sid_t> updated_result_table;
 
         // the query plan is wrong
         assert(req.get_col_num() == 0 && req.get_col_num() == req.var2column(var));
 
-        int sz = 0;
+        uint64_t sz = 0;
         edge_t *res = graph->get_index_edges_local(tid, idx, d, &sz);
-        int64_t start = req.tid;
-        for (int k = start; k < sz; k += global_mt_threshold)
+        int start = req.tid;
+        for (uint64_t k = start; k < sz; k += global_mt_threshold)
             updated_result_table.push_back(res[k].val);
 
         req.result_table.swap(updated_result_table);
@@ -235,21 +236,21 @@ class Engine {
     }
 
     void const_unknown_unknown(request_or_reply &req) {
-        int64_t start = req.cmd_chains[req.step * 4];
-        int64_t pid   = req.cmd_chains[req.step * 4 + 1];
-        int64_t d     = req.cmd_chains[req.step * 4 + 2];
-        int64_t end   = req.cmd_chains[req.step * 4 + 3];
-        vector<int64_t> updated_result_table;
+        ssid_t start = req.cmd_chains[req.step * 4];
+        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
+        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        vector<sid_t> updated_result_table;
 
         // the query plan is wrong
-        assert (req.get_col_num() == 0);
+        assert(req.get_col_num() == 0);
 
-        int npids = 0;
+        uint64_t npids = 0;
         edge_t *pids = graph->get_edges_global(tid, start, d, PREDICATE_ID, &npids);
-        for (int p = 0; p < npids; p++) {
-            int sz = 0;
+        for (uint64_t p = 0; p < npids; p++) {
+            uint64_t sz = 0;
             edge_t *res = graph->get_edges_global(tid, start, d, pids[p].val, &sz);
-            for (int k = 0; k < sz; k++) {
+            for (uint64_t k = 0; k < sz; k++) {
                 updated_result_table.push_back(pids[p].val);
                 updated_result_table.push_back(res[k].val);
             }
@@ -261,20 +262,20 @@ class Engine {
     }
 
     void known_unknown_unknown(request_or_reply &req) {
-        int64_t start = req.cmd_chains[req.step * 4];
-        int64_t pid   = req.cmd_chains[req.step * 4 + 1];
-        int64_t d     = req.cmd_chains[req.step * 4 + 2];
-        int64_t end   = req.cmd_chains[req.step * 4 + 3];
-        vector<int64_t> updated_result_table;
+        ssid_t start = req.cmd_chains[req.step * 4];
+        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
+        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        vector<sid_t> updated_result_table;
 
         for (int i = 0; i < req.get_row_num(); i++) {
-            int64_t prev_id = req.get_row_col(i, req.var2column(start));
-            int npids = 0;
+            sid_t prev_id = req.get_row_col(i, req.var2column(start));
+            uint64_t npids = 0;
             edge_t *pids = graph->get_edges_global(tid, prev_id, d, PREDICATE_ID, &npids);
-            for (int p = 0; p < npids; p++) {
-                int sz = 0;
+            for (uint64_t p = 0; p < npids; p++) {
+                uint64_t sz = 0;
                 edge_t *res = graph->get_edges_global(tid, prev_id, d, pids[p].val, &sz);
-                for (int k = 0; k < sz; k++) {
+                for (uint64_t k = 0; k < sz; k++) {
                     req.append_row_to(i, updated_result_table);
                     updated_result_table.push_back(pids[p].val);
                     updated_result_table.push_back(res[k].val);
@@ -288,20 +289,20 @@ class Engine {
     }
 
     void known_unknown_const(request_or_reply &req) {
-        int64_t start = req.cmd_chains[req.step * 4];
-        int64_t pid   = req.cmd_chains[req.step * 4 + 1];
-        int64_t d     = req.cmd_chains[req.step * 4 + 2];
-        int64_t end   = req.cmd_chains[req.step * 4 + 3];
-        vector<int64_t> updated_result_table;
+        ssid_t start = req.cmd_chains[req.step * 4];
+        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
+        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        vector<sid_t> updated_result_table;
 
         for (int i = 0; i < req.get_row_num(); i++) {
-            int64_t prev_id = req.get_row_col(i, req.var2column(start));
-            int npids = 0;
+            sid_t prev_id = req.get_row_col(i, req.var2column(start));
+            uint64_t npids = 0;
             edge_t *pids = graph->get_edges_global(tid, prev_id, d, PREDICATE_ID, &npids);
-            for (int p = 0; p < npids; p++) {
-                int sz = 0;
+            for (uint64_t p = 0; p < npids; p++) {
+                uint64_t sz = 0;
                 edge_t *res = graph->get_edges_global(tid, prev_id, d, pids[p].val, &sz);
-                for (int k = 0; k < sz; k++) {
+                for (uint64_t k = 0; k < sz; k++) {
                     if (res[k].val == end) {
                         req.append_row_to(i, updated_result_table);
                         updated_result_table.push_back(pids[p].val);
@@ -317,8 +318,8 @@ class Engine {
     }
 
     vector<request_or_reply> generate_sub_query(request_or_reply &req) {
-        int64_t start = req.cmd_chains[req.step * 4];
-        int64_t end   = req.cmd_chains[req.step * 4 + 3];
+        ssid_t start = req.cmd_chains[req.step * 4];
+        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
 
         vector<request_or_reply> sub_reqs;
         int num_sub_request = global_num_servers;
@@ -341,8 +342,8 @@ class Engine {
     }
 
     vector<request_or_reply> generate_mt_sub_requests(request_or_reply &req) {
-        int64_t start = req.cmd_chains[req.step * 4];
-        int64_t end   = req.cmd_chains[req.step * 4 + 3];
+        ssid_t start = req.cmd_chains[req.step * 4];
+        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
 
         vector<request_or_reply> sub_reqs;
         int num_sub_request = global_num_servers * global_mt_threshold ;
@@ -366,7 +367,7 @@ class Engine {
 
     // fork-join or in-place execution
     bool need_fork_join(request_or_reply &req) {
-        int64_t start = req.cmd_chains[req.step * 4];
+        ssid_t start = req.cmd_chains[req.step * 4];
         return ((req.local_var != start)
                 && (req.get_row_num() >= global_rdma_threshold));
     }
@@ -378,25 +379,25 @@ class Engine {
         // step.1 remove dup;
         uint64_t t0 = timer::get_usec();
 
-        boost::unordered_set<int64_t> unique_set;
-        int64_t vid = req.cmd_chains[corun_step * 4];
+        boost::unordered_set<sid_t> unique_set;
+        ssid_t vid = req.cmd_chains[corun_step * 4];
         assert(vid < 0);
-        int64_t col_idx = req.var2column(vid);
+        int col_idx = req.var2column(vid);
         for (int i = 0; i < req.get_row_num(); i++)
             unique_set.insert(req.get_row_col(i, col_idx));
 
         // step.2 generate cmd_chain for sub-reqs
-        vector<int64_t> sub_chain;
-        vector<int64_t> pvars_map; // from new_id to col_idx of id
+        vector<ssid_t> sub_chain;
+        vector<int> pvars_map; // from new_id to col_idx of id
 
-        boost::unordered_map<int64_t, int64_t> sub_pvars;
+        boost::unordered_map<sid_t, sid_t> sub_pvars;
         for (int i = corun_step * 4; i < fetch_step * 4; i++) {
-            int64_t id = req.cmd_chains[i];
+            ssid_t id = req.cmd_chains[i];
 
             if (id < 0) {
                 // remap pattern variable
                 if (sub_pvars.find(id) == sub_pvars.end()) {
-                    int64_t new_id = - (sub_pvars.size() + 1); // starts from -1
+                    sid_t new_id = - (sub_pvars.size() + 1); // starts from -1
                     sub_pvars[id] = new_id;
                     pvars_map.push_back(req.var2column(id));
                 }
@@ -409,7 +410,7 @@ class Engine {
 
         // step.3 make sub-req
         request_or_reply sub_req;
-        boost::unordered_set<int64_t>::iterator iter;
+        boost::unordered_set<sid_t>::iterator iter;
         for (iter = unique_set.begin(); iter != unique_set.end(); iter++)
             sub_req.result_table.push_back(*iter);
         sub_req.cmd_chains = sub_chain;
@@ -427,13 +428,13 @@ class Engine {
         uint64_t t2 = timer::get_usec(); // time to run the sub-request
 
         uint64_t t3, t4;
-        vector<int64_t> updated_result_table;
+        vector<sid_t> updated_result_table;
 
         if (sub_req.get_col_num() > 2) { // qsort
             mytuple::qsort_tuple(sub_req.get_col_num(), sub_req.result_table);
 
             t3 = timer::get_usec();
-            vector<int64_t> tmp_vec;
+            vector<sid_t> tmp_vec;
             tmp_vec.resize(sub_req.get_col_num());
             for (int i = 0; i < req.get_row_num(); i++) {
                 for (int c = 0; c < pvars_map.size(); c++)
@@ -449,7 +450,7 @@ class Engine {
                 remote_set.insert(v_pair(sub_req.get_row_col(i, 0), sub_req.get_row_col(i, 1)));
 
             t3 = timer::get_usec();
-            vector<int64_t> tmp_vec;
+            vector<sid_t> tmp_vec;
             tmp_vec.resize(sub_req.get_col_num());
             for (int i = 0; i < req.get_row_num(); i++) {
                 for (int c = 0; c < pvars_map.size(); c++)
@@ -482,10 +483,10 @@ class Engine {
             index_to_unknown(req);
             return true;
         }
-        int64_t start = req.cmd_chains[req.step * 4];
-        int64_t predicate = req.cmd_chains[req.step * 4 + 1];
-        int64_t direction = req.cmd_chains[req.step * 4 + 2];
-        int64_t end = req.cmd_chains[req.step * 4 + 3];
+        ssid_t start = req.cmd_chains[req.step * 4];
+        ssid_t predicate = req.cmd_chains[req.step * 4 + 1];
+        dir_t direction = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        ssid_t end = req.cmd_chains[req.step * 4 + 3];
 
         if (predicate < 0) {
 #ifdef VERSATILE

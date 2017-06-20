@@ -28,6 +28,8 @@
 #include <boost/serialization/vector.hpp>
 #include <vector>
 
+#include "type.hpp"
+
 using namespace std;
 using namespace boost::archive;
 
@@ -54,13 +56,13 @@ public:
 
     bool blind = false;
 
-    int64_t local_var = 0;
-    vector<int64_t> cmd_chains; // N * (subject, predicat, direction, object)
-    vector<int64_t> result_table;
+    ssid_t local_var = 0;
+    vector<ssid_t> cmd_chains; // N * (subject, predicat, direction, object)
+    vector<sid_t> result_table;
 
     request_or_reply() { }
 
-    request_or_reply(vector<int64_t> _cc): cmd_chains(_cc) { }
+    request_or_reply(vector<ssid_t> _cc): cmd_chains(_cc) { }
 
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
@@ -103,7 +105,7 @@ public:
         return false;
     }
 
-    var_type variable_type(int64_t vid) {
+    var_type variable_type(ssid_t vid) {
         if (vid >= 0)
             return const_var;
 
@@ -113,7 +115,7 @@ public:
             return known_var;
     }
 
-    int64_t var2column(int64_t vid) {
+    int var2column(ssid_t vid) {
         assert(vid < 0); // pattern variable
         return ((- vid) - 1);
     }
@@ -127,11 +129,11 @@ public:
         return result_table.size() / col_num;
     }
 
-    int64_t get_row_col(int r, int c) {
+    sid_t get_row_col(int r, int c) {
         return result_table[col_num * r + c];
     }
 
-    void append_row_to(int r, vector<int64_t> &updated_result_table) {
+    void append_row_to(int r, vector<sid_t> &updated_result_table) {
         for (int c = 0; c < col_num; c++)
             updated_result_table.push_back(get_row_col(r, c));
     }
@@ -140,12 +142,12 @@ public:
 class request_template {
 
 public:
-    vector<int64_t> cmd_chains;
+    vector<ssid_t> cmd_chains;
 
     // no serialize
-    vector<int64_t> ptypes_pos;            // the locations of random-constants
+    vector<int> ptypes_pos;            // the locations of random-constants
     vector<string> ptypes_str;             // the Types of random-constants
-    vector<vector<int64_t>> ptypes_grp;  // the candidates for random-constants
+    vector<vector<sid_t>> ptypes_grp;    // the candidates for random-constants
 
     request_or_reply instantiate(int seed) {
         //request_or_reply request(cmd_chains);

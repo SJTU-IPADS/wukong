@@ -24,6 +24,9 @@ add_definitions(-DHAS_RDMA)
 ## Uncomment the line below to support versatile queries (e.g., ?S ?P ?O).
 #add_definitions(-DVERSATILE)
 
+## Uncomment the line below to use 64-bit data types (32-bit by default).
+#add_definitions(-DDTYPE_64BIT)
+
 ## Set include path
 include_directories(deps/boost_1_58_0-install/include)
 include_directories(core)

@@ -70,7 +70,7 @@ private:
 			send_request(type_request);
 			type_reply = recv_reply();
 
-			vector<int64_t> candidates(type_reply.result_table);
+			vector<sid_t> candidates(type_reply.result_table);
 			// There is no candidate with the Type for a random-constant in the template
 			// TODO: it should report empty for all queries of the template
 			assert(candidates.size() > 0);

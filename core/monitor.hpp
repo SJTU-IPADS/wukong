@@ -162,7 +162,7 @@ void *send_cmd(void *ptr) {
 			monitor->proxy->print_result(r, min(r.row_num, global_max_print_row));
 
 		CS_Reply crep;
-		crep.column = r.col_num;
+		crep.ncol = r.col_num;
 		crep.result_table = r.result_table;
 		crep.cid = monitor->get_cid(r.pid);
 		monitor->send_rep(crep);

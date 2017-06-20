@@ -30,26 +30,26 @@ struct four_num {
 };
 
 struct direct_p {
-    int dir;
-    int p;
+    ssid_t dir;
+    ssid_t p;
     direct_p(): dir(-1), p(-1) {}
-    direct_p(int x, int y): dir(x), p(y) {}
+    direct_p(ssid_t x, ssid_t y): dir(x), p(y) {}
 };
 
 class data_statistic {
 public:
-    unordered_map<int, int> predicate_to_triple;
-    unordered_map<int, int> predicate_to_subject;
-    unordered_map<int, int> predicate_to_object;
-    unordered_map<int, int> type_to_subject;
-    unordered_map<pair<int, int>, four_num, boost::hash<pair<int, int> > > correlation;
-    unordered_map<int, vector<direct_p> > id_to_predicate;
+    unordered_map<ssid_t, int> predicate_to_triple;
+    unordered_map<ssid_t, int> predicate_to_subject;
+    unordered_map<ssid_t, int> predicate_to_object;
+    unordered_map<ssid_t, int> type_to_subject;
+    unordered_map<pair<ssid_t, ssid_t>, four_num, boost::hash<pair<int, int>>> correlation;
+    unordered_map<ssid_t, vector<direct_p> > id_to_predicate;
 
-    unordered_map<int, int> global_ptcount;
-    unordered_map<int, int> global_pscount;
-    unordered_map<int, int> global_pocount;
-    unordered_map<int, int> global_tyscount;
-    unordered_map<pair<int, int>, four_num, boost::hash<pair<int, int> > > global_ppcount;
+    unordered_map<ssid_t, int> global_ptcount;
+    unordered_map<ssid_t, int> global_pscount;
+    unordered_map<ssid_t, int> global_pocount;
+    unordered_map<ssid_t, int> global_tyscount;
+    unordered_map<pair<ssid_t, ssid_t>, four_num, boost::hash<pair<int, int>>> global_ppcount;
 
     TCP_Adaptor* tcp_adaptor;
     boost::mpi::communicator* world;
@@ -83,9 +83,9 @@ public:
             }
 
             for (int i = 0; i < all_gather.size(); i++) {
-                for (unordered_map<int, int>::iterator it = all_gather[i].predicate_to_triple.begin();
+                for (unordered_map<ssid_t, int>::iterator it = all_gather[i].predicate_to_triple.begin();
                         it != all_gather[i].predicate_to_triple.end(); it++ ) {
-                    int key = it->first;
+                    ssid_t key = it->first;
                     int triple = it->second;
                     if (global_ptcount.find(key) == global_ptcount.end()) {
                         global_ptcount[key] = triple;
@@ -93,9 +93,9 @@ public:
                         global_ptcount[key] += triple;
                     }
                 }
-                for (unordered_map<int, int>::iterator it = all_gather[i].predicate_to_subject.begin();
+                for (unordered_map<ssid_t, int>::iterator it = all_gather[i].predicate_to_subject.begin();
                         it != all_gather[i].predicate_to_subject.end(); it++ ) {
-                    int key = it->first;
+                    ssid_t key = it->first;
                     int subject = it->second;
                     if (global_pscount.find(key) == global_pscount.end()) {
                         global_pscount[key] = subject;
@@ -103,9 +103,9 @@ public:
                         global_pscount[key] += subject;
                     }
                 }
-                for (unordered_map<int, int>::iterator it = all_gather[i].predicate_to_object.begin();
+                for (unordered_map<ssid_t, int>::iterator it = all_gather[i].predicate_to_object.begin();
                         it != all_gather[i].predicate_to_object.end(); it++ ) {
-                    int key = it->first;
+                    ssid_t key = it->first;
                     int object = it->second;
                     if (global_pocount.find(key) == global_pocount.end()) {
                         global_pocount[key] = object;
@@ -113,9 +113,9 @@ public:
                         global_pocount[key] += object;
                     }
                 }
-                for (unordered_map<pair<int, int>, four_num, boost::hash<pair<int, int> > >::iterator it = all_gather[i].correlation.begin();
+                for (unordered_map<pair<ssid_t, ssid_t>, four_num, boost::hash<pair<int, int> > >::iterator it = all_gather[i].correlation.begin();
                         it != all_gather[i].correlation.end(); it++ ) {
-                    pair<int, int> key = it->first;
+                    pair<ssid_t, ssid_t> key = it->first;
                     four_num value = it->second;
                     if (global_ppcount.find(it->first) == global_ppcount.end()) {
                         global_ppcount[key] = value;
@@ -127,9 +127,9 @@ public:
                     }
                 }
                 //for type predicate
-                for (unordered_map<int, int>::iterator it = all_gather[i].type_to_subject.begin();
+                for (unordered_map<ssid_t, int>::iterator it = all_gather[i].type_to_subject.begin();
                         it != all_gather[i].type_to_subject.end(); it++ ) {
-                    int key = it->first;
+                    ssid_t key = it->first;
                     int subject = it->second;
                     if (global_tyscount.find(key) == global_tyscount.end()) {
                         global_tyscount[key] = subject;
@@ -149,7 +149,7 @@ public:
             // for type predicate
             global_pocount[1] = global_tyscount.size();
             int triple = 0;
-            for (unordered_map<int, int>::iterator it = global_tyscount.begin();
+            for (unordered_map<ssid_t, int>::iterator it = global_tyscount.begin();
                     it != global_tyscount.end(); it++ ) {
                 triple += it->second;
             }

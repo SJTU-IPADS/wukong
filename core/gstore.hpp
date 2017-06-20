@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include <stdint.h> //uint64_t
+#include <stdint.h> // uint64_t
 #include <vector>
 #include <iostream>
 #include <pthread.h>
@@ -32,23 +32,23 @@
 
 #include "config.hpp"
 #include "rdma_resource.hpp"
+#include "data_statistic.hpp"
+#include "type.hpp"
 
 #include "mymath.hpp"
 #include "timer.hpp"
 #include "unit.hpp"
 
-#include "data_statistic.hpp"
-
 using namespace std;
 
 struct triple_t {
-    uint64_t s; // subject
-    uint64_t p; // predicate
-    uint64_t o; // object
+    sid_t s; // subject
+    sid_t p; // predicate
+    sid_t o; // object
 
     triple_t(): s(0), p(0), o(0) { }
 
-    triple_t(uint64_t _s, uint64_t _p, uint64_t _o): s(_s), p(_p), o(_o) { }
+    triple_t(sid_t _s, sid_t _p, sid_t _o): s(_s), p(_p), o(_o) { }
 };
 
 struct edge_sort_by_spo {
@@ -82,10 +82,8 @@ enum { NBITS_IDX = 17 }; // equal to the size of t/pid
 enum { NBITS_VID = (64 - NBITS_IDX - NBITS_DIR) }; // 0: index vertex, ID: normal vertex
 
 enum { PREDICATE_ID = 0, TYPE_ID = 1 }; // reserve two special index IDs
-enum dir_t { IN, OUT, CORUN }; // direction: IN=0, OUT=1, and optimization hints
 
-static inline bool is_tpid(int id) { return (id > 1) && (id < (1 << NBITS_IDX)); }
-static inline bool is_idx(int vid) { return (vid == 0); }
+static inline bool is_tpid(sid_t id) { return (id > 1) && (id < (1 << NBITS_IDX)); }
 
 /**
  * predicate-base key/value store
@@ -99,7 +97,7 @@ uint64_t vid : NBITS_VID; // vertex
 
     ikey_t(): vid(0), pid(0), dir(0) { }
 
-    ikey_t(uint64_t v, uint64_t p, uint64_t d): vid(v), pid(p), dir(d) {
+    ikey_t(sid_t v, sid_t p, dir_t d): vid(v), pid(p), dir(d) {
         assert((vid == v) && (dir == d) && (pid == p)); // no key truncate
     }
 
@@ -161,7 +159,7 @@ struct vertex_t {
 
 // 32-bit edge (value)
 struct edge_t {
-    uint32_t val;  // vertex ID
+    sid_t val;  // vertex ID
 };
 
 
@@ -219,7 +217,7 @@ private:
     //                                      #verts += #S + #O
     //                                      #edges += (#S + #O) * AVG(#P) ~= #T
     static const int MHD_RATIO = 80; // main-header / (main-header + indirect-header)
-    static const int HD_RATIO = 60; // header / (header + entry)
+    static const int HD_RATIO = (128 * 100 / (128 + 3 * std::numeric_limits<sid_t>::digits)); // header * 100 / (header + entry)
 
     uint64_t sid;
     Mem *mem;
@@ -253,6 +251,8 @@ private:
         while (slot_id < num_slots) {
             // the last slot of each bucket is always reserved for pointer to indirect header
             /// TODO: add type info to slot and resue the last slot to store key
+            /// TODO: key.vid is reused to store the bucket_id of indirect header rather than ptr.off,
+            ///       since the is_empty() is not robust.
             for (uint64_t i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
                 //assert(vertices[slot_id].key != key); // no duplicate key
                 if (vertices[slot_id].key == key) {
@@ -324,7 +324,7 @@ done:
             RDMA &rdma = RDMA::get_rdma();
             rdma.dev->RdmaRead(tid, dst_sid, buf, sz, off);
             vertex_t *verts = (vertex_t *)buf;
-            for (uint64_t i = 0; i < ASSOCIATIVITY; i++) {
+            for (int i = 0; i < ASSOCIATIVITY; i++) {
                 if (i < ASSOCIATIVITY - 1) {
                     if (verts[i].key == key) {
                         rdma_cache.insert(verts[i]);
@@ -344,7 +344,7 @@ done:
     vertex_t get_vertex_local(int tid, ikey_t key) {
         uint64_t bucket_id = key.hash() % num_buckets;
         while (true) {
-            for (uint64_t i = 0; i < ASSOCIATIVITY; i++) {
+            for (int i = 0; i < ASSOCIATIVITY; i++) {
                 uint64_t slot_id = bucket_id * ASSOCIATIVITY + i;
                 if (i < ASSOCIATIVITY - 1) {
                     //data part
@@ -363,44 +363,43 @@ done:
         }
     }
 
-    edge_t *get_edges_remote(int tid, int64_t vid, int64_t d, int64_t pid, int *size) {
+    edge_t *get_edges_remote(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
         int dst_sid = mymath::hash_mod(vid, global_num_servers);
         ikey_t key = ikey_t(vid, pid, d);
         vertex_t v = get_vertex_remote(tid, key);
 
         if (v.key.is_empty()) {
-            *size = 0;
+            *sz = 0;
             return NULL; // not found
         }
 
         char *buf = mem->buffer(tid);
-        uint64_t off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
-        uint64_t sz = v.ptr.size * sizeof(edge_t);
+        uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
+        uint64_t r_sz = v.ptr.size * sizeof(edge_t);
         RDMA &rdma = RDMA::get_rdma();
-        rdma.dev->RdmaRead(tid, dst_sid, buf, sz, off);
+        rdma.dev->RdmaRead(tid, dst_sid, buf, r_sz, r_off);
         edge_t *result_ptr = (edge_t *)buf;
 
-        *size = v.ptr.size;
+        *sz = v.ptr.size;
         return result_ptr;
     }
 
-    edge_t *get_edges_local(int tid, int64_t vid, int64_t d, int64_t pid, int *size) {
+    edge_t *get_edges_local(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
         ikey_t key = ikey_t(vid, pid, d);
         vertex_t v = get_vertex_local(tid, key);
 
         if (v.key.is_empty()) {
-            *size = 0;
+            *sz = 0;
             return NULL;
         }
 
-        *size = v.ptr.size;
+        *sz = v.ptr.size;
         uint64_t off = v.ptr.off;
         return &(edges[off]);
     }
 
 
-    typedef tbb::concurrent_hash_map<int64_t, vector< int64_t>> tbb_hash_map;
-    typedef tbb::concurrent_unordered_set<int64_t> tbb_unordered_set;
+    typedef tbb::concurrent_hash_map<sid_t, vector<sid_t>> tbb_hash_map;
 
     tbb_hash_map pidx_in_map; // predicate-index (IN)
     tbb_hash_map pidx_out_map; // predicate-index (OUT)
@@ -408,7 +407,7 @@ done:
 
     void insert_index_map(tbb_hash_map &map, dir_t d) {
         for (auto const &e : map) {
-            int64_t pid = e.first;
+            sid_t pid = e.first;
             uint64_t sz = e.second.size();
             uint64_t off = sync_fetch_and_alloc_edges(sz);
 
@@ -423,6 +422,8 @@ done:
     }
 
 #ifdef VERSATILE
+    typedef tbb::concurrent_unordered_set<sid_t> tbb_unordered_set;
+
     tbb_unordered_set p_set; // all of predicates
     tbb_unordered_set v_set; // all of vertices (subjects and objects)
 
@@ -638,8 +639,8 @@ public:
                 // skip empty slot
                 if (vertices[slot_id].key.is_empty()) break;
 
-                int64_t vid = vertices[slot_id].key.vid;
-                int64_t pid = vertices[slot_id].key.pid;
+                sid_t vid = vertices[slot_id].key.vid;
+                sid_t pid = vertices[slot_id].key.pid;
 
                 uint64_t sz = vertices[slot_id].ptr.size;
                 uint64_t off = vertices[slot_id].ptr.off;
@@ -705,27 +706,28 @@ public:
     }
 
     // prepare data for planner
-    void generate_statistic(data_statistic & stat) {
+    void generate_statistic(data_statistic &stat) {
         for (uint64_t bucket_id = 0; bucket_id < num_buckets + num_buckets_ext; bucket_id++) {
             uint64_t slot_id = bucket_id * ASSOCIATIVITY;
             for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
                 // skip empty slot
                 if (vertices[slot_id].key.is_empty()) continue;
 
-                int64_t vid = vertices[slot_id].key.vid;
-                int64_t pid = vertices[slot_id].key.pid;
+                sid_t vid = vertices[slot_id].key.vid;
+                sid_t pid = vertices[slot_id].key.pid;
 
                 uint64_t off = vertices[slot_id].ptr.off;
                 if (pid == PREDICATE_ID) continue; // skip for index vertex
 
-                unordered_map<int, int>& ptcount = stat.predicate_to_triple;
-                unordered_map<int, int>& pscount = stat.predicate_to_subject;
-                unordered_map<int, int>& pocount = stat.predicate_to_object;
-                unordered_map<int, int>& tyscount = stat.type_to_subject;
-                unordered_map<int, vector<direct_p> >& ipcount = stat.id_to_predicate;
+                unordered_map<ssid_t, int> &ptcount = stat.predicate_to_triple;
+                unordered_map<ssid_t, int> &pscount = stat.predicate_to_subject;
+                unordered_map<ssid_t, int> &pocount = stat.predicate_to_object;
+                unordered_map<ssid_t, int> &tyscount = stat.type_to_subject;
+                unordered_map<ssid_t, vector<direct_p> > &ipcount = stat.id_to_predicate;
 
                 if (vertices[slot_id].key.dir == IN) {
                     uint64_t sz = vertices[slot_id].ptr.size;
+
                     // triples only count from one direction
                     if (ptcount.find(pid) == ptcount.end())
                         ptcount[pid] = sz;
@@ -736,7 +738,7 @@ public:
                     if (pocount.find(pid) == pocount.end())
                         pocount[pid] = 1;
                     else
-                        pocount[pid] ++;
+                        pocount[pid]++;
 
                     // count in predicates for specific id
                     ipcount[vid].push_back(direct_p(IN, pid));
@@ -749,22 +751,25 @@ public:
 
                     // count out predicates for specific id
                     ipcount[vid].push_back(direct_p(OUT, pid));
+
                     // count type predicate
                     if (pid == TYPE_ID) {
                         uint64_t sz = vertices[slot_id].ptr.size;
                         uint64_t off = vertices[slot_id].ptr.off;
+
                         for (uint64_t j = 0; j < sz; j++) {
                             //src may belongs to multiple types
-                            uint64_t obid = edges[off + j].val;
+                            sid_t obid = edges[off + j].val;
+
                             if (tyscount.find(obid) == tyscount.end())
                                 tyscount[obid] = 1;
                             else
-                                tyscount[obid] ++;
+                                tyscount[obid]++;
 
                             if (pscount.find(obid) == pscount.end())
                                 pscount[obid] = 1;
                             else
-                                pscount[obid] ++;
+                                pscount[obid]++;
 
                             ipcount[vid].push_back(direct_p(OUT, obid));
                         }
@@ -779,16 +784,17 @@ public:
         //cout<<"sizeof type_to_subject = "<<stat.type_to_subject.size()<<endl;
         //cout<<"sizeof id_to_predicate = "<<stat.id_to_predicate.size()<<endl;
 
-        unordered_map<pair<int, int>, four_num, boost::hash<pair<int, int> > >& ppcount = stat.correlation;
+        unordered_map<pair<ssid_t, ssid_t>, four_num, boost::hash<pair<int, int> > > &ppcount = stat.correlation;
 
         // do statistic for correlation
-        for (unordered_map<int, vector<direct_p> >::iterator it = stat.id_to_predicate.begin();
+        for (unordered_map<ssid_t, vector<direct_p> >::iterator it = stat.id_to_predicate.begin();
                 it != stat.id_to_predicate.end(); it++ ) {
-            int vid = it->first;
-            vector<direct_p>& vec = it->second;
-            for (int i = 0; i < vec.size(); i++) {
-                for (int j = i + 1; j < vec.size(); j++) {
-                    int p1, d1, p2, d2;
+            ssid_t vid = it->first;
+            vector<direct_p> &vec = it->second;
+
+            for (uint64_t i = 0; i < vec.size(); i++) {
+                for (uint64_t j = i + 1; j < vec.size(); j++) {
+                    ssid_t p1, d1, p2, d2;
                     if (vec[i].p < vec[j].p) {
                         p1 = vec[i].p;
                         d1 = vec[i].dir;
@@ -819,14 +825,14 @@ public:
         cout << "INFO#" << sid << ": generating stats is finished." << endl;
     }
 
-    edge_t *get_edges_global(int tid, int64_t vid, int64_t d, int64_t pid, int *sz) {
+    edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
         if (mymath::hash_mod(vid, global_num_servers) == sid)
             return get_edges_local(tid, vid, d, pid, sz);
         else
             return get_edges_remote(tid, vid, d, pid, sz);
     }
 
-    edge_t *get_index_edges_local(int tid, int64_t pid, int64_t d, int *sz) {
+    edge_t *get_index_edges_local(int tid, sid_t pid, dir_t d, uint64_t *sz) {
         // predicate is not important, so we set it 0
         return get_edges_local(tid, 0, d, pid, sz);
     }
@@ -873,7 +879,7 @@ public:
              << " % (" << last_entry << " entries)" << endl;
 
 
-        int sz = 0;
+        uint64_t sz = 0;
         get_edges_local(0, 0, IN, TYPE_ID, &sz);
         cout << "#vertices: " << sz << endl;
         get_edges_local(0, 0, OUT, TYPE_ID, &sz);

@@ -31,9 +31,9 @@ public:
         std::string message;
 
         /// Constructor
-        ParserException(const std::string& message);
+        ParserException(const std::string &message);
         /// Constructor
-        ParserException(const char* message);
+        ParserException(const char *message);
         /// Destructor
         ~ParserException();
     };
@@ -76,7 +76,7 @@ public:
         /// The type
         Type type;
         /// Input arguments
-        Filter* arg1, *arg2, *arg3;
+        Filter *arg1, *arg2, *arg3;
         /// The value (for constants)
         std::string value;
         /// The type (for constants)
@@ -87,12 +87,12 @@ public:
         /// Constructor
         Filter();
         /// Copy-Constructor
-        Filter(const Filter& other);
+        Filter(const Filter &other);
         /// Destructor
         ~Filter();
 
         /// Assignment
-        Filter& operator=(const Filter& other);
+        Filter &operator=(const Filter &other);
     };
     /// A group of patterns
     struct PatternGroup {
@@ -117,7 +117,7 @@ public:
 
 private:
     /// The lexer
-    SPARQLLexer& lexer;
+    SPARQLLexer &lexer;
     /// The registered prefixes
     std::map<std::string, std::string> prefixes;
     /// The named variables
@@ -137,48 +137,48 @@ private:
     unsigned limit;
 
     /// Lookup or create a named variable
-    unsigned nameVariable(const std::string& name);
+    unsigned nameVariable(const std::string &name);
 
     /// Parse an RDF literal
-    void parseRDFLiteral(std::string& value, Element::SubType& subType, std::string& valueType);
+    void parseRDFLiteral(std::string &value, Element::SubType &subType, std::string &valueType);
     /// Parse a "IRIrefOrFunction" production
-    Filter* parseIRIrefOrFunction(std::map<std::string, unsigned>& localVars, bool mustCall);
+    Filter *parseIRIrefOrFunction(std::map<std::string, unsigned> &localVars, bool mustCall);
     /// Parse a "BuiltInCall" production
-    Filter* parseBuiltInCall(std::map<std::string, unsigned>& localVars);
+    Filter *parseBuiltInCall(std::map<std::string, unsigned> &localVars);
     /// Parse a "PrimaryExpression" production
-    Filter* parsePrimaryExpression(std::map<std::string, unsigned>& localVars);
+    Filter *parsePrimaryExpression(std::map<std::string, unsigned> &localVars);
     /// Parse a "UnaryExpression" production
-    Filter* parseUnaryExpression(std::map<std::string, unsigned>& localVars);
+    Filter *parseUnaryExpression(std::map<std::string, unsigned> &localVars);
     /// Parse a "MultiplicativeExpression" production
-    Filter* parseMultiplicativeExpression(std::map<std::string, unsigned>& localVars);
+    Filter *parseMultiplicativeExpression(std::map<std::string, unsigned> &localVars);
     /// Parse a "AdditiveExpression" production
-    Filter* parseAdditiveExpression(std::map<std::string, unsigned>& localVars);
+    Filter *parseAdditiveExpression(std::map<std::string, unsigned> &localVars);
     /// Parse a "NumericExpression" production
-    Filter* parseNumericExpression(std::map<std::string, unsigned>& localVars);
+    Filter *parseNumericExpression(std::map<std::string, unsigned> &localVars);
     /// Parse a "RelationalExpression" production
-    Filter* parseRelationalExpression(std::map<std::string, unsigned>& localVars);
+    Filter *parseRelationalExpression(std::map<std::string, unsigned> &localVars);
     /// Parse a "ValueLogical" production
-    Filter* parseValueLogical(std::map<std::string, unsigned>& localVars);
+    Filter *parseValueLogical(std::map<std::string, unsigned> &localVars);
     /// Parse a "ConditionalAndExpression" production
-    Filter* parseConditionalAndExpression(std::map<std::string, unsigned>& localVars);
+    Filter *parseConditionalAndExpression(std::map<std::string, unsigned> &localVars);
     /// Parse a "ConditionalOrExpression" production
-    Filter* parseConditionalOrExpression(std::map<std::string, unsigned>& localVars);
+    Filter *parseConditionalOrExpression(std::map<std::string, unsigned> &localVars);
     /// Parse a "Expression" production
-    Filter* parseExpression(std::map<std::string, unsigned>& localVars);
+    Filter *parseExpression(std::map<std::string, unsigned> &localVars);
     /// Parse a "BrackettedExpression" production
-    Filter* parseBrackettedExpression(std::map<std::string, unsigned>& localVars);
+    Filter *parseBrackettedExpression(std::map<std::string, unsigned> &localVars);
     /// Parse a "Constraint" production
-    Filter* parseConstraint(std::map<std::string, unsigned>& localVars);
+    Filter *parseConstraint(std::map<std::string, unsigned> &localVars);
     /// Parse a filter condition
-    void parseFilter(PatternGroup& group, std::map<std::string, unsigned>& localVars);
+    void parseFilter(PatternGroup &group, std::map<std::string, unsigned> &localVars);
     /// Parse an entry in a pattern
-    Element parsePatternElement(PatternGroup& group, std::map<std::string, unsigned>& localVars);
+    Element parsePatternElement(PatternGroup&group, std::map<std::string, unsigned> &localVars);
     /// Parse blank node patterns
-    Element parseBlankNode(PatternGroup& group, std::map<std::string, unsigned>& localVars);
+    Element parseBlankNode(PatternGroup &group, std::map<std::string, unsigned> &localVars);
     // Parse a graph pattern
-    void parseGraphPattern(PatternGroup& group);
+    void parseGraphPattern(PatternGroup &group);
     // Parse a group of patterns
-    void parseGroupGraphPattern(PatternGroup& group);
+    void parseGroupGraphPattern(PatternGroup &group);
 
     /// Parse the prefix part if any
     void parsePrefix();
@@ -195,7 +195,7 @@ private:
 
 public:
     /// Constructor
-    explicit SPARQLParser(SPARQLLexer& lexer);
+    explicit SPARQLParser(SPARQLLexer &lexer);
     /// Destructor
     ~SPARQLParser();
 
@@ -203,7 +203,7 @@ public:
     void parse(bool multiQuery = false);
 
     /// Get the patterns
-    const PatternGroup& getPatterns() const { return patterns; }
+    const PatternGroup &getPatterns() const { return patterns; }
     /// Get the name of a variable
     std::string getVariableName(unsigned id) const;
 
@@ -241,13 +241,13 @@ public:
 //---------------------------------------------------------------------------
 using namespace std;
 //---------------------------------------------------------------------------
-SPARQLParser::ParserException::ParserException(const string& message)
+SPARQLParser::ParserException::ParserException(const string &message)
     : message(message)
       // Constructor
 {
 }
 //---------------------------------------------------------------------------
-SPARQLParser::ParserException::ParserException(const char* message)
+SPARQLParser::ParserException::ParserException(const char *message)
     : message(message)
       // Constructor
 {
@@ -275,7 +275,7 @@ SPARQLParser::Filter::Filter()
 {
 }
 //---------------------------------------------------------------------------
-SPARQLParser::Filter::Filter(const Filter& other)
+SPARQLParser::Filter::Filter(const Filter &other)
     : type(other.type), arg1(0), arg2(0), arg3(0), value(other.value), valueType(other.valueType), valueArg(other.valueArg)
       // Copy-Constructor
 {
@@ -380,8 +380,11 @@ void SPARQLParser::parseProjection()
     {
         SPARQLLexer::Token token = lexer.getNext();
         if (token == SPARQLLexer::Identifier) {
-            if (lexer.isKeyword("distinct")) projectionModifier = Modifier_Distinct; else if (lexer.isKeyword("reduced")) projectionModifier = Modifier_Reduced; else if (lexer.isKeyword("count")) projectionModifier = Modifier_Count; else if (lexer.isKeyword("duplicates")) projectionModifier = Modifier_Duplicates; else
-                lexer.unget(token);
+            if (lexer.isKeyword("distinct")) projectionModifier = Modifier_Distinct;
+            else if (lexer.isKeyword("reduced")) projectionModifier = Modifier_Reduced;
+            else if (lexer.isKeyword("count")) projectionModifier = Modifier_Count;
+            else if (lexer.isKeyword("duplicates")) projectionModifier = Modifier_Duplicates;
+            else lexer.unget(token);
         } else lexer.unget(token);
     }
 
@@ -1084,7 +1087,10 @@ void SPARQLParser::parseGroupGraphPattern(PatternGroup& group)
             }
             if (token != SPARQLLexer::Dot)
                 lexer.unget(token);
-        } else if ((token == SPARQLLexer::IRI) || (token == SPARQLLexer::Variable) || (token == SPARQLLexer::Identifier) || (token == SPARQLLexer::String) || (token == SPARQLLexer::Underscore) || (token == SPARQLLexer::Colon) || (token == SPARQLLexer::LBracket) || (token == SPARQLLexer::Anon)) {
+        } else if ((token == SPARQLLexer::IRI) || (token == SPARQLLexer::Variable)
+                   || (token == SPARQLLexer::Identifier) || (token == SPARQLLexer::String)
+                   || (token == SPARQLLexer::Underscore) || (token == SPARQLLexer::Colon)
+                   || (token == SPARQLLexer::LBracket) || (token == SPARQLLexer::Anon)) {
             // Distinguish filter conditions
             if ((token == SPARQLLexer::Identifier) && (lexer.isKeyword("filter"))) {
                 map<string, unsigned> localVars;
@@ -1205,7 +1211,8 @@ void SPARQLParser::parse(bool multiQuery)
 
     // Fixup empty projections (i.e. *)
     if (!projection.size()) {
-        for (map<string, unsigned>::const_iterator iter = namedVariables.begin(), limit = namedVariables.end(); iter != limit; ++iter)
+        for (map<string, unsigned>::const_iterator iter = namedVariables.begin(), limit = namedVariables.end();
+                iter != limit; ++iter)
             projection.push_back((*iter).second);
     }
 }
@@ -1213,7 +1220,8 @@ void SPARQLParser::parse(bool multiQuery)
 string SPARQLParser::getVariableName(unsigned id) const
 // Get the name of a variable
 {
-    for (map<string, unsigned>::const_iterator iter = namedVariables.begin(), limit = namedVariables.end(); iter != limit; ++iter)
+    for (map<string, unsigned>::const_iterator iter = namedVariables.begin(), limit = namedVariables.end();
+            iter != limit; ++iter)
         if ((*iter).second == id)
             return (*iter).first;
     return "";

@@ -37,6 +37,7 @@
 #include "omp.h"
 
 #include "config.hpp"
+#include "type.hpp"
 #include "rdma_resource.hpp"
 #include "gstore.hpp"
 #include "timer.hpp"
@@ -70,44 +71,48 @@ class DGraph {
 		triples.resize(n);
 	}
 
-	// send_edge can be safely called by multiple threads,
+	// send_triple can be safely called by multiple threads,
 	// since the buffer is exclusively used by one thread.
-	void send_edge(int tid, int dst_sid, uint64_t s, uint64_t p, uint64_t o) {
+	void send_triple(int tid, int dst_sid, sid_t s, sid_t p, sid_t o) {
 		// the RDMA buffer is first split into #threads partitions
 		// each partition is further split into #servers pieces
-		uint64_t buf_sz = floor(mem->buffer_size() / global_num_servers, sizeof(uint64_t));
-		uint64_t *buf = (uint64_t *)(mem->buffer(tid) + buf_sz * dst_sid);
+		// each piece: #triple, tirple, triple, . . .
+		uint64_t buf_sz = floor(mem->buffer_size() / global_num_servers - sizeof(uint64_t), sizeof(sid_t));
+		uint64_t *pn = (uint64_t *)(mem->buffer(tid) + (buf_sz + sizeof(uint64_t)) * dst_sid);
+		sid_t *buf = (sid_t *)(pn + 1);
 
-		// the 1st uint64_t of buffer records #triples
-		uint64_t n = buf[0];
+		// the 1st entry of buffer records #triples (suppose the )
+		uint64_t n = *pn;
 
 		// flush buffer if there is no enough space to buffer a new triple
-		if ((1 + n * 3 + 3) * sizeof(uint64_t) > buf_sz) {
-			flush_edges(tid, dst_sid);
-			n = buf[0]; // reset, it should be 0
+		if ((n * 3 + 3) * sizeof(sid_t) > buf_sz) {
+			flush_triples(tid, dst_sid);
+			n = *pn; // reset, it should be 0
+			assert(n == 0);
 		}
 
 		// buffer the triple and update the counter
-		buf[1 + n * 3 + 0] = s;
-		buf[1 + n * 3 + 1] = p;
-		buf[1 + n * 3 + 2] = o;
-		buf[0] = n + 1;
+		buf[n * 3 + 0] = s;
+		buf[n * 3 + 1] = p;
+		buf[n * 3 + 2] = o;
+		*pn = (n + 1);
 	}
 
-	void flush_edges(int tid, int dst_sid) {
-		uint64_t buf_sz = floor(mem->buffer_size() / global_num_servers, sizeof(uint64_t));
-		uint64_t *buf = (uint64_t *)(mem->buffer(tid) + buf_sz * dst_sid);
+	void flush_triples(int tid, int dst_sid) {
+		uint64_t buf_sz = floor(mem->buffer_size() / global_num_servers - sizeof(uint64_t), sizeof(sid_t));
+		uint64_t *pn = (uint64_t *)(mem->buffer(tid) + (buf_sz + sizeof(uint64_t)) * dst_sid);
+		sid_t *buf = (sid_t *)(pn + 1);
 
 		// the 1st uint64_t of buffer records #new-triples
-		uint64_t n = buf[0];
+		uint64_t n = *pn;
 
 		// the kvstore is temporally split into #servers pieces.
 		// hence, the kvstore can be directly RDMA write in parallel by all servers
-		uint64_t kvs_sz = floor(mem->kvstore_size() / global_num_servers, sizeof(uint64_t));
+		uint64_t kvs_sz = floor(mem->kvstore_size() / global_num_servers - sizeof(uint64_t), sizeof(sid_t));
 
 		// serialize the RDMA WRITEs by multiple threads
 		uint64_t exist = __sync_fetch_and_add(&num_triples[dst_sid], n);
-		if ((1 + exist * 3 + n * 3) * sizeof(uint64_t) > kvs_sz) {
+		if ((exist * 3 + n * 3) * sizeof(uint64_t) > kvs_sz) {
 			cout << "ERROR: no enough space to store input data!" << endl;
 			cout << " kvstore size = " << kvs_sz
 			     << " #exist-triples = " << exist
@@ -117,19 +122,19 @@ class DGraph {
 		}
 
 		// send triples and clear the buffer
-		uint64_t off = kvs_sz * sid
-		               + sizeof(uint64_t)          // reserve the 1st uint64_t as #triples
-		               + exist * 3 * sizeof(uint64_t); // skip #exist-triples
-		uint64_t sz = n * 3 * sizeof(uint64_t);       // send #new-triples
+		uint64_t off = (kvs_sz + sizeof(uint64_t)) * sid
+		               + sizeof(uint64_t)           // reserve the 1st uint64_t as #triples
+		               + exist * 3 * sizeof(sid_t); // skip #exist-triples
+		uint64_t sz = n * 3 * sizeof(sid_t);        // send #new-triples
 		if (dst_sid != sid) {
 			RDMA &rdma = RDMA::get_rdma();
-			rdma.dev->RdmaWrite(tid, dst_sid, (char *)(buf + 1), sz, off);
+			rdma.dev->RdmaWrite(tid, dst_sid, (char *)buf, sz, off);
 		} else {
-			memcpy(mem->kvstore() + off, (char *)(buf + 1), sz);
+			memcpy(mem->kvstore() + off, (char *)buf, sz);
 		}
 
 		// clear the buffer
-		buf[0] = 0;
+		*pn = 0;
 	}
 
 	int load_data(vector<string>& fnames) {
@@ -151,29 +156,29 @@ class DGraph {
 				// files located on HDFS
 				wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
 				wukong::hdfs::fstream file(hdfs, fnames[i]);
-				uint64_t s, p, o;
+				sid_t s, p, o;
 				while (file >> s >> p >> o) {
 					int s_sid = mymath::hash_mod(s, global_num_servers);
 					int o_sid = mymath::hash_mod(o, global_num_servers);
 					if (s_sid == o_sid) {
-						send_edge(localtid, s_sid, s, p, o);
+						send_triple(localtid, s_sid, s, p, o);
 					} else {
-						send_edge(localtid, s_sid, s, p, o);
-						send_edge(localtid, o_sid, s, p, o);
+						send_triple(localtid, s_sid, s, p, o);
+						send_triple(localtid, o_sid, s, p, o);
 					}
 				}
 			} else {
 				// files located on a shared filesystem (e.g., NFS)
 				ifstream file(fnames[i].c_str());
-				uint64_t s, p, o;
+				sid_t s, p, o;
 				while (file >> s >> p >> o) {
 					int s_sid = mymath::hash_mod(s, global_num_servers);
 					int o_sid = mymath::hash_mod(o, global_num_servers);
 					if (s_sid == o_sid) {
-						send_edge(localtid, s_sid, s, p, o);
+						send_triple(localtid, s_sid, s, p, o);
 					} else {
-						send_edge(localtid, s_sid, s, p, o);
-						send_edge(localtid, o_sid, s, p, o);
+						send_triple(localtid, s_sid, s, p, o);
+						send_triple(localtid, o_sid, s, p, o);
 					}
 				}
 				file.close();
@@ -183,7 +188,7 @@ class DGraph {
 		// flush the rest triples within each RDMA buffer
 		for (int s = 0; s < global_num_servers; s++)
 			for (int t = 0; t < global_num_engines; t++)
-				flush_edges(t, s);
+				flush_triples(t, s);
 
 		// exchange #triples among all servers
 		for (int s = 0; s < global_num_servers; s++) {
@@ -218,31 +223,32 @@ class DGraph {
 		#pragma omp parallel for num_threads(global_num_engines)
 		for (int i = 0; i < num_files; i++) {
 			int localtid = omp_get_thread_num();
-			uint64_t kvs_sz = floor(mem->kvstore_size() / global_num_engines, sizeof(uint64_t));
-			uint64_t *kvs = (uint64_t *)(mem->kvstore() + kvs_sz * localtid);
+			uint64_t kvs_sz = floor(mem->kvstore_size() / global_num_engines - sizeof(uint64_t), sizeof(sid_t));
+			uint64_t *pn = (uint64_t *)(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * localtid);
+			sid_t *kvs = (sid_t *)(pn + 1);
 
 			// the 1st uint64_t of kvs records #triples
-			uint64_t n = kvs[0];
+			uint64_t n = *pn;
 
 			// TODO: support HDFS
 			ifstream file(fnames[i].c_str());
-			uint64_t s, p, o;
+			sid_t s, p, o;
 			while (file >> s >> p >> o) {
 				int s_sid = mymath::hash_mod(s, global_num_servers);
 				int o_sid = mymath::hash_mod(o, global_num_servers);
 				if ((s_sid == sid) || (o_sid == sid)) {
-					assert((1 + n * 3 + 3) * sizeof(uint64_t) <= kvs_sz);
+					assert((n * 3 + 3) * sizeof(uint64_t) <= kvs_sz);
 
 					// buffer the triple and update the counter
-					kvs[1 + n * 3 + 0] = s;
-					kvs[1 + n * 3 + 1] = p;
-					kvs[1 + n * 3 + 2] = o;
+					kvs[n * 3 + 0] = s;
+					kvs[n * 3 + 1] = p;
+					kvs[n * 3 + 2] = o;
 					n++;
 				}
 			}
 			file.close();
 
-			kvs[0] = n;
+			*pn = n;
 		}
 
 		// timing
@@ -257,10 +263,10 @@ class DGraph {
 
 		// calculate #triples on the kvstore from all servers
 		uint64_t total = 0;
-		uint64_t kvs_sz = floor(mem->kvstore_size() / num_partitions, sizeof(uint64_t));
+		uint64_t kvs_sz = floor(mem->kvstore_size() / num_partitions - sizeof(uint64_t), sizeof(sid_t));
 		for (int id = 0; id < num_partitions; id++) {
-			uint64_t *kvs = (uint64_t *)(mem->kvstore() + kvs_sz * id);
-			total += kvs[0];
+			uint64_t *pn = (uint64_t *)(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * id);
+			total += *pn; // the 1st uint64_t of kvs records #triples
 		}
 
 		// pre-expand to avoid frequent reallocation (maybe imbalance)
@@ -275,14 +281,17 @@ class DGraph {
 		volatile int progress = 0;
 		#pragma omp parallel for num_threads(nthread_parallel_load)
 		for (int tid = 0; tid < nthread_parallel_load; tid++) {
-			int pcnt = 0; // per thread count for print progress
+			int cnt = 0; // per thread count for print progress
 			for (int id = 0; id < num_partitions; id++) {
-				uint64_t *kvs = (uint64_t*)(mem->kvstore() + kvs_sz * id);
-				uint64_t n = kvs[0];
+				uint64_t *pn = (uint64_t *)(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * id);
+				sid_t *kvs = (sid_t *)(pn + 1);
+
+				// the 1st uint64_t of kvs records #triples
+				uint64_t n = *pn;
 				for (uint64_t i = 0; i < n; i++) {
-					uint64_t s = kvs[1 + i * 3 + 0];
-					uint64_t p = kvs[1 + i * 3 + 1];
-					uint64_t o = kvs[1 + i * 3 + 2];
+					sid_t s = kvs[i * 3 + 0];
+					sid_t p = kvs[i * 3 + 1];
+					sid_t o = kvs[i * 3 + 2];
 
 					// out-edges
 					if (mymath::hash_mod(s, global_num_servers) == sid)
@@ -295,11 +304,11 @@ class DGraph {
 							triple_ops[tid].push_back(triple_t(s, p, o));
 
 					// print the progress (step = 5%) of aggregation
-					if (++pcnt >= total * 0.05) {
+					if (++cnt >= total * 0.05) {
 						int now = __sync_add_and_fetch(&progress, 1);
 						if (now % nthread_parallel_load == 0)
 							cout << "already aggregrate " << (now / nthread_parallel_load) * 5 << "%" << endl;
-						pcnt = 0;
+						cnt = 0;
 					}
 				}
 			}
@@ -422,11 +431,11 @@ public:
 		gstore.print_mem_usage();
 	}
 
-	edge_t *get_edges_global(int tid, int64_t vid, int64_t direction, int64_t pid, int *sz) {
+	edge_t *get_edges_global(int tid, sid_t vid, dir_t direction, sid_t pid, uint64_t *sz) {
 		return gstore.get_edges_global(tid, vid, direction, pid, sz);
 	}
 
-	edge_t *get_index_edges_local(int tid, int64_t vid, int64_t direction, int *sz) {
+	edge_t *get_index_edges_local(int tid, sid_t vid, dir_t direction, uint64_t *sz) {
 		return gstore.get_index_edges_local(tid, vid, direction, sz);
 	}
 };

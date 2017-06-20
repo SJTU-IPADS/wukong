@@ -17,22 +17,22 @@ using namespace std;
 
 struct plan {
     double cost;      // now min cost
-    vector<int64_t> orders; // now best orders
+    vector<ssid_t> orders; // now best orders
     double result_num;     // record intermediate results
 };
 
 struct select_record {
-    int p;
-    int d;
+    ssid_t p;
+    ssid_t d;
     double v;
-    bool operator > (const select_record & other) const {
-        return v > other.v;
+    bool operator > (const select_record &o) const {
+        return v > o.v;
     }
-    bool operator < (const select_record & other) const {
-        return v < other.v;
+    bool operator < (const select_record &o) const {
+        return v < o.v;
     }
-    bool operator == (const select_record & other) const {
-        return v == other.v;
+    bool operator == (const select_record &o) const {
+        return v == o.v;
     }
 };
 
@@ -102,17 +102,17 @@ public:
 
 class Planner {
     // members
-    data_statistic * statistic ;
-    vector<int64_t> triples;
+    data_statistic *statistic ;
+    vector<ssid_t> triples;
     double min_cost;
-    vector<int64_t> path;
+    vector<ssid_t> path;
     bool is_empty;            // help identify empty queries
 
     // for dfs
-    vector<int64_t> min_path;
+    vector<ssid_t> min_path;
     int _chains_size_div_4 ;
-    int * min_select_record ;
-    unordered_map<int, shared_ptr<Minimum_maintenance<select_record>> > * min_select;
+    int *min_select_record ;
+    unordered_map<int, shared_ptr<Minimum_maintenance<select_record>>> *min_select;
 
     // store all orders for DP
     vector<int> subgraph[11]; // for 2^10 all orders
@@ -123,7 +123,9 @@ class Planner {
         if (pt_bits == ( 1 << _chains_size_div_4 ) - 1) {
             //cout << "estimated cost : " << cost << endl;
             bool ctn = true;
-            if (min_cost == std::numeric_limits<double>::max() && cost < COST_THRESHOLD && (path[0] >= (1 << NBITS_IDX)) ) {
+            if (min_cost == std::numeric_limits<double>::max()
+                    && cost < COST_THRESHOLD
+                    && (path[0] >= (1 << NBITS_IDX)) ) {
                 ctn = false;  // small query
                 cout << "small query and use heuristic.\n";
             }
@@ -138,10 +140,10 @@ class Planner {
                 continue ;
             int i = 4 * pt_pick;
             double add_cost = 0;
-            int o1 = triples[i];
-            int p = triples[i + 1];
-            int d = triples[i + 2];
-            int o2 = triples[i + 3];
+            ssid_t o1 = triples[i];
+            ssid_t p = triples[i + 1];
+            ssid_t d = triples[i + 2];
+            ssid_t o2 = triples[i + 3];
             if (path.size() == 0) {
                 if (o1 < 0 && o2 < 0) {
                     //continue;
@@ -161,8 +163,8 @@ class Planner {
                     }
                     double select_num_s = (double)statistic->global_pscount[p];
                     select_record srs = {p, d, select_num_s};
-                    (*min_select)[o1] = std::unique_ptr<Minimum_maintenance<select_record> >
-                                        ( new Minimum_maintenance<select_record>(2 * _chains_size_div_4));
+                    (*min_select)[o1] = std::unique_ptr<Minimum_maintenance<select_record>>
+                                        (new Minimum_maintenance<select_record>(2 * _chains_size_div_4));
                     (*min_select)[o1]->push(srs);
                     bool ctn = com_traverse(pt_bits, new_cost, add_cost);
                     (*min_select)[o1]->pop();
@@ -320,7 +322,7 @@ class Planner {
 
         return true;
     }
-
+#if 0
     // dynamic programming planner
     void dp_plan() {
         int count = triples.size() / 4; // number of triples
@@ -342,9 +344,9 @@ class Planner {
             for (int k = 0, klimit = subgraph[i].size() ; k < klimit; k++) {
                 int bit_state = subgraph[i][k];
                 if (bit_state >= size) continue;
-                plan& best_plan = state[bit_state];
+                plan &best_plan = state[bit_state];
                 int best_m = -1;  // record best one
-                int best_dir = OUT;
+                ssid_t best_dir = OUT;
                 // f[i][x] = min {f[i-1][x1] + cost, ...}
                 // to compute from all the i-1 state
                 for (int m = 0; m < count; m++) {
@@ -353,7 +355,7 @@ class Planner {
                         double pre_cost = state[son_state].cost;
                         if (pre_cost == std::numeric_limits<double>::max()) continue;  // previous order invalid
                         double pre_results = state[son_state].result_num;
-                        vector<pair<double, int> > cost_dir;
+                        vector<pair<double, ssid_t> > cost_dir;
                         cost_add(pre_results, son_state, m * 4, cost_dir);
                         if (cost_dir.size() == 0) continue;  // order invalid
                         //cout << "pre_results : " << pre_results << endl;
@@ -394,7 +396,7 @@ class Planner {
                             // push something
                             if (i == 1) {
                                 best_m = -1;
-                                int vertex1, vertex2;
+                                ssid_t vertex1, vertex2;
                                 if (best_dir == OUT) {
                                     vertex1 = triples[4 * m + 3];
                                     vertex2 = triples[4 * m];
@@ -450,18 +452,18 @@ class Planner {
         return (((i + (i >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24;
     }
 
-    void cost_add(double pre_results, int bit_set, int next, vector<pair<double, int> >& cost_dir) {
-        unordered_map<int, vector<int> > selec;
+    void cost_add(double pre_results, int bit_set, int next, vector<pair<double, ssid_t>> &cost_dir) {
+        unordered_map<ssid_t, vector<ssid_t>> selec;
         double cost = 0;
         for (int i = 0, ilimit = triples.size(); i < ilimit; i = i + 4) {
             int tmp = i / 4;
-            if ( (bit_set & (0x1 << tmp)) == false ) continue;
+            if ((bit_set & (0x1 << tmp)) == false ) continue;
             add_selectivity(selec, triples[i], triples[i + 1], triples[i + 3]);
         }
 
-        int o1 = triples[next];
-        int p = triples[next + 1];
-        int o2 = triples[next + 3];
+        ssid_t o1 = triples[next];
+        ssid_t p = triples[next + 1];
+        ssid_t o2 = triples[next + 3];
 
         // if selec empty
         if (selec.empty()) {
@@ -498,8 +500,8 @@ class Planner {
             if (selec.find(o1) != selec.end()) {
                 // s match previous
                 double prune_result;
-                int pre_p = selec[o1][0];
-                int pre_d = selec[o1][1];
+                ssid_t pre_p = selec[o1][0];
+                ssid_t pre_d = selec[o1][1];
                 if (p == TYPE_ID && o2 > 0) {
                     prune_result = com_prune(pre_results, pre_p, pre_d, o2, OUT);
                     cost = prune_result;
@@ -518,8 +520,8 @@ class Planner {
             if (selec.find(o2) != selec.end()) {
                 // o match previous
                 double prune_result;
-                int pre_p = selec[o2][0];
-                int pre_d = selec[o2][1];
+                ssid_t pre_p = selec[o2][0];
+                ssid_t pre_d = selec[o2][1];
                 prune_result = com_prune(pre_results, pre_p, pre_d, p, IN);
                 if (o1 >= 0) {
                     prune_result = double(prune_result) / statistic->global_pscount[p];
@@ -531,9 +533,10 @@ class Planner {
         }
 
     }
+#endif
 
     // prune using correlation estimation
-    double com_prune(double pre_results, int pre_p, int pre_d, int p, int d) {
+    double com_prune(double pre_results, ssid_t pre_p, ssid_t pre_d, ssid_t p, ssid_t d) {
         double result_num;
         double x, y;
         // handle corner case first
@@ -587,7 +590,7 @@ class Planner {
         return result_num;
     }
 
-    void new_add_selectivity(int o1, int p, int o2) {
+    void new_add_selectivity(ssid_t o1, ssid_t p, ssid_t o2) {
         if (o1 < 0 && o2 > 0) {
             double select_num;
             if (p == TYPE_ID) {
@@ -598,8 +601,8 @@ class Planner {
             }
             select_record sr = {p, OUT, select_num};
             if (min_select->find(o1) == min_select->end())
-                (*min_select)[o1] = std::unique_ptr<Minimum_maintenance<select_record> >
-                                    ( new Minimum_maintenance<select_record> (2 * _chains_size_div_4));
+                (*min_select)[o1] = std::unique_ptr<Minimum_maintenance<select_record>>
+                                    (new Minimum_maintenance<select_record> (2 * _chains_size_div_4));
             (*min_select)[o1]->push(sr);
             min_select_record[min_select_record[0] + 1] = o1;
             min_select_record[min_select_record[0] + 2] = 1;
@@ -608,8 +611,8 @@ class Planner {
             double select_num = double(statistic->global_pocount[p]) / statistic->global_pscount[p];
             select_record sr = {p, IN, select_num};
             if (min_select->find(o2) == min_select->end())
-                (*min_select)[o2] = std::unique_ptr<Minimum_maintenance<select_record> >
-                                    ( new Minimum_maintenance<select_record> (2 * _chains_size_div_4));
+                (*min_select)[o2] = std::unique_ptr<Minimum_maintenance<select_record>>
+                                    (new Minimum_maintenance<select_record> (2 * _chains_size_div_4));
             (*min_select)[o2]->push(sr);
 
             min_select_record[min_select_record[0] + 1] = o2;
@@ -620,14 +623,14 @@ class Planner {
             double select_num_o = statistic->global_pocount[p];
             select_record sro1 = {p, OUT, select_num_s};
             if (min_select->find(o1) == min_select->end())
-                (*min_select)[o1] = std::unique_ptr<Minimum_maintenance<select_record> >
+                (*min_select)[o1] = std::unique_ptr<Minimum_maintenance<select_record>>
                                     ( new Minimum_maintenance<select_record> (2 * _chains_size_div_4));
             (*min_select)[o1]->push(sro1);
 
             select_record sro2 = {p, IN, select_num_o};
             if (min_select->find(o2) == min_select->end())
-                (*min_select)[o2] = std::unique_ptr<Minimum_maintenance<select_record> >
-                                    ( new Minimum_maintenance<select_record> (2 * _chains_size_div_4));
+                (*min_select)[o2] = std::unique_ptr<Minimum_maintenance<select_record>>
+                                    (new Minimum_maintenance<select_record> (2 * _chains_size_div_4));
             (*min_select)[o2]->push(sro2);
 
             min_select_record[min_select_record[0] + 1] = o1;
@@ -653,7 +656,8 @@ class Planner {
         min_select_record[0] -= lastnum + 1;
     }
 
-    void add_selectivity(unordered_map<int, vector<int> >& tmp_selec, int o1, int p, int o2) {
+#if 0
+    void add_selectivity(unordered_map<ssid_t, vector<ssid_t> >& tmp_selec, ssid_t o1, ssid_t p, ssid_t o2) {
         if (o1 < 0 && o2 > 0) {
             int select_num;
             if (p == TYPE_ID) {
@@ -669,7 +673,7 @@ class Planner {
             } else {
                 int pre_select_num = tmp_selec[o1][2];
                 if (pre_select_num > select_num) {
-                    vector<int> new_tmp;
+                    vector<ssid_t> new_tmp;
                     new_tmp.push_back(p);
                     new_tmp.push_back(OUT);
                     new_tmp.push_back(select_num);
@@ -686,7 +690,7 @@ class Planner {
             } else {
                 int pre_select_num = tmp_selec[o2][2];
                 if (pre_select_num > select_num) {
-                    vector<int> new_tmp;
+                    vector<ssid_t> new_tmp;
                     new_tmp.push_back(p);
                     new_tmp.push_back(IN);
                     new_tmp.push_back(select_num);
@@ -704,7 +708,7 @@ class Planner {
             } else {
                 int pre_select_num = tmp_selec[o1][2];
                 if (pre_select_num > select_num_s) {
-                    vector<int> new_tmp;
+                    vector<ssid_t> new_tmp;
                     new_tmp.push_back(p);
                     new_tmp.push_back(OUT);
                     new_tmp.push_back(select_num_s);
@@ -718,7 +722,7 @@ class Planner {
             } else {
                 int pre_select_num = tmp_selec[o2][2];
                 if (pre_select_num > select_num_o) {
-                    vector<int> new_tmp;
+                    vector<ssid_t> new_tmp;
                     new_tmp.push_back(p);
                     new_tmp.push_back(IN);
                     new_tmp.push_back(select_num_o);
@@ -729,7 +733,7 @@ class Planner {
     }
 
     // for testing purpose
-    void get_all_plans(vector<int64_t> triples, unordered_map<int, vector<int> > max_selec,
+    void get_all_plans(vector<ssid_t> triples, unordered_map<ssid_t, vector<ssid_t>> max_selec,
                        double cost, double pre_results) {
         if (triples.empty()) {
             cout << "estimated cost : " << cost << endl;
@@ -741,11 +745,11 @@ class Planner {
             plan new_order;
             new_order.cost = cost;
             new_order.orders = path;
-            boost::unordered_map<int, int> convert;
+            boost::unordered_map<ssid_t, ssid_t> convert;
             for (int i = 0, ilimit = new_order.orders.size(); i < ilimit; i++) {
                 if (new_order.orders[i] < 0 ) {
                     if (convert.find(new_order.orders[i]) == convert.end()) {
-                        int value =  -1 - convert.size();
+                        ssid_t value =  -1 - convert.size();
                         convert[new_order.orders[i]] = value;
                         new_order.orders[i] = value;
                     } else {
@@ -758,10 +762,10 @@ class Planner {
         }
         for (int i = 0 , ilimit = triples.size(); i < ilimit; i = i + 4) {
             double add_cost = 0;
-            int o1 = triples[i];
-            int p = triples[i + 1];
-            int d = triples[i + 2];
-            int o2 = triples[i + 3];
+            ssid_t o1 = triples[i];
+            ssid_t p = triples[i + 1];
+            ssid_t d = triples[i + 2];
+            ssid_t o2 = triples[i + 3];
             if (path.size() == 0) {
                 if (o1 < 0 && o2 < 0) {
                     //continue;
@@ -774,8 +778,8 @@ class Planner {
                     if (add_cost == 0) add_cost = 1;
                     // next iteration
                     double new_cost = cost + add_cost;
-                    unordered_map<int, vector<int> > tmp_selec = max_selec;
-                    int select_num_s = statistic->global_pscount[p];
+                    unordered_map<ssid_t, vector<ssid_t>> tmp_selec = max_selec;
+                    ssid_t select_num_s = statistic->global_pscount[p];
                     tmp_selec[o1].push_back(p);
                     tmp_selec[o1].push_back(d);
                     tmp_selec[o1].push_back(select_num_s);
@@ -792,7 +796,7 @@ class Planner {
                     // next iteration
                     new_cost = cost + add_cost;
                     tmp_selec = max_selec;
-                    int select_num_o = statistic->global_pocount[p];
+                    ssid_t select_num_o = statistic->global_pocount[p];
                     tmp_selec[o2].push_back(p);
                     tmp_selec[o2].push_back(IN);
                     tmp_selec[o2].push_back(select_num_o);
@@ -810,9 +814,9 @@ class Planner {
 
                     // next iteration
                     double new_cost = cost + add_cost;
-                    vector<int64_t> tmp = triples;
+                    vector<ssid_t> tmp = triples;
                     tmp.erase(tmp.begin() + i, tmp.begin() + i + 4);
-                    unordered_map<int, vector<int> > tmp_selec = max_selec;
+                    unordered_map<ssid_t, vector<ssid_t> > tmp_selec = max_selec;
                     add_selectivity(tmp_selec, o1, p, o2);
                     get_all_plans(tmp, tmp_selec, new_cost, inter_results);
                     path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
@@ -834,9 +838,9 @@ class Planner {
 
                     // next iteration
                     double new_cost = cost + add_cost;
-                    vector<int64_t> tmp = triples;
+                    vector<ssid_t> tmp = triples;
                     tmp.erase(tmp.begin() + i, tmp.begin() + i + 4);
-                    unordered_map<int, vector<int> > tmp_selec = max_selec;
+                    unordered_map<ssid_t, vector<ssid_t> > tmp_selec = max_selec;
                     add_selectivity(tmp_selec, o1, p, o2);
                     get_all_plans(tmp, tmp_selec, new_cost, inter_results);
                     path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
@@ -849,8 +853,8 @@ class Planner {
                     path.push_back(d);
                     path.push_back(o2);
                     double prune_result;
-                    int pre_p = max_selec[o1][0];
-                    int pre_d = max_selec[o1][1];
+                    ssid_t pre_p = max_selec[o1][0];
+                    ssid_t pre_d = max_selec[o1][1];
                     // prune based on correlation and constant
                     if (p == TYPE_ID && o2 > 0) {
                         prune_result = com_prune(pre_results, pre_p, pre_d, o2, OUT);
@@ -867,9 +871,9 @@ class Planner {
 
                     // next iteration
                     double new_cost = cost + add_cost;
-                    vector<int64_t> tmp = triples;
+                    vector<ssid_t> tmp = triples;
                     tmp.erase(tmp.begin() + i, tmp.begin() + i + 4);
-                    unordered_map<int, vector<int> > tmp_selec = max_selec;
+                    unordered_map<ssid_t, vector<ssid_t> > tmp_selec = max_selec;
                     add_selectivity(tmp_selec, o1, p, o2);
                     get_all_plans(tmp, tmp_selec, new_cost, add_cost);
                     path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
@@ -881,8 +885,8 @@ class Planner {
                     path.push_back(IN);
                     path.push_back(o1);
                     double prune_result;
-                    int pre_p = max_selec[o2][0];
-                    int pre_d = max_selec[o2][1];
+                    ssid_t pre_p = max_selec[o2][0];
+                    ssid_t pre_d = max_selec[o2][1];
                     // prune based on correlation and constant
                     prune_result = com_prune(pre_results, pre_p, pre_d, p, IN);
                     if (o1 >= 0) {
@@ -893,9 +897,9 @@ class Planner {
 
                     // next iteration
                     double new_cost = cost + add_cost;
-                    vector<int64_t> tmp = triples;
+                    vector<ssid_t> tmp = triples;
                     tmp.erase(tmp.begin() + i, tmp.begin() + i + 4);
-                    unordered_map<int, vector<int> > tmp_selec = max_selec;
+                    unordered_map<ssid_t, vector<ssid_t> > tmp_selec = max_selec;
                     add_selectivity(tmp_selec, o1, p, o2);
                     get_all_plans(tmp, tmp_selec, new_cost, add_cost);
                     path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
@@ -904,13 +908,16 @@ class Planner {
             }
         }
     }
+#endif
 
 public:
     Planner() {
+#if 0
         for (int i = 0; i < 1024; i++) {
             int c = bitcount(i);
             subgraph[c].push_back(i);
         }
+#endif
     }
 
     bool generate_plan(request_or_reply& r, data_statistic* statistic) {
@@ -1016,6 +1023,7 @@ public:
 
     }
 
+#if 0
     bool generate_dp_plan(request_or_reply& r, data_statistic* statistic) {
         this->statistic = statistic;
         min_path.clear();
@@ -1086,6 +1094,7 @@ public:
 
         cout << "get_all_plans is finish.\n";
     }
+#endif
 
 };
 

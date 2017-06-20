@@ -22,41 +22,19 @@
 
 #pragma once
 
-#include <boost/serialization/string.hpp>
-#include <boost/serialization/vector.hpp>
-#include <vector>
+#include <stdint.h>
 
-using namespace std;
-using namespace boost::archive;
+#ifdef DTYPE_64BIT
 
-struct CS_Request {
-	string type;
-	bool use_file;
-	string content;
+typedef uint64_t sid_t;  // data type for string-id
+typedef int64_t ssid_t;  // signed string id
 
-	string cid;
+#else
 
-	template <typename Archive>
-	void serialize(Archive &ar, const unsigned int v) {
-		ar &type;
-		ar &use_file;
-		ar &content;
-	}
-};
+typedef uint32_t sid_t;  // data type for string-id
+typedef int32_t ssid_t;  // signed string id
 
-struct CS_Reply {
-	string type;
-	string content;
-	int ncol;
-	vector<sid_t> result_table;
+#endif
 
-	string cid;
+enum dir_t { IN, OUT, CORUN }; // direction: IN=0, OUT=1, and optimization hints
 
-	template <typename Archive>
-	void serialize(Archive &ar, const unsigned int v) {
-		ar &type;
-		ar &content;
-		ar &ncol;
-		ar &result_table;
-	}
-};
