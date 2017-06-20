@@ -877,6 +877,8 @@ public:
 }; // end of clase RDMA
 
 void RDMA_init(int num_nodes, int num_threads, int node_id, char *mem, uint64_t mem_sz, string ipfn) {
+    uint64_t t = timer::get_usec();
+
     RDMA &rdma = RDMA::get_rdma();
 
     // init RDMA device
@@ -887,6 +889,10 @@ void RDMA_init(int num_nodes, int num_threads, int node_id, char *mem, uint64_t 
 
     // connect to other nodes
     rdma.dev->connect();
+
+    t = timer::get_usec() - t;
+    cout << "INFO: initializing RMDA done (" << t / 1000  << " ms)" << endl;
+
 }
 
 #else

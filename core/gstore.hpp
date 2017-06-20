@@ -253,11 +253,14 @@ private:
             /// TODO: add type info to slot and resue the last slot to store key
             /// TODO: key.vid is reused to store the bucket_id of indirect header rather than ptr.off,
             ///       since the is_empty() is not robust.
-            for (uint64_t i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
+            for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
                 //assert(vertices[slot_id].key != key); // no duplicate key
                 if (vertices[slot_id].key == key) {
                     key.print();
                     vertices[slot_id].key.print();
+                    cout << "ERROR: conflict at slot["
+                         << slot_id << "] of bucket["
+                         << bucket_id << "]" << endl;
                     assert(false);
                 }
 

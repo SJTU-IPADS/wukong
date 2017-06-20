@@ -135,7 +135,6 @@ private:
 public:
     RDMA_Adaptor(int sid, Mem *mem, int num_servers, int num_threads)
         : sid(sid), mem(mem), num_servers(num_servers), num_threads(num_threads) {
-
         // init the metadata of remote and local ring-buffers
         int nrbfs = num_servers * num_threads;
 

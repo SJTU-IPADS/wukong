@@ -163,7 +163,6 @@ main(int argc, char *argv[])
 	// load RDF graph (shared by all engines)
 	DGraph dgraph(sid, mem, global_input_folder);
 
-
 	// prepare data for planner
 	data_statistic stat(tcp_adaptor, &world);
 	if (global_enable_planner) {
