@@ -46,6 +46,8 @@
 
 #include "timer.hpp"
 
+#include "rdmaio.h"
+using namespace rdmaio;
 
 #ifdef HAS_RDMA
 
@@ -562,9 +564,12 @@ static int poll_completion(struct QP *res) {
         //               wc.status);
         /* check the completion status (here we don't care about the completion opcode) */
         if (wc.status != IBV_WC_SUCCESS) {
-            fprintf (stderr,
-                     "got bad completion with status: 0x%x, vendor syndrome: 0x%x\n",
-                     wc.status, wc.vendor_err);
+            //fprintf (stderr,
+             //        "got bad completion with status: 0x%x, vendor syndrome: 0x%x\n",
+             //        wc.status, wc.vendor_err);
+		fprintf (stderr,
+						 "got bad completion with status: 0x%x, vendor syndrome: 0x%x, with error %s\n",
+						 wc.status, wc.vendor_err,ibv_wc_status_str(wc.status));
             rc = 1;
         }
     }
@@ -634,9 +639,9 @@ class RDMA {
         struct dev_resource *dev1; //for local usage
 
         struct QP **res;
-
         int rdmaOp(int dst_tid, int dst_nid, char *buf, uint64_t size,
                    uint64_t off, ibv_wr_opcode op) {
+
             assert(off < mem_sz);
             assert(dst_nid < num_nodes);
             assert(dst_tid < num_threads);
@@ -714,6 +719,7 @@ class RDMA {
         }
 
     public:
+        RdmaCtrl* ctrl = NULL;
         RDMA_Device(int num_nodes, int num_threads, int node_id,
                     char *mem, uint64_t mem_sz, string ipfn)
             : num_nodes(num_nodes), num_threads(num_threads), node_id(node_id),
@@ -725,7 +731,7 @@ class RDMA {
             while (ipfile >> ip)
                 ipset.push_back(ip);
 
-            init();
+            // init();
         }
 
         // spawn a service thread to answer the query about QP info
@@ -777,11 +783,19 @@ class RDMA {
 
         // 0 on success, -1 otherwise
         int RdmaRead(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t off) {
-            return rdmaOp(dst_tid, dst_nid, local, size, off, IBV_WR_RDMA_READ);
+            Qp* qp = ctrl->get_rc_qp(dst_tid,dst_nid);
+            qp->rc_post_send(IBV_WR_RDMA_READ,local,size,off,IBV_SEND_SIGNALED);
+            qp->poll_completion();
+            return 0;
+            // return rdmaOp(dst_tid, dst_nid, local, size, off, IBV_WR_RDMA_READ);
         }
 
         int RdmaWrite(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t off) {
-            return rdmaOp(dst_tid, dst_nid, local, size, off, IBV_WR_RDMA_WRITE);
+            Qp* qp = ctrl->get_rc_qp(dst_tid,dst_nid);
+            qp->rc_post_send(IBV_WR_RDMA_WRITE,local,size,off,IBV_SEND_SIGNALED);
+            qp->poll_completion();
+            return 0;
+            // return rdmaOp(dst_tid, dst_nid, local, size, off, IBV_WR_RDMA_WRITE);
         }
 
         int RdmaCmpSwap(int dst_tid, int dst_nid, char *local,
@@ -883,16 +897,37 @@ void RDMA_init(int num_nodes, int num_threads, int node_id, char *mem, uint64_t 
 
     // init RDMA device
     rdma.init_dev(num_nodes, num_threads, node_id, mem, mem_sz, ipfn);
-
     // start a service thread
-    rdma.dev->servicing();
+    // rdma.dev->servicing();
 
     // connect to other nodes
-    rdma.dev->connect();
+    // rdma.dev->connect();
+
+    vector<string> ipset;
+    ifstream ipfile(ipfn);
+    string ip;
+    while (ipfile >> ip){
+        cout << ip <<endl;
+        ipset.push_back(ip);
+    }
+    //node_id, ipset, port, thread_id-no use, enable single memory region 
+    rdma.dev->ctrl = new RdmaCtrl(node_id, ipset, 19344,0 , true);
+    RdmaCtrl* ctrl = rdma.dev->ctrl;
+    ctrl->set_connect_mr(mem, mem_sz);
+    ctrl->open_device();
+    ctrl->register_connect_mr();//single
+    ctrl->start_server();
+    for(uint j = 0; j < num_threads; ++j){
+        for(uint i = 0;i < num_nodes;++i) {
+            ctrl->create_rc_qp(j,i,0,1);
+        }
+    }
+
 
     t = timer::get_usec() - t;
     cout << "INFO: initializing RMDA done (" << t / 1000  << " ms)" << endl;
 
+    
 }
 
 #else
