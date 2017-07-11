@@ -731,7 +731,7 @@ class RDMA {
             while (ipfile >> ip)
                 ipset.push_back(ip);
 
-            // init();
+            // init();//DZY modify
         }
 
         // spawn a service thread to answer the query about QP info
@@ -794,6 +794,10 @@ class RDMA {
             Qp* qp = ctrl->get_rc_qp(dst_tid,dst_nid);
             qp->rc_post_send(IBV_WR_RDMA_WRITE,local,size,off,IBV_SEND_SIGNALED);
             qp->poll_completion();
+            // int flag = qp->first_send() ? IBV_SEND_SIGNALED : 0;
+            // if(qp->need_poll())qp->poll_completion();
+            // qp->rc_post_send(IBV_WR_RDMA_WRITE,local,size,off,flags);
+            // qp->poll
             return 0;
             // return rdmaOp(dst_tid, dst_nid, local, size, off, IBV_WR_RDMA_WRITE);
         }
