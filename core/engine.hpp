@@ -565,7 +565,7 @@ class Engine {
             if (req.is_finished()) {
                 req.row_num = req.get_row_num();
                 if (req.blind)
-                    req.clear_data(); // avoid take back the resuts
+                    req.clear_data(); // avoid take back the results
 
                 adaptor->send(coder.sid_of(req.pid), coder.tid_of(req.pid), req);
                 return;

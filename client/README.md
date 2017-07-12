@@ -1,3 +1,0 @@
-# Wukong's client 
-
-TBD
