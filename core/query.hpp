@@ -94,8 +94,8 @@ public:
          * on the contrary, starts from another index would prune bindings MORE efficiently
          * For example, ?X P0 ?Y, ?X P1 ?Z, ...
          *
-         * ?X __PREDICATE__ PO <- // start from index vertex P0
-         * ?X P1 ?Z .             // then from ?X's edge with P1
+         * ?X __PREDICATE__ P1 <- // start from index vertex P1
+         * ?X P0 ?Y .             // then from ?X's edge with P0
          *
          */
         if (is_tpid(cmd_chains[0])) {

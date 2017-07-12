@@ -145,16 +145,11 @@ main(int argc, char *argv[])
 	cout << "INFO#" << sid << ": allocate " << B2GiB(mem->memory_size()) << "GB memory" << endl;
 
 	// init RDMA devices and connections
-#ifdef HAS_RDMA
 	RDMA_init(global_num_servers, global_num_threads,
 	          sid, mem->memory(), mem->memory_size(), host_fname);
-#endif
 
 	// init data communication
-	RDMA_Adaptor *rdma_adaptor = NULL;
-	if (RDMA::get_rdma().has_rdma())
-		rdma_adaptor = new RDMA_Adaptor(sid, mem, global_num_servers, global_num_threads);
-
+	RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mem, global_num_servers, global_num_threads);
 	TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_num_threads, global_data_port_base);
 
 	// load string server (read-only, shared by all proxies)

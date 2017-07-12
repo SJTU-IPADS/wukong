@@ -61,8 +61,8 @@ private:
         pthread_spinlock_t lock;
     } __attribute__ ((aligned (WK_CLINE)));
 
-    rbf_rmeta_t *rmetas;
-    rbf_lmeta_t *lmetas;
+    rbf_rmeta_t *rmetas = NULL;
+    rbf_lmeta_t *lmetas = NULL;
 
     // each thread uses a round-robin strategy to check its physical-queues
     struct scheduler_t {
@@ -135,6 +135,10 @@ private:
 public:
     RDMA_Adaptor(int sid, Mem *mem, int num_servers, int num_threads)
         : sid(sid), mem(mem), num_servers(num_servers), num_threads(num_threads) {
+
+        // no RDMA device
+        if (!RDMA::get_rdma().has_rdma()) return;
+
         // init the metadata of remote and local ring-buffers
         int nrbfs = num_servers * num_threads;
 

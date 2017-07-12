@@ -22,13 +22,10 @@
 
 #pragma once
 
-#include "tcp_adaptor.hpp"
-
 #pragma GCC diagnostic warning "-fpermissive"
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 #include <stdint.h>
 #include <inttypes.h>
@@ -41,8 +38,13 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#include <vector>
 #include <pthread.h>
+
+#include <vector>
+#include <fstream>
+
+
+#include <zmq.hpp>
 
 #include "timer.hpp"
 
@@ -628,7 +630,7 @@ class RDMA {
         char *mem;
         uint64_t mem_sz;
 
-        vector<string> ipset;
+        std::vector<std::string> ipset;
 
         struct dev_resource *dev0; //for remote usage
         struct dev_resource *dev1; //for local usage
@@ -642,12 +644,12 @@ class RDMA {
             assert(dst_tid < num_threads);
 
             if (post_send(res[dst_tid] + dst_nid, op, buf, size, off, true)) {
-                cout << "ERROR: failed to post request!" << endl;
+                std::cout << "ERROR: failed to post request!" << std::endl;
                 assert(false);
             }
 
             if (poll_completion(res[dst_tid] + dst_nid)) {
-                cout << "poll completion failed!" << endl;
+                std::cout << "poll completion failed!" << std::endl;
                 assert(false);
             }
 
@@ -686,7 +688,7 @@ class RDMA {
 
         void init() {
             assert(num_nodes > 0 && num_threads > 0 && node_id >= 0);
-            cout << "init RDMA devs" << endl;
+            std::cout << "init RDMA devs" << std::endl;
 
             dev0 = new dev_resource;
             dev1 = new dev_resource;
@@ -695,18 +697,18 @@ class RDMA {
             dev_resources_init(dev1);
 
             if (dev_resources_create(dev0, mem, mem_sz) ) {
-                cout << "ERROR: failed to create dev resources" << endl;
+                std::cout << "ERROR: failed to create dev resources" << std::endl;
                 assert(false);
             }
 
-            //cout << "creating remote QPs" << endl;
+            //std::cout << "creating remote QPs" << std::endl;
             res = new struct QP *[num_threads];
             for (int i = 0; i < num_threads ; i++) {
                 res[i] = new struct QP[num_nodes];
                 for (int j = 0; j < num_nodes; j++) {
                     QP_init(res[i] + j);
                     if (QP_create(res[i] + j, dev0)) {
-                        cout << "ERROR: failed to create QP!" << endl;
+                        std::cout << "ERROR: failed to create QP!" << std::endl;
                         assert(false);
                     }
                 }
@@ -715,13 +717,13 @@ class RDMA {
 
     public:
         RDMA_Device(int num_nodes, int num_threads, int node_id,
-                    char *mem, uint64_t mem_sz, string ipfn)
+                    char *mem, uint64_t mem_sz, std::string ipfn)
             : num_nodes(num_nodes), num_threads(num_threads), node_id(node_id),
               mem(mem), mem_sz(mem_sz) {
 
             // record IPs of ndoes
-            ifstream ipfile(ipfn);
-            string ip;
+            std::ifstream ipfile(ipfn);
+            std::string ip;
             while (ipfile >> ip)
                 ipset.push_back(ip);
 
@@ -770,10 +772,10 @@ class RDMA {
                 }
             }
 
-            cout << "RDMA connect QP done." << endl;
+            std::cout << "RDMA connect QP done." << std::endl;
         }
 
-        string ip_of(int sid) { return ipset[sid]; }
+        std::string ip_of(int sid) { return ipset[sid]; }
 
         // 0 on success, -1 otherwise
         int RdmaRead(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t off) {
@@ -864,7 +866,7 @@ public:
     ~RDMA() { if (dev != NULL) delete dev; }
 
     void init_dev(int num_nodes, int num_threads, int node_id,
-                  char *mem, uint64_t mem_sz, string ipfn) {
+                  char *mem, uint64_t mem_sz, std::string ipfn) {
         dev = new RDMA_Device(num_nodes, num_threads, node_id, mem, mem_sz, ipfn);
     }
 
@@ -876,7 +878,7 @@ public:
     }
 }; // end of clase RDMA
 
-void RDMA_init(int num_nodes, int num_threads, int node_id, char *mem, uint64_t mem_sz, string ipfn) {
+void RDMA_init(int num_nodes, int num_threads, int node_id, char *mem, uint64_t mem_sz, std::string ipfn) {
     uint64_t t = timer::get_usec();
 
     RDMA &rdma = RDMA::get_rdma();
@@ -891,7 +893,7 @@ void RDMA_init(int num_nodes, int num_threads, int node_id, char *mem, uint64_t 
     rdma.dev->connect();
 
     t = timer::get_usec() - t;
-    cout << "INFO: initializing RMDA done (" << t / 1000  << " ms)" << endl;
+    std::cout << "INFO: initializing RMDA done (" << t / 1000  << " ms)" << std::endl;
 
 }
 
@@ -901,37 +903,37 @@ class RDMA {
     class RDMA_Device {
     public:
         RDMA_Device(int num_nodes, int num_threads, int node_id,
-                    string fname, char *mem, uint64_t mem_sz) {
-            cout << "This system is compiled without RDMA support." << endl;
+                    std::string fname, char *mem, uint64_t mem_sz) {
+            std::cout << "This system is built without RDMA support." << std::endl;
             assert(false);
         }
 
         void servicing() {
-            cout << "This system is compiled without RDMA support." << endl;
+            std::cout << "This system is built without RDMA support." << std::endl;
             assert(false);
         }
 
         void connect() {
-            cout << "This system is compiled without RDMA support." << endl;
+            std::cout << "This system is built without RDMA support." << std::endl;
             assert(false);
         }
 
-        string ip_of(int sid) {
-            cout << "This system is compiled without RDMA support." << endl;
+        std::string ip_of(int sid) {
+            std::cout << "This system is built without RDMA support." << std::endl;
             assert(false);
-            return string();
+            return std::string();
         }
 
         int RdmaRead(int dst_tid, int dst_nid, char *local,
                      uint64_t size, uint64_t remote_offset) {
-            cout << "This system is compiled without RDMA support." << endl;
+            std::cout << "This system is built without RDMA support." << std::endl;
             assert(false);
             return 0;
         }
 
         int RdmaWrite(int dst_tid, int dst_nid, char *local,
                       uint64_t size, uint64_t remote_offset) {
-            cout << "This system is compiled without RDMA support." << endl;
+            std::cout << "This system is built without RDMA support." << std::endl;
             assert(false);
             return 0;
         }
@@ -939,7 +941,7 @@ class RDMA {
         int RdmaCmpSwap(int dst_tid, int dst_nid, char *local,
                         uint64_t compare, uint64_t swap,
                         uint64_t size, uint64_t off) {
-            cout << "This system is compiled without RDMA support." << endl;
+            std::cout << "This system is built without RDMA support." << std::endl;
             assert(false);
             return 0;
         }
@@ -949,15 +951,15 @@ public:
     RDMA_Device *dev = NULL;
 
     RDMA() {
-        std::cout << "This system is compiled without RDMA support."
+        std::cout << "This system is built without RDMA support."
                   << std::endl;
     }
 
     ~RDMA() { }
 
     void init_dev(int num_nodes, int num_threads, int node_id,
-                  char *mem, uint64_t mem_sz, string ipfn) {
-        std::cout << "This system is compiled without RDMA support."
+                  char *mem, uint64_t mem_sz, std::string ipfn) {
+        std::cout << "This system is built without RDMA support."
                   << std::endl;
     }
 
@@ -971,8 +973,8 @@ public:
 };
 
 void RDMA_init(int num_nodes, int num_threads, int node_id,
-               char *mem, uint64_t mem_sz, string ipfn) {
-    std::cout << "This system is compiled without RDMA support."
+               char *mem, uint64_t mem_sz, std::string ipfn) {
+    std::cout << "This system is built without RDMA support."
               << std::endl;
 }
 

@@ -22,6 +22,8 @@
 
 #pragma once
 
+#include "rdma_resource.hpp"
+
 #include <assert.h>
 #include <map>
 #include <string>
@@ -126,25 +128,33 @@ void reload_config(void)
 	}
 
 	for (auto const &entry : configs) {
-		if (entry.first == "global_enable_caching")
-			global_enable_caching = atoi(entry.second.c_str());
-		else if (entry.first == "global_enable_workstealing")
-			global_enable_workstealing = atoi(entry.second.c_str());
+		if (entry.first == "global_use_rdma")
+			global_use_rdma = atoi(entry.second.c_str());
 		else if (entry.first == "global_rdma_threshold")
 			global_rdma_threshold = atoi(entry.second.c_str());
 		else if (entry.first == "global_mt_threshold")
 			global_mt_threshold = atoi(entry.second.c_str());
-		else if (entry.first == "global_max_print_row")
-			global_max_print_row = atoi(entry.second.c_str());
+		else if (entry.first == "global_enable_caching")
+			global_enable_caching = atoi(entry.second.c_str());
+		else if (entry.first == "global_enable_workstealing")
+			global_enable_workstealing = atoi(entry.second.c_str());
 		else if (entry.first == "global_silent")
 			global_silent = atoi(entry.second.c_str());
+		else if (entry.first == "global_max_print_row")
+			global_max_print_row = atoi(entry.second.c_str());
 		else if (entry.first == "global_enable_planner")
 			global_enable_planner = atoi(entry.second.c_str());
-		else
-			cout << "WARNING: unsupported re-configuration item! ("
-			     << entry.first << ")" << endl;
+		else {
+			//cout << "WARNING: unsupported re-configuration item! ("
+			//     << entry.first << ")" << endl;
+		}
 	}
-	assert(global_mt_threshold > 0);
+
+	// disable RDMA if no RDMA device
+	if (global_use_rdma && !RDMA::get_rdma().has_rdma()) {
+		cout << "ERROR: can't enable RDMA due to building Wukong w/o RDMA support!" << endl;
+		global_use_rdma = false;
+	}
 
 	// limited the number of engines
 	global_mt_threshold = max(1, min(global_mt_threshold, global_num_engines));
@@ -185,26 +195,24 @@ void load_config(int num_servers)
 			global_ctrl_port_base = atoi(entry.second.c_str());
 		else if (entry.first == "global_memstore_size_gb")
 			global_memstore_size_gb = atoi(entry.second.c_str());
-		else if (entry.first == "global_rdma_rbf_size_mb")
-			global_rdma_rbf_size_mb = atoi(entry.second.c_str());
 		else if (entry.first == "global_rdma_buf_size_mb")
 			global_rdma_buf_size_mb = atoi(entry.second.c_str());
-		//else if (entry.first == "global_num_keys_million")
-		//	global_num_keys_million = atoi(entry.second.c_str());
+		else if (entry.first == "global_rdma_rbf_size_mb")
+			global_rdma_rbf_size_mb = atoi(entry.second.c_str());
 		else if (entry.first == "global_use_rdma")
 			global_use_rdma = atoi(entry.second.c_str());
-		else if (entry.first == "global_enable_caching")
-			global_enable_caching = atoi(entry.second.c_str());
-		else if (entry.first == "global_enable_workstealing")
-			global_enable_workstealing = atoi(entry.second.c_str());
 		else if (entry.first == "global_rdma_threshold")
 			global_rdma_threshold = atoi(entry.second.c_str());
 		else if (entry.first == "global_mt_threshold")
 			global_mt_threshold = atoi(entry.second.c_str());
-		else if (entry.first == "global_max_print_row")
-			global_max_print_row = atoi(entry.second.c_str());
+		else if (entry.first == "global_enable_caching")
+			global_enable_caching = atoi(entry.second.c_str());
+		else if (entry.first == "global_enable_workstealing")
+			global_enable_workstealing = atoi(entry.second.c_str());
 		else if (entry.first == "global_silent")
 			global_silent = atoi(entry.second.c_str());
+		else if (entry.first == "global_max_print_row")
+			global_max_print_row = atoi(entry.second.c_str());
 		else if (entry.first == "global_enable_planner")
 			global_enable_planner = atoi(entry.second.c_str());
 		else
@@ -236,6 +244,9 @@ void load_config(int num_servers)
 	// force a "/" at the end of global_input_folder.
 	if (global_input_folder[global_input_folder.length() - 1] != '/')
 		global_input_folder = global_input_folder + "/";
+
+	// disable RDMA if no RDMA device
+	if (!RDMA::get_rdma().has_rdma()) global_use_rdma = false;
 
 	return;
 }

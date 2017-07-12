@@ -316,6 +316,10 @@ done:
         uint64_t bucket_id = key.hash() % num_buckets;
         vertex_t vert;
 
+        // Currently, we don't support to directly get remote vertex/edge without RDMA
+        // TODO: implement it w/o RDMA
+        assert(global_use_rdma);
+
         if (rdma_cache.lookup(key, vert))
             return vert; // found
 
@@ -376,9 +380,14 @@ done:
             return NULL; // not found
         }
 
+        // Currently, we don't support to directly get remote vertex/edge without RDMA
+        // TODO: implement it w/o RDMA
+        assert(global_use_rdma);
+
         char *buf = mem->buffer(tid);
         uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
         uint64_t r_sz = v.ptr.size * sizeof(edge_t);
+
         RDMA &rdma = RDMA::get_rdma();
         rdma.dev->RdmaRead(tid, dst_sid, buf, r_sz, r_off);
         edge_t *result_ptr = (edge_t *)buf;

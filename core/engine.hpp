@@ -367,6 +367,9 @@ class Engine {
 
     // fork-join or in-place execution
     bool need_fork_join(request_or_reply &req) {
+        // always need fork-join mode w/o RDMA
+        if (!global_use_rdma) return true;
+
         ssid_t start = req.cmd_chains[req.step * 4];
         return ((req.local_var != start)
                 && (req.get_row_num() >= global_rdma_threshold));

@@ -49,13 +49,8 @@ public:
 
         oa << r;
         if (global_use_rdma) {
-            if (rdma) {
-                rdma->send(tid, dst_sid, dst_tid, ss.str());
-            } else {
-                cout << "ERORR: attempting to use RDMA adaptor, "
-                     << "but Wukong was built without RDMA."
-                     << endl;
-            }
+            assert(rdma != NULL);
+            rdma->send(tid, dst_sid, dst_tid, ss.str());
         } else {
             tcp->send(dst_sid, dst_tid, ss.str());
         }
@@ -64,13 +59,8 @@ public:
     request_or_reply recv() {
         std::string str;
         if (global_use_rdma) {
-            if (rdma) {
-                str = rdma->recv(tid);
-            } else {
-                cout << "ERORR: attempting to use RDMA adaptor, "
-                     << "but Wukong was built without RDMA."
-                     << endl;
-            }
+            assert(rdma != NULL);
+            str = rdma->recv(tid);
         } else {
             str = tcp->recv(tid);
         }
@@ -87,13 +77,8 @@ public:
     bool tryrecv(request_or_reply &r) {
         std::string str;
         if (global_use_rdma) {
-            if (rdma) {
-                if (!rdma->tryrecv(tid, str)) return false;
-            } else {
-                cout << "ERORR: attempting to use RDMA adaptor, "
-                     << "but Wukong was built without RDMA."
-                     << endl;
-            }
+            assert(rdma != NULL);
+            if (!rdma->tryrecv(tid, str)) return false;
         } else {
             if (!tcp->tryrecv(tid, str)) return false;
         }

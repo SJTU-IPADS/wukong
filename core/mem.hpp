@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include "rdma_resource.hpp"
 #include "unit.hpp"
 
 using namespace std;
@@ -40,7 +41,6 @@ private:
 	uint64_t kvs_sz;
 	uint64_t kvs_off;
 
-#ifdef HAS_RDMA
 	char *buf; // #threads
 	uint64_t buf_sz;
 	uint64_t buf_off;
@@ -48,7 +48,6 @@ private:
 	char *rbf; // #thread x #servers
 	uint64_t rbf_sz;
 	uint64_t rbf_off;
-#endif
 
 public:
 	Mem(int num_servers, int num_threads)
@@ -56,28 +55,26 @@ public:
 
 		// calculate memory usage
 		kvs_sz = GiB2B(global_memstore_size_gb);
-#ifdef HAS_RDMA
-		buf_sz = MiB2B(global_rdma_buf_size_mb);
-		rbf_sz = MiB2B(global_rdma_rbf_size_mb);
-#endif
 
-#ifdef HAS_RDMA
+		if (RDMA::get_rdma().has_rdma()) {
+			// only used by RDMA device
+			buf_sz = MiB2B(global_rdma_buf_size_mb);
+			rbf_sz = MiB2B(global_rdma_rbf_size_mb);
+		} else {
+			buf_sz = rbf_sz = 0;
+		}
+
 		mem_sz = kvs_sz + buf_sz * num_threads + rbf_sz * num_servers * num_threads;
-#else
-		mem_sz = kvs_sz;
-#endif
 		mem = (char *)malloc(mem_sz);
 		memset(mem, 0, mem_sz);
 
 		kvs_off = 0;
 		kvs = mem + kvs_off;
-#ifdef HAS_RDMA
+
 		buf_off = kvs_off + kvs_sz;
 		buf = mem + buf_off;
 		rbf_off = buf_off + buf_sz * num_threads;
 		rbf = mem + rbf_off;
-#endif
-
 	}
 
 	~Mem() { free(mem); }
@@ -90,7 +87,6 @@ public:
 	inline uint64_t kvstore_size() { return kvs_sz; }
 	inline uint64_t kvstore_offset() { return kvs_off; }
 
-#ifdef HAS_RDMA
 	// buffer
 	inline char *buffer(int tid) { return buf + buf_sz * tid; }
 	inline uint64_t buffer_size() { return buf_sz; }
@@ -100,6 +96,4 @@ public:
 	inline char *ring(int tid, int sid) { return rbf + (rbf_sz * num_servers) * tid + rbf_sz * sid; }
 	inline uint64_t ring_size() { return rbf_sz; }
 	inline uint64_t ring_offset(int tid, int sid) { return rbf_off + (rbf_sz * num_servers) * tid + rbf_sz * sid; }
-#endif
-
 }; // end of class Mem

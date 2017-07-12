@@ -71,33 +71,6 @@ class DGraph {
 		triples.resize(n);
 	}
 
-	// send_triple can be safely called by multiple threads,
-	// since the buffer is exclusively used by one thread.
-	void send_triple(int tid, int dst_sid, sid_t s, sid_t p, sid_t o) {
-		// the RDMA buffer is first split into #threads partitions
-		// each partition is further split into #servers pieces
-		// each piece: #triple, tirple, triple, . . .
-		uint64_t buf_sz = floor(mem->buffer_size() / global_num_servers - sizeof(uint64_t), sizeof(sid_t));
-		uint64_t *pn = (uint64_t *)(mem->buffer(tid) + (buf_sz + sizeof(uint64_t)) * dst_sid);
-		sid_t *buf = (sid_t *)(pn + 1);
-
-		// the 1st entry of buffer records #triples (suppose the )
-		uint64_t n = *pn;
-
-		// flush buffer if there is no enough space to buffer a new triple
-		if ((n * 3 + 3) * sizeof(sid_t) > buf_sz) {
-			flush_triples(tid, dst_sid);
-			n = *pn; // reset, it should be 0
-			assert(n == 0);
-		}
-
-		// buffer the triple and update the counter
-		buf[n * 3 + 0] = s;
-		buf[n * 3 + 1] = p;
-		buf[n * 3 + 2] = o;
-		*pn = (n + 1);
-	}
-
 	void flush_triples(int tid, int dst_sid) {
 		uint64_t buf_sz = floor(mem->buffer_size() / global_num_servers - sizeof(uint64_t), sizeof(sid_t));
 		uint64_t *pn = (uint64_t *)(mem->buffer(tid) + (buf_sz + sizeof(uint64_t)) * dst_sid);
@@ -135,6 +108,33 @@ class DGraph {
 
 		// clear the buffer
 		*pn = 0;
+	}
+
+	// send_triple can be safely called by multiple threads,
+	// since the buffer is exclusively used by one thread.
+	void send_triple(int tid, int dst_sid, sid_t s, sid_t p, sid_t o) {
+		// the RDMA buffer is first split into #threads partitions
+		// each partition is further split into #servers pieces
+		// each piece: #triple, tirple, triple, . . .
+		uint64_t buf_sz = floor(mem->buffer_size() / global_num_servers - sizeof(uint64_t), sizeof(sid_t));
+		uint64_t *pn = (uint64_t *)(mem->buffer(tid) + (buf_sz + sizeof(uint64_t)) * dst_sid);
+		sid_t *buf = (sid_t *)(pn + 1);
+
+		// the 1st entry of buffer records #triples (suppose the )
+		uint64_t n = *pn;
+
+		// flush buffer if there is no enough space to buffer a new triple
+		if ((n * 3 + 3) * sizeof(sid_t) > buf_sz) {
+			flush_triples(tid, dst_sid);
+			n = *pn; // reset, it should be 0
+			assert(n == 0);
+		}
+
+		// buffer the triple and update the counter
+		buf[n * 3 + 0] = s;
+		buf[n * 3 + 1] = p;
+		buf[n * 3 + 2] = o;
+		*pn = (n + 1);
 	}
 
 	int load_data(vector<string>& fnames) {
@@ -397,11 +397,10 @@ public:
 		// Wukong adopts load_data_from_allfiles for slow network (w/o RDMA) and
 		//        adopts load_data for fast network (w/ RDMA).
 		int num_partitons = 0;
-#ifdef HAS_RDMA
+
 		if (global_use_rdma)
 			num_partitons = load_data(files);
 		else
-#endif
 			num_partitons = load_data_from_allfiles(files);
 
 		// all triples are partitioned and temporarily stored in the kvstore on each server.
