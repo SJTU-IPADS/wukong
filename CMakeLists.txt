@@ -31,12 +31,12 @@ add_definitions(-DHAS_RDMA)
 include_directories(deps/boost_1_58_0-install/include)
 include_directories(core)
 include_directories(utils)
-include_directories(rdma_lib/include)
+#include_directories(rdma_lib/include)
 
-file(GLOB SOURCES "core/*.hpp" "utils/*.hpp" "rdma_lib/src/*.cc")
+file(GLOB SOURCES "core/*.hpp" "utils/*.hpp" )
 
 
 ## Wukong
 add_executable(wukong ${SOURCES} "core/wukong.cpp")
-target_link_libraries(wukong zmq rt ibverbs tbb ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a)
+target_link_libraries(wukong zmq rt ibverbs tbb rdma ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a)
 
