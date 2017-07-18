@@ -27,15 +27,51 @@
 #include <pthread.h>
 #include <iostream>
 #include <sstream>
+#include <vector>
 #include <boost/lockfree/spsc_queue.hpp>
 #include <boost/unordered_map.hpp>
+#include <boost/serialization/string.hpp>
+#include <boost/serialization/vector.hpp>
 #include <tbb/concurrent_hash_map.h>
 
-#include "cs_basic_type.hpp"
 #include "proxy.hpp"
 
 using namespace std;
 
+using namespace std;
+using namespace boost::archive;
+
+struct CS_Request {
+	string type;
+	bool use_file;
+	string content;
+
+	string cid;
+
+	template <typename Archive>
+	void serialize(Archive &ar, const unsigned int v) {
+		ar &type;
+		ar &use_file;
+		ar &content;
+	}
+};
+
+struct CS_Reply {
+	string type;
+	string content;
+	int ncol;
+	vector<sid_t> result_table;
+
+	string cid;
+
+	template <typename Archive>
+	void serialize(Archive &ar, const unsigned int v) {
+		ar &type;
+		ar &content;
+		ar &ncol;
+		ar &result_table;
+	}
+};
 
 class Monitor {
 public:
