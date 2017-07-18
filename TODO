@@ -1,0 +1,72 @@
+
+========== TODO list ==========
+- Get rid of dependence of MPI
+- Human readable results (ID-to-string)
+- Support in-place execution mode w/o RDMA
+- Enable dynamic deduplication in graph exploration
+- Refine request data structure 
+- Full-fledged local and remote console
+- Integrated SPARQL support (Filter, Union, etc)
+- Support LDBC-SPB
+- Support LDBC-SNB
+
+
+
+
+========== Committers ==========
+
+Rong Chen <rongchen@sjtu.edu.cn>
++ [a40c520]  The 2nd version of Wukong  
++ [52e86db]  Add HDFS support  
++ [5a41a53]  Refine memory management of GStore  
++ [4fda67d]  Support configurable 32/64-bit ID  
++ [206f079]  Regain Wukong w/o RDMA and support turn on/off dynamically 
+
+
+Jiaxin Shi <shijiaxin.cn@gmail.com>
++ [a053391]  The 1st version of Wukong
+
+
+Youyang Yao <yaoyouyang666@gmail.com>
++ [4dd4aab]  Add SPARQL planner to Wukong  
++ [ongoing]  Ontology-based estimation for SPARQL planner
+
+
+Yunhao Zhang <willzhang@sjtu.edu.cn>
++ [2a90636]  Add HDFS support  
++ [ongoing]  The 1st version of Wukong Streaming
+
+
+Chang Lou <louchang_new@163.com>
++ [ongoing]  The 1st version of Wukong w/ GPU
+
+
+Siyuan Wang <wangsiyuanse@qq.com>
++ [ongoing]  The 1st version of Wukong w/ GPU
+
+
+Zhiyuan Dong <windybeing@sjtu.edu.cn>
++ [514b666]  Add lib-rdma to Wukong  
+
+
+Wenhao Zhang <zephon-z@sjtu.edu.cn>
++
+
+
+Xuehan Ke <sherlockkenan@163.com>
++
+
+
+Ning Wang <aswasn@qq.com>
++
+
+
+Jiaqi Li <lijiaqi2017@sjtu.edu.cn>
++
+
+
+
+
+Rui Xu <yexiaorain@gmail.com>
++ [4dd4aab]  Add SPARQL parser to Wukong  
+
