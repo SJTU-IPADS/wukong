@@ -1,12 +1,14 @@
 
 ========== TODO list ==========
-- Get rid of dependence of MPI
 - Human readable results (ID-to-string)
+- Add "set-config" command
 - Support in-place execution mode w/o RDMA
 - Enable dynamic deduplication in graph exploration
-- Refine request data structure 
-- Full-fledged local and remote console
-- Integrated SPARQL support (Filter, Union, etc)
+- Refine request data structure
+- Add user-defined input data loader 
+- Add full-fledged local and remote console
+- Get rid of dependence of MPI
+- Support more SPARQL clauses (Filter, Union, etc)
 - Support LDBC-SPB
 - Support LDBC-SNB
 
