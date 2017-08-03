@@ -10,9 +10,9 @@ set(ROOT $ENV{WUKONG_ROOT})
 ## Use C++11 features
 add_definitions(-std=c++11)
 
-set(CMAKE_CXX_COMPILER "${ROOT}/deps/openmpi-1.6.5-install/bin/mpic++")
+set(CMAKE_CXX_COMPILER /usr/bin/mpic++)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
-set(BOOST_LIB "${ROOT}/deps/boost_1_58_0-install/lib" )
+set(BOOST_LIB "${ROOT}/deps/boost_1_58_0-install/lib")
 
 ## Uncomment two lines below to enble HDFS support.
 #add_definitions(-DHAS_HADOOP)
@@ -31,9 +31,8 @@ add_definitions(-DHAS_RDMA)
 include_directories(deps/boost_1_58_0-install/include)
 include_directories(core)
 include_directories(utils)
-#include_directories(rdma_lib/include)
 
-file(GLOB SOURCES "core/*.hpp" "utils/*.hpp" )
+file(GLOB SOURCES "core/*.hpp" "utils/*.hpp")
 
 
 ## Wukong

@@ -208,11 +208,11 @@ public:
             RDMA &rdma = RDMA::get_rdma();
             uint64_t rdma_off = mem->ring_offset(dst_tid, sid);
             if (off / rbf_sz == (off + msg_sz - 1) / rbf_sz ) {
-                rdma.dev->RdmaWrite(tid, dst_sid, mem->buffer(tid), msg_sz, rdma_off + (off % rbf_sz));
+                rdma.dev->RdmaWriteSelective(tid, dst_sid, mem->buffer(tid), msg_sz, rdma_off + (off % rbf_sz));
             } else {
                 uint64_t _sz = rbf_sz - (off % rbf_sz);
-                rdma.dev->RdmaWrite(tid, dst_sid, mem->buffer(tid), _sz, rdma_off + (off % rbf_sz));
-                rdma.dev->RdmaWrite(tid, dst_sid, mem->buffer(tid) + _sz, msg_sz - _sz, rdma_off);
+                rdma.dev->RdmaWriteSelective(tid, dst_sid, mem->buffer(tid), _sz, rdma_off + (off % rbf_sz));
+                rdma.dev->RdmaWriteSelective(tid, dst_sid, mem->buffer(tid) + _sz, msg_sz - _sz, rdma_off);
             }
         }
     }

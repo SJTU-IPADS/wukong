@@ -1,6 +1,6 @@
-global_num_engines			16
+global_num_engines			8
 global_num_proxies			1
-global_input_folder			/home/yyy/nfs/id_lubm_40/
+global_input_folder			/home/datanfs/nfs0/rdfdata/id_lubm_40/
 global_load_minimal_index	1
 global_data_port_base		5500
 global_ctrl_port_base		9576
@@ -14,4 +14,4 @@ global_enable_caching		0
 global_enable_workstealing	0
 global_silent 				1
 global_max_print_row		10
-global_enable_planner		0
+global_enable_planner		1
