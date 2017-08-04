@@ -12,7 +12,7 @@ add_definitions(-std=c++11)
 
 set(CMAKE_CXX_COMPILER /usr/bin/mpic++)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
-set(BOOST_LIB "${ROOT}/deps/boost_1_58_0-install/lib" )
+set(BOOST_LIB "${ROOT}/deps/boost_1_58_0-install/lib")
 
 ## Uncomment two lines below to enble HDFS support.
 #add_definitions(-DHAS_HADOOP)
@@ -37,5 +37,5 @@ file(GLOB SOURCES "core/*.hpp" "utils/*.hpp")
 
 ## Wukong
 add_executable(wukong ${SOURCES} "core/wukong.cpp")
-target_link_libraries(wukong zmq rt ibverbs tbb ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a)
+target_link_libraries(wukong zmq rt ibverbs tbb rdma ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a)
 

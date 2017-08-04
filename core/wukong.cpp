@@ -39,8 +39,8 @@
 
 #include "data_statistic.hpp"
 
-using namespace std;
 
+using namespace std;
 /*
  * The processor architecture of our cluster (Cube0-5)
  *
