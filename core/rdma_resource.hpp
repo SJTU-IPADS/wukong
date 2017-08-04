@@ -22,32 +22,16 @@
 
 #pragma once
 
-#include "tcp_adaptor.hpp"
-
 #pragma GCC diagnostic warning "-fpermissive"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <stdint.h>
-#include <inttypes.h>
-#include <endian.h>
-#include <byteswap.h>
-#include <getopt.h>
-#include <sys/time.h>
-#include <arpa/inet.h>
-#include <infiniband/verbs.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <vector>
-#include <pthread.h>
-
-#include "timer.hpp"
+#include <iostream>     // std::cout
+#include <fstream>      // std::ifstream
+using namespace std;
 
 #include "rdmaio.h"
 using namespace rdmaio;
+
+#include "timer.hpp"
 
 #ifdef HAS_RDMA
 
@@ -57,7 +41,7 @@ class RDMA {
         RdmaCtrl* ctrl = NULL;
         RDMA_Device(int num_nodes, int num_threads, int node_id,
                     char *mem, uint64_t mem_sz, string ipfn)
-            {
+        {
 
             // record IPs of ndoes
             vector<string> ipset;
@@ -67,33 +51,33 @@ class RDMA {
                 ipset.push_back(ip);
 
             //initialization of new librdma
-            //node_id, ipset, port, thread_id-no use, enable single memory region 
+            //node_id, ipset, port, thread_id-no use, enable single memory region
             ctrl = new RdmaCtrl(node_id, ipset, 19344, true);
             ctrl->open_device();
             ctrl->set_connect_mr(mem, mem_sz);
             ctrl->register_connect_mr();//single
             ctrl->start_server();
-            for(uint j = 0; j < num_threads; ++j){
-                for(uint i = 0;i < num_nodes;++i) {
-                    Qp *qp = ctrl->create_rc_qp(j,i,0,1);
+            for (uint j = 0; j < num_threads; ++j) {
+                for (uint i = 0; i < num_nodes; ++i) {
+                    Qp *qp = ctrl->create_rc_qp(j, i, 0, 1);
                     assert(qp != NULL);
                 }
             }
 
-            while(1) {
+            while (1) {
                 int connected = 0;
-                for(uint j = 0; j < num_threads; ++j){
-                    for(uint i = 0;i < num_nodes;++i) {
-                        Qp *qp = ctrl->create_rc_qp(j,i,0,1);
-                        if(qp->inited_) connected += 1;
+                for (uint j = 0; j < num_threads; ++j) {
+                    for (uint i = 0; i < num_nodes; ++i) {
+                        Qp *qp = ctrl->create_rc_qp(j, i, 0, 1);
+                        if (qp->inited_) connected += 1;
                         else {
-                            if(qp->connect_rc()) {
+                            if (qp->connect_rc()) {
                                 connected += 1;
                             }
                         }
                     }
                 }
-                if(connected == num_nodes * num_threads) break;
+                if (connected == num_nodes * num_threads) break;
                 else {
                     sleep(1);
                 }
@@ -102,9 +86,9 @@ class RDMA {
 
         // 0 on success, -1 otherwise
         int RdmaRead(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t off) {
-            Qp* qp = ctrl->get_rc_qp(dst_tid,dst_nid);
-            qp->rc_post_send(IBV_WR_RDMA_READ,local,size,off,IBV_SEND_SIGNALED);
-            if(!qp->first_send())
+            Qp* qp = ctrl->get_rc_qp(dst_tid, dst_nid);
+            qp->rc_post_send(IBV_WR_RDMA_READ, local, size, off, IBV_SEND_SIGNALED);
+            if (!qp->first_send())
                 qp->poll_completion();
             qp->poll_completion();
             return 0;
@@ -112,36 +96,39 @@ class RDMA {
         }
 
         int RdmaWrite(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t off) {
-            Qp* qp = ctrl->get_rc_qp(dst_tid,dst_nid);
+            Qp* qp = ctrl->get_rc_qp(dst_tid, dst_nid);
             // int flags = (qp->first_send() ? IBV_SEND_SIGNALED : 0);
             int flags = IBV_SEND_SIGNALED;
-            qp->rc_post_send(IBV_WR_RDMA_WRITE,local,size,off,flags);
-            // if(qp->need_poll()) 
+            qp->rc_post_send(IBV_WR_RDMA_WRITE, local, size, off, flags);
+            // if(qp->need_poll())
             qp->poll_completion();
             return 0;
             // return rdmaOp(dst_tid, dst_nid, local, size, off, IBV_WR_RDMA_WRITE);
         }
+
         int RdmaWriteSelective(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t off) {
-            Qp* qp = ctrl->get_rc_qp(dst_tid,dst_nid);
+            Qp* qp = ctrl->get_rc_qp(dst_tid, dst_nid);
             int flags = (qp->first_send() ? IBV_SEND_SIGNALED : 0);
             // int flags = IBV_SEND_SIGNALED;
-            qp->rc_post_send(IBV_WR_RDMA_WRITE,local,size,off,flags);
-            if(qp->need_poll()) qp->poll_completion();
+            qp->rc_post_send(IBV_WR_RDMA_WRITE, local, size, off, flags);
+            if (qp->need_poll()) qp->poll_completion();
             return 0;
             // return rdmaOp(dst_tid, dst_nid, local, size, off, IBV_WR_RDMA_WRITE);
         }
+
         int RdmaWriteNonSignal(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t off) {
-            Qp* qp = ctrl->get_rc_qp(dst_tid,dst_nid);
+            Qp* qp = ctrl->get_rc_qp(dst_tid, dst_nid);
             int flags = 0;
-            qp->rc_post_send(IBV_WR_RDMA_WRITE,local,size,off,flags);
+            qp->rc_post_send(IBV_WR_RDMA_WRITE, local, size, off, flags);
             return 0;
         }
-        int poll_completion(int dst_tid, int dst_nid){
-            Qp* qp = ctrl->get_rc_qp(dst_tid,dst_nid);
+
+        int poll_completion(int dst_tid, int dst_nid) {
+            Qp* qp = ctrl->get_rc_qp(dst_tid, dst_nid);
             qp->poll_completion();
             return 0;
         }
-    }; // end of class RdmaResource
+    };
 
 public:
     RDMA_Device *dev = NULL;
@@ -161,7 +148,7 @@ public:
         static RDMA rdma;
         return rdma;
     }
-}; // end of clase RDMA
+};
 
 void RDMA_init(int num_nodes, int num_threads, int node_id, char *mem, uint64_t mem_sz, string ipfn) {
     uint64_t t = timer::get_usec();
@@ -223,7 +210,7 @@ class RDMA {
             assert(false);
             return 0;
         }
-    }; // end of class RdmaResource
+    };
 
 public:
     RDMA_Device *dev = NULL;
