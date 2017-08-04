@@ -111,7 +111,6 @@ For example:
     $cp zmq.hpp  zeromq-4.0.5-install/include/
     $cp zhelpers.hpp  zeromq-4.0.5-install/include/
 
-
 Add below settings to bash script (i.e., `~/.bashrc`).
  
     ＃ ZeroMQ configuration
@@ -119,6 +118,23 @@ Add below settings to bash script (i.e., `~/.bashrc`).
     export LIBRARY_PATH=$WUKONG_ROOT/deps/zeromq-4.0.5-install/lib:$LIBRARY_PATH
     export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/zeromq-4.0.5-install/lib:$LD_LIBRARY_PATH
 
+#### Install librdma 
+
+    $cd $WUKONG_ROOT/deps/
+    $tar zxvf rdma-1.tar.gz
+    $mkdir 
+    $cd rdma-1/
+    $./configure --prefix=$WUKONG_ROOT/deps/rdma-1-install/
+    $make
+    $make install
+    $cd ..
+    
+Add below settings to bash script (i.e., `~/.bashrc`).
+ 
+    ＃ librdma configuration
+    export CPATH=$WUKONG_ROOT/deps/rdma-1-install/include:$CPATH
+    export LIBRARY_PATH=$WUKONG_ROOT/deps/rdma-1-install/lib:$LIBRARY_PATH
+    export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/rdma-1-install/lib:$LD_LIBRARY_PATH
 
 #### Install HDFS support (Optional)
 
