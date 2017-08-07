@@ -59,8 +59,7 @@ int global_enable_workstealing = false;
 int global_mt_threshold = 16;
 int global_rdma_threshold = 300;
 
-int global_max_print_row = 10;
-bool global_silent = true;
+bool global_silent = true;  // don't take back results by default
 
 // for planner
 bool global_enable_planner = true;
@@ -86,13 +85,11 @@ void show_config(void)
 	cout << "global_memstore_size_gb: " 	<< global_memstore_size_gb		<< endl;
 	cout << "global_rdma_rbf_size_mb: " 	<< global_rdma_rbf_size_mb   	<< endl;
 	cout << "global_rdma_buf_size_mb: " 	<< global_rdma_buf_size_mb		<< endl;
-	//cout << "global_num_keys_million: " 	<< global_num_keys_million		<< endl;
 	cout << "global_use_rdma: " 			<< global_use_rdma				<< endl;
 	cout << "global_enable_caching: " 		<< global_enable_caching		<< endl;
 	cout << "global_enable_workstealing: " 	<< global_enable_workstealing	<< endl;
 	cout << "global_rdma_threshold: " 		<< global_rdma_threshold		<< endl;
 	cout << "global_mt_threshold: " 		<< global_mt_threshold  		<< endl;
-	cout << "global_max_print_row: " 		<< global_max_print_row			<< endl;
 	cout << "global_silent: " 				<< global_silent				<< endl;
 	cout << "global_enable_planner: " 		<< global_enable_planner 		<< endl;
 
@@ -140,8 +137,6 @@ void reload_config(void)
 			global_enable_workstealing = atoi(entry.second.c_str());
 		else if (entry.first == "global_silent")
 			global_silent = atoi(entry.second.c_str());
-		else if (entry.first == "global_max_print_row")
-			global_max_print_row = atoi(entry.second.c_str());
 		else if (entry.first == "global_enable_planner")
 			global_enable_planner = atoi(entry.second.c_str());
 		else {
@@ -211,8 +206,6 @@ void load_config(int num_servers)
 			global_enable_workstealing = atoi(entry.second.c_str());
 		else if (entry.first == "global_silent")
 			global_silent = atoi(entry.second.c_str());
-		else if (entry.first == "global_max_print_row")
-			global_max_print_row = atoi(entry.second.c_str());
 		else if (entry.first == "global_enable_planner")
 			global_enable_planner = atoi(entry.second.c_str());
 		else

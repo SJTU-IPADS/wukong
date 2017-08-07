@@ -120,6 +120,8 @@ public:
 		// random assign request to range partitioned engines
 		// NOTE: the partitioned mapping has better tail latency in batch mode
 		int ratio = global_num_engines / global_num_proxies;
+		// TODO: BUG if global_num_engines < global_num_proxies
+		assert(ratio > 0);
 		int start_tid = global_num_proxies + (ratio * tid) + (coder.get_random() % ratio);
 
 		adaptor->send(start_sid, start_tid, r);
@@ -161,15 +163,35 @@ public:
 				 * If you want to print the query results with strings.
 				 */
 				if (str_server->id2str.find(id) == str_server->id2str.end())
-					cout << id << "\t";
+					cout << "[" << id << "]\t";
 				else
-					cout << str_server->id2str[r.get_row_col(i, c)] << "  ";
+					cout << str_server->id2str[r.get_row_col(i, c)] << "\t";
 			}
 			cout << endl;
 		}
 	}
 
-	void run_single_query(istream &is, int cnt, Logger &logger) {
+	void dump_result(request_or_reply &r, ofstream &ofs) {
+		for (int i = 0; i < r.row_num; i++) {
+			ofs << i + 1 << ":  ";
+			for (int c = 0; c < r.get_col_num(); c++) {
+				int id = r.get_row_col(i, c);
+				/*
+				 * Must load the entire ID mapping files (incl. normal and index),
+				 * If you want to print the query results with strings.
+				 */
+				if (str_server->id2str.find(id) == str_server->id2str.end())
+					ofs << "[" << id << "]" << "\t";
+				else
+					ofs << str_server->id2str[r.get_row_col(i, c)] << "\t";
+			}
+			ofs << endl;
+		}
+		ofs.close();
+	}
+
+	void run_single_query(istream &is, int cnt, Logger &logger,
+	                      int nlines, bool o_enable, ofstream &ofs) {
 		request_or_reply request, reply;
 
 		uint64_t t_parse1 = timer::get_usec();
@@ -198,15 +220,21 @@ public:
 		logger.init();
 		for (int i = 0; i < cnt; i++) {
 			setpid(request);
-			request.blind = true; // avoid send back results by default
+			// only take back results of the last request if not silent
+			request.blind = i < (cnt - 1) ? true : global_silent;
 			send_request(request);
 			reply = recv_reply();
 		}
 		logger.finish();
 
 		cout << "(last) result size: " << reply.row_num << endl;
-		if (!global_silent && !reply.blind)
-			print_result(reply, min(reply.row_num, global_max_print_row));
+		if (!global_silent && !reply.blind) {
+			if (nlines > 0)
+				print_result(reply, min(reply.row_num, nlines));
+
+			if (o_enable)
+				dump_result(reply, ofs);
+		}
 	}
 
 	void nonblocking_run_batch_query(istream &is, Logger &logger) {
@@ -250,7 +278,7 @@ public:
 					request_or_reply request = tpls[idx].instantiate(coder.get_random());
 
 					setpid(request);
-					request.blind = true; // avoid send back results by default
+					request.blind = true; // always not take back results in batch mode
 					logger.start_record(request.pid, idx);
 					send_request(request);
 					send_cnt ++;

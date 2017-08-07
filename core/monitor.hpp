@@ -20,6 +20,13 @@
  *
  */
 
+/**
+ * NOW! The implementation of Monitor is dicarded
+ *
+ * TODO: renew it when we add the support to remote clients
+ * RONG, Aug. 2017
+ */
+
 #pragma once
 
 #include <zmq.hpp>
@@ -195,7 +202,7 @@ void *send_cmd(void *ptr) {
 		request_or_reply r = monitor->proxy->recv_reply();
 		cout << "(last) result size: " << r.row_num << endl;
 		if (!global_silent && !r.blind)
-			monitor->proxy->print_result(r, min(r.row_num, global_max_print_row));
+			monitor->proxy->print_result(r, min(r.row_num, 10));
 
 		CS_Reply crep;
 		crep.ncol = r.col_num;

@@ -87,7 +87,9 @@ void print_help(void)
 	cout << "        -f <file>   a single query from the <file>" << endl;
 	cout << "        -n <num>    run a single query <num> times" << endl;
 	cout << "        -b <file>   a set of queries configured by the <file>" << endl;
-	cout << "        -s <string> a single query from input string" << endl;
+	cout << "        -s <string> a single query from input string (upcoming)" << endl;
+	cout << "        -v <num>    print at most <num> lines of the result (default:10)" << endl;
+	cout << "        -w <file>   write the result into the <file>" << endl;
 }
 
 // the master proxy is the 1st proxy of the 1st server (i.e., sid == 0 and tid == 0)
@@ -161,9 +163,10 @@ next:
 
 			// handle SPARQL queries
 			if (token == "sparql") {
-				string fname, bfname, query;
+				string fname, bfname, query, ofname;
 				int cnt = 1;
-				bool f_enable = false, b_enable = false, q_enable = false;
+				int nlines = 0;
+				bool f_enable = false, b_enable = false, q_enable = false, o_enable = false;
 
 				// parse parameters
 				while (cmd_ss >> token) {
@@ -175,6 +178,11 @@ next:
 					} else if (token == "-b") {
 						cmd_ss >> bfname;
 						b_enable = true;
+					} else if (token == "-v") {
+						cmd_ss >> nlines;
+					} else if (token == "-o") {
+						cmd_ss >> ofname;
+						o_enable = true;
 					} else if (token == "-s") {
 						string start;
 						cmd_ss >> start;
@@ -198,8 +206,27 @@ next:
 							cout << "Query file not found: " << fname << endl;
 							continue ;
 						}
+
+						ofstream ofs(ofname, std::ios::out);
+						if (o_enable && !ofs.good()) {
+							cout << "Can't open/create output file: " << ofname << endl;
+							continue ;
+						}
+
+						if (global_silent) {
+							if (nlines > 0) {
+								cout << "Can't print results (-v) with global_silent." << endl;
+								continue ;
+							}
+
+							if (o_enable) {
+								cout << "Can't output results (-w) with global_silent." << endl;
+								continue ;
+							}
+						}
+
 						Logger logger;
-						proxy->run_single_query(ifs, cnt, logger);
+						proxy->run_single_query(ifs, cnt, logger, nlines, o_enable, ofs);
 						logger.print_latency(cnt);
 					}
 				}

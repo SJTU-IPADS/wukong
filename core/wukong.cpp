@@ -94,7 +94,7 @@ void *proxy_thread(void *arg)
 		// Run the Wukong's testbed console (by default)
 		run_console(proxy);
 	else
-		// Run monitor thread for clients
+		// TODO: Run monitor thread for clients
 		run_monitor(proxy, monitor_port);
 }
 
