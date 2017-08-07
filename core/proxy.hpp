@@ -158,12 +158,12 @@ public:
 			cout << i + 1 << ":  ";
 			for (int c = 0; c < r.get_col_num(); c++) {
 				int id = r.get_row_col(i, c);
-				/*
-				 * Must load the entire ID mapping files (incl. normal and index),
-				 * If you want to print the query results with strings.
-				 */
+				// WARNING: If you want to print the query results with strings,
+				// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
+				//
+				// TODO: good format
 				if (str_server->id2str.find(id) == str_server->id2str.end())
-					cout << "[" << id << "]\t";
+					cout << id << "\t";
 				else
 					cout << str_server->id2str[r.get_row_col(i, c)] << "\t";
 			}
@@ -176,12 +176,12 @@ public:
 			ofs << i + 1 << ":  ";
 			for (int c = 0; c < r.get_col_num(); c++) {
 				int id = r.get_row_col(i, c);
-				/*
-				 * Must load the entire ID mapping files (incl. normal and index),
-				 * If you want to print the query results with strings.
-				 */
+				// WARNING: If you want to print the query results with strings,
+				// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
+				//
+				// TODO: good format
 				if (str_server->id2str.find(id) == str_server->id2str.end())
-					ofs << "[" << id << "]" << "\t";
+					ofs << id << "\t";
 				else
 					ofs << str_server->id2str[r.get_row_col(i, c)] << "\t";
 			}
