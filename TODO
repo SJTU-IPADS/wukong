@@ -2,6 +2,8 @@
 ========== TODO list ==========
 - Human readable results (ID-to-string)
 - Add "set-config" command
+- Add MPI to dependence
+- Support multiple instances of Wukong on single node
 - Support in-place execution mode w/o RDMA
 - Enable dynamic deduplication in graph exploration
 - Refine request data structure
@@ -11,7 +13,6 @@
 - Support more SPARQL clauses (Filter, Union, etc)
 - Support LDBC-SPB
 - Support LDBC-SNB
-
 
 
 
@@ -48,7 +49,7 @@ Siyuan Wang <wangsiyuanse@qq.com>
 
 
 Zhiyuan Dong <windybeing@sjtu.edu.cn>
-+ [514b666]  Add lib-rdma to Wukong  
++ [7570db5]  Add librdma to Wukong  
 
 
 Wenhao Zhang <zephon-z@sjtu.edu.cn>
