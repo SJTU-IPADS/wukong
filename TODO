@@ -1,6 +1,5 @@
 
 ========== TODO list ==========
-- Human readable results (ID-to-string)
 - Add "set-config" command
 - Add MPI to dependence
 - Support multiple instances of Wukong on single node
@@ -61,7 +60,7 @@ Xuehan Ke <sherlockkenan@163.com>
 
 
 Ning Wang <aswasn@qq.com>
-+
++ [266981f] print and dump readable results
 
 
 Jiaqi Li <lijiaqi2017@sjtu.edu.cn>
