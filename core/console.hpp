@@ -85,11 +85,10 @@ void print_help(void)
 	cout << "    show-config    Show current config" << endl;
 	cout << "    sparql         Run SPARQL queries" << endl;
 	cout << "        -f <file>   a single query from the <file>" << endl;
-	cout << "        -n <num>    run a single query <num> times" << endl;
+	cout << "           -n <num>    run a single query <num> times" << endl;
+	cout << "           -v <num>    print at most <num> lines of the result (default:10)" << endl;
+	cout << "           -w <file>   write the result into the <file>" << endl;
 	cout << "        -b <file>   a set of queries configured by the <file>" << endl;
-	cout << "        -s <string> a single query from input string (upcoming)" << endl;
-	cout << "        -v <num>    print at most <num> lines of the result (default:10)" << endl;
-	cout << "        -w <file>   write the result into the <file>" << endl;
 }
 
 // the master proxy is the 1st proxy of the 1st server (i.e., sid == 0 and tid == 0)
@@ -163,10 +162,10 @@ next:
 
 			// handle SPARQL queries
 			if (token == "sparql") {
-				string fname, bfname, query, ofname;
+				string fname, bfname, ofname;
 				int cnt = 1;
 				int nlines = 0;
-				bool f_enable = false, b_enable = false, q_enable = false, o_enable = false;
+				bool f_enable = false, b_enable = false, o_enable = false;
 
 				// parse parameters
 				while (cmd_ss >> token) {
@@ -183,12 +182,6 @@ next:
 					} else if (token == "-o") {
 						cmd_ss >> ofname;
 						o_enable = true;
-					} else if (token == "-s") {
-						string start;
-						cmd_ss >> start;
-						query = cmd.substr(cmd.find(start));
-						q_enable = true;
-						break ;
 					} else {
 						if (IS_MASTER(proxy)) {
 							cout << "Unknown option: " << token << endl;
@@ -276,15 +269,6 @@ next:
 					} else {
 						// send logs to the master proxy
 						console_send<Logger>(0, 0, logger);
-					}
-				}
-
-				if (q_enable) {
-					// TODO: SPARQL string
-					if (IS_MASTER(proxy)) {
-						// TODO
-						cout << "Query: " << query << endl;
-						cout << "The option '-s' is unsupported now!" << endl;
 					}
 				}
 			} else {
