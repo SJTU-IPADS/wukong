@@ -101,7 +101,7 @@ void *proxy_thread(void *arg)
 static void
 usage(char *fn)
 {
-	cout << "usage: << fn <<  <config_fname> <host_fname> [options]" << endl;
+	cout << "usage: " << fn << " <config_fname> <host_fname> [options]" << endl;
 	cout << "options:" << endl;
 	cout << "  -c: enable connected client" << endl;
 	cout << "  -p port_num : the port number of connected client (default: 5450)" << endl;
@@ -119,8 +119,10 @@ main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	cfg_fname = std::string(argv[1]);
-	host_fname = std::string(argv[2]);
+	// load global configs
+	load_config(string(argv[1]), world.size());
+
+	string host_fname = std::string(argv[2]);
 
 	int c;
 	while ((c = getopt(argc - 2, argv + 2, "cp:")) != -1) {
@@ -136,9 +138,6 @@ main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 	}
-
-	// load global configuration setting
-	load_config(world.size());
 
 	// allocate memory
 	Mem *mem = new Mem(global_num_servers, global_num_threads);

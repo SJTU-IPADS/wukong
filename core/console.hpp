@@ -79,16 +79,18 @@ static void console_barrier(int tid)
 void print_help(void)
 {
 	cout << "These are common Wukong commands: " << endl;
-	cout << "    help           Display help infomation" << endl;
-	cout << "    quit           Quit from console" << endl;
-	cout << "    reload-config  Reload config file" << endl;
-	cout << "    show-config    Show current config" << endl;
-	cout << "    sparql         Run SPARQL queries" << endl;
-	cout << "        -f <file>   a single query from the <file>" << endl;
-	cout << "           -n <num>    run a single query <num> times" << endl;
-	cout << "           -v <num>    print at most <num> lines of the result (default:10)" << endl;
-	cout << "           -w <file>   write the result into the <file>" << endl;
-	cout << "        -b <file>   a set of queries configured by the <file>" << endl;
+	cout << "    help                display help infomation" << endl;
+	cout << "    quit                quit from console" << endl;
+	cout << "    config <args>       run commands on config" << endl;
+	cout << "        -v                  print current config" << endl;
+	cout << "        -l <file>           load config items from <file>" << endl;
+	cout << "        -s <string>         set config items by <str> (format: item1=val1&item2=...)" << endl;
+	cout << "    sparql <args>       run SPARQL queries" << endl;
+	cout << "        -f <file> [<args>]  a single query from <file>" << endl;
+	cout << "           -n <num>            run <num> times" << endl;
+	cout << "           -v <num>            print at most <num> lines of results" << endl;
+	cout << "           -w <file>           write results into <file>" << endl;
+	cout << "        -b <file>           a set of queries configured by <file>" << endl;
 }
 
 // the master proxy is the 1st proxy of the 1st server (i.e., sid == 0 and tid == 0)
@@ -124,16 +126,13 @@ next:
 			pos = cmd.find_last_not_of(" \t");  // trim blanks from tail
 			cmd.erase(pos + 1, cmd.length() - (pos + 1));
 
-			// only process on the master console
+			// only run <cmd> on the master console
 			if (cmd == "help") {
 				print_help();
 				goto next;
-			} else if (cmd == "show-config") {
-				show_config();
-				goto next;
 			}
 
-			// send commands to all proxy threads
+			// send <cmd> to all consoles
 			for (int i = 0; i < global_num_servers; i++) {
 				for (int j = 0; j < global_num_proxies; j++) {
 					if (i == 0 && j == 0)
@@ -142,26 +141,49 @@ next:
 				}
 			}
 		} else {
-			// recieve commands
+			// recieve <cmd>
 			cmd = console_recv<string>(proxy->tid);
 		}
 
-		// process on all consoles
+		// run <cmd> on all consoles
 		if (cmd == "quit" || cmd == "q") {
 			if (proxy->tid == 0)
-				exit(0); // each server exits once by the 1st proxy thread
-		} else if (cmd == "reload-config") {
-			if (proxy->tid == 0)
-				reload_config(); // each server reload config file once by the 1st proxy
+				exit(0); // each server exits once by the 1st console
 		} else {
 			std::stringstream cmd_ss(cmd);
 			std::string token;
 
 			// get keyword of command
 			cmd_ss >> token;
+			if (token == "config") {
+				cmd_ss >> token;
 
-			// handle SPARQL queries
-			if (token == "sparql") {
+				if (token == "-v") {
+					// only show config on the master console
+					if (IS_MASTER(proxy))
+						print_config();
+				} else if (token == "-l") {
+					string fname;
+					cmd_ss >> fname;
+
+					// each server load config file once by the 1st console
+					if (proxy->tid == 0)
+						reload_config(fname);
+				} else if (token == "-s") {
+					string str;
+					cmd_ss >> str;
+
+					// each server load config file once by the 1st console
+					if (proxy->tid == 0)
+						cout << "Unsupported cmd: " << token << " " << str << endl;
+				} else {
+					if (IS_MASTER(proxy)) {
+						cout << "Unknown cmd: " << token << endl;
+						print_help();
+					}
+					continue;
+				}
+			} else if (token == "sparql") { // handle SPARQL queries
 				string fname, bfname, ofname;
 				int cnt = 1;
 				int nlines = 0;
@@ -184,7 +206,7 @@ next:
 						o_enable = true;
 					} else {
 						if (IS_MASTER(proxy)) {
-							cout << "Unknown option: " << token << endl;
+							cout << "Unknown cmd: " << token << endl;
 							print_help();
 						}
 						goto next;

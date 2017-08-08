@@ -64,44 +64,8 @@ bool global_silent = true;  // don't take back results by default
 // for planner
 bool global_enable_planner = true;
 
-/* set by command line */
-string cfg_fname;
-string host_fname;
 
-/**
- * list current global setting
- */
-void show_config(void)
-{
-	cout << "------ global configurations ------" << endl;
-
-	// setting by config file
-	cout << "the number of engines: "		<< global_num_engines 			<< endl;
-	cout << "the number of proxies: "		<< global_num_proxies			<< endl;
-	cout << "global_input_folder: " 		<< global_input_folder			<< endl;
-	cout << "global_load_minimal_index: " 	<< global_load_minimal_index 	<< endl;
-	cout << "global_data_port_base: " 		<< global_data_port_base		<< endl;
-	cout << "global_ctrl_port_base: " 		<< global_ctrl_port_base		<< endl;
-	cout << "global_memstore_size_gb: " 	<< global_memstore_size_gb		<< endl;
-	cout << "global_rdma_buf_size_mb: " 	<< global_rdma_buf_size_mb		<< endl;
-	cout << "global_rdma_rbf_size_mb: " 	<< global_rdma_rbf_size_mb   	<< endl;
-	cout << "global_use_rdma: " 			<< global_use_rdma				<< endl;
-	cout << "global_enable_caching: " 		<< global_enable_caching		<< endl;
-	cout << "global_enable_workstealing: " 	<< global_enable_workstealing	<< endl;
-	cout << "global_rdma_threshold: " 		<< global_rdma_threshold		<< endl;
-	cout << "global_mt_threshold: " 		<< global_mt_threshold  		<< endl;
-	cout << "global_silent: " 				<< global_silent				<< endl;
-	cout << "global_enable_planner: " 		<< global_enable_planner 		<< endl;
-
-	cout << "--" << endl;
-
-	// compute from other settings
-	cout << "the number of servers: " 		<< global_num_servers			<< endl;
-	cout << "the number of threads: " 		<< global_num_threads			<< endl;
-}
-
-
-bool set_immutable_config(string cfg_name, string value)
+static bool set_immutable_config(string cfg_name, string value)
 {
 
 	if (cfg_name == "global_num_engines") {
@@ -148,7 +112,7 @@ bool set_immutable_config(string cfg_name, string value)
 	return true;
 }
 
-bool set_mutable_config(string cfg_name, string value)
+static bool set_mutable_config(string cfg_name, string value)
 {
 	if (cfg_name == "global_use_rdma") {
 		global_use_rdma = atoi(value.c_str());
@@ -178,11 +142,11 @@ bool set_mutable_config(string cfg_name, string value)
 	return true;
 }
 
-void file2items(string fname, map<string, string> &items)
+static void file2items(string fname, map<string, string> &items)
 {
 	ifstream file(fname.c_str());
 	if (!file) {
-		cout << "ERROR: " << cfg_fname << " does not exist." << endl;
+		cout << "ERROR: " << fname << " does not exist." << endl;
 		exit(0);
 	}
 
@@ -195,15 +159,15 @@ void file2items(string fname, map<string, string> &items)
 }
 
 /**
- * re-configure Wukong
+ * reload config
  */
-void reload_config(void)
+void reload_config(string fname)
 {
 	// TODO: it should ensure that there is no outstanding queries.
 
 	// load config file
 	map<string, string> items;
-	file2items(cfg_fname, items);
+	file2items(fname, items);
 
 	for (auto const &entry : items) {
 		set_mutable_config(entry.first, entry.second);
@@ -215,14 +179,17 @@ void reload_config(void)
 	return;
 }
 
-void load_config(int num_servers)
+/**
+ * load config
+ */
+void load_config(string fname, int num_servers)
 {
 	global_num_servers = num_servers;
 	assert(num_servers > 0);
 
 	// load config file
 	map<string, string> items;
-	file2items(cfg_fname, items);
+	file2items(fname, items);
 
 	for (auto const &entry : items) {
 		if (!(set_immutable_config(entry.first, entry.second)
@@ -239,4 +206,36 @@ void load_config(int num_servers)
 	global_mt_threshold = max(1, min(global_mt_threshold, global_num_engines));
 
 	return;
+}
+
+/**
+ * print current config
+ */
+void print_config(void)
+{
+	cout << "------ global configurations ------" << endl;
+
+	// setting by config file
+	cout << "the number of engines: "		<< global_num_engines 			<< endl;
+	cout << "the number of proxies: "		<< global_num_proxies			<< endl;
+	cout << "global_input_folder: " 		<< global_input_folder			<< endl;
+	cout << "global_load_minimal_index: " 	<< global_load_minimal_index 	<< endl;
+	cout << "global_data_port_base: " 		<< global_data_port_base		<< endl;
+	cout << "global_ctrl_port_base: " 		<< global_ctrl_port_base		<< endl;
+	cout << "global_memstore_size_gb: " 	<< global_memstore_size_gb		<< endl;
+	cout << "global_rdma_buf_size_mb: " 	<< global_rdma_buf_size_mb		<< endl;
+	cout << "global_rdma_rbf_size_mb: " 	<< global_rdma_rbf_size_mb   	<< endl;
+	cout << "global_use_rdma: " 			<< global_use_rdma				<< endl;
+	cout << "global_enable_caching: " 		<< global_enable_caching		<< endl;
+	cout << "global_enable_workstealing: " 	<< global_enable_workstealing	<< endl;
+	cout << "global_rdma_threshold: " 		<< global_rdma_threshold		<< endl;
+	cout << "global_mt_threshold: " 		<< global_mt_threshold  		<< endl;
+	cout << "global_silent: " 				<< global_silent				<< endl;
+	cout << "global_enable_planner: " 		<< global_enable_planner 		<< endl;
+
+	cout << "--" << endl;
+
+	// compute from other settings
+	cout << "the number of servers: " 		<< global_num_servers			<< endl;
+	cout << "the number of threads: " 		<< global_num_threads			<< endl;
 }
