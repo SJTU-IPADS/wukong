@@ -210,24 +210,40 @@ next:
 						ofstream ofs(ofname, std::ios::out);
 						if (o_enable && !ofs.good()) {
 							cout << "Can't open/create output file: " << ofname << endl;
-							continue ;
+							continue;
 						}
 
 						if (global_silent) {
 							if (nlines > 0) {
 								cout << "Can't print results (-v) with global_silent." << endl;
-								continue ;
+								continue;
 							}
 
 							if (o_enable) {
 								cout << "Can't output results (-w) with global_silent." << endl;
-								continue ;
+								continue;
 							}
 						}
 
+						request_or_reply reply;
 						Logger logger;
-						proxy->run_single_query(ifs, cnt, logger, nlines, o_enable, ofs);
+						int ret = proxy->run_single_query(ifs, cnt, reply, logger);
+
+						if (ret != 0) {
+							cout << "Failed to run the query (ERROR: " << ret << ")!" << endl;
+							continue;
+						}
+
+						// print or dump results
 						logger.print_latency(cnt);
+						cout << "(last) result size: " << reply.row_num << endl;
+						if (!global_silent && !reply.blind) {
+							if (nlines > 0)
+								proxy->print_result(reply, min(reply.row_num, nlines));
+
+							if (o_enable)
+								proxy->dump_result(reply, ofs);
+						}
 					}
 				}
 

@@ -190,17 +190,16 @@ public:
 		ofs.close();
 	}
 
-	void run_single_query(istream &is, int cnt, Logger &logger,
-	                      int nlines, bool o_enable, ofstream &ofs) {
-		request_or_reply request, reply;
-
+	int run_single_query(istream &is, int cnt,
+	                     request_or_reply &reply, Logger &logger) {
+		request_or_reply request;
 		uint64_t t_parse1 = timer::get_usec();
 		if (!parser.parse(is, request)) {
 			cout << "ERROR: Parsing failed! ("
 			     << parser.strerror << ")" << endl;
 			is.clear();
 			is.seekg(0);
-			return;
+			return -2; // parsing failed
 		}
 		uint64_t t_parse2 = timer::get_usec();
 
@@ -213,7 +212,7 @@ public:
 			cout << "planning time : " << t_plan2 - t_plan1 << " usec" << endl;
 			if (exec == false) { // for empty result
 				cout << "(last) result size: 0" << endl;
-				return ;
+				return -1; // planning failed
 			}
 		}
 
@@ -226,15 +225,7 @@ public:
 			reply = recv_reply();
 		}
 		logger.finish();
-
-		cout << "(last) result size: " << reply.row_num << endl;
-		if (!global_silent && !reply.blind) {
-			if (nlines > 0)
-				print_result(reply, min(reply.row_num, nlines));
-
-			if (o_enable)
-				dump_result(reply, ofs);
-		}
+		return 0;
 	}
 
 	void nonblocking_run_batch_query(istream &is, Logger &logger) {
