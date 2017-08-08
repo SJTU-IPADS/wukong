@@ -83,8 +83,8 @@ void show_config(void)
 	cout << "global_data_port_base: " 		<< global_data_port_base		<< endl;
 	cout << "global_ctrl_port_base: " 		<< global_ctrl_port_base		<< endl;
 	cout << "global_memstore_size_gb: " 	<< global_memstore_size_gb		<< endl;
-	cout << "global_rdma_rbf_size_mb: " 	<< global_rdma_rbf_size_mb   	<< endl;
 	cout << "global_rdma_buf_size_mb: " 	<< global_rdma_buf_size_mb		<< endl;
+	cout << "global_rdma_rbf_size_mb: " 	<< global_rdma_rbf_size_mb   	<< endl;
 	cout << "global_use_rdma: " 			<< global_use_rdma				<< endl;
 	cout << "global_enable_caching: " 		<< global_enable_caching		<< endl;
 	cout << "global_enable_workstealing: " 	<< global_enable_workstealing	<< endl;
@@ -100,6 +100,100 @@ void show_config(void)
 	cout << "the number of threads: " 		<< global_num_threads			<< endl;
 }
 
+
+bool set_immutable_config(string cfg_name, string value)
+{
+
+	if (cfg_name == "global_num_engines") {
+		global_num_engines = atoi(value.c_str());
+		assert(global_num_engines > 0);
+	} else if (cfg_name == "global_num_proxies") {
+		global_num_proxies = atoi(value.c_str());
+		assert(global_num_proxies > 0);
+	}
+	else if (cfg_name == "global_input_folder") {
+		global_input_folder = value;
+
+		// make sure to check that the global_input_folder is non-empty.
+		if (global_input_folder.length() == 0) {
+			cout << "ERROR: the directory path of RDF data can not be empty!"
+			     << "You should set \"global_input_folder\" in config file." << endl;
+			exit(-1);
+		}
+
+		// force a "/" at the end of global_input_folder.
+		if (global_input_folder[global_input_folder.length() - 1] != '/')
+			global_input_folder = global_input_folder + "/";
+	} else if (cfg_name == "global_load_minimal_index") {
+		global_load_minimal_index = atoi(value.c_str());
+	} else if (cfg_name == "global_data_port_base") {
+		global_data_port_base = atoi(value.c_str());
+		assert(global_data_port_base > 0);
+	} else if (cfg_name == "global_ctrl_port_base") {
+		global_ctrl_port_base = atoi(value.c_str());
+		assert(global_ctrl_port_base > 0);
+	} else if (cfg_name == "global_memstore_size_gb") {
+		global_memstore_size_gb = atoi(value.c_str());
+		assert(global_memstore_size_gb > 0);
+	} else if (cfg_name == "global_rdma_buf_size_mb") {
+		global_rdma_buf_size_mb = atoi(value.c_str());
+		assert(global_rdma_buf_size_mb > 0);
+	} else if (cfg_name == "global_rdma_rbf_size_mb") {
+		global_rdma_rbf_size_mb = atoi(value.c_str());
+		assert(global_rdma_rbf_size_mb > 0);
+	} else {
+		return false;
+	}
+
+	return true;
+}
+
+bool set_mutable_config(string cfg_name, string value)
+{
+	if (cfg_name == "global_use_rdma") {
+		global_use_rdma = atoi(value.c_str());
+
+		// disable RDMA if no RDMA device
+		if (global_use_rdma && !RDMA::get_rdma().has_rdma()) {
+			cout << "ERROR: can't enable RDMA due to building Wukong w/o RDMA support!" << endl;
+			global_use_rdma = false;
+		}
+	} else if (cfg_name == "global_rdma_threshold") {
+		global_rdma_threshold = atoi(value.c_str());
+	} else if (cfg_name == "global_mt_threshold") {
+		global_mt_threshold = atoi(value.c_str());
+		assert(global_mt_threshold > 0);
+	} else if (cfg_name == "global_enable_caching") {
+		global_enable_caching = atoi(value.c_str());
+	} else if (cfg_name == "global_enable_workstealing") {
+		global_enable_workstealing = atoi(value.c_str());
+	} else if (cfg_name == "global_silent") {
+		global_silent = atoi(value.c_str());
+	} else if (cfg_name == "global_enable_planner") {
+		global_enable_planner = atoi(value.c_str());
+	} else {
+		return false;
+	}
+
+	return true;
+}
+
+void file2items(string fname, map<string, string> &items)
+{
+	ifstream file(fname.c_str());
+	if (!file) {
+		cout << "ERROR: " << cfg_fname << " does not exist." << endl;
+		exit(0);
+	}
+
+	string line, row, val;
+	while (std::getline(file, line)) {
+		istringstream iss(line);
+		iss >> row >> val;
+		items[row] = val;
+	}
+}
+
 /**
  * re-configure Wukong
  */
@@ -107,139 +201,42 @@ void reload_config(void)
 {
 	// TODO: it should ensure that there is no outstanding queries.
 
-	ifstream file(cfg_fname.c_str());
-	if (!file) {
-		cout << "ERROR: the configure file "
-		     << cfg_fname
-		     << " does not exist."
-		     << endl;
-		exit(0);
-	}
+	// load config file
+	map<string, string> items;
+	file2items(cfg_fname, items);
 
-	map<string, string> configs;
-	string line, row, val;
-	while (std::getline(file, line)) {
-		istringstream iss(line);
-		iss >> row >> val;
-		configs[row] = val;
-	}
-
-	for (auto const &entry : configs) {
-		if (entry.first == "global_use_rdma")
-			global_use_rdma = atoi(entry.second.c_str());
-		else if (entry.first == "global_rdma_threshold")
-			global_rdma_threshold = atoi(entry.second.c_str());
-		else if (entry.first == "global_mt_threshold")
-			global_mt_threshold = atoi(entry.second.c_str());
-		else if (entry.first == "global_enable_caching")
-			global_enable_caching = atoi(entry.second.c_str());
-		else if (entry.first == "global_enable_workstealing")
-			global_enable_workstealing = atoi(entry.second.c_str());
-		else if (entry.first == "global_silent")
-			global_silent = atoi(entry.second.c_str());
-		else if (entry.first == "global_enable_planner")
-			global_enable_planner = atoi(entry.second.c_str());
-		else {
-			//cout << "WARNING: unsupported re-configuration item! ("
-			//     << entry.first << ")" << endl;
-		}
-	}
-
-	// disable RDMA if no RDMA device
-	if (global_use_rdma && !RDMA::get_rdma().has_rdma()) {
-		cout << "ERROR: can't enable RDMA due to building Wukong w/o RDMA support!" << endl;
-		global_use_rdma = false;
+	for (auto const &entry : items) {
+		set_mutable_config(entry.first, entry.second);
 	}
 
 	// limited the number of engines
 	global_mt_threshold = max(1, min(global_mt_threshold, global_num_engines));
+
 	return;
 }
 
 void load_config(int num_servers)
 {
-	ifstream file(cfg_fname.c_str());
-	if (!file) {
-		cout << "ERROR: the configure file "
-		     << cfg_fname
-		     << " does not exist."
-		     << endl;
-		exit(0);
-	}
+	global_num_servers = num_servers;
+	assert(num_servers > 0);
 
-	string line, row, val;
-	map<string, string> configs;
-	while (std::getline(file, line)) {
-		istringstream iss(line);
-		iss >> row >> val;
-		configs[row] = val;
-	}
+	// load config file
+	map<string, string> items;
+	file2items(cfg_fname, items);
 
-	for (auto const &entry : configs) {
-		if (entry.first == "global_num_engines")
-			global_num_engines = atoi(entry.second.c_str());
-		else if (entry.first == "global_num_proxies")
-			global_num_proxies = atoi(entry.second.c_str());
-		else if (entry.first == "global_input_folder")
-			global_input_folder = entry.second;
-		else if (entry.first == "global_load_minimal_index")
-			global_load_minimal_index = atoi(entry.second.c_str());
-		else if (entry.first == "global_data_port_base")
-			global_data_port_base = atoi(entry.second.c_str());
-		else if (entry.first == "global_ctrl_port_base")
-			global_ctrl_port_base = atoi(entry.second.c_str());
-		else if (entry.first == "global_memstore_size_gb")
-			global_memstore_size_gb = atoi(entry.second.c_str());
-		else if (entry.first == "global_rdma_buf_size_mb")
-			global_rdma_buf_size_mb = atoi(entry.second.c_str());
-		else if (entry.first == "global_rdma_rbf_size_mb")
-			global_rdma_rbf_size_mb = atoi(entry.second.c_str());
-		else if (entry.first == "global_use_rdma")
-			global_use_rdma = atoi(entry.second.c_str());
-		else if (entry.first == "global_rdma_threshold")
-			global_rdma_threshold = atoi(entry.second.c_str());
-		else if (entry.first == "global_mt_threshold")
-			global_mt_threshold = atoi(entry.second.c_str());
-		else if (entry.first == "global_enable_caching")
-			global_enable_caching = atoi(entry.second.c_str());
-		else if (entry.first == "global_enable_workstealing")
-			global_enable_workstealing = atoi(entry.second.c_str());
-		else if (entry.first == "global_silent")
-			global_silent = atoi(entry.second.c_str());
-		else if (entry.first == "global_enable_planner")
-			global_enable_planner = atoi(entry.second.c_str());
-		else
+	for (auto const &entry : items) {
+		if (!(set_immutable_config(entry.first, entry.second)
+		        || set_mutable_config(entry.first, entry.second))) {
 			cout << "WARNING: unsupported configuration item! ("
 			     << entry.first << ")" << endl;
+		}
 	}
 
-	global_num_servers = num_servers;
+	// set the total number of threads
 	global_num_threads = global_num_engines + global_num_proxies;
-
-	assert(num_servers > 0);
-	assert(global_num_engines > 0);
-	assert(global_num_proxies > 0);
-	assert(global_memstore_size_gb > 0);
-	assert(global_rdma_rbf_size_mb > 0);
-	assert(global_rdma_buf_size_mb > 0);
-	assert(global_mt_threshold > 0);
 
 	// limited the number of engines
 	global_mt_threshold = max(1, min(global_mt_threshold, global_num_engines));
-
-	// make sure to check that the global_input_folder is non-empty.
-	if (global_input_folder.length() == 0) {
-		cout << "ERROR: the directory path of RDF data can not be empty!"
-		     << "You should set \"global_input_folder\" in config file." << endl;
-		exit(-1);
-	}
-
-	// force a "/" at the end of global_input_folder.
-	if (global_input_folder[global_input_folder.length() - 1] != '/')
-		global_input_folder = global_input_folder + "/";
-
-	// disable RDMA if no RDMA device
-	if (!RDMA::get_rdma().has_rdma()) global_use_rdma = false;
 
 	return;
 }
