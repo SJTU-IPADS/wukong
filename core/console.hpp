@@ -177,59 +177,49 @@ next:
 			// get keyword of command
 			cmd_ss >> token;
 			if (token == "config") {
-				cmd_ss >> token;
+				if (proxy->tid != 0) continue;
 
-				if (token == "-v") {
-					// only show config on the master console
-					if (IS_MASTER(proxy))
-						print_config();
-				} else if (token == "-l") {
-					// each server load config file once by the 1st console
-					if (proxy->tid != 0) continue;
+				string fname, str;
+				bool v_enable = false, l_enable = false, s_enable = false;
 
-					string fname;
-					if (cmd_ss >> fname) {
-						string str;
-						if (IS_MASTER(proxy)) {
-							file2str(fname, str);
-
-							// send <str> to all consoles
-							for (int i = 1; i < global_num_servers; i++)
-								console_send<string>(i, 0, str);
-						} else {
-							// recieve <str>
-							str = console_recv<string>(proxy->tid);
-						}
-
-						if (!str.empty()) {
-							reload_config(str);
-						} else {
-							if (IS_MASTER(proxy))
-								cout << "Failed to load config file: " << fname << endl;
-						}
+				// parse parameters
+				while (cmd_ss >> token) {
+					if (token == "-v") {
+						v_enable = true;
+					} else if (token == "-l") {
+						l_enable = true;
+						if (!(cmd_ss >> fname)) goto failed;
+					} else if (token == "-s") {
+						s_enable = true;
+						if (!(cmd_ss >> str)) goto failed;
 					} else {
 						goto failed;
 					}
-				} else if (token == "-s") {
-					// each server set config item once by the 1st console
-					if (proxy->tid != 0) continue;
+				}
 
-					string str;
-					if (cmd_ss >> str) {
-						if (IS_MASTER(proxy)) {
+				if (v_enable) { // -v
+					if (IS_MASTER(proxy))
+						print_config();
+				} else if (l_enable || s_enable) { // -l <file> or -s <str>
+					if (IS_MASTER(proxy)) {
+						if (l_enable) // -l
+							file2str(fname, str);
+						else if (s_enable) // -s
 							args2str(str);
 
-							// send <str> to all consoles
-							for (int i = 1; i < global_num_servers; i++)
-								console_send<string>(i, 0, str);
-						} else {
-							// recieve <str>
-							str = console_recv<string>(proxy->tid);
-						}
+						// send <str> to all consoles
+						for (int i = 1; i < global_num_servers; i++)
+							console_send<string>(i, 0, str);
+					} else {
+						// recieve <str>
+						str = console_recv<string>(proxy->tid);
+					}
 
+					if (!str.empty()) {
 						reload_config(str);
 					} else {
-						goto failed;
+						if (IS_MASTER(proxy))
+							cout << "Failed to load config file: " << fname << endl;
 					}
 				} else {
 					goto failed;
@@ -261,7 +251,7 @@ next:
 
 				if (!f_enable && !b_enable) goto failed; // meaningless args for SPARQL queries
 
-				if (f_enable) {
+				if (f_enable) { // -f <file>
 					// use the main proxy thread to run a single query
 					if (IS_MASTER(proxy)) {
 						ifstream ifs(fname);
@@ -309,7 +299,7 @@ next:
 					}
 				}
 
-				if (b_enable) {
+				if (b_enable) { // -b <config>
 					Logger logger;
 
 					// dedicate the master frontend worker to run a single query
