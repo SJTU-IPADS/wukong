@@ -1,9 +1,9 @@
 
 ========== TODO list ==========
-- Add "set-config" command
 - Add MPI to dependence
 - Support multiple instances of Wukong on single node
-- Support in-place execution mode w/o RDMA
+- Support throughput evaluation w/o RDMA
+- Support get remote vertex/edge w/o RDMA
 - Enable dynamic deduplication in graph exploration
 - Refine request data structure
 - Add user-defined input data loader 
@@ -60,12 +60,11 @@ Xuehan Ke <sherlockkenan@163.com>
 
 
 Ning Wang <aswasn@qq.com>
-+ [266981f] print and dump readable results
++ [266981f]  Add print and dump readable results
 
 
 Jiaqi Li <lijiaqi2017@sjtu.edu.cn>
-+
-
++ [f86c122]  Add new commands to set config
 
 
 
