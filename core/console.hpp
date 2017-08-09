@@ -208,10 +208,7 @@ next:
 								cout << "Failed to load config file: " << fname << endl;
 						}
 					} else {
-						if (IS_MASTER(proxy)) {
-							cout << "Unknown cmd: " << token << endl;
-							print_help();
-						}
+						goto failed;
 					}
 				} else if (token == "-s") {
 					// each server set config item once by the 1st console
@@ -232,21 +229,14 @@ next:
 
 						reload_config(str);
 					} else {
-						if (IS_MASTER(proxy)) {
-							cout << "Unknown cmd: " << token << endl;
-							print_help();
-						}
+						goto failed;
 					}
 				} else {
-					if (IS_MASTER(proxy)) {
-						cout << "Unknown cmd: " << token << endl;
-						print_help();
-					}
+					goto failed;
 				}
 			} else if (token == "sparql") { // handle SPARQL queries
 				string fname, bfname, ofname;
-				int cnt = 1;
-				int nlines = 0;
+				int cnt = 1, nlines = 0;
 				bool f_enable = false, b_enable = false, o_enable = false;
 
 				// parse parameters
@@ -256,28 +246,26 @@ next:
 						f_enable = true;
 					} else if (token == "-n") {
 						cmd_ss >> cnt;
-					} else if (token == "-b") {
-						cmd_ss >> bfname;
-						b_enable = true;
 					} else if (token == "-v") {
 						cmd_ss >> nlines;
 					} else if (token == "-o") {
 						cmd_ss >> ofname;
 						o_enable = true;
+					} else if (token == "-b") {
+						cmd_ss >> bfname;
+						b_enable = true;
 					} else {
-						if (IS_MASTER(proxy)) {
-							cout << "Unknown cmd: " << token << endl;
-							print_help();
-						}
-						goto next;
+						goto failed;
 					}
 				}
+
+				if (!f_enable && !b_enable) goto failed; // meaningless args for SPARQL queries
 
 				if (f_enable) {
 					// use the main proxy thread to run a single query
 					if (IS_MASTER(proxy)) {
 						ifstream ifs(fname);
-						if (!ifs) {
+						if (!ifs.good()) {
 							cout << "Query file not found: " << fname << endl;
 							continue ;
 						}
@@ -303,7 +291,6 @@ next:
 						request_or_reply reply;
 						Logger logger;
 						int ret = proxy->run_single_query(ifs, cnt, reply, logger);
-
 						if (ret != 0) {
 							cout << "Failed to run the query (ERROR: " << ret << ")!" << endl;
 							continue;
@@ -329,10 +316,10 @@ next:
 					// and others to run a set of queries if '-f' is enabled
 					if (!f_enable || !IS_MASTER(proxy)) {
 						ifstream ifs(bfname);
-						if (!ifs) {
+						if (!ifs.good()) {
 							PRINT_ID(proxy);
 							cout << "Configure file not found: " << bfname << endl;
-							continue ;
+							continue;
 						}
 						proxy->nonblocking_run_batch_query(ifs, logger);
 						//proxy->run_batch_query(ifs, logger);
@@ -354,8 +341,9 @@ next:
 					}
 				}
 			} else {
+failed:
 				if (IS_MASTER(proxy)) {
-					cout << "Unknown command: " << token << endl;
+					cout << "Failed to run the command: " << cmd << endl;
 					print_help();
 				}
 			}
