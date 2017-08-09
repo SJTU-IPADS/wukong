@@ -97,6 +97,28 @@ void print_help(void)
 #define IS_MASTER(_p) ((_p)->sid == 0 && (_p)->tid == 0)
 #define PRINT_ID(_p) (cout << "[" << (_p)->sid << "-" << (_p)->tid << "]$ ")
 
+static void file2str(string fname, string &str)
+{
+	ifstream file(fname.c_str());
+	if (!file) {
+		cout << "ERROR: " << fname << " does not exist." << endl;
+		return;
+	}
+
+	string line;
+	while (std::getline(file, line))
+		str += line + " ";
+}
+
+static void args2str(string &str)
+{
+	size_t found = str.find_first_of("=&");
+	while (found != string::npos) {
+		str[found] = ' ';
+		found = str.find_first_of("=&", found + 1);
+	}
+}
+
 /**
  * The Wukong's console is co-located with the main proxy (the 1st proxy thread on the 1st server)
  * and provide a simple interactive cmdline to tester
@@ -135,8 +157,7 @@ next:
 			// send <cmd> to all consoles
 			for (int i = 0; i < global_num_servers; i++) {
 				for (int j = 0; j < global_num_proxies; j++) {
-					if (i == 0 && j == 0)
-						continue ;
+					if (i == 0 && j == 0) continue ;
 					console_send<string>(i, j, cmd);
 				}
 			}
@@ -163,25 +184,64 @@ next:
 					if (IS_MASTER(proxy))
 						print_config();
 				} else if (token == "-l") {
+					// each server load config file once by the 1st console
+					if (proxy->tid != 0) continue;
+
 					string fname;
-					cmd_ss >> fname;
+					if (cmd_ss >> fname) {
+						string str;
+						if (IS_MASTER(proxy)) {
+							file2str(fname, str);
 
-					// each server load config file once by the 1st console
-					if (proxy->tid == 0)
-						reload_config(fname);
+							// send <str> to all consoles
+							for (int i = 1; i < global_num_servers; i++)
+								console_send<string>(i, 0, str);
+						} else {
+							// recieve <str>
+							str = console_recv<string>(proxy->tid);
+						}
+
+						if (!str.empty()) {
+							reload_config(str);
+						} else {
+							if (IS_MASTER(proxy))
+								cout << "Failed to load config file: " << fname << endl;
+						}
+					} else {
+						if (IS_MASTER(proxy)) {
+							cout << "Unknown cmd: " << token << endl;
+							print_help();
+						}
+					}
 				} else if (token == "-s") {
-					string str;
-					cmd_ss >> str;
+					// each server set config item once by the 1st console
+					if (proxy->tid != 0) continue;
 
-					// each server load config file once by the 1st console
-					if (proxy->tid == 0)
-						cout << "Unsupported cmd: " << token << " " << str << endl;
+					string str;
+					if (cmd_ss >> str) {
+						if (IS_MASTER(proxy)) {
+							args2str(str);
+
+							// send <str> to all consoles
+							for (int i = 1; i < global_num_servers; i++)
+								console_send<string>(i, 0, str);
+						} else {
+							// recieve <str>
+							str = console_recv<string>(proxy->tid);
+						}
+
+						reload_config(str);
+					} else {
+						if (IS_MASTER(proxy)) {
+							cout << "Unknown cmd: " << token << endl;
+							print_help();
+						}
+					}
 				} else {
 					if (IS_MASTER(proxy)) {
 						cout << "Unknown cmd: " << token << endl;
 						print_help();
 					}
-					continue;
 				}
 			} else if (token == "sparql") { // handle SPARQL queries
 				string fname, bfname, ofname;

@@ -142,6 +142,14 @@ static bool set_mutable_config(string cfg_name, string value)
 	return true;
 }
 
+static void str2items(string str, map<string, string> &items)
+{
+	istringstream iss(str);
+	string row, val;
+	while (iss >> row >> val)
+		items[row] = val;
+}
+
 static void file2items(string fname, map<string, string> &items)
 {
 	ifstream file(fname.c_str());
@@ -161,13 +169,13 @@ static void file2items(string fname, map<string, string> &items)
 /**
  * reload config
  */
-void reload_config(string fname)
+void reload_config(string str)
 {
 	// TODO: it should ensure that there is no outstanding queries.
 
 	// load config file
 	map<string, string> items;
-	file2items(fname, items);
+	str2items(str, items);
 
 	for (auto const &entry : items) {
 		set_mutable_config(entry.first, entry.second);
