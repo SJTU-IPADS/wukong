@@ -203,6 +203,13 @@ class RDMA {
             return 0;
         }
 
+        int RdmaWriteSelective(int dst_tid, int dst_nid, char *local,
+                      uint64_t size, uint64_t remote_offset) {
+            cout << "This system is compiled without RDMA support." << endl;
+            assert(false);
+            return 0;
+        }
+
         int RdmaCmpSwap(int dst_tid, int dst_nid, char *local,
                         uint64_t compare, uint64_t swap,
                         uint64_t size, uint64_t off) {
