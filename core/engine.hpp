@@ -558,17 +558,9 @@ class Engine {
             execute_one_step(req);
             t2 = timer::get_usec();
 
-            // co-run execution
-            if (!req.is_finished() && (req.cmd_chains[req.step * 4 + 2] == CORUN)) {
-                t1 = timer::get_usec();
-                if(!global_use_rdma){
-                    cout << "warning: rdma is not enabled! corun step will be skiped!" << endl;
-                    req.step ++;    //skip corun step
-                }else{
-                    do_corun(req);
-                }
-                t2 = timer::get_usec();
-            }
+            // co-run optimization
+            if (!req.is_finished() && (req.cmd_chains[req.step * 4 + 2] == CORUN))
+                do_corun(req);
 
             if (req.is_finished()) {
                 req.row_num = req.get_row_num();

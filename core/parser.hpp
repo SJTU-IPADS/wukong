@@ -266,14 +266,20 @@ private:
 
         // insert a new CORUN pattern
         if (fetch_step >= 0) {
-            vector<ssid_t> corun_pattern;
-            corun_pattern.push_back((ssid_t)DUMMY_ID); // unused
-            corun_pattern.push_back((ssid_t)DUMMY_ID); // unused
-            corun_pattern.push_back(CORUN);
-            corun_pattern.push_back(fetch_step + 1); // because we insert a new cmd in the middle
+            if (!global_use_rdma) {
+                // TODO: corun optimization is not supported w/o RDMA
+                cout << "[WARNING]: RDMA is not enabled, skip corun optimization!" << endl;
+            } else {
+                // TODO: support corun optimization smoothly
+                vector<ssid_t> corun_pattern;
+                corun_pattern.push_back((ssid_t)DUMMY_ID); // unused
+                corun_pattern.push_back((ssid_t)DUMMY_ID); // unused
+                corun_pattern.push_back(CORUN);
+                corun_pattern.push_back(fetch_step + 1); // because we insert a new cmd in the middle
 
-            req_template.cmd_chains.insert(req_template.cmd_chains.begin() + corun_step * 4,
-                                           corun_pattern.begin(), corun_pattern.end());
+                req_template.cmd_chains.insert(req_template.cmd_chains.begin() + corun_step * 4,
+                                               corun_pattern.begin(), corun_pattern.end());
+            }
         }
 
         // record positions of patterns with random-constants (batch mode)
@@ -281,7 +287,7 @@ private:
             if (req_template.cmd_chains[i] == PTYPE_PH)
                 req_template.ptypes_pos.push_back(i);
 
-        //dump_cmd_chains();
+        // dump_cmd_chains();
         return valid;
     }
 
