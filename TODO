@@ -24,7 +24,7 @@ Rong Chen <rongchen@sjtu.edu.cn>
 + [5a41a53]  Refine memory management of GStore  
 + [4fda67d]  Support configurable 32/64-bit ID  
 + [206f079]  Regain Wukong w/o RDMA and support turn on/off dynamically 
-+ [b2d123b] Add OpenMPI to dependence
++ [682de0a]  Add OpenMPI to dependence
 
 
 Jiaxin Shi <shijiaxin.cn@gmail.com>

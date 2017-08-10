@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include "rdma_resource.hpp"
+#include "rdma.hpp"
 #include "unit.hpp"
 
 using namespace std;

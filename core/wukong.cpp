@@ -32,7 +32,7 @@
 #include "proxy.hpp"
 #include "console.hpp"
 #include "monitor.hpp"
-#include "rdma_resource.hpp"
+#include "rdma.hpp"
 #include "adaptor.hpp"
 
 #include "unit.hpp"

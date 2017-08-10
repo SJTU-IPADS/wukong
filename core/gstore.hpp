@@ -31,7 +31,7 @@
 #include <tbb/concurrent_unordered_set.h>
 
 #include "config.hpp"
-#include "rdma_resource.hpp"
+#include "rdma.hpp"
 #include "data_statistic.hpp"
 #include "type.hpp"
 

@@ -39,9 +39,8 @@ class RDMA {
     class RDMA_Device {
     public:
         RdmaCtrl* ctrl = NULL;
-        RDMA_Device(int num_nodes, int num_threads, int node_id,
-                    char *mem, uint64_t mem_sz, string ipfn)
-        {
+
+        RDMA_Device(int num_nodes, int num_threads, int nid, char *mem, uint64_t mem_sz, string ipfn) {
 
             // record IPs of ndoes
             vector<string> ipset;
@@ -50,9 +49,9 @@ class RDMA {
             while (ipfile >> ip)
                 ipset.push_back(ip);
 
-            //initialization of new librdma
-            //node_id, ipset, port, thread_id-no use, enable single memory region
-            ctrl = new RdmaCtrl(node_id, ipset, 19344, true);
+            // initialization of new librdma
+            // nid, ipset, port, thread_id-no use, enable single memory region
+            ctrl = new RdmaCtrl(nid, ipset, 19344, true);
             ctrl->open_device();
             ctrl->set_connect_mr(mem, mem_sz);
             ctrl->register_connect_mr();//single
@@ -77,10 +76,10 @@ class RDMA {
                         }
                     }
                 }
-                if (connected == num_nodes * num_threads) break;
-                else {
+                if (connected == num_nodes * num_threads)
+                    break;
+                else
                     sleep(1);
-                }
             }
         }
 
@@ -122,12 +121,6 @@ class RDMA {
             qp->rc_post_send(IBV_WR_RDMA_WRITE, local, size, off, flags);
             return 0;
         }
-
-        int poll_completion(int dst_tid, int dst_nid) {
-            Qp* qp = ctrl->get_rc_qp(dst_tid, dst_nid);
-            qp->poll_completion();
-            return 0;
-        }
     };
 
 public:
@@ -137,9 +130,8 @@ public:
 
     ~RDMA() { if (dev != NULL) delete dev; }
 
-    void init_dev(int num_nodes, int num_threads, int node_id,
-                  char *mem, uint64_t mem_sz, string ipfn) {
-        dev = new RDMA_Device(num_nodes, num_threads, node_id, mem, mem_sz, ipfn);
+    void init_dev(int num_nodes, int num_threads, int nid, char *mem, uint64_t mem_sz, string ipfn) {
+        dev = new RDMA_Device(num_nodes, num_threads, nid, mem, mem_sz, ipfn);
     }
 
     inline static bool has_rdma() { return true; }
@@ -150,13 +142,12 @@ public:
     }
 };
 
-void RDMA_init(int num_nodes, int num_threads, int node_id, char *mem, uint64_t mem_sz, string ipfn) {
+void RDMA_init(int num_nodes, int num_threads, int nid, char *mem, uint64_t mem_sz, string ipfn) {
     uint64_t t = timer::get_usec();
 
-    RDMA &rdma = RDMA::get_rdma();
-
     // init RDMA device
-    rdma.init_dev(num_nodes, num_threads, node_id, mem, mem_sz, ipfn);
+    RDMA &rdma = RDMA::get_rdma();
+    rdma.init_dev(num_nodes, num_threads, nid, mem, mem_sz, ipfn);
 
     t = timer::get_usec() - t;
     cout << "INFO: initializing RMDA done (" << t / 1000  << " ms)" << endl;
@@ -167,52 +158,30 @@ void RDMA_init(int num_nodes, int num_threads, int node_id, char *mem, uint64_t 
 class RDMA {
     class RDMA_Device {
     public:
-        RDMA_Device(int num_nodes, int num_threads, int node_id,
-                    string fname, char *mem, uint64_t mem_sz) {
+        RDMA_Device(int num_nodes, int num_threads, int nid, char *mem, uint64_t mem_sz, string fname) {
             cout << "This system is compiled without RDMA support." << endl;
             assert(false);
         }
 
-        void servicing() {
-            cout << "This system is compiled without RDMA support." << endl;
-            assert(false);
-        }
-
-        void connect() {
-            cout << "This system is compiled without RDMA support." << endl;
-            assert(false);
-        }
-
-        string ip_of(int sid) {
-            cout << "This system is compiled without RDMA support." << endl;
-            assert(false);
-            return string();
-        }
-
-        int RdmaRead(int dst_tid, int dst_nid, char *local,
-                     uint64_t size, uint64_t remote_offset) {
+        int RdmaRead(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t remote_offset) {
             cout << "This system is compiled without RDMA support." << endl;
             assert(false);
             return 0;
         }
 
-        int RdmaWrite(int dst_tid, int dst_nid, char *local,
-                      uint64_t size, uint64_t remote_offset) {
+        int RdmaWrite(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t remote_offset) {
             cout << "This system is compiled without RDMA support." << endl;
             assert(false);
             return 0;
         }
 
-        int RdmaWriteSelective(int dst_tid, int dst_nid, char *local,
-                      uint64_t size, uint64_t remote_offset) {
+        int RdmaWriteSelective(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t remote_offset) {
             cout << "This system is compiled without RDMA support." << endl;
             assert(false);
             return 0;
         }
 
-        int RdmaCmpSwap(int dst_tid, int dst_nid, char *local,
-                        uint64_t compare, uint64_t swap,
-                        uint64_t size, uint64_t off) {
+        int RdmaWriteNonSignal(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t off) {
             cout << "This system is compiled without RDMA support." << endl;
             assert(false);
             return 0;
@@ -222,17 +191,12 @@ class RDMA {
 public:
     RDMA_Device *dev = NULL;
 
-    RDMA() {
-        std::cout << "This system is compiled without RDMA support."
-                  << std::endl;
-    }
+    RDMA() { }
 
     ~RDMA() { }
 
-    void init_dev(int num_nodes, int num_threads, int node_id,
-                  char *mem, uint64_t mem_sz, string ipfn) {
-        std::cout << "This system is compiled without RDMA support."
-                  << std::endl;
+    void init_dev(int num_nodes, int num_threads, int nid, char *mem, uint64_t mem_sz, string ipfn) {
+        dev = new RDMA_Device(num_nodes, num_threads, nid, mem, mem_sz, ipfn);
     }
 
     inline static bool has_rdma() { return false; }
@@ -241,13 +205,11 @@ public:
         static RDMA rdma;
         return rdma;
     }
-
 };
 
-void RDMA_init(int num_nodes, int num_threads, int node_id,
-               char *mem, uint64_t mem_sz, string ipfn) {
-    std::cout << "This system is compiled without RDMA support."
-              << std::endl;
+void RDMA_init(int num_nodes, int num_threads, int nid, char *mem, uint64_t mem_sz, string ipfn) {
+    std::cout << "This system is compiled without RDMA support." << std::endl;
 }
 
 #endif
+

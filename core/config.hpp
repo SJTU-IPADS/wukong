@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include "rdma_resource.hpp"
+#include "rdma.hpp"
 
 #include <assert.h>
 #include <map>
@@ -115,11 +115,16 @@ static bool set_immutable_config(string cfg_name, string value)
 static bool set_mutable_config(string cfg_name, string value)
 {
 	if (cfg_name == "global_use_rdma") {
-		global_use_rdma = atoi(value.c_str());
+		if (atoi(value.c_str())) {
+			if (!RDMA::get_rdma().has_rdma()) {
+				cout << "ERROR: can't enable RDMA due to building Wukong w/o RDMA support!\n"
+				     << "HINT: please disable global_use_rdma in config file." << endl;
+				global_use_rdma = false; // disable RDMA if no RDMA device
+				return true;
+			}
 
-		// disable RDMA if no RDMA device
-		if (global_use_rdma && !RDMA::get_rdma().has_rdma()) {
-			cout << "ERROR: can't enable RDMA due to building Wukong w/o RDMA support!" << endl;
+			global_use_rdma = true;
+		} else {
 			global_use_rdma = false;
 		}
 	} else if (cfg_name == "global_rdma_threshold") {

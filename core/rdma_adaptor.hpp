@@ -31,7 +31,7 @@
 #include <sstream>
 
 #include "config.hpp"
-#include "rdma_resource.hpp"
+#include "rdma.hpp"
 
 using namespace std;
 
@@ -133,6 +133,8 @@ private:
     }
 
 public:
+    bool init = false;
+
     RDMA_Adaptor(int sid, Mem *mem, int num_servers, int num_threads)
         : sid(sid), mem(mem), num_servers(num_servers), num_threads(num_threads) {
 
@@ -158,11 +160,15 @@ public:
 
         schedulers = (scheduler_t *)malloc(sizeof(scheduler_t) * num_threads);
         memset(schedulers, 0, sizeof(scheduler_t) * num_threads);
+
+        init = true;
     }
 
-    ~RDMA_Adaptor() { }
+    ~RDMA_Adaptor() { }  //TODO
 
     void send(int tid, int dst_sid, int dst_tid, string str) {
+        assert(init);
+
         rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
         uint64_t rbf_sz = mem->ring_size();
 
@@ -222,6 +228,8 @@ public:
     }
 
     std::string recv(int tid) {
+        assert(init);
+
         while (true) {
             // each thread has a logical-queue (#servers physical-queues)
             int dst_sid = (schedulers[tid].rr_cnt++) % num_servers; // round-robin
@@ -231,6 +239,8 @@ public:
     }
 
     bool tryrecv(int tid, std::string &str) {
+        assert(init);
+
         // check all physical-queues once
         for (int dst_sid = 0; dst_sid < num_servers; dst_sid++) {
             if (check(tid, dst_sid)) {

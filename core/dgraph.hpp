@@ -38,7 +38,7 @@
 
 #include "config.hpp"
 #include "type.hpp"
-#include "rdma_resource.hpp"
+#include "rdma.hpp"
 #include "gstore.hpp"
 #include "timer.hpp"
 
