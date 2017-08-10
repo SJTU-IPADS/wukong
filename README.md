@@ -56,7 +56,8 @@ There are however, a few dependencies which must be manually satisfied.
 All the dependencies can be satisfied from the repository:
 
     $sudo apt-get update
-    $sudo apt-get install gcc g++ build-essential libopenmpi-dev openmpi-bin cmake git libreadline6-dev
+    $sudo apt-get install gcc g++ build-essential cmake git libreadline6-dev
+
 
 ### Install Wukong on One Machine
 
@@ -64,6 +65,18 @@ Add the root path of Wukong (e.g., `/home/rchen/wukong`) to bash script (i.e., `
 
     # Wukong configuration
     export WUKONG_ROOT=[/path/to/wukong]   
+
+
+#### Install OpenMPI
+
+    $cd  $WUKONG_ROOT/deps/
+    $tar zxvf openmpi-1.6.5.tar.gz
+    $mkdir openmpi-1.6.5-install
+    $cd openmpi-1.6.5/
+    $./configure --prefix=$WUKONG_ROOT/deps/openmpi-1.6.5-install
+    $make all
+    $make install
+
 
 #### Install Boost
 
@@ -76,7 +89,7 @@ Add the root path of Wukong (e.g., `/home/rchen/wukong`) to bash script (i.e., `
 Add the following MPI configuration to `project-config.jam`
 
     # MPI configuration
-    using mpi ;  
+    using mpi : $WUKONG_ROOT/deps/openmpi-1.6.5-install/bin/mpicc ;
 
     $./b2 install  
 
@@ -195,30 +208,31 @@ For example:
 
 # Compiling and Running
 
-1) Modify CMakeLists.txt to set CMAKE_CXX_COMPILER (e.g., `/usr/bin/mpic++`)
-
-    set(CMAKE_CXX_COMPILER /usr/bin/mpic++)
+### Configure wukong
 
 #### Enable/disable RDMA Feature
 
-Currently, Wukong will enable RDMA feature by default, and suppose the driver has been well installed and configured. If you want to disable RDMA, you need manually modify `CMakeLists.txt` to compile and build `wukong-zmq` instead of `wukong`.
+Currently, Wukong will enable RDMA feature by default, and suppose the driver has been well installed and configured. If you want to disable RDMA, you need manually comment `add_definitions(-DHAS_RDMA)` in `CMakeLists.txt`.
+
 
 #### Enable/disable the support to versatile queries
 
 To support versatile queries (e.g., ?S ?P ?O), you need manually uncomment `#add_definitions(-DVERSATILE)` in `CMakeLists.txt`. It should be noted that enabling this feature will use more main memory to store RDF graph.
 
 
-2) Build wukong 
+### Build wukong 
 
     $cd ${WUKONG_ROOT}/scripts
     $./build.sh
 
-Synchronize all executable files (e.g., `build/wukong`) to all machines 
+
+### Synchronize all executable files (e.g., `build/wukong`) to all machines 
 
     $cd ${WUKONG_ROOT}/scripts
     $./sync.sh
 
-Running sever with a builtin local console for testing
+
+### Running sever with a builtin local console for testing
 
     $cd ${WUKONG_ROOT}/scripts
     $./run.sh [#nodes]

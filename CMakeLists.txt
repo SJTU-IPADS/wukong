@@ -10,7 +10,7 @@ set(ROOT $ENV{WUKONG_ROOT})
 ## Use C++11 features
 add_definitions(-std=c++11)
 
-set(CMAKE_CXX_COMPILER /usr/bin/mpic++)
+set(CMAKE_CXX_COMPILER ${ROOT}/deps/openmpi-1.6.5-install/bin/mpic++)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
 set(BOOST_LIB "${ROOT}/deps/boost_1_58_0-install/lib")
 
