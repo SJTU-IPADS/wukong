@@ -3,7 +3,8 @@
 - Support multiple instances of Wukong on single node
 - Refine query execution flow in engine (fork-join mode)
 - Avoid spin in engine threads
-- Support throughput evaluation w/o RDMA
+- Refine batch mode emulator 
+- Add check to the task queue (OOM)
 - Support get remote vertex/edge w/o RDMA
 - Enable dynamic deduplication in graph exploration
 - Refine request data structure
