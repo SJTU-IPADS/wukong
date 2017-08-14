@@ -89,7 +89,7 @@ void print_help(void)
 	cout << "        -f <file> [<args>]  a single query from <file>" << endl;
 	cout << "           -n <num>            run <num> times" << endl;
 	cout << "           -v <num>            print at most <num> lines of results" << endl;
-	cout << "           -w <file>           write results into <file>" << endl;
+	cout << "           -o <file>           write results into <file>" << endl;
 	cout << "        -b <file>           a set of queries configured by <file>" << endl;
 }
 
@@ -260,12 +260,6 @@ next:
 							continue ;
 						}
 
-						ofstream ofs(ofname, std::ios::out);
-						if (o_enable && !ofs.good()) {
-							cout << "Can't open/create output file: " << ofname << endl;
-							continue;
-						}
-
 						if (global_silent) {
 							if (nlines > 0) {
 								cout << "Can't print results (-v) with global_silent." << endl;
@@ -273,7 +267,7 @@ next:
 							}
 
 							if (o_enable) {
-								cout << "Can't output results (-w) with global_silent." << endl;
+								cout << "Can't output results (-o) with global_silent." << endl;
 								continue;
 							}
 						}
@@ -290,11 +284,14 @@ next:
 						logger.print_latency(cnt);
 						cout << "(last) result size: " << reply.row_num << endl;
 						if (!global_silent && !reply.blind) {
+							if (global_load_minimal_index) {
+								cout << "If you want to see results in the form of strings, turn off global_load_minimal_index." << endl;
+							}
 							if (nlines > 0)
 								proxy->print_result(reply, min(reply.row_num, nlines));
-
+								
 							if (o_enable)
-								proxy->dump_result(reply, ofs);
+								proxy->dump_result(reply, ofname);
 						}
 					}
 				}

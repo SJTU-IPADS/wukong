@@ -230,24 +230,43 @@ class DGraph {
 			// the 1st uint64_t of kvs records #triples
 			uint64_t n = *pn;
 
-			// TODO: support HDFS
-			ifstream file(fnames[i].c_str());
-			sid_t s, p, o;
-			while (file >> s >> p >> o) {
-				int s_sid = mymath::hash_mod(s, global_num_servers);
-				int o_sid = mymath::hash_mod(o, global_num_servers);
-				if ((s_sid == sid) || (o_sid == sid)) {
-					assert((n * 3 + 3) * sizeof(uint64_t) <= kvs_sz);
+			if (boost::starts_with(fnames[i], "hdfs:")) {
+				// files located on HDFS
+				wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
+				wukong::hdfs::fstream file(hdfs, fnames[i]);
+				sid_t s, p, o;
+				while (file >> s >> p >> o) {
+					int s_sid = mymath::hash_mod(s, global_num_servers);
+					int o_sid = mymath::hash_mod(o, global_num_servers);
+					if ((s_sid == sid) || (o_sid == sid)) {
+						assert((n * 3 + 3) * sizeof(uint64_t) <= kvs_sz);
 
-					// buffer the triple and update the counter
-					kvs[n * 3 + 0] = s;
-					kvs[n * 3 + 1] = p;
-					kvs[n * 3 + 2] = o;
-					n++;
+						// buffer the triple and update the counter
+						kvs[n * 3 + 0] = s;
+						kvs[n * 3 + 1] = p;
+						kvs[n * 3 + 2] = o;
+						n++;
+					}
 				}
-			}
-			file.close();
+				file.close();
+			} else {
+				ifstream file(fnames[i].c_str());
+				sid_t s, p, o;
+				while (file >> s >> p >> o) {
+					int s_sid = mymath::hash_mod(s, global_num_servers);
+					int o_sid = mymath::hash_mod(o, global_num_servers);
+					if ((s_sid == sid) || (o_sid == sid)) {
+						assert((n * 3 + 3) * sizeof(uint64_t) <= kvs_sz);
 
+						// buffer the triple and update the counter
+						kvs[n * 3 + 0] = s;
+						kvs[n * 3 + 1] = p;
+						kvs[n * 3 + 2] = o;
+						n++;
+					}
+				}
+				file.close();
+			}
 			*pn = n;
 		}
 
