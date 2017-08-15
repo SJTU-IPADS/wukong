@@ -1,5 +1,7 @@
 
 ========== TODO list ==========
+- Semi-automatic proxy/engine-thread binding 
+- TUTORIAL.md of Wukong
 - Support multiple instances of Wukong on single node
 - Refine query execution flow in engine (fork-join mode)
 - Avoid spin in engine threads
@@ -52,14 +54,6 @@ Siyuan Wang <wangsiyuanse@qq.com>
 
 Zhiyuan Dong <windybeing@sjtu.edu.cn>
 + [7570db5]  Add librdma to Wukong  
-
-
-Wenhao Zhang <zephon-z@sjtu.edu.cn>
-+
-
-
-Xuehan Ke <sherlockkenan@163.com>
-+
 
 
 Ning Wang <aswasn@qq.com>
