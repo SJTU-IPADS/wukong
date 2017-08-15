@@ -89,7 +89,7 @@ void print_help(void)
 	cout << "        -f <file> [<args>]  a single query from <file>" << endl;
 	cout << "           -n <num>            run <num> times" << endl;
 	cout << "           -v <num>            print at most <num> lines of results" << endl;
-	cout << "           -o <file>           write results into <file>" << endl;
+	cout << "           -o <file>           output results into <file>" << endl;
 	cout << "        -b <file>           a set of queries configured by <file>" << endl;
 }
 
@@ -284,12 +284,13 @@ next:
 						logger.print_latency(cnt);
 						cout << "(last) result size: " << reply.row_num << endl;
 						if (!global_silent && !reply.blind) {
-							if (global_load_minimal_index) {
-								cout << "If you want to see results in the form of strings, turn off global_load_minimal_index." << endl;
-							}
+							if (global_load_minimal_index)
+								cout << "WARNING: Can't print/output results in string format\n"
+								     << "         with global_load_minimal_index enabled." << endl;
+
 							if (nlines > 0)
 								proxy->print_result(reply, min(reply.row_num, nlines));
-								
+
 							if (o_enable)
 								proxy->dump_result(reply, ofname);
 						}

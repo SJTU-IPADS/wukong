@@ -160,6 +160,8 @@ public:
 				int id = r.get_row_col(i, c);
 				// WARNING: If you want to print the query results with strings,
 				// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
+				//
+				// TODO: good format
 				if (str_server->id2str.find(id) == str_server->id2str.end())
 					cout << id << "\t";
 				else
@@ -180,9 +182,9 @@ public:
 					// WARNING: If you want to print the query results with strings,
 					// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
 					if (str_server->id2str.find(id) == str_server->id2str.end())
-					file << id << "\t";
+						file << id << "\t";
 					else
-					file << str_server->id2str[r.get_row_col(i, c)] << "\t";
+						file << str_server->id2str[r.get_row_col(i, c)] << "\t";
 				}
 				file << endl;
 			}
@@ -199,9 +201,9 @@ public:
 						// WARNING: If you want to print the query results with strings,
 						// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
 						if (str_server->id2str.find(id) == str_server->id2str.end())
-						ofs << id << "\t";
+							ofs << id << "\t";
 						else
-						ofs << str_server->id2str[r.get_row_col(i, c)] << "\t";
+							ofs << str_server->id2str[r.get_row_col(i, c)] << "\t";
 					}
 					ofs << endl;
 				}
