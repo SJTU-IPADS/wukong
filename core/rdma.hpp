@@ -28,12 +28,12 @@
 #include <fstream>      // std::ifstream
 using namespace std;
 
-#include "rdmaio.h"
-using namespace rdmaio;
-
 #include "timer.hpp"
 
 #ifdef HAS_RDMA
+
+#include "rdmaio.h"
+using namespace rdmaio;
 
 class RDMA {
     class RDMA_Device {
@@ -212,4 +212,3 @@ void RDMA_init(int num_nodes, int num_threads, int nid, char *mem, uint64_t mem_
 }
 
 #endif
-
