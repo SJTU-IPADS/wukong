@@ -3,7 +3,7 @@
 ## Table of Contents
 
 - [Deploying Wukong on a local cluster](cluster)
-- [Runing SPARQL queries for LUBM on Wukong](lubm)
+- [Runing SPARQL queries on a LUBM dataset](lubm)
 
 
 <a name="cluster"></a>
@@ -50,7 +50,7 @@ cd $WUKONG_ROOT/scripts
 
 
 <a name="lubm"></a>
-## Runing SPARQL queries for LUBM on Wukong
+## Runing SPARQL queries on a LUBM dataset
 
 ### Step 1: Prepare LUBM data
 
