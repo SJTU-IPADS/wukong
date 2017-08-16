@@ -2,20 +2,20 @@
 
 ## Table of Contents
 
-- [Deploying Wukong on a Cluster](cluster)
-- Prepare RDF data
-- Query with Wukong
+- [Deploying Wukong on a local cluster](cluster)
+- [Runing SPARQL queries for LUBM on Wukong](lubm)
+
 
 <a name="cluster"></a>
-## Deploying Wukong on a Cluster
+## Deploying Wukong on a local cluster
 
-### Step 0: Install Wukong on one of your cluster nodes.
+### Step 1: Install Wukong on one of your cluster nodes.
 
 Install Wukong, using instructions in the [README.md](README.md), on your master node (one of your cluster nodes, e.g., `node0.some.domain`).
 
 
 
-### Step 1: Copy all dependencies to all nodes
+### Step 2: Copy all dependencies to all nodes
 
 1) Update the file in the script directory called “mpd.hosts” with the names of all the cluster nodes participate in the computation.
 
@@ -49,7 +49,10 @@ cd $WUKONG_ROOT/scripts
 
 
 
-### Step 2: Prepare LUBM data
+<a name="lubm"></a>
+## Runing SPARQL queries for LUBM on Wukong
+
+### Step 1: Prepare LUBM data
 
 Taking LUBM as an example, this tutorial introduces how to prepare RDF data for Wukong.
 
@@ -101,7 +104,7 @@ Now you have got the RDF data stored in `id_lubm_1/`.
 
 
 
-### Step 3: Run Wukong
+### Step 2: Run Wukong
 
 1) Configure Wukong by `$WUKONG_ROOT/scripts/config`.
 
@@ -150,7 +153,7 @@ cd ${WUKONG_ROOT}/scripts
 ```
 
 
-### Step 4: Run SPARQL queries on Wukong
+### Step 3: Run SPARQL queries on Wukong
 
 1) Wukong commands 
 
