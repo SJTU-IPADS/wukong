@@ -51,7 +51,7 @@ There are however, a few dependencies which must be manually satisfied.
 - *nix build tools (e.g., patch, make)
 - MPICH2: Required for running Wukong distributed.
 
-### Satisfying Dependencies on Ubuntu
+## Satisfying Dependencies on Ubuntu
 
 All the dependencies can be satisfied from the repository:
 
@@ -59,15 +59,13 @@ All the dependencies can be satisfied from the repository:
     $sudo apt-get install gcc g++ build-essential cmake git libreadline6-dev
 
 
-### Install Wukong on One Machine
-
 Add the root path of Wukong (e.g., `/home/rchen/wukong`) to bash script (i.e., `~/.bashrc`).
 
     # Wukong configuration
     export WUKONG_ROOT=[/path/to/wukong]   
 
 
-#### Install OpenMPI
+### Install OpenMPI
 
     $cd  $WUKONG_ROOT/deps/
     $tar zxvf openmpi-1.6.5.tar.gz
@@ -78,7 +76,7 @@ Add the root path of Wukong (e.g., `/home/rchen/wukong`) to bash script (i.e., `
     $make install
 
 
-#### Install Boost
+### Install Boost
 
     $cd  $WUKONG_ROOT/deps/
     $tar jxvf boost_1_58_0.tar.bz2  
@@ -94,7 +92,7 @@ Add the following MPI configuration to `project-config.jam`
     $./b2 install  
 
 
-#### Install Intel TBB
+### Install Intel TBB
 
     $cd $WUKONG_ROOT/deps/  
     $tar zxvf tbb44_20151115oss_src.tgz  
@@ -111,7 +109,7 @@ For example:
     source $WUKONG_ROOT/deps/tbb44_20151115oss/build/linux_intel64_gcc_cc4.8_libc2.19_kernel3.14.27_release/tbbvars.sh
 
 
-#### Install ZeroMQ (http://zeromq.org/)
+### Install ZeroMQ (http://zeromq.org/)
 
     $cd $WUKONG_ROOT/deps/
     $tar zxvf zeromq-4.0.5.tar.gz
@@ -132,7 +130,7 @@ Add below settings to bash script (i.e., `~/.bashrc`).
     export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/zeromq-4.0.5-install/lib:$LD_LIBRARY_PATH
 
 
-#### Install librdma (Optional)
+### Install librdma (Optional)
 
     $cd $WUKONG_ROOT/deps/
     $tar zxvf librdma-1.0.0.tar.gz
@@ -150,7 +148,7 @@ Add below settings to bash script (i.e., `~/.bashrc`).
     export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/librdma-1.0.0-install/lib:$LD_LIBRARY_PATH
 
 
-#### Install HDFS support (Optional)
+### Install HDFS support (Optional)
 
 We assume that Hadoop/HDFS has been installed on your cluster. The ENV variable for Hadoop should be set correctly.
 
@@ -186,7 +184,28 @@ NOTE: if the `global_input_folder` start with `hdfs:`, then Wukong will read the
 
 
 
-### Copy Wukong Dependencies to All Machines
+
+# Building and Running
+
+### Configuring Wukong
+
+#### Enable/disable RDMA Feature
+
+Currently, Wukong will enable RDMA feature by default, and suppose the driver has been well installed and configured. If you want to disable RDMA, you need manually comment `add_definitions(-DHAS_RDMA)` in `CMakeLists.txt`.
+
+
+#### Enable/disable the support to versatile queries
+
+To support versatile queries (e.g., ?S ?P ?O), you need manually uncomment `#add_definitions(-DVERSATILE)` in `CMakeLists.txt`. It should be noted that enabling this feature will use more main memory to store RDF graph.
+
+
+### Compiling Wukong
+
+    $cd ${WUKONG_ROOT}/scripts
+    $./build.sh
+
+
+### Copy all dependencies to all machines
 
 1) Setup password-less SSH between the master node and all other machines.
 
@@ -199,40 +218,21 @@ For example:
     10.0.0.101
     10.0.0.102
 
-3) Run the following commands to copy Wukong dependencies to the rest of the machines:
+3) Run the following commands to copy all dependencies to the rest of the machines:
 
     $cd ${WUKONG_ROOT}/scripts
     $./syncdeps.sh ../deps/dependencies mpd.hosts
 
 
-
-# Compiling and Running
-
-### Configure wukong
-
-#### Enable/disable RDMA Feature
-
-Currently, Wukong will enable RDMA feature by default, and suppose the driver has been well installed and configured. If you want to disable RDMA, you need manually comment `add_definitions(-DHAS_RDMA)` in `CMakeLists.txt`.
-
-
-#### Enable/disable the support to versatile queries
-
-To support versatile queries (e.g., ?S ?P ?O), you need manually uncomment `#add_definitions(-DVERSATILE)` in `CMakeLists.txt`. It should be noted that enabling this feature will use more main memory to store RDF graph.
-
-
-### Build wukong 
-
-    $cd ${WUKONG_ROOT}/scripts
-    $./build.sh
-
-
-### Synchronize all executable files (e.g., `build/wukong`) to all machines 
+### Copy all Wukong files (e.g., `build/wukong`) to all machines 
 
     $cd ${WUKONG_ROOT}/scripts
     $./sync.sh
 
+*NOTE: everytime you rebuild Wukong or modify configs in `$WUKONG_ROOT/scripts/config`, you should run sync.sh*
 
-### Running sever with a builtin local console for testing
+
+### Launch Wukong server with a builtin local console
 
     $cd ${WUKONG_ROOT}/scripts
     $./run.sh [#nodes]
