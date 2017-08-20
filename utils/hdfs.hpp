@@ -16,7 +16,7 @@
  *
  * For more about this software visit:
  *
- *      http://ipads.se.sjtu.edu.cn/projects/wukong.html
+ *      http://ipads.se.sjtu.edu.cn/projects/wukong
  *
  *
  * 2016.11  support to read RDF data from HDFS (inspired by GraphLab)

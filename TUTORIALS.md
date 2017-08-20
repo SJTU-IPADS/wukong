@@ -158,7 +158,7 @@ cd ${WUKONG_ROOT}/scripts
 1) Wukong commands 
 
 ```bash
->help
+> help
     help           Display help infomation
     quit           Quit from console
     config <args>  Run commands on config
