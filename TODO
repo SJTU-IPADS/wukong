@@ -1,10 +1,11 @@
 
 ========== TODO list ==========
-- Semi-automatic proxy/engine-thread binding 
+- Auto download dependencies by CMake
 - Avoid spin in engine threads
 - Add check to the task queue (OOM)
 - Support multiple instances of Wukong on single node
 - Refine query execution flow in engine (fork-join mode)
+- Update to Open MPI 2.1.1
 - Refine batch mode emulator 
 - Support get remote vertex/edge w/o RDMA
 - Enable dynamic deduplication in graph exploration
@@ -61,7 +62,7 @@ Ning Wang <aswasn@qq.com>
 
 Jiaqi Li <lijiaqi2017@sjtu.edu.cn>
 + [f86c122]  Add new commands to set config
-
++ [] Semi-automatic proxy/engine-thread binding (hwloc)
 
 
 Rui Xu <yexiaorain@gmail.com>
