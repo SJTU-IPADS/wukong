@@ -20,8 +20,9 @@
  *
  */
 
+#include <hwloc.h>
+#include <map>
 #include <boost/mpi.hpp>
-#include <boost/serialization/string.hpp>
 #include <iostream>
 
 #include "config.hpp"
@@ -67,9 +68,71 @@ int cores[] = {
 	1, 3, 5, 7, 9, 11, 13, 15, 17, 19,
 	0, 2, 4, 6, 8, 10, 12, 14, 16, 18
 };
+map<int,int> tid_to_cpuid;
 
 bool monitor_enable = false;
 int monitor_port = 5450;
+
+void gen_map(string fname){
+
+	vector<vector<int>> cpu_list;
+
+	int depth;
+	unsigned n;
+	hwloc_topology_t topology;
+	hwloc_cpuset_t cpuset;
+	hwloc_obj_t obj;
+
+	hwloc_topology_init(&topology);
+	hwloc_topology_load(topology);
+	
+	n = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_NUMANODE);
+	cpu_list.resize(n);
+	//cout << "NUMA codes number: " << n << endl;
+
+	for(int i = 0;i < n;i ++){
+		
+		//cout << "numaNode" << i << ":" << endl;
+		obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_NUMANODE, i);
+
+		cpuset = hwloc_bitmap_dup(obj->cpuset);
+
+		unsigned int index = 0;
+		hwloc_bitmap_foreach_begin(index,cpuset);
+		//cout << index << " ";
+		cpu_list[i].push_back(index);
+		hwloc_bitmap_foreach_end();
+
+		//cout << endl;
+
+		hwloc_bitmap_free(cpuset); 
+	}
+
+	//load from file
+	ifstream file(fname.c_str());
+	if (!file) {
+		cout << "ERROR: " << fname << " does not exist." << endl;
+		return;
+	}
+
+	string line;
+	int number;
+	int i = 0;
+	while (std::getline(file, line)){
+		istringstream iss(line);
+		int n_cpu_in_numanode = cpu_list[i].size();
+		int n_numanode = cpu_list.size();
+		
+		int j = 0;
+		while(iss >> number){
+			//tid -> cpuid
+			//cout << number << " " << cpu_list[i % n_numanode][j % n_cpu_in_numanode] << endl;
+			tid_to_cpuid[number] = cpu_list[i % n_numanode][j % n_cpu_in_numanode];
+			j ++;
+		}
+		i ++;
+	}
+}
 
 void pin_to_core(size_t core)
 {
@@ -82,7 +145,12 @@ void pin_to_core(size_t core)
 void *engine_thread(void *arg)
 {
 	Engine *engine = (Engine *)arg;
-	pin_to_core(cores[engine->tid]);
+	if(tid_to_cpuid.size() != 0 && tid_to_cpuid.count(engine->tid) != 0){
+		pin_to_core(tid_to_cpuid[engine->tid]);
+	}
+	else{
+		pin_to_core(cores[engine->tid]);
+	}
 	engine->run();
 }
 
@@ -123,15 +191,19 @@ main(int argc, char *argv[])
 	load_config(string(argv[1]), world.size());
 
 	string host_fname = std::string(argv[2]);
-
+	string map_fname;
 	int c;
-	while ((c = getopt(argc - 2, argv + 2, "cp:")) != -1) {
+	while ((c = getopt(argc - 2, argv + 2, "cp:m:")) != -1) {
 		switch (c) {
 		case 'c':
 			monitor_enable = true;
 			break;
 		case 'p':
 			monitor_port = atoi(optarg);
+			break;
+		case 'm':
+			map_fname = optarg;
+			gen_map(map_fname);
 			break;
 		default :
 			usage(argv[0]);
