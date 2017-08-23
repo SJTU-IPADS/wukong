@@ -22,8 +22,6 @@
 
 #pragma once
 
-#include "rdma.hpp"
-
 #include <assert.h>
 #include <map>
 #include <string>
@@ -32,14 +30,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sstream>
+#include <boost/algorithm/string/predicate.hpp>
+
+#include "rdma.hpp"
+
 
 using namespace std;
 
 int global_num_servers = 1;    // the number of servers
 int global_num_threads = 2;    // the number of threads per server (incl. proxy and engine)
 
-int global_num_engines = 1;    // the number of engines
 int global_num_proxies = 1;    // the number of proxies
+int global_num_engines = 1;    // the number of engines
 
 string global_input_folder;
 bool global_load_minimal_index = true;
@@ -50,7 +52,6 @@ int global_ctrl_port_base = 9576;
 int global_memstore_size_gb = 20;
 int global_rdma_buf_size_mb = 64;
 int global_rdma_rbf_size_mb = 16;
-//int global_num_keys_million = 1000;
 
 bool global_use_rdma = true;
 bool global_enable_caching = true;
@@ -68,14 +69,13 @@ bool global_enable_planner = true;
 static bool set_immutable_config(string cfg_name, string value)
 {
 
-	if (cfg_name == "global_num_engines") {
-		global_num_engines = atoi(value.c_str());
-		assert(global_num_engines > 0);
-	} else if (cfg_name == "global_num_proxies") {
+	if (cfg_name == "global_num_proxies") {
 		global_num_proxies = atoi(value.c_str());
 		assert(global_num_proxies > 0);
-	}
-	else if (cfg_name == "global_input_folder") {
+	} else if (cfg_name == "global_num_engines") {
+		global_num_engines = atoi(value.c_str());
+		assert(global_num_engines > 0);
+	} else if (cfg_name == "global_input_folder") {
 		global_input_folder = value;
 
 		// make sure to check that the global_input_folder is non-empty.
@@ -165,6 +165,9 @@ static void file2items(string fname, map<string, string> &items)
 
 	string line, row, val;
 	while (std::getline(file, line)) {
+		if (boost::starts_with(line, "#") || line.empty())
+			continue; // skip comments and blank lines
+
 		istringstream iss(line);
 		iss >> row >> val;
 		items[row] = val;
@@ -229,8 +232,8 @@ void print_config(void)
 	cout << "------ global configurations ------" << endl;
 
 	// setting by config file
-	cout << "the number of engines: "		<< global_num_engines 			<< endl;
 	cout << "the number of proxies: "		<< global_num_proxies			<< endl;
+	cout << "the number of engines: "		<< global_num_engines 			<< endl;
 	cout << "global_input_folder: " 		<< global_input_folder			<< endl;
 	cout << "global_load_minimal_index: " 	<< global_load_minimal_index 	<< endl;
 	cout << "global_data_port_base: " 		<< global_data_port_base		<< endl;

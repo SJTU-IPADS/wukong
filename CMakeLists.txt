@@ -37,5 +37,5 @@ file(GLOB SOURCES "core/*.hpp" "utils/*.hpp")
 
 ## Wukong
 add_executable(wukong ${SOURCES} "core/wukong.cpp")
-target_link_libraries(wukong zmq rt ibverbs tbb rdma ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a)
+target_link_libraries(wukong zmq rt ibverbs tbb hwloc rdma ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a)
 

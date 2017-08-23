@@ -108,7 +108,6 @@ export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/zeromq-4.0.5-install/lib:$LD_LIBRARY_PA
 $ cd $WUKONG_ROOT/deps/
 $ tar zxvf hwloc-1.11.7.tar.gz
 $ cd hwloc-1.11.7/
-$ ./autogen.sh
 $ ./configure --prefix=$WUKONG_ROOT/deps/hwloc-1.11.7-install/
 $ make
 $ make install
@@ -117,7 +116,7 @@ $ make install
 Add below settings to bash script (i.e., `~/.bashrc`).
 
 ```bash
-# libhwloc configuration
+# hwloc configuration
 export PATH=$WUKONG_ROOT/deps/hwloc-1.11.7-install/bin:$PATH
 export CPATH=$WUKONG_ROOT/deps/hwloc-1.11.7-install/include:$CPATH
 export LIBRARY_PATH=$WUKONG_ROOT/deps/hwloc-1.11.7-install/lib:$LIBRARY_PATH
@@ -234,8 +233,7 @@ $ cd ${WUKONG_ROOT}/scripts
 $ ./sync.sh
 ```
 
-> Note: everytime you rebuild Wukong or modify configs in `$WUKONG_ROOT/scripts/config`, you should run sync.sh
-
+> Note: whenever you rebuild Wukong or modify settings in `$WUKONG_ROOT/scripts/config`, you should run `sync.sh` again.
 
 ### Step 5: Launch Wukong servers with a builtin local console
 
