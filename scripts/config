@@ -1,5 +1,5 @@
-global_num_engines			16
 global_num_proxies			1
+global_num_engines			16
 global_input_folder			/home/datanfs/nfs0/rdfdata/id_lubm_40/
 global_load_minimal_index	1
 global_data_port_base		5500
