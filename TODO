@@ -1,5 +1,6 @@
 
 ========== TODO list ==========
+- Complete basic docs (README, INSTALL, and TUTORIAL)
 - Auto download dependencies by CMake
 - Avoid spin in engine threads
 - Add check to the task queue (OOM)
@@ -18,7 +19,7 @@
 
 
 
-========== Committers ==========
+========== Contributors ==========
 
 Rong Chen <rongchen@sjtu.edu.cn>
 + [a40c520]  The 2nd version of Wukong  
@@ -27,43 +28,37 @@ Rong Chen <rongchen@sjtu.edu.cn>
 + [4fda67d]  Support configurable 32/64-bit ID  
 + [206f079]  Regain Wukong w/o RDMA and support turn on/off dynamically 
 + [682de0a]  Add OpenMPI to dependence
-
-
-Jiaxin Shi <shijiaxin.cn@gmail.com>
-+ [a053391]  The 1st version of Wukong
-
++ [877138b]  Refine the interface and implementation of core binding
 
 Youyang Yao <yaoyouyang666@gmail.com>
 + [4dd4aab]  Add SPARQL planner to Wukong  
 + [ongoing]  Ontology-based estimation for SPARQL planner
+
+Siyuan Wang <wangsiyuanse@qq.com>
++ [ongoing]  The 1st version of Wukong w/ GPU
+
+Zhiyuan Dong <windybeing@sjtu.edu.cn>
++ [e1d6279]  Add librdma to Wukong  
+
+Ning Wang <aswasn@qq.com>
++ [d6109cd]  Add print and output readable results
++ [9ff30ca]  Add 1st version of TUTORIAL for Wukong
+
+Jiaqi Li <lijiaqi2017@sjtu.edu.cn>
++ [f86c122]  Add new commands to set config
++ [f6aa97b]  Semi-automatic proxy/engine-thread binding (hwloc)
+
 
 
 Yunhao Zhang <willzhang@sjtu.edu.cn>
 + [2a90636]  Add HDFS support  
 + [ongoing]  The 1st version of Wukong Streaming
 
-
 Chang Lou <louchang_new@163.com>
 + [ongoing]  The 1st version of Wukong w/ GPU
 
-
-Siyuan Wang <wangsiyuanse@qq.com>
-+ [ongoing]  The 1st version of Wukong w/ GPU
-
-
-Zhiyuan Dong <windybeing@sjtu.edu.cn>
-+ [7570db5]  Add librdma to Wukong  
-
-
-Ning Wang <aswasn@qq.com>
-+ [d6109cd]  Add print and output readable results
-+ [44bf33a]  Add TUTORIAL for Wukong
-
-
-Jiaqi Li <lijiaqi2017@sjtu.edu.cn>
-+ [f86c122]  Add new commands to set config
-+ [] Semi-automatic proxy/engine-thread binding (hwloc)
-
+Jiaxin Shi <shijiaxin.cn@gmail.com>
++ [a053391]  The 1st version of Wukong
 
 Rui Xu <yexiaorain@gmail.com>
 + [4dd4aab]  Add SPARQL parser to Wukong  
