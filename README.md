@@ -1,13 +1,13 @@
 # Wukong for Linked Data
 
-Wukong, a distributed graph-based RDF store that leverages efficient graph exploration to provide highly concurrent and low-latency queries over large data sets.
+Wukong, a distributed graph-based RDF store that leverages efficient graph exploration to provide highly concurrent and low-latency queries over large linked datasets.
 
 
 ## Feature Highlights
 
 * High-performance and scalable RDF Store
 * Concurrent SPARQL query processing
-* Enabling RDMA feature of InfiniBand
+* Enabling RDMA feature of InfiniBand networking
 * Support evolving graphs (not included now)
 
 For more details on the Wukong see http://ipads.se.sjtu.edu.cn/projects/wukong, including new features, instructions, etc.
@@ -15,8 +15,8 @@ For more details on the Wukong see http://ipads.se.sjtu.edu.cn/projects/wukong, 
 
 ## Contents
 
-* [Installation](/INSTALL.md)
-* [Tutorials](/TUTORIALS.md)
+* [Installation](docs/INSTALL.md)
+* [Tutorials](docs/TUTORIALS.md)
 
 
 ## License

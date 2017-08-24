@@ -128,7 +128,7 @@ void run_console(Proxy *proxy)
 	console_barrier(proxy->tid);
 	if (IS_MASTER(proxy))
 		cout << endl
-		     << "Input \'help\'' command to get more information"
+		     << "Input \'help\' command to get more information"
 		     << endl
 		     << endl;
 
