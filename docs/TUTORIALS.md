@@ -31,7 +31,7 @@ $./syncdeps.sh ../deps/dependencies mpd.hosts
 ```bash
 $ mkdir $WUKONG_ROOT/datasets
 $ cd $WUKONG_ROOT/datasets
-$ wget http://ipads.se.sjtu.edu.cn/projects/wukong/id_lubm_2.tar.gz
+$ wget http://ipads.se.sjtu.edu.cn/wukong/id_lubm_2.tar.gz
 $ tar zxvf id_lubm_2.tar.gz
 $ ls id_lubm_2
 id_uni0.nt  id_uni1.nt  str_index  str_normal  str_normal_minimal
