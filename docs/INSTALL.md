@@ -231,7 +231,7 @@ $./syncdeps.sh ../deps/dependencies mpd.hosts
 <a name="run"></a>
 ## Building and running
 
-### Step 1: Compile Wukong
+#### Compile Wukong
 
 1) Update `CMakeLists.txt`.
 
@@ -251,7 +251,7 @@ $./build.sh
 ```
 
 
-### Step 2: Configure Wukong
+#### Configure Wukong
 
 1) Edit the Wukong's configuration file `config`, which is specified by `run.sh` (the first argument).
 
@@ -305,7 +305,7 @@ $cat core.bind
 ```
 
 
-### Step 3: Copy all Wukong files to all machines
+#### Copy all Wukong files to all machines
 
 ```bash
 $cd ${WUKONG_ROOT}/scripts
@@ -315,12 +315,15 @@ $./sync.sh
 > Note: whenever you rebuild Wukong or modify setting files in `$WUKONG_ROOT/scripts/`, you should run `sync.sh` again to sync with all machines.
 
 
-### Step 4: Launch Wukong with a builtin local console
+#### Launch Wukong with a builtin local console
 
 ```bash
 $cd ${WUKONG_ROOT}/scripts
-# ./run.sh [#nodes] (e.g., 3 nodes)
+# run.sh [#nodes] (e.g., 3 nodes)
 $./run.sh 3
+...
+Input 'help' command to get more information
+wukong>
 ```
 
 
@@ -331,7 +334,7 @@ $./run.sh 3
 
 Use [LUBM](http://swat.cse.lehigh.edu/projects/lubm) (SWAT Projects - the Lehigh University Benchmark) as an example to introduce how to prepare RDF datasets for Wukong.
 
-#### Step 1: Generate LUBM datasets with RAW format
+##### Step 1: *Generate LUBM datasets with RAW format*
 
 1) Install LUBM data generator (UBA).
 
@@ -361,7 +364,7 @@ PROPERTY INSTANCE #: 6896, TOTAL SO FAR: 6896
 ```
 
 
-#### Step 2: Convert LUBM datasets to NT format
+##### Step 2: *Convert LUBM datasets to NT format*
 
 1) Download the rdfcat tool of Apache Jena.
 
@@ -383,7 +386,7 @@ $find . -type f -name "University1_*.owl" -exec $JENA_HOME/bin/rdfcat -out N-TRI
 Each row in LUBM dataset with NT format (e.g., `uni0.nt`) consists of subject (S), predicate (P), object (O), and '.', like`<http://www.University97.edu> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://swat.cse.lehigh.edu/onto/univ-bench.owl#University> .`.
 
 
-#### Step 3: Convert LUBM datasets to ID format
+##### Step 3: *Convert LUBM datasets to ID format*
 
 ```bash
 $cd ${WUKONG_ROOT}/datagen;
@@ -402,7 +405,7 @@ id_uni0.nt  id_uni1.nt  str_index  str_normal
 
 Each row in LUBM dataset with ID format (e.g., `id_uni0.nt`) consists of the 3 IDs (non-negative integer), like `132323  1  16`. `str_index` and `str_normal` store the mapping from string to ID for index (e.g., predicate) and normal (e.g., subject and object) entities respectively.
 
-#### Step 4: Load LUBM datasets by Wukong 
+##### Step 4: *Load LUBM datasets by Wukong*
 
 Move dataset (e.g., `id_lubm_2`) to a distributed FS (e.g., NFS and HDFS), which can be accessed by all machines in your cluster, and update the `global_input_folder` in `config` file.
 

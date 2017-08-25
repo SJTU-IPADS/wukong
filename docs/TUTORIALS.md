@@ -64,12 +64,13 @@ global_enable_caching       0
 global_enable_workstealing  0
 global_silent               0
 global_enable_planner       1
+$
 $cat core.bind
 # One node per line (NOTE: the empty line means to skip a node)
 0 1 2
 ```
 
-The detail explanation of above `config` file can be found in [INSTALL.md](./INSTALL.md#run)
+The detail explanation of above `config` file can be found in [INSTALL](./INSTALL.md#run)
 
 2) Sync Wukong files to all machines.
 
@@ -87,17 +88,17 @@ $cd ${WUKONG_ROOT}/scripts
 $./run.sh 2
 ...
 Input 'help' command to get more information
->
+wukong>
 ```
 
 
 <a name="query"></a>
-## Processing SPARQL queries
+## Processing SPARQL queries on Wukong
 
 1) Wukong commands.
 
 ```bash
-> help
+wukong> help
 These are common Wukong commands: 
     help                display help infomation
     quit                quit from console
@@ -118,7 +119,7 @@ These are common Wukong commands:
 There are query examples in `$WUKONG_ROOT/scripts/query`. For example, input `sparql -f query/lubm_q2` to run the query `lubm_q2`.
 
 ```bash
-> sparql -f sparql_query/lubm_q7 -v 5
+wukong> sparql -f sparql_query/lubm_q7 -v 5
 (average) latency: 3660 usec
 (last) result size: 73
 The first 5 rows of results: 
@@ -127,17 +128,18 @@ The first 5 rows of results:
 3:  <http://www.Department4.University0.edu/FullProfessor0> <http://www.Department4.University0.edu/UndergraduateStudent312>  <http://www.Department4.University0.edu/Course1>  
 4:  <http://www.Department7.University1.edu/FullProfessor9> <http://www.Department7.University1.edu/UndergraduateStudent8>  <http://www.Department7.University1.edu/Course14> 
 5:  <http://www.Department8.University1.edu/FullProfessor7> <http://www.Department8.University1.edu/UndergraduateStudent47> <http://www.Department8.University1.edu/Course13>
-> sparql -f sparql_query/lubm_q4 -n 1000
+wukong>
+wukong> sparql -f sparql_query/lubm_q4 -n 1000
 (average) latency: 199 usec
 (last) result size: 10
->
+wukong>
 ```
 
 
 2) show and change the configuration of Wukong at runtime.
 
 ```bash
-> config -v
+wukong> config -v
 ------ global configurations ------
 the number of engines: 2
 the number of proxies: 1
@@ -158,8 +160,9 @@ global_enable_planner: 1
 --
 the number of servers: 2
 the number of threads: 3
-> config -s global_use_rdma=0
-> sparql -f query/lubm_q4 -n 1000
+wukong>
+wukong> config -s global_use_rdma=0
+wukong> sparql -f query/lubm_q4 -n 1000
 (average) latency: 1128 usec
 (last) result size: 10
 ```

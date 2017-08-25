@@ -47,9 +47,5 @@ If you use Wukong in your research, please cite our paper:
 [**OSDI**] [Fast and Concurrent RDF Queries with RDMA-based Distributed Graph Exploration](http://dl.acm.org/citation.cfm?id=3026902). Jiaxin Shi, Youyang Yao, Rong Chen, Haibo Chen, and Feifei Li. Proceedings of 12th USENIX Symposium on Operating Systems Design and Implementation, Savannah, GA, US, Nov, 2016.
 
 
-## Contract
-
-Rong Chen <rongchen@sjtu.edu.cn>
-
 
 
