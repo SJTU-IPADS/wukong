@@ -11,7 +11,7 @@
 <a name="cluster"></a>
 ## Deploying Wukong on a local cluster
 
-Install Wukong's dependencies (e.g., OpenMPI), using instructions in the [INSTALL.md](./INSTALL.md#dep), on your master node (one of your cluster machines, e.g., `node0.some.domain`) and copy necessities to the rest machines.
+Install Wukong's dependencies (e.g., OpenMPI), using instructions in the [INSTALL](./INSTALL.md#dep), on your master node (one of your cluster machines, e.g., `node0.some.domain`) and copy necessities to the rest machines.
 
 > Note: suppose there are two machines in your cluster, namely `node0.some.domain` and `node1.some.domain`.
 

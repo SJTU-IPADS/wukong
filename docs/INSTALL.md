@@ -13,7 +13,9 @@
 > Note: the current version of Wukong was tested on Ubuntu Linux 64-bit 14.04.
 It requires a 64-bit operating system.
 
-### Step 0: Install build tools and git.
+### Install Wukong dependecies on one of your cluster machines
+
+##### Step 0: *Install build tools and git*
 
 ```bash
 $sudo apt-get update
@@ -21,7 +23,7 @@ $sudo apt-get install gcc g++ build-essential cmake git libreadline6-dev wget
 ```
 
 
-### Step 1: Download Wukong
+##### Step 1: *Download Wukong source code*
 
 ```bash
 $git clone https://github.com/realstolz/wukong.git
@@ -34,7 +36,7 @@ Add the root path of Wukong (e.g., `/home/rchen/wukong`) to bash script (i.e., `
 export WUKONG_ROOT=[/path/to/wukong]   
 ```
 
-### Step 2: Install OpenMPI
+##### Step 2: *Install OpenMPI*
 
 ```bash
 $cd  $WUKONG_ROOT/deps/
@@ -47,7 +49,7 @@ $make install
 ```
 
 
-### Step 3: Install Boost
+##### Step 3: *Install Boost*
 
 ```bash
 $cd  $WUKONG_ROOT/deps/
@@ -69,7 +71,7 @@ $./b2 install
 ```
 
 
-### Step 4: Install Intel Threading Building Blocks (TBB)
+##### Step 4: *Install Intel Threading Building Blocks (TBB)*
 
 ```bash
 $cd $WUKONG_ROOT/deps/  
@@ -88,7 +90,7 @@ source $WUKONG_ROOT/deps/tbb44_20151115oss/build/[version]/tbbvars.sh
 For example: `$WUKONG_ROOT/deps/tbb44_20151115oss/build/linux_intel64_gcc_cc4.8_libc2.19_kernel3.14.27_release/tbbvars.sh`
 
 
-### Step 5: Install ZeroMQ (http://zeromq.org/)
+##### Step 5: *Install ZeroMQ (http://zeromq.org/)*
 
 ```bash
 $cd $WUKONG_ROOT/deps/
@@ -113,7 +115,7 @@ export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/zeromq-4.0.5-install/lib:$LD_LIBRARY_PA
 ```
 
 
-### Step 6: Install Portable Hardware Locality (hwloc)
+##### Step 6: *Install Portable Hardware Locality (hwloc)*
 
 ```bash
 $cd $WUKONG_ROOT/deps/
@@ -135,7 +137,7 @@ export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/hwloc-1.11.7-install/lib:$LD_LIBRARY_PA
 ```
 
 
-### Step 7(optional): Install librdma
+##### Step 7(optional): *Install librdma*
 
 ```bash
 $cd $WUKONG_ROOT/deps/
@@ -156,7 +158,7 @@ export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/librdma-1.0.0-install/lib:$LD_LIBRARY_P
 ```
 
 
-### Step 8(optional): Install HDFS support
+##### Step 8(optional): *Install HDFS support*
 
 We assume that Hadoop/HDFS has been installed on your cluster. The ENV variable for Hadoop should be set correctly.
 
@@ -195,7 +197,7 @@ target_link_libraries(wukong hdfs)
 >Note: if the `global_input_folder` start with `hdfs:`, then Wukong will read the files from HDFS.
 
 
-### Step 9: Copy dependencies to all machines
+### Copy Wukong dependencies to all machines.
 
 1) Setup password-less SSH between the master node and all other machines.
 

@@ -1,6 +1,6 @@
 # Wukong for Linked Data
 
-Wukong, a distributed graph-based RDF store that leverages efficient graph exploration to provide highly concurrent and low-latency queries over large linked datasets.
+Wukong, a distributed graph-based RDF store that leverages efficient graph exploration to provide highly concurrent and low-latency queries over big linked data.
 
 
 ## Feature Highlights
@@ -10,10 +10,10 @@ Wukong, a distributed graph-based RDF store that leverages efficient graph explo
 * Enabling RDMA feature of InfiniBand networking
 * Support evolving graphs (not included now)
 
-For more details on the Wukong see http://ipads.se.sjtu.edu.cn/projects/wukong, including new features, instructions, etc.
+For more details see [Wukong Project](http://ipads.se.sjtu.edu.cn/projects/wukong), including new features, roadmap, instructions, etc.
 
 
-## Contents
+## Getting Started
 
 * [Installation](docs/INSTALL.md)
 * [Tutorials](docs/TUTORIALS.md)
@@ -42,9 +42,14 @@ If you use Wukong in your research, please cite our paper:
 
 ## Academic and Reference Papers
 
-[*SOSP*] [Sub-millisecond Stateful Stream Querying over Fast-evolving Linked Data](http://dl.acm.org/citation.cfm?id=xxxxxxx). Yunhao Zhang, Rong Chen, and Haibo Chen. Proceedings of the 26th ACM Symposium on Operating Systems Principles, Shanghai, China, October, 2017.
+[**SOSP**] [Sub-millisecond Stateful Stream Querying over Fast-evolving Linked Data](http://dl.acm.org/citation.cfm?id=xxxxxxx). Yunhao Zhang, Rong Chen, and Haibo Chen. Proceedings of the 26th ACM Symposium on Operating Systems Principles, Shanghai, China, October, 2017.
 
-[*OSDI*] [Fast and Concurrent RDF Queries with RDMA-based Distributed Graph Exploration](http://dl.acm.org/citation.cfm?id=3026902). Jiaxin Shi, Youyang Yao, Rong Chen, Haibo Chen, and Feifei Li. Proceedings of 12th USENIX Symposium on Operating Systems Design and Implementation, Savannah, GA, US, Nov, 2016.
+[**OSDI**] [Fast and Concurrent RDF Queries with RDMA-based Distributed Graph Exploration](http://dl.acm.org/citation.cfm?id=3026902). Jiaxin Shi, Youyang Yao, Rong Chen, Haibo Chen, and Feifei Li. Proceedings of 12th USENIX Symposium on Operating Systems Design and Implementation, Savannah, GA, US, Nov, 2016.
+
+
+## Contract
+
+Rong Chen <rongchen@sjtu.edu.cn>
 
 
 
