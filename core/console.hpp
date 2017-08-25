@@ -90,7 +90,7 @@ void print_help(void)
 	cout << "           -n <num>            run <num> times" << endl;
 	cout << "           -v <num>            print at most <num> lines of results" << endl;
 	cout << "           -o <file>           output results into <file>" << endl;
-	cout << "        -b <file>           a set of queries configured by <file>" << endl;
+	cout << "        -b <file>           a set of queries configured by <file> (batch-mode)" << endl;
 }
 
 // the master proxy is the 1st proxy of the 1st server (i.e., sid == 0 and tid == 0)
@@ -137,7 +137,7 @@ void run_console(Proxy *proxy)
 next:
 		string cmd;
 		if (IS_MASTER(proxy)) {
-			cout << "> ";
+			cout << "wukong> ";
 			std::getline(std::cin, cmd);
 
 			// trim input
@@ -303,16 +303,26 @@ next:
 					// dedicate the master frontend worker to run a single query
 					// and others to run a set of queries if '-f' is enabled
 					if (!f_enable || !IS_MASTER(proxy)) {
+						// Currently, batch-mode is not supported by our SPARQL parser and planner
+						// since queries in batch-mode use non-standard SPARQL grammer.
+						if (global_enable_planner) {
+							cout << "Can't run queries in batch mode with global_enable_planner." << endl;
+							continue;
+						}
+
 						ifstream ifs(bfname);
 						if (!ifs.good()) {
 							PRINT_ID(proxy);
 							cout << "Configure file not found: " << bfname << endl;
 							continue;
 						}
+
 						proxy->nonblocking_run_batch_query(ifs, logger);
 						//proxy->run_batch_query(ifs, logger);
 					}
 
+					// FIXME: maybe hang in here if the input file misses in some machines
+					//        or inconsistent global variables (global_enable_planner)
 					console_barrier(proxy->tid);
 
 					// print a statistic of runtime for the batch processing on all servers
