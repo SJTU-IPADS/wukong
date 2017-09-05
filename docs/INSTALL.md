@@ -36,7 +36,7 @@ Add the root path of Wukong (e.g., `/home/rchen/wukong`) to bash script (i.e., `
 export WUKONG_ROOT=[/path/to/wukong]   
 ```
 
-##### Step 2: *Install OpenMPI*
+##### Step 2: *Install OpenMPI v1.6.5*
 
 ```bash
 $cd  $WUKONG_ROOT/deps/
@@ -49,11 +49,11 @@ $make install
 ```
 
 
-##### Step 3: *Install Boost*
+##### Step 3: *Install Boost v1.58*
 
 ```bash
 $cd  $WUKONG_ROOT/deps/
-$tar jxvf boost_1_58_0.tar.bz2  
+$tar jxvf boost_1_58_0.tar.bz2 
 $mkdir boost_1_58_0-install
 $cd boost_1_58_0/
 $./bootstrap.sh --prefix=../boost_1_58_0-install  
@@ -71,7 +71,7 @@ $./b2 install
 ```
 
 
-##### Step 4: *Install Intel Threading Building Blocks (TBB)*
+##### Step 4: *Install Intel Threading Building Blocks (TBB) v4.4.2*
 
 ```bash
 $cd $WUKONG_ROOT/deps/  
@@ -90,7 +90,7 @@ source $WUKONG_ROOT/deps/tbb44_20151115oss/build/[version]/tbbvars.sh
 For example: `$WUKONG_ROOT/deps/tbb44_20151115oss/build/linux_intel64_gcc_cc4.8_libc2.19_kernel3.14.27_release/tbbvars.sh`
 
 
-##### Step 5: *Install ZeroMQ (http://zeromq.org/)*
+##### Step 5: *Install ZeroMQ v4.0.5*
 
 ```bash
 $cd $WUKONG_ROOT/deps/
@@ -105,6 +105,9 @@ $cp zmq.hpp  zeromq-4.0.5-install/include/
 $cp zhelpers.hpp  zeromq-4.0.5-install/include/
 ```
 
+> zmq.hpp is download from [C++ binding for 0MQ](https://github.com/zeromq/cppzmq)  
+> zhelpers.hpp is download from [ØMQ - The Guide](https://github.com/booksbyus/zguide/tree/master/examples/C%2B%2B)  
+
 Add below settings to bash script (i.e., `~/.bashrc`).
 
 ```bash
@@ -115,7 +118,7 @@ export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/zeromq-4.0.5-install/lib:$LD_LIBRARY_PA
 ```
 
 
-##### Step 6: *Install Portable Hardware Locality (hwloc)*
+##### Step 6: *Install Portable Hardware Locality (hwloc) v1.11.7*
 
 ```bash
 $cd $WUKONG_ROOT/deps/
@@ -137,7 +140,7 @@ export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/hwloc-1.11.7-install/lib:$LD_LIBRARY_PA
 ```
 
 
-##### Step 7(optional): *Install librdma*
+##### Step 7(optional): *Install librdma v1.0.0*
 
 ```bash
 $cd $WUKONG_ROOT/deps/
