@@ -1,12 +1,13 @@
 #!/bin/bash
 
 # vars
-librdma="librdma-1.0.0"
-tbb="tbb44_20151115oss"
 openmpi="openmpi-1.6.5"
-hwloc="hwloc-1.11.7"
 boost="boost_1_58_0"
+tbb="tbb44_20151115oss"
 zeromq="zeromq-4.0.5"
+hwloc="hwloc-1.11.7"
+librdma="librdma-1.0.0"
+
 
 # mpi
 install_mpi(){

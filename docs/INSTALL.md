@@ -2,218 +2,60 @@
 
 ## Table of Contents
 
-* [Installing dependencies](#dep)
-* [Building and running](#run)
+* [Preparing and Downloading](#dl)
+* [Satisfying Dependences](#deps)
+* [Building and Running](#run)
 * [Preparing RDF datasets](#data)
 
-
-<a name="dep"></a>
-## Installing dependencies
+<br>
+<a name="dl"></a>
+## Preparing and Downloading
 
 > Note: the current version of Wukong was tested on Ubuntu Linux 64-bit 14.04.
-It requires a 64-bit operating system.
-
-### Install Wukong dependecies on one of your cluster machines
-
-##### Step 0: *Install build tools and git*
+It requires a 64-bit operating system, and a few dependencies must be manually satisfied.
 
 ```bash
 $sudo apt-get update
 $sudo apt-get install gcc g++ build-essential cmake git libreadline6-dev wget
 ```
 
-
-##### Step 1: *Download Wukong source code*
+You can download Wukong directly from the Github Repository.
 
 ```bash
-$git clone https://github.com/realstolz/wukong.git
+$git clone https://github.com/SJTU-IPADS/wukong.git
+$cd wukong
 ```
 
-Add the root path of Wukong (e.g., `/home/rchen/wukong`) to bash script (i.e., `~/.bashrc`).
+<br>
+<a name="deps"></a>
+## Satisfying Dependences
+
+#### Install Wukong dependecies on one of your cluster machines
+
+Add the root path of Wukong (e.g., `/home/rchen/wukong`) to the bash script (i.e., `~/.bashrc`).
 
 ```bash
 # Wukong configuration
 export WUKONG_ROOT=[/path/to/wukong]   
 ```
 
-**We offer a shell script (`$WUKONG_ROOT/deps/deps.sh`) to help you install dependecies automatically. If you'd like to use it, follow the instruction below and ignore steps 2-7.**
+We provide a shell script (i.e., `$WUKONG_ROOT/deps/deps.sh`) to download and build most of its required dependencies automatically within the local sub-directory (i.e., `$WUKONG_ROOT/deps/`). 
+
+> Currently, we requires OpenMPI v1.6.5, Boost v1.58, Intel TBB v4.4.2, ZeroMQ v4.0.5, HWLOC v1.11.7, and LibRDMA v1.0.0 (optional).
 
 ```bash
-# in $WUKONG_ROOT/deps
-$chmod a+x deps.sh
-# If you want to install MPI, boost, tbb, zeromq, hwloc and librdma
+$cd deps
 $./deps.sh
-# If you don't need librdma
-$./deps.sh no-rdma
 ```
+
+> If you do not need RDMA feature, you could skip LibRDMA by running `./deps.sh no-rdma`
 
 **Then add settings of tbb(step 4), zeromq(step 5), hwloc(step 6) and librdma(step 7) to bash script (i.e., `~/.bashrc`).**
 
-##### Step 2: *Install OpenMPI v1.6.5*
-
-```bash
-$cd  $WUKONG_ROOT/deps/
-$tar zxvf openmpi-1.6.5.tar.gz
-$mkdir openmpi-1.6.5-install
-$cd openmpi-1.6.5/
-$./configure --prefix=$WUKONG_ROOT/deps/openmpi-1.6.5-install
-$make all
-$make install
-```
+If you want to do it manually, [deps/INSTALL.md](deps/INSTALL.md) provides step-by-step instruction.
 
 
-##### Step 3: *Install Boost v1.58*
-
-```bash
-$cd  $WUKONG_ROOT/deps/
-$tar jxvf boost_1_58_0.tar.bz2
-$mkdir boost_1_58_0-install
-$cd boost_1_58_0/
-$./bootstrap.sh --prefix=../boost_1_58_0-install  
-```
-
-Add the following MPI configuration to `project-config.jam`
-
-```bash
-# MPI configuration
-using mpi : $WUKONG_ROOT/deps/openmpi-1.6.5-install/bin/mpicc ;
-```
-
-```bash
-$./b2 install  
-```
-
-
-##### Step 4: *Install Intel Threading Building Blocks (TBB) v4.4.2*
-
-```bash
-$cd $WUKONG_ROOT/deps/  
-$tar zxvf tbb44_20151115oss_src.tgz  
-$cd tbb44_20151115oss/
-$make
-```
-
-Add below settings to bash script (i.e., `~/.bashrc`).
-
-```bash
-# Intel TBB configuration
-source $WUKONG_ROOT/deps/tbb44_20151115oss/build/[version]/tbbvars.sh
-```
-
-For example: `$WUKONG_ROOT/deps/tbb44_20151115oss/build/linux_intel64_gcc_cc4.8_libc2.19_kernel3.14.27_release/tbbvars.sh`
-
-
-##### Step 5: *Install ZeroMQ v4.0.5*
-
-```bash
-$cd $WUKONG_ROOT/deps/
-$tar zxvf zeromq-4.0.5.tar.gz
-$mkdir zeromq-4.0.5-install
-$cd zeromq-4.0.5/
-$./configure --prefix=$WUKONG_ROOT/deps/zeromq-4.0.5-install/
-$make
-$make install
-$cd ..
-$cp zmq.hpp  zeromq-4.0.5-install/include/
-$cp zhelpers.hpp  zeromq-4.0.5-install/include/
-```
-
-> zmq.hpp is download from [C++ binding for 0MQ](https://github.com/zeromq/cppzmq)  
-> zhelpers.hpp is download from [ØMQ - The Guide](https://github.com/booksbyus/zguide/tree/master/examples/C%2B%2B)  
-
-Add below settings to bash script (i.e., `~/.bashrc`).
-
-```bash
-# ZeroMQ configuration
-export CPATH=$WUKONG_ROOT/deps/zeromq-4.0.5-install/include:$CPATH
-export LIBRARY_PATH=$WUKONG_ROOT/deps/zeromq-4.0.5-install/lib:$LIBRARY_PATH
-export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/zeromq-4.0.5-install/lib:$LD_LIBRARY_PATH
-```
-
-
-##### Step 6: *Install Portable Hardware Locality (hwloc) v1.11.7*
-
-```bash
-$cd $WUKONG_ROOT/deps/
-$tar zxvf hwloc-1.11.7.tar.gz
-$cd hwloc-1.11.7/
-$./configure --prefix=$WUKONG_ROOT/deps/hwloc-1.11.7-install/
-$make
-$make install
-```
-
-Add below settings to bash script (i.e., `~/.bashrc`).
-
-```bash
-# hwloc configuration
-export PATH=$WUKONG_ROOT/deps/hwloc-1.11.7-install/bin:$PATH
-export CPATH=$WUKONG_ROOT/deps/hwloc-1.11.7-install/include:$CPATH
-export LIBRARY_PATH=$WUKONG_ROOT/deps/hwloc-1.11.7-install/lib:$LIBRARY_PATH
-export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/hwloc-1.11.7-install/lib:$LD_LIBRARY_PATH
-```
-
-
-##### Step 7(optional): *Install librdma v1.0.0*
-
-```bash
-$cd $WUKONG_ROOT/deps/
-$tar zxvf librdma-1.0.0.tar.gz
-$cd librdma-1.0.0/
-$./configure --prefix=$WUKONG_ROOT/deps/librdma-1.0.0-install/
-$make
-$make install
-```
-
-Add below settings to bash script (i.e., `~/.bashrc`).
-
-```bash
-# librdma configuration
-export CPATH=$WUKONG_ROOT/deps/librdma-1.0.0-install/include:$CPATH
-export LIBRARY_PATH=$WUKONG_ROOT/deps/librdma-1.0.0-install/lib:$LIBRARY_PATH
-export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/librdma-1.0.0-install/lib:$LD_LIBRARY_PATH
-```
-
-
-##### Step 8(optional): *Install HDFS support*
-
-We assume that Hadoop/HDFS has been installed on your cluster. The ENV variable for Hadoop should be set correctly.
-
-```bash
-# Build hadoop.jar (assume that the Hadoop has been added on this machine)
-$cd $WUKONG_ROOT/deps/hadoop/
-$./hadoop_deps.sh
-```
-
-Add below settings to bash script (i.e., `~/.bashrc`) according to the installation of Hadoop on your machine.
-
-```bash
-# Haddop configuration
-export HADOOP_HOME=/usr/local/hadoop
-export PATH=$HADOOP_HOME/bin:$PATH
-export CPATH=$HADOOP_HOME/include:$CPATH
-
-# LibJVM configuration
-export LIBRARY_PATH=/usr/lib/jvm/default-java/jre/lib/amd64/server:$LIBRARY_PATH
-export LD_LIBRARY_PATH=/usr/lib/jvm/default-java/jre/lib/amd64/server:$LD_LIBRARY_PATH
-
-# LibHDFS configuration
-export LIBRARY_PATH=$HADOOP_HOME/lib/native:$LIBRARY_PATH
-export LD_LIBRARY_PATH=$HADOOP_HOME/lib/native:$LD_LIBRARY_PATH
-export CLASSPATH=$WUKONG_ROOT/deps/hadoop/hadoop.jar
-```
-
-Enable the compile option in `CMakeLists.txt`  
-
-```cmake
-# Uncomment two lines below to enble HDFS support
-add_definitions(-DHAS_HADOOP)
-target_link_libraries(wukong hdfs)
-```
-
->Note: if the `global_input_folder` start with `hdfs:`, then Wukong will read the files from HDFS.
-
-
-### Copy Wukong dependencies to all machines.
+#### Copy Wukong dependencies to all machines
 
 1) Setup password-less SSH between the master node and all other machines.
 
@@ -245,7 +87,7 @@ $./syncdeps.sh ../deps/dependencies mpd.hosts
 
 <br>
 <a name="run"></a>
-## Building and running
+## Building and Running
 
 #### Compile Wukong
 
