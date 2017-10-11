@@ -36,6 +36,19 @@ Add the root path of Wukong (e.g., `/home/rchen/wukong`) to bash script (i.e., `
 export WUKONG_ROOT=[/path/to/wukong]   
 ```
 
+**We offer a shell script (`$WUKONG_ROOT/deps/deps.sh`) to help you install dependecies automatically. If you'd like to use it, follow the instruction below and ignore steps 2-7.**
+
+```bash
+# in $WUKONG_ROOT/deps
+$chmod a+x deps.sh
+# If you want to install MPI, boost, tbb, zeromq, hwloc and librdma
+$./deps.sh
+# If you don't need librdma
+$./deps.sh no-rdma
+```
+
+**Then add settings of tbb(step 4), zeromq(step 5), hwloc(step 6) and librdma(step 7) to bash script (i.e., `~/.bashrc`).**
+
 ##### Step 2: *Install OpenMPI v1.6.5*
 
 ```bash
@@ -53,7 +66,7 @@ $make install
 
 ```bash
 $cd  $WUKONG_ROOT/deps/
-$tar jxvf boost_1_58_0.tar.bz2 
+$tar jxvf boost_1_58_0.tar.bz2
 $mkdir boost_1_58_0-install
 $cd boost_1_58_0/
 $./bootstrap.sh --prefix=../boost_1_58_0-install  
@@ -166,7 +179,7 @@ export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/librdma-1.0.0-install/lib:$LD_LIBRARY_P
 We assume that Hadoop/HDFS has been installed on your cluster. The ENV variable for Hadoop should be set correctly.
 
 ```bash
-# Build hadoop.jar (assume that the Hadoop has been added on this machine) 
+# Build hadoop.jar (assume that the Hadoop has been added on this machine)
 $cd $WUKONG_ROOT/deps/hadoop/
 $./hadoop_deps.sh
 ```
@@ -293,11 +306,11 @@ The main configuration items:
 > Note: disable `global_load_minimal_index` and `global_silent` if you'd like to print or dump query results.
 
 
-2) Edit the file `core.bind` to manually control the thread binding with CPU cores. Each line corresponds to one NUMA node (CPU Socket) and each thread (identified by ID) will be orderly pinned to a core of the NUMA node. 
+2) Edit the file `core.bind` to manually control the thread binding with CPU cores. Each line corresponds to one NUMA node (CPU Socket) and each thread (identified by ID) will be orderly pinned to a core of the NUMA node.
 
-> Note: Wukong uses a contiguous thread ID for proxy and engine threads successively. 
+> Note: Wukong uses a contiguous thread ID for proxy and engine threads successively.
 
-For example, suppose Wukong has 4 proxies threads (ID from 0 to 3) and 16 engine threads (ID from 4 to 19) on each machine, then the following `core.bind` file will bind 2 proxy threads and 8 engine threads to each of first two NUMA nodes on all machines in your cluster. 
+For example, suppose Wukong has 4 proxies threads (ID from 0 to 3) and 16 engine threads (ID from 4 to 19) on each machine, then the following `core.bind` file will bind 2 proxy threads and 8 engine threads to each of first two NUMA nodes on all machines in your cluster.
 
 ```bash
 $cd ${WUKONG_ROOT}/scripts
@@ -419,5 +432,3 @@ $cd id_lubm_2
 $grep "<http://www.University0.edu>" str_normal >> str_normal_minimal
 $grep "<http://www.Department0.University0.edu>" str_normal >> str_normal_minimal
 ```
-
-
