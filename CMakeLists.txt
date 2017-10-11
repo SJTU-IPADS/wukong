@@ -14,18 +14,30 @@ set(CMAKE_CXX_COMPILER ${ROOT}/deps/openmpi-1.6.5-install/bin/mpic++)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
 set(BOOST_LIB "${ROOT}/deps/boost_1_58_0-install/lib")
 
-## Uncomment two lines below to enble HDFS support.
-#add_definitions(-DHAS_HADOOP)
-#target_link_libraries(wukong hdfs)
+## option usage:
+# cmake .. -DUSE_HADOOP=ON -DUSE_RDMA=OFF
+# notice: option value will be cached
+option (USE_HADOOP "" OFF)
+option (USE_RDMA "whether to enable RDMA support" ON)
+option (USE_ERSATILE "whether to support versatile queries (e.g., ?S ?P ?O)" OFF)
+option (USE_DTYPE_64BIT "whether to use 64-bit data types(32-bit by default)" OFF)
 
-## Uncomment the line below to enable RDMA support.
-add_definitions(-DHAS_RDMA)
+if(USE_HADOOP)
+	add_definitions(-DHAS_HADOOP)
+	target_link_libraries(wukong hdfs)
+endif(USE_HADOOP)
 
-## Uncomment the line below to support versatile queries (e.g., ?S ?P ?O).
-#add_definitions(-DVERSATILE)
+if(USE_RDMA)
+	add_definitions(-DHAS_RDMA)
+endif(USE_RDMA)
 
-## Uncomment the line below to use 64-bit ID (32-bit by default).
-#add_definitions(-DDTYPE_64BIT)
+if(USE_ERSATILE)
+	add_definitions(-DVERSATILE)
+endif(USE_ERSATILE)
+
+if(USE_DTYPE_64BIT)
+	add_definitions(-DDTYPE_64BIT)
+endif(USE_DTYPE_64BIT)
 
 ## Set include path
 include_directories(deps/boost_1_58_0-install/include)

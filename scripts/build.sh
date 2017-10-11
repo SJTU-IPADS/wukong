@@ -1,6 +1,13 @@
 #!/bin/sh
 mkdir -p ../build;
 cd ../build;
-cmake ..;
+
+for args in $@
+do
+     param="$param $args";
+done
+echo "options:  $param";
+cmake .. $param;
+
 make;
 cd ../scripts;
