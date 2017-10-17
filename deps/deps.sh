@@ -66,7 +66,12 @@ install_tbb(){
     fi
     tar zxf "${tbb}_src.tgz" && cd "$WUKONG_ROOT/deps/${tbb}"
     make
-    cd ..
+    cd build
+    tbb_prev='source $WUKONG_ROOT/deps/tbb44_20151115oss/build/'
+    tbb_ver=`ls | grep _release | sed 's/_release/\/tbbvars.sh/g'`
+    echo -e "\n#Intel TBB configuration" >> ~/.bashrc
+    echo ${tbb_prev}${tbb_ver} >> ~/.bashrc
+    cd ../..
   else
     echo "found ${tbb}."
   fi
@@ -92,6 +97,10 @@ install_zeromq(){
       cp zmq.hpp "${zeromq}-install/include"
       cp zhelpers.hpp "${zeromq}-install/include"
     fi
+    echo '# ZeroMQ configuration'
+    echo 'export CPATH=$WUKONG_ROOT/deps/zeromq-4.0.5-install/include:$CPATH'
+    echo 'export LIBRARY_PATH=$WUKONG_ROOT/deps/zeromq-4.0.5-install/lib:$LIBRARY_PATH'
+    echo 'export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/zeromq-4.0.5-install/lib:$LD_LIBRARY_PATH'
   else
     echo "found ${zeromq}."
   fi
@@ -115,6 +124,11 @@ install_hwloc(){
       make install
       cd ..
     fi
+    echo '# hwloc configuration'
+    echo 'export PATH=$WUKONG_ROOT/deps/hwloc-1.11.7-install/bin:$PATH'
+    echo 'export CPATH=$WUKONG_ROOT/deps/hwloc-1.11.7-install/include:$CPATH'
+    echo 'export LIBRARY_PATH=$WUKONG_ROOT/deps/hwloc-1.11.7-install/lib:$LIBRARY_PATH'
+    echo 'export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/hwloc-1.11.7-install/lib:$LD_LIBRARY_PATH'
   else
     echo "found ${hwloc}."
   fi
@@ -138,6 +152,10 @@ install_librdma(){
       make install
       cd ..
     fi
+    echo '# librdma configuration'
+    echo 'export CPATH=$WUKONG_ROOT/deps/librdma-1.0.0-install/include:$CPATH'
+    echo 'export LIBRARY_PATH=$WUKONG_ROOT/deps/librdma-1.0.0-install/lib:$LIBRARY_PATH'
+    echo 'export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/librdma-1.0.0-install/lib:$LD_LIBRARY_PATH'
   else
     echo "found librdma."
   fi
