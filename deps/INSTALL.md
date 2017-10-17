@@ -170,13 +170,5 @@ export LD_LIBRARY_PATH=$HADOOP_HOME/lib/native:$LD_LIBRARY_PATH
 export CLASSPATH=$WUKONG_ROOT/deps/hadoop/hadoop.jar
 ```
 
-Enable the compile option in `CMakeLists.txt`  
-
-```cmake
-# Uncomment two lines below to enble HDFS support
-add_definitions(-DHAS_HADOOP)
-target_link_libraries(wukong hdfs)
-```
-
 >Note: if the `global_input_folder` start with `hdfs:`, then Wukong will read the files from HDFS.
 

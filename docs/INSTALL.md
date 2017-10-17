@@ -48,9 +48,7 @@ $cd deps
 $./deps.sh
 ```
 
-> If you do not need RDMA feature, you could skip LibRDMA by running `./deps.sh no-rdma`
-
-**Then add settings of tbb(step 4), zeromq(step 5), hwloc(step 6) and librdma(step 7) to bash script (i.e., `~/.bashrc`).**
+> If you run Wukong on non-RDMA networks, you could skip LibRDMA by running `./deps.sh no-rdma`
 
 If you want to do it manually, [deps/INSTALL.md](deps/INSTALL.md) provides step-by-step instruction.
 
@@ -91,22 +89,23 @@ $./syncdeps.sh ../deps/dependencies mpd.hosts
 
 #### Compile Wukong
 
-1) Update `CMakeLists.txt`.
-
-+ **Enable/disable RDMA Feature**: Currently, Wukong will enable RDMA feature by default, and suppose the driver has been well installed and configured. If you run RDMA on non-RDMA networks, you need manually comment `add_definitions(-DHAS_RDMA)`.
-
-+ **Enable/disable HDFS support**: To support loading input dataset from HDFS, you need manually uncomment `add_definitions(-DHAS_HADOOP)` and `#target_link_libraries(wukong hdfs)` to enable it.
-
-+ **Enable/disable the support to versatile queries**: To support versatile queries (e.g., ?S ?P ?O), you need manually uncomment `#add_definitions(-DVERSATILE)`. It should be noted that enabling this feature will use more main memory to store RDF graph.
-
-+ **Use 32-bit or 64-bit ID**: The 32-bit ID is enough to support the dataset with more than 2 billion unified strings. If you want to support more large dataset (like LUBM-102400), you need manually uncomment `#add_definitions(-DDTYPE_64BIT)`. It will consume more memory and slightly increase the query latency.
-
-2) Build Wukong.
+We use CMake to build Wukong and provide a script file `build.sh` to simplify the procedure.
 
 ```bash
 $cd ${WUKONG_ROOT}/scripts
 $./build.sh
 ```
+
+##### Options:
++ **Enable/disable RDMA Feature** (default: ON): Currently, Wukong will enable RDMA feature by default, and suppose the driver has been well installed and configured. If you want to build Wukong for non-RDMA networks, you need add a parameter `-DUSE_RDMA=OFF` for cmake (i.e., `cmake .. -DUSE_RDMA=OFF` or `./build.sh -DUSE_RDMA=OFF`).
+
++ **Enable/disable HDFS support** (default: OFF): To support loading input dataset from HDFS, you need to add a parameter `-DUSE_HADOOP=ON` for cmake (i.e., `cmake .. -DUSE_HADOOP=ON` or `./build.sh -DUSE_HADOOP=ON`). You need follow [deps/INSTALL.md](deps/INSTALL.md#hdfs) to configure HDFS. Note that the directory `deps/hadoop` should be copied to all machines (you can run `./syncdeps.sh ../deps/dependencies mpd.hosts` again.)
+
++ **Enable/disable versatile queries support** (default: OFF): To support versatile queries (e.g., ?S ?P ?O), you need to add a parameter `-DUSE_VERSATILE=ON` for cmake (i.e., `cmake .. -DUSE_VERSATILE=ON` or `./build.sh -DUSE_VERSATILE=ON`). Noted that this feature will use more main memory to store RDF graph.
+
++ **Enable/disable 64-bit ID** (default: OFF): The 32-bit ID is enough to support the dataset with more than 2 billion unified strings. If you want to support more large dataset (like LUBM-102400), yyou need to add a parameter `-DUSE_DTYPE_64BIT=ON` for cmake (i.e., `cmake .. -DUSE_DTYPE_64BIT=ON` or `./build.sh -DUSE_DTYPE_64BIT=ON`). Note that it will consume more memory and slightly increase the query latency.
+
+> CMake will automatically cache the latest parameters.
 
 
 #### Configure Wukong
