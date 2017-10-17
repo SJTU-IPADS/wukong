@@ -42,9 +42,9 @@ If you use Wukong in your research, please cite our paper:
 
 ## Academic and Reference Papers
 
-[**SOSP**] [Sub-millisecond Stateful Stream Querying over Fast-evolving Linked Data](http://dl.acm.org/citation.cfm?id=xxxxxxx). Yunhao Zhang, Rong Chen, and Haibo Chen. Proceedings of the 26th ACM Symposium on Operating Systems Principles, Shanghai, China, October, 2017.
+[**SOSP**] [Sub-millisecond Stateful Stream Querying over Fast-evolving Linked Data](docs/wukong+s-sosp17.pdf). Yunhao Zhang, Rong Chen, and Haibo Chen. Proceedings of the 26th ACM Symposium on Operating Systems Principles, Shanghai, China, October, 2017. 
 
-[**OSDI**] [Fast and Concurrent RDF Queries with RDMA-based Distributed Graph Exploration](http://dl.acm.org/citation.cfm?id=3026902). Jiaxin Shi, Youyang Yao, Rong Chen, Haibo Chen, and Feifei Li. Proceedings of 12th USENIX Symposium on Operating Systems Design and Implementation, Savannah, GA, US, Nov, 2016.
+[**OSDI**] [Fast and Concurrent RDF Queries with RDMA-based Distributed Graph Exploration](docs/wukong-osdi16.pdf). Jiaxin Shi, Youyang Yao, Rong Chen, Haibo Chen, and Feifei Li. Proceedings of 12th USENIX Symposium on Operating Systems Design and Implementation, Savannah, GA, US, Nov, 2016. 
 
 
 
