@@ -117,6 +117,12 @@ class Engine {
     Reply_Map rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
 
+    void edge_deep_copy(edge_t* dst_ptr, edge_t* src_ptr, uint64_t& npids){
+           for (uint64_t p = 0; p < npids; p++) {
+               dst_ptr[p]=src_ptr[p];
+           }
+    }
+
     // all of these means const predicate
     void const_to_unknown(request_or_reply &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
@@ -247,15 +253,19 @@ class Engine {
 
         uint64_t npids = 0;
         edge_t *pids = graph->get_edges_global(tid, start, d, PREDICATE_ID, &npids);
+
+        edge_t *tpids = (edge_t*) malloc(npids * sizeof(edge_t));
+        edge_deep_copy(tpids, pids, npids);
+
         for (uint64_t p = 0; p < npids; p++) {
             uint64_t sz = 0;
-            edge_t *res = graph->get_edges_global(tid, start, d, pids[p].val, &sz);
+            edge_t *res = graph->get_edges_global(tid, start, d, tpids[p].val, &sz);
             for (uint64_t k = 0; k < sz; k++) {
-                updated_result_table.push_back(pids[p].val);
+                updated_result_table.push_back(tpids[p].val);
                 updated_result_table.push_back(res[k].val);
             }
         }
-
+        free(tpids);
         req.result_table.swap(updated_result_table);
         req.set_col_num(2);
         req.step++;
@@ -272,15 +282,20 @@ class Engine {
             sid_t prev_id = req.get_row_col(i, req.var2column(start));
             uint64_t npids = 0;
             edge_t *pids = graph->get_edges_global(tid, prev_id, d, PREDICATE_ID, &npids);
+
+            edge_t *tpids = (edge_t*) malloc(npids * sizeof(edge_t));
+            edge_deep_copy(tpids, pids, npids);
+
             for (uint64_t p = 0; p < npids; p++) {
                 uint64_t sz = 0;
-                edge_t *res = graph->get_edges_global(tid, prev_id, d, pids[p].val, &sz);
+                edge_t *res = graph->get_edges_global(tid, prev_id, d, tpids[p].val, &sz);
                 for (uint64_t k = 0; k < sz; k++) {
                     req.append_row_to(i, updated_result_table);
-                    updated_result_table.push_back(pids[p].val);
+                    updated_result_table.push_back(tpids[p].val);
                     updated_result_table.push_back(res[k].val);
                 }
             }
+            free(tpids);
         }
 
         req.set_col_num(req.get_col_num() + 2);
@@ -299,17 +314,22 @@ class Engine {
             sid_t prev_id = req.get_row_col(i, req.var2column(start));
             uint64_t npids = 0;
             edge_t *pids = graph->get_edges_global(tid, prev_id, d, PREDICATE_ID, &npids);
+
+            edge_t *tpids = (edge_t*) malloc(npids * sizeof(edge_t));
+            edge_deep_copy(tpids, pids, npids);
+
             for (uint64_t p = 0; p < npids; p++) {
                 uint64_t sz = 0;
-                edge_t *res = graph->get_edges_global(tid, prev_id, d, pids[p].val, &sz);
+                edge_t *res = graph->get_edges_global(tid, prev_id, d, tpids[p].val, &sz);
                 for (uint64_t k = 0; k < sz; k++) {
                     if (res[k].val == end) {
                         req.append_row_to(i, updated_result_table);
-                        updated_result_table.push_back(pids[p].val);
+                        updated_result_table.push_back(tpids[p].val);
                         break;
                     }
                 }
             }
+            free(tpids);
         }
 
         req.set_col_num(req.get_col_num() + 1);
