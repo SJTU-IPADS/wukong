@@ -117,17 +117,11 @@ class Engine {
     Reply_Map rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
 
-    void edge_deep_copy(edge_t* dst_ptr, edge_t* src_ptr, uint64_t& npids){
-           for (uint64_t p = 0; p < npids; p++) {
-               dst_ptr[p]=src_ptr[p];
-           }
-    }
-
     // all of these means const predicate
     void const_to_unknown(request_or_reply &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
         std::vector<sid_t> updated_result_table;
 
@@ -149,7 +143,7 @@ class Engine {
     void known_to_unknown(request_or_reply &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
         std::vector<sid_t> updated_result_table;
 
@@ -244,7 +238,7 @@ class Engine {
     void const_unknown_unknown(request_or_reply &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
         vector<sid_t> updated_result_table;
 
@@ -254,8 +248,9 @@ class Engine {
         uint64_t npids = 0;
         edge_t *pids = graph->get_edges_global(tid, start, d, PREDICATE_ID, &npids);
 
-        edge_t *tpids = (edge_t*) malloc(npids * sizeof(edge_t));
-        edge_deep_copy(tpids, pids, npids);
+        // use a local buffer to store "known" predicates
+        edge_t *tpids = (edge_t *)malloc(npids * sizeof(edge_t));
+        memcpy((char *)tpids, (char *)pids, npids * sizeof(edge_t));
 
         for (uint64_t p = 0; p < npids; p++) {
             uint64_t sz = 0;
@@ -265,7 +260,9 @@ class Engine {
                 updated_result_table.push_back(res[k].val);
             }
         }
+
         free(tpids);
+
         req.result_table.swap(updated_result_table);
         req.set_col_num(2);
         req.step++;
@@ -280,11 +277,13 @@ class Engine {
 
         for (int i = 0; i < req.get_row_num(); i++) {
             sid_t prev_id = req.get_row_col(i, req.var2column(start));
+
             uint64_t npids = 0;
             edge_t *pids = graph->get_edges_global(tid, prev_id, d, PREDICATE_ID, &npids);
 
-            edge_t *tpids = (edge_t*) malloc(npids * sizeof(edge_t));
-            edge_deep_copy(tpids, pids, npids);
+            // use a local buffer to store "known" predicates
+            edge_t *tpids = (edge_t *)malloc(npids * sizeof(edge_t));
+            memcpy((char *)tpids, (char *)pids, npids * sizeof(edge_t));
 
             for (uint64_t p = 0; p < npids; p++) {
                 uint64_t sz = 0;
@@ -295,6 +294,7 @@ class Engine {
                     updated_result_table.push_back(res[k].val);
                 }
             }
+
             free(tpids);
         }
 
@@ -315,8 +315,11 @@ class Engine {
             uint64_t npids = 0;
             edge_t *pids = graph->get_edges_global(tid, prev_id, d, PREDICATE_ID, &npids);
 
-            edge_t *tpids = (edge_t*) malloc(npids * sizeof(edge_t));
-            edge_deep_copy(tpids, pids, npids);
+            // use a local buffer to store "known" predicates
+            // use a local buffer to store "known" predicates
+            edge_t *tpids = (edge_t *)malloc(npids * sizeof(edge_t));
+            memcpy((char *)tpids, (char *)pids, npids * sizeof(edge_t));
+
 
             for (uint64_t p = 0; p < npids; p++) {
                 uint64_t sz = 0;
@@ -329,6 +332,7 @@ class Engine {
                     }
                 }
             }
+
             free(tpids);
         }
 

@@ -160,11 +160,10 @@ struct vertex_t {
 // 32-bit edge (value)
 struct edge_t {
     sid_t val;  // vertex ID
-    void set(edge_t* e1,edge_t* e2){
-        e1->val = e2->val;
-    }
-    edge_t& operator=(const edge_t& src){
-        set(this,(edge_t*)&src);
+
+    edge_t &operator = (const edge_t &e) {
+        if (this != &e) val = e.val;
+        return *this
     }
 };
 
