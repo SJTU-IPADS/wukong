@@ -76,19 +76,40 @@ void load_node_topo(void)
 	hwloc_topology_init(&topology);
 	hwloc_topology_load(topology);
 
+	//currently, nnodes may return 0 while the NUMANODEs in cpulist is 1(hwloc think there is actually no numa-node)
+	//but it can detect the number of processing units(PU) correctly
+	//when multi-thread processing is on, the number of PU will be twice as number of cores
 	int nnodes = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_NUMANODE);
-	cpu_topo.resize(nnodes);
-	for (int i = 0; i < nnodes; i++) {
-		hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_NUMANODE, i);
-		hwloc_cpuset_t cpuset = hwloc_bitmap_dup(obj->cpuset);
-
-		unsigned int core = 0;
-		hwloc_bitmap_foreach_begin(core, cpuset);
-		cpu_topo[i].push_back(core);
-		default_bindings.push_back(core);
-		hwloc_bitmap_foreach_end();
-
-		hwloc_bitmap_free(cpuset);
+	if(nnodes != 0){
+		cpu_topo.resize(nnodes);
+		for (int i = 0; i < nnodes; i++) {
+			hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_NUMANODE, i);
+			hwloc_cpuset_t cpuset = hwloc_bitmap_dup(obj->cpuset);
+	
+			unsigned int core = 0;
+			hwloc_bitmap_foreach_begin(core, cpuset);
+			cpu_topo[i].push_back(core);
+			default_bindings.push_back(core);
+			hwloc_bitmap_foreach_end();
+	
+			hwloc_bitmap_free(cpuset);
+		}
+	}
+	else{
+		cpu_topo.resize(1);
+		int nPUs = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_PU);
+		for (int i = 0; i < nPUs; i++) {
+			hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, i);
+			hwloc_cpuset_t cpuset = hwloc_bitmap_dup(obj->cpuset);
+	
+			unsigned int core = 0;
+			hwloc_bitmap_foreach_begin(core, cpuset);
+			cpu_topo[0].push_back(core);
+			default_bindings.push_back(core);
+			hwloc_bitmap_foreach_end();
+	
+			hwloc_bitmap_free(cpuset);
+		}
 	}
 	num_cores = default_bindings.size();
 
@@ -126,6 +147,12 @@ bool load_core_binding(string fname)
 		i++; // next node
 	}
 
+	if(i < nnodes){
+		cout << "WARNING: #bindings (in \'core.bind\') did not use all of the NUMANODEs!" << endl;
+	}
+	if(i > nnodes){
+		cout << "WARNING: #bindings (in \'core.bind\') exceeds number of the NUMANODEs!" << endl;
+	}
 	if (nbs < global_num_threads)
 		cout << "WARNING: #threads (in \'config\') exceeds #bindings (in \'bind\')!" << endl;
 
