@@ -12,6 +12,7 @@ librdma="librdma-1.0.0"
 # mpi
 install_mpi(){
   echo "Installing ${openmpi}..."
+  cd "$WUKONG_ROOT/deps"
   if [ ! -d "${openmpi}-install" ]
   then
     mkdir "${openmpi}-install"
@@ -35,6 +36,7 @@ install_mpi(){
 # boost
 install_boost(){
   echo "Installing ${boost}..."
+  cd "$WUKONG_ROOT/deps"
   if [ ! -d "${boost}-install" ]
   then
     mkdir "${boost}-install"
@@ -58,6 +60,7 @@ install_boost(){
 # tbb
 install_tbb(){
   echo "Installing ${tbb}..."
+  cd "$WUKONG_ROOT/deps"
   if [ ! -d "${tbb}" ]
   then
     if [ ! -f "${tbb}_src.tgz" ]
@@ -82,6 +85,7 @@ install_tbb(){
 # zeromq
 install_zeromq(){
   echo "Installing ${zeromq}..."
+  cd "$WUKONG_ROOT/deps"
   if [ ! -d "${zeromq}-install" ]
   then
     mkdir "${zeromq}-install"
@@ -113,6 +117,7 @@ install_zeromq(){
 # hwloc
 install_hwloc(){
   echo "Installing ${hwloc}..."
+  cd "$WUKONG_ROOT/deps"
   if [ ! -d "${hwloc}-install" ]
   then
     mkdir "${hwloc}-install"
@@ -143,6 +148,7 @@ install_hwloc(){
 # librdma
 install_librdma(){
   echo "Installing ${librdma}..."
+  cd "$WUKONG_ROOT/deps"
   if [ ! -d "${librdma}-install" ]
   then
     mkdir "${librdma}-install"
@@ -170,13 +176,17 @@ install_librdma(){
 }
 
 # handle options
-install_mpi
-install_boost
-install_tbb
-install_zeromq
-install_hwloc
-if [ "$#" == "1" ] && [ "$1" == "no-rdma" ] ; then
-  echo 'librdma will not be installed.'
+if [ $WUKONG_ROOT ]; then
+    install_mpi
+    install_boost
+    install_tbb
+    install_zeromq
+    install_hwloc
+    if [ "$#" == "1" ] && [ "$1" == "no-rdma" ] ; then
+      echo 'librdma will not be installed.'
+    else
+      install_librdma
+    fi
 else
-  install_librdma
+    echo 'Please set WUKONG_ROOT first.'
 fi
