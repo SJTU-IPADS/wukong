@@ -16,7 +16,7 @@ It requires a 64-bit operating system, and a few dependencies must be manually s
 
 ```bash
 $sudo apt-get update
-$sudo apt-get install gcc g++ build-essential cmake git libreadline6-dev wget
+$sudo apt-get install gcc g++ build-essential cmake git libreadline6-dev wget libbz2-dev python-dev
 ```
 
 You can download Wukong directly from the Github Repository.

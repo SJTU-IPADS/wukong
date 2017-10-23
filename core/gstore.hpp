@@ -163,7 +163,7 @@ struct edge_t {
 
     edge_t &operator = (const edge_t &e) {
         if (this != &e) val = e.val;
-        return *this
+        return *this;
     }
 };
 
