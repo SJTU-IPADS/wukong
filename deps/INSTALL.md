@@ -146,12 +146,6 @@ export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/librdma-1.0.0-install/lib:$LD_LIBRARY_P
 
 We assume that Hadoop/HDFS has been installed on your cluster. The ENV variable for Hadoop should be set correctly.
 
-```bash
-# Build hadoop.jar (assume that the Hadoop has been added on this machine)
-$cd $WUKONG_ROOT/deps/hadoop/
-$./hadoop_deps.sh
-```
-
 Add below settings to bash script (i.e., `~/.bashrc`) according to the installation of Hadoop on your machine.
 
 ```bash
@@ -170,5 +164,11 @@ export LD_LIBRARY_PATH=$HADOOP_HOME/lib/native:$LD_LIBRARY_PATH
 export CLASSPATH=$WUKONG_ROOT/deps/hadoop/hadoop.jar
 ```
 
->Note: if the `global_input_folder` start with `hdfs:`, then Wukong will read the files from HDFS.
+Run:
+```bash
+# Build hadoop.jar (assume that the Hadoop has been added on this machine)
+$cd $WUKONG_ROOT/deps/hadoop/
+$./hadoop_deps.sh
+```
 
+>Note: if the `global_input_folder` start with `hdfs:`, then Wukong will read the files from HDFS.
