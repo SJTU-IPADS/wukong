@@ -27,6 +27,7 @@ include_directories(utils)
 option (USE_RDMA "enable RDMA support" ON)
 if(USE_RDMA)
   add_definitions(-DHAS_RDMA)
+  target_link_libraries(rdma)
 endif(USE_RDMA)
 
 ### HDFS
@@ -52,5 +53,5 @@ endif(USE_DTYPE_64BIT)
 ## Wukong 
 file(GLOB SOURCES "core/*.hpp" "utils/*.hpp")
 add_executable(wukong ${SOURCES} "core/wukong.cpp")
-target_link_libraries(wukong zmq rt ibverbs tbb hwloc rdma ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a)
+target_link_libraries(wukong zmq rt ibverbs tbb hwloc ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a)
 
