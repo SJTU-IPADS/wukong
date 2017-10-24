@@ -69,12 +69,13 @@ install_tbb(){
     fi
     tar zxf "${tbb}_src.tgz" && cd "$WUKONG_ROOT/deps/${tbb}"
     make
-    cd build
+    cd "$WUKONG_ROOT/deps/${tbb}/build"
     tbb_prev="source \$WUKONG_ROOT/deps/${tbb}/build/"
-    tbb_ver=`ls | grep _release | sed 's/_release/\/tbbvars.sh/g'`
+    tbb_ver=`ls | grep _release`
     if [ ! $TBBROOT ]; then
         echo -e "\n#Intel TBB configuration" >> ~/.bashrc
-        echo ${tbb_prev}${tbb_ver} >> ~/.bashrc
+        echo ${tbb_prev}${tbb_ver}"/tbbvars.sh" >> ~/.bashrc
+        source ~/.bashrc
     fi
     cd ../..
   else
@@ -99,15 +100,16 @@ install_zeromq(){
       ./configure --prefix="$WUKONG_ROOT/deps/${zeromq}-install/"
       make
       make install
-      cd ..
+      cd "$WUKONG_ROOT/deps"
       cp zmq.hpp "${zeromq}-install/include"
       cp zhelpers.hpp "${zeromq}-install/include"
     fi
     if [ $( echo "${CPATH}" | grep "${zeromq}-install" | wc -l ) -eq 0 ]; then
-        echo '# ZeroMQ configuration'
-        echo "export CPATH=\$WUKONG_ROOT/deps/${zeromq}-install/include:$CPATH"
-        echo "export LIBRARY_PATH=\$WUKONG_ROOT/deps/${zeromq}-install/lib:$LIBRARY_PATH"
-        echo "export LD_LIBRARY_PATH=\$WUKONG_ROOT/deps/${zeromq}-install/lib:$LD_LIBRARY_PATH"
+        echo '# ZeroMQ configuration' >> ~/.bashrc
+        echo "export CPATH=\$WUKONG_ROOT/deps/${zeromq}-install/include:\$CPATH" >> ~/.bashrc
+        echo "export LIBRARY_PATH=\$WUKONG_ROOT/deps/${zeromq}-install/lib:\$LIBRARY_PATH" >> ~/.bashrc
+        echo "export LD_LIBRARY_PATH=\$WUKONG_ROOT/deps/${zeromq}-install/lib:\$LD_LIBRARY_PATH" >> ~/.bashrc
+        source ~/.bashrc
     fi
   else
     echo "found ${zeromq}."
@@ -134,11 +136,12 @@ install_hwloc(){
       cd ..
     fi
     if [ $( echo "${PATH}" | grep "${hwloc}-install" | wc -l ) -eq 0 ]; then
-        echo '# hwloc configuration'
-        echo "export PATH=$WUKONG_ROOT/deps/${hwloc}-install/bin:$PATH"
-        echo "export CPATH=$WUKONG_ROOT/deps/${hwloc}-install/include:$CPATH"
-        echo "export LIBRARY_PATH=$WUKONG_ROOT/deps/${hwloc}-install/lib:$LIBRARY_PATH"
-        echo "export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/${hwloc}-install/lib:$LD_LIBRARY_PATH"
+        echo '# hwloc configuration' >> ~/.bashrc
+        echo "export PATH=\$WUKONG_ROOT/deps/${hwloc}-install/bin:\$PATH" >> ~/.bashrc
+        echo "export CPATH=\$WUKONG_ROOT/deps/${hwloc}-install/include:\$CPATH" >> ~/.bashrc
+        echo "export LIBRARY_PATH=\$WUKONG_ROOT/deps/${hwloc}-install/lib:\$LIBRARY_PATH" >> ~/.bashrc
+        echo "export LD_LIBRARY_PATH=\$WUKONG_ROOT/deps/${hwloc}-install/lib:\$LD_LIBRARY_PATH" >> ~/.bashrc
+        source ~/.bashrc
     fi
   else
     echo "found ${hwloc}."
@@ -165,10 +168,11 @@ install_librdma(){
       cd ..
     fi
     if [ $( echo "${CPATH}" | grep "${librdma}-install" | wc -l ) -eq 0 ]; then
-        echo '# librdma configuration'
-        echo "export CPATH=$WUKONG_ROOT/deps/${librdma}-install/include:$CPATH"
-        echo "export LIBRARY_PATH=$WUKONG_ROOT/deps/${librdma}-install/lib:$LIBRARY_PATH"
-        echo "export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/${librdma}-install/lib:$LD_LIBRARY_PATH"
+        echo '# librdma configuration' >> ~/.bashrc
+        echo "export CPATH=\$WUKONG_ROOT/deps/${librdma}-install/include:\$CPATH" >> ~/.bashrc
+        echo "export LIBRARY_PATH=\$WUKONG_ROOT/deps/${librdma}-install/lib:\$LIBRARY_PATH" >> ~/.bashrc
+        echo "export LD_LIBRARY_PATH=\$WUKONG_ROOT/deps/${librdma}-install/lib:\$LD_LIBRARY_PATH" >> ~/.bashrc
+        source ~/.bashrc
     fi
   else
     echo "found librdma."
@@ -187,6 +191,7 @@ if [ $WUKONG_ROOT ]; then
     else
       install_librdma
     fi
+    source ~/.bashrc
 else
     echo 'Please set WUKONG_ROOT first.'
 fi

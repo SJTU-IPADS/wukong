@@ -39,13 +39,13 @@ Add the root path of Wukong (e.g., `/home/rchen/wukong`) to the bash script (i.e
 export WUKONG_ROOT=[/path/to/wukong]   
 ```
 
-We provide a shell script (i.e., `$WUKONG_ROOT/deps/deps.sh`) to download and build most of its required dependencies automatically within the local sub-directory (i.e., `$WUKONG_ROOT/deps/`). 
+We provide a shell script (i.e., `$WUKONG_ROOT/deps/deps.sh`) to download and build most of its required dependencies automatically within the local sub-directory (i.e., `$WUKONG_ROOT/deps/`).
 
 > Currently, we requires OpenMPI v1.6.5, Boost v1.58, Intel TBB v4.4.2, ZeroMQ v4.0.5, HWLOC v1.11.7, and LibRDMA v1.0.0 (optional).
 
 ```bash
 $cd deps
-$./deps.sh
+$source deps.sh
 ```
 
 > If you run Wukong on non-RDMA networks, you could skip LibRDMA by running `./deps.sh no-rdma`

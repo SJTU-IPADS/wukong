@@ -24,7 +24,7 @@ file(GLOB SOURCES "core/*.hpp" "utils/*.hpp")
 add_executable(wukong ${SOURCES} "core/wukong.cpp")
 
 ## Set options (cached)
-## usage: cmake .. -DUSE_RDMA=OFF -DUSE_HADOOP=ON 
+## usage: cmake .. -DUSE_RDMA=OFF -DUSE_HADOOP=ON
 
 #### RDMA
 option (USE_RDMA "enable RDMA support" ON)
@@ -35,10 +35,6 @@ endif(USE_RDMA)
 
 #### HDFS
 option (USE_HADOOP "enable HDFS support" OFF)
-if(USE_HADOOP)
-  add_definitions(-DHAS_HADOOP)
-  target_link_libraries(wukong hdfs)
-endif(USE_HADOOP)
 
 #### Verstile queries (e.g., ?S ?P ?O)
 option (USE_VERSATILE "whether to support versatile queries" OFF)
@@ -56,3 +52,7 @@ endif(USE_DTYPE_64BIT)
 ## Build Wukong 
 target_link_libraries(wukong zmq rt ibverbs tbb hwloc ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a)
 
+if(USE_HADOOP)
+  add_definitions(-DHAS_HADOOP)
+  target_link_libraries(wukong hdfs)
+endif(USE_HADOOP)
