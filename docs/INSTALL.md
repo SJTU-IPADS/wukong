@@ -48,7 +48,7 @@ $cd deps
 $source deps.sh
 ```
 
-> If you run Wukong on non-RDMA networks, you could skip LibRDMA by running `./deps.sh no-rdma`
+> If you run Wukong on non-RDMA networks, you could skip LibRDMA by running `source deps.sh no-rdma`
 
 If you want to do it manually, [deps/INSTALL.md](deps/INSTALL.md) provides step-by-step instruction.
 

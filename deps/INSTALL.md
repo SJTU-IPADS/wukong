@@ -161,10 +161,11 @@ export LD_LIBRARY_PATH=/usr/lib/jvm/default-java/jre/lib/amd64/server:$LD_LIBRAR
 # LibHDFS configuration
 export LIBRARY_PATH=$HADOOP_HOME/lib/native:$LIBRARY_PATH
 export LD_LIBRARY_PATH=$HADOOP_HOME/lib/native:$LD_LIBRARY_PATH
-export CLASSPATH=$WUKONG_ROOT/deps/hadoop/hadoop.jar
+export CLASSPATH=$WUKONG_ROOT/deps/hadoop/hadoop.jar:$CLASSPATH
 ```
 
-Run:
+Run the script `hadoop_deps.sh` to generate `hadoop.jar`
+
 ```bash
 # Build hadoop.jar (assume that the Hadoop has been added on this machine)
 $cd $WUKONG_ROOT/deps/hadoop/

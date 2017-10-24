@@ -1,6 +1,6 @@
-zeromq-4.0.5-install
-tbb44_20151115oss
-hwloc-1.11.7-install
-hadoop
-librdma-1.0.0-install
 openmpi-1.6.5-install
+tbb44_20151115oss
+zeromq-4.0.5-install
+hwloc-1.11.7-install
+librdma-1.0.0-install
+hadoop
