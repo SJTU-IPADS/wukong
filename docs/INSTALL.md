@@ -43,9 +43,18 @@ We provide a shell script (i.e., `$WUKONG_ROOT/deps/deps.sh`) to download and bu
 
 > Currently, we requires OpenMPI v1.6.5, Boost v1.58, Intel TBB v4.4.2, ZeroMQ v4.0.5, HWLOC v1.11.7, and LibRDMA v1.0.0 (optional).
 
+To install the dependencies above, run:
+
 ```bash
 $cd deps
 $source deps.sh
+```
+
+To remove dependencies, run:
+
+```bash
+$cd deps
+$source deps.sh clean [dep] # dep: all, mpi, boost, tbb, zeromq, hwloc, librdma
 ```
 
 > If you run Wukong on non-RDMA networks, you could skip LibRDMA by running `source deps.sh no-rdma`
