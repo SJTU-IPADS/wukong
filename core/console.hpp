@@ -144,9 +144,7 @@ next:
                 // if it had run the command then excute quit
                 if(cmd == command){
                    cmd = "quit";
-                }
-                //else excute the  command
-                else{
+                } else {
                     cmd = command;
                 }
             }
