@@ -140,16 +140,16 @@ void run_console(Proxy *proxy)
 next:
 		if (IS_MASTER(proxy)) {
             // direct-run command
-			if (enable_command) {
+                if (enable_command) {
                 // if it had run the command then excute quit
-                if (cmd == command) {
-                   cmd = "quit";
+				if (cmd == command) {
+                    cmd = "quit";
                 } else {
                     cmd = command;
                 }
             } else {
-                cout << "wukong> ";
-			    std::getline(std::cin, cmd);
+				cout << "wukong> ";
+                std::getline(std::cin, cmd);
             }
 			
             // trim input
