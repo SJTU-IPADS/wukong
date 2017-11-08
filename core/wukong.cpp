@@ -59,7 +59,7 @@ void *proxy_thread(void *arg)
 		bind_to_core(default_bindings[proxy->tid % num_cores]);
 
 	// run the builtin console
-    if(enable_command)
+    if (enable_command)
         cout<<"To run command: "<< command <<endl;
     else
         command = "";
