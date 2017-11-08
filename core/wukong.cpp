@@ -39,7 +39,6 @@
 
 #include "data_statistic.hpp"
 
-
 void *engine_thread(void *arg)
 {
 	Engine *engine = (Engine *)arg;
@@ -60,7 +59,12 @@ void *proxy_thread(void *arg)
 		bind_to_core(default_bindings[proxy->tid % num_cores]);
 
 	// run the builtin console
-	run_console(proxy);
+    if(enable_command)
+        cout<<"To run command: "<< command <<endl;
+    else
+        command = "";
+    
+    run_console(proxy);
 }
 
 static void
@@ -69,6 +73,7 @@ usage(char *fn)
 	cout << "usage: " << fn << " <config_fname> <host_fname> [options]" << endl;
 	cout << "options:" << endl;
 	cout << "  -b binding : the file of core binding" << endl;
+    cout << "  -c command : the direct-run command" <<endl;
 }
 
 int
@@ -94,11 +99,15 @@ main(int argc, char *argv[])
 	cout << "INFO#" << sid << ": has " << num_cores << " cores." << endl;
 
 	int c;
-	while ((c = getopt(argc - 2, argv + 2, "b:")) != -1) {
+	while ((c = getopt(argc - 2, argv + 2, "b:c:")) != -1) {
 		switch (c) {
 		case 'b':
 			enable_binding = load_core_binding(optarg);
 			break;
+        case 'c':
+            enable_command = true;
+            command = optarg;
+            break;
 		default :
 			usage(argv[0]);
 			exit(EXIT_FAILURE);
