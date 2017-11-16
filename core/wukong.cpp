@@ -59,12 +59,7 @@ void *proxy_thread(void *arg)
 		bind_to_core(default_bindings[proxy->tid % num_cores]);
 
 	// run the builtin console
-    if (enable_command)
-        cout<<"To run command: "<< command <<endl;
-    else
-        command = "";
-    
-    run_console(proxy);
+	run_console(proxy);
 }
 
 static void
@@ -73,7 +68,7 @@ usage(char *fn)
 	cout << "usage: " << fn << " <config_fname> <host_fname> [options]" << endl;
 	cout << "options:" << endl;
 	cout << "  -b binding : the file of core binding" << endl;
-    cout << "  -c command : the direct-run command" <<endl;
+	cout << "  -c command : the one-shot command" << endl;
 }
 
 int
@@ -104,10 +99,10 @@ main(int argc, char *argv[])
 		case 'b':
 			enable_binding = load_core_binding(optarg);
 			break;
-        case 'c':
-            enable_command = true;
-            command = optarg;
-            break;
+		case 'c':
+			enable_oneshot = true;
+			oneshot_cmd = optarg;
+			break;
 		default :
 			usage(argv[0]);
 			exit(EXIT_FAILURE);

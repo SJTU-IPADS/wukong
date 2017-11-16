@@ -19,6 +19,7 @@
  *      http://ipads.se.sjtu.edu.cn/projects/wukong
  *
  */
+
 #pragma once
 
 #include <iostream>
@@ -31,14 +32,14 @@
 #include "config.hpp"
 #include "proxy.hpp"
 #include "logger.hpp"
-#include "timer.hpp"
+
 using namespace std;
 
 // communicate between proxy threads
 TCP_Adaptor *con_adaptor;
 
-bool enable_command = false;
-string command = "";
+bool enable_oneshot = false;
+string oneshot_cmd = "";
 
 template<typename T>
 static void console_send(int sid, int tid, T &r) {
@@ -134,25 +135,30 @@ void run_console(Proxy *proxy)
 		     << endl
 		     << endl;
 
-	string cmd = "";
+	bool once = true;
 	while (true) {
 		console_barrier(proxy->tid);
 next:
+		string cmd;
 		if (IS_MASTER(proxy)) {
-            // direct-run command
-                if (enable_command) {
-                // if it had run the command then excute quit
-				if (cmd == command) {
-                    cmd = "quit";
-                } else {
-                    cmd = command;
-                }
-            } else {
+			if (enable_oneshot) {
+				// one-shot command mode: run the command once
+				if (once) {
+					cout << "[INFO] Run one-shot command: " << oneshot_cmd << endl;
+					cmd = oneshot_cmd;
+
+					once = false;
+				} else {
+					cout << "[INFO] Done" << endl;
+					cmd = "quit";
+				}
+			} else {
+				// interactive mode: print a prompt and retrieve the command
 				cout << "wukong> ";
-                std::getline(std::cin, cmd);
-            }
-			
-            // trim input
+				std::getline(std::cin, cmd);
+			}
+
+			// trim input
 			size_t pos = cmd.find_first_not_of(" \t"); // trim blanks from head
 			if (pos == string::npos) goto next;
 			cmd.erase(0, pos);
