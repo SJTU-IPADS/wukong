@@ -320,12 +320,13 @@ private:
             }
             return str_server->str2id[strIRI];
         }
+		case SPARQLParser::Element::Template:
+			return PTYPE_PH;
         default:
             return DUMMY_ID;
         }
         return DUMMY_ID;
     }
-
     void _H_simplist_transfer(const SPARQLParser &parser, request_or_reply &r) {
         vector<ssid_t> temp_cmd_chains ;
         SPARQLParser::PatternGroup group = parser.getPatterns();
@@ -338,8 +339,27 @@ private:
         }
         r.cmd_chains = temp_cmd_chains;
     }
-
-    bool _H_do_parse(istream & is, request_or_reply &r) {
+	void _H_push(const SPARQLParser::Element &element, request_template &r, int pos){
+		ssid_t id = _H_encode(element);
+		if(id == PTYPE_PH){
+			string strIRI = "<" + element.value + ">";
+			r.ptypes_str.push_back(strIRI);
+			r.ptypes_pos.push_back(pos);
+		}
+		r.cmd_chains.push_back(id);
+	}
+	void _H_template_transfer(const SPARQLParser &parser, request_template &r){
+        SPARQLParser::PatternGroup group = parser.getPatterns();
+        int pos = 0;
+		for (std::vector<SPARQLParser::Pattern>::const_iterator iter = group.patterns.begin(),
+                limit = group.patterns.end(); iter != limit; ++iter) {
+            _H_push(iter->subject, r, pos++);
+            r.cmd_chains.push_back(_H_encode(iter->predicate)); pos++;
+            r.cmd_chains.push_back(OUT); pos++;
+            _H_push(iter->object, r, pos++);
+        }
+	}
+    bool _H_do_parse(istream &is, request_or_reply &r) {
         string query = read_input(is);
         SPARQLLexer lexer(query);
         SPARQLParser parser(lexer);
@@ -354,6 +374,22 @@ private:
         }
         return true;
     }
+	
+	bool _H_do_parse_template(istream &is, request_template &r){
+		string query = read_input(is);
+		SPARQLLexer lexer(query);
+		SPARQLParser parser(lexer);
+		varId = -1;
+		_H_incVarIdMap.clear();
+		try{
+			parser.parse();
+			_H_template_transfer(parser, r);
+		} catch (const SPARQLParser::ParserException &e){
+			cerr << "parse error: " << e.message << endl;
+			return false;
+		}
+		return true;
+	}
 
 public:
     // the stat of query parsing
@@ -398,10 +434,12 @@ public:
 
     /* Used in batch-mode */
     bool parse_template(istream &is, request_template &r) {
-        // TODO: "template" is not supported by default SPARQL parser
         if (global_enable_planner) {
-            cout << "ERROR: template pattern is unsupported by default SPARQL parser!" << endl;
-            return false;
+            if(!_H_do_parse_template(is, r))
+				return false;
+
+	//		cout << "parsing template is finished." << endl;
+			return true;
         }
 
         // clear intermediate states of parser
