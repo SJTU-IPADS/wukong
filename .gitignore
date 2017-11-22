@@ -2,4 +2,4 @@
 *~
 *.exe
 build/
-
+.vscode
