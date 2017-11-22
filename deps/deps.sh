@@ -35,6 +35,7 @@ install_mpi(){
         make all 2>>install_deps.log
         make install 2>>install_deps.log
     else
+        trap - ERR
         echo "found ${openmpi}."
     fi
 }
@@ -58,6 +59,7 @@ install_boost(){
         echo "using mpi : \$WUKONG_ROOT/deps/${openmpi}-install/bin/mpicc ;" >> project-config.jam
         ./b2 install 2>>install_deps.log
     else
+        trap - ERR
         echo "found ${boost}."
     fi
 }
@@ -76,6 +78,7 @@ install_tbb(){
         trap - ERR
         make 2>>install_deps.log
     else
+        trap - ERR
         echo "found ${tbb}."
     fi
     cd "$WUKONG_ROOT/deps/${tbb}/build"
@@ -110,6 +113,7 @@ install_zeromq(){
         cp zmq.hpp "${zeromq}-install/include"
         cp zhelpers.hpp "${zeromq}-install/include"
     else
+        trap - ERR
         echo "found ${zeromq}."
     fi
     if [ $( echo "${CPATH}" | grep "${zeromq}-install" | wc -l ) -eq 0 ]; then
@@ -140,6 +144,7 @@ install_hwloc(){
         make 2>>install_deps.log
         make install 2>>install_deps.log
     else
+        trap - ERR
         echo "found ${hwloc}."
     fi
     if [ $( echo "${PATH}" | grep "${hwloc}-install" | wc -l ) -eq 0 ]; then
@@ -171,6 +176,7 @@ install_librdma(){
         make 2>>install_deps.log
         make install 2>>install_deps.log
     else
+        trap - ERR
         echo "found librdma."
     fi
     if [ $( echo "${CPATH}" | grep "${librdma}-install" | wc -l ) -eq 0 ]; then
@@ -183,19 +189,16 @@ install_librdma(){
 }
 
 del_mpi(){
-    trap "return" ERR
 	echo 'removing mpi...'
 	rm -rf "$WUKONG_ROOT/deps/${openmpi}-install" "$WUKONG_ROOT/deps/${openmpi}"
 }
 
 del_boost(){
-    trap "return" ERR
 	echo 'removing boost...'
 	rm -rf "$WUKONG_ROOT/deps/${boost}-install" "$WUKONG_ROOT/deps/${boost}"
 }
 
 del_tbb(){
-    trap "return" ERR
 	echo 'removing tbb...'
 	rm -rf "$WUKONG_ROOT/deps/${tbb}"
 	sed -i '/\(Intel TBB configuration\)\|\(tbbvars\.sh\)/d' ~/.bashrc
@@ -203,7 +206,6 @@ del_tbb(){
 }
 
 del_zeromq(){
-    trap "return" ERR
 	echo 'removing zeromq...'
 	rm -rf "$WUKONG_ROOT/deps/${zeromq}-install" "$WUKONG_ROOT/deps/${zeromq}"
 	sed -i '/\(ZeroMQ configuration\)\|\(CPATH.*zeromq\)\|\(LIBRARY_PATH.*zeromq\)\|\(LD_LIBRARY_PATH.*zeromq\)/d' ~/.bashrc
@@ -218,7 +220,6 @@ del_zeromq(){
 }
 
 del_hwloc(){
-    trap "return" ERR
 	echo 'removing hwloc...'
 	rm -rf "$WUKONG_ROOT/deps/${hwloc}-install" "$WUKONG_ROOT/deps/${hwloc}"
 	sed -i '/\(hwloc configuration\)\|\(PATH.*hwloc\)\|\(CPATH.*hwloc\)\|\(LIBRARY_PATH.*hwloc\)\|\(LD_LIBRARY_PATH.*hwloc\)/d' ~/.bashrc
@@ -235,7 +236,6 @@ del_hwloc(){
 }
 
 del_librdma(){
-    trap "return" ERR
 	echo 'removing librdma...'
 	rm -rf "$WUKONG_ROOT/deps/${librdma}-install" "$WUKONG_ROOT/deps/${librdma}"
 	sed -i '/\(librdma configuration\)\|\(CPATH.*librdma\)\|\(LIBRARY_PATH.*librdma\)\|\(LD_LIBRARY_PATH.*librdma\)/d' ~/.bashrc
@@ -250,7 +250,6 @@ del_librdma(){
 }
 
 clean_deps(){
-    trap "return" ERR
     echo 'compressed packages will not be removed.'
 	if [[ "$#" == "1" || "$2" == "all" ]]; then
 		echo 'cleaning all dependencies...'
