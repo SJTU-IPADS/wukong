@@ -40,7 +40,7 @@ public:
     /// An element in a graph pattern
     struct Element {
         /// Possible types
-        enum Type { Variable, Literal, IRI };
+        enum Type { Variable, Literal, IRI, Template };
         /// Possible sub-types for literals
         enum SubType { None, CustomLanguage, CustomType };
         /// The type
@@ -1001,6 +1001,12 @@ SPARQLParser::Element SPARQLParser::parsePatternElement(PatternGroup& group, map
             result.type = Element::IRI;
             result.value = prefixes[prefix] + lexer.getIRIValue();
         }
+    } else if (token == SPARQLLexer::Percent) {
+        Element predicate = parsePatternElement(group, localVars);
+        if(predicate.type != Element::IRI)
+			throw ParserException("IRI expected after '%'");
+		result.type = Element::Template;
+        result.value = predicate.value;
     } else {
         throw ParserException("invalid pattern element");
     }

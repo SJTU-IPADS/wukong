@@ -321,12 +321,7 @@ next:
 					// dedicate the master frontend worker to run a single query
 					// and others to run a set of queries if '-f' is enabled
 					if (!f_enable || !IS_MASTER(proxy)) {
-						// Currently, batch-mode is not supported by our SPARQL parser and planner
-						// since queries in batch-mode use non-standard SPARQL grammer.
-						if (global_enable_planner) {
-							cout << "Can't run queries in batch mode with global_enable_planner." << endl;
-							continue;
-						}
+						// Now, batch-mode is supported by our SPARQL parser and planner.
 
 						ifstream ifs(bfname);
 						if (!ifs.good()) {
