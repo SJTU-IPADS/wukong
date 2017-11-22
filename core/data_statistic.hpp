@@ -93,6 +93,7 @@ public:
                         global_ptcount[key] += triple;
                     }
                 }
+
                 for (unordered_map<ssid_t, int>::iterator it = all_gather[i].predicate_to_subject.begin();
                         it != all_gather[i].predicate_to_subject.end(); it++ ) {
                     ssid_t key = it->first;
@@ -103,6 +104,7 @@ public:
                         global_pscount[key] += subject;
                     }
                 }
+
                 for (unordered_map<ssid_t, int>::iterator it = all_gather[i].predicate_to_object.begin();
                         it != all_gather[i].predicate_to_object.end(); it++ ) {
                     ssid_t key = it->first;
@@ -113,6 +115,7 @@ public:
                         global_pocount[key] += object;
                     }
                 }
+
                 for (unordered_map<pair<ssid_t, ssid_t>, four_num, boost::hash<pair<int, int> > >::iterator it = all_gather[i].correlation.begin();
                         it != all_gather[i].correlation.end(); it++ ) {
                     pair<ssid_t, ssid_t> key = it->first;
@@ -126,6 +129,7 @@ public:
                         global_ppcount[key].in_out += value.in_out;
                     }
                 }
+
                 //for type predicate
                 for (unordered_map<ssid_t, int>::iterator it = all_gather[i].type_to_subject.begin();
                         it != all_gather[i].type_to_subject.end(); it++ ) {
@@ -156,22 +160,32 @@ public:
             global_ptcount[1] = triple;
 
         }
-		if(world->rank() == 0){
-			std::stringstream my_ss;
-			boost::archive::binary_oarchive my_oa(my_ss);
-			my_oa << global_ptcount << global_pscount << global_pocount << global_ppcount << global_tyscount;
-			for (int i = 1; i < world->size(); i++) {
-				tcp_adaptor->send(i, 0, my_ss.str());				
-			}
-		}
-		if(world->rank() != 0){
-			std::string str;
+
+        if (world->rank() == 0) {
+            std::stringstream my_ss;
+            boost::archive::binary_oarchive my_oa(my_ss);
+            my_oa << global_ptcount
+                  << global_pscount
+                  << global_pocount
+                  << global_ppcount
+                  << global_tyscount;
+            for (int i = 1; i < world->size(); i++) {
+                tcp_adaptor->send(i, 0, my_ss.str());
+            }
+        }
+
+        if (world->rank() != 0) {
+            std::string str;
             str = tcp_adaptor->recv(0);
             std::stringstream s;
             s << str;
             boost::archive::binary_iarchive ia(s);
-			ia >> global_ptcount >> global_pscount >> global_pocount >> global_ppcount >> global_tyscount;
-		}
+            ia >> global_ptcount
+               >> global_pscount
+               >> global_pocount
+               >> global_ppcount
+               >> global_tyscount;
+        }
 
         cout << "INFO#" << world->rank() << ": gathering stats of DGraph is finished." << endl;
 

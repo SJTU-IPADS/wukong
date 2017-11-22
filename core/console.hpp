@@ -321,8 +321,6 @@ next:
 					// dedicate the master frontend worker to run a single query
 					// and others to run a set of queries if '-f' is enabled
 					if (!f_enable || !IS_MASTER(proxy)) {
-						// Now, batch-mode is supported by our SPARQL parser and planner.
-
 						ifstream ifs(bfname);
 						if (!ifs.good()) {
 							PRINT_ID(proxy);

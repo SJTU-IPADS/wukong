@@ -53,6 +53,9 @@ Jiaqi Li <lijiaqi2017@sjtu.edu.cn>
 + [f6aa97b]  Semi-automatic proxy/engine-thread binding (hwloc)
 + [5583b16]  Add configurable compile options
 
+Xuehan Ke <sherlockkenan@163.com>
++ [0ccc276]  Support one-shot command
+
 
 @Cornell
 Yunhao Zhang <willzhang@sjtu.edu.cn>
