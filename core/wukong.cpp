@@ -39,7 +39,6 @@
 
 #include "data_statistic.hpp"
 
-
 void *engine_thread(void *arg)
 {
 	Engine *engine = (Engine *)arg;
@@ -69,6 +68,7 @@ usage(char *fn)
 	cout << "usage: " << fn << " <config_fname> <host_fname> [options]" << endl;
 	cout << "options:" << endl;
 	cout << "  -b binding : the file of core binding" << endl;
+	cout << "  -c command : the one-shot command" << endl;
 }
 
 int
@@ -94,10 +94,14 @@ main(int argc, char *argv[])
 	cout << "INFO#" << sid << ": has " << num_cores << " cores." << endl;
 
 	int c;
-	while ((c = getopt(argc - 2, argv + 2, "b:")) != -1) {
+	while ((c = getopt(argc - 2, argv + 2, "b:c:")) != -1) {
 		switch (c) {
 		case 'b':
 			enable_binding = load_core_binding(optarg);
+			break;
+		case 'c':
+			enable_oneshot = true;
+			oneshot_cmd = optarg;
 			break;
 		default :
 			usage(argv[0]);

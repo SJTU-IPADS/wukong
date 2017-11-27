@@ -38,6 +38,9 @@ using namespace std;
 // communicate between proxy threads
 TCP_Adaptor *con_adaptor;
 
+bool enable_oneshot = false;
+string oneshot_cmd = "";
+
 template<typename T>
 static void console_send(int sid, int tid, T &r) {
 	std::stringstream ss;
@@ -132,13 +135,28 @@ void run_console(Proxy *proxy)
 		     << endl
 		     << endl;
 
+	bool once = true;
 	while (true) {
 		console_barrier(proxy->tid);
 next:
 		string cmd;
 		if (IS_MASTER(proxy)) {
-			cout << "wukong> ";
-			std::getline(std::cin, cmd);
+			if (enable_oneshot) {
+				// one-shot command mode: run the command once
+				if (once) {
+					cout << "[INFO] Run one-shot command: " << oneshot_cmd << endl;
+					cmd = oneshot_cmd;
+
+					once = false;
+				} else {
+					cout << "[INFO] Done" << endl;
+					cmd = "quit";
+				}
+			} else {
+				// interactive mode: print a prompt and retrieve the command
+				cout << "wukong> ";
+				std::getline(std::cin, cmd);
+			}
 
 			// trim input
 			size_t pos = cmd.find_first_not_of(" \t"); // trim blanks from head
@@ -303,13 +321,6 @@ next:
 					// dedicate the master frontend worker to run a single query
 					// and others to run a set of queries if '-f' is enabled
 					if (!f_enable || !IS_MASTER(proxy)) {
-						// Currently, batch-mode is not supported by our SPARQL parser and planner
-						// since queries in batch-mode use non-standard SPARQL grammer.
-						if (global_enable_planner) {
-							cout << "Can't run queries in batch mode with global_enable_planner." << endl;
-							continue;
-						}
-
 						ifstream ifs(bfname);
 						if (!ifs.good()) {
 							PRINT_ID(proxy);

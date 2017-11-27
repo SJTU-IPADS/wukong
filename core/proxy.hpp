@@ -49,7 +49,6 @@ std::vector<Proxy *> proxies;
 class Proxy {
 
 private:
-
 	void fill_template(request_template &req_template) {
 		req_template.ptypes_grp.resize(req_template.ptypes_str.size());
 		for (int i = 0; i < req_template.ptypes_str.size(); i++) {
@@ -289,7 +288,8 @@ public:
 				if (send_cnt < nqueries) {
 					int idx = mymath::get_distribution(coder.get_random(), loads);
 					request_or_reply request = tpls[idx].instantiate(coder.get_random());
-
+					if (global_enable_planner)
+						planner.generate_plan(request, statistic);
 					setpid(request);
 					request.blind = true; // always not take back results in batch mode
 					logger.start_record(request.pid, idx);
