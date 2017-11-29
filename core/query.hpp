@@ -56,6 +56,9 @@ public:
 
     bool blind = false;
 
+    map<ssid_t,int> var_map;
+    int col_id =0;
+
     ssid_t local_var = 0;
     vector<ssid_t> cmd_chains; // N * (subject, predicat, direction, object)
     vector<sid_t> result_table;
@@ -108,8 +111,7 @@ public:
     var_type variable_type(ssid_t vid) {
         if (vid >= 0)
             return const_var;
-
-        if ((- vid) > col_num)
+        if(var2column(vid) > col_num - 1)
             return unknown_var;
         else
             return known_var;
@@ -117,7 +119,14 @@ public:
 
     int var2column(ssid_t vid) {
         assert(vid < 0); // pattern variable
-        return ((- vid) - 1);
+    /*    if(var_map.find(vid) != var_map.end()){
+            return var_map[vid];
+        } else {
+            var_map[vid] = col_id ++;
+            return var_map[vid];
+        }
+*/
+   return ((- vid) - 1);
     }
 
     void set_col_num(int n) { col_num = n; }
