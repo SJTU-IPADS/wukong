@@ -119,14 +119,12 @@ public:
 
     int var2column(ssid_t vid) {
         assert(vid < 0); // pattern variable
-    /*    if(var_map.find(vid) != var_map.end()){
+        if(var_map.find(vid) != var_map.end()){
             return var_map[vid];
         } else {
             var_map[vid] = col_id ++;
             return var_map[vid];
         }
-*/
-   return ((- vid) - 1);
     }
 
     void set_col_num(int n) { col_num = n; }
