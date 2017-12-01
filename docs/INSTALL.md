@@ -212,7 +212,7 @@ $wget http://swat.cse.lehigh.edu/projects/lubm/GeneratorLinuxFix.zip
 $unzip uba1.7.zip -d ./uba1.7
 $unzip GeneratorLinuxFix.zip -d .
 $mv Generator.java uba1.7/src/edu/lehigh/swat/bench/uba/Generator.java
-$javac uba1.7/src/edu/lehigh/swat/bench/uba/Generator.java
+$javac uba1.7/src/edu/lehigh/swat/bench/uba/*.java
 $cp uba1.7/src/edu/lehigh/swat/bench/uba/*.class uba1.7/classes/edu/lehigh/swat/bench/uba/
 ```
 
