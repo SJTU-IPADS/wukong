@@ -355,6 +355,7 @@ class Engine {
             sub_reqs[i].col_num = req.col_num;
             sub_reqs[i].blind = req.blind;
             sub_reqs[i].local_var = start;
+            sub_reqs[i].var_map  = req.var_map;
         }
 
         for (int i = 0; i < req.get_row_num(); i++) {
@@ -379,6 +380,7 @@ class Engine {
             sub_reqs[i].col_num = req.col_num;
             sub_reqs[i].blind = req.blind;
             sub_reqs[i].local_var = start;
+            sub_reqs[i].var_map  = req.var_map;
         }
 
         for (int i = 0; i < req.get_row_num(); i++) {
@@ -443,6 +445,8 @@ class Engine {
         sub_req.cmd_chains = sub_chain;
         sub_req.blind = false; // must take back results
         sub_req.col_num = 1;
+        //init var_map 
+        sub_req.init_var_map(pvars_map.size());
 
         uint64_t t1 = timer::get_usec(); // time to generate the sub-request
 

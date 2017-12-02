@@ -55,9 +55,9 @@ public:
     int row_num = 0;
 
     bool blind = false;
-
-    map<ssid_t,int> var_map;
-    int col_id =0;
+    // use to map colum of result table and the variable id (-1,-2,etc.);
+    vector<ssid_t> var_map;
+    int col_id = 0;
 
     ssid_t local_var = 0;
     vector<ssid_t> cmd_chains; // N * (subject, predicat, direction, object)
@@ -66,7 +66,11 @@ public:
     request_or_reply() { }
 
     request_or_reply(vector<ssid_t> _cc): cmd_chains(_cc) { }
-
+    
+    request_or_reply(vector<ssid_t> _cc, int size ): cmd_chains(_cc) { 
+        var_map.resize(size,-1);
+    }
+    
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
         ar & id;
@@ -79,13 +83,20 @@ public:
         ar & local_var;
         ar & cmd_chains;
         ar & result_table;
+        ar & var_map;
     }
 
-    void clear_data() { result_table.clear(); }
+    void clear_data() { result_table.clear();}
 
     bool is_finished() { return (step * 4 >= cmd_chains.size()); }
 
     bool is_request() { return (id == -1); }
+
+    
+    // init the var_map with the variableCount
+    void init_var_map(int size) {
+        var_map.resize(10,-1);
+    }
 
     bool start_from_index() {
         /*
@@ -119,11 +130,18 @@ public:
 
     int var2column(ssid_t vid) {
         assert(vid < 0); // pattern variable
-        if(var_map.find(vid) != var_map.end()){
-            return var_map[vid];
+         
+        // record the map in var_map 
+        int id = (-1) * vid -1;
+        assert (id < var_map.size()) ; // check the var_map
+
+        // if it has recorded in previous  
+        if(var_map[id] != -1){
+            return var_map[id];
+       
         } else {
-            var_map[vid] = col_id ++;
-            return var_map[vid];
+            var_map[id] = col_id ++;
+            return var_map[id];
         }
     }
 
@@ -151,6 +169,8 @@ class request_template {
 public:
     vector<ssid_t> cmd_chains;
 
+    // store the number of variable 
+    int variable_count; 
     // no serialize
     vector<int> ptypes_pos;            // the locations of random-constants
     vector<string> ptypes_str;             // the Types of random-constants
@@ -162,6 +182,6 @@ public:
             cmd_chains[ptypes_pos[i]] =
                 ptypes_grp[i][seed % ptypes_grp[i].size()];
         }
-        return request_or_reply(cmd_chains);
+        return request_or_reply(cmd_chains, variable_count);
     }
 };

@@ -262,6 +262,8 @@ private:
             req_template.cmd_chains.push_back(token2id(triple[1]));
             req_template.cmd_chains.push_back(d);
             req_template.cmd_chains.push_back(token2id(triple[2]));
+           // cout << "the pvars.size" << pvars.size();
+            req_template.variable_count = pvars.size();
         }
 
         // insert a new CORUN pattern
@@ -338,6 +340,10 @@ private:
             temp_cmd_chains.push_back(_H_encode(iter->object));
         }
         r.cmd_chains = temp_cmd_chains;
+
+        // init the var_map
+        r.init_var_map(parser.getVariableCount());
+         
     }
 
     void _H_push(const SPARQLParser::Element &element, request_template &r, int pos) {
@@ -360,6 +366,9 @@ private:
             r.cmd_chains.push_back(OUT); pos++;
             _H_push(iter->object, r, pos++);
         }
+        
+        // init the var_map
+        r.variable_count = parser.getVariableCount();
     }
     bool _H_do_parse(istream &is, request_or_reply &r) {
         string query = read_input(is);
@@ -430,6 +439,8 @@ public:
             }
 
             r.cmd_chains = req_template.cmd_chains;
+            //init the var map in the req
+            r.init_var_map(req_template.variable_count);
             return true;
         }
     }
@@ -468,6 +479,7 @@ public:
         r.cmd_chains.push_back(TYPE_ID);  // reserved ID for "rdf:type"
         r.cmd_chains.push_back(IN);
         r.cmd_chains.push_back(-1);
+        r.init_var_map(1);
         return true;
     }
 
