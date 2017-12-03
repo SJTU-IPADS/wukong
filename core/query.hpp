@@ -95,7 +95,7 @@ public:
     
     // init the var_map with the variableCount
     void init_var_map(int size) {
-        var_map.resize(10,-1);
+        var_map.resize(size,-1);
     }
 
     bool start_from_index() {
