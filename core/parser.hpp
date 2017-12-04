@@ -262,8 +262,9 @@ private:
             req_template.cmd_chains.push_back(token2id(triple[1]));
             req_template.cmd_chains.push_back(d);
             req_template.cmd_chains.push_back(token2id(triple[2]));
-           // cout << "the pvars.size" << pvars.size();
-            req_template.variable_count = pvars.size();
+
+            // cout << "the pvars.size" << pvars.size();
+            req_template.nvars = pvars.size();
         }
 
         // insert a new CORUN pattern
@@ -343,7 +344,6 @@ private:
 
         // init the var_map
         r.init_var_map(parser.getVariableCount());
-         
     }
 
     void _H_push(const SPARQLParser::Element &element, request_template &r, int pos) {
@@ -366,9 +366,9 @@ private:
             r.cmd_chains.push_back(OUT); pos++;
             _H_push(iter->object, r, pos++);
         }
-        
-        // init the var_map
-        r.variable_count = parser.getVariableCount();
+
+        // set the number of variables in triple patterns
+        r.nvars = parser.getVariableCount();
     }
     bool _H_do_parse(istream &is, request_or_reply &r) {
         string query = read_input(is);
@@ -440,7 +440,7 @@ public:
 
             r.cmd_chains = req_template.cmd_chains;
             //init the var map in the req
-            r.init_var_map(req_template.variable_count);
+            r.init_var_map(req_template.nvars);
             return true;
         }
     }

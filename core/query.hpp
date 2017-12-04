@@ -55,8 +55,8 @@ public:
     int row_num = 0;
 
     bool blind = false;
-    // use to map colum of result table and the variable id (-1,-2,etc.);
-    vector<ssid_t> var_map;
+
+    vector<ssid_t> var_map;  // the mapping from variable ID (e.g., -1) to the column number of result table
     int col_id = 0;
 
     ssid_t local_var = 0;
@@ -66,11 +66,11 @@ public:
     request_or_reply() { }
 
     request_or_reply(vector<ssid_t> _cc): cmd_chains(_cc) { }
-    
-    request_or_reply(vector<ssid_t> _cc, int size ): cmd_chains(_cc) { 
-        var_map.resize(size,-1);
+
+    request_or_reply(vector<ssid_t> _cc, int size ): cmd_chains(_cc) {
+        var_map.resize(size, -1);
     }
-    
+
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
         ar & id;
@@ -92,10 +92,10 @@ public:
 
     bool is_request() { return (id == -1); }
 
-    
+
     // init the var_map with the variableCount
     void init_var_map(int size) {
-        var_map.resize(size,-1);
+        var_map.resize(size, -1);
     }
 
     bool start_from_index() {
@@ -122,7 +122,7 @@ public:
     var_type variable_type(ssid_t vid) {
         if (vid >= 0)
             return const_var;
-        if(var2column(vid) > col_num - 1)
+        if (var2column(vid) > col_num - 1)
             return unknown_var;
         else
             return known_var;
@@ -130,19 +130,15 @@ public:
 
     int var2column(ssid_t vid) {
         assert(vid < 0); // pattern variable
-         
-        // record the map in var_map 
-        int id = (-1) * vid -1;
+
+        // record the map in var_map
+        int id = (-vid) - 1;
         assert (id < var_map.size()) ; // check the var_map
 
-        // if it has recorded in previous  
-        if(var_map[id] != -1){
-            return var_map[id];
-       
-        } else {
-            var_map[id] = col_id ++;
-            return var_map[id];
-        }
+        if (var_map[id] == -1)
+            var_map[id] = col_id++;
+
+        return var_map[id];
     }
 
     void set_col_num(int n) { col_num = n; }
@@ -169,8 +165,8 @@ class request_template {
 public:
     vector<ssid_t> cmd_chains;
 
-    // store the number of variable 
-    int variable_count; 
+    int nvars;  // the number of variable in triple patterns
+
     // no serialize
     vector<int> ptypes_pos;            // the locations of random-constants
     vector<string> ptypes_str;             // the Types of random-constants
