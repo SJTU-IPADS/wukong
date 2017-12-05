@@ -178,6 +178,6 @@ public:
             cmd_chains[ptypes_pos[i]] =
                 ptypes_grp[i][seed % ptypes_grp[i].size()];
         }
-        return request_or_reply(cmd_chains, variable_count);
+        return request_or_reply(cmd_chains, nvars);
     }
 };
