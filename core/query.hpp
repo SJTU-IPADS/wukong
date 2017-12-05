@@ -55,9 +55,8 @@ public:
     int row_num = 0;
 
     bool blind = false;
-
-    vector<ssid_t> var_map;  // the mapping from variable ID (e.g., -1) to the column number of result table
-    int col_id = 0;
+    // use to map colum of result table and the variable id (-1,-2,etc.);
+    vector<ssid_t> var_map;
 
     ssid_t local_var = 0;
     vector<ssid_t> cmd_chains; // N * (subject, predicat, direction, object)
@@ -118,11 +117,12 @@ public:
         }
         return false;
     }
+    
 
     var_type variable_type(ssid_t vid) {
         if (vid >= 0)
             return const_var;
-        if (var2column(vid) > col_num - 1)
+        if(var2column(vid) == -1)
             return unknown_var;
         else
             return known_var;
@@ -130,15 +130,16 @@ public:
 
     int var2column(ssid_t vid) {
         assert(vid < 0); // pattern variable
-
-        // record the map in var_map
-        int id = (-vid) - 1;
-        assert (id < var_map.size()) ; // check the var_map
-
-        if (var_map[id] == -1)
-            var_map[id] = col_id++;
-
+        int id = (-1) * vid -1;
         return var_map[id];
+    }
+
+    void insert_var_col_mapping(ssid_t vid, int col) {
+        int id = (-1) * vid -1;
+        assert (id < var_map.size() && col >= 0) ; // check the var_map
+        assert (var_map[id] == -1) ; // first time insert
+
+        var_map[id] = col;
     }
 
     void set_col_num(int n) { col_num = n; }
@@ -151,6 +152,7 @@ public:
     }
 
     sid_t get_row_col(int r, int c) {
+        assert(r>-1 && c> -1);
         return result_table[col_num * r + c];
     }
 

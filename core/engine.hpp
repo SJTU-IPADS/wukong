@@ -126,7 +126,7 @@ class Engine {
         std::vector<sid_t> updated_result_table;
 
         // the query plan is wrong
-        assert((req.get_col_num() == 0) && (req.get_col_num() == req.var2column(end)));
+        assert(req.get_col_num() == 0);
 
         uint64_t sz = 0;
         edge_t *res = graph->get_edges_global(tid, start, d, pid, &sz);
@@ -134,6 +134,7 @@ class Engine {
             updated_result_table.push_back(res[k].val);
 
         req.result_table.swap(updated_result_table);
+        req.insert_var_col_mapping(end,0);
         req.set_col_num(1);
         req.step++;
     }
@@ -148,7 +149,7 @@ class Engine {
         std::vector<sid_t> updated_result_table;
 
         // the query plan is wrong
-        assert(req.get_col_num() == req.var2column(end));
+        //assert(req.get_col_num() == req.var2column(end));
 
         updated_result_table.reserve(req.result_table.size());
         for (int i = 0; i < req.get_row_num(); i++) {
@@ -161,6 +162,7 @@ class Engine {
             }
         }
 
+        req.insert_var_col_mapping(end, req.get_col_num());
         req.set_col_num(req.get_col_num() + 1);
         req.result_table.swap(updated_result_table);
         req.step++;
@@ -221,7 +223,7 @@ class Engine {
         vector<sid_t> updated_result_table;
 
         // the query plan is wrong
-        assert(req.get_col_num() == 0 && req.get_col_num() == req.var2column(var));
+        assert(req.get_col_num() == 0 );
 
         uint64_t sz = 0;
         edge_t *res = graph->get_index_edges_local(tid, idx, d, &sz);
@@ -231,6 +233,7 @@ class Engine {
 
         req.result_table.swap(updated_result_table);
         req.set_col_num(1);
+        req.insert_var_col_mapping(var, 0);
         req.step++;
         req.local_var = -1;
     }
@@ -264,6 +267,8 @@ class Engine {
         free(tpids);
 
         req.result_table.swap(updated_result_table);
+        req.insert_var_col_mapping(pid, 0);
+        req.insert_var_col_mapping(end, 1);
         req.set_col_num(2);
         req.step++;
     }
@@ -298,6 +303,8 @@ class Engine {
             free(tpids);
         }
 
+        req.insert_var_col_mapping(pid, req.get_col_num());
+        req.insert_var_col_mapping(end, req.get_col_num()+1);
         req.set_col_num(req.get_col_num() + 2);
         req.result_table.swap(updated_result_table);
         req.step++;
@@ -336,6 +343,7 @@ class Engine {
             free(tpids);
         }
 
+        req.insert_var_col_mapping(pid, req.get_col_num());
         req.set_col_num(req.get_col_num() + 1);
         req.result_table.swap(updated_result_table);
         req.step++;
@@ -445,7 +453,10 @@ class Engine {
         sub_req.cmd_chains = sub_chain;
         sub_req.blind = false; // must take back results
         sub_req.col_num = 1;
-        sub_req.init_var_map(pvars_map.size()); //init var_map
+        
+        //init var_map 
+        sub_req.init_var_map(pvars_map.size());
+        sub_req.insert_var_col_mapping(sub_pvars[vid],0);
 
         uint64_t t1 = timer::get_usec(); // time to generate the sub-request
 
