@@ -352,10 +352,9 @@ class Engine {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
 
-        vector<request_or_reply> sub_reqs;
-        int num_sub_request = global_num_servers;
-        sub_reqs.resize(num_sub_request);
-        for (int i = 0; i < sub_reqs.size(); i++) {
+        // generate sub requests for all servers
+        vector<request_or_reply> sub_reqs(global_num_servers);
+        for (int i = 0; i < global_num_servers; i++) {
             sub_reqs[i].pid = req.id;
             sub_reqs[i].cmd_chains = req.cmd_chains;
             sub_reqs[i].step = req.step;
@@ -366,37 +365,13 @@ class Engine {
             sub_reqs[i].nvars  = req.nvars;
         }
 
+        // group intermediate results to servers
         for (int i = 0; i < req.get_row_num(); i++) {
-            int id = mymath::hash_mod(req.get_row_col(i, req.var2col(start)),
-                                      num_sub_request);
-            req.append_row_to(i, sub_reqs[id].result_table);
-        }
-        return sub_reqs;
-    }
-
-    vector<request_or_reply> generate_mt_sub_requests(request_or_reply &req) {
-        ssid_t start = req.cmd_chains[req.step * 4];
-        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
-
-        vector<request_or_reply> sub_reqs;
-        int num_sub_request = global_num_servers * global_mt_threshold ;
-        sub_reqs.resize(num_sub_request);
-        for (int i = 0; i < sub_reqs.size(); i++) {
-            sub_reqs[i].pid = req.id;
-            sub_reqs[i].cmd_chains = req.cmd_chains;
-            sub_reqs[i].step = req.step;
-            sub_reqs[i].col_num = req.col_num;
-            sub_reqs[i].blind = req.blind;
-            sub_reqs[i].local_var = start;
-            sub_reqs[i].v2c_map  = req.v2c_map;
-            sub_reqs[i].nvars  = req.nvars;
+            int sid = mymath::hash_mod(req.get_row_col(i, req.var2col(start)),
+                                       global_num_servers);
+            req.append_row_to(i, sub_reqs[sid].result_table);
         }
 
-        for (int i = 0; i < req.get_row_num(); i++) {
-            int id = mymath::hash_mod(req.get_row_col(i, req.var2col(start)),
-                                      num_sub_request);
-            req.append_row_to(i, sub_reqs[id].result_table);
-        }
         return sub_reqs;
     }
 

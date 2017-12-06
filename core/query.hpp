@@ -66,7 +66,7 @@ public:
 
     // query results
     vector<sid_t> result_table;
-    vector<ssid_t> v2c_map; // from variable ID (vid) to column ID
+    vector<int> v2c_map; // from variable ID (vid) to column ID
 
 
     request_or_reply() { }
