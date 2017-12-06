@@ -43,6 +43,7 @@ enum var_type {
 constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
 class request_or_reply {
+    static const int NO_RESULT = -1;
 
 public:
     int id = -1;     // query id
@@ -55,19 +56,24 @@ public:
     int row_num = 0;
 
     bool blind = false;
-    // use to map colum of result table and the variable id (-1,-2,etc.);
-    vector<ssid_t> var_map;
 
-    ssid_t local_var = 0;
-    vector<ssid_t> cmd_chains; // N * (subject, predicat, direction, object)
+    int nvars = 0; // the number of variables
+    ssid_t local_var = 0;   // the local variable
+
+    // ID-format triple patterns (Subject, Predicat, Direction, Object)
+    vector<ssid_t> cmd_chains;
+
+    // query results
     vector<sid_t> result_table;
+    vector<ssid_t> v2c_map; // from variable ID (vid) to column ID
+
 
     request_or_reply() { }
 
-    request_or_reply(vector<ssid_t> _cc): cmd_chains(_cc) { }
-
-    request_or_reply(vector<ssid_t> _cc, int size ): cmd_chains(_cc) {
-        var_map.resize(size, -1);
+    // build a request by existing triple patterns and variables
+    request_or_reply(vector<ssid_t> cc, int n)
+        : cmd_chains(cc), nvars(n) {
+        v2c_map.resize(n, NO_RESULT);
     }
 
     template <typename Archive>
@@ -79,10 +85,11 @@ public:
         ar & col_num;
         ar & row_num;
         ar & blind;
+        ar & nvars;
         ar & local_var;
         ar & cmd_chains;
         ar & result_table;
-        ar & var_map;
+        ar & v2c_map;
     }
 
     void clear_data() { result_table.clear();}
@@ -90,12 +97,6 @@ public:
     bool is_finished() { return (step * 4 >= cmd_chains.size()); }
 
     bool is_request() { return (id == -1); }
-
-
-    // init the var_map with the variableCount
-    void init_var_map(int size) {
-        var_map.resize(size, -1);
-    }
 
     bool start_from_index() {
         /*
@@ -117,34 +118,42 @@ public:
         }
         return false;
     }
-    
 
     var_type variable_type(ssid_t vid) {
         if (vid >= 0)
             return const_var;
-        if(var2column(vid) == -1)
+        else if (var2col(vid) == NO_RESULT)
             return unknown_var;
         else
             return known_var;
     }
 
-    int var2column(ssid_t vid) {
-        assert(vid < 0); // pattern variable
-        int id = (-1) * vid -1;
-        return var_map[id];
+    // get column id from vid (pattern variable)
+    int var2col(ssid_t vid) {
+        assert(vid < 0);
+        if (v2c_map.size == 0) // init
+            v2c_map.resize(nvars, NO_RESULT);
+        int idx = - (vid + 1);
+        assert(idx < nvars);
+
+        return v2c_map[idx];
     }
 
-    void insert_var_col_mapping(ssid_t vid, int col) {
-        int id = (-1) * vid -1;
-        assert (id < var_map.size() && col >= 0) ; // check the var_map
-        assert (var_map[id] == -1) ; // first time insert
+    // add column id to vid (pattern variable)
+    void add_var2col(ssid_t vid, int col) {
+        assert(vid < 0 && col >= 0);
+        if (v2c_map.size == 0) // init
+            v2c_map.resize(nvars, NO_RESULT);
+        int idx = - (vid + 1);
+        assert(idx < nvars);
 
-        var_map[id] = col;
+        assert(v2c_map[idx] == NO_RESULT);
+        v2c_map[idx] = col;
     }
 
     void set_col_num(int n) { col_num = n; }
 
-    int get_col_num() { return col_num; };
+    int get_col_num() { return col_num; }
 
     int get_row_num() {
         if (col_num == 0) return 0;
@@ -152,13 +161,13 @@ public:
     }
 
     sid_t get_row_col(int r, int c) {
-        assert(r>-1 && c> -1);
+        assert(r >= 0 && c >= 0);
         return result_table[col_num * r + c];
     }
 
-    void append_row_to(int r, vector<sid_t> &updated_result_table) {
+    void append_row_to(int r, vector<sid_t> &update) {
         for (int c = 0; c < col_num; c++)
-            updated_result_table.push_back(get_row_col(r, c));
+            update.push_back(get_row_col(r, c));
     }
 };
 
@@ -170,16 +179,14 @@ public:
     int nvars;  // the number of variable in triple patterns
 
     // no serialize
-    vector<int> ptypes_pos;            // the locations of random-constants
-    vector<string> ptypes_str;             // the Types of random-constants
-    vector<vector<sid_t>> ptypes_grp;    // the candidates for random-constants
+    vector<int> ptypes_pos; // the locations of random-constants
+    vector<string> ptypes_str; // the Types of random-constants
+    vector<vector<sid_t>> ptypes_grp; // the candidates for random-constants
 
     request_or_reply instantiate(int seed) {
-        //request_or_reply request(cmd_chains);
-        for (int i = 0; i < ptypes_pos.size(); i++) {
+        for (int i = 0; i < ptypes_pos.size(); i++)
             cmd_chains[ptypes_pos[i]] =
                 ptypes_grp[i][seed % ptypes_grp[i].size()];
-        }
         return request_or_reply(cmd_chains, nvars);
     }
 };
