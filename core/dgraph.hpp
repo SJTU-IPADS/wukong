@@ -429,12 +429,12 @@ public:
 		aggregate_data(num_partitons);
 
 		// initiate gstore (kvstore) after loading and exchanging triples
-		gstore.init();
+		gstore.init(nthread_parallel_load);
 
 		uint64_t t1 = timer::get_usec();
 		#pragma omp parallel for num_threads(nthread_parallel_load)
 		for (int t = 0; t < nthread_parallel_load; t++) {
-			gstore.insert_normal(triple_spo[t], triple_ops[t]);
+			gstore.insert_normal(triple_spo[t], triple_ops[t], t);
 
 			// release memory
 			vector<triple_t>().swap(triple_spo[t]);

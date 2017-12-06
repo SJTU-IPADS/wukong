@@ -34,6 +34,7 @@
 #include "rdma.hpp"
 #include "data_statistic.hpp"
 #include "type.hpp"
+#include "buddy_malloc.hpp"
 
 #include "mymath.hpp"
 #include "timer.hpp"
@@ -155,6 +156,11 @@ uint64_t off: NBITS_PTR;
 struct vertex_t {
     ikey_t key; // 64-bit: vertex | predicate | direction
     iptr_t ptr; // 64-bit: size | offset
+    pthread_spinlock_t realloc_lock;
+    void init(){
+      pthread_spin_init(&realloc_lock, 0);
+      ptr=iptr_t();
+    }
 };
 
 // 32-bit edge (value)
@@ -241,12 +247,31 @@ private:
 
     RDMA_Cache rdma_cache;
 
+    // manage the memory of edges(val)
+    Malloc_Interface *value_manager;
+
     pthread_spinlock_t entry_lock;
     pthread_spinlock_t bucket_ext_lock;
     pthread_spinlock_t bucket_locks[NUM_LOCKS]; // lock virtualization (see paper: vLokc CGO'13)
 
-    // cluster chaining hash-table (see paper: DrTM SOSP'15)
-    uint64_t insert_key(ikey_t key) {
+    bool init_value_mem(uint64_t off, uint64_t size, int64_t t_id = -1){
+        bool ret = true;
+        vertex_t *v = &vertices[off];
+        pthread_spin_lock(&v->realloc_lock);
+        // value area has already existed!
+        if (v->ptr.size!=0){
+            ret = false;
+            pthread_spin_unlock(&v->realloc_lock);
+            return ret;
+        }
+        //get the ptr which could store values
+        uint64_t curr_edge_ptr = value_manager->alloc(size*sizeof(edge_t),t_id) / sizeof(edge_t);
+        vertices[off].ptr = iptr_t(size, curr_edge_ptr);  
+        pthread_spin_unlock(&v->realloc_lock);
+        return ret;
+    }
+
+    uint64_t insert_key(ikey_t key,bool check_dep=true) {
         uint64_t bucket_id = key.hash() % num_buckets;
         uint64_t slot_id = bucket_id * ASSOCIATIVITY;
         uint64_t lock_id = bucket_id % NUM_LOCKS;
@@ -261,16 +286,21 @@ private:
             for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
                 //assert(vertices[slot_id].key != key); // no duplicate key
                 if (vertices[slot_id].key == key) {
-                    key.print();
-                    vertices[slot_id].key.print();
-                    cout << "ERROR: conflict at slot["
-                         << slot_id << "] of bucket["
-                         << bucket_id << "]" << endl;
-                    assert(false);
+                    if (check_dep){
+                        key.print();
+                        vertices[slot_id].key.print();
+                        cout << "ERROR: conflict at slot["
+                            << slot_id << "] of bucket["
+                            << bucket_id << "]" << endl;
+                        assert(false);
+                    }else{
+                        goto done;
+                    }
                 }
 
                 // insert to an empty slot
                 if (vertices[slot_id].key.is_empty()) {
+                    vertices[slot_id].init();
                     vertices[slot_id].key = key;
                     goto done;
                 }
@@ -293,6 +323,7 @@ private:
             pthread_spin_unlock(&bucket_ext_lock);
 
             slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY; // move to a new bucket_ext
+            vertices[slot_id].init();
             vertices[slot_id].key = key; // insert to the first slot
             goto done;
         }
@@ -302,6 +333,7 @@ done:
         assert(vertices[slot_id].key == key);
         return slot_id;
     }
+
 
     uint64_t sync_fetch_and_alloc_edges(uint64_t n) {
         uint64_t orig;
@@ -426,15 +458,14 @@ done:
         for (auto const &e : map) {
             sid_t pid = e.first;
             uint64_t sz = e.second.size();
-            uint64_t off = sync_fetch_and_alloc_edges(sz);
-
             ikey_t key = ikey_t(0, pid, d);
+
             uint64_t slot_id = insert_key(key);
-            iptr_t ptr = iptr_t(sz, off);
-            vertices[slot_id].ptr = ptr;
+            init_value_mem(slot_id,sz);
+            uint64_t edge_ptr = vertices[slot_id].ptr.off;
 
             for (auto const &vid : e.second)
-                edges[off++].val = vid;
+                edges[edge_ptr++].val = vid;
         }
     }
 
@@ -444,17 +475,17 @@ done:
     tbb_unordered_set p_set; // all of predicates
     tbb_unordered_set v_set; // all of vertices (subjects and objects)
 
+
     void insert_index_set(tbb_unordered_set &set, dir_t d) {
         uint64_t sz = set.size();
-        uint64_t off = sync_fetch_and_alloc_edges(sz);
-
         ikey_t key = ikey_t(0, TYPE_ID, d);
         uint64_t slot_id = insert_key(key);
-        iptr_t ptr = iptr_t(sz, off);
-        vertices[slot_id].ptr = ptr;
+
+        init_value_mem(slot_id,sz);
+        uint64_t edge_ptr = vertices[slot_id].ptr.off;
 
         for (auto const &e : set)
-            edges[off++].val = e;
+            edges[edge_ptr++].val = e;
     }
 #endif
 
@@ -507,7 +538,11 @@ public:
             pthread_spin_init(&bucket_locks[i], 0);
     }
 
-    void init() {
+    void init(uint64_t nthread_parallel_load) {
+        //create and init value memanger
+        value_manager = new Buddy_Malloc();
+        value_manager->init((void*)edges, num_entries * sizeof(edge_t), nthread_parallel_load);
+
         // initiate keys
         #pragma omp parallel for num_threads(global_num_engines)
         for (uint64_t i = 0; i < num_slots; i++)
@@ -518,7 +553,7 @@ public:
     // because Wukong treats all TYPE triples as index vertices. In addition, the triples in triple_ops
     // has been sorted by the vid of object, and IDs of types are always smaller than normal vertex IDs.
     // Consequently, all TYPE triples are aggregated at the beggining of triple_ops
-    void insert_normal(vector<triple_t> &spo, vector<triple_t> &ops) {
+    void insert_normal(vector<triple_t> &spo, vector<triple_t> &ops, int64_t t_id) {
         // treat type triples as index vertices
         uint64_t type_triples = 0;
         while (type_triples < ops.size() && is_tpid(ops[type_triples].o))
@@ -528,10 +563,10 @@ public:
         // the number of separate combinations of subject/object and predicate
         uint64_t accum_predicate = 0;
 #endif
-        // allocate edges in entry region for triples
-        uint64_t off = sync_fetch_and_alloc_edges(spo.size() + ops.size() - type_triples);
 
+        uint64_t edge_ptr;
         uint64_t s = 0;
+
         while (s < spo.size()) {
             // predicate-based key (subject + predicate)
             uint64_t e = s + 1;
@@ -544,12 +579,14 @@ public:
             // insert vertex
             ikey_t key = ikey_t(spo[s].s, spo[s].p, OUT);
             uint64_t slot_id = insert_key(key);
-            iptr_t ptr = iptr_t(e - s, off);
-            vertices[slot_id].ptr = ptr;
+
+            //alloc memory for values
+            init_value_mem(slot_id, e-s, t_id);
+            edge_ptr = vertices[slot_id].ptr.off;
 
             // insert edges
             for (uint64_t i = s; i < e; i++)
-                edges[off++].val = spo[i].o;
+                edges[edge_ptr++].val = spo[i].o;
 
             s = e;
         }
@@ -567,12 +604,15 @@ public:
             // insert vertex
             ikey_t key = ikey_t(ops[s].o, ops[s].p, IN);
             uint64_t slot_id = insert_key(key);
-            iptr_t ptr = iptr_t(e - s, off);
-            vertices[slot_id].ptr = ptr;
+
+            //alloc memory for values
+            init_value_mem(slot_id, e-s , t_id);
+            edge_ptr = vertices[slot_id].ptr.off;
 
             // insert edges
             for (uint64_t i = s; i < e; i++)
-                edges[off++].val = ops[i].s;
+                //edges[off++].val = ops[i].s;
+                edges[edge_ptr++].val = ops[i].s;
 
             s = e;
         }
@@ -587,7 +627,6 @@ public:
         // NOTE, it is disabled by default in order to save memory.
 
         // allocate edges in entry region for special PREDICATE triples
-        off = sync_fetch_and_alloc_edges(accum_predicate);
 
         s = 0;
         while (s < spo.size()) {
@@ -595,24 +634,27 @@ public:
             ikey_t key = ikey_t(spo[s].s, PREDICATE_ID, OUT);
             uint64_t slot_id = insert_key(key);
 
-            // insert edges
+            // we should know the size for each key first
             uint64_t e = s, sz = 0;
-            do {
-                uint64_t m = e;
-                edges[off++].val = spo[e++].p; // insert a new predicate
-                sz++;
+            while (e < spo.size() && spo[s].s == spo[e].s){
+                if(e == s || spo[e].p != spo[e-1].p){
+                    sz++;
+                }
+                e++;
+            }
+            if (spo[s].s < (1 << NBITS_IDX))
+                assert(false);
 
-                // skip the triples with the same subject and predicate
-                while ((e < spo.size())
-                        && (spo[s].s == spo[e].s)
-                        && (spo[m].p == spo[e].p)) { e++; }
-            } while (e < spo.size() && spo[s].s == spo[e].s);
+            //alloc memory for values
+            init_value_mem(slot_id, sz, t_id);
+            edge_ptr = vertices[slot_id].ptr.off;
 
-            // link to edges
-            iptr_t ptr = iptr_t(sz, off - sz);
-            vertices[slot_id].ptr = ptr;
-
-            s = e;
+            for(int idx = s; idx < e; idx++){
+                if(idx == s || spo[idx].p!=spo[idx-1].p){
+                    edges[edge_ptr++].val = spo[idx].p;
+                }
+		    }
+            s=e;
         }
 
         s = type_triples;
@@ -620,24 +662,27 @@ public:
             // insert vertex
             ikey_t key = ikey_t(ops[s].o, PREDICATE_ID, IN);
             uint64_t slot_id = insert_key(key);
-
-            // insert edges
+            
+            // we should know the size for each key first
             uint64_t e = s, sz = 0;
-            do {
-                uint64_t m = e;
-                edges[off++].val = ops[e++].p; // insert a new predicate
-                sz++;
+            while (e < ops.size() && ops[s].o == ops[e].o){
+                if(e == s || ops[e].p != ops[e-1].p){
+                    sz++;
+                }
+                e++;
+            }
+            if (ops[s].o < (1 << NBITS_IDX))
+                assert(false);
 
-                // skip the triples with the same object and predicate
-                while ((e < ops.size())
-                        && (ops[s].o == ops[e].o)
-                        && (ops[m].p == ops[e].p)) { e++; }
-            } while (e < ops.size() && ops[s].o == ops[e].o);
+            //alloc memory for values
+            init_value_mem(slot_id, sz, t_id);
+            edge_ptr = vertices[slot_id].ptr.off;
 
-            // link to edges
-            iptr_t ptr = iptr_t(sz, off - sz);
-            vertices[slot_id].ptr = ptr;
-
+            for(int idx = s; idx < e; idx++){
+                if(idx == s || ops[idx].p!=ops[idx-1].p){
+                    edges[edge_ptr++].val = ops[idx].p;
+                }
+		    }
             s = e;
         }
 #endif
@@ -648,6 +693,7 @@ public:
 
         cout << " start (parallel) prepare index info " << endl;
 
+        value_manager->merge_freelists();
         // scan raw data to generate index data in parallel
         #pragma omp parallel for num_threads(global_num_engines)
         for (uint64_t bucket_id = 0; bucket_id < num_buckets + last_ext; bucket_id++) {
