@@ -23,6 +23,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <boost/variant.hpp>
 
 #ifdef DTYPE_64BIT
 
@@ -38,3 +39,4 @@ typedef int32_t ssid_t;  // signed string id
 
 enum dir_t { IN, OUT, CORUN }; // direction: IN=0, OUT=1, and optimization hints
 
+typedef boost::variant<int, double, float> attr_t;

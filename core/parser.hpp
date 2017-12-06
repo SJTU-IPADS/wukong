@@ -263,6 +263,12 @@ private:
             req_template.cmd_chains.push_back(d);
             req_template.cmd_chains.push_back(token2id(triple[2]));
 
+            int pred_type = str_server->pred_type[token2id(triple[1])];
+            if (pred_type > 0 && (!global_enable_vertex_attr)) {
+                cout << "Need to change config to enable vertex_attr " << endl;
+                assert(false);
+            }
+            req_template.pred_type_chains.push_back(pred_type);
             // cout << "the pvars.size" << pvars.size();
             req_template.nvars = pvars.size();
         }
@@ -282,6 +288,7 @@ private:
 
                 req_template.cmd_chains.insert(req_template.cmd_chains.begin() + corun_step * 4,
                                                corun_pattern.begin(), corun_pattern.end());
+                req_template.pred_type_chains.insert(req_template.pred_type_chains.begin() + corun_step, 0);
             }
         }
 
@@ -332,6 +339,7 @@ private:
     }
     void _H_simplist_transfer(const SPARQLParser &parser, request_or_reply &r) {
         vector<ssid_t> temp_cmd_chains ;
+        vector<int> temp_pred_type_chains;
         SPARQLParser::PatternGroup group = parser.getPatterns();
         for (std::vector<SPARQLParser::Pattern>::const_iterator iter = group.patterns.begin(),
                 limit = group.patterns.end(); iter != limit; ++iter) {
@@ -339,9 +347,16 @@ private:
             temp_cmd_chains.push_back(_H_encode(iter->predicate));
             temp_cmd_chains.push_back(OUT);
             temp_cmd_chains.push_back(_H_encode(iter->object));
+            
+            int pred_type =  str_server->pred_type[_H_encode(iter->predicate)];
+            if (pred_type > 0 && (!global_enable_vertex_attr)) {
+                cout << "Need to change config to enable vertex_attr " << endl;
+                assert(false);
+            }
+            temp_pred_type_chains.push_back(str_server->pred_type[_H_encode(iter->predicate)]);
         }
         r.cmd_chains = temp_cmd_chains;
-
+        r.pred_type_chains = temp_pred_type_chains; 
         // init the var_map
         r.init_var_map(parser.getVariableCount());
     }
@@ -365,6 +380,13 @@ private:
             r.cmd_chains.push_back(_H_encode(iter->predicate)); pos++;
             r.cmd_chains.push_back(OUT); pos++;
             _H_push(iter->object, r, pos++);
+            
+            int pred_type =  str_server->pred_type[_H_encode(iter->predicate)];
+            if (pred_type > 0 && (!global_enable_vertex_attr)) {
+                cout << "Need to change config to enable vertex_attr " << endl;
+                assert(false);
+            }
+            r.pred_type_chains.push_back(pred_type);
         }
 
         // set the number of variables in triple patterns
@@ -439,6 +461,7 @@ public:
             }
 
             r.cmd_chains = req_template.cmd_chains;
+            r.pred_type_chains = req_template.pred_type_chains;
             //init the var map in the req
             r.init_var_map(req_template.nvars);
             return true;
@@ -480,6 +503,8 @@ public:
         r.cmd_chains.push_back(IN);
         r.cmd_chains.push_back(-1);
         r.init_var_map(1);
+
+        r.pred_type_chains.push_back(0);
         return true;
     }
 

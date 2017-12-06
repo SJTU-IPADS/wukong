@@ -54,6 +54,7 @@ class DGraph {
 
 	vector<vector<triple_t>> triple_spo;
 	vector<vector<triple_t>> triple_ops;
+    vector<vector<triple_attr_t>> triple_attr;
 
 	void dedup_triples(vector<triple_t> &triples) {
 		if (triples.size() <= 1)
@@ -277,6 +278,99 @@ class DGraph {
 		return global_num_engines;
 	}
 
+	// selectively load own partitioned data from all files
+	int load_attr_from_allfiles(vector<string> &fnames) {
+		uint64_t t1 = timer::get_usec();
+
+		sort(fnames.begin(), fnames.end());
+
+		int num_files = fnames.size();
+		#pragma omp parallel for num_threads(global_num_engines)
+		for (int i = 0; i < num_files; i++) {
+			int localtid = omp_get_thread_num();
+			if (boost::starts_with(fnames[i], "hdfs:")) {
+				// files located on HDFS
+				wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
+				wukong::hdfs::fstream file(hdfs, fnames[i]);
+				sid_t s, p;
+                int type;
+                attr_t v;
+				while (file >> s >> p >> type) {
+                    switch(type){
+                        case 1:
+                            int i;
+                            file >> i;
+                            v = i;
+                            break;
+                        case 2:
+                            float f;
+                            file >> f;
+                            v = f;
+                            break;
+                        case 3:
+                            double d;
+                            file >> d;
+                            v = d;
+                            break;
+                        default:
+                            cout << " Not support value" <<endl;
+                            break;
+                    }
+                    int s_sid = mymath::hash_mod(s, global_num_servers);
+                    if ((s_sid == sid) ) {
+                        triple_attr_t t;
+                        t.s = s;
+                        t.p = p;
+                        t.v = v;
+                        triple_attr[localtid].push_back(t);
+                    }
+                }
+                file.close();
+            } else {
+                ifstream file(fnames[i].c_str());
+                sid_t s, p;
+                int type;
+                attr_t v;
+                while (file >> s >> p >> type) {
+                    switch(type){
+                        case 0:
+                            int i;
+                            file >> i;
+                            v = i;
+                            break;
+                        case 1:
+                            float f;
+                            file >> f;
+                            v = f;
+                            break;
+                        case 2:
+                            double d;
+                            file >> d;
+                            v = d;
+                            break;
+                        default:
+                            cout << " Not support value" <<endl;
+                            break;
+                    }
+                    int s_sid = mymath::hash_mod(s, global_num_servers);
+                    if ((s_sid == sid) ) {
+                        triple_attr_t t;
+                        t.s = s;
+                        t.p = p;
+                        t.v = v;
+                        triple_attr[localtid].push_back(t);
+                    }
+                }
+                file.close();
+            }
+        }
+
+		// timing
+		uint64_t t2 = timer::get_usec();
+		cout << (t2 - t1) / 1000 << " ms for loading RDF data files (w/o networking)" << endl;
+
+		return global_num_engines;
+	}
 	void aggregate_data(int num_partitions) {
 		uint64_t t1 = timer::get_usec();
 
@@ -365,9 +459,12 @@ public:
 		num_triples.resize(global_num_servers);
 		triple_spo.resize(nthread_parallel_load);
 		triple_ops.resize(nthread_parallel_load);
+        triple_attr.resize(nthread_parallel_load);
 
-		vector<string> files; // ID-format data files
-		if (boost::starts_with(dname, "hdfs:")) {
+        vector<string> files; // ID-format data files
+        vector<string> attr_files; // attr-built-format data files
+       
+        if (boost::starts_with(dname, "hdfs:")) {
 			if (!wukong::hdfs::has_hadoop()) {
 				cout << "ERROR: attempting to load data files from HDFS "
 				     << "but Wukong was built without HDFS."
@@ -396,6 +493,8 @@ public:
 				/// TODO: move RDF data files and metadata files to different directories
 				if (boost::starts_with(fname, dname + "id_"))
 					files.push_back(fname);
+				if (boost::starts_with(fname, dname + "attr_"))
+					attr_files.push_back(fname);
 			}
 		}
 
@@ -422,6 +521,8 @@ public:
 		else
 			num_partitons = load_data_from_allfiles(files);
 
+        if(global_enable_vertex_attr)
+            load_attr_from_allfiles(attr_files);
 		// all triples are partitioned and temporarily stored in the kvstore on each server.
 		// the kvstore is split into num_partitions partitions, each contains #triples and triples
 		//
@@ -435,16 +536,21 @@ public:
 		#pragma omp parallel for num_threads(nthread_parallel_load)
 		for (int t = 0; t < nthread_parallel_load; t++) {
 			gstore.insert_normal(triple_spo[t], triple_ops[t]);
-
 			// release memory
 			vector<triple_t>().swap(triple_spo[t]);
 			vector<triple_t>().swap(triple_ops[t]);
 		}
+		
+        #pragma omp parallel for num_threads(nthread_parallel_load)
+        for (int t = 0; t < nthread_parallel_load; t++) {
+            gstore.insert_vertex_attr(triple_attr[t]);
+			// release memory
+            vector<triple_attr_t>().swap(triple_attr[t]);
+        }
 		uint64_t t2 = timer::get_usec();
 		cout << (t2 - t1) / 1000 << " ms for inserting normal data into gstore" << endl;
-
-		gstore.insert_index();
-
+        gstore.insert_index();
+        
 		cout << "INFO#" << sid << ": loading DGraph is finished." << endl;
 		gstore.print_mem_usage();
 	}
@@ -456,4 +562,8 @@ public:
 	edge_t *get_index_edges_local(int tid, sid_t vid, dir_t direction, uint64_t *sz) {
 		return gstore.get_index_edges_local(tid, vid, direction, sz);
 	}
+    
+    bool get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid,attr_t &result) {
+         return gstore.get_vertex_attr_global(tid,vid,d,pid,result);   
+    }
 };

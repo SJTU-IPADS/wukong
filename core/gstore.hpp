@@ -38,7 +38,7 @@
 #include "mymath.hpp"
 #include "timer.hpp"
 #include "unit.hpp"
-
+#include "variant.hpp"
 using namespace std;
 
 struct triple_t {
@@ -50,6 +50,13 @@ struct triple_t {
 
     triple_t(sid_t _s, sid_t _p, sid_t _o): s(_s), p(_p), o(_o) { }
 };
+
+struct triple_attr_t {
+    sid_t s; //subject
+    sid_t p; //predicate
+    attr_t v;    //the value
+};
+
 
 struct edge_sort_by_spo {
     inline bool operator()(const triple_t &t1, const triple_t &t2) {
@@ -76,7 +83,6 @@ struct edge_sort_by_ops {
         return false;
     }
 };
-
 enum { NBITS_DIR = 1 };
 enum { NBITS_IDX = 17 }; // equal to the size of t/pid
 enum { NBITS_VID = (64 - NBITS_IDX - NBITS_DIR) }; // 0: index vertex, ID: normal vertex
@@ -127,21 +133,21 @@ uint64_t vid : NBITS_VID; // vertex
 // 64-bit internal pointer (size < 256M and off < 64GB)
 enum { NBITS_SIZE = 28 };
 enum { NBITS_PTR = 36 };
-
+enum { NBITS_TYPE= 2 }; //0 is sid ,1 is int, 2 is float, 3 is double
 /// TODO: add sid and edge type in future
 struct iptr_t {
 uint64_t size: NBITS_SIZE;
 uint64_t off: NBITS_PTR;
+uint64_t type: NBITS_TYPE;
+    iptr_t(): size(0), off(0), type(0) { }
 
-    iptr_t(): size(0), off(0) { }
-
-    iptr_t(uint64_t s, uint64_t o): size(s), off(o) {
+    iptr_t(uint64_t s, uint64_t o, uint64_t t = 0): size(s), off(o), type(t) {
         // no truncated
-        assert ((size == s) && (off == o));
+        assert ((size == s) && (off == o) && (type == t));
     }
 
     bool operator == (const iptr_t &ptr) {
-        if ((size == ptr.size) && (off == ptr.off))
+        if ((size == ptr.size) && (off == ptr.off) &&(type == ptr.type))
             return true;
         return false;
     }
@@ -853,7 +859,125 @@ public:
         // predicate is not important, so we set it 0
         return get_edges_local(tid, 0, d, pid, sz);
     }
+ 
+    // insert the attr of edge
+    void insert_vertex_attr(vector<triple_attr_t> &vertex_attr) 
+    {
+        uint64_t s =0;
+        uint64_t num = vertex_attr.size();
 
+        while(s < num)
+        {
+            // get the value type
+            int type = boost::apply_visitor(get_type, vertex_attr[s].v);
+            uint64_t size = (get_size(type) -1 ) / sizeof(edge_t) + 1;    // get the ceil size;
+            uint64_t off = sync_fetch_and_alloc_edges(size);
+            ikey_t key = ikey_t(vertex_attr[s].s,vertex_attr[s].p,OUT);
+            //key.print();
+            uint64_t slot_id = insert_key(key);
+            iptr_t ptr = iptr_t(size, off, type);
+            //cout <<" the slot id "<< slot_id << " the off " <<off <<endl;
+            vertices[slot_id].ptr = ptr;
+
+            // store the attr value 
+            switch (type){
+                case INT_t :{
+                    int* T_ptr = (int*) (edges+ off);
+                    *T_ptr = boost::get<int>(vertex_attr[s].v);
+                    break;
+                }
+                case FLOAT_t :{
+                    float* T_ptr = (float*) (edges+ off);
+                    *T_ptr = boost::get<float>(vertex_attr[s].v);
+                    break;
+                }
+                case DOUBLE_t :{
+                    double* T_ptr = (double*) (edges+ off);
+                    *T_ptr = boost::get<double>(vertex_attr[s].v);
+                    break;
+                }
+                default :
+                    cout<< "Not support value type" <<endl;
+            }
+            s++;
+        }
+    }
+
+    //get the attr of edge
+    bool get_vertex_attr_remote(int tid, sid_t vid, dir_t d, sid_t pid, attr_t& result)
+    {
+        int dst_sid = mymath::hash_mod(vid, global_num_servers);
+        ikey_t key = ikey_t(vid, pid, d);
+        vertex_t v = get_vertex_remote(tid, key);
+        int type = v.ptr.type;
+        
+        if (v.key.is_empty()) {
+            return false; // not found
+        }
+        // TODO: implement it w/o RDMA
+        assert(global_use_rdma);
+
+        char *buf = mem->buffer(tid);
+        uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
+        uint64_t r_sz = v.ptr.size * sizeof(edge_t);
+        RDMA &rdma = RDMA::get_rdma();
+        rdma.dev->RdmaRead(tid, dst_sid, buf, r_sz, r_off);
+        switch (type){
+            case INT_t:
+                result =  *((int*)(&(edges[r_off])));
+                break;
+            case FLOAT_t:
+                result =  *((float*)(&(edges[r_off])));
+                break;
+            case DOUBLE_t:
+                result =  *((double*)(&(edges[r_off])));
+                break;
+            default:
+                cout<< "Not support value type" << endl;
+                break;
+        }
+        return true;
+    }
+    
+    bool get_vertex_attr_local(int tid, sid_t vid, dir_t d, sid_t pid,attr_t &result) {
+        ikey_t key = ikey_t(vid, pid, d);
+        vertex_t v = get_vertex_local(tid, key);
+        int type = v.ptr.type;
+        
+        if (v.key.is_empty()) {
+            return false;
+        }
+        //v.key.print();
+        uint64_t off = v.ptr.off;
+        
+        switch (type){
+            case INT_t:
+                result =  *((int*)(&(edges[off])));
+                break;
+            case FLOAT_t:
+                result =  *((float*)(&(edges[off])));
+                break;
+            case DOUBLE_t:
+                result =  *((double*)(&(edges[off])));
+                break;
+            default:
+                cout<< "Not support value type" << endl;
+                break;
+        }
+        return true;
+        // result =  *((attr_t*)(&(edges[off])));
+    }
+
+    bool get_vertex_attr_global(int tid, sid_t vid, dir_t d , sid_t pid, attr_t& result)
+    {
+
+        if (mymath::hash_mod(vid, global_num_servers) == sid)
+            return get_vertex_attr_local(tid, vid, d, pid, result);
+        else
+            return get_vertex_attr_remote(tid, vid, d, pid, result);
+    }
+    
+    
     // analysis and debuging
     void print_mem_usage() {
         uint64_t used_slots = 0;
