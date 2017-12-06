@@ -33,6 +33,8 @@
 using namespace std;
 using namespace boost::archive;
 
+#define NO_RESULT (-1)
+
 enum var_type {
     known_var,
     unknown_var,
@@ -43,7 +45,6 @@ enum var_type {
 constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
 class request_or_reply {
-    static const int NO_RESULT = -1;
 
 public:
     int id = -1;     // query id
@@ -131,7 +132,7 @@ public:
     // get column id from vid (pattern variable)
     int var2col(ssid_t vid) {
         assert(vid < 0);
-        if (v2c_map.size == 0) // init
+        if (v2c_map.size() == 0) // init
             v2c_map.resize(nvars, NO_RESULT);
         int idx = - (vid + 1);
         assert(idx < nvars);
@@ -142,7 +143,7 @@ public:
     // add column id to vid (pattern variable)
     void add_var2col(ssid_t vid, int col) {
         assert(vid < 0 && col >= 0);
-        if (v2c_map.size == 0) // init
+        if (v2c_map.size() == 0) // init
             v2c_map.resize(nvars, NO_RESULT);
         int idx = - (vid + 1);
         assert(idx < nvars);
