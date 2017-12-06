@@ -363,6 +363,7 @@ class Engine {
             sub_reqs[i].blind = req.blind;
             sub_reqs[i].local_var = start;
             sub_reqs[i].v2c_map  = req.v2c_map;
+            sub_reqs[i].nvars  = req.nvars;
         }
 
         for (int i = 0; i < req.get_row_num(); i++) {
@@ -388,6 +389,7 @@ class Engine {
             sub_reqs[i].blind = req.blind;
             sub_reqs[i].local_var = start;
             sub_reqs[i].v2c_map  = req.v2c_map;
+            sub_reqs[i].nvars  = req.nvars;
         }
 
         for (int i = 0; i < req.get_row_num(); i++) {
