@@ -156,11 +156,6 @@ uint64_t off: NBITS_PTR;
 struct vertex_t {
     ikey_t key; // 64-bit: vertex | predicate | direction
     iptr_t ptr; // 64-bit: size | offset
-    pthread_spinlock_t realloc_lock;
-    void init(){
-      pthread_spin_init(&realloc_lock, 0);
-      ptr=iptr_t();
-    }
 };
 
 // 32-bit edge (value)
@@ -248,30 +243,14 @@ private:
     RDMA_Cache rdma_cache;
 
     // manage the memory of edges(val)
-    Malloc_Interface *value_manager;
+    Malloc_Interface *edge_manager;
 
     pthread_spinlock_t entry_lock;
     pthread_spinlock_t bucket_ext_lock;
     pthread_spinlock_t bucket_locks[NUM_LOCKS]; // lock virtualization (see paper: vLokc CGO'13)
 
-    bool init_value_mem(uint64_t off, uint64_t size, int64_t t_id = -1){
-        bool ret = true;
-        vertex_t *v = &vertices[off];
-        pthread_spin_lock(&v->realloc_lock);
-        // value area has already existed!
-        if (v->ptr.size!=0){
-            ret = false;
-            pthread_spin_unlock(&v->realloc_lock);
-            return ret;
-        }
-        //get the ptr which could store values
-        uint64_t curr_edge_ptr = value_manager->alloc(size*sizeof(edge_t),t_id) / sizeof(edge_t);
-        vertices[off].ptr = iptr_t(size, curr_edge_ptr);  
-        pthread_spin_unlock(&v->realloc_lock);
-        return ret;
-    }
-
-    uint64_t insert_key(ikey_t key,bool check_dep=true) {
+    // cluster chaining hash-table (see paper: DrTM SOSP'15)
+    uint64_t insert_key(ikey_t key) {
         uint64_t bucket_id = key.hash() % num_buckets;
         uint64_t slot_id = bucket_id * ASSOCIATIVITY;
         uint64_t lock_id = bucket_id % NUM_LOCKS;
@@ -286,21 +265,16 @@ private:
             for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
                 //assert(vertices[slot_id].key != key); // no duplicate key
                 if (vertices[slot_id].key == key) {
-                    if (check_dep){
-                        key.print();
-                        vertices[slot_id].key.print();
-                        cout << "ERROR: conflict at slot["
-                            << slot_id << "] of bucket["
-                            << bucket_id << "]" << endl;
-                        assert(false);
-                    }else{
-                        goto done;
-                    }
+                    key.print();
+                    vertices[slot_id].key.print();
+                    cout << "ERROR: conflict at slot["
+                         << slot_id << "] of bucket["
+                         << bucket_id << "]" << endl;
+                    assert(false);
                 }
 
                 // insert to an empty slot
                 if (vertices[slot_id].key.is_empty()) {
-                    vertices[slot_id].init();
                     vertices[slot_id].key = key;
                     goto done;
                 }
@@ -323,7 +297,6 @@ private:
             pthread_spin_unlock(&bucket_ext_lock);
 
             slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY; // move to a new bucket_ext
-            vertices[slot_id].init();
             vertices[slot_id].key = key; // insert to the first slot
             goto done;
         }
@@ -334,18 +307,8 @@ done:
         return slot_id;
     }
 
-
-    uint64_t sync_fetch_and_alloc_edges(uint64_t n) {
-        uint64_t orig;
-        pthread_spin_lock(&entry_lock);
-        orig = last_entry;
-        last_entry += n;
-        if (last_entry >= num_entries) {
-            cout << "ERROR: out of entry region." << endl;
-            assert(last_entry < num_entries);
-        }
-        pthread_spin_unlock(&entry_lock);
-        return orig;
+    uint64_t sync_fetch_and_alloc_edges(uint64_t n, int64_t t_id = -1) {
+        return edge_manager->malloc(n * sizeof(edge_t), t_id) / sizeof(edge_t);
     }
 
     vertex_t get_vertex_remote(int tid, ikey_t key) {
@@ -458,16 +421,18 @@ done:
         for (auto const &e : map) {
             sid_t pid = e.first;
             uint64_t sz = e.second.size();
-            ikey_t key = ikey_t(0, pid, d);
+            uint64_t off = sync_fetch_and_alloc_edges(sz);
 
+            ikey_t key = ikey_t(0, pid, d);
             uint64_t slot_id = insert_key(key);
-            init_value_mem(slot_id,sz);
-            uint64_t edge_ptr = vertices[slot_id].ptr.off;
+            iptr_t ptr = iptr_t(sz, off);
+            vertices[slot_id].ptr = ptr;
 
             for (auto const &vid : e.second)
-                edges[edge_ptr++].val = vid;
+                edges[off++].val = vid;
         }
     }
+
 
 #ifdef VERSATILE
     typedef tbb::concurrent_unordered_set<sid_t> tbb_unordered_set;
@@ -478,14 +443,15 @@ done:
 
     void insert_index_set(tbb_unordered_set &set, dir_t d) {
         uint64_t sz = set.size();
+        uint64_t off = sync_fetch_and_alloc_edges(sz);
+
         ikey_t key = ikey_t(0, TYPE_ID, d);
         uint64_t slot_id = insert_key(key);
-
-        init_value_mem(slot_id,sz);
-        uint64_t edge_ptr = vertices[slot_id].ptr.off;
+        iptr_t ptr = iptr_t(sz, off);
+        vertices[slot_id].ptr = ptr;
 
         for (auto const &e : set)
-            edges[edge_ptr++].val = e;
+            edges[off++].val = e;
     }
 #endif
 
@@ -540,8 +506,8 @@ public:
 
     void init(uint64_t nthread_parallel_load) {
         //create and init value memanger
-        value_manager = new Buddy_Malloc();
-        value_manager->init((void*)edges, num_entries * sizeof(edge_t), nthread_parallel_load);
+        edge_manager = new Buddy_Malloc();
+        edge_manager->init((void*)edges, num_entries * sizeof(edge_t), nthread_parallel_load);
 
         // initiate keys
         #pragma omp parallel for num_threads(global_num_engines)
@@ -580,13 +546,13 @@ public:
             ikey_t key = ikey_t(spo[s].s, spo[s].p, OUT);
             uint64_t slot_id = insert_key(key);
 
-            //alloc memory for values
-            init_value_mem(slot_id, e-s, t_id);
-            edge_ptr = vertices[slot_id].ptr.off;
+            uint64_t off = sync_fetch_and_alloc_edges(e - s, t_id);
+            iptr_t ptr = iptr_t(e - s, off);
+            vertices[slot_id].ptr = ptr;
 
             // insert edges
             for (uint64_t i = s; i < e; i++)
-                edges[edge_ptr++].val = spo[i].o;
+                edges[off++].val = spo[i].o;
 
             s = e;
         }
@@ -605,14 +571,14 @@ public:
             ikey_t key = ikey_t(ops[s].o, ops[s].p, IN);
             uint64_t slot_id = insert_key(key);
 
-            //alloc memory for values
-            init_value_mem(slot_id, e-s , t_id);
-            edge_ptr = vertices[slot_id].ptr.off;
+            uint64_t off = sync_fetch_and_alloc_edges(e - s, t_id);
+            iptr_t ptr = iptr_t(e - s, off);
+            vertices[slot_id].ptr = ptr;
 
             // insert edges
             for (uint64_t i = s; i < e; i++)
                 //edges[off++].val = ops[i].s;
-                edges[edge_ptr++].val = ops[i].s;
+                edges[off++].val = ops[i].s;
 
             s = e;
         }
@@ -645,16 +611,17 @@ public:
             if (spo[s].s < (1 << NBITS_IDX))
                 assert(false);
 
-            //alloc memory for values
-            init_value_mem(slot_id, sz, t_id);
-            edge_ptr = vertices[slot_id].ptr.off;
+            // link to edges
+            uint64_t off = sync_fetch_and_alloc_edges(sz, t_id);
+            iptr_t ptr = iptr_t(sz, off);
+            vertices[slot_id].ptr = ptr;
 
             for(int idx = s; idx < e; idx++){
                 if(idx == s || spo[idx].p!=spo[idx-1].p){
-                    edges[edge_ptr++].val = spo[idx].p;
+                    edges[off++].val = spo[idx].p;
                 }
 		    }
-            s=e;
+            s = e;
         }
 
         s = type_triples;
@@ -673,14 +640,15 @@ public:
             }
             if (ops[s].o < (1 << NBITS_IDX))
                 assert(false);
-
-            //alloc memory for values
-            init_value_mem(slot_id, sz, t_id);
-            edge_ptr = vertices[slot_id].ptr.off;
+            
+            // link to edges
+            uint64_t off = sync_fetch_and_alloc_edges(sz, t_id);
+            iptr_t ptr = iptr_t(sz, off);
+            vertices[slot_id].ptr = ptr;
 
             for(int idx = s; idx < e; idx++){
                 if(idx == s || ops[idx].p!=ops[idx-1].p){
-                    edges[edge_ptr++].val = ops[idx].p;
+                    edges[off++].val = ops[idx].p;
                 }
 		    }
             s = e;
@@ -693,7 +661,7 @@ public:
 
         cout << " start (parallel) prepare index info " << endl;
 
-        value_manager->merge_freelists();
+        edge_manager->merge_freelists();
         // scan raw data to generate index data in parallel
         #pragma omp parallel for num_threads(global_num_engines)
         for (uint64_t bucket_id = 0; bucket_id < num_buckets + last_ext; bucket_id++) {
