@@ -142,7 +142,7 @@ class Engine {
             updated_result_table.push_back(res[k].val);
 
         req.result_table.swap(updated_result_table);
-        req.insert_var_col_mapping(end,0);
+        req.add_var2col(end, 0);
         req.set_col_num(1);
         req.step++;
     }
@@ -167,7 +167,7 @@ class Engine {
         
         req.attr_res_table.swap(updated_result_table);
         req.set_attr_col_num(1);
-        req.insert_var_col_mapping(end,0,attr);
+        req.add_var2col(end,0,attr);
         req.step++;
     }
 
@@ -181,11 +181,11 @@ class Engine {
         std::vector<sid_t> updated_result_table;
 
         // the query plan is wrong
-        //assert(req.get_col_num() == req.var2column(end));
+        //assert(req.get_col_num() == req.var2col(end));
 
         updated_result_table.reserve(req.result_table.size());
         for (int i = 0; i < req.get_row_num(); i++) {
-            sid_t prev_id = req.get_row_col(i, req.var2column(start));
+            sid_t prev_id = req.get_row_col(i, req.var2col(start));
             uint64_t sz = 0;
             edge_t *res = graph->get_edges_global(tid, prev_id, d, pid, &sz);
             for (uint64_t k = 0; k < sz; k++) {
@@ -194,7 +194,7 @@ class Engine {
             }
         }
 
-        req.insert_var_col_mapping(end, req.get_col_num());
+        req.add_var2col(end, req.get_col_num());
         req.set_col_num(req.get_col_num() + 1);
         req.result_table.swap(updated_result_table);
         req.step++;
@@ -209,10 +209,10 @@ class Engine {
         vector<attr_t> updated_attr_res_table;
 
         for (int i = 0; i < req.get_row_num(); i++) {
-            sid_t prev_id = req.get_row_col(i, req.var2column(start));
+            sid_t prev_id = req.get_row_col(i, req.var2col(start));
             uint64_t sz = 0;
             edge_t *res = graph->get_edges_global(tid, prev_id, d, pid, &sz);
-            sid_t end2 = req.get_row_col(i, req.var2column(end));
+            sid_t end2 = req.get_row_col(i, req.var2col(end));
             for (uint64_t k = 0; k < sz; k++) {
                 if (res[k].val == end2) {
                     req.append_row_to(i, updated_result_table);
@@ -240,7 +240,7 @@ class Engine {
         vector<attr_t> updated_attr_res_table;
 
         for (int i = 0; i < req.get_row_num(); i++) {
-            sid_t prev_id = req.get_row_col(i, req.var2column(start));
+            sid_t prev_id = req.get_row_col(i, req.var2col(start));
             uint64_t sz = 0;
             edge_t *res = graph->get_edges_global(tid, prev_id, d, pid, &sz);
             for (uint64_t k = 0; k < sz; k++) {
@@ -273,7 +273,7 @@ class Engine {
         
         updated_attr_result_table.reserve(req.attr_res_table.size());
         for (int i = 0; i < req.get_row_num(); i++) {
-            sid_t prev_id = req.get_row_col(i, req.var2column(start));
+            sid_t prev_id = req.get_row_col(i, req.var2col(start));
             attr_t res;
             bool has_value = graph->get_vertex_attr_global(tid, prev_id, d, pid, res);
             if (has_value) { 
@@ -284,7 +284,7 @@ class Engine {
         }
 
 
-        req.insert_var_col_mapping(end, req.get_attr_col_num(), attr);
+        req.add_var2col(end, req.get_attr_col_num(), attr);
         req.set_attr_col_num(req.get_attr_col_num() + 1);
         req.attr_res_table.swap(updated_attr_result_table);
         req.result_table.swap(updated_result_table);
@@ -301,7 +301,7 @@ class Engine {
         vector<sid_t> updated_result_table;
 
         // the query plan is wrong
-        assert(req.get_col_num() == 0 );
+        assert(req.get_col_num() == 0);
 
         uint64_t sz = 0;
         edge_t *res = graph->get_index_edges_local(tid, idx, d, &sz);
@@ -310,7 +310,7 @@ class Engine {
             updated_result_table.push_back(res[k].val);
         req.result_table.swap(updated_result_table);
         req.set_col_num(1);
-        req.insert_var_col_mapping(var, 0);
+        req.add_var2col(var, 0);
         req.step++;
         req.local_var = -1;
     }
@@ -344,8 +344,8 @@ class Engine {
         free(tpids);
 
         req.result_table.swap(updated_result_table);
-        req.insert_var_col_mapping(pid, 0);
-        req.insert_var_col_mapping(end, 1);
+        req.add_var2col(pid, 0);
+        req.add_var2col(end, 1);
         req.set_col_num(2);
         req.step++;
     }
@@ -358,7 +358,7 @@ class Engine {
         vector<sid_t> updated_result_table;
 
         for (int i = 0; i < req.get_row_num(); i++) {
-            sid_t prev_id = req.get_row_col(i, req.var2column(start));
+            sid_t prev_id = req.get_row_col(i, req.var2col(start));
 
             uint64_t npids = 0;
             edge_t *pids = graph->get_edges_global(tid, prev_id, d, PREDICATE_ID, &npids);
@@ -380,8 +380,8 @@ class Engine {
             free(tpids);
         }
 
-        req.insert_var_col_mapping(pid, req.get_col_num());
-        req.insert_var_col_mapping(end, req.get_col_num()+1);
+        req.add_var2col(pid, req.get_col_num());
+        req.add_var2col(end, req.get_col_num() + 1);
         req.set_col_num(req.get_col_num() + 2);
         req.result_table.swap(updated_result_table);
         req.step++;
@@ -395,11 +395,10 @@ class Engine {
         vector<sid_t> updated_result_table;
 
         for (int i = 0; i < req.get_row_num(); i++) {
-            sid_t prev_id = req.get_row_col(i, req.var2column(start));
+            sid_t prev_id = req.get_row_col(i, req.var2col(start));
             uint64_t npids = 0;
             edge_t *pids = graph->get_edges_global(tid, prev_id, d, PREDICATE_ID, &npids);
 
-            // use a local buffer to store "known" predicates
             // use a local buffer to store "known" predicates
             edge_t *tpids = (edge_t *)malloc(npids * sizeof(edge_t));
             memcpy((char *)tpids, (char *)pids, npids * sizeof(edge_t));
@@ -420,7 +419,7 @@ class Engine {
             free(tpids);
         }
 
-        req.insert_var_col_mapping(pid, req.get_col_num());
+        req.add_var2col(pid, req.get_col_num());
         req.set_col_num(req.get_col_num() + 1);
         req.result_table.swap(updated_result_table);
         req.step++;
@@ -430,51 +429,27 @@ class Engine {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
 
-        vector<request_or_reply> sub_reqs;
-        int num_sub_request = global_num_servers;
-        sub_reqs.resize(num_sub_request);
-        for (int i = 0; i < sub_reqs.size(); i++) {
+        // generate sub requests for all servers
+        vector<request_or_reply> sub_reqs(global_num_servers);
+        for (int i = 0; i < global_num_servers; i++) {
             sub_reqs[i].pid = req.id;
             sub_reqs[i].cmd_chains = req.cmd_chains;
             sub_reqs[i].step = req.step;
             sub_reqs[i].col_num = req.col_num;
             sub_reqs[i].blind = req.blind;
             sub_reqs[i].local_var = start;
-            sub_reqs[i].var_map  = req.var_map;
+            sub_reqs[i].v2c_map  = req.v2c_map;
+            sub_reqs[i].nvars  = req.nvars;
             sub_reqs[i].pred_type_chains = req.pred_type_chains;
         }
 
+        // group intermediate results to servers
         for (int i = 0; i < req.get_row_num(); i++) {
-            int id = mymath::hash_mod(req.get_row_col(i, req.var2column(start)),
-                                      num_sub_request);
-            req.append_row_to(i, sub_reqs[id].result_table);
-        }
-        return sub_reqs;
-    }
-
-    vector<request_or_reply> generate_mt_sub_requests(request_or_reply &req) {
-        ssid_t start = req.cmd_chains[req.step * 4];
-        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
-
-        vector<request_or_reply> sub_reqs;
-        int num_sub_request = global_num_servers * global_mt_threshold ;
-        sub_reqs.resize(num_sub_request);
-        for (int i = 0; i < sub_reqs.size(); i++) {
-            sub_reqs[i].pid = req.id;
-            sub_reqs[i].cmd_chains = req.cmd_chains;
-            sub_reqs[i].step = req.step;
-            sub_reqs[i].col_num = req.col_num;
-            sub_reqs[i].blind = req.blind;
-            sub_reqs[i].local_var = start;
-            sub_reqs[i].var_map  = req.var_map;
-            sub_reqs[i].pred_type_chains = req.pred_type_chains;
+            int sid = mymath::hash_mod(req.get_row_col(i, req.var2col(start)),
+                                       global_num_servers);
+            req.append_row_to(i, sub_reqs[sid].result_table);
         }
 
-        for (int i = 0; i < req.get_row_num(); i++) {
-            int id = mymath::hash_mod(req.get_row_col(i, req.var2column(start)),
-                                      num_sub_request);
-            req.append_row_to(i, sub_reqs[id].result_table);
-        }
         return sub_reqs;
     }
 
@@ -498,7 +473,7 @@ class Engine {
         boost::unordered_set<sid_t> unique_set;
         ssid_t vid = req.cmd_chains[corun_step * 4];
         assert(vid < 0);
-        int col_idx = req.var2column(vid);
+        int col_idx = req.var2col(vid);
         for (int i = 0; i < req.get_row_num(); i++)
             unique_set.insert(req.get_row_col(i, col_idx));
 
@@ -510,12 +485,11 @@ class Engine {
         for (int i = corun_step * 4; i < fetch_step * 4; i++) {
             ssid_t id = req.cmd_chains[i];
 
-            if (id < 0) {
-                // remap pattern variable
+            if (id < 0) { // remap pattern variable
                 if (sub_pvars.find(id) == sub_pvars.end()) {
                     sid_t new_id = - (sub_pvars.size() + 1); // starts from -1
                     sub_pvars[id] = new_id;
-                    pvars_map.push_back(req.var2column(id));
+                    pvars_map.push_back(req.var2col(id));
                 }
 
                 sub_chain.push_back(sub_pvars[id]);
@@ -532,18 +506,22 @@ class Engine {
 
         // step.3 make sub-req
         request_or_reply sub_req;
+
+        // query
+        sub_req.cmd_chains = sub_chain;
+        sub_req.nvars = pvars_map.size();
+
+        // result
         boost::unordered_set<sid_t>::iterator iter;
         for (iter = unique_set.begin(); iter != unique_set.end(); iter++)
             sub_req.result_table.push_back(*iter);
-        sub_req.cmd_chains = sub_chain;
-        sub_req.blind = false; // must take back results
         sub_req.col_num = 1;
         
         //init var_map 
-        sub_req.init_var_map(pvars_map.size());
-        sub_req.insert_var_col_mapping(sub_pvars[vid],0);
+        sub_req.add_var2col(sub_pvars[vid], 0);
         sub_req.pred_type_chains = sub_pred_type_chains;
 
+        sub_req.blind = false; // must take back results
         uint64_t t1 = timer::get_usec(); // time to generate the sub-request
 
         // step.4 execute sub-req
@@ -567,14 +545,16 @@ class Engine {
                 for (int c = 0; c < pvars_map.size(); c++)
                     tmp_vec[c] = req.get_row_col(i, pvars_map[c]);
 
-                if (mytuple::binary_search_tuple(sub_req.get_col_num(), sub_req.result_table, tmp_vec))
+                if (mytuple::binary_search_tuple(sub_req.get_col_num(),
+                                                 sub_req.result_table, tmp_vec))
                     req.append_row_to(i, updated_result_table);
             }
             t4 = timer::get_usec();
         } else { // hash join
             boost::unordered_set<v_pair> remote_set;
             for (int i = 0; i < sub_req.get_row_num(); i++)
-                remote_set.insert(v_pair(sub_req.get_row_col(i, 0), sub_req.get_row_col(i, 1)));
+                remote_set.insert(v_pair(sub_req.get_row_col(i, 0),
+                                         sub_req.get_row_col(i, 1)));
 
             t3 = timer::get_usec();
             vector<sid_t> tmp_vec;
@@ -617,7 +597,8 @@ class Engine {
         ssid_t end = req.cmd_chains[req.step * 4 + 3];
         if (predicate < 0) {
 #ifdef VERSATILE
-            switch (var_pair(req.variable_type(start), req.variable_type(end))) {
+            switch (var_pair(req.variable_type(start),
+                             req.variable_type(end))) {
             case var_pair(const_var, unknown_var):
                 const_unknown_unknown(req);
                 break;

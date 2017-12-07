@@ -358,7 +358,7 @@ private:
         r.cmd_chains = temp_cmd_chains;
         r.pred_type_chains = temp_pred_type_chains; 
         // init the var_map
-        r.init_var_map(parser.getVariableCount());
+        r.nvars = parser.getVariableCount();
     }
 
     void _H_push(const SPARQLParser::Element &element, request_template &r, int pos) {
@@ -456,14 +456,14 @@ public:
                 return false;
 
             if (req_template.ptypes_pos.size() != 0) {
-                cout << "ERROR: there is unsupported tempate pattern." << endl;
+                cout << "ERROR: there is unsupported template pattern." << endl;
                 return false;
             }
 
             r.cmd_chains = req_template.cmd_chains;
             r.pred_type_chains = req_template.pred_type_chains;
             //init the var map in the req
-            r.init_var_map(req_template.nvars);
+            r.nvars = req_template.nvars;
             return true;
         }
     }
@@ -502,9 +502,9 @@ public:
         r.cmd_chains.push_back(TYPE_ID);  // reserved ID for "rdf:type"
         r.cmd_chains.push_back(IN);
         r.cmd_chains.push_back(-1);
-        r.init_var_map(1);
 
         r.pred_type_chains.push_back(0);
+        r.nvars = 1;
         return true;
     }
 
