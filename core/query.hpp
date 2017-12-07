@@ -86,8 +86,8 @@ public:
     request_or_reply() { }
 
     // build a request by existing triple patterns and variables
-    request_or_reply(vector<ssid_t> cc, int n)
-        : cmd_chains(cc), nvars(n) {
+    request_or_reply(vector<ssid_t> cc, int n, vector<int> p)
+        : cmd_chains(cc), nvars(n), pred_type_chains(p) {
         v2c_map.resize(n, NO_RESULT);
     }
 
@@ -238,6 +238,6 @@ public:
         for (int i = 0; i < ptypes_pos.size(); i++)
             cmd_chains[ptypes_pos[i]] =
                 ptypes_grp[i][seed % ptypes_grp[i].size()];
-        return request_or_reply(cmd_chains, nvars);
+        return request_or_reply(cmd_chains, nvars, pred_type_chains);
     }
 };
