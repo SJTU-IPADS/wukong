@@ -45,8 +45,6 @@
 using namespace std;
 
 class DGraph {
-	static const int nthread_parallel_load = 16;
-
 	int sid;
 	Mem *mem;
 
@@ -290,16 +288,16 @@ class DGraph {
 
 		// pre-expand to avoid frequent reallocation (maybe imbalance)
 		for (int i = 0; i < triple_spo.size(); i++) {
-			triple_spo[i].reserve(total / nthread_parallel_load);
-			triple_ops[i].reserve(total / nthread_parallel_load);
+			triple_spo[i].reserve(total / global_num_engines);
+			triple_ops[i].reserve(total / global_num_engines);
 		}
 
 		// each thread will scan all triples (from all servers) and pickup certain triples.
 		// It ensures that the triples belong to the same vertex will be stored in the same
 		// triple_spo/ops. This will simplify the deduplication and insertion to gstore.
 		volatile int progress = 0;
-		#pragma omp parallel for num_threads(nthread_parallel_load)
-		for (int tid = 0; tid < nthread_parallel_load; tid++) {
+		#pragma omp parallel for num_threads(global_num_engines)
+		for (int tid = 0; tid < global_num_engines; tid++) {
 			int cnt = 0; // per thread count for print progress
 			for (int id = 0; id < num_partitions; id++) {
 				uint64_t *pn = (uint64_t *)(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * id);
@@ -314,19 +312,19 @@ class DGraph {
 
 					// out-edges
 					if (mymath::hash_mod(s, global_num_servers) == sid)
-						if ((s % nthread_parallel_load) == tid)
+						if ((s % global_num_engines) == tid)
 							triple_spo[tid].push_back(triple_t(s, p, o));
 
 					// in-edges
 					if (mymath::hash_mod(o, global_num_servers) == sid)
-						if ((o % nthread_parallel_load) == tid)
+						if ((o % global_num_engines) == tid)
 							triple_ops[tid].push_back(triple_t(s, p, o));
 
 					// print the progress (step = 5%) of aggregation
 					if (++cnt >= total * 0.05) {
 						int now = __sync_add_and_fetch(&progress, 1);
-						if (now % nthread_parallel_load == 0)
-							cout << "already aggregrate " << (now / nthread_parallel_load) * 5 << "%" << endl;
+						if (now % global_num_engines == 0)
+							cout << "already aggregrate " << (now / global_num_engines) * 5 << "%" << endl;
 						cnt = 0;
 					}
 				}
@@ -363,8 +361,8 @@ public:
 		: sid(sid), mem(mem), gstore(sid, mem) {
 
 		num_triples.resize(global_num_servers);
-		triple_spo.resize(nthread_parallel_load);
-		triple_ops.resize(nthread_parallel_load);
+		triple_spo.resize(global_num_engines);
+		triple_ops.resize(global_num_engines);
 
 		vector<string> files; // ID-format data files
 		if (boost::starts_with(dname, "hdfs:")) {
@@ -428,12 +426,12 @@ public:
 		// Wukong aggregates, sorts and dedups all triples before finally inserting them to gstore (kvstore)
 		aggregate_data(num_partitons);
 
-		// initiate gstore (kvstore) after loading and exchanging triples
-		gstore.init(nthread_parallel_load);
+		// initiate gstore (kvstore) after loading and exchanging triples (memory reused)
+		gstore.init();
 
 		uint64_t t1 = timer::get_usec();
-		#pragma omp parallel for num_threads(nthread_parallel_load)
-		for (int t = 0; t < nthread_parallel_load; t++) {
+		#pragma omp parallel for num_threads(global_num_engines)
+		for (int t = 0; t < global_num_engines; t++) {
 			gstore.insert_normal(triple_spo[t], triple_ops[t], t);
 
 			// release memory

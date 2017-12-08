@@ -107,7 +107,7 @@ $./build.sh
 ```
 
 ##### Options:
-+ **Enable/disable RDMA Feature** (default: ON): Currently, Wukong will enable RDMA feature by default, and suppose the driver has been well installed and configured. If you want to build Wukong for non-RDMA networks, you need add a parameter `-DUSE_RDMA=OFF` for cmake (i.e., `cmake .. -DUSE_RDMA=OFF` or `./build.sh -DUSE_RDMA=OFF`).
++ **Enable/disable RDMA feature** (default: ON): Currently, Wukong will enable RDMA feature by default, and suppose the driver has been well installed and configured. If you want to build Wukong for non-RDMA networks, you need add a parameter `-DUSE_RDMA=OFF` for cmake (i.e., `cmake .. -DUSE_RDMA=OFF` or `./build.sh -DUSE_RDMA=OFF`).
 
 + **Enable/disable HDFS support** (default: OFF): To support loading input dataset from HDFS, you need to add a parameter `-DUSE_HADOOP=ON` for cmake (i.e., `cmake .. -DUSE_HADOOP=ON` or `./build.sh -DUSE_HADOOP=ON`). You need follow [deps/INSTALL.md](deps/INSTALL.md#hdfs) to configure HDFS. Note that the directory `deps/hadoop` should be copied to all machines (you can run `./syncdeps.sh ../deps/dependencies mpd.hosts` again.)
 
