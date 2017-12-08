@@ -546,8 +546,14 @@ public:
             type_triples++;
 
 #ifdef VERSATILE
-        // the number of separate combinations of subject/object and predicate
-        uint64_t accum_predicate = 0;
+        // The following code is used to support a rare case where the predicate is unknown
+        // (e.g., <http://www.Department0.University0.edu> ?P ?O). Each normal vertex should
+        // add two key/value pairs with a reserved ID (i.e., PREDICATE_ID) as the predicate
+        // to store the IN and OUT lists of its predicates.
+        // e.g., key=(vid, PREDICATE_ID, IN/OUT), val=(predicate0, predicate1, ...)
+        //
+        // NOTE, it is disabled by default in order to save memory.
+        vector<sid_t> predicates;
 #endif
 
         uint64_t s = 0;
@@ -557,9 +563,7 @@ public:
             while ((e < spo.size())
                     && (spo[s].s == spo[e].s)
                     && (spo[s].p == spo[e].p))  { e++; }
-#ifdef VERSATILE
-            accum_predicate++;
-#endif
+
             // allocate a vertex and edges
             ikey_t key = ikey_t(spo[s].s, spo[s].p, OUT);
             uint64_t off = alloc_edges(e - s, tid);
@@ -573,6 +577,30 @@ public:
             for (uint64_t i = s; i < e; i++)
                 edges[off++].val = spo[i].o;
 
+#ifdef VERSATILE
+            // add a new predicate
+            predicates.push_back(spo[s].p);
+
+            // insert a special PREDICATE triple (OUT)
+            if (e >= spo.size() || spo[s].s != spo[e].s) {
+                // allocate a vertex and edges
+                ikey_t key = ikey_t(spo[s].s, PREDICATE_ID, OUT);
+                uint64_t sz = predicates.size();
+                uint64_t off = alloc_edges(sz, tid);
+
+                // insert a vertex
+                uint64_t slot_id = insert_key(key);
+                iptr_t ptr = iptr_t(sz, off);
+                vertices[slot_id].ptr = ptr;
+
+                // insert edges
+                for (auto const &p : predicates)
+                    edges[off++].val = p;
+
+                predicates.clear();
+            }
+#endif
+
             s = e;
         }
 
@@ -583,9 +611,7 @@ public:
             while ((e < ops.size())
                     && (ops[s].o == ops[e].o)
                     && (ops[s].p == ops[e].p)) { e++; }
-#ifdef VERSATILE
-            accum_predicate++;
-#endif
+
             // allocate a vertex and edges
             ikey_t key = ikey_t(ops[s].o, ops[s].p, IN);
             uint64_t off = alloc_edges(e - s, tid);
@@ -599,78 +625,31 @@ public:
             for (uint64_t i = s; i < e; i++)
                 edges[off++].val = ops[i].s;
 
-            s = e;
-        }
-
 #ifdef VERSATILE
-        // The following code is used to support a rare case where the predicate is unknown
-        // (e.g., <http://www.Department0.University0.edu> ?P ?O). Each normal vertex should
-        // add two key/value pairs with a reserved ID (i.e., PREDICATE_ID) as the predicate
-        // to store the IN and OUT lists of its predicates.
-        // e.g., key=(vid, PREDICATE_ID, IN/OUT), val=(predicate0, predicate1, ...)
-        //
-        // NOTE, it is disabled by default in order to save memory.
+            // add a new predicate
+            predicates.push_back(ops[s].p);
 
-        // allocate edges in entry region for special PREDICATE triples
+            // insert a special PREDICATE triple (OUT)
+            if (e >= ops.size() || ops[s].o != ops[e].o) {
+                // allocate a vertex and edges
+                ikey_t key = ikey_t(ops[s].o, PREDICATE_ID, IN);
+                uint64_t sz = predicates.size();
+                uint64_t off = alloc_edges(sz, tid);
 
-        s = 0;
-        while (s < spo.size()) {
-            assert(!is_tpid(spo[s].s));
+                // insert a vertex
+                uint64_t slot_id = insert_key(key);
+                iptr_t ptr = iptr_t(sz, off);
+                vertices[slot_id].ptr = ptr;
 
-            // group triples
-            uint64_t e = s, sz = 0;
-            while (e < spo.size() && spo[s].s == spo[e].s) {
-                if (e == s || spo[e].p != spo[e - 1].p)
-                    sz++;
-                e++;
+                // insert edges
+                for (auto const &p : predicates)
+                    edges[off++].val = p;
+
+                predicates.clear();
             }
-
-            // allocate a vertex and edges
-            ikey_t key = ikey_t(spo[s].s, PREDICATE_ID, OUT);
-            uint64_t off = alloc_edges(sz, tid);
-
-            // insert a vertex
-            uint64_t slot_id = insert_key(key);
-            iptr_t ptr = iptr_t(sz, off);
-            vertices[slot_id].ptr = ptr;
-
-            // insert edges
-            for (uint64_t i = s; i < e; i++)
-                if (i == s || spo[i].p != spo[i - 1].p)
-                    edges[off++].val = spo[i].p;
-
-            s = e;
-        }
-
-        s = type_triples;
-        while (s < ops.size()) {
-            assert(!is_tpid(ops[s].o));
-
-            // group triples
-            uint64_t e = s, sz = 0;
-            while (e < ops.size() && ops[s].o == ops[e].o) {
-                if (e == s || ops[e].p != ops[e - 1].p)
-                    sz++;
-                e++;
-            }
-
-            // allocate a vertex and edges
-            ikey_t key = ikey_t(ops[s].o, PREDICATE_ID, IN);
-            uint64_t off = alloc_edges(sz, tid);
-
-            // insert a vertex
-            uint64_t slot_id = insert_key(key);
-            iptr_t ptr = iptr_t(sz, off);
-            vertices[slot_id].ptr = ptr;
-
-            // insert edges
-            for (uint64_t i = s; i < e; i++)
-                if (i == s || ops[i].p != ops[i - 1].p)
-                    edges[off++].val = ops[i].p;
-
-            s = e;
-        }
 #endif
+            s = e;
+        }
     }
 
     void insert_index() {
