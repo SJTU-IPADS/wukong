@@ -43,16 +43,17 @@ public:
 
     ~Adaptor() { }
 
-    void send(int dst_sid, int dst_tid, request_or_reply &r) {
+    bool send(int dst_sid, int dst_tid, request_or_reply &r) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
 
         oa << r;
         if (global_use_rdma && rdma->init) {
-            rdma->send(tid, dst_sid, dst_tid, ss.str());
+            return rdma->send(tid, dst_sid, dst_tid, ss.str());
         } else {
             tcp->send(dst_sid, dst_tid, ss.str());
         }
+        return true;
     }
 
     request_or_reply recv() {

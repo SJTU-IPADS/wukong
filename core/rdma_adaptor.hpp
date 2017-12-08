@@ -127,9 +127,31 @@ private:
             memset(rbf, 0, ceil(end, sizeof(uint64_t)));              // clean data
         }
         lmeta->head += 2 * sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t));
-
+        char *head = mem->head(tid, dst_sid);
+        if(lmeta->head - *(uint64_t *)head > 8 * 1024){
+            *(uint64_t *)head = lmeta->head;
+            if(sid != dst_sid){
+                RDMA &rdma = RDMA::get_rdma();
+                uint64_t remote_head = mem->remote_head_offset(sid, tid);
+			    rdma.dev->RdmaWriteSelective(tid, dst_sid, head, sizeof(uint64_t), remote_head);
+		    }
+            else{
+                *(uint64_t *)mem->remote_head(sid, tid) = lmeta->head;
+            }
+	    }
         uint64_t t3 = timer::get_usec();
         return result;
+    }
+
+    inline bool check_overwrite(int tid, int dst_sid, int dst_tid, uint64_t msg_sz){
+        rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
+        uint64_t rbf_sz = mem->ring_size();
+	    uint64_t head = *(uint64_t *) mem->remote_head(dst_sid, dst_tid);
+
+        if(rbf_sz - msg_sz > rmeta->tail - head)
+            return false;
+
+	    return true;
     }
 
 public:
@@ -166,7 +188,7 @@ public:
 
     ~RDMA_Adaptor() { }  //TODO
 
-    void send(int tid, int dst_sid, int dst_tid, string str) {
+    bool send(int tid, int dst_sid, int dst_tid, string str) {
         assert(init);
 
         rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
@@ -179,10 +201,12 @@ public:
         uint64_t msg_sz = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
 
         assert(msg_sz < rbf_sz);
-        /// TODO: check overwriting (i.e., (tail + msg_sz) % rbf_sz >= head)
-        /// maintain a stale header for each remote ring buffer, and update it when may occur overwriting
 
         pthread_spin_lock(&rmeta->lock);
+        if(check_overwrite(tid, dst_sid, dst_tid, msg_sz)){
+            pthread_spin_unlock(&rmeta->lock);
+            return false;
+        }
         if (sid == dst_sid) { // local physical-queue
             uint64_t off = rmeta->tail;
             rmeta->tail += msg_sz;
@@ -225,6 +249,7 @@ public:
                 rdma.dev->RdmaWriteSelective(tid, dst_sid, mem->buffer(tid) + _sz, msg_sz - _sz, rdma_off);
             }
         }
+        return true;
     }
 
     std::string recv(int tid) {

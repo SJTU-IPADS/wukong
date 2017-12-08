@@ -49,6 +49,12 @@ private:
 	uint64_t rbf_sz;
 	uint64_t rbf_off;
 
+	char *heads;
+	uint64_t heads_sz;
+	uint64_t heads_off;
+
+	char *remote_heads;	//for rdma to store heads fectched from other servers
+	uint64_t remote_heads_off;
 public:
 	Mem(int num_servers, int num_threads)
 		: num_servers(num_servers), num_threads(num_threads) {
@@ -63,8 +69,9 @@ public:
 		} else {
 			buf_sz = rbf_sz = 0;
 		}
+		heads_sz = num_servers * num_threads * sizeof(uint64_t);
 
-		mem_sz = kvs_sz + buf_sz * num_threads + rbf_sz * num_servers * num_threads;
+		mem_sz = kvs_sz + buf_sz * num_threads + rbf_sz * num_servers * num_threads + heads_sz * 2;
 		mem = (char *)malloc(mem_sz);
 		memset(mem, 0, mem_sz);
 
@@ -75,6 +82,12 @@ public:
 		buf = mem + buf_off;
 		rbf_off = buf_off + buf_sz * num_threads;
 		rbf = mem + rbf_off;
+
+		heads_off = rbf_off + rbf_sz * num_servers * num_threads;
+		heads = mem + heads_off;
+
+		remote_heads_off = heads_off + heads_sz;
+		remote_heads =  mem + remote_heads_off;
 	}
 
 	~Mem() { free(mem); }
@@ -96,4 +109,11 @@ public:
 	inline char *ring(int tid, int sid) { return rbf + (rbf_sz * num_servers) * tid + rbf_sz * sid; }
 	inline uint64_t ring_size() { return rbf_sz; }
 	inline uint64_t ring_offset(int tid, int sid) { return rbf_off + (rbf_sz * num_servers) * tid + rbf_sz * sid; }
+
+	//head of each ring-buffer
+	inline char *head(int tid, int dst_sid) { return heads + (tid * num_servers + dst_sid) * sizeof(uint64_t); }
+	inline uint64_t head_offset(int tid, int dst_sid) { return heads_off + (tid * num_servers + dst_sid) * sizeof(uint64_t); }
+
+	inline uint64_t remote_head_offset(int dst_sid, int dst_tid){ return remote_heads_off + (dst_sid * num_threads + dst_tid) * sizeof(uint64_t);}
+	inline char*remote_head(int dst_sid, int dst_tid) {return remote_heads + (dst_sid * num_threads + dst_tid) * sizeof(uint64_t); }
 }; // end of class Mem
