@@ -127,31 +127,32 @@ private:
             memset(rbf, 0, ceil(end, sizeof(uint64_t)));              // clean data
         }
         lmeta->head += 2 * sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t));
-        char *head = mem->head(tid, dst_sid);
-        if(lmeta->head - *(uint64_t *)head > 8 * 1024){
+
+        // update heads
+        char *head = mem->local_ring_head(tid, dst_sid);
+        if (lmeta->head - * (uint64_t *)head > 8 * 1024) {
             *(uint64_t *)head = lmeta->head;
-            if(sid != dst_sid){
+
+            // update to remote
+            if (sid != dst_sid) {
                 RDMA &rdma = RDMA::get_rdma();
-                uint64_t remote_head = mem->remote_head_offset(sid, tid);
-			    rdma.dev->RdmaWriteSelective(tid, dst_sid, head, sizeof(uint64_t), remote_head);
-		    }
-            else{
-                *(uint64_t *)mem->remote_head(sid, tid) = lmeta->head;
+                uint64_t remote_head = mem->remote_ring_head_offset(tid, sid);
+                rdma.dev->RdmaWriteSelective(tid, dst_sid, head, mem->remote_ring_head_size(), remote_head);
+            } else {
+                *(uint64_t *)mem->remote_ring_head(tid, sid) = lmeta->head;
             }
-	    }
+        }
+
         uint64_t t3 = timer::get_usec();
         return result;
     }
 
-    inline bool check_overwrite(int tid, int dst_sid, int dst_tid, uint64_t msg_sz){
-        rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
+    inline bool rbf_full(int tid, int dst_sid, int dst_tid, uint64_t msg_sz) {
         uint64_t rbf_sz = mem->ring_size();
-	    uint64_t head = *(uint64_t *) mem->remote_head(dst_sid, dst_tid);
+        uint64_t tail = rmetas[dst_sid * num_threads + dst_tid].tail;
+        uint64_t head = *(uint64_t *)mem->remote_ring_head(dst_tid, dst_sid);
 
-        if(rbf_sz - msg_sz > rmeta->tail - head)
-            return false;
-
-	    return true;
+        return (rbf_sz < (tail - head + msg_sz));
     }
 
 public:
@@ -203,10 +204,11 @@ public:
         assert(msg_sz < rbf_sz);
 
         pthread_spin_lock(&rmeta->lock);
-        if(check_overwrite(tid, dst_sid, dst_tid, msg_sz)){
+        if (rbf_full(tid, dst_sid, dst_tid, msg_sz)) {
             pthread_spin_unlock(&rmeta->lock);
             return false;
         }
+
         if (sid == dst_sid) { // local physical-queue
             uint64_t off = rmeta->tail;
             rmeta->tail += msg_sz;
@@ -249,6 +251,7 @@ public:
                 rdma.dev->RdmaWriteSelective(tid, dst_sid, mem->buffer(tid) + _sz, msg_sz - _sz, rdma_off);
             }
         }
+
         return true;
     }
 

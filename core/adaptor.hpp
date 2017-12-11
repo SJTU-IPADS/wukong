@@ -52,8 +52,8 @@ public:
             return rdma->send(tid, dst_sid, dst_tid, ss.str());
         } else {
             tcp->send(dst_sid, dst_tid, ss.str());
+            return true;
         }
-        return true;
     }
 
     request_or_reply recv() {

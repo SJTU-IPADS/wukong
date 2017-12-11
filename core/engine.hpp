@@ -93,6 +93,8 @@ public:
     }
 };
 
+
+
 typedef pair<int64_t, int64_t> v_pair;
 
 int64_t hash_pair(const v_pair &x) {
@@ -109,7 +111,16 @@ std::vector<Engine *> engines;
 
 
 class Engine {
-    const static uint64_t TIMEOUT_THRESHOLD = 10000; // 10 msec
+private:
+    class Message {
+    public:
+        int sid;
+        int tid;
+        request_or_reply r;
+
+        Message(int sid, int tid, request_or_reply &r)
+            : sid(sid), tid(tid), r(r) { }
+    };
 
     pthread_spinlock_t recv_lock;
     std::vector<request_or_reply> msg_fast_path;
@@ -117,26 +128,27 @@ class Engine {
     Reply_Map rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
 
-    vector<msg_pair> send_queue;
+    vector<Message> pending_msgs;
 
-    void check_send_queue(){
-        for(vector<msg_pair>::iterator it = send_queue.begin(); it != send_queue.end(); ){
-            if(adaptor->send(it->dst_sid, it->dst_tid, it->r)){
-                send_queue.erase(it);
-            }
-            else{
+    inline void sweep_msgs() {
+        if (!pending_msgs.size()) return;
+
+        for (vector<Message>::iterator it = pending_msgs.begin(); it != pending_msgs.end(); )
+            if (adaptor->send(it->sid, it->tid, it->r))
+                it = pending_msgs.erase(it);
+            else
                 ++it;
-            }
-        }
     }
-    bool try_send(int dst_sid, int dst_tid, request_or_reply &r){
-	    if(!adaptor->send(dst_sid, dst_tid, r)){
-            msg_pair new_msg(dst_sid, dst_tid, r);
-            send_queue.push_back(new_msg);
-            return false;
-        }
-        return true;
+
+    bool send_request(int sid, int tid, request_or_reply &r) {
+        if (adaptor->send(sid, tid, r))
+            return true;
+
+        // failed to send, then stash the msg to void deadlock
+        pending_msgs.push_back(Message(sid, tid, r));
+        return false;
     }
+
     // all of these means const predicate
     void const_to_unknown(request_or_reply &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
@@ -588,36 +600,35 @@ class Engine {
         return true;
     }
 
-    void execute_request(request_or_reply &req) {
-        uint64_t t1, t2;
-
+    void execute_request(request_or_reply &r) {
+        r.id = coder.get_and_inc_qid();
         while (true) {
-            t1 = timer::get_usec();
-            execute_one_step(req);
-            t2 = timer::get_usec();
+            uint64_t t1 = timer::get_usec();
+            execute_one_step(r);
+            t1 = timer::get_usec() - t1;
 
             // co-run optimization
-            if (!req.is_finished() && (req.cmd_chains[req.step * 4 + 2] == CORUN))
-                do_corun(req);
+            if (!r.is_finished() && (r.cmd_chains[r.step * 4 + 2] == CORUN))
+                do_corun(r);
 
-            if (req.is_finished()) {
-                req.row_num = req.get_row_num();
-                if (req.blind)
-                    req.clear_data(); // avoid take back the results
+            if (r.is_finished()) {
+                r.row_num = r.get_row_num();
+                if (r.blind)
+                    r.clear_data(); // avoid take back the results
 
-                try_send(coder.sid_of(req.pid), coder.tid_of(req.pid), req);
+                send_request(coder.sid_of(r.pid), coder.tid_of(r.pid), r);
                 return;
             }
 
-            if (need_fork_join(req)) {
-                vector<request_or_reply> sub_rs = generate_sub_query(req);
-                rmap.put_parent_request(req, sub_rs.size());
-                for (int i = 0; i < sub_rs.size(); i++) {
+            if (need_fork_join(r)) {
+                vector<request_or_reply> sub_reqs = generate_sub_query(r);
+                rmap.put_parent_request(r, sub_reqs.size());
+                for (int i = 0; i < sub_reqs.size(); i++) {
                     if (i != sid) {
-                        try_send(i, tid, sub_rs[i]);
+                        send_request(i, tid, sub_reqs[i]);
                     } else {
                         pthread_spin_lock(&recv_lock);
-                        msg_fast_path.push_back(sub_rs[i]);
+                        msg_fast_path.push_back(sub_reqs[i]);
                         pthread_spin_unlock(&recv_lock);
                     }
                 }
@@ -627,26 +638,29 @@ class Engine {
         return;
     }
 
-    void execute(request_or_reply &r, Engine *engine) {
-        if (r.is_request()) {
-            // request
-            r.id = coder.get_and_inc_qid();
-            execute_request(r);
+    void execute_reply(request_or_reply &r, Engine *engine) {
+        pthread_spin_lock(&engine->rmap_lock);
+        engine->rmap.put_reply(r);
+        if (engine->rmap.is_ready(r.pid)) {
+            request_or_reply reply = engine->rmap.get_merged_reply(r.pid);
+            pthread_spin_unlock(&engine->rmap_lock);
+
+            send_request(coder.sid_of(reply.pid), coder.tid_of(reply.pid), reply);
         } else {
-            // reply
-            pthread_spin_lock(&engine->rmap_lock);
-            engine->rmap.put_reply(r);
-            if (engine->rmap.is_ready(r.pid)) {
-                request_or_reply reply = engine->rmap.get_merged_reply(r.pid);
-                pthread_spin_unlock(&engine->rmap_lock);
-                try_send(coder.sid_of(reply.pid), coder.tid_of(reply.pid), reply);
-            } else {
-                pthread_spin_unlock(&engine->rmap_lock);
-            }
+            pthread_spin_unlock(&engine->rmap_lock);
         }
     }
 
+    void execute(request_or_reply &r, Engine *engine) {
+        if (r.is_request())
+            execute_request(r);
+        else
+            execute_reply(r, engine);
+    }
+
 public:
+    const static uint64_t TIMEOUT_THRESHOLD = 10000; // 10 msec
+
     int sid;    // server id
     int tid;    // thread id
 
@@ -693,6 +707,8 @@ public:
                 continue; // fast-path priority
             }
 
+            // check and send pending messages
+            sweep_msgs();
 
             // normal path
             last_time = timer::get_usec();
@@ -708,10 +724,7 @@ public:
             pthread_spin_unlock(&recv_lock);
 
             if (success) execute(r, engines[own_id]);
-            if(send_wait_cnt++ > 3){
-                check_send_queue();
-                send_wait_cnt = 0;
-            }
+
             // work-oblige is disabled
             if (!global_enable_workstealing) continue;
 

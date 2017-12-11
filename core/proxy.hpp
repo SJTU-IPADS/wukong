@@ -39,7 +39,7 @@
 #include "timer.hpp"
 
 
-#define PARALLEL_FACTOR 1000
+#define PARALLEL_FACTOR 20
 
 
 // a vector of pointers of all local proxies
@@ -79,11 +79,11 @@ private:
 			cout << type << " has " << req_template.ptypes_grp[i].size() << " candidates" << endl;
 		}
 	}
-//TODO: simply wait. Dead lock may happen.
-    void try_send(int dst_sid, int dst_tid, request_or_reply &r){
-		if(!adaptor->send(dst_sid, dst_tid, r))
-            while(!adaptor->send(dst_sid, dst_tid, r));
-    }
+
+	// FIXME: simply wait and may deadlock
+	inline void send(int sid, int tid, request_or_reply &r) {
+		while (!adaptor->send(sid, tid, r));
+	}
 
 public:
 	int sid;    // server id
@@ -112,7 +112,7 @@ public:
 			for (int i = 0; i < global_num_servers; i++) {
 				for (int j = 0; j < global_mt_threshold; j++) {
 					r.tid = j;
-					try_send(i, global_num_proxies + j, r);
+					send(i, global_num_proxies + j, r);
 				}
 			}
 			return ;
@@ -124,11 +124,11 @@ public:
 		// random assign request to range partitioned engines
 		// NOTE: the partitioned mapping has better tail latency in batch mode
 		int ratio = global_num_engines / global_num_proxies;
-		// TODO: BUG if global_num_engines < global_num_proxies
+		// FIXME: BUG if global_num_engines < global_num_proxies
 		assert(ratio > 0);
 		int start_tid = global_num_proxies + (ratio * tid) + (coder.get_random() % ratio);
 
-		try_send(start_sid, start_tid, r);
+		send(start_sid, start_tid, r);
 	}
 
 	request_or_reply recv_reply(void) {

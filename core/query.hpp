@@ -191,13 +191,3 @@ public:
         return request_or_reply(cmd_chains, nvars);
     }
 };
-
-//info of msg to store in sending queue.
-class msg_pair {
-public:
-    int dst_sid;
-    int dst_tid;
-    request_or_reply r;
-    msg_pair(int dst_sid, int dst_tid, request_or_reply &r)
-        : dst_sid(dst_sid), dst_tid(dst_tid), r(r) { }
-};
