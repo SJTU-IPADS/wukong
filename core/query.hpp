@@ -112,7 +112,7 @@ public:
 
     bool is_insert() {return insert_fname.compare("");}
 
-    bool get_insert_ret() { return insert_ret; }
+    int get_insert_ret() { return insert_ret; }
 #endif
 
     bool is_finished() { return (step * 4 >= cmd_chains.size()); }

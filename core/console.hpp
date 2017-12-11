@@ -375,7 +375,7 @@ next:
 				} else
 					goto failed;
 #else
-				if(IS_MASTER(proxy)){	
+				if(IS_MASTER(proxy)) {	
 					cout << "Error: Can't insert new data without Dynamic GStore support\n"
 					 	<< "You can handle this by using -DUSE_DYNAMIC_GSTORE=ON configuration while building." << endl;
 				}
