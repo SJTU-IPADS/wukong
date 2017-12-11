@@ -211,6 +211,29 @@ public:
 		}
 	}
 
+#if DYNAMIC_GSTORE
+	int insert_new_data(string &fname, request_or_reply &reply){
+		int insert_ret = 1;
+		request_or_reply request;
+		request.set_insert_fname(fname);
+		setpid(request);
+		for (int i = 0; i < global_num_servers; i++) {
+			for (int j = 0; j < global_mt_threshold; j++) {
+				adaptor->send(i, global_num_proxies + j, request);
+			}
+		}
+		for (int i = 0; i < global_num_servers; i++) {
+			for (int j = 0; j < global_mt_threshold; j++) {
+				reply = adaptor->recv();
+				if(!reply.get_insert_ret()){
+					insert_ret = 0;
+				}
+			}
+		}
+		return  insert_ret;
+	}
+#endif
+
 	int run_single_query(istream &is, int cnt,
 	                     request_or_reply &reply, Logger &logger) {
 		request_or_reply request;

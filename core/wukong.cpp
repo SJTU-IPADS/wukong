@@ -149,7 +149,7 @@ main(int argc, char *argv[])
 			pthread_create(&(threads[tid]), NULL, proxy_thread, (void *)proxy);
 			proxies.push_back(proxy);
 		} else {
-			Engine *engine = new Engine(sid, tid, &dgraph, adaptor);
+			Engine *engine = new Engine(sid, tid,&str_server, &dgraph, adaptor);
 			pthread_create(&(threads[tid]), NULL, engine_thread, (void *)engine);
 			engines.push_back(engine);
 		}

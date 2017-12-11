@@ -117,6 +117,8 @@ class Engine {
     Reply_Map rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
 
+    String_Server *str_server; 
+
     // all of these means const predicate
     void const_to_unknown(request_or_reply &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
@@ -626,6 +628,44 @@ class Engine {
         }
     }
 
+#if DYNAMIC_GSTORE
+    void normal_insert(ifstream &input) {
+        uint64_t s, p, o, acc=0;
+        uint64_t eid = tid - global_num_proxies;
+        while(input >> s >> p >> o) {
+            acc++;
+            if((acc % global_num_engines)!=eid)
+                continue;
+            acc = eid;
+            if(!global_load_minimal_index&&!str_server->exist((int64_t)s, (int64_t)p, (int64_t)o))
+                continue;
+            int s_mid=mymath::hash_mod(s, global_num_servers);
+            int o_mid=mymath::hash_mod(o, global_num_servers);
+            if (s_mid == sid) {
+                graph->gstore.insert_new_spo(triple_t(s, p, o));
+            }
+            if (o_mid == sid) {
+                graph->gstore.insert_new_ops(triple_t(s, p, o));
+            }
+        }		    
+	    input.close();
+        return;
+    }
+
+    void insert(request_or_reply &req) {
+        int insert_ret = 0;
+        string fname = req.get_insert_fname();
+        ifstream input(fname.c_str());
+        if (input.good()) {
+            normal_insert(input);
+            insert_ret = 1;
+        }
+        req.set_insert_ret(insert_ret);
+        adaptor->send(coder.sid_of(req.pid), coder.tid_of(req.pid), req);
+        return;
+    }
+#endif
+
 public:
     int sid;    // server id
     int tid;    // thread id
@@ -637,8 +677,8 @@ public:
 
     uint64_t last_time; // busy or not (work-oblige)
 
-    Engine(int sid, int tid, DGraph *graph, Adaptor *adaptor)
-        : sid(sid), tid(tid), graph(graph), adaptor(adaptor),
+    Engine(int sid, int tid,String_Server *str_server, DGraph *graph, Adaptor *adaptor)
+        : sid(sid), tid(tid), str_server(str_server), graph(graph), adaptor(adaptor),
           coder(sid, tid), last_time(0) {
         pthread_spin_init(&recv_lock, 0);
         pthread_spin_init(&rmap_lock, 0);
@@ -680,6 +720,12 @@ public:
             success = false;
             pthread_spin_lock(&recv_lock);
             success = adaptor->tryrecv(r);
+#if DYNAMIC_GSTORE
+            if (success && r.is_insert()) {
+                insert(r);
+                success = false;
+            }
+#endif
             if (success && r.start_from_index()) {
                 msg_fast_path.push_back(r);
                 success = false;

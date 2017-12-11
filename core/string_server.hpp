@@ -59,6 +59,14 @@ public:
         cout << "loading String Server is finished." << endl;
     }
 
+#if DYNAMIC_GSTORE
+    bool exist(int64_t s, int64_t p, int64_t o) {
+        return ((id2str.find(s) != id2str.end())
+                    &&(id2str.find(p) != id2str.end())
+                        &&(id2str.find(o) != id2str.end()));
+    }
+#endif
+
 private:
     /* load ID mapping files from a shared filesystem (e.g., NFS) */
     void load_from_posixfs(string dname) {

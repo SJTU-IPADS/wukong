@@ -156,6 +156,13 @@ uint64_t off: NBITS_PTR;
 struct vertex_t {
     ikey_t key; // 64-bit: vertex | predicate | direction
     iptr_t ptr; // 64-bit: size | offset
+#if DYNAMIC_GSTORE
+    pthread_spinlock_t realloc_lock;
+    void init(){
+      pthread_spin_init(&realloc_lock, 0);
+      ptr=iptr_t();
+    }
+#endif
 };
 
 // 32-bit edge (value)
@@ -251,7 +258,7 @@ private:
 #endif
 
     // cluster chaining hash-table (see paper: DrTM SOSP'15)
-    uint64_t insert_key(ikey_t key) {
+    uint64_t insert_key(ikey_t key,bool check_dep = true) {
         uint64_t bucket_id = key.hash() % num_buckets;
         uint64_t slot_id = bucket_id * ASSOCIATIVITY;
         uint64_t lock_id = bucket_id % NUM_LOCKS;
@@ -266,16 +273,23 @@ private:
             for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
                 //assert(vertices[slot_id].key != key); // no duplicate key
                 if (vertices[slot_id].key == key) {
-                    key.print();
-                    vertices[slot_id].key.print();
-                    cout << "ERROR: conflict at slot["
-                         << slot_id << "] of bucket["
-                         << bucket_id << "]" << endl;
-                    assert(false);
+                    if (check_dep){
+                        key.print();
+                        vertices[slot_id].key.print();
+                        cout << "ERROR: conflict at slot["
+                            << slot_id << "] of bucket["
+                            << bucket_id << "]" << endl;
+                        assert(false);
+                    }else{
+                        goto done;
+                    }
                 }
 
                 // insert to an empty slot
                 if (vertices[slot_id].key.is_empty()) {
+#if DYNAMIC_GSTORE
+                    vertices[slot_id].init();
+#endif
                     vertices[slot_id].key = key;
                     goto done;
                 }
@@ -284,6 +298,9 @@ private:
             // whether the bucket_ext (indirect-header region) is used
             if (!vertices[slot_id].key.is_empty()) {
                 slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY;
+#if DYNAMIC_GSTORE
+                vertices[slot_id].init();
+#endif
                 continue; // continue and jump to next bucket
             }
 
@@ -325,6 +342,35 @@ done:
         return orig;
 #endif
     }
+
+#if DYNAMIC_GSTORE
+    uint64_t realloc_edges(uint64_t p, uint64_t n) {
+        uint64_t ptr = p * sizeof(edge_t);
+        uint64_t sz = n * sizeof(edge_t);
+        return edge_allocator->realloc(ptr, sz)/sizeof(edge_t);
+    }
+
+     bool insert_key_value(ikey_t key, uint64_t value) {
+        uint64_t v_ptr = insert_key(key, false);
+        vertex_t *v = &vertices[v_ptr];
+        pthread_spin_lock(&v->realloc_lock);
+        if (v->ptr.size == 0) {
+            uint64_t off = alloc_edges(1);
+            vertices[v_ptr].ptr = iptr_t(1, off);
+            edges[off].val = value;
+            pthread_spin_unlock(&v->realloc_lock);
+            return true;
+        } else {
+            uint64_t need_size = v->ptr.size + 1;
+            uint64_t off = realloc_edges(v->ptr.off, need_size);
+            v->ptr = iptr_t(need_size, off);
+            off = v->ptr.off + v->ptr.size - 1;
+            edges[off].val = value;
+            pthread_spin_unlock(&v->realloc_lock);
+            return false;
+        }
+    }
+#endif
 
     vertex_t get_vertex_remote(int tid, ikey_t key) {
         int dst_sid = mymath::hash_mod(key.vid, global_num_servers);
@@ -534,6 +580,55 @@ public:
         last_entry = 0;
 #endif
     }
+
+#if DYNAMIC_GSTORE
+    void insert_new_spo(const triple_t &spo){
+    // (s, ->, p) ---> normal vertex(o)
+    // (s, ->, 0) ---> predicts
+    // (p, <-, 0) ---> normal vertex(s)
+        ikey_t key = ikey_t(spo.s,spo.p,OUT);
+        if (insert_key_value(key, spo.o)){
+        // key doesn't exist before
+            if (spo.p == PREDICATE_ID) {
+                #ifdef VERSATILE
+                    key = ikey_t(0, TYPE_ID, IN);
+                    insert_key_value(key, spo.s);
+                    key = ikey_t(0, TYPE_ID, OUT);
+                    insert_key_value(key, spo.o);
+                #endif
+            }else if (spo.p == TYPE_ID){
+                key = ikey_t(0, spo.o, IN);
+                insert_key_value(key, spo.s);
+            }else{
+                key = ikey_t(0, spo.p, IN);
+                insert_key_value(key, spo.o);
+            }
+        }
+    }
+
+    void insert_new_ops(const triple_t &ops){
+    // (o, <-, p) ---> normal vertex(s)
+    // (o, <-, 0) ---> predicts
+    // (p, ->, 0) ---> normal vertex(o)
+        ikey_t key = ikey_t(ops.o,ops.p,IN);
+        if (insert_key_value(key, ops.s)){
+        // key doesn't exist before
+            if (ops.p == PREDICATE_ID) {
+                #ifdef VERSATILE
+                    key = ikey_t(0, TYPE_ID, IN);
+                    insert_key_value(key, ops.o);
+                    key = ikey_t(0, TYPE_ID, OUT);
+                    insert_key_value(key, ops.s);
+                #endif
+            }else if (ops.p == TYPE_ID){
+                return;
+            }else{
+                key = ikey_t(0, ops.p, OUT);
+                insert_key_value(key, ops.s);
+            }
+        }
+    }
+#endif
 
     // skip all TYPE triples (e.g., <http://www.Department0.University0.edu> rdf:type ub:University)
     // because Wukong treats all TYPE triples as index vertices. In addition, the triples in triple_ops

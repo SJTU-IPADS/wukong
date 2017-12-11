@@ -57,6 +57,10 @@ public:
     int row_num = 0;
 
     bool blind = false;
+#ifdef DYNAMIC_GSTORE
+    int insert_ret = 0;
+    string insert_fname = "";//the file name used to be inserted
+#endif
 
     int nvars = 0; // the number of variables
     ssid_t local_var = 0;   // the local variable
@@ -88,12 +92,28 @@ public:
         ar & blind;
         ar & nvars;
         ar & local_var;
+#if DYNAMIC_GSTORE
+        ar & insert_ret;
+        ar & insert_fname;
+#endif
         ar & cmd_chains;
         ar & result_table;
         ar & v2c_map;
     }
 
     void clear_data() { result_table.clear();}
+    
+#if DYNAMIC_GSTORE
+    void set_insert_fname(string& fname) { insert_fname = fname; }
+
+    void set_insert_ret(int ret) {insert_ret = ret;}
+
+    string get_insert_fname() { return insert_fname; }
+
+    bool is_insert() {return insert_fname.compare("");}
+
+    bool get_insert_ret() { return insert_ret; }
+#endif
 
     bool is_finished() { return (step * 4 >= cmd_chains.size()); }
 
