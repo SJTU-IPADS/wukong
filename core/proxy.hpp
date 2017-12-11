@@ -39,7 +39,7 @@
 #include "timer.hpp"
 
 
-#define PARALLEL_FACTOR 20
+#define PARALLEL_FACTOR 1000
 
 
 // a vector of pointers of all local proxies
@@ -79,6 +79,11 @@ private:
 			cout << type << " has " << req_template.ptypes_grp[i].size() << " candidates" << endl;
 		}
 	}
+//TODO: simply wait. Dead lock may happen.
+    void try_send(int dst_sid, int dst_tid, request_or_reply &r){
+		if(!adaptor->send(dst_sid, dst_tid, r))
+            while(!adaptor->send(dst_sid, dst_tid, r));
+    }
 
 public:
 	int sid;    // server id
@@ -107,7 +112,7 @@ public:
 			for (int i = 0; i < global_num_servers; i++) {
 				for (int j = 0; j < global_mt_threshold; j++) {
 					r.tid = j;
-					adaptor->send(i, global_num_proxies + j, r);
+					try_send(i, global_num_proxies + j, r);
 				}
 			}
 			return ;
@@ -123,7 +128,7 @@ public:
 		assert(ratio > 0);
 		int start_tid = global_num_proxies + (ratio * tid) + (coder.get_random() % ratio);
 
-		adaptor->send(start_sid, start_tid, r);
+		try_send(start_sid, start_tid, r);
 	}
 
 	request_or_reply recv_reply(void) {

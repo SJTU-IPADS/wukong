@@ -117,6 +117,26 @@ class Engine {
     Reply_Map rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
 
+    vector<msg_pair> send_queue;
+
+    void check_send_queue(){
+        for(vector<msg_pair>::iterator it = send_queue.begin(); it != send_queue.end(); ){
+            if(adaptor->send(it->dst_sid, it->dst_tid, it->r)){
+                send_queue.erase(it);
+            }
+            else{
+                ++it;
+            }
+        }
+    }
+    bool try_send(int dst_sid, int dst_tid, request_or_reply &r){
+	    if(!adaptor->send(dst_sid, dst_tid, r)){
+            msg_pair new_msg(dst_sid, dst_tid, r);
+            send_queue.push_back(new_msg);
+            return false;
+        }
+        return true;
+    }
     // all of these means const predicate
     void const_to_unknown(request_or_reply &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
@@ -585,7 +605,7 @@ class Engine {
                 if (req.blind)
                     req.clear_data(); // avoid take back the results
 
-                adaptor->send(coder.sid_of(req.pid), coder.tid_of(req.pid), req);
+                try_send(coder.sid_of(req.pid), coder.tid_of(req.pid), req);
                 return;
             }
 
@@ -594,7 +614,7 @@ class Engine {
                 rmap.put_parent_request(req, sub_rs.size());
                 for (int i = 0; i < sub_rs.size(); i++) {
                     if (i != sid) {
-                        adaptor->send(i, tid, sub_rs[i]);
+                        try_send(i, tid, sub_rs[i]);
                     } else {
                         pthread_spin_lock(&recv_lock);
                         msg_fast_path.push_back(sub_rs[i]);
@@ -619,7 +639,7 @@ class Engine {
             if (engine->rmap.is_ready(r.pid)) {
                 request_or_reply reply = engine->rmap.get_merged_reply(r.pid);
                 pthread_spin_unlock(&engine->rmap_lock);
-                adaptor->send(coder.sid_of(reply.pid), coder.tid_of(reply.pid), reply);
+                try_send(coder.sid_of(reply.pid), coder.tid_of(reply.pid), reply);
             } else {
                 pthread_spin_unlock(&engine->rmap_lock);
             }
@@ -651,6 +671,7 @@ public:
         // TODO: replace pair to ring
         int nbr_id = (global_num_engines - 1) - own_id;
 
+        int send_wait_cnt = 0;
         while (true) {
             request_or_reply r;
             bool success;
@@ -687,7 +708,10 @@ public:
             pthread_spin_unlock(&recv_lock);
 
             if (success) execute(r, engines[own_id]);
-
+            if(send_wait_cnt++ > 3){
+                check_send_queue();
+                send_wait_cnt = 0;
+            }
             // work-oblige is disabled
             if (!global_enable_workstealing) continue;
 
