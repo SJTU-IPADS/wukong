@@ -340,6 +340,7 @@ private:
         int start = req.tid;
         for (uint64_t k = start; k < sz; k += global_mt_threshold)
             updated_result_table.push_back(res[k].val);
+
         req.result_table.swap(updated_result_table);
         req.set_col_num(1);
         req.add_var2col(var, 0);

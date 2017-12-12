@@ -142,6 +142,7 @@ struct iptr_t {
 uint64_t size: NBITS_SIZE;
 uint64_t off: NBITS_PTR;
 uint64_t type: NBITS_TYPE;
+
     iptr_t(): size(0), off(0), type(0) { }
 
     iptr_t(uint64_t s, uint64_t o, uint64_t t = 0): size(s), off(o), type(t) {

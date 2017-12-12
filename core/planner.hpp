@@ -556,7 +556,7 @@ public:
         for (int i = 0, ilimit = min_path.size(); i < ilimit; i++) {
             if (min_path[i] < 0 ) {
                 if (convert.find(min_path[i]) == convert.end()) {
-                    int value = -1 - convert.size();
+                    int value =  -1 - convert.size();
                     convert[min_path[i]] = value;
                     min_path[i] = value;
                 } else {
