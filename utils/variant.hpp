@@ -2,6 +2,7 @@
 
 #include <boost/variant.hpp>
 enum {
+    SID_t = 0,
     INT_t = 1,
     FLOAT_t = 2,
     DOUBLE_t = 3,

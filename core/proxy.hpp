@@ -80,6 +80,11 @@ private:
 		}
 	}
 
+	// FIXME: simply wait and may deadlock
+	inline void send(int sid, int tid, request_or_reply &r) {
+		while (!adaptor->send(sid, tid, r));
+	}
+
 public:
 	int sid;    // server id
 	int tid;    // thread id
@@ -104,10 +109,10 @@ public:
 
 		// submit the request to all engines (parallel)
 		if (r.start_from_index()) {
-            for (int i = 0; i < global_num_servers; i++) {
+			for (int i = 0; i < global_num_servers; i++) {
 				for (int j = 0; j < global_mt_threshold; j++) {
 					r.tid = j;
-					adaptor->send(i, global_num_proxies + j, r);
+					send(i, global_num_proxies + j, r);
 				}
 			}
 			return ;
@@ -119,16 +124,16 @@ public:
 		// random assign request to range partitioned engines
 		// NOTE: the partitioned mapping has better tail latency in batch mode
 		int ratio = global_num_engines / global_num_proxies;
-		// TODO: BUG if global_num_engines < global_num_proxies
+		// FIXME: BUG if global_num_engines < global_num_proxies
 		assert(ratio > 0);
 		int start_tid = global_num_proxies + (ratio * tid) + (coder.get_random() % ratio);
 
-		adaptor->send(start_sid, start_tid, r);
+		send(start_sid, start_tid, r);
 	}
 
 	request_or_reply recv_reply(void) {
 		request_or_reply r = adaptor->recv();
-        if (r.start_from_index()) {
+		if (r.start_from_index()) {
 			for (int count = 0; count < global_num_servers * global_mt_threshold - 1 ; count++) {
 				request_or_reply r2 = adaptor->recv();
 				r.row_num += r2.row_num;
@@ -136,9 +141,9 @@ public:
 				r.result_table.reserve(new_size);
 				r.result_table.insert(r.result_table.end(), r2.result_table.begin(), r2.result_table.end());
 
-                int new_attr_size = r.attr_res_table.size() + r2.attr_res_table.size();
-                r.attr_res_table.reserve(new_attr_size);
-                r.attr_res_table.insert(r.attr_res_table.end(), r2.attr_res_table.begin(), r2.attr_res_table.end());
+				int new_attr_size = r.attr_res_table.size() + r2.attr_res_table.size();
+				r.attr_res_table.reserve(new_attr_size);
+				r.attr_res_table.insert(r.attr_res_table.end(), r2.attr_res_table.begin(), r2.attr_res_table.end());
 			}
 		}
 		return r;
@@ -170,10 +175,10 @@ public:
 				else
 					cout << str_server->id2str[r.get_row_col(i, c)] << "\t";
 			}
-            for(int c = 0; c < r.get_attr_col_num(); c++){
-                attr_t  tmp= r.get_attr_row_col(i, c);
-                cout << tmp << "\t";
-            }
+			for(int c = 0; c < r.get_attr_col_num(); c++){
+				attr_t  tmp= r.get_attr_row_col(i, c);
+				cout << tmp << "\t";
+			}
 			cout << endl;
 		}
 	}
@@ -250,7 +255,7 @@ public:
 			setpid(request);
 			// only take back results of the last request if not silent
 			request.blind = i < (cnt - 1) ? true : global_silent;
-            send_request(request);
+			send_request(request);
 			reply = recv_reply();
 		}
 		logger.finish();

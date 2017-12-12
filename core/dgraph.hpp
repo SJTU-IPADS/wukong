@@ -45,8 +45,6 @@
 using namespace std;
 
 class DGraph {
-	static const int nthread_parallel_load = 16;
-
 	int sid;
 	Mem *mem;
 
@@ -54,7 +52,7 @@ class DGraph {
 
 	vector<vector<triple_t>> triple_spo;
 	vector<vector<triple_t>> triple_ops;
-    vector<vector<triple_attr_t>> triple_attr;
+	vector<vector<triple_attr_t>> triple_attr;
 
 	void dedup_triples(vector<triple_t> &triples) {
 		if (triples.size() <= 1)
@@ -293,78 +291,77 @@ class DGraph {
 				wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
 				wukong::hdfs::fstream file(hdfs, fnames[i]);
 				sid_t s, p;
-                int type;
-                attr_t v;
+				int type;
+				attr_t v;
 				while (file >> s >> p >> type) {
-                    switch(type){
-                        case 1:
-                            int i;
-                            file >> i;
-                            v = i;
-                            break;
-                        case 2:
-                            float f;
-                            file >> f;
-                            v = f;
-                            break;
-                        case 3:
-                            double d;
-                            file >> d;
-                            v = d;
-                            break;
-                        default:
-                            cout << " Not support value" <<endl;
-                            break;
-                    }
-                    int s_sid = mymath::hash_mod(s, global_num_servers);
-                    if ((s_sid == sid) ) {
-                        triple_attr_t t;
-                        t.s = s;
-                        t.p = p;
-                        t.v = v;
-                        triple_attr[localtid].push_back(t);
-                    }
-                }
-                file.close();
-            } else {
-                ifstream file(fnames[i].c_str());
-                sid_t s, p;
-                int type;
-                attr_t v;
-                while (file >> s >> p >> type) {
-                    switch(type){
-                        case 0:
-                            int i;
-                            file >> i;
-                            v = i;
-                            break;
-                        case 1:
-                            float f;
-                            file >> f;
-                            v = f;
-                            break;
-                        case 2:
-                            double d;
-                            file >> d;
-                            v = d;
-                            break;
-                        default:
-                            cout << " Not support value" <<endl;
-                            break;
-                    }
-                    int s_sid = mymath::hash_mod(s, global_num_servers);
-                    if ((s_sid == sid) ) {
-                        triple_attr_t t;
-                        t.s = s;
-                        t.p = p;
-                        t.v = v;
-                        triple_attr[localtid].push_back(t);
-                    }
-                }
-                file.close();
-            }
-        }
-
+					switch(type){
+					case 1:
+						int i;
+						file >> i;
+						v = i;
+						break;
+					case 2:
+						float f;
+						file >> f;
+						v = f;
+						break;
+					case 3:
+						double d;
+						file >> d;
+						v = d;
+						break;
+					default:
+						cout << " Not support value" <<endl;
+						break;
+					}
+					int s_sid = mymath::hash_mod(s, global_num_servers);
+					if ((s_sid == sid) ) {
+						triple_attr_t t;
+						t.s = s;
+						t.p = p;
+						t.v = v; 
+						triple_attr[localtid].push_back(t);
+					}
+				}
+				file.close();
+			} else {
+				ifstream file(fnames[i].c_str());
+				sid_t s, p;
+				int type;
+				attr_t v;
+				while (file >> s >> p >> type) {
+					switch(type){
+					case 1:
+						int i;
+						file >> i;
+						v = i;
+						break;
+					case 2:
+						float f;
+						file >> f;
+						v = f;
+						break;
+					case 3:
+						double d;
+						file >> d;
+						v = d;
+						break;
+					default:
+						cout << " Not support value" <<endl;
+						break;
+					}
+					int s_sid = mymath::hash_mod(s, global_num_servers);
+					if ((s_sid == sid) ) {
+						triple_attr_t t;
+						t.s = s;
+						t.p = p;
+						t.v = v; 
+						triple_attr[localtid].push_back(t);
+					}
+				}
+				file.close();
+			}
+		}
 		// timing
 		uint64_t t2 = timer::get_usec();
 		cout << (t2 - t1) / 1000 << " ms for loading RDF data files (w/o networking)" << endl;
@@ -384,16 +381,16 @@ class DGraph {
 
 		// pre-expand to avoid frequent reallocation (maybe imbalance)
 		for (int i = 0; i < triple_spo.size(); i++) {
-			triple_spo[i].reserve(total / nthread_parallel_load);
-			triple_ops[i].reserve(total / nthread_parallel_load);
+			triple_spo[i].reserve(total / global_num_engines);
+			triple_ops[i].reserve(total / global_num_engines);
 		}
 
 		// each thread will scan all triples (from all servers) and pickup certain triples.
 		// It ensures that the triples belong to the same vertex will be stored in the same
 		// triple_spo/ops. This will simplify the deduplication and insertion to gstore.
 		volatile int progress = 0;
-		#pragma omp parallel for num_threads(nthread_parallel_load)
-		for (int tid = 0; tid < nthread_parallel_load; tid++) {
+		#pragma omp parallel for num_threads(global_num_engines)
+		for (int tid = 0; tid < global_num_engines; tid++) {
 			int cnt = 0; // per thread count for print progress
 			for (int id = 0; id < num_partitions; id++) {
 				uint64_t *pn = (uint64_t *)(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * id);
@@ -408,19 +405,19 @@ class DGraph {
 
 					// out-edges
 					if (mymath::hash_mod(s, global_num_servers) == sid)
-						if ((s % nthread_parallel_load) == tid)
+						if ((s % global_num_engines) == tid)
 							triple_spo[tid].push_back(triple_t(s, p, o));
 
 					// in-edges
 					if (mymath::hash_mod(o, global_num_servers) == sid)
-						if ((o % nthread_parallel_load) == tid)
+						if ((o % global_num_engines) == tid)
 							triple_ops[tid].push_back(triple_t(s, p, o));
 
 					// print the progress (step = 5%) of aggregation
 					if (++cnt >= total * 0.05) {
 						int now = __sync_add_and_fetch(&progress, 1);
-						if (now % nthread_parallel_load == 0)
-							cout << "already aggregrate " << (now / nthread_parallel_load) * 5 << "%" << endl;
+						if (now % global_num_engines == 0)
+							cout << "already aggregrate " << (now / global_num_engines) * 5 << "%" << endl;
 						cnt = 0;
 					}
 				}
@@ -457,14 +454,13 @@ public:
 		: sid(sid), mem(mem), gstore(sid, mem) {
 
 		num_triples.resize(global_num_servers);
-		triple_spo.resize(nthread_parallel_load);
-		triple_ops.resize(nthread_parallel_load);
-        triple_attr.resize(nthread_parallel_load);
+		triple_spo.resize(global_num_engines);
+		triple_ops.resize(global_num_engines);
+		triple_attr.resize(global_num_engines);
 
-        vector<string> files; // ID-format data files
-        vector<string> attr_files; // attr-built-format data files
-       
-        if (boost::starts_with(dname, "hdfs:")) {
+		vector<string> files; // ID-format data files
+		vector<string> attr_files; // attr-built-format data files
+		if (boost::starts_with(dname, "hdfs:")) {
 			if (!wukong::hdfs::has_hadoop()) {
 				cout << "ERROR: attempting to load data files from HDFS "
 				     << "but Wukong was built without HDFS."
@@ -521,20 +517,20 @@ public:
 		else
 			num_partitons = load_data_from_allfiles(files);
 
-        if(global_enable_vertex_attr)
-            load_attr_from_allfiles(attr_files);
+		if(global_enable_vertex_attr)
+			load_attr_from_allfiles(attr_files);
 		// all triples are partitioned and temporarily stored in the kvstore on each server.
 		// the kvstore is split into num_partitions partitions, each contains #triples and triples
 		//
 		// Wukong aggregates, sorts and dedups all triples before finally inserting them to gstore (kvstore)
 		aggregate_data(num_partitons);
 
-		// initiate gstore (kvstore) after loading and exchanging triples
-		gstore.init(nthread_parallel_load);
+		// initiate gstore (kvstore) after loading and exchanging triples (memory reused)
+		gstore.init();
 
 		uint64_t t1 = timer::get_usec();
-		#pragma omp parallel for num_threads(nthread_parallel_load)
-		for (int t = 0; t < nthread_parallel_load; t++) {
+		#pragma omp parallel for num_threads(global_num_engines)
+		for (int t = 0; t < global_num_engines; t++) {
 			gstore.insert_normal(triple_spo[t], triple_ops[t], t);
 
 			// release memory
@@ -542,16 +538,16 @@ public:
 			vector<triple_t>().swap(triple_ops[t]);
 		}
 		
-        #pragma omp parallel for num_threads(nthread_parallel_load)
-        for (int t = 0; t < nthread_parallel_load; t++) {
-            gstore.insert_vertex_attr(triple_attr[t], t);
+		#pragma omp parallel for num_threads(global_num_engines)
+		for (int t = 0; t < global_num_engines; t++) {
+			gstore.insert_vertex_attr(triple_attr[t], t);
 			// release memory
-            vector<triple_attr_t>().swap(triple_attr[t]);
-        }
+			vector<triple_attr_t>().swap(triple_attr[t]);
+		}
 		uint64_t t2 = timer::get_usec();
 		cout << (t2 - t1) / 1000 << " ms for inserting normal data into gstore" << endl;
-        gstore.insert_index();
-        
+		gstore.insert_index();
+
 		cout << "INFO#" << sid << ": loading DGraph is finished." << endl;
 		gstore.print_mem_usage();
 	}
@@ -563,8 +559,8 @@ public:
 	edge_t *get_index_edges_local(int tid, sid_t vid, dir_t direction, uint64_t *sz) {
 		return gstore.get_index_edges_local(tid, vid, direction, sz);
 	}
-    
-    bool get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid,attr_t &result) {
-         return gstore.get_vertex_attr_global(tid,vid,d,pid,result);   
-    }
+
+	bool get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid,attr_t &result) {
+		return gstore.get_vertex_attr_global(tid,vid,d,pid,result);   
+	}
 };

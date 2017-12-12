@@ -58,6 +58,7 @@ public:
             load_from_hdfs(dname);
         } else
             load_from_posixfs(dname);
+
         cout << "loading String Server is finished." << endl;
     }
 
@@ -98,10 +99,9 @@ private:
                 }
                 file.close();
             }
-            
+
             if  (boost::ends_with(fname,"/str_attr_index")) {
                 cout << "loading attr-ID-mapping file: " << fname << endl;
-                
                 ifstream file(fname.c_str());
                 string str;
                 int64_t id;
@@ -110,7 +110,7 @@ private:
                     // both string and ID are unique
                     assert(str2id.find(str) == str2id.end());
                     assert(id2str.find(id) == id2str.end());
-                    
+
                     str2id[str] = id;
                     id2str[id] = str;
                     cout << " add attr_index " << id<<endl;

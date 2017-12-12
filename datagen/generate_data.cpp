@@ -159,9 +159,9 @@ main(int argc, char** argv)
                     index_to_type [predicate] = type;
                 }
                 string obj = find_value(object);
-                
+
                 attr_file << str_to_id[subject] << "\t" << str_to_id[predicate] << "\t" << type << "\t" << obj <<endl;
-            
+
             //the normal triple
             } else { 
                 // add a new normal vertex (i.e., vid)
@@ -218,7 +218,7 @@ main(int argc, char** argv)
         for (int64_t i = 0; i < index_str.size(); i++)
             f_index << index_str[i] << "\t" << str_to_id[index_str[i]] << endl;
     }
-    
+
     /* build ID-mapping (str2id) table file for attr vertices */
     {
         ofstream f_attr((string(ddir_name) + "/str_attr_index").c_str());

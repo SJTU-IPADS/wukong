@@ -445,7 +445,8 @@ class Planner {
         min_select_record[0] -= lastnum + 1;
     }
 
-    void remove_attr_pattern(request_or_reply &r, vector<ssid_t> &attr_pattern, vector<int>& attr_pred_chains){
+    // remove the attr pattern query before doing the planner
+    void remove_attr_pattern(request_or_reply &r, vector<ssid_t> &attr_pattern, vector<int>& attr_pred_chains) {
         vector<ssid_t> temp;
         for(int i=0; i < r.cmd_chains.size();i+=4) {
             if ( r.pred_type_chains[i/4] == 0 ) {
@@ -465,8 +466,9 @@ class Planner {
         r.cmd_chains = temp;
     }
 
-    void add_attr_pattern(vector<ssid_t> &min_path, vector<ssid_t> attr_pattern, vector<int> attr_pred_chains,vector<int>& pred_chains){
-        for(int i=0; i < attr_pattern.size()/4; i++) {
+    // add the previous removed attr patterns at the end of query after doing the planner
+    void add_attr_pattern(vector<ssid_t> &min_path, vector<ssid_t> attr_pattern, vector<int> attr_pred_chains,vector<int>& pred_chains) {
+        for (int i =0; i < attr_pattern.size()/4; i++) {
            min_path.push_back(attr_pattern[4*i]);   
            min_path.push_back(attr_pattern[4*i + 1]); 
            min_path.push_back(attr_pattern[4*i + 2]); 
@@ -545,17 +547,16 @@ public:
             min_path[4] = min_path[3];
           }
         }*/
-        
+
         pred_chains.resize(min_path.size()/4, 0);
         add_attr_pattern(min_path, attr_pattern, attr_pred_chains,pred_chains);
-        
-        int valid = -1;
+
         uint64_t t_convert1 = timer::get_usec();
         boost::unordered_map<int, int> convert;
         for (int i = 0, ilimit = min_path.size(); i < ilimit; i++) {
             if (min_path[i] < 0 ) {
                 if (convert.find(min_path[i]) == convert.end()) {
-                    int value = valid --;
+                    int value = -1 - convert.size();
                     convert[min_path[i]] = value;
                     min_path[i] = value;
                 } else {

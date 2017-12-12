@@ -39,12 +39,12 @@ using namespace boost::archive;
 enum var_type {
     known_var,
     unknown_var,
-    const_var,
+    const_var
 };
 
 enum res_type {
     normal = 0,
-    attr = 1,
+    attr = 1
 };
 // defined as constexpr due to switch-case
 constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
@@ -192,28 +192,26 @@ public:
 
 
     // about the attr result 
-    int var2attrcol(ssid_t vid)
-    {
+    int var2attrcol(ssid_t vid) {
         assert (vid < 0);
         if (v2c_map.size() == 0) // init
             v2c_map.resize(nvars, NO_RESULT);
-        
+
         int idx = (-1) * vid -1;
         assert(idx < nvars);
         return get_col_pair(v2c_map[idx]);
     }
 
-    
-
-    int set_attr_col_num(int n){attr_col_num = n; }
+    int set_attr_col_num(int n) { attr_col_num = n; }
 
     int get_attr_col_num() {
         return  attr_col_num; 
     }
+
     attr_t get_attr_row_col(int r, int c) {
         return attr_res_table[attr_col_num * r + c];
     }
-    
+
     void append_attr_row_to(int r, vector<attr_t> &updated_result_table) {
         for (int c = 0; c < attr_col_num; c++)
             updated_result_table.push_back(get_attr_row_col(r, c));
