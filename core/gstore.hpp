@@ -42,42 +42,6 @@
 
 using namespace std;
 
-struct triple_t {
-    sid_t s; // subject
-    sid_t p; // predicate
-    sid_t o; // object
-
-    triple_t(): s(0), p(0), o(0) { }
-
-    triple_t(sid_t _s, sid_t _p, sid_t _o): s(_s), p(_p), o(_o) { }
-};
-
-struct edge_sort_by_spo {
-    inline bool operator()(const triple_t &t1, const triple_t &t2) {
-        if (t1.s < t2.s)
-            return true;
-        else if (t1.s == t2.s)
-            if (t1.p < t2.p)
-                return true;
-            else if (t1.p == t2.p && t1.o < t2.o)
-                return true;
-        return false;
-    }
-};
-
-struct edge_sort_by_ops {
-    inline bool operator()(const triple_t &t1, const triple_t &t2) {
-        if (t1.o < t2.o)
-            return true;
-        else if (t1.o == t2.o)
-            if (t1.p < t2.p)
-                return true;
-            else if ((t1.p == t2.p) && (t1.s < t2.s))
-                return true;
-        return false;
-    }
-};
-
 enum { NBITS_DIR = 1 };
 enum { NBITS_IDX = 17 }; // equal to the size of t/pid
 enum { NBITS_VID = (64 - NBITS_IDX - NBITS_DIR) }; // 0: index vertex, ID: normal vertex
@@ -168,7 +132,9 @@ struct edge_t {
     }
 };
 
-
+/**
+ * Map the Graph model (e.g., vertex, edge, index) to KVS model (e.g., key, value)
+ */
 class GStore {
 private:
     class RDMA_Cache {
@@ -854,6 +820,7 @@ public:
         cout << "INFO#" << sid << ": generating stats is finished." << endl;
     }
 
+    // FIXME: refine parameters with vertex_t
     edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
         if (mymath::hash_mod(vid, global_num_servers) == sid)
             return get_edges_local(tid, vid, d, pid, sz);

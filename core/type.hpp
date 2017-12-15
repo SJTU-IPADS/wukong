@@ -36,5 +36,15 @@ typedef int32_t ssid_t;  // signed string id
 
 #endif
 
-enum dir_t { IN, OUT, CORUN }; // direction: IN=0, OUT=1, and optimization hints
+struct triple_t {
+	sid_t s; // subject
+	sid_t p; // predicate
+	sid_t o; // object
+
+	triple_t(): s(0), p(0), o(0) { }
+
+	triple_t(sid_t _s, sid_t _p, sid_t _o): s(_s), p(_p), o(_o) { }
+};
+
+enum dir_t { IN = 0, OUT, CORUN }; // direction: IN=0, OUT=1, and optimization hints
 

@@ -35,14 +35,15 @@
 
 #include "config.hpp"
 #include "hdfs.hpp"
+#include "type.hpp"
 
 using namespace std;
 
 
 class String_Server {
 public:
-    boost::unordered_map<string, int64_t> str2id;
-    boost::unordered_map<int64_t, string> id2str;
+    boost::unordered_map<string, sid_t> str2id;
+    boost::unordered_map<sid_t, string> id2str;
 
     String_Server(string dname) {
         if (boost::starts_with(dname, "hdfs:")) {
@@ -58,6 +59,10 @@ public:
 
         cout << "loading String Server is finished." << endl;
     }
+
+    bool exist(sid_t sid) { return id2str.find(sid) != id2str.end(); }
+
+    bool exist(string str) { return str2id.find(str) != str2id.end(); }
 
 private:
     /* load ID mapping files from a shared filesystem (e.g., NFS) */
@@ -82,7 +87,7 @@ private:
 
                 ifstream file(fname.c_str());
                 string str;
-                int64_t id;
+                sid_t id;
                 while (file >> str >> id) {
                     // both string and ID are unique
                     assert(str2id.find(str) == str2id.end());
@@ -112,7 +117,7 @@ private:
 
                 wukong::hdfs::fstream file(hdfs, fname);
                 string str;
-                int64_t id;
+                sid_t id;
                 while (file >> str >> id) {
                     // both string and ID are unique
                     assert(str2id.find(str) == str2id.end());
