@@ -165,15 +165,15 @@ public:
 		for (int i = 0; i < row2print; i++) {
 			cout << i + 1 << ":  ";
 			for (int c = 0; c < r.get_col_num(); c++) {
-				int id = r.get_row_col(i, c);
+				sid_t id = r.get_row_col(i, c);
 				// WARNING: If you want to print the query results with strings,
 				// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
 				//
 				// TODO: good format
-				if (str_server->id2str.find(id) == str_server->id2str.end())
-					cout << id << "\t";
+				if (str_server->exist(id))
+					cout << str_server->id2str[id] << "\t";
 				else
-					cout << str_server->id2str[r.get_row_col(i, c)] << "\t";
+					cout << id << "\t";
 			}
 			for(int c = 0; c < r.get_attr_col_num(); c++){
 				attr_t  tmp= r.get_attr_row_col(i, c);
@@ -187,40 +187,44 @@ public:
 		if (boost::starts_with(ofname, "hdfs:")) {
 			wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
 			wukong::hdfs::fstream file(hdfs, ofname, true);
+
+			// FIXME: row_num vs. get_col_num()
 			for (int i = 0; i < r.row_num; i++) {
 				file << i + 1 << ": ";
 				for (int c = 0; c < r.get_col_num(); c++) {
-					int id = r.get_row_col(i, c);
+					sid_t id = r.get_row_col(i, c);
 					// WARNING: If you want to print the query results with strings,
 					// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
-					if (str_server->id2str.find(id) == str_server->id2str.end())
-						file << id << "\t";
+					if (str_server->exist(id))
+						file << str_server->id2str[id] << "\t";
 					else
-						file << str_server->id2str[r.get_row_col(i, c)] << "\t";
+						file << id << "\t";
 				}
 				file << endl;
 			}
 			file.close();
 		} else {
-			ofstream ofs(ofname, std::ios::out);
-			if (!ofs.good()) {
+			ofstream file(ofname, std::ios::out);
+			if (!file.good()) {
 				cout << "Can't open/create output file: " << ofname << endl;
-			} else {
-				for (int i = 0; i < r.row_num; i++) {
-					ofs << i + 1 << ": ";
-					for (int c = 0; c < r.get_col_num(); c++) {
-						int id = r.get_row_col(i, c);
-						// WARNING: If you want to print the query results with strings,
-						// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
-						if (str_server->id2str.find(id) == str_server->id2str.end())
-							ofs << id << "\t";
-						else
-							ofs << str_server->id2str[r.get_row_col(i, c)] << "\t";
-					}
-					ofs << endl;
-				}
+				return;
 			}
-			ofs.close();
+
+			// FIXME: row_num vs. get_col_num()
+			for (int i = 0; i < r.row_num; i++) {
+				file << i + 1 << ": ";
+				for (int c = 0; c < r.get_col_num(); c++) {
+					sid_t id = r.get_row_col(i, c);
+					// WARNING: If you want to print the query results with strings,
+					// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
+					if (str_server->exist(id))
+						file << str_server->id2str[id] << "\t";
+					else
+						file << id << "\t";
+				}
+				file << endl;
+			}
+			file.close();
 		}
 	}
 

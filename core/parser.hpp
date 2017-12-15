@@ -214,7 +214,7 @@ private:
             req_template.ptypes_str.push_back(token.substr(1));
             return PTYPE_PH;
         } else {  // pattern constant
-            if (str_server->str2id.find(token) == str_server->str2id.end()) {
+            if (!str_server->exist(token)) {
                 strerror = "Unknown constant: " + token;
                 valid = false;
                 return DUMMY_ID;
@@ -324,7 +324,7 @@ private:
         case SPARQLParser::Element::IRI:
         {
             string strIRI = "<" + element.value + ">" ;
-            if (str_server->str2id.find(strIRI) == str_server->str2id.end()) {
+            if (!str_server->exist(strIRI)) {
                 cout << "Unknown IRI: " + strIRI << endl;
                 return DUMMY_ID;
             }
