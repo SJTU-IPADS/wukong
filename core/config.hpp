@@ -65,6 +65,8 @@ bool global_silent = true;  // don't take back results by default
 // for planner
 bool global_enable_planner = true;
 
+// for attr
+bool global_enable_vertex_attr = false;
 
 static bool set_immutable_config(string cfg_name, string value)
 {
@@ -140,6 +142,8 @@ static bool set_mutable_config(string cfg_name, string value)
 		global_silent = atoi(value.c_str());
 	} else if (cfg_name == "global_enable_planner") {
 		global_enable_planner = atoi(value.c_str());
+	} else if (cfg_name == "global_enable_vertex_attr") {
+		global_enable_vertex_attr = atoi(value.c_str());
 	} else {
 		return false;
 	}

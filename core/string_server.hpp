@@ -42,8 +42,10 @@ using namespace std;
 
 class String_Server {
 public:
-    boost::unordered_map<string, sid_t> str2id;
-    boost::unordered_map<sid_t, string> id2str;
+    boost::unordered_map<string, int64_t> str2id;
+    boost::unordered_map<int64_t, string> id2str;
+    // predicate type, 0 is sid, 1 is int, 2 is float, 3 is double
+    boost::unordered_map<int64_t, int32_t> pred_type;
 
     String_Server(string dname) {
         if (boost::starts_with(dname, "hdfs:")) {
@@ -95,6 +97,28 @@ private:
 
                     str2id[str] = id;
                     id2str[id] = str;
+                    if (boost::ends_with(fname, "/str_index")) {
+                        pred_type[id] = 0;
+                    }
+                }
+                file.close();
+            }
+
+            if  (boost::ends_with(fname,"/str_attr_index")) {
+                cout << "loading attr-ID-mapping file: " << fname << endl;
+                ifstream file(fname.c_str());
+                string str;
+                int64_t id;
+                int32_t type;
+                while (file >> str >> id >> type) {
+                    // both string and ID are unique
+                    assert(str2id.find(str) == str2id.end());
+                    assert(id2str.find(id) == id2str.end());
+
+                    str2id[str] = id;
+                    id2str[id] = str;
+                    cout << " add attr_index " << id<<endl;
+                    pred_type[id] = type;
                 }
                 file.close();
             }
@@ -125,8 +149,33 @@ private:
 
                     str2id[str] = id;
                     id2str[id] = str;
+                    
+                    if (boost::ends_with(fname, "/str_index")) {
+                        pred_type[id] = 0;
+                    }
                 }
             }
+            
+            if  (boost::ends_with(fname,"/str_attr_index")) {
+                cout << "loading attr-ID-mapping file: " << fname << endl;
+                
+                wukong::hdfs::fstream file(hdfs, fname);
+                string str;
+                int64_t id;
+                int32_t type;
+                while (file >> str >> id >> type) {
+                    // both string and ID are unique
+                    assert(str2id.find(str) == str2id.end());
+                    assert(id2str.find(id) == id2str.end());
+                    
+                    str2id[str] = id;
+                    id2str[id] = str;
+
+                    pred_type[id] = type;
+                }
+                file.close();
+            }
+
         }
     }
 

@@ -26,6 +26,7 @@
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/vector.hpp>
+#include <boost/serialization/variant.hpp>
 #include <vector>
 
 #include "type.hpp"
@@ -41,8 +42,16 @@ enum var_type {
     const_var
 };
 
+enum res_type {
+    normal = 0,
+    attr = 1
+};
 // defined as constexpr due to switch-case
 constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
+
+// defined to construct attr col num
+int col_pair(int col, int type) { return ((type << 16) | col); }
+int get_col_pair(int value) { return (value&&0xffff); }
 
 class request_or_reply {
 
@@ -68,12 +77,17 @@ public:
     vector<sid_t> result_table;
     vector<int> v2c_map; // from variable ID (vid) to column ID
 
+    vector<int>  pred_type_chains; // N predicate type
+
+    //store the vertex attribute result
+    int attr_col_num =0;
+    vector<attr_t> attr_res_table;
 
     request_or_reply() { }
 
     // build a request by existing triple patterns and variables
-    request_or_reply(vector<ssid_t> cc, int n)
-        : cmd_chains(cc), nvars(n) {
+    request_or_reply(vector<ssid_t> cc, int n, vector<int> p)
+        : cmd_chains(cc), nvars(n), pred_type_chains(p) {
         v2c_map.resize(n, NO_RESULT);
     }
 
@@ -91,9 +105,13 @@ public:
         ar & cmd_chains;
         ar & result_table;
         ar & v2c_map;
+        ar & attr_res_table;
+        ar & attr_col_num;
+        ar & pred_type_chains;
     }
 
-    void clear_data() { result_table.clear();}
+    void clear_data() { result_table.clear(); attr_res_table.clear(); }
+
 
     bool is_finished() { return (step * 4 >= cmd_chains.size()); }
 
@@ -141,7 +159,7 @@ public:
     }
 
     // add column id to vid (pattern variable)
-    void add_var2col(ssid_t vid, int col) {
+    void add_var2col(ssid_t vid, int col, int type = normal) {
         assert(vid < 0 && col >= 0);
         if (v2c_map.size() == 0) // init
             v2c_map.resize(nvars, NO_RESULT);
@@ -149,6 +167,7 @@ public:
         assert(idx < nvars);
 
         assert(v2c_map[idx] == NO_RESULT);
+        col = col_pair(col, type);
         v2c_map[idx] = col;
     }
 
@@ -170,6 +189,33 @@ public:
         for (int c = 0; c < col_num; c++)
             update.push_back(get_row_col(r, c));
     }
+
+
+    // about the attr result 
+    int var2attrcol(ssid_t vid) {
+        assert (vid < 0);
+        if (v2c_map.size() == 0) // init
+            v2c_map.resize(nvars, NO_RESULT);
+
+        int idx = (-1) * vid -1;
+        assert(idx < nvars);
+        return get_col_pair(v2c_map[idx]);
+    }
+
+    int set_attr_col_num(int n) { attr_col_num = n; }
+
+    int get_attr_col_num() {
+        return  attr_col_num; 
+    }
+
+    attr_t get_attr_row_col(int r, int c) {
+        return attr_res_table[attr_col_num * r + c];
+    }
+
+    void append_attr_row_to(int r, vector<attr_t> &updated_result_table) {
+        for (int c = 0; c < attr_col_num; c++)
+            updated_result_table.push_back(get_attr_row_col(r, c));
+    }
 };
 
 class request_template {
@@ -178,6 +224,8 @@ public:
     vector<ssid_t> cmd_chains;
 
     int nvars;  // the number of variable in triple patterns
+    // store the query predicate type
+    vector<int> pred_type_chains; 
 
     // no serialize
     vector<int> ptypes_pos; // the locations of random-constants
@@ -188,6 +236,6 @@ public:
         for (int i = 0; i < ptypes_pos.size(); i++)
             cmd_chains[ptypes_pos[i]] =
                 ptypes_grp[i][seed % ptypes_grp[i].size()];
-        return request_or_reply(cmd_chains, nvars);
+        return request_or_reply(cmd_chains, nvars, pred_type_chains);
     }
 };

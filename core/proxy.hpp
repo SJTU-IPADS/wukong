@@ -140,6 +140,10 @@ public:
 				int new_size = r.result_table.size() + r2.result_table.size();
 				r.result_table.reserve(new_size);
 				r.result_table.insert(r.result_table.end(), r2.result_table.begin(), r2.result_table.end());
+
+				int new_attr_size = r.attr_res_table.size() + r2.attr_res_table.size();
+				r.attr_res_table.reserve(new_attr_size);
+				r.attr_res_table.insert(r.attr_res_table.end(), r2.attr_res_table.begin(), r2.attr_res_table.end());
 			}
 		}
 		return r;
@@ -170,6 +174,10 @@ public:
 					cout << str_server->id2str[id] << "\t";
 				else
 					cout << id << "\t";
+			}
+			for(int c = 0; c < r.get_attr_col_num(); c++){
+				attr_t  tmp= r.get_attr_row_col(i, c);
+				cout << tmp << "\t";
 			}
 			cout << endl;
 		}

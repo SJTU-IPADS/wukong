@@ -68,10 +68,16 @@ public:
         data.merged_reply.col_num = r.col_num;
         data.merged_reply.blind = r.blind;
         data.merged_reply.row_num += r.row_num;
+        data.merged_reply.attr_col_num = r.attr_col_num;
 
         int new_size = result_table.size() + r.result_table.size();
         result_table.reserve(new_size);
         result_table.insert( result_table.end(), r.result_table.begin(), r.result_table.end());
+
+        vector<attr_t> & attr_res_table = data.merged_reply.attr_res_table;
+        int new_attr_size = attr_res_table.size() + r.result_table.size();
+        result_table.reserve(new_attr_size);
+        attr_res_table.insert(attr_res_table.end(), r.attr_res_table.begin(), r.attr_res_table.end());
     }
 
     bool is_ready(int pid) {
@@ -86,8 +92,10 @@ public:
         r.col_num = merged_reply.col_num;
         r.blind = merged_reply.blind;
         r.row_num = merged_reply.row_num;
+        r.attr_col_num = merged_reply.attr_col_num;
 
         r.result_table.swap(merged_reply.result_table);
+        r.attr_res_table.swap(r.attr_res_table);
         internal_item_map.erase(pid);
         return r;
     }
@@ -173,6 +181,30 @@ private:
 
     void const_to_known(request_or_reply &req) { assert(false); } /// TODO
 
+    // like const_to_unknown, but store the res in attr_res_table
+    void const_to_unknown_attr(request_or_reply & req ){
+        ssid_t start = req.cmd_chains[req.step * 4];
+        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
+        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        std::vector<attr_t> updated_result_table;
+
+        if(d != OUT){
+            cout << "ERROR: Not support direction is IN in attr query" <<endl;
+            assert(false);
+        }
+        attr_t res;
+        graph->get_vertex_attr_global(tid,start, d, pid,res);
+        updated_result_table.push_back(res);
+        
+        req.attr_res_table.swap(updated_result_table);
+        req.set_attr_col_num(1);
+        req.add_var2col(end,0,attr);
+        req.step++;
+    }
+
+
+
     void known_to_unknown(request_or_reply &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
@@ -206,6 +238,7 @@ private:
         dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
         vector<sid_t> updated_result_table;
+        vector<attr_t> updated_attr_res_table;
 
         for (int i = 0; i < req.get_row_num(); i++) {
             sid_t prev_id = req.get_row_col(i, req.var2col(start));
@@ -215,12 +248,18 @@ private:
             for (uint64_t k = 0; k < sz; k++) {
                 if (res[k].val == end2) {
                     req.append_row_to(i, updated_result_table);
+                    if (global_enable_vertex_attr) {
+                        req.append_attr_row_to(i,updated_attr_res_table);
+                    }
                     break;
                 }
             }
         }
 
         req.result_table.swap(updated_result_table);
+        if(global_enable_vertex_attr){
+            req.attr_res_table.swap(updated_attr_res_table);
+        }
         req.step++;
     }
 
@@ -230,6 +269,7 @@ private:
         dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
         vector<sid_t> updated_result_table;
+        vector<attr_t> updated_attr_res_table;
 
         for (int i = 0; i < req.get_row_num(); i++) {
             sid_t prev_id = req.get_row_col(i, req.var2col(start));
@@ -238,14 +278,52 @@ private:
             for (uint64_t k = 0; k < sz; k++) {
                 if (res[k].val == end) {
                     req.append_row_to(i, updated_result_table);
+                    if (global_enable_vertex_attr) {
+                        req.append_attr_row_to(i,updated_attr_res_table);
+                    }
                     break;
                 }
             }
         }
 
         req.result_table.swap(updated_result_table);
+        if(global_enable_vertex_attr){
+            req.attr_res_table.swap(updated_attr_res_table);
+        }
         req.step++;
     }
+
+    //like known_to_unknown, but store the res in attr_res_table
+    void known_to_unknown_attr(request_or_reply &req){
+
+        ssid_t start = req.cmd_chains[req.step * 4];
+        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
+        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        std::vector<attr_t> updated_attr_result_table;
+        std::vector<sid_t> updated_result_table;
+        
+        updated_attr_result_table.reserve(req.attr_res_table.size());
+        for (int i = 0; i < req.get_row_num(); i++) {
+            sid_t prev_id = req.get_row_col(i, req.var2col(start));
+            attr_t res;
+            bool has_value = graph->get_vertex_attr_global(tid, prev_id, d, pid, res);
+            if (has_value) { 
+                req.append_row_to(i, updated_result_table);
+                req.append_attr_row_to(i, updated_attr_result_table);
+                updated_attr_result_table.push_back(res);
+            }
+        }
+
+
+        req.add_var2col(end, req.get_attr_col_num(), attr);
+        req.set_attr_col_num(req.get_attr_col_num() + 1);
+        req.attr_res_table.swap(updated_attr_result_table);
+        req.result_table.swap(updated_result_table);
+        req.step++;
+    }
+
+
 
     void index_to_unknown(request_or_reply &req) {
         ssid_t idx = req.cmd_chains[req.step * 4];
@@ -395,6 +473,7 @@ private:
             sub_reqs[i].local_var = start;
             sub_reqs[i].v2c_map  = req.v2c_map;
             sub_reqs[i].nvars  = req.nvars;
+            sub_reqs[i].pred_type_chains = req.pred_type_chains;
         }
 
         // group intermediate results to servers
@@ -452,6 +531,12 @@ private:
             }
         }
 
+        // sub-reqs pred_type
+        vector<int> sub_pred_type_chains;
+        for (int i = corun_step; i < fetch_step; i++) {
+            sub_pred_type_chains.push_back(req.pred_type_chains[i]); 
+        }
+
         // step.3 make sub-req
         request_or_reply sub_req;
 
@@ -464,7 +549,10 @@ private:
         for (iter = unique_set.begin(); iter != unique_set.end(); iter++)
             sub_req.result_table.push_back(*iter);
         sub_req.col_num = 1;
+        
+        //init var_map 
         sub_req.add_var2col(sub_pvars[vid], 0);
+        sub_req.pred_type_chains = sub_pred_type_chains;
 
         sub_req.blind = false; // must take back results
         uint64_t t1 = timer::get_usec(); // time to generate the sub-request
@@ -562,6 +650,20 @@ private:
 #endif
         }
 
+        if (global_enable_vertex_attr && req.pred_type_chains[req.step] > 0) {
+            switch (var_pair(req.variable_type(start), req.variable_type(end))) {
+            case var_pair(const_var, unknown_var):
+                const_to_unknown_attr(req);
+                break;
+            case var_pair(known_var, unknown_var):
+                known_to_unknown_attr(req);
+                break;
+            default :
+                cout << "ERROE :unsupported type of attr query";
+                assert(false);
+            }
+            return true;
+        }
         // known_predicate
         switch (var_pair(req.variable_type(start), req.variable_type(end))) {
         // start from const_var

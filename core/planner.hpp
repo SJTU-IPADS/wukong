@@ -108,6 +108,7 @@ class Planner {
     vector<ssid_t> path;
     bool is_empty;            // help identify empty queries
 
+    vector<int> pred_chains ; //the pred_type chains
     // for dfs
     vector<ssid_t> min_path;
     int _chains_size_div_4 ;
@@ -444,12 +445,46 @@ class Planner {
         min_select_record[0] -= lastnum + 1;
     }
 
+    // remove the attr pattern query before doing the planner
+    void remove_attr_pattern(request_or_reply &r, vector<ssid_t> &attr_pattern, vector<int>& attr_pred_chains) {
+        vector<ssid_t> temp;
+        for(int i=0; i < r.cmd_chains.size();i+=4) {
+            if ( r.pred_type_chains[i/4] == 0 ) {
+                temp.push_back(r.cmd_chains[i]);
+                temp.push_back(r.cmd_chains[i+1]);
+                temp.push_back(r.cmd_chains[i+2]);
+                temp.push_back(r.cmd_chains[i+3]);
+            } else {
+                attr_pattern.push_back(r.cmd_chains[i]);
+                attr_pattern.push_back(r.cmd_chains[i + 1]);
+                attr_pattern.push_back(r.cmd_chains[i + 2]);
+                attr_pattern.push_back(r.cmd_chains[i + 3]);
 
+                attr_pred_chains.push_back(r.pred_type_chains[i/4]);
+            }
+        }
+        r.cmd_chains = temp;
+    }
+
+    // add the previous removed attr patterns at the end of query after doing the planner
+    void add_attr_pattern(vector<ssid_t> &min_path, vector<ssid_t> attr_pattern, vector<int> attr_pred_chains,vector<int>& pred_chains) {
+        for (int i =0; i < attr_pattern.size()/4; i++) {
+           min_path.push_back(attr_pattern[4*i]);   
+           min_path.push_back(attr_pattern[4*i + 1]); 
+           min_path.push_back(attr_pattern[4*i + 2]); 
+           min_path.push_back(attr_pattern[4*i + 3]);
+
+           pred_chains.push_back (attr_pred_chains[i]);
+        }
+    }
 
 public:
     Planner() { }
 
     bool generate_plan(request_or_reply &r, data_statistic *statistic) {
+        vector<ssid_t> attr_pattern;
+        vector<int> attr_pred_chains;
+        remove_attr_pattern(r, attr_pattern, attr_pred_chains);
         this->statistic = statistic;
         min_path.clear();
         path.clear();
@@ -513,6 +548,9 @@ public:
           }
         }*/
 
+        pred_chains.resize(min_path.size()/4, 0);
+        add_attr_pattern(min_path, attr_pattern, attr_pred_chains,pred_chains);
+
         uint64_t t_convert1 = timer::get_usec();
         boost::unordered_map<int, int> convert;
         for (int i = 0, ilimit = min_path.size(); i < ilimit; i++) {
@@ -548,6 +586,7 @@ public:
         cout << "estimated cost: " << min_cost << endl;
 
         r.cmd_chains = min_path;
+        r.pred_type_chains = pred_chains;
         return true;
     }
 };
