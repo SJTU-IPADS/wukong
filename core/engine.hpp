@@ -182,24 +182,24 @@ private:
     void const_to_known(request_or_reply &req) { assert(false); } /// TODO
 
     // like const_to_unknown, but store the res in attr_res_table
-    void const_to_unknown_attr(request_or_reply & req ){
+    void const_to_unknown_attr(request_or_reply & req ) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
         std::vector<attr_t> updated_result_table;
 
-        if(d != OUT){
-            cout << "ERROR: Not support direction is IN in attr query" <<endl;
+        if (d != OUT) {
+            cout << "ERROR: Not support direction is IN in attr query" << endl;
             assert(false);
         }
         attr_t res;
-        graph->get_vertex_attr_global(tid,start, d, pid,res);
+        graph->get_vertex_attr_global(tid, start, d, pid, res);
         updated_result_table.push_back(res);
-        
+
         req.attr_res_table.swap(updated_result_table);
         req.set_attr_col_num(1);
-        req.add_var2col(end,0,attr);
+        req.add_var2col(end, 0, attr);
         req.step++;
     }
 
@@ -248,8 +248,8 @@ private:
             for (uint64_t k = 0; k < sz; k++) {
                 if (res[k].val == end2) {
                     req.append_row_to(i, updated_result_table);
-                    if (global_enable_vertex_attr) {
-                        req.append_attr_row_to(i,updated_attr_res_table);
+                    if (global_enable_vattr) {
+                        req.append_attr_row_to(i, updated_attr_res_table);
                     }
                     break;
                 }
@@ -257,7 +257,7 @@ private:
         }
 
         req.result_table.swap(updated_result_table);
-        if(global_enable_vertex_attr){
+        if (global_enable_vattr) {
             req.attr_res_table.swap(updated_attr_res_table);
         }
         req.step++;
@@ -278,8 +278,8 @@ private:
             for (uint64_t k = 0; k < sz; k++) {
                 if (res[k].val == end) {
                     req.append_row_to(i, updated_result_table);
-                    if (global_enable_vertex_attr) {
-                        req.append_attr_row_to(i,updated_attr_res_table);
+                    if (global_enable_vattr) {
+                        req.append_attr_row_to(i, updated_attr_res_table);
                     }
                     break;
                 }
@@ -287,14 +287,14 @@ private:
         }
 
         req.result_table.swap(updated_result_table);
-        if(global_enable_vertex_attr){
+        if (global_enable_vattr) {
             req.attr_res_table.swap(updated_attr_res_table);
         }
         req.step++;
     }
 
     //like known_to_unknown, but store the res in attr_res_table
-    void known_to_unknown_attr(request_or_reply &req){
+    void known_to_unknown_attr(request_or_reply &req) {
 
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
@@ -302,13 +302,13 @@ private:
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
         std::vector<attr_t> updated_attr_result_table;
         std::vector<sid_t> updated_result_table;
-        
+
         updated_attr_result_table.reserve(req.attr_res_table.size());
         for (int i = 0; i < req.get_row_num(); i++) {
             sid_t prev_id = req.get_row_col(i, req.var2col(start));
             attr_t res;
             bool has_value = graph->get_vertex_attr_global(tid, prev_id, d, pid, res);
-            if (has_value) { 
+            if (has_value) {
                 req.append_row_to(i, updated_result_table);
                 req.append_attr_row_to(i, updated_attr_result_table);
                 updated_attr_result_table.push_back(res);
@@ -534,7 +534,7 @@ private:
         // sub-reqs pred_type
         vector<int> sub_pred_type_chains;
         for (int i = corun_step; i < fetch_step; i++) {
-            sub_pred_type_chains.push_back(req.pred_type_chains[i]); 
+            sub_pred_type_chains.push_back(req.pred_type_chains[i]);
         }
 
         // step.3 make sub-req
@@ -549,8 +549,8 @@ private:
         for (iter = unique_set.begin(); iter != unique_set.end(); iter++)
             sub_req.result_table.push_back(*iter);
         sub_req.col_num = 1;
-        
-        //init var_map 
+
+        //init var_map
         sub_req.add_var2col(sub_pvars[vid], 0);
         sub_req.pred_type_chains = sub_pred_type_chains;
 
@@ -650,7 +650,7 @@ private:
 #endif
         }
 
-        if (global_enable_vertex_attr && req.pred_type_chains[req.step] > 0) {
+        if (global_enable_vattr && req.pred_type_chains[req.step] > 0) {
             switch (var_pair(req.variable_type(start), req.variable_type(end))) {
             case var_pair(const_var, unknown_var):
                 const_to_unknown_attr(req);

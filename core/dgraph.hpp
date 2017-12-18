@@ -323,7 +323,7 @@ class DGraph {
 				int type;
 				attr_t v;
 				while (file >> s >> p >> type) {
-					switch(type){
+					switch (type) {
 					case 1:
 						int i;
 						file >> i;
@@ -340,7 +340,7 @@ class DGraph {
 						v = d;
 						break;
 					default:
-						cout << " Not support value" <<endl;
+						cout << " Not support value" << endl;
 						break;
 					}
 					int s_sid = mymath::hash_mod(s, global_num_servers);
@@ -348,7 +348,7 @@ class DGraph {
 						triple_attr_t t;
 						t.s = s;
 						t.p = p;
-						t.v = v; 
+						t.v = v;
 						triple_attr[localtid].push_back(t);
 					}
 				}
@@ -359,7 +359,7 @@ class DGraph {
 				int type;
 				attr_t v;
 				while (file >> s >> p >> type) {
-					switch(type){
+					switch (type) {
 					case 1:
 						int i;
 						file >> i;
@@ -376,7 +376,7 @@ class DGraph {
 						v = d;
 						break;
 					default:
-						cout << " Not support value" <<endl;
+						cout << " Not support value" << endl;
 						break;
 					}
 					int s_sid = mymath::hash_mod(s, global_num_servers);
@@ -384,7 +384,7 @@ class DGraph {
 						triple_attr_t t;
 						t.s = s;
 						t.p = p;
-						t.v = v; 
+						t.v = v;
 						triple_attr[localtid].push_back(t);
 					}
 				}
@@ -546,7 +546,7 @@ public:
 		else
 			num_partitons = load_data_from_allfiles(files);
 
-		if(global_enable_vertex_attr)
+		if (global_enable_vattr)
 			load_attr_from_allfiles(attr_files);
 		// all triples are partitioned and temporarily stored in the kvstore on each server.
 		// the kvstore is split into num_partitions partitions, each contains #triples and triples
@@ -566,7 +566,7 @@ public:
 			vector<triple_t>().swap(triple_spo[t]);
 			vector<triple_t>().swap(triple_ops[t]);
 		}
-		
+
 		#pragma omp parallel for num_threads(global_num_engines)
 		for (int t = 0; t < global_num_engines; t++) {
 			gstore.insert_vertex_attr(triple_attr[t], t);
@@ -591,7 +591,7 @@ public:
 		return gstore.get_index_edges_local(tid, vid, d, sz);
 	}
 
-	bool get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid,attr_t &result) {
-		return gstore.get_vertex_attr_global(tid,vid,d,pid,result);   
+	bool get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &result) {
+		return gstore.get_vertex_attr_global(tid, vid, d, pid, result);
 	}
 };
