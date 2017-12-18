@@ -44,9 +44,39 @@
 
 using namespace std;
 
+struct triple_sort_by_spo {
+	inline bool operator()(const triple_t &t1, const triple_t &t2) {
+		if (t1.s < t2.s)
+			return true;
+		else if (t1.s == t2.s)
+			if (t1.p < t2.p)
+				return true;
+			else if (t1.p == t2.p && t1.o < t2.o)
+				return true;
+		return false;
+	}
+};
+
+struct triple_sort_by_ops {
+	inline bool operator()(const triple_t &t1, const triple_t &t2) {
+		if (t1.o < t2.o)
+			return true;
+		else if (t1.o == t2.o)
+			if (t1.p < t2.p)
+				return true;
+			else if ((t1.p == t2.p) && (t1.s < t2.s))
+				return true;
+		return false;
+	}
+};
+
+/**
+ * Map the RDF model (e.g., triples, predicate) to Graph model (e.g., vertex, edge, index)
+ */
 class DGraph {
 	int sid;
 	Mem *mem;
+	String_Server *str_server;
 
 	vector<uint64_t> num_triples;  // record #triples loaded from input data for each server
 
@@ -330,10 +360,10 @@ class DGraph {
 				}
 			}
 
-			sort(triple_spo[tid].begin(), triple_spo[tid].end(), edge_sort_by_spo());
+			sort(triple_spo[tid].begin(), triple_spo[tid].end(), triple_sort_by_spo());
 			dedup_triples(triple_ops[tid]);
 
-			sort(triple_ops[tid].begin(), triple_ops[tid].end(), edge_sort_by_ops());
+			sort(triple_ops[tid].begin(), triple_ops[tid].end(), triple_sort_by_ops());
 			dedup_triples(triple_spo[tid]);
 		}
 
@@ -357,8 +387,8 @@ class DGraph {
 public:
 	GStore gstore;
 
-	DGraph(int sid, Mem *mem, string dname)
-		: sid(sid), mem(mem), gstore(sid, mem) {
+	DGraph(int sid, Mem *mem, String_Server *str_server, string dname)
+		: sid(sid), str_server(str_server), mem(mem), gstore(sid, mem) {
 
 		num_triples.resize(global_num_servers);
 		triple_spo.resize(global_num_engines);
@@ -447,11 +477,39 @@ public:
 		gstore.print_mem_usage();
 	}
 
-	edge_t *get_edges_global(int tid, sid_t vid, dir_t direction, sid_t pid, uint64_t *sz) {
-		return gstore.get_edges_global(tid, vid, direction, pid, sz);
+	// FIXME: rename the function by the term of RDF model (e.g., triples)
+	edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
+		return gstore.get_edges_global(tid, vid, d, pid, sz);
 	}
 
-	edge_t *get_index_edges_local(int tid, sid_t vid, dir_t direction, uint64_t *sz) {
-		return gstore.get_index_edges_local(tid, vid, direction, sz);
+	// FIXME: rename the function by the term of RDF model (e.g., triples)
+	edge_t *get_index_edges_local(int tid, sid_t vid, dir_t d, uint64_t *sz) {
+		return gstore.get_index_edges_local(tid, vid, d, sz);
 	}
+
+	#if DYNAMIC_GSTORE
+	bool exist_in_str_server(const triple_t &spo) {
+		return (str_server->exist(spo.s) &&
+				 str_server->exist(spo.p) &&
+					 str_server->exist(spo.o));
+	}
+
+	void static_insert(ifstream &input) {
+        uint64_t s, p, o = 0;
+        while(input >> s >> p >> o) {
+            if(!global_load_minimal_index && !exist_in_str_server(triple_t(s, p, o)))
+                continue;
+            int s_mid=mymath::hash_mod(s, global_num_servers);
+            int o_mid=mymath::hash_mod(o, global_num_servers);
+            if (s_mid == sid) {
+                gstore.insert_triple_out(triple_t(s, p, o));
+            }
+            if (o_mid == sid) {
+                gstore.insert_triple_in(triple_t(s, p, o));
+            }
+        }		    
+	    input.close();
+        return;
+    }
+#endif
 };

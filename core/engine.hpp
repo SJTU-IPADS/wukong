@@ -93,6 +93,8 @@ public:
     }
 };
 
+
+
 typedef pair<int64_t, int64_t> v_pair;
 
 int64_t hash_pair(const v_pair &x) {
@@ -109,7 +111,16 @@ std::vector<Engine *> engines;
 
 
 class Engine {
-    const static uint64_t TIMEOUT_THRESHOLD = 10000; // 10 msec
+private:
+    class Message {
+    public:
+        int sid;
+        int tid;
+        request_or_reply r;
+
+        Message(int sid, int tid, request_or_reply &r)
+            : sid(sid), tid(tid), r(r) { }
+    };
 
     pthread_spinlock_t recv_lock;
     std::vector<request_or_reply> msg_fast_path;
@@ -117,7 +128,26 @@ class Engine {
     Reply_Map rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
 
-    String_Server *str_server; 
+    vector<Message> pending_msgs;
+
+    inline void sweep_msgs() {
+        if (!pending_msgs.size()) return;
+
+        for (vector<Message>::iterator it = pending_msgs.begin(); it != pending_msgs.end(); )
+            if (adaptor->send(it->sid, it->tid, it->r))
+                it = pending_msgs.erase(it);
+            else
+                ++it;
+    }
+
+    bool send_request(int sid, int tid, request_or_reply &r) {
+        if (adaptor->send(sid, tid, r))
+            return true;
+
+        // failed to send, then stash the msg to void deadlock
+        pending_msgs.push_back(Message(sid, tid, r));
+        return false;
+    }
 
     // all of these means const predicate
     void const_to_unknown(request_or_reply &req) {
@@ -570,36 +600,35 @@ class Engine {
         return true;
     }
 
-    void execute_request(request_or_reply &req) {
-        uint64_t t1, t2;
-
+    void execute_request(request_or_reply &r) {
+        r.id = coder.get_and_inc_qid();
         while (true) {
-            t1 = timer::get_usec();
-            execute_one_step(req);
-            t2 = timer::get_usec();
+            uint64_t t1 = timer::get_usec();
+            execute_one_step(r);
+            t1 = timer::get_usec() - t1;
 
             // co-run optimization
-            if (!req.is_finished() && (req.cmd_chains[req.step * 4 + 2] == CORUN))
-                do_corun(req);
+            if (!r.is_finished() && (r.cmd_chains[r.step * 4 + 2] == CORUN))
+                do_corun(r);
 
-            if (req.is_finished()) {
-                req.row_num = req.get_row_num();
-                if (req.blind)
-                    req.clear_data(); // avoid take back the results
+            if (r.is_finished()) {
+                r.row_num = r.get_row_num();
+                if (r.blind)
+                    r.clear_data(); // avoid take back the results
 
-                adaptor->send(coder.sid_of(req.pid), coder.tid_of(req.pid), req);
+                send_request(coder.sid_of(r.pid), coder.tid_of(r.pid), r);
                 return;
             }
 
-            if (need_fork_join(req)) {
-                vector<request_or_reply> sub_rs = generate_sub_query(req);
-                rmap.put_parent_request(req, sub_rs.size());
-                for (int i = 0; i < sub_rs.size(); i++) {
+            if (need_fork_join(r)) {
+                vector<request_or_reply> sub_reqs = generate_sub_query(r);
+                rmap.put_parent_request(r, sub_reqs.size());
+                for (int i = 0; i < sub_reqs.size(); i++) {
                     if (i != sid) {
-                        adaptor->send(i, tid, sub_rs[i]);
+                        send_request(i, tid, sub_reqs[i]);
                     } else {
                         pthread_spin_lock(&recv_lock);
-                        msg_fast_path.push_back(sub_rs[i]);
+                        msg_fast_path.push_back(sub_reqs[i]);
                         pthread_spin_unlock(&recv_lock);
                     }
                 }
@@ -609,55 +638,26 @@ class Engine {
         return;
     }
 
-    void execute(request_or_reply &r, Engine *engine) {
-        if (r.is_request()) {
-            // request
-            r.id = coder.get_and_inc_qid();
-            execute_request(r);
+    void execute_reply(request_or_reply &r, Engine *engine) {
+        pthread_spin_lock(&engine->rmap_lock);
+        engine->rmap.put_reply(r);
+        if (engine->rmap.is_ready(r.pid)) {
+            request_or_reply reply = engine->rmap.get_merged_reply(r.pid);
+            pthread_spin_unlock(&engine->rmap_lock);
+
+            send_request(coder.sid_of(reply.pid), coder.tid_of(reply.pid), reply);
         } else {
-            // reply
-            pthread_spin_lock(&engine->rmap_lock);
-            engine->rmap.put_reply(r);
-            if (engine->rmap.is_ready(r.pid)) {
-                request_or_reply reply = engine->rmap.get_merged_reply(r.pid);
-                pthread_spin_unlock(&engine->rmap_lock);
-                adaptor->send(coder.sid_of(reply.pid), coder.tid_of(reply.pid), reply);
-            } else {
-                pthread_spin_unlock(&engine->rmap_lock);
-            }
+            pthread_spin_unlock(&engine->rmap_lock);
         }
     }
 
 #if DYNAMIC_GSTORE
-    void normal_insert(ifstream &input) {
-        uint64_t s, p, o, acc=0;
-        uint64_t eid = tid - global_num_proxies;
-        while(input >> s >> p >> o) {
-            acc++;
-            if((acc % global_num_engines)!=eid)
-                continue;
-            acc = eid;
-            if(!global_load_minimal_index&&!str_server->exist((int64_t)s, (int64_t)p, (int64_t)o))
-                continue;
-            int s_mid=mymath::hash_mod(s, global_num_servers);
-            int o_mid=mymath::hash_mod(o, global_num_servers);
-            if (s_mid == sid) {
-                graph->gstore.insert_new_spo(triple_t(s, p, o));
-            }
-            if (o_mid == sid) {
-                graph->gstore.insert_new_ops(triple_t(s, p, o));
-            }
-        }		    
-	    input.close();
-        return;
-    }
-
-    void insert(request_or_reply &req) {
+    void execute_insert(request_or_reply &req) {
         int insert_ret = 0;
         string fname = req.get_insert_fname();
         ifstream input(fname.c_str());
         if (input.good()) {
-            normal_insert(input);
+            graph -> static_insert(input);
             insert_ret = 1;
         }
         req.set_insert_ret(insert_ret);
@@ -666,7 +666,22 @@ class Engine {
     }
 #endif
 
+    void execute(request_or_reply &r, Engine *engine) {
+        if (r.r_type == query_req) {
+            if (r.is_request())
+                execute_request(r);
+            else
+                execute_reply(r, engine);
+#if DYNAMIC_GSTORE
+        } else {
+            execute_insert(r);
+#endif         
+        }
+    }
+
 public:
+    const static uint64_t TIMEOUT_THRESHOLD = 10000; // 10 msec
+
     int sid;    // server id
     int tid;    // thread id
 
@@ -677,8 +692,8 @@ public:
 
     uint64_t last_time; // busy or not (work-oblige)
 
-    Engine(int sid, int tid,String_Server *str_server, DGraph *graph, Adaptor *adaptor)
-        : sid(sid), tid(tid), str_server(str_server), graph(graph), adaptor(adaptor),
+    Engine(int sid, int tid,DGraph *graph, Adaptor *adaptor)
+        : sid(sid), tid(tid), graph(graph), adaptor(adaptor),
           coder(sid, tid), last_time(0) {
         pthread_spin_init(&recv_lock, 0);
         pthread_spin_init(&rmap_lock, 0);
@@ -691,6 +706,7 @@ public:
         // TODO: replace pair to ring
         int nbr_id = (global_num_engines - 1) - own_id;
 
+        int send_wait_cnt = 0;
         while (true) {
             request_or_reply r;
             bool success;
@@ -712,6 +728,8 @@ public:
                 continue; // fast-path priority
             }
 
+            // check and send pending messages
+            sweep_msgs();
 
             // normal path
             last_time = timer::get_usec();
@@ -720,12 +738,6 @@ public:
             success = false;
             pthread_spin_lock(&recv_lock);
             success = adaptor->tryrecv(r);
-#if DYNAMIC_GSTORE
-            if (success && r.is_insert()) {
-                insert(r);
-                success = false;
-            }
-#endif
             if (success && r.start_from_index()) {
                 msg_fast_path.push_back(r);
                 success = false;

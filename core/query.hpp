@@ -41,6 +41,11 @@ enum var_type {
     const_var
 };
 
+enum req_type {
+    query_req,
+    insert_req
+};
+
 // defined as constexpr due to switch-case
 constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
@@ -57,6 +62,8 @@ public:
     int row_num = 0;
 
     bool blind = false;
+    req_type r_type= query_req;
+
 #ifdef DYNAMIC_GSTORE
     int insert_ret = 0;
     string insert_fname = "";//the file name used to be inserted
@@ -92,6 +99,7 @@ public:
         ar & blind;
         ar & nvars;
         ar & local_var;
+        ar & r_type;
 #if DYNAMIC_GSTORE
         ar & insert_ret;
         ar & insert_fname;
@@ -109,8 +117,6 @@ public:
     void set_insert_ret(int ret) {insert_ret = ret;}
 
     string get_insert_fname() { return insert_fname; }
-
-    bool is_insert() {return insert_fname.compare("");}
 
     int get_insert_ret() { return insert_ret; }
 #endif
@@ -133,6 +139,8 @@ public:
          * ?X P0 ?Y .             // then from ?X's edge with P0
          *
          */
+        if (r_type != query_req)
+            return false;
         if (is_tpid(cmd_chains[0])) {
             assert(cmd_chains[1] == PREDICATE_ID || cmd_chains[1] == TYPE_ID);
             return true;

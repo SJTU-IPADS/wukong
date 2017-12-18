@@ -42,42 +42,6 @@
 
 using namespace std;
 
-struct triple_t {
-    sid_t s; // subject
-    sid_t p; // predicate
-    sid_t o; // object
-
-    triple_t(): s(0), p(0), o(0) { }
-
-    triple_t(sid_t _s, sid_t _p, sid_t _o): s(_s), p(_p), o(_o) { }
-};
-
-struct edge_sort_by_spo {
-    inline bool operator()(const triple_t &t1, const triple_t &t2) {
-        if (t1.s < t2.s)
-            return true;
-        else if (t1.s == t2.s)
-            if (t1.p < t2.p)
-                return true;
-            else if (t1.p == t2.p && t1.o < t2.o)
-                return true;
-        return false;
-    }
-};
-
-struct edge_sort_by_ops {
-    inline bool operator()(const triple_t &t1, const triple_t &t2) {
-        if (t1.o < t2.o)
-            return true;
-        else if (t1.o == t2.o)
-            if (t1.p < t2.p)
-                return true;
-            else if ((t1.p == t2.p) && (t1.s < t2.s))
-                return true;
-        return false;
-    }
-};
-
 enum { NBITS_DIR = 1 };
 enum { NBITS_IDX = 17 }; // equal to the size of t/pid
 enum { NBITS_VID = (64 - NBITS_IDX - NBITS_DIR) }; // 0: index vertex, ID: normal vertex
@@ -156,13 +120,6 @@ uint64_t off: NBITS_PTR;
 struct vertex_t {
     ikey_t key; // 64-bit: vertex | predicate | direction
     iptr_t ptr; // 64-bit: size | offset
-#if DYNAMIC_GSTORE
-    pthread_spinlock_t realloc_lock;
-    void init(){
-      pthread_spin_init(&realloc_lock, 0);
-      ptr=iptr_t();
-    }
-#endif
 };
 
 // 32-bit edge (value)
@@ -175,7 +132,9 @@ struct edge_t {
     }
 };
 
-
+/**
+ * Map the Graph model (e.g., vertex, edge, index) to KVS model (e.g., key, value)
+ */
 class GStore {
 private:
     class RDMA_Cache {
@@ -258,7 +217,7 @@ private:
 #endif
 
     // cluster chaining hash-table (see paper: DrTM SOSP'15)
-    uint64_t insert_key(ikey_t key,bool check_dep = true) {
+    uint64_t insert_key(ikey_t key, bool check_dup = true) {
         uint64_t bucket_id = key.hash() % num_buckets;
         uint64_t slot_id = bucket_id * ASSOCIATIVITY;
         uint64_t lock_id = bucket_id % NUM_LOCKS;
@@ -273,7 +232,7 @@ private:
             for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
                 //assert(vertices[slot_id].key != key); // no duplicate key
                 if (vertices[slot_id].key == key) {
-                    if (check_dep){
+                    if (check_dup){
                         key.print();
                         vertices[slot_id].key.print();
                         cout << "ERROR: conflict at slot["
@@ -287,9 +246,6 @@ private:
 
                 // insert to an empty slot
                 if (vertices[slot_id].key.is_empty()) {
-#if DYNAMIC_GSTORE
-                    vertices[slot_id].init();
-#endif
                     vertices[slot_id].key = key;
                     goto done;
                 }
@@ -298,9 +254,6 @@ private:
             // whether the bucket_ext (indirect-header region) is used
             if (!vertices[slot_id].key.is_empty()) {
                 slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY;
-#if DYNAMIC_GSTORE
-                vertices[slot_id].init();
-#endif
                 continue; // continue and jump to next bucket
             }
 
@@ -350,15 +303,17 @@ done:
         return edge_allocator->realloc(ptr, sz)/sizeof(edge_t);
     }
 
-     bool insert_key_value(ikey_t key, uint64_t value) {
+    bool insert_vertex_edge(ikey_t key, uint64_t value) {
+        uint64_t bucket_id = key.hash() % num_buckets;
+        uint64_t lock_id = bucket_id % NUM_LOCKS;
         uint64_t v_ptr = insert_key(key, false);
         vertex_t *v = &vertices[v_ptr];
-        pthread_spin_lock(&v->realloc_lock);
+        pthread_spin_lock(&bucket_locks[lock_id]);
         if (v->ptr.size == 0) {
             uint64_t off = alloc_edges(1);
             vertices[v_ptr].ptr = iptr_t(1, off);
             edges[off].val = value;
-            pthread_spin_unlock(&v->realloc_lock);
+            pthread_spin_unlock(&bucket_locks[lock_id]);
             return true;
         } else {
             uint64_t need_size = v->ptr.size + 1;
@@ -366,7 +321,7 @@ done:
             v->ptr = iptr_t(need_size, off);
             off = v->ptr.off + v->ptr.size - 1;
             edges[off].val = value;
-            pthread_spin_unlock(&v->realloc_lock);
+            pthread_spin_unlock(&bucket_locks[lock_id]);
             return false;
         }
     }
@@ -581,55 +536,6 @@ public:
 #endif
     }
 
-#if DYNAMIC_GSTORE
-    void insert_new_spo(const triple_t &spo){
-    // (s, ->, p) ---> normal vertex(o)
-    // (s, ->, 0) ---> predicts
-    // (p, <-, 0) ---> normal vertex(s)
-        ikey_t key = ikey_t(spo.s,spo.p,OUT);
-        if (insert_key_value(key, spo.o)){
-        // key doesn't exist before
-            if (spo.p == PREDICATE_ID) {
-                #ifdef VERSATILE
-                    key = ikey_t(0, TYPE_ID, IN);
-                    insert_key_value(key, spo.s);
-                    key = ikey_t(0, TYPE_ID, OUT);
-                    insert_key_value(key, spo.o);
-                #endif
-            }else if (spo.p == TYPE_ID){
-                key = ikey_t(0, spo.o, IN);
-                insert_key_value(key, spo.s);
-            }else{
-                key = ikey_t(0, spo.p, IN);
-                insert_key_value(key, spo.o);
-            }
-        }
-    }
-
-    void insert_new_ops(const triple_t &ops){
-    // (o, <-, p) ---> normal vertex(s)
-    // (o, <-, 0) ---> predicts
-    // (p, ->, 0) ---> normal vertex(o)
-        ikey_t key = ikey_t(ops.o,ops.p,IN);
-        if (insert_key_value(key, ops.s)){
-        // key doesn't exist before
-            if (ops.p == PREDICATE_ID) {
-                #ifdef VERSATILE
-                    key = ikey_t(0, TYPE_ID, IN);
-                    insert_key_value(key, ops.o);
-                    key = ikey_t(0, TYPE_ID, OUT);
-                    insert_key_value(key, ops.s);
-                #endif
-            }else if (ops.p == TYPE_ID){
-                return;
-            }else{
-                key = ikey_t(0, ops.p, OUT);
-                insert_key_value(key, ops.s);
-            }
-        }
-    }
-#endif
-
     // skip all TYPE triples (e.g., <http://www.Department0.University0.edu> rdf:type ub:University)
     // because Wukong treats all TYPE triples as index vertices. In addition, the triples in triple_ops
     // has been sorted by the vid of object, and IDs of types are always smaller than normal vertex IDs.
@@ -829,6 +735,55 @@ public:
         cout << (t3 - t2) / 1000 << " ms for insert index data into gstore" << endl;
     }
 
+#if DYNAMIC_GSTORE
+    void insert_triple_out(const triple_t &triple) {
+        // (s, ->, p) ---> normal vertex(o)
+        // (s, ->, 0) ---> predicts
+        // (p, <-, 0) ---> normal vertex(s)
+        ikey_t key = ikey_t(triple.s, triple.p, OUT);
+        if (insert_vertex_edge(key, triple.o)) {
+        // key doesn't exist before
+            if (triple.p == PREDICATE_ID) {
+                #ifdef VERSATILE
+                    key = ikey_t(0, TYPE_ID, IN);
+                    insert_vertex_edge(key, triple.s);
+                    key = ikey_t(0, TYPE_ID, OUT);
+                    insert_vertex_edge(key, triple.o);
+                #endif
+            } else if (triple.p == TYPE_ID) {
+                key = ikey_t(0, triple.o, IN);
+                insert_vertex_edge(key, triple.s);
+            } else {
+                key = ikey_t(0, triple.p, IN);
+                insert_vertex_edge(key, triple.o);
+            }
+        }
+    } 
+    
+    void insert_triple_in(const triple_t &triple) {
+		// (o, <-, p) ---> normal vertex(s)
+    	// (o, <-, 0) ---> predicts
+    	// (p, ->, 0) ---> normal vertex(o)
+        ikey_t key = ikey_t(triple.o, triple.p, IN);
+        if (insert_vertex_edge(key, triple.s)) {
+        // key doesn't exist before
+            if (triple.p == PREDICATE_ID) {
+                #ifdef VERSATILE
+                    key = ikey_t(0, TYPE_ID, IN);
+                    insert_vertex_edge(key, triple.o);
+                    key = ikey_t(0, TYPE_ID, OUT);
+                    insert_vertex_edge(key, triple.s);
+                #endif
+            } else if (triple.p == TYPE_ID) {
+                return;
+            } else {
+                key = ikey_t(0, triple.p, OUT);
+                insert_vertex_edge(key, triple.s);
+            }
+        }
+	}
+#endif
+
     // prepare data for planner
     void generate_statistic(data_statistic & stat) {
         for (uint64_t bucket_id = 0; bucket_id < num_buckets + num_buckets_ext; bucket_id++) {
@@ -949,6 +904,7 @@ public:
         cout << "INFO#" << sid << ": generating stats is finished." << endl;
     }
 
+    // FIXME: refine parameters with vertex_t
     edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
         if (mymath::hash_mod(vid, global_num_servers) == sid)
             return get_edges_local(tid, vid, d, pid, sz);

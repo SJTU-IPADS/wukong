@@ -80,6 +80,11 @@ private:
 		}
 	}
 
+	// FIXME: simply wait and may deadlock
+	inline void send(int sid, int tid, request_or_reply &r) {
+		while (!adaptor->send(sid, tid, r));
+	}
+
 public:
 	int sid;    // server id
 	int tid;    // thread id
@@ -107,7 +112,7 @@ public:
 			for (int i = 0; i < global_num_servers; i++) {
 				for (int j = 0; j < global_mt_threshold; j++) {
 					r.tid = j;
-					adaptor->send(i, global_num_proxies + j, r);
+					send(i, global_num_proxies + j, r);
 				}
 			}
 			return ;
@@ -119,11 +124,11 @@ public:
 		// random assign request to range partitioned engines
 		// NOTE: the partitioned mapping has better tail latency in batch mode
 		int ratio = global_num_engines / global_num_proxies;
-		// TODO: BUG if global_num_engines < global_num_proxies
+		// FIXME: BUG if global_num_engines < global_num_proxies
 		assert(ratio > 0);
 		int start_tid = global_num_proxies + (ratio * tid) + (coder.get_random() % ratio);
 
-		adaptor->send(start_sid, start_tid, r);
+		send(start_sid, start_tid, r);
 	}
 
 	request_or_reply recv_reply(void) {
@@ -156,15 +161,15 @@ public:
 		for (int i = 0; i < row2print; i++) {
 			cout << i + 1 << ":  ";
 			for (int c = 0; c < r.get_col_num(); c++) {
-				int id = r.get_row_col(i, c);
+				sid_t id = r.get_row_col(i, c);
 				// WARNING: If you want to print the query results with strings,
 				// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
 				//
 				// TODO: good format
-				if (str_server->id2str.find(id) == str_server->id2str.end())
-					cout << id << "\t";
+				if (str_server->exist(id))
+					cout << str_server->id2str[id] << "\t";
 				else
-					cout << str_server->id2str[r.get_row_col(i, c)] << "\t";
+					cout << id << "\t";
 			}
 			cout << endl;
 		}
@@ -174,40 +179,44 @@ public:
 		if (boost::starts_with(ofname, "hdfs:")) {
 			wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
 			wukong::hdfs::fstream file(hdfs, ofname, true);
+
+			// FIXME: row_num vs. get_col_num()
 			for (int i = 0; i < r.row_num; i++) {
 				file << i + 1 << ": ";
 				for (int c = 0; c < r.get_col_num(); c++) {
-					int id = r.get_row_col(i, c);
+					sid_t id = r.get_row_col(i, c);
 					// WARNING: If you want to print the query results with strings,
 					// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
-					if (str_server->id2str.find(id) == str_server->id2str.end())
-						file << id << "\t";
+					if (str_server->exist(id))
+						file << str_server->id2str[id] << "\t";
 					else
-						file << str_server->id2str[r.get_row_col(i, c)] << "\t";
+						file << id << "\t";
 				}
 				file << endl;
 			}
 			file.close();
 		} else {
-			ofstream ofs(ofname, std::ios::out);
-			if (!ofs.good()) {
+			ofstream file(ofname, std::ios::out);
+			if (!file.good()) {
 				cout << "Can't open/create output file: " << ofname << endl;
-			} else {
-				for (int i = 0; i < r.row_num; i++) {
-					ofs << i + 1 << ": ";
-					for (int c = 0; c < r.get_col_num(); c++) {
-						int id = r.get_row_col(i, c);
-						// WARNING: If you want to print the query results with strings,
-						// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
-						if (str_server->id2str.find(id) == str_server->id2str.end())
-							ofs << id << "\t";
-						else
-							ofs << str_server->id2str[r.get_row_col(i, c)] << "\t";
-					}
-					ofs << endl;
-				}
+				return;
 			}
-			ofs.close();
+
+			// FIXME: row_num vs. get_col_num()
+			for (int i = 0; i < r.row_num; i++) {
+				file << i + 1 << ": ";
+				for (int c = 0; c < r.get_col_num(); c++) {
+					sid_t id = r.get_row_col(i, c);
+					// WARNING: If you want to print the query results with strings,
+					// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
+					if (str_server->exist(id))
+						file << str_server->id2str[id] << "\t";
+					else
+						file << id << "\t";
+				}
+				file << endl;
+			}
+			file.close();
 		}
 	}
 
@@ -215,19 +224,16 @@ public:
 	int insert_new_data(string &fname, request_or_reply &reply){
 		int insert_ret = 1;
 		request_or_reply request;
+		request.r_type = insert_req;
 		request.set_insert_fname(fname);
 		setpid(request);
 		for (int i = 0; i < global_num_servers; i++) {
-			for (int j = 0; j < global_mt_threshold; j++) {
-				adaptor->send(i, global_num_proxies + j, request);
-			}
+			adaptor->send(i, global_num_proxies, request);
 		}
 		for (int i = 0; i < global_num_servers; i++) {
-			for (int j = 0; j < global_mt_threshold; j++) {
-				reply = adaptor->recv();
-				if(!reply.get_insert_ret()){
-					insert_ret = 0;
-				}
+			reply = adaptor->recv();
+			if(!reply.get_insert_ret()){
+				insert_ret = 0;
 			}
 		}
 		return  insert_ret;
