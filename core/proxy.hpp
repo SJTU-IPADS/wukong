@@ -49,7 +49,19 @@ std::vector<Proxy *> proxies;
 class Proxy {
 
 private:
-	void fill_template(request_template &req_template) {
+	class Message {
+    public:
+        int sid;
+        int tid;
+        request_or_reply r;
+
+        Message(int sid, int tid, request_or_reply &r)
+            : sid(sid), tid(tid), r(r) { }
+    };
+ 
+    vector<Message> pending_msgs;
+
+    void fill_template(request_template &req_template) {
 		req_template.ptypes_grp.resize(req_template.ptypes_str.size());
 		for (int i = 0; i < req_template.ptypes_str.size(); i++) {
 			string type = req_template.ptypes_str[i]; // the Types of random-constant
@@ -76,14 +88,51 @@ private:
 
 			req_template.ptypes_grp[i] = candidates;
 
-			cout << type << " has " << req_template.ptypes_grp[i].size() << " candidates" << endl;
+//			cout << type << " has " << req_template.ptypes_grp[i].size() << " candidates" << endl;
 		}
 	}
 
-	// FIXME: simply wait and may deadlock
-	inline void send(int sid, int tid, request_or_reply &r) {
-		while (!adaptor->send(sid, tid, r));
-	}
+    bool _send(int dst_sid, int dst_tid, request_or_reply &r){
+        if(adaptor->send(dst_sid, dst_tid, r))
+            return true;
+
+        //If request does not start from index,
+        //try to send it to another engine. Robin round starts from dst_tid and dst_sid.(for load balance)
+        if(!r.start_from_index()){
+		    int ratio = global_num_engines / global_num_proxies;
+	        int base = global_num_proxies + ratio * tid;
+            int random = dst_tid - base;
+            for(int i = 0; i < global_num_servers; i++){
+                int new_dst_sid = (dst_sid + i) % global_num_servers;
+                for(int j = 0; j < ratio; j++){
+                    int new_dst_tid = base + (random + j) % ratio;
+                    if(adaptor->send(new_dst_sid, new_dst_tid, r)){
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    inline bool send(int dst_sid, int dst_tid, request_or_reply &r){
+        if (_send(dst_sid, dst_tid, r))
+            return true;
+
+        // failed to send, then stash the msg to void dead lock
+        pending_msgs.push_back(Message(dst_sid, dst_tid, r));
+        return false;
+    }
+
+    inline void sweep_msgs(){
+        if (!pending_msgs.size()) return;
+
+        for (vector<Message>::iterator it = pending_msgs.begin(); it != pending_msgs.end(); )
+            if(_send(it->sid, it->tid, it->r))
+                it = pending_msgs.erase(it);
+            else
+                ++it;
+    }
 
 public:
 	int sid;    // server id
@@ -104,7 +153,8 @@ public:
 
 	void setpid(request_or_reply &r) { r.pid = coder.get_and_inc_qid(); }
 
-	void send_request(request_or_reply &r) {
+	//return value indicates whether it is necessary to try another msg now. (If ring buffer of all engines are full, there is no need to try another msg.)
+	bool send_request(request_or_reply &r) {
 		assert(r.pid != -1);
 
 		// submit the request to all engines (parallel)
@@ -115,7 +165,7 @@ public:
 					send(i, global_num_proxies + j, r);
 				}
 			}
-			return ;
+			return true;
 		}
 
 		// submit the request to a certain engine
@@ -128,7 +178,7 @@ public:
 		assert(ratio > 0);
 		int start_tid = global_num_proxies + (ratio * tid) + (coder.get_random() % ratio);
 
-		send(start_sid, start_tid, r);
+		return send(start_sid, start_tid, r);
 	}
 
 	request_or_reply recv_reply(void) {
@@ -302,6 +352,8 @@ public:
 		int send_cnt = 0, recv_cnt = 0, flying_cnt = 0;
 		while (recv_cnt < nqueries) {
 			for (int t = 0; t < PARALLEL_FACTOR; t++) {
+                //check if there are msgs waiting to send
+                sweep_msgs();
 				if (send_cnt < nqueries) {
 					int idx = mymath::get_distribution(coder.get_random(), loads);
 					request_or_reply request = tpls[idx].instantiate(coder.get_random());
@@ -310,14 +362,14 @@ public:
 					setpid(request);
 					request.blind = true; // always not take back results in batch mode
 					logger.start_record(request.pid, idx);
-					send_request(request);
 					send_cnt ++;
+					if(!send_request(request))
+						break;
 				}
 			}
 
 			// wait a piece of time and try several times
 			for (int i = 0; i < try_round; i++) {
-				timer::cpu_relax(100);
 
 				// try to recieve the replies (best of effort)
 				request_or_reply r;
