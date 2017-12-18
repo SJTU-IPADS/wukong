@@ -175,8 +175,8 @@ public:
 				else
 					cout << id << "\t";
 			}
-			for(int c = 0; c < r.get_attr_col_num(); c++){
-				attr_t  tmp= r.get_attr_row_col(i, c);
+			for (int c = 0; c < r.get_attr_col_num(); c++) {
+				attr_t  tmp = r.get_attr_row_col(i, c);
 				cout << tmp << "\t";
 			}
 			cout << endl;

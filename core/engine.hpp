@@ -203,8 +203,6 @@ private:
         req.step++;
     }
 
-
-
     void known_to_unknown(request_or_reply &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
@@ -314,7 +312,6 @@ private:
                 updated_attr_result_table.push_back(res);
             }
         }
-
 
         req.add_var2col(end, req.get_attr_col_num(), attr);
         req.set_attr_col_num(req.get_attr_col_num() + 1);
@@ -638,7 +635,7 @@ private:
             case var_pair(known_var, unknown_var):
                 known_unknown_unknown(req);
                 break;
-            default :
+            default:
                 assert(false);
                 break;
             }
@@ -658,7 +655,7 @@ private:
             case var_pair(known_var, unknown_var):
                 known_to_unknown_attr(req);
                 break;
-            default :
+            default:
                 cout << "ERROE :unsupported type of attr query";
                 assert(false);
             }
@@ -695,7 +692,7 @@ private:
             cout << "ERROR: unsupported triple pattern (from unknown_var)" << endl;
             assert(false);
 
-        default :
+        default:
             assert(false);
         }
 

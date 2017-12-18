@@ -104,7 +104,7 @@ private:
                 file.close();
             }
 
-            if  (boost::ends_with(fname,"/str_attr_index")) {
+            if  (boost::ends_with(fname, "/str_attr_index")) {
                 cout << "loading attr-ID-mapping file: " << fname << endl;
                 ifstream file(fname.c_str());
                 string str;
@@ -117,7 +117,7 @@ private:
 
                     str2id[str] = id;
                     id2str[id] = str;
-                    cout << " add attr_index " << id<<endl;
+                    cout << " add attr_index " << id << endl;
                     pred_type[id] = type;
                 }
                 file.close();
@@ -149,16 +149,16 @@ private:
 
                     str2id[str] = id;
                     id2str[id] = str;
-                    
+
                     if (boost::ends_with(fname, "/str_index")) {
                         pred_type[id] = 0;
                     }
                 }
             }
-            
-            if  (boost::ends_with(fname,"/str_attr_index")) {
+
+            if  (boost::ends_with(fname, "/str_attr_index")) {
                 cout << "loading attr-ID-mapping file: " << fname << endl;
-                
+
                 wukong::hdfs::fstream file(hdfs, fname);
                 string str;
                 int64_t id;
@@ -167,7 +167,7 @@ private:
                     // both string and ID are unique
                     assert(str2id.find(str) == str2id.end());
                     assert(id2str.find(id) == id2str.end());
-                    
+
                     str2id[str] = id;
                     id2str[id] = str;
 
@@ -178,5 +178,4 @@ private:
 
         }
     }
-
 };

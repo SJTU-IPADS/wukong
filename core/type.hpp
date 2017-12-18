@@ -52,7 +52,7 @@ enum dir_t { IN = 0, OUT, CORUN }; // direction: IN=0, OUT=1, and optimization h
 typedef boost::variant<int, double, float> attr_t;
 
 struct triple_attr_t {
-    sid_t s; //subject
-    sid_t p; //predicate
-    attr_t v;    //the value
+	sid_t s; //subject
+	sid_t p; //predicate
+	attr_t v;    //the value
 };
