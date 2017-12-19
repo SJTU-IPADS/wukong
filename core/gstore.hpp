@@ -845,7 +845,7 @@ public:
             int type = boost::apply_visitor(get_type, vertex_attr[s].v);
             uint64_t size = (get_sizeof(type) - 1) / sizeof(edge_t) + 1;   // get the ceil size;
             uint64_t off = alloc_edges(size, t_id);
-            ikey_t key = ikey_t(vertex_attr[s].s, vertex_attr[s].p, OUT);
+            ikey_t key = ikey_t(vertex_attr[s].s, vertex_attr[s].a, OUT);
             //key.print();
             uint64_t slot_id = insert_key(key);
             iptr_t ptr = iptr_t(size, off, type);

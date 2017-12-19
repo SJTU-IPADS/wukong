@@ -319,10 +319,10 @@ class DGraph {
 				// files located on HDFS
 				wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
 				wukong::hdfs::fstream file(hdfs, fnames[i]);
-				sid_t s, p;
-				int type;
+				sid_t s, a;
 				attr_t v;
-				while (file >> s >> p >> type) {
+				int type;
+				while (file >> s >> a >> type) {
 					switch (type) {
 					case 1:
 						int i;
@@ -343,22 +343,17 @@ class DGraph {
 						cout << " Not support value" << endl;
 						break;
 					}
-					int s_sid = mymath::hash_mod(s, global_num_servers);
-					if ((s_sid == sid) ) {
-						triple_attr_t t;
-						t.s = s;
-						t.p = p;
-						t.v = v;
-						triple_attr[localtid].push_back(t);
-					}
+
+					if (sid == mymath::hash_mod(s, global_num_servers))
+						triple_attr[localtid].push_back(triple_attr_t(s, a, v));
 				}
 				file.close();
 			} else {
 				ifstream file(fnames[i].c_str());
-				sid_t s, p;
-				int type;
+				sid_t s, a;
 				attr_t v;
-				while (file >> s >> p >> type) {
+				int type;
+				while (file >> s >> a >> type) {
 					switch (type) {
 					case 1:
 						int i;
@@ -379,14 +374,9 @@ class DGraph {
 						cout << " Not support value" << endl;
 						break;
 					}
-					int s_sid = mymath::hash_mod(s, global_num_servers);
-					if ((s_sid == sid) ) {
-						triple_attr_t t;
-						t.s = s;
-						t.p = p;
-						t.v = v;
-						triple_attr[localtid].push_back(t);
-					}
+
+					if (sid == mymath::hash_mod(s, global_num_servers))
+						triple_attr[localtid].push_back(triple_attr_t(s, a, v));
 				}
 				file.close();
 			}
@@ -581,12 +571,12 @@ public:
 		gstore.print_mem_usage();
 	}
 
-	// FIXME: rename the function by the term of RDF model (e.g., triples)
+// FIXME: rename the function by the term of RDF model (e.g., triples)
 	edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
 		return gstore.get_edges_global(tid, vid, d, pid, sz);
 	}
 
-	// FIXME: rename the function by the term of RDF model (e.g., triples)
+// FIXME: rename the function by the term of RDF model (e.g., triples)
 	edge_t *get_index_edges_local(int tid, sid_t vid, dir_t d, uint64_t *sz) {
 		return gstore.get_index_edges_local(tid, vid, d, sz);
 	}

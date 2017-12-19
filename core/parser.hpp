@@ -263,12 +263,12 @@ private:
             req_template.cmd_chains.push_back(d);
             req_template.cmd_chains.push_back(token2id(triple[2]));
 
-            int pred_type = str_server->pred_type[token2id(triple[1])];
-            if (pred_type > 0 && (!global_enable_vattr)) {
+            int type = str_server->id2type[token2id(triple[1])];
+            if (type > 0 && (!global_enable_vattr)) {
                 cout << "Need to change config to enable vertex_attr " << endl;
                 assert(false);
             }
-            req_template.pred_type_chains.push_back(pred_type);
+            req_template.pred_type_chains.push_back(type);
             // cout << "the pvars.size" << pvars.size();
             req_template.nvars = pvars.size();
         }
@@ -348,12 +348,12 @@ private:
             temp_cmd_chains.push_back(OUT);
             temp_cmd_chains.push_back(_H_encode(iter->object));
 
-            int pred_type =  str_server->pred_type[_H_encode(iter->predicate)];
-            if (pred_type > 0 && (!global_enable_vattr)) {
+            int type =  str_server->id2type[_H_encode(iter->predicate)];
+            if (type > 0 && (!global_enable_vattr)) {
                 cout << "Need to change config to enable vertex_attr " << endl;
                 assert(false);
             }
-            temp_pred_type_chains.push_back(str_server->pred_type[_H_encode(iter->predicate)]);
+            temp_pred_type_chains.push_back(str_server->id2type[_H_encode(iter->predicate)]);
         }
         r.cmd_chains = temp_cmd_chains;
         r.pred_type_chains = temp_pred_type_chains;
@@ -381,12 +381,12 @@ private:
             r.cmd_chains.push_back(OUT); pos++;
             _H_push(iter->object, r, pos++);
 
-            int pred_type =  str_server->pred_type[_H_encode(iter->predicate)];
-            if (pred_type > 0 && (!global_enable_vattr)) {
+            int type =  str_server->id2type[_H_encode(iter->predicate)];
+            if (type > 0 && (!global_enable_vattr)) {
                 cout << "Need to change config to enable vertex_attr " << endl;
                 assert(false);
             }
-            r.pred_type_chains.push_back(pred_type);
+            r.pred_type_chains.push_back(type);
         }
 
         // set the number of variables in triple patterns

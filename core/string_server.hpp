@@ -42,10 +42,11 @@ using namespace std;
 
 class String_Server {
 public:
-    boost::unordered_map<string, int64_t> str2id;
-    boost::unordered_map<int64_t, string> id2str;
-    // predicate type, 0 is sid, 1 is int, 2 is float, 3 is double
-    boost::unordered_map<int64_t, int32_t> pred_type;
+    boost::unordered_map<string, sid_t> str2id;
+    boost::unordered_map<sid_t, string> id2str;
+
+    // data type of predicate/attributed: sid=0, integer=1, float=2, double=3
+    boost::unordered_map<sid_t, int32_t> id2type;
 
     String_Server(string dname) {
         if (boost::starts_with(dname, "hdfs:")) {
@@ -86,39 +87,37 @@ private:
                     || (boost::ends_with(fname, "/str_normal") && !global_load_minimal_index)
                     || (boost::ends_with(fname, "/str_normal_minimal") && global_load_minimal_index)) {
                 cout << "loading ID-mapping file: " << fname << endl;
-
                 ifstream file(fname.c_str());
                 string str;
                 sid_t id;
                 while (file >> str >> id) {
                     // both string and ID are unique
-                    assert(str2id.find(str) == str2id.end());
-                    assert(id2str.find(id) == id2str.end());
+                    assert(!exist(str));
+                    assert(!exist(id));
 
                     str2id[str] = id;
                     id2str[id] = str;
-                    if (boost::ends_with(fname, "/str_index")) {
-                        pred_type[id] = 0;
-                    }
+                    if (boost::ends_with(fname, "/str_index"))
+                        id2type[id] = SID_t;
                 }
                 file.close();
             }
 
             if  (boost::ends_with(fname, "/str_attr_index")) {
-                cout << "loading attr-ID-mapping file: " << fname << endl;
+                cout << "loading ID-mapping (attribute) file: " << fname << endl;
                 ifstream file(fname.c_str());
                 string str;
-                int64_t id;
+                sid_t id;
                 int32_t type;
                 while (file >> str >> id >> type) {
                     // both string and ID are unique
-                    assert(str2id.find(str) == str2id.end());
-                    assert(id2str.find(id) == id2str.end());
+                    assert(!exist(str));
+                    assert(!exist(id));
 
                     str2id[str] = id;
                     id2str[id] = str;
-                    cout << " add attr_index " << id << endl;
-                    pred_type[id] = type;
+                    id2type[id] = type;
+                    cout << " attribute[" << id << "] = " << type << endl;
                 }
                 file.close();
             }
@@ -135,47 +134,45 @@ private:
             // NOTE: users may use a short path (w/o ip:port)
             // e.g., hdfs:/xxx/xxx/
             if ((boost::ends_with(fname, "/str_index"))
-                    || (boost::ends_with(fname, "/str_normal") && !global_load_minimal_index)
-                    || (boost::ends_with(fname, "/str_normal_minimal") && global_load_minimal_index)) {
+                    || (boost::ends_with(fname, "/str_normal")
+                        && !global_load_minimal_index)
+                    || (boost::ends_with(fname, "/str_normal_minimal")
+                        && global_load_minimal_index)) {
                 cout << "loading ID-mapping file from HDFS: " << fname << endl;
-
                 wukong::hdfs::fstream file(hdfs, fname);
                 string str;
                 sid_t id;
                 while (file >> str >> id) {
                     // both string and ID are unique
-                    assert(str2id.find(str) == str2id.end());
-                    assert(id2str.find(id) == id2str.end());
+                    assert(!exist(str));
+                    assert(!exist(id));
 
                     str2id[str] = id;
                     id2str[id] = str;
-
-                    if (boost::ends_with(fname, "/str_index")) {
-                        pred_type[id] = 0;
-                    }
-                }
-            }
-
-            if  (boost::ends_with(fname, "/str_attr_index")) {
-                cout << "loading attr-ID-mapping file: " << fname << endl;
-
-                wukong::hdfs::fstream file(hdfs, fname);
-                string str;
-                int64_t id;
-                int32_t type;
-                while (file >> str >> id >> type) {
-                    // both string and ID are unique
-                    assert(str2id.find(str) == str2id.end());
-                    assert(id2str.find(id) == id2str.end());
-
-                    str2id[str] = id;
-                    id2str[id] = str;
-
-                    pred_type[id] = type;
+                    if (boost::ends_with(fname, "/str_index"))
+                        id2type[id] = SID_t;
                 }
                 file.close();
             }
 
+            if (boost::ends_with(fname, "/str_attr_index")) {
+                cout << "loading ID-mapping (attribute) file: " << fname << endl;
+                wukong::hdfs::fstream file(hdfs, fname);
+                string str;
+                sid_t id;
+                int32_t type;
+                while (file >> str >> id >> type) {
+                    // both string and ID are unique
+                    assert(!exist(str));
+                    assert(!exist(id));
+
+                    str2id[str] = id;
+                    id2str[id] = str;
+                    id2type[id] = type;
+                    cout << " attribute[" << id << "] = " << type << endl;
+                }
+                file.close();
+            }
         }
     }
 };
