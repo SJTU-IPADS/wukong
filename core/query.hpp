@@ -34,7 +34,6 @@
 using namespace std;
 using namespace boost::archive;
 
-#define NO_RESULT (-1)
 
 enum var_type {
     known_var,
@@ -42,16 +41,17 @@ enum var_type {
     const_var
 };
 
-enum res_type {
-    normal = 0,
-    attr = 1
-};
 // defined as constexpr due to switch-case
 constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
-// defined to construct attr col num
-int col_pair(int col, int type) { return ((type << 16) | col); }
-int get_col_pair(int value) { return (value&&0xffff); }
+
+// EXT = [ TYPE:16 | COL:16 ]
+#define NBITS_COL  16
+#define NO_RESULT  ((1 << NBITS_COL) - 1)
+
+int col2ext(int col, int type) { return ((type << NBITS_COL) | col); }
+int ext2col(int ext) { return (ext & ((1 << NBITS_COL) - 1)); }
+
 
 class request_or_reply {
 
@@ -65,23 +65,22 @@ public:
     int col_num = 0;
     int row_num = 0;
 
+    int attr_col_num = 0;
+
     bool blind = false;
 
     int nvars = 0; // the number of variables
     ssid_t local_var = 0;   // the local variable
 
-    // ID-format triple patterns (Subject, Predicat, Direction, Object)
-    vector<ssid_t> cmd_chains;
-
-    // query results
-    vector<sid_t> result_table;
     vector<int> v2c_map; // from variable ID (vid) to column ID
 
-    vector<int>  pred_type_chains; // N predicate type
+    // ID-format triple patterns (Subject, Predicat, Direction, Object)
+    vector<ssid_t> cmd_chains;
+    vector<sid_t> result_table; // result table for string IDs
 
-    //store the vertex attribute result
-    int attr_col_num =0;
-    vector<attr_t> attr_res_table;
+    // ID-format attribute triple patterns (Subject, Attribute, Direction, Value)
+    vector<int>  pred_type_chains;
+    vector<attr_t> attr_res_table; // result table for others
 
     request_or_reply() { }
 
@@ -99,23 +98,22 @@ public:
         ar & step;
         ar & col_num;
         ar & row_num;
+        ar & attr_col_num;
         ar & blind;
         ar & nvars;
         ar & local_var;
+        ar & v2c_map;
         ar & cmd_chains;
         ar & result_table;
-        ar & v2c_map;
-        ar & attr_res_table;
-        ar & attr_col_num;
         ar & pred_type_chains;
+        ar & attr_res_table;
     }
 
     void clear_data() { result_table.clear(); attr_res_table.clear(); }
 
+    bool is_finished() { return (step * 4 >= cmd_chains.size()); } // FIXME: it's trick
 
-    bool is_finished() { return (step * 4 >= cmd_chains.size()); }
-
-    bool is_request() { return (id == -1); }
+    bool is_request() { return (id == -1); } // FIXME: it's trick
 
     bool start_from_index() {
         /*
@@ -152,14 +150,15 @@ public:
         assert(vid < 0);
         if (v2c_map.size() == 0) // init
             v2c_map.resize(nvars, NO_RESULT);
+
         int idx = - (vid + 1);
         assert(idx < nvars);
 
-        return v2c_map[idx];
+        return ext2col(v2c_map[idx]);
     }
 
     // add column id to vid (pattern variable)
-    void add_var2col(ssid_t vid, int col, int type = normal) {
+    void add_var2col(ssid_t vid, int col, int type = SID_t) {
         assert(vid < 0 && col >= 0);
         if (v2c_map.size() == 0) // init
             v2c_map.resize(nvars, NO_RESULT);
@@ -167,10 +166,10 @@ public:
         assert(idx < nvars);
 
         assert(v2c_map[idx] == NO_RESULT);
-        col = col_pair(col, type);
-        v2c_map[idx] = col;
+        v2c_map[idx] = col2ext(col, type);
     }
 
+    // result table for string IDs
     void set_col_num(int n) { col_num = n; }
 
     int get_col_num() { return col_num; }
@@ -190,23 +189,10 @@ public:
             update.push_back(get_row_col(r, c));
     }
 
-
-    // about the attr result 
-    int var2attrcol(ssid_t vid) {
-        assert (vid < 0);
-        if (v2c_map.size() == 0) // init
-            v2c_map.resize(nvars, NO_RESULT);
-
-        int idx = (-1) * vid -1;
-        assert(idx < nvars);
-        return get_col_pair(v2c_map[idx]);
-    }
-
+    // result table for others (e.g., integer, float, and double)
     int set_attr_col_num(int n) { attr_col_num = n; }
 
-    int get_attr_col_num() {
-        return  attr_col_num; 
-    }
+    int get_attr_col_num() { return  attr_col_num; }
 
     attr_t get_attr_row_col(int r, int c) {
         return attr_res_table[attr_col_num * r + c];
@@ -225,7 +211,7 @@ public:
 
     int nvars;  // the number of variable in triple patterns
     // store the query predicate type
-    vector<int> pred_type_chains; 
+    vector<int> pred_type_chains;
 
     // no serialize
     vector<int> ptypes_pos; // the locations of random-constants

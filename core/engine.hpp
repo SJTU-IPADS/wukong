@@ -157,6 +157,8 @@ private:
         return false;
     }
 
+    void const_to_known(request_or_reply &req) { assert(false); } /// TODO
+
     // all of these means const predicate
     void const_to_unknown(request_or_reply &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
@@ -179,27 +181,25 @@ private:
         req.step++;
     }
 
-    void const_to_known(request_or_reply &req) { assert(false); } /// TODO
-
-    // like const_to_unknown, but store the res in attr_res_table
+    // all of these means const attribute
     void const_to_unknown_attr(request_or_reply & req ) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
         std::vector<attr_t> updated_result_table;
 
-        if (d != OUT) {
-            cout << "ERROR: Not support direction is IN in attr query" << endl;
-            assert(false);
-        }
-        attr_t res;
-        graph->get_vertex_attr_global(tid, start, d, pid, res);
-        updated_result_table.push_back(res);
+        assert(d == OUT); // attribute always uses OUT
+        int type = SID_t;
+
+        attr_t v;
+        graph->get_vertex_attr_global(tid, start, d, pid, v);
+        updated_result_table.push_back(v);
+        type = boost::apply_visitor(get_type, v);
 
         req.attr_res_table.swap(updated_result_table);
         req.set_attr_col_num(1);
-        req.add_var2col(end, 0, attr);
+        req.add_var2col(end, 0, type);
         req.step++;
     }
 
@@ -230,6 +230,38 @@ private:
         req.step++;
     }
 
+    void known_to_unknown_attr(request_or_reply &req) {
+        ssid_t start = req.cmd_chains[req.step * 4];
+        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
+        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        std::vector<attr_t> updated_attr_result_table;
+        std::vector<sid_t> updated_result_table;
+
+        // attribute always uses OUT
+        assert(d == OUT);
+        int type = SID_t;
+
+        updated_attr_result_table.reserve(req.attr_res_table.size());
+        for (int i = 0; i < req.get_row_num(); i++) {
+            sid_t prev_id = req.get_row_col(i, req.var2col(start));
+            attr_t v;
+            bool has_value = graph->get_vertex_attr_global(tid, prev_id, d, pid, v);
+            if (has_value) {
+                req.append_row_to(i, updated_result_table);
+                req.append_attr_row_to(i, updated_attr_result_table);
+                updated_attr_result_table.push_back(v);
+                type = boost::apply_visitor(get_type, v);
+            }
+        }
+
+        req.add_var2col(end, req.get_attr_col_num(), type);
+        req.set_attr_col_num(req.get_attr_col_num() + 1);
+        req.attr_res_table.swap(updated_attr_result_table);
+        req.result_table.swap(updated_result_table);
+        req.step++;
+    }
+
     void known_to_known(request_or_reply &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
@@ -246,18 +278,16 @@ private:
             for (uint64_t k = 0; k < sz; k++) {
                 if (res[k].val == end2) {
                     req.append_row_to(i, updated_result_table);
-                    if (global_enable_vattr) {
+                    if (global_enable_vattr)
                         req.append_attr_row_to(i, updated_attr_res_table);
-                    }
                     break;
                 }
             }
         }
 
         req.result_table.swap(updated_result_table);
-        if (global_enable_vattr) {
+        if (global_enable_vattr)
             req.attr_res_table.swap(updated_attr_res_table);
-        }
         req.step++;
     }
 
@@ -276,51 +306,18 @@ private:
             for (uint64_t k = 0; k < sz; k++) {
                 if (res[k].val == end) {
                     req.append_row_to(i, updated_result_table);
-                    if (global_enable_vattr) {
+                    if (global_enable_vattr)
                         req.append_attr_row_to(i, updated_attr_res_table);
-                    }
                     break;
                 }
             }
         }
 
         req.result_table.swap(updated_result_table);
-        if (global_enable_vattr) {
+        if (global_enable_vattr)
             req.attr_res_table.swap(updated_attr_res_table);
-        }
         req.step++;
     }
-
-    //like known_to_unknown, but store the res in attr_res_table
-    void known_to_unknown_attr(request_or_reply &req) {
-
-        ssid_t start = req.cmd_chains[req.step * 4];
-        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
-        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
-        std::vector<attr_t> updated_attr_result_table;
-        std::vector<sid_t> updated_result_table;
-
-        updated_attr_result_table.reserve(req.attr_res_table.size());
-        for (int i = 0; i < req.get_row_num(); i++) {
-            sid_t prev_id = req.get_row_col(i, req.var2col(start));
-            attr_t res;
-            bool has_value = graph->get_vertex_attr_global(tid, prev_id, d, pid, res);
-            if (has_value) {
-                req.append_row_to(i, updated_result_table);
-                req.append_attr_row_to(i, updated_attr_result_table);
-                updated_attr_result_table.push_back(res);
-            }
-        }
-
-        req.add_var2col(end, req.get_attr_col_num(), attr);
-        req.set_attr_col_num(req.get_attr_col_num() + 1);
-        req.attr_res_table.swap(updated_attr_result_table);
-        req.result_table.swap(updated_result_table);
-        req.step++;
-    }
-
-
 
     void index_to_unknown(request_or_reply &req) {
         ssid_t idx = req.cmd_chains[req.step * 4];
@@ -661,6 +658,7 @@ private:
             }
             return true;
         }
+
         // known_predicate
         switch (var_pair(req.variable_type(start), req.variable_type(end))) {
         // start from const_var

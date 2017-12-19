@@ -309,6 +309,9 @@ class DGraph {
 	int load_attr_from_allfiles(vector<string> &fnames) {
 		uint64_t t1 = timer::get_usec();
 
+		if (fnames.size() == 0)
+			return; // no attributed files
+
 		sort(fnames.begin(), fnames.end());
 
 		int num_files = fnames.size();
@@ -383,7 +386,7 @@ class DGraph {
 		}
 		// timing
 		uint64_t t2 = timer::get_usec();
-		cout << (t2 - t1) / 1000 << " ms for loading RDF data files (w/o networking)" << endl;
+		cout << (t2 - t1) / 1000 << " ms for loading RDF data (attribute) files (w/o networking)" << endl;
 
 		return global_num_engines;
 	}
@@ -508,15 +511,20 @@ public:
 				/// TODO: move RDF data files and metadata files to different directories
 				if (boost::starts_with(fname, dname + "id_"))
 					files.push_back(fname);
-				if (boost::starts_with(fname, dname + "attr_"))
+
+				if (global_enable_vattr && boost::starts_with(fname, dname + "attr_"))
 					attr_files.push_back(fname);
 			}
 		}
 
 		if (files.size() == 0) {
-			cout << "ERORR: no files found in directory (" << dname
+			cout << "[ERORR] no files found in directory (" << dname
 			     << ") at server " << sid << endl;
 			assert(false);
+		} else {
+			cout << "[INFO] " << files.size() << " files and " << attr_files.size()
+			     << " attributed files found in directory (" << dname
+			     << ") at server " << sid << endl;
 		}
 
 		// load_data: load partial input files by each server and exchanges triples
@@ -536,13 +544,14 @@ public:
 		else
 			num_partitons = load_data_from_allfiles(files);
 
-		if (global_enable_vattr)
-			load_attr_from_allfiles(attr_files);
 		// all triples are partitioned and temporarily stored in the kvstore on each server.
 		// the kvstore is split into num_partitions partitions, each contains #triples and triples
 		//
 		// Wukong aggregates, sorts and dedups all triples before finally inserting them to gstore (kvstore)
 		aggregate_data(num_partitons);
+
+		// load attribute files
+		load_attr_from_allfiles(attr_files);
 
 		// initiate gstore (kvstore) after loading and exchanging triples (memory reused)
 		gstore.init();
@@ -571,16 +580,17 @@ public:
 		gstore.print_mem_usage();
 	}
 
-// FIXME: rename the function by the term of RDF model (e.g., triples)
+	// FIXME: rename the function by the term of RDF model (e.g., triples)
 	edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
 		return gstore.get_edges_global(tid, vid, d, pid, sz);
 	}
 
-// FIXME: rename the function by the term of RDF model (e.g., triples)
+	// FIXME: rename the function by the term of RDF model (e.g., triples)
 	edge_t *get_index_edges_local(int tid, sid_t vid, dir_t d, uint64_t *sz) {
 		return gstore.get_index_edges_local(tid, vid, d, sz);
 	}
 
+	// FIXME: rename the function by the term of attribute graph model (e.g., value)
 	bool get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &result) {
 		return gstore.get_vertex_attr_global(tid, vid, d, pid, result);
 	}
