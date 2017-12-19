@@ -263,13 +263,14 @@ private:
             req_template.cmd_chains.push_back(d);
             req_template.cmd_chains.push_back(token2id(triple[2]));
 
+            /// FIXME: support unknown predicate/attributed (token2id(triple[1]) < 0)
             int type = str_server->id2type[token2id(triple[1])];
             if (type > 0 && (!global_enable_vattr)) {
                 cout << "Need to change config to enable vertex_attr " << endl;
                 assert(false);
             }
             req_template.pred_type_chains.push_back(type);
-            // cout << "the pvars.size" << pvars.size();
+
             req_template.nvars = pvars.size();
         }
 

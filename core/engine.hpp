@@ -184,7 +184,7 @@ private:
     // all of these means const attribute
     void const_to_unknown_attr(request_or_reply & req ) {
         ssid_t start = req.cmd_chains[req.step * 4];
-        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
+        ssid_t aid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
         std::vector<attr_t> updated_result_table;
@@ -193,15 +193,16 @@ private:
         int type = SID_t;
 
         attr_t v;
-        graph->get_vertex_attr_global(tid, start, d, pid, v);
+        graph->get_vertex_attr_global(tid, start, d, aid, v);
         updated_result_table.push_back(v);
         type = boost::apply_visitor(get_type, v);
 
         req.attr_res_table.swap(updated_result_table);
-        req.set_attr_col_num(1);
         req.add_var2col(end, 0, type);
+        req.set_attr_col_num(1);
         req.step++;
     }
+
 
     void known_to_unknown(request_or_reply &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
@@ -224,16 +225,16 @@ private:
             }
         }
 
+        req.result_table.swap(updated_result_table);
         req.add_var2col(end, req.get_col_num());
         req.set_col_num(req.get_col_num() + 1);
-        req.result_table.swap(updated_result_table);
         req.step++;
     }
 
     void known_to_unknown_attr(request_or_reply &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
         std::vector<attr_t> updated_attr_result_table;
         std::vector<sid_t> updated_result_table;
@@ -255,17 +256,17 @@ private:
             }
         }
 
-        req.add_var2col(end, req.get_attr_col_num(), type);
-        req.set_attr_col_num(req.get_attr_col_num() + 1);
         req.attr_res_table.swap(updated_attr_result_table);
         req.result_table.swap(updated_result_table);
+        req.add_var2col(end, req.get_attr_col_num(), type);
+        req.set_attr_col_num(req.get_attr_col_num() + 1);
         req.step++;
     }
 
     void known_to_known(request_or_reply &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
         vector<sid_t> updated_result_table;
         vector<attr_t> updated_attr_res_table;
@@ -294,7 +295,7 @@ private:
     void known_to_const(request_or_reply &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
         vector<sid_t> updated_result_table;
         vector<attr_t> updated_attr_res_table;
@@ -320,17 +321,18 @@ private:
     }
 
     void index_to_unknown(request_or_reply &req) {
-        ssid_t idx = req.cmd_chains[req.step * 4];
-        ssid_t nothing = req.cmd_chains[req.step * 4 + 1];
-        dir_t d = (dir_t)req.cmd_chains[req.step * 4 + 2];
-        ssid_t var = req.cmd_chains[req.step * 4 + 3];
+        ssid_t tpid  = req.cmd_chains[req.step * 4];
+        ssid_t id01 = req.cmd_chains[req.step * 4 + 1];
+        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        ssid_t var  = req.cmd_chains[req.step * 4 + 3];
         vector<sid_t> updated_result_table;
 
-        // the query plan is wrong
-        assert(req.get_col_num() == 0);
+        assert(id01 == PREDICATE_ID || id01 == TYPE_ID); // predicate or type index
+
+        assert(req.get_col_num() == 0); // the query plan is wrong
 
         uint64_t sz = 0;
-        edge_t *res = graph->get_index_edges_local(tid, idx, d, &sz);
+        edge_t *res = graph->get_index_edges_local(tid, tpid, d, &sz);
         int start = req.tid;
         for (uint64_t k = start; k < sz; k += global_mt_threshold)
             updated_result_table.push_back(res[k].val);
@@ -342,6 +344,7 @@ private:
         req.local_var = -1;
     }
 
+    // e.g., "<http://www.Department0.University0.edu> ?P ?X"
     void const_unknown_unknown(request_or_reply &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
@@ -371,22 +374,23 @@ private:
         free(tpids);
 
         req.result_table.swap(updated_result_table);
+        req.set_col_num(2);
         req.add_var2col(pid, 0);
         req.add_var2col(end, 1);
-        req.set_col_num(2);
         req.step++;
     }
 
+    // e.g., "<http://www.University0.edu> ub:subOrganizationOf ?D"
+    //       "?D ?P ?X"
     void known_unknown_unknown(request_or_reply &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
         vector<sid_t> updated_result_table;
 
         for (int i = 0; i < req.get_row_num(); i++) {
             sid_t prev_id = req.get_row_col(i, req.var2col(start));
-
             uint64_t npids = 0;
             edge_t *pids = graph->get_edges_global(tid, prev_id, d, PREDICATE_ID, &npids);
 
@@ -407,17 +411,18 @@ private:
             free(tpids);
         }
 
+        req.result_table.swap(updated_result_table);
+        req.set_col_num(req.get_col_num() + 2);
         req.add_var2col(pid, req.get_col_num());
         req.add_var2col(end, req.get_col_num() + 1);
-        req.set_col_num(req.get_col_num() + 2);
-        req.result_table.swap(updated_result_table);
         req.step++;
     }
 
+    // FIXME: deadcode
     void known_unknown_const(request_or_reply &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
         vector<sid_t> updated_result_table;
 
@@ -429,7 +434,6 @@ private:
             // use a local buffer to store "known" predicates
             edge_t *tpids = (edge_t *)malloc(npids * sizeof(edge_t));
             memcpy((char *)tpids, (char *)pids, npids * sizeof(edge_t));
-
 
             for (uint64_t p = 0; p < npids; p++) {
                 uint64_t sz = 0;
@@ -610,18 +614,20 @@ private:
     }
 
     bool execute_one_step(request_or_reply &req) {
-        if (req.is_finished()) {
+        if (req.is_finished())
             return false;
-        }
+
         if (req.step == 0 && req.start_from_index()) {
             index_to_unknown(req);
             return true;
         }
-        ssid_t start = req.cmd_chains[req.step * 4];
-        ssid_t predicate = req.cmd_chains[req.step * 4 + 1];
-        dir_t direction = (dir_t)req.cmd_chains[req.step * 4 + 2];
-        ssid_t end = req.cmd_chains[req.step * 4 + 3];
 
+        ssid_t start     = req.cmd_chains[req.step * 4];
+        ssid_t predicate = req.cmd_chains[req.step * 4 + 1];
+        dir_t direction  = (dir_t)req.cmd_chains[req.step * 4 + 2];
+        ssid_t end       = req.cmd_chains[req.step * 4 + 3];
+
+        // triple pattern with unknown predicate/attribute
         if (predicate < 0) {
 #ifdef VERSATILE
             switch (var_pair(req.variable_type(start),
@@ -633,19 +639,23 @@ private:
                 known_unknown_unknown(req);
                 break;
             default:
+                cout << "ERROR: unsupported triple pattern with unknown predicate "
+                     << "(" << req.variable_type(start) << "|" << req.variable_type(end) << ")"
+                     << endl;
                 assert(false);
-                break;
             }
             return true;
 #else
-            cout << "ERROR: unsupport variable at predicate." << endl;
+            cout << "ERROR: unsupported variable at predicate." << endl;
             cout << "Please add definition VERSATILE in CMakeLists.txt." << endl;
             assert(false);
 #endif
         }
 
+        // triple pattern with attribute
         if (global_enable_vattr && req.pred_type_chains[req.step] > 0) {
-            switch (var_pair(req.variable_type(start), req.variable_type(end))) {
+            switch (var_pair(req.variable_type(start),
+                             req.variable_type(end))) {
             case var_pair(const_var, unknown_var):
                 const_to_unknown_attr(req);
                 break;
@@ -653,26 +663,30 @@ private:
                 known_to_unknown_attr(req);
                 break;
             default:
-                cout << "ERROE :unsupported type of attr query";
+                cout << "ERROR: unsupported triple pattern with attribute "
+                     << "(" << req.variable_type(start) << "|" << req.variable_type(end) << ")"
+                     << endl;
                 assert(false);
             }
             return true;
         }
 
-        // known_predicate
-        switch (var_pair(req.variable_type(start), req.variable_type(end))) {
-        // start from const_var
+        // triple pattern with known predicate
+        switch (var_pair(req.variable_type(start),
+                         req.variable_type(end))) {
+
+        // start from const
         case var_pair(const_var, const_var):
-            cout << "ERROR: unsupported triple pattern (from const_var to const_var)" << endl;
+            cout << "ERROR: unsupported triple pattern (from const to const)" << endl;
+            assert(false);
+        case var_pair(const_var, known_var):
+            cout << "ERROR: unsupported triple pattern (from const to known)" << endl;
             assert(false);
         case var_pair(const_var, unknown_var):
             const_to_unknown(req);
             break;
-        case var_pair(const_var, known_var):
-            cout << "ERROR: unsupported triple pattern (from const_var to known_var)" << endl;
-            assert(false);
 
-        // start from known_var
+        // start from known
         case var_pair(known_var, const_var):
             known_to_const(req);
             break;
@@ -683,14 +697,17 @@ private:
             known_to_unknown(req);
             break;
 
-        // start from unknown_var
+        // start from unknown
         case var_pair(unknown_var, const_var):
         case var_pair(unknown_var, known_var):
         case var_pair(unknown_var, unknown_var):
-            cout << "ERROR: unsupported triple pattern (from unknown_var)" << endl;
+            cout << "ERROR: unsupported triple pattern (from unknown)" << endl;
             assert(false);
 
         default:
+            cout << "ERROR: unsupported triple pattern with known predicate "
+                 << "(" << req.variable_type(start) << "|" << req.variable_type(end) << ")"
+                 << endl;
             assert(false);
         }
 

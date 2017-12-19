@@ -40,15 +40,17 @@
 #include "timer.hpp"
 #include "unit.hpp"
 #include "variant.hpp"
+
 using namespace std;
 
 enum { NBITS_DIR = 1 };
 enum { NBITS_IDX = 17 }; // equal to the size of t/pid
 enum { NBITS_VID = (64 - NBITS_IDX - NBITS_DIR) }; // 0: index vertex, ID: normal vertex
 
-enum { PREDICATE_ID = 0, TYPE_ID = 1 }; // reserve two special index IDs
+// reserve two special index IDs (predicate and type)
+enum { PREDICATE_ID = 0, TYPE_ID = 1 };
 
-static inline bool is_tpid(sid_t id) { return (id > 1) && (id < (1 << NBITS_IDX)); }
+static inline bool is_tpid(ssid_t id) { return (id > 1) && (id < (1 << NBITS_IDX)); }
 
 /**
  * predicate-base key/value store
@@ -228,7 +230,7 @@ private:
         pthread_spin_lock(&bucket_locks[lock_id]);
         while (slot_id < num_slots) {
             // the last slot of each bucket is always reserved for pointer to indirect header
-            /// TODO: add type info to slot and resue the last slot to store key
+            /// TODO: add type info to slot and reuse the last slot to store key
             /// TODO: key.vid is reused to store the bucket_id of indirect header rather than ptr.off,
             ///       since the is_empty() is not robust.
             for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
@@ -441,7 +443,7 @@ done:
 public:
 
     // encoding rules of gstore
-    // subject/object (vid) >= 2^17, 2^17 > predicate/type (p/tid) > 2^1,
+    // subject/object (vid) >= 2^NBITS_IDX, 2^NBITS_IDX > predicate/type (p/tid) >= 2^1,
     // TYPE_ID = 1, PREDICATE_ID = 0, OUT = 1, IN = 0
     //
     // NORMAL key/value pair
@@ -451,7 +453,7 @@ public:
     // INDEX key/value pair
     //   key = [  0 |          pid | IN/OUT]  value = [vid0, vid1, ..]  i.e., predicate-index
     //   key = [  0 |          tid |     IN]  value = [vid0, vid1, ..]  i.e., type-index
-    //   key = [  0 |      TYPE_ID |    OUT]  value = [vid0, vid1, ..]  i.e., all objects/subjects
+    //   key = [  0 |      TYPE_ID |     IN]  value = [vid0, vid1, ..]  i.e., all objects/subjects
     //   key = [  0 |      TYPE_ID |    OUT]  value = [vid0, vid1, ..]  i.e., all predicates
     // Empty key
     //   key = [  0 |            0 |      0]  value = [vid0, vid1, ..]  i.e., init
@@ -831,118 +833,108 @@ public:
     }
 
     edge_t *get_index_edges_local(int tid, sid_t pid, dir_t d, uint64_t *sz) {
-        // predicate is not important, so we set it 0
+        // the vid of index vertex should be 0
         return get_edges_local(tid, 0, d, pid, sz);
     }
 
-    // insert the attr of edge
-    void insert_vertex_attr(vector<triple_attr_t> &vertex_attr, int64_t t_id) {
-        uint64_t s = 0;
-        uint64_t num = vertex_attr.size();
+    // insert vertex attributes
+    void insert_vertex_attr(vector<triple_attr_t> &attrs, int64_t tid) {
+        for (auto const &attr : attrs) {
+            // allocate a vertex and edges
+            ikey_t key = ikey_t(attr.s, attr.a, OUT);
+            int type = boost::apply_visitor(get_type, attr.v);
+            uint64_t sz = (get_sizeof(type) - 1) / sizeof(edge_t) + 1;   // get the ceil size;
+            uint64_t off = alloc_edges(sz, tid);
 
-        while (s < num) {
-            // get the value type
-            int type = boost::apply_visitor(get_type, vertex_attr[s].v);
-            uint64_t size = (get_sizeof(type) - 1) / sizeof(edge_t) + 1;   // get the ceil size;
-            uint64_t off = alloc_edges(size, t_id);
-            ikey_t key = ikey_t(vertex_attr[s].s, vertex_attr[s].a, OUT);
-            //key.print();
+            // insert a vertex
             uint64_t slot_id = insert_key(key);
-            iptr_t ptr = iptr_t(size, off, type);
-            //cout <<" the slot id "<< slot_id << " the off " <<off <<endl;
+            iptr_t ptr = iptr_t(sz, off, type);
             vertices[slot_id].ptr = ptr;
 
-            // store the attr value
+            // insert edges (attributes)
             switch (type) {
-            case INT_t: {
-                *(int *)(edges + off) = boost::get<int>(vertex_attr[s].v);
+            case INT_t:
+                *(int *)(edges + off) = boost::get<int>(attr.v);
                 break;
-            }
-            case FLOAT_t: {
-                *(float *)(edges + off) = boost::get<float>(vertex_attr[s].v);
+            case FLOAT_t:
+                *(float *)(edges + off) = boost::get<float>(attr.v);
                 break;
-            }
-            case DOUBLE_t: {
-                *(double *)(edges + off) = boost::get<double>(vertex_attr[s].v);
+            case DOUBLE_t:
+                *(double *)(edges + off) = boost::get<double>(attr.v);
                 break;
-            }
             default:
-                cout << "Not support value type" << endl;
+                cout << "Unsupported value type of attribute" << endl;
             }
-            s++;
         }
     }
 
-    //get the attr of edge
-    bool get_vertex_attr_remote(int tid, sid_t vid, dir_t d, sid_t pid, attr_t& result) {
+    bool get_vertex_attr_remote(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &r) {
         int dst_sid = mymath::hash_mod(vid, global_num_servers);
         ikey_t key = ikey_t(vid, pid, d);
         vertex_t v = get_vertex_remote(tid, key);
-        int type = v.ptr.type;
 
-        if (v.key.is_empty()) {
+        if (v.key.is_empty())
             return false; // not found
-        }
+
         // TODO: implement it w/o RDMA
         assert(global_use_rdma);
 
         char *buf = mem->buffer(tid);
         uint64_t r_off = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
         uint64_t r_sz = v.ptr.size * sizeof(edge_t);
+
         RDMA &rdma = RDMA::get_rdma();
         rdma.dev->RdmaRead(tid, dst_sid, buf, r_sz, r_off);
-        switch (type) {
+        switch (v.ptr.type) {
         case INT_t:
-            result = *((int *)(&(edges[r_off])));
+            r = *((int *)(&(edges[r_off])));
             break;
         case FLOAT_t:
-            result = *((float *)(&(edges[r_off])));
+            r = *((float *)(&(edges[r_off])));
             break;
         case DOUBLE_t:
-            result = *((double *)(&(edges[r_off])));
+            r = *((double *)(&(edges[r_off])));
             break;
         default:
             cout << "Not support value type" << endl;
             break;
         }
+
         return true;
     }
 
-    bool get_vertex_attr_local(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &result) {
+    bool get_vertex_attr_local(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &r) {
         ikey_t key = ikey_t(vid, pid, d);
         vertex_t v = get_vertex_local(tid, key);
-        int type = v.ptr.type;
 
-        if (v.key.is_empty()) {
-            return false;
-        }
-        //v.key.print();
+        if (v.key.is_empty())
+            return false; // not found
+
         uint64_t off = v.ptr.off;
-
-        switch (type) {
+        switch (v.ptr.type) {
         case INT_t:
-            result = *((int *)(&(edges[off])));
+            r = *((int *)(&(edges[off])));
             break;
         case FLOAT_t:
-            result = *((float *)(&(edges[off])));
+            r = *((float *)(&(edges[off])));
             break;
         case DOUBLE_t:
-            result = *((double *)(&(edges[off])));
+            r = *((double *)(&(edges[off])));
             break;
         default:
             cout << "Not support value type" << endl;
             break;
         }
+
         return true;
-        // result =  *((attr_t*)(&(edges[off])));
     }
 
-    bool get_vertex_attr_global(int tid, sid_t vid, dir_t d , sid_t pid, attr_t& result) {
-
-        if (mymath::hash_mod(vid, global_num_servers) == sid)
-            return get_vertex_attr_local(tid, vid, d, pid, result);
+    // get vertex attributes
+    bool get_vertex_attr_global(int tid, sid_t vid, dir_t d , sid_t pid, attr_t &r) {
+        if (sid == mymath::hash_mod(vid, global_num_servers))
+            return get_vertex_attr_local(tid, vid, d, pid, r);
         else
-            return get_vertex_attr_remote(tid, vid, d, pid, result);
+            return get_vertex_attr_remote(tid, vid, d, pid, r);
     }
 
     // analysis and debuging

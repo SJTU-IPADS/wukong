@@ -103,7 +103,9 @@ private:
                 file.close();
             }
 
-            if  (boost::ends_with(fname, "/str_attr_index")) {
+            /// FIXME: whether the predicates/attributes in str_attr_index should be
+            ///        exclusive to the predicates/attributes in str_index or not?
+            if (boost::ends_with(fname, "/str_attr_index")) {
                 cout << "loading ID-mapping (attribute) file: " << fname << endl;
                 ifstream file(fname.c_str());
                 string str;
@@ -155,6 +157,8 @@ private:
                 file.close();
             }
 
+            /// FIXME: whether the predicates/attributes in str_attr_index should be
+            ///        exclusive to the predicates/attributes in str_index or not?
             if (boost::ends_with(fname, "/str_attr_index")) {
                 cout << "loading ID-mapping (attribute) file: " << fname << endl;
                 wukong::hdfs::fstream file(hdfs, fname);
