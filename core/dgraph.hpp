@@ -113,7 +113,7 @@ class DGraph {
 
 		// serialize the RDMA WRITEs by multiple threads
 		uint64_t exist = __sync_fetch_and_add(&num_triples[dst_sid], n);
-		if ((exist * 3 + n * 3) * sizeof(uint64_t) > kvs_sz) {
+		if ((exist * 3 + n * 3) * sizeof(sid_t) > kvs_sz) {
 			cout << "ERROR: no enough space to store input data!" << endl;
 			cout << " kvstore size = " << kvs_sz
 			     << " #exist-triples = " << exist
@@ -165,7 +165,7 @@ class DGraph {
 		*pn = (n + 1);
 	}
 
-	int load_data(vector<string>& fnames) {
+	int load_data(vector<string> &fnames) {
 		uint64_t t1 = timer::get_usec();
 
 		// ensure the file name list has the same order on all servers
@@ -195,6 +195,7 @@ class DGraph {
 						send_triple(localtid, o_sid, s, p, o);
 					}
 				}
+				file.close();
 			} else {
 				// files located on a shared filesystem (e.g., NFS)
 				ifstream file(fnames[i].c_str());
@@ -223,7 +224,7 @@ class DGraph {
 			uint64_t *buf = (uint64_t *)mem->buffer(0);
 			buf[0] = num_triples[s];
 
-			uint64_t kvs_sz = floor(mem->kvstore_size() / global_num_servers, sizeof(uint64_t));
+			uint64_t kvs_sz = floor(mem->kvstore_size() / global_num_servers, sizeof(sid_t));
 			uint64_t offset = kvs_sz * sid;
 			if (s != sid) {
 				RDMA &rdma = RDMA::get_rdma();
@@ -267,7 +268,7 @@ class DGraph {
 					int s_sid = mymath::hash_mod(s, global_num_servers);
 					int o_sid = mymath::hash_mod(o, global_num_servers);
 					if ((s_sid == sid) || (o_sid == sid)) {
-						assert((n * 3 + 3) * sizeof(uint64_t) <= kvs_sz);
+						assert((n * 3 + 3) * sizeof(sid_t) <= kvs_sz);
 
 						// buffer the triple and update the counter
 						kvs[n * 3 + 0] = s;
@@ -284,7 +285,7 @@ class DGraph {
 					int s_sid = mymath::hash_mod(s, global_num_servers);
 					int o_sid = mymath::hash_mod(o, global_num_servers);
 					if ((s_sid == sid) || (o_sid == sid)) {
-						assert((n * 3 + 3) * sizeof(uint64_t) <= kvs_sz);
+						assert((n * 3 + 3) * sizeof(sid_t) <= kvs_sz);
 
 						// buffer the triple and update the counter
 						kvs[n * 3 + 0] = s;
@@ -343,7 +344,7 @@ class DGraph {
 						v = d;
 						break;
 					default:
-						cout << " Not support value" << endl;
+						cout << "[ERROR] Unsupported value type" << endl;
 						break;
 					}
 
@@ -374,7 +375,7 @@ class DGraph {
 						v = d;
 						break;
 					default:
-						cout << " Not support value" << endl;
+						cout << "[ERROR] Unsupported value type" << endl;
 						break;
 					}
 
@@ -395,8 +396,8 @@ class DGraph {
 		// calculate #triples on the kvstore from all servers
 		uint64_t total = 0;
 		uint64_t kvs_sz = floor(mem->kvstore_size() / num_partitions - sizeof(uint64_t), sizeof(sid_t));
-		for (int id = 0; id < num_partitions; id++) {
-			uint64_t *pn = (uint64_t *)(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * id);
+		for (int i = 0; i < num_partitions; i++) {
+			uint64_t *pn = (uint64_t *)(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * i);
 			total += *pn; // the 1st uint64_t of kvs records #triples
 		}
 
