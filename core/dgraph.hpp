@@ -81,7 +81,7 @@ class DGraph {
 
 	vector<vector<triple_t>> triple_spo;
 	vector<vector<triple_t>> triple_ops;
-	vector<vector<triple_attr_t>> triple_attr;
+	vector<vector<triple_attr_t>> triple_sav;
 
 	void dedup_triples(vector<triple_t> &triples) {
 		if (triples.size() <= 1)
@@ -305,8 +305,8 @@ class DGraph {
 		return global_num_engines;
 	}
 
-	// selectively load own partitioned data from all files
-	int load_attr_from_allfiles(vector<string> &fnames) {
+	// selectively load own partitioned data (attributes) from all files
+	void load_attr_from_allfiles(vector<string> &fnames) {
 		uint64_t t1 = timer::get_usec();
 
 		if (fnames.size() == 0)
@@ -348,7 +348,7 @@ class DGraph {
 					}
 
 					if (sid == mymath::hash_mod(s, global_num_servers))
-						triple_attr[localtid].push_back(triple_attr_t(s, a, v));
+						triple_sav[localtid].push_back(triple_attr_t(s, a, v));
 				}
 				file.close();
 			} else {
@@ -379,7 +379,7 @@ class DGraph {
 					}
 
 					if (sid == mymath::hash_mod(s, global_num_servers))
-						triple_attr[localtid].push_back(triple_attr_t(s, a, v));
+						triple_sav[localtid].push_back(triple_attr_t(s, a, v));
 				}
 				file.close();
 			}
@@ -387,9 +387,8 @@ class DGraph {
 		// timing
 		uint64_t t2 = timer::get_usec();
 		cout << (t2 - t1) / 1000 << " ms for loading RDF data (attribute) files (w/o networking)" << endl;
-
-		return global_num_engines;
 	}
+
 	void aggregate_data(int num_partitions) {
 		uint64_t t1 = timer::get_usec();
 
@@ -476,12 +475,13 @@ public:
 		: sid(sid), mem(mem), gstore(sid, mem) {
 
 		num_triples.resize(global_num_servers);
+
 		triple_spo.resize(global_num_engines);
 		triple_ops.resize(global_num_engines);
-		triple_attr.resize(global_num_engines);
+		triple_sav.resize(global_num_engines);
 
 		vector<string> files; // ID-format data files
-		vector<string> attr_files; // attr-built-format data files
+		vector<string> attr_files; // ID-format (attribute) data files
 		if (boost::starts_with(dname, "hdfs:")) {
 			if (!wukong::hdfs::has_hadoop()) {
 				cout << "ERROR: attempting to load data files from HDFS "
@@ -512,6 +512,7 @@ public:
 				if (boost::starts_with(fname, dname + "id_"))
 					files.push_back(fname);
 
+				// Assume the fnames of RDF attribute files (ID-format) start with 'attr_'.
 				if (global_enable_vattr && boost::starts_with(fname, dname + "attr_"))
 					attr_files.push_back(fname);
 			}
@@ -568,24 +569,26 @@ public:
 
 		#pragma omp parallel for num_threads(global_num_engines)
 		for (int t = 0; t < global_num_engines; t++) {
-			gstore.insert_vertex_attr(triple_attr[t], t);
+			gstore.insert_vertex_attr(triple_sav[t], t);
 			// release memory
-			vector<triple_attr_t>().swap(triple_attr[t]);
+			vector<triple_attr_t>().swap(triple_sav[t]);
 		}
 		uint64_t t2 = timer::get_usec();
-		cout << (t2 - t1) / 1000 << " ms for inserting normal data into gstore" << endl;
-		gstore.insert_index();
+		cout << "[INFO] #" << sid << ": "
+		     << (t2 - t1) / 1000 << "ms for inserting normal data into gstore" << endl;
 
-		cout << "INFO#" << sid << ": loading DGraph is finished." << endl;
+		gstore.insert_index();
+		cout << "[INFO] #" << sid << ": loading DGraph is finished." << endl;
+
 		gstore.print_mem_usage();
 	}
 
-	// FIXME: rename the function by the term of RDF model (e.g., triples)
+	// FIXME: rename the function by the term of RDF model (e.g., subject/object)
 	edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
 		return gstore.get_edges_global(tid, vid, d, pid, sz);
 	}
 
-	// FIXME: rename the function by the term of RDF model (e.g., triples)
+	// FIXME: rename the function by the term of RDF model (e.g., subject/object)
 	edge_t *get_index_edges_local(int tid, sid_t vid, dir_t d, uint64_t *sz) {
 		return gstore.get_index_edges_local(tid, vid, d, sz);
 	}

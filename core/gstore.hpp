@@ -91,12 +91,14 @@ uint64_t vid : NBITS_VID; // vertex
     }
 };
 
-// 64-bit internal pointer (size < 256M and off < 64GB)
-enum { NBITS_SIZE = 26 };
-enum { NBITS_PTR = 36 };
-enum { NBITS_TYPE = 2 }; //0 is sid ,1 is int, 2 is float, 3 is double
+// 64-bit internal pointer
+//   NBITS_SIZE: the max number of edges (edge_t) for a single vertex (256M)
+//   NBITS_PTR: the max number of edges (edge_t) for the entire gstore (16GB)
+//   NBITS_TYPE: sid(0), int(1), float(2), double(4)
+enum { NBITS_SIZE = 28 };
+enum { NBITS_PTR  = 34 };
+enum { NBITS_TYPE =  2 };
 
-/// TODO: add sid and edge type in future
 struct iptr_t {
 uint64_t size: NBITS_SIZE;
 uint64_t off: NBITS_PTR;
@@ -682,6 +684,8 @@ public:
         }
         uint64_t t2 = timer::get_usec();
         cout << (t2 - t1) / 1000 << " ms for (parallel) prepare index info" << endl;
+
+        /// TODO: parallelize index insertion
 
         // add type/predicate index vertices
         insert_index_map(tidx_map, IN);
