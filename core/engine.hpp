@@ -141,19 +141,19 @@ private:
     inline void sweep_msgs() {
         if (!pending_msgs.size()) return;
 
-        for (vector<Message>::iterator it = pending_msgs.begin(); it != pending_msgs.end(); )
+        for (vector<Message>::iterator it = pending_msgs.begin(); it != pending_msgs.end();)
             if (adaptor->send(it->sid, it->tid, it->r))
                 it = pending_msgs.erase(it);
             else
                 ++it;
     }
 
-    bool send_request(int sid, int tid, request_or_reply &r) {
-        if (adaptor->send(sid, tid, r))
+    bool send_request(request_or_reply &r, int dst_sid, int dst_tid) {
+        if (adaptor->send(dst_sid, dst_tid, r))
             return true;
 
         // failed to send, then stash the msg to void deadlock
-        pending_msgs.push_back(Message(sid, tid, r));
+        pending_msgs.push_back(Message(dst_sid, dst_tid, r));
         return false;
     }
 
@@ -476,9 +476,9 @@ private:
 
         // group intermediate results to servers
         for (int i = 0; i < req.get_row_num(); i++) {
-            int sid = mymath::hash_mod(req.get_row_col(i, req.var2col(start)),
-                                       global_num_servers);
-            req.append_row_to(i, sub_reqs[sid].result_table);
+            int dst_sid = mymath::hash_mod(req.get_row_col(i, req.var2col(start)),
+                                           global_num_servers);
+            req.append_row_to(i, sub_reqs[dst_sid].result_table);
         }
 
         return sub_reqs;
@@ -730,7 +730,7 @@ private:
                 if (r.blind)
                     r.clear_data(); // avoid take back the results
 
-                send_request(coder.sid_of(r.pid), coder.tid_of(r.pid), r);
+                send_request(r, coder.sid_of(r.pid), coder.tid_of(r.pid));
                 return;
             }
 
@@ -739,7 +739,7 @@ private:
                 rmap.put_parent_request(r, sub_reqs.size());
                 for (int i = 0; i < sub_reqs.size(); i++) {
                     if (i != sid) {
-                        send_request(i, tid, sub_reqs[i]);
+                        send_request(sub_reqs[i], i, tid);
                     } else {
                         pthread_spin_lock(&recv_lock);
                         msg_fast_path.push_back(sub_reqs[i]);
@@ -759,7 +759,7 @@ private:
             request_or_reply reply = engine->rmap.get_merged_reply(r.pid);
             pthread_spin_unlock(&engine->rmap_lock);
 
-            send_request(coder.sid_of(reply.pid), coder.tid_of(reply.pid), reply);
+            send_request(reply, coder.sid_of(reply.pid), coder.tid_of(reply.pid));
         } else {
             pthread_spin_unlock(&engine->rmap_lock);
         }

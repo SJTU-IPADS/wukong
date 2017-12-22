@@ -328,8 +328,7 @@ next:
 							continue;
 						}
 
-						proxy->nonblocking_run_batch_query(ifs, logger);
-						//proxy->run_batch_query(ifs, logger);
+						proxy->run_batch_query(ifs, logger);
 					}
 
 					// FIXME: maybe hang in here if the input file misses in some machines
