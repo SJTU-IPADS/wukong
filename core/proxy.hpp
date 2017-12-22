@@ -367,19 +367,19 @@ public:
 				}
 			}
 
-            //If it is survey of evaluation parameter 
-            if(is_survey && logger.time_and_print(recv_cnt, sid, tid))
-                break;
+			//If it is survey of evaluation parameter 
+			if(is_survey && logger.time_and_print(recv_cnt, sid, tid))
+				break;
 		}
 
-        while(recv_cnt < send_cnt) {
-            request_or_reply r;
-            if(tryrecv_reply(r)) {
-                recv_cnt ++;
-                logger.end_record(r.pid);
-            }
-            if(is_survey)
-                logger.time_and_print(recv_cnt, sid, tid);
-        }
+		while(recv_cnt < send_cnt) {
+			request_or_reply r;
+			if(tryrecv_reply(r)) {
+				recv_cnt ++;
+				logger.end_record(r.pid);
+			}
+			if(is_survey)
+				logger.time_and_print(recv_cnt, sid, tid);
+		}
 	}
 };
