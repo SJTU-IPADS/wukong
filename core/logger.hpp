@@ -27,6 +27,9 @@
 
 #include "timer.hpp"
 
+#define INTERVAL 50000
+#define SURVEY_TIME 10000000
+
 using namespace std;
 
 class Logger {
@@ -47,10 +50,14 @@ private:
     uint64_t init_time = 0ull, done_time = 0ull;
     unordered_map<int, req_stats> stats_map;
     float thpt = 0.0;
+    uint64_t last_time = 0ull;
+    uint64_t last_stamp = 0ull;
+    int last_cnt = 0;
 
 public:
     void init() {
         init_time = timer::get_usec();
+        last_time = last_stamp = init_time;
     }
 
     void start_record(int reqid, int type) {
@@ -60,6 +67,27 @@ public:
 
     void end_record(int reqid) {
         stats_map[reqid].end_time = timer::get_usec() - init_time;
+    }
+
+    //If running time is larger than SURVEY_TIME, return true.
+    bool time_and_print(int recv_cnt, int sid, int tid) {
+        uint64_t now = timer::get_usec();
+        if(now - last_time > INTERVAL) {
+            // For brevity, only throughput of s0,t0 is printed.
+            if(sid == 0 && tid == 0) {
+                float new_thpt = 1000.0 * (recv_cnt - last_cnt) / (now - last_time);
+                printf("%f\n", new_thpt);
+                if(now - last_stamp > 1000000){
+                      printf("--------------------------\n");
+                      last_stamp = now;
+                }
+                last_time = now;
+                last_cnt = recv_cnt;
+            }
+            if(now - init_time > SURVEY_TIME)
+                return true;
+        }
+        return false;
     }
 
     void finish() {
