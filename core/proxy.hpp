@@ -309,8 +309,9 @@ public:
 		int ntypes;
 		int nqueries;
 		int try_rounds = 1;
+        bool is_survey = true;
 
-		is >> ntypes >> nqueries >> try_rounds;
+		is >> ntypes >> try_rounds >> is_survey;
 
 		vector<request_template> tpls(ntypes);
 		vector<int> loads(ntypes);
@@ -339,23 +340,22 @@ public:
 
 		logger.init();
 		int send_cnt = 0, recv_cnt = 0, flying_cnt = 0;
-		while (recv_cnt < nqueries) {
+
+		while (true) {
 			// send requests
 			for (int t = 0; t < PARALLEL_FACTOR; t++) {
 				// send pending msgs first
 				sweep_msgs();
 
-				if (send_cnt < nqueries) {
-					int idx = mymath::get_distribution(coder.get_random(), loads);
-					request_or_reply request = tpls[idx].instantiate(coder.get_random());
-					if (global_enable_planner)
-						planner.generate_plan(request, statistic);
-					setpid(request);
-					request.blind = true; // always not take back results in batch mode
-					logger.start_record(request.pid, idx);
-					send_request(request);
-					send_cnt ++;
-				}
+				int idx = mymath::get_distribution(coder.get_random(), loads);
+				request_or_reply request = tpls[idx].instantiate(coder.get_random());
+				if (global_enable_planner)
+					planner.generate_plan(request, statistic);
+				setpid(request);
+				request.blind = true; // always not take back results in batch mode
+				logger.start_record(request.pid, idx);
+				send_request(request);
+				send_cnt ++;
 			}
 
 			// recieve replies (best of effort)
@@ -366,7 +366,20 @@ public:
 					logger.end_record(r.pid);
 				}
 			}
+
+			//If it is survey of evaluation parameter 
+			if(is_survey && logger.time_and_print(recv_cnt, sid, tid))
+				break;
 		}
-		logger.finish();
+
+		while(recv_cnt < send_cnt) {
+			request_or_reply r;
+			if(tryrecv_reply(r)) {
+				recv_cnt ++;
+				logger.end_record(r.pid);
+			}
+			if(is_survey)
+				logger.time_and_print(recv_cnt, sid, tid);
+		}
 	}
 };
