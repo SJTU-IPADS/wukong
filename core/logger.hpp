@@ -26,9 +26,7 @@
 #include <boost/serialization/unordered_map.hpp>
 
 #include "timer.hpp"
-
-#define INTERVAL 50000
-#define SURVEY_TIME 10000000
+#include "unit.hpp"
 
 using namespace std;
 
@@ -47,17 +45,19 @@ private:
         }
     };
 
-    uint64_t init_time = 0ull, done_time = 0ull;
     unordered_map<int, req_stats> stats_map;
     float thpt = 0.0;
-    uint64_t last_time = 0ull;
-    uint64_t last_stamp = 0ull;
-    int last_cnt = 0;
+
+    uint64_t init_time = 0ull, done_time = 0ull;
+
+    uint64_t last_time = 0ull, last_separator = 0ull;
+    uint64_t last_cnt = 0;
+
+    uint64_t interval = MSEC(50);  // 50msec
 
 public:
     void init() {
-        init_time = timer::get_usec();
-        last_time = last_stamp = init_time;
+        init_time = last_time = last_separator = timer::get_usec();
     }
 
     void start_record(int reqid, int type) {
@@ -69,30 +69,32 @@ public:
         stats_map[reqid].end_time = timer::get_usec() - init_time;
     }
 
-    //If running time is larger than SURVEY_TIME, return true.
-    bool time_and_print(int recv_cnt, int sid, int tid) {
-        uint64_t now = timer::get_usec();
-        if(now - last_time > INTERVAL) {
-            // For brevity, only throughput of s0,t0 is printed.
-            if(sid == 0 && tid == 0) {
-                float new_thpt = 1000.0 * (recv_cnt - last_cnt) / (now - last_time);
-                printf("%f\n", new_thpt);
-                if(now - last_stamp > 1000000){
-                      printf("--------------------------\n");
-                      last_stamp = now;
-                }
-                last_time = now;
-                last_cnt = recv_cnt;
-            }
-            if(now - init_time > SURVEY_TIME)
-                return true;
-        }
-        return false;
-    }
-
     void finish() {
         done_time = timer::get_usec();
         thpt = 1000.0 * stats_map.size() / (done_time - init_time);
+    }
+
+    void set_interval(uint64_t update) { interval = update; }
+
+    // print the throughput of a fixed interval
+    void print_timely_thpt(uint64_t recv_cnt, int sid, int tid) {
+        // for brevity, only print the timely thpt of a single proxy.
+        if (!(sid == 0 && tid == 0)) return;
+
+        uint64_t now = timer::get_usec();
+        // periodically print timely throughput
+        if ((now - last_time) > interval) {
+            float cur_thpt = 1000.0 * (recv_cnt - last_cnt) / (now - last_time);
+            cout << "Throughput: " << cur_thpt << "K queries/sec" << endl;
+            last_time = now;
+            last_cnt = recv_cnt;
+        }
+
+        // print separators per second
+        if (now - last_separator > SEC(1)) {
+            cout << "[" << (now - init_time) / SEC(1) << "sec]" << endl;
+            last_separator = now;
+        }
     }
 
     void merge(Logger &other) {
@@ -109,7 +111,7 @@ public:
         cout << "(average) latency: " << ((done_time - init_time) / cnt) << " usec" << endl;
     }
 
-    void print_rdf() {
+    void print_cdf() {
 #if 0
         // print range throughput with certain interval
         vector<int> thpts;
@@ -130,7 +132,7 @@ public:
 #endif
 
         // print CDF of query latency
-        vector<int> cdf;
+        vector<uint64_t> cdf;
         int print_rate = stats_map.size() > 100 ? 100 : stats_map.size();
 
         for (auto s : stats_map)

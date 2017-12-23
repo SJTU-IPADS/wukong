@@ -306,12 +306,13 @@ public:
 	}
 
 	void run_batch_query(istream &is, Logger &logger) {
+		uint64_t duration  = 10000000;  // 10sec
+
 		int ntypes;
 		int nqueries;
 		int try_rounds = 1;
-        bool is_survey = true;
 
-		is >> ntypes >> try_rounds >> is_survey;
+		is >> ntypes >> try_rounds;
 
 		vector<request_template> tpls(ntypes);
 		vector<int> loads(ntypes);
@@ -339,13 +340,14 @@ public:
 		}
 
 		logger.init();
-		int send_cnt = 0, recv_cnt = 0, flying_cnt = 0;
+		uint64_t send_cnt = 0, recv_cnt = 0;
 
-		while (true) {
+		bool done = false;
+		uint64_t init = timer::get_usec();
+		while (done) {
 			// send requests
 			for (int t = 0; t < PARALLEL_FACTOR; t++) {
-				// send pending msgs first
-				sweep_msgs();
+				sweep_msgs(); // sweep pending msgs first
 
 				int idx = mymath::get_distribution(coder.get_random(), loads);
 				request_or_reply request = tpls[idx].instantiate(coder.get_random());
@@ -353,33 +355,34 @@ public:
 					planner.generate_plan(request, statistic);
 				setpid(request);
 				request.blind = true; // always not take back results in batch mode
+
 				logger.start_record(request.pid, idx);
 				send_request(request);
-				send_cnt ++;
+
+				send_cnt++;
 			}
 
 			// recieve replies (best of effort)
 			for (int i = 0; i < try_rounds; i++) {
 				request_or_reply r;
 				while (bool success = tryrecv_reply(r)) {
-					recv_cnt ++;
+					recv_cnt++;
 					logger.end_record(r.pid);
 				}
 			}
 
-			//If it is survey of evaluation parameter 
-			if(is_survey && logger.time_and_print(recv_cnt, sid, tid))
-				break;
+			logger.print_timely_thpt(recv_cnt, sid, tid);
+			done = (timer::get_usec() - init) > duration;
 		}
 
-		while(recv_cnt < send_cnt) {
+		while (recv_cnt < send_cnt) {
 			request_or_reply r;
-			if(tryrecv_reply(r)) {
+			if (tryrecv_reply(r)) {
 				recv_cnt ++;
 				logger.end_record(r.pid);
 			}
-			if(is_survey)
-				logger.time_and_print(recv_cnt, sid, tid);
+
+			logger.print_timely_thpt(recv_cnt, sid, tid);
 		}
 	}
 };

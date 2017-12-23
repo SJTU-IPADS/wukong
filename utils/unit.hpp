@@ -29,3 +29,7 @@
 #define B2KiB(_x)	((_x) / 1024.0)
 #define B2MiB(_x)	(B2KiB((_x)) / 1024.0)
 #define B2GiB(_x)	(B2MiB((_x)) / 1024.0)
+
+#define USEC(_x)	((_x) * 1000ul)
+#define MSEC(_x)	(USEC((_x)) * 1000ul)
+#define SEC(_x)		(MSEC((_x)) * 1000ul)

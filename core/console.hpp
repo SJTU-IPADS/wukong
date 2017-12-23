@@ -341,7 +341,7 @@ next:
 							Logger other = console_recv<Logger>(proxy->tid);
 							logger.merge(other);
 						}
-						logger.print_rdf();
+						logger.print_cdf();
 						logger.print_thpt();
 					} else {
 						// send logs to the master proxy
