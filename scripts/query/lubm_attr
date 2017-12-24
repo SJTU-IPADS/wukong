@@ -3,5 +3,5 @@ PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
 
 SELECT ?X ?Y WHERE {
 	?X rdf:type ub:Course <-
-	?X ub:attribute0 ?Y .
+	?X ub:id ?Y .
 }

@@ -61,11 +61,11 @@ using namespace std;
 enum { NBITS_IDX = 17 };
 
 int find_type (string str) {
-    if (str.find("^^xsd:int") != string::npos) {
+    if (str.find("^^xsd:int") != string::npos || str.find("^^<http://www.w3.org/2001/XMLSchema#int>") != string::npos) {
         return 1;
-    } else if (str.find("^^xsd:float") != string::npos) {
+    } else if (str.find("^^xsd:float") != string::npos || str.find("^^<http://www.w3.org/2001/XMLSchema#float>") != string::npos) {
         return 2;
-    } else if (str.find("^^xsd:double") != string::npos) {
+    } else if (str.find("^^xsd:double") != string::npos || str.find("^^<http://www.w3.org/2001/XMLSchema#double>") != string::npos) {
         return 3;
     } else {
         return 0;
