@@ -61,30 +61,31 @@ using namespace std;
 enum { NBITS_IDX = 17 };
 
 int find_type (string str) {
-    if(str.find("^^xsd:int")!= string::npos) {
+    if (str.find("^^xsd:int") != string::npos || str.find("^^<http://www.w3.org/2001/XMLSchema#int>") != string::npos) {
         return 1;
-    } else if(str.find("^^xsd:float")!= string::npos) {   
+    } else if (str.find("^^xsd:float") != string::npos || str.find("^^<http://www.w3.org/2001/XMLSchema#float>") != string::npos) {
         return 2;
-    } else if(str.find("^^xsd:double")!= string::npos) {   
+    } else if (str.find("^^xsd:double") != string::npos || str.find("^^<http://www.w3.org/2001/XMLSchema#double>") != string::npos) {
         return 3;
     } else {
         return 0;
     }
 }
+
 string find_value(string str) {
     size_t begin, end;
     begin = str.find('"');
-    if (begin == string::npos){
+    if (begin == string::npos) {
         cout << "ERROR Format " << endl;
         return "";
     }
-    end = str.find('"',begin+1);
+    end = str.find('"', begin + 1);
 
-    if (end == string::npos){
+    if (end == string::npos) {
         cout << "ERROR Format " << endl;
         return "";
     }
-    return str.substr(begin+1,end-begin-1);
+    return str.substr(begin + 1, end - begin - 1);
 }
 
 int
@@ -95,7 +96,7 @@ main(int argc, char** argv)
     vector<string> index_str;   // index-vertex (i.e, predicate or type) id  table (p/tid)
     vector<string> attr_index_str; // index-vertex (i.e attr predicate)
     unordered_map<string, int> index_to_type; //store the attr_index type mapping
-    
+
     if (argc != 3) {
         printf("usage: ./generate_data src_dir dst_dir\n");
         return -1;
@@ -160,10 +161,10 @@ main(int argc, char** argv)
                 }
                 string obj = find_value(object);
 
-                attr_file << str_to_id[subject] << "\t" << str_to_id[predicate] << "\t" << type << "\t" << obj <<endl;
+                attr_file << str_to_id[subject] << "\t" << str_to_id[predicate] << "\t" << type << "\t" << obj << endl;
 
-            //the normal triple
-            } else { 
+                //the normal triple
+            } else {
                 // add a new normal vertex (i.e., vid)
                 if (str_to_id.find(subject) == str_to_id.end()) {
                     str_to_id[subject] = next_normal_id;

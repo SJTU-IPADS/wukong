@@ -103,7 +103,7 @@ main(int argc, char *argv[])
 			enable_oneshot = true;
 			oneshot_cmd = optarg;
 			break;
-		default :
+		default:
 			usage(argv[0]);
 			exit(EXIT_FAILURE);
 		}

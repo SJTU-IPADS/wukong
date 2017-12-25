@@ -38,6 +38,7 @@
 #include "mymath.hpp"
 #include "timer.hpp"
 
+using namespace std;
 
 #define PARALLEL_FACTOR 20
 
@@ -49,6 +50,18 @@ std::vector<Proxy *> proxies;
 class Proxy {
 
 private:
+	class Message {
+	public:
+		int sid;
+		int tid;
+		request_or_reply r;
+
+		Message(int sid, int tid, request_or_reply &r)
+			: sid(sid), tid(tid), r(r) { }
+	};
+
+	vector<Message> pending_msgs;
+
 	void fill_template(request_template &req_template) {
 		req_template.ptypes_grp.resize(req_template.ptypes_str.size());
 		for (int i = 0; i < req_template.ptypes_str.size(); i++) {
@@ -76,13 +89,48 @@ private:
 
 			req_template.ptypes_grp[i] = candidates;
 
-			cout << type << " has " << req_template.ptypes_grp[i].size() << " candidates" << endl;
+			cout << "[INFO] " << type << " has "
+			     << req_template.ptypes_grp[i].size() << " candidates" << endl;
 		}
 	}
 
-	// FIXME: simply wait and may deadlock
-	inline void send(int sid, int tid, request_or_reply &r) {
-		while (!adaptor->send(sid, tid, r));
+	inline bool send(request_or_reply &r, int dst_sid, int dst_tid) {
+		if (adaptor->send(dst_sid, dst_tid, r))
+			return true;
+
+		pending_msgs.push_back(Message(dst_sid, dst_tid, r));
+		return false;
+	}
+
+	inline bool send(request_or_reply &r, int dst_sid) {
+		// NOTE: the partitioned mapping has better tail latency in batch mode
+		int range = global_num_engines / global_num_proxies;
+		// FIXME: BUG if global_num_engines < global_num_proxies
+		assert(range > 0);
+
+		int base = global_num_proxies + (range * tid);
+		// randomly choose engine without preferred one
+		int dst_eid = coder.get_random() % range;
+
+		// If the preferred engine is busy, try the rest engines with round robin
+		for (int i = 0; i < range; i++)
+			if (adaptor->send(dst_sid, base + (dst_eid + i) % range, r))
+				return true;
+
+		pending_msgs.push_back(Message(dst_sid, (base + dst_eid), r));
+		return false;
+	}
+
+	inline void sweep_msgs() {
+		if (!pending_msgs.size()) return;
+
+		cout << "[INFO]#" << tid << " " << pending_msgs.size() << " pending msgs on proxy." << endl;
+		for (vector<Message>::iterator it = pending_msgs.begin(); it != pending_msgs.end();) {
+			if (adaptor->send(it->sid, it->tid, it->r))
+				it = pending_msgs.erase(it);
+			else
+				++it;
+		}
 	}
 
 public:
@@ -111,24 +159,16 @@ public:
 		if (r.start_from_index()) {
 			for (int i = 0; i < global_num_servers; i++) {
 				for (int j = 0; j < global_mt_threshold; j++) {
-					r.tid = j;
-					send(i, global_num_proxies + j, r);
+					r.tid = j; // specified engine
+					send(r, i, global_num_proxies + j);
 				}
 			}
-			return ;
+			return;
 		}
 
-		// submit the request to a certain engine
+		// submit the request to a certain server
 		int start_sid = mymath::hash_mod(r.cmd_chains[0], global_num_servers);
-
-		// random assign request to range partitioned engines
-		// NOTE: the partitioned mapping has better tail latency in batch mode
-		int ratio = global_num_engines / global_num_proxies;
-		// FIXME: BUG if global_num_engines < global_num_proxies
-		assert(ratio > 0);
-		int start_tid = global_num_proxies + (ratio * tid) + (coder.get_random() % ratio);
-
-		send(start_sid, start_tid, r);
+		send(r, start_sid);
 	}
 
 	request_or_reply recv_reply(void) {
@@ -175,8 +215,8 @@ public:
 				else
 					cout << id << "\t";
 			}
-			for(int c = 0; c < r.get_attr_col_num(); c++){
-				attr_t  tmp= r.get_attr_row_col(i, c);
+			for (int c = 0; c < r.get_attr_col_num(); c++) {
+				attr_t  tmp = r.get_attr_row_col(i, c);
 				cout << tmp << "\t";
 			}
 			cout << endl;
@@ -286,12 +326,15 @@ public:
 		return 0;
 	}
 
-	void nonblocking_run_batch_query(istream &is, Logger &logger) {
+	void run_batch_query(istream &is, Logger &logger, int d, int w) {
+		uint64_t duration  = SEC(d);
+		uint64_t warmup = SEC(w);
+
 		int ntypes;
 		int nqueries;
-		int try_round = 1;
+		int try_rounds = 1;
 
-		is >> ntypes >> nqueries >> try_round;
+		is >> ntypes >> try_rounds;
 
 		vector<request_template> tpls(ntypes);
 		vector<int> loads(ntypes);
@@ -301,7 +344,7 @@ public:
 			is >> fname;
 			ifstream ifs(fname);
 			if (!ifs) {
-				cout << "ERROR: Query file not found: " << fname << endl;
+				cout << "[ERROR] Query file not found: " << fname << endl;
 				return ;
 			}
 
@@ -312,116 +355,65 @@ public:
 
 			bool success = parser.parse_template(ifs, tpls[i]);
 			if (!success) {
-				cout << "ERROR: Template parsing failed!" << endl;
+				cout << "[ERROR] Template parsing failed!" << endl;
 				return ;
 			}
 			fill_template(tpls[i]);
 		}
 
 		logger.init();
-		int send_cnt = 0, recv_cnt = 0, flying_cnt = 0;
-		while (recv_cnt < nqueries) {
+
+		bool timing = false;
+		uint64_t send_cnt = 0, recv_cnt = 0;
+		uint64_t init = timer::get_usec();
+		while ((timer::get_usec() - init) < duration) {
+			// send requests
 			for (int t = 0; t < PARALLEL_FACTOR; t++) {
-				if (send_cnt < nqueries) {
-					int idx = mymath::get_distribution(coder.get_random(), loads);
-					request_or_reply request = tpls[idx].instantiate(coder.get_random());
-					if (global_enable_planner)
-						planner.generate_plan(request, statistic);
-					setpid(request);
-					request.blind = true; // always not take back results in batch mode
-					logger.start_record(request.pid, idx);
-					send_request(request);
-					send_cnt ++;
-				}
+				sweep_msgs(); // sweep pending msgs first
+
+				int idx = mymath::get_distribution(coder.get_random(), loads);
+				request_or_reply request = tpls[idx].instantiate(coder.get_random());
+				if (global_enable_planner)
+					planner.generate_plan(request, statistic);
+				setpid(request);
+				request.blind = true; // always not take back results in batch mode
+
+				logger.start_record(request.pid, idx);
+				send_request(request);
+
+				send_cnt++;
 			}
 
-			// wait a piece of time and try several times
-			for (int i = 0; i < try_round; i++) {
-				timer::cpu_relax(100);
-
-				// try to recieve the replies (best of effort)
+			// recieve replies (best of effort)
+			for (int i = 0; i < try_rounds; i++) {
 				request_or_reply r;
-				bool success = tryrecv_reply(r);
-				while (success) {
-					recv_cnt ++;
+				while (bool success = tryrecv_reply(r)) {
+					recv_cnt++;
 					logger.end_record(r.pid);
-
-					success = tryrecv_reply(r);
 				}
 			}
+
+			logger.print_timely_thpt(recv_cnt, sid, tid);
+
+			// skip warmup
+			if (!timing && (timer::get_usec() - init) > warmup) {
+				logger.start_thpt(recv_cnt);
+				timing = true;
+			}
 		}
-		logger.finish();
-	}
+		logger.end_thpt(recv_cnt);
 
-	void run_batch_query(istream &is, Logger &logger) {
-		int ntypes;
-		int nqueries;
-		int try_round = 1; // dummy
-
-		is >> ntypes >> nqueries >> try_round;
-
-		vector<int> loads(ntypes);
-		vector<request_template> tpls(ntypes);
-
-		// prepare various temples
-		for (int i = 0; i < ntypes; i++) {
-			string fname;
-			is >> fname;
-			ifstream ifs(fname);
-			if (!ifs) {
-				cout << "Query file not found: " << fname << endl;
-				return ;
+		// recieve all replies to calculate the tail latency
+		while (recv_cnt < send_cnt) {
+			request_or_reply r;
+			if (tryrecv_reply(r)) {
+				recv_cnt ++;
+				logger.end_record(r.pid);
 			}
 
-			int load;
-			is >> load;
-			assert(load > 0);
-			loads[i] = load;
-
-			bool success = parser.parse_template(ifs, tpls[i]);
-			if (!success) {
-				cout << "sparql parse error" << endl;
-				return ;
-			}
-			fill_template(tpls[i]);
-		}
-
-		logger.init();
-		// send PARALLEL_FACTOR queries and keep PARALLEL_FACTOR flying queries
-		for (int i = 0; i < PARALLEL_FACTOR; i++) {
-			int idx = mymath::get_distribution(coder.get_random(), loads);
-			request_or_reply r = tpls[idx].instantiate(coder.get_random());
-
-			setpid(r);
-			r.blind = true;  // avoid send back results by default
-			logger.start_record(r.pid, idx);
-			send_request(r);
-		}
-
-		// recv one query, and then send another query
-		for (int i = 0; i < nqueries - PARALLEL_FACTOR; i++) {
-			// recv one query
-			request_or_reply r2 = recv_reply();
-			logger.end_record(r2.pid);
-
-			// send another query
-			int idx = mymath::get_distribution(coder.get_random(), loads);
-			request_or_reply r = tpls[idx].instantiate(coder.get_random());
-
-			setpid(r);
-			r.blind = true;  // avoid send back results by default
-			logger.start_record(r.pid, idx);
-			send_request(r);
-		}
-
-		// recv the rest queries
-		for (int i = 0; i < PARALLEL_FACTOR; i++) {
-			request_or_reply r = recv_reply();
-			logger.end_record(r.pid);
+			logger.print_timely_thpt(recv_cnt, sid, tid);
 		}
 
 		logger.finish();
-		logger.print_thpt();
 	}
-
 };
