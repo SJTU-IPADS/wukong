@@ -787,11 +787,12 @@ private:
                 execute_request(r);
             else
                 execute_reply(r, engine);
-#if DYNAMIC_GSTORE
-        } else {
-            execute_insert(r);
-#endif         
         }
+#if DYNAMIC_GSTORE
+        else {
+            execute_insert(r);
+        }
+#endif
     }
 
 public:
@@ -807,7 +808,7 @@ public:
 
     uint64_t last_time; // busy or not (work-oblige)
 
-    Engine(int sid, int tid,DGraph *graph, Adaptor *adaptor)
+    Engine(int sid, int tid, DGraph *graph, Adaptor *adaptor)
         : sid(sid), tid(tid), graph(graph), adaptor(adaptor),
           coder(sid, tid), last_time(0) {
         pthread_spin_init(&recv_lock, 0);

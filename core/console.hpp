@@ -97,7 +97,7 @@ void print_help(void)
 	cout << "           -d <sec>            eval <sec> seconds" << endl;
 	cout << "           -w <sec>            warmup <sec> seconds" << endl;
 	cout << "    insert <args>        insert new data into wukong" << endl;
-	cout << "        -f <file>        load new data from <file>" << endl; 
+	cout << "        -f <file>        load new data from <file>" << endl;
 }
 
 // the master proxy is the 1st proxy of the 1st server (i.e., sid == 0 and tid == 0)
@@ -363,8 +363,8 @@ next:
 						console_send<Logger>(0, 0, logger);
 					}
 				}
-			} else if(token=="insert") {
-#if DYNAMIC_GSTORE				
+			} else if (token == "insert") {
+#if DYNAMIC_GSTORE
 				string fname;
 				bool f_enable = false;
 				while (cmd_ss >> token) {
@@ -375,10 +375,10 @@ next:
 						goto failed;
 					}
 				}
-				if(f_enable) {
-					if(IS_MASTER(proxy)) {
+				if (f_enable) {
+					if (IS_MASTER(proxy)) {
 						request_or_reply reply;
-						if(proxy->insert_new_data(fname,reply)) {
+						if (proxy->insert_new_data(fname, reply)) {
 							cout << "Insert data succeeded" << endl;
 						} else {
 							cout << "Insert file not found: " << fname << endl;
@@ -387,9 +387,9 @@ next:
 				} else
 					goto failed;
 #else
-				if(IS_MASTER(proxy)) {	
-					cout << "Error: Can't insert new data without Dynamic GStore support\n"
-					 	<< "You can handle this by using -DUSE_DYNAMIC_GSTORE=ON configuration while building." << endl;
+				if (IS_MASTER(proxy)) {
+					cout << "Error: Can't insert new data without dynamic GStore support\n"
+					     << "You can handle this by using -DUSE_DYNAMIC_GSTORE=ON configuration while building." << endl;
 				}
 #endif
 			} else {

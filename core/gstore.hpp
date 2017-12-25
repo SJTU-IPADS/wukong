@@ -238,14 +238,14 @@ private:
             for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
                 //assert(vertices[slot_id].key != key); // no duplicate key
                 if (vertices[slot_id].key == key) {
-                    if (check_dup){
+                    if (check_dup) {
                         key.print();
                         vertices[slot_id].key.print();
                         cout << "ERROR: conflict at slot["
-                            << slot_id << "] of bucket["
-                            << bucket_id << "]" << endl;
+                             << slot_id << "] of bucket["
+                             << bucket_id << "]" << endl;
                         assert(false);
-                    }else{
+                    } else {
                         goto done;
                     }
                 }
@@ -306,7 +306,7 @@ done:
     uint64_t realloc_edges(uint64_t p, uint64_t n) {
         uint64_t ptr = p * sizeof(edge_t);
         uint64_t sz = n * sizeof(edge_t);
-        return edge_allocator->realloc(ptr, sz)/sizeof(edge_t);
+        return edge_allocator->realloc(ptr, sz) / sizeof(edge_t);
     }
 
     bool insert_vertex_edge(ikey_t key, uint64_t value) {
@@ -750,14 +750,14 @@ public:
         // (p, <-, 0) ---> normal vertex(s)
         ikey_t key = ikey_t(triple.s, triple.p, OUT);
         if (insert_vertex_edge(key, triple.o)) {
-        // key doesn't exist before
+            // key doesn't exist before
             if (triple.p == PREDICATE_ID) {
-                #ifdef VERSATILE
-                    key = ikey_t(0, TYPE_ID, IN);
-                    insert_vertex_edge(key, triple.s);
-                    key = ikey_t(0, TYPE_ID, OUT);
-                    insert_vertex_edge(key, triple.o);
-                #endif
+#ifdef VERSATILE
+                key = ikey_t(0, TYPE_ID, IN);
+                insert_vertex_edge(key, triple.s);
+                key = ikey_t(0, TYPE_ID, OUT);
+                insert_vertex_edge(key, triple.o);
+#endif
             } else if (triple.p == TYPE_ID) {
                 key = ikey_t(0, triple.o, IN);
                 insert_vertex_edge(key, triple.s);
@@ -766,22 +766,22 @@ public:
                 insert_vertex_edge(key, triple.o);
             }
         }
-    } 
-    
+    }
+
     void insert_triple_in(const triple_t &triple) {
-		// (o, <-, p) ---> normal vertex(s)
-    	// (o, <-, 0) ---> predicts
-    	// (p, ->, 0) ---> normal vertex(o)
+        // (o, <-, p) ---> normal vertex(s)
+        // (o, <-, 0) ---> predicts
+        // (p, ->, 0) ---> normal vertex(o)
         ikey_t key = ikey_t(triple.o, triple.p, IN);
         if (insert_vertex_edge(key, triple.s)) {
-        // key doesn't exist before
+            // key doesn't exist before
             if (triple.p == PREDICATE_ID) {
-                #ifdef VERSATILE
-                    key = ikey_t(0, TYPE_ID, IN);
-                    insert_vertex_edge(key, triple.o);
-                    key = ikey_t(0, TYPE_ID, OUT);
-                    insert_vertex_edge(key, triple.s);
-                #endif
+#ifdef VERSATILE
+                key = ikey_t(0, TYPE_ID, IN);
+                insert_vertex_edge(key, triple.o);
+                key = ikey_t(0, TYPE_ID, OUT);
+                insert_vertex_edge(key, triple.s);
+#endif
             } else if (triple.p == TYPE_ID) {
                 return;
             } else {
@@ -789,7 +789,7 @@ public:
                 insert_vertex_edge(key, triple.s);
             }
         }
-	}
+    }
 #endif
 
     // prepare data for planner

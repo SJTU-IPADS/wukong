@@ -77,11 +77,11 @@ public:
     int attr_col_num = 0;
 
     bool blind = false;
-    req_type r_type= query_req;
+    req_type r_type = query_req;
 
 #ifdef DYNAMIC_GSTORE
     int insert_ret = 0;
-    string insert_fname = "";//the file name used to be inserted
+    string insert_fname = "";   // the file name used to be inserted
 #endif
 
     int nvars = 0; // the number of variables
@@ -130,7 +130,7 @@ public:
     }
 
     void clear_data() { result_table.clear(); attr_res_table.clear(); }
-    
+
 #if DYNAMIC_GSTORE
     void set_insert_fname(string& fname) { insert_fname = fname; }
 
