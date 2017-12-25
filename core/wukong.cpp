@@ -125,7 +125,7 @@ main(int argc, char *argv[])
 	String_Server str_server(global_input_folder);
 
 	// load RDF graph (shared by all engines)
-	DGraph dgraph(sid, mem, global_input_folder);
+	DGraph dgraph(sid, mem, &str_server, global_input_folder);
 
 	// prepare data for planner
 	data_statistic stat(tcp_adaptor, &world);

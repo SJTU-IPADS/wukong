@@ -11,6 +11,8 @@ public:
     virtual void init(void *start, uint64_t size, uint64_t n) = 0;
     // return value: (the ptr which can write value - start)
     virtual uint64_t malloc(uint64_t size, int64_t tid = -1) = 0;
+
+    virtual uint64_t realloc(uint64_t idx, uint64_t new_size) = 0;
     //the idx is exact the value return by alloc
     virtual void free(uint64_t idx) = 0;
     //merge the tmp freelists used to multithread insert_normal to the freelist
@@ -87,6 +89,15 @@ private:
             return free_list[level]->next_free_idx == ptr_to_idx((char*) free_list[level]);
         else
             return tmp_free_list[level + tid * (level_up_bound+1)]->next_free_idx == ptr_to_idx((char*) tmp_free_list[level + tid * (level_up_bound+1)]);
+    }
+
+    inline uint64_t block_size(uint64_t idx){
+        header *h = (header*)idx_to_ptr(get_header_idx(idx));
+        return (1 << (h->level)) - size_per_header;
+    }
+
+    inline void copy(uint64_t dst_idx, uint64_t src_idx, uint64_t size){
+        memcpy(idx_to_ptr(dst_idx), idx_to_ptr(src_idx), size);
     }
 
     // convert a size into level. useful for malloc
@@ -267,6 +278,21 @@ public:
 
         usage_counter[need_level]++;
         return get_value_idx(free_idx);
+    }
+
+    uint64_t realloc(uint64_t idx, uint64_t new_size){
+        if(new_size == 0){
+            free(idx);
+            return 0;
+        }
+        if(new_size <= block_size(idx)){
+            return idx;
+        } else {
+            uint64_t new_idx = malloc(new_size);
+            copy(new_idx, idx, block_size(idx));
+            free(idx);
+            return new_idx;
+        }
     }
 
     void free(uint64_t free_idx){

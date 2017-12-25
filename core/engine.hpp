@@ -766,11 +766,32 @@ private:
         }
     }
 
+#if DYNAMIC_GSTORE
+    void execute_insert(request_or_reply &req) {
+        int insert_ret = 0;
+        string fname = req.get_insert_fname();
+        ifstream input(fname.c_str());
+        if (input.good()) {
+            graph -> static_insert(input);
+            insert_ret = 1;
+        }
+        req.set_insert_ret(insert_ret);
+        adaptor->send(coder.sid_of(req.pid), coder.tid_of(req.pid), req);
+        return;
+    }
+#endif
+
     void execute(request_or_reply &r, Engine *engine) {
-        if (r.is_request())
-            execute_request(r);
-        else
-            execute_reply(r, engine);
+        if (r.r_type == query_req) {
+            if (r.is_request())
+                execute_request(r);
+            else
+                execute_reply(r, engine);
+#if DYNAMIC_GSTORE
+        } else {
+            execute_insert(r);
+#endif         
+        }
     }
 
 public:
@@ -786,7 +807,7 @@ public:
 
     uint64_t last_time; // busy or not (work-oblige)
 
-    Engine(int sid, int tid, DGraph *graph, Adaptor *adaptor)
+    Engine(int sid, int tid,DGraph *graph, Adaptor *adaptor)
         : sid(sid), tid(tid), graph(graph), adaptor(adaptor),
           coder(sid, tid), last_time(0) {
         pthread_spin_init(&recv_lock, 0);

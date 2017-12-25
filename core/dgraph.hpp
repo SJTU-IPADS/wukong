@@ -76,6 +76,7 @@ struct triple_sort_by_ops {
 class DGraph {
 	int sid;
 	Mem *mem;
+	String_Server *str_server;
 
 	vector<uint64_t> num_triples;  // record #triples loaded from input data for each server
 
@@ -472,8 +473,8 @@ class DGraph {
 public:
 	GStore gstore;
 
-	DGraph(int sid, Mem *mem, string dname)
-		: sid(sid), mem(mem), gstore(sid, mem) {
+	DGraph(int sid, Mem *mem, String_Server *str_server, string dname)
+		: sid(sid), str_server(str_server), mem(mem), gstore(sid, mem) {
 
 		num_triples.resize(global_num_servers);
 
@@ -593,6 +594,32 @@ public:
 	edge_t *get_index_edges_local(int tid, sid_t vid, dir_t d, uint64_t *sz) {
 		return gstore.get_index_edges_local(tid, vid, d, sz);
 	}
+
+	#if DYNAMIC_GSTORE
+	bool exist_in_str_server(const triple_t &spo) {
+		return (str_server->exist(spo.s) &&
+				 str_server->exist(spo.p) &&
+					 str_server->exist(spo.o));
+	}
+
+	void static_insert(ifstream &input) {
+        uint64_t s, p, o = 0;
+        while(input >> s >> p >> o) {
+            if(!global_load_minimal_index && !exist_in_str_server(triple_t(s, p, o)))
+                continue;
+            int s_mid=mymath::hash_mod(s, global_num_servers);
+            int o_mid=mymath::hash_mod(o, global_num_servers);
+            if (s_mid == sid) {
+                gstore.insert_triple_out(triple_t(s, p, o));
+            }
+            if (o_mid == sid) {
+                gstore.insert_triple_in(triple_t(s, p, o));
+            }
+        }		    
+	    input.close();
+        return;
+    }
+#endif
 
 	// FIXME: rename the function by the term of attribute graph model (e.g., value)
 	bool get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &result) {
