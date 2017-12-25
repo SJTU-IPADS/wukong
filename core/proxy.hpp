@@ -89,8 +89,8 @@ private:
 
 			req_template.ptypes_grp[i] = candidates;
 
-			/* cout << "[INFO] " << type << " has "
-			     << req_template.ptypes_grp[i].size() << " candidates" << endl; */
+			cout << "[INFO] " << type << " has "
+			     << req_template.ptypes_grp[i].size() << " candidates" << endl;
 		}
 	}
 
@@ -124,6 +124,7 @@ private:
 	inline void sweep_msgs() {
 		if (!pending_msgs.size()) return;
 
+		cout << "[INFO]#" << tid << " " << pending_msgs.size() << " pending msgs on proxy." << endl;
 		for (vector<Message>::iterator it = pending_msgs.begin(); it != pending_msgs.end();) {
 			if (adaptor->send(it->sid, it->tid, it->r))
 				it = pending_msgs.erase(it);
@@ -305,8 +306,9 @@ public:
 		return 0;
 	}
 
-	void run_batch_query(istream &is, Logger &logger) {
-		uint64_t duration  = 10000000;  // 10sec
+	void run_batch_query(istream &is, Logger &logger, int d, int w) {
+		uint64_t duration  = SEC(d);
+		uint64_t warmup = SEC(w);
 
 		int ntypes;
 		int nqueries;
@@ -340,11 +342,11 @@ public:
 		}
 
 		logger.init();
-		uint64_t send_cnt = 0, recv_cnt = 0;
 
-		bool done = false;
+		bool timing = false;
+		uint64_t send_cnt = 0, recv_cnt = 0;
 		uint64_t init = timer::get_usec();
-		while (done) {
+		while ((timer::get_usec() - init) < duration) {
 			// send requests
 			for (int t = 0; t < PARALLEL_FACTOR; t++) {
 				sweep_msgs(); // sweep pending msgs first
@@ -372,9 +374,16 @@ public:
 			}
 
 			logger.print_timely_thpt(recv_cnt, sid, tid);
-			done = (timer::get_usec() - init) > duration;
-		}
 
+			// skip warmup
+			if (!timing && (timer::get_usec() - init) > warmup) {
+				logger.start_thpt(recv_cnt);
+				timing = true;
+			}
+		}
+		logger.end_thpt(recv_cnt);
+
+		// recieve all replies to calculate the tail latency
 		while (recv_cnt < send_cnt) {
 			request_or_reply r;
 			if (tryrecv_reply(r)) {
@@ -384,5 +393,7 @@ public:
 
 			logger.print_timely_thpt(recv_cnt, sid, tid);
 		}
+
+		logger.finish();
 	}
 };

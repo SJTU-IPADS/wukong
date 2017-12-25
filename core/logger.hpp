@@ -45,49 +45,48 @@ private:
         }
     };
 
-    unordered_map<int, req_stats> stats_map;
-    float thpt = 0.0;
-
     uint64_t init_time = 0ull, done_time = 0ull;
 
     uint64_t last_time = 0ull, last_separator = 0ull;
-    uint64_t last_cnt = 0;
+    uint64_t last_cnt = 0ull;
 
-    uint64_t interval = MSEC(50);  // 50msec
+    uint64_t interval = MSEC(100);  // 50msec
+
+    uint64_t thpt_time = 0ull;
+    uint64_t cnt = 0ull;
+    float thpt = 0.0;
+
+    unordered_map<int, req_stats> stats_map; // CDF
 
 public:
     void init() {
-        init_time = last_time = last_separator = timer::get_usec();
-    }
-
-    void start_record(int reqid, int type) {
-        stats_map[reqid].query_type = type;
-        stats_map[reqid].start_time = timer::get_usec() - init_time;
-    }
-
-    void end_record(int reqid) {
-        stats_map[reqid].end_time = timer::get_usec() - init_time;
+        init_time = timer::get_usec();
+        last_time = last_separator = timer::get_usec();
     }
 
     void finish() {
         done_time = timer::get_usec();
-        thpt = 1000.0 * stats_map.size() / (done_time - init_time);
+    }
+
+    // for single query
+    void print_latency(int round = 1) {
+        cout << "(average) latency: " << ((done_time - init_time) / round) << " usec" << endl;
     }
 
     void set_interval(uint64_t update) { interval = update; }
 
     // print the throughput of a fixed interval
-    void print_timely_thpt(uint64_t recv_cnt, int sid, int tid) {
+    void print_timely_thpt(uint64_t cur_cnt, int sid, int tid) {
         // for brevity, only print the timely thpt of a single proxy.
         if (!(sid == 0 && tid == 0)) return;
 
         uint64_t now = timer::get_usec();
         // periodically print timely throughput
         if ((now - last_time) > interval) {
-            float cur_thpt = 1000.0 * (recv_cnt - last_cnt) / (now - last_time);
-            cout << "Throughput: " << cur_thpt << "K queries/sec" << endl;
+            float cur_thpt = 1000000.0 * (cur_cnt - last_cnt) / (now - last_time);
+            cout << "Throughput: " << cur_thpt / 1000.0 << "K queries/sec" << endl;
             last_time = now;
-            last_cnt = recv_cnt;
+            last_cnt = cur_cnt;
         }
 
         // print separators per second
@@ -97,18 +96,26 @@ public:
         }
     }
 
-    void merge(Logger &other) {
-        for (auto s : other.stats_map)
-            stats_map[s.first] = s.second;
-        thpt += other.thpt;
+    void start_thpt(uint64_t start) {
+        thpt_time = timer::get_usec();
+        cnt = start;
+    }
+
+    void end_thpt(uint64_t end) {
+        thpt = 1000000.0 * (end - cnt) / (timer::get_usec() - thpt_time);
     }
 
     void print_thpt() {
-        cout << "Throughput: " << thpt << "K queries/sec" << endl;
+        cout << "Throughput: " << thpt / 1000.0 << "K queries/sec" << endl;
     }
 
-    void print_latency(int cnt = 1) {
-        cout << "(average) latency: " << ((done_time - init_time) / cnt) << " usec" << endl;
+    void start_record(int reqid, int type) {
+        stats_map[reqid].query_type = type;
+        stats_map[reqid].start_time = timer::get_usec() - init_time;
+    }
+
+    void end_record(int reqid) {
+        stats_map[reqid].end_time = timer::get_usec() - init_time;
     }
 
     void print_cdf() {
@@ -154,8 +161,14 @@ public:
         }
     }
 
+    void merge(Logger & other) {
+        for (auto s : other.stats_map)
+            stats_map[s.first] = s.second;
+        thpt += other.thpt;
+    }
+
     template <typename Archive>
-    void serialize(Archive &ar, const unsigned int version) {
+    void serialize(Archive & ar, const unsigned int version) {
         ar & stats_map;
         ar & thpt;
     }

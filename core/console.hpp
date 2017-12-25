@@ -89,11 +89,13 @@ void print_help(void)
 	cout << "        -l <file>           load config items from <file>" << endl;
 	cout << "        -s <string>         set config items by <str> (format: item1=val1&item2=...)" << endl;
 	cout << "    sparql <args>       run SPARQL queries" << endl;
-	cout << "        -f <file> [<args>]  a single query from <file>" << endl;
+	cout << "        -f <file> [<args>]  run a single query from <file>" << endl;
 	cout << "           -n <num>            run <num> times" << endl;
 	cout << "           -v <num>            print at most <num> lines of results" << endl;
 	cout << "           -o <file>           output results into <file>" << endl;
-	cout << "        -b <file>           a set of queries configured by <file> (batch-mode)" << endl;
+	cout << "        -b <file> [<args>]  run queries configured by <file> (batch-mode)" << endl;
+	cout << "           -d <sec>            eval <sec> seconds" << endl;
+	cout << "           -w <sec>            warmup <sec> seconds" << endl;
 }
 
 // the master proxy is the 1st proxy of the 1st server (i.e., sid == 0 and tid == 0)
@@ -244,7 +246,7 @@ next:
 				}
 			} else if (token == "sparql") { // handle SPARQL queries
 				string fname, bfname, ofname;
-				int cnt = 1, nlines = 0;
+				int cnt = 1, nlines = 0, duration = 10, warmup = 5;
 				bool f_enable = false, b_enable = false, o_enable = false;
 
 				// parse parameters
@@ -262,6 +264,10 @@ next:
 					} else if (token == "-b") {
 						cmd_ss >> bfname;
 						b_enable = true;
+					} else if (token == "-d") {
+						cmd_ss >> duration;
+					} else if (token == "-w") {
+						cmd_ss >> warmup;
 					} else {
 						goto failed;
 					}
@@ -298,10 +304,11 @@ next:
 							continue;
 						}
 
-						// print or dump results
 						logger.print_latency(cnt);
 						cout << "(last) result size: " << reply.row_num << endl;
-						if (!global_silent && !reply.blind) {
+
+						// print or dump results
+						if (!global_silent && !reply.blind && (nlines > 0 || o_enable)) {
 							if (global_load_minimal_index)
 								cout << "WARNING: Can't print/output results in string format\n"
 								     << "         with global_load_minimal_index enabled." << endl;
@@ -323,12 +330,18 @@ next:
 					if (!f_enable || !IS_MASTER(proxy)) {
 						ifstream ifs(bfname);
 						if (!ifs.good()) {
-							PRINT_ID(proxy);
 							cout << "Configure file not found: " << bfname << endl;
 							continue;
 						}
 
-						proxy->run_batch_query(ifs, logger);
+						if (duration <= warmup) {
+							cout << "Duration time (" << duration
+							     << "sec) is less than warmup time ("
+							     << warmup << "sec)." << endl;
+							continue;
+						}
+
+						proxy->run_batch_query(ifs, logger, duration, warmup);
 					}
 
 					// FIXME: maybe hang in here if the input file misses in some machines
