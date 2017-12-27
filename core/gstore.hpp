@@ -528,11 +528,13 @@ public:
             pthread_spin_init(&bucket_locks[i], 0);
     }
 
-    void init() {
-        // initiate keys
+    void refresh() {
         #pragma omp parallel for num_threads(global_num_engines)
-        for (uint64_t i = 0; i < num_slots; i++)
+        for (uint64_t i = 0; i < num_slots; i++) {
             vertices[i].key = ikey_t();
+            vertices[i].ptr = iptr_t();
+        }
+
         last_ext = 0;
 
 #if DYNAMIC_GSTORE

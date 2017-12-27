@@ -268,26 +268,6 @@ public:
 		}
 	}
 
-#if DYNAMIC_GSTORE
-	int insert_new_data(string &fname, request_or_reply &reply) {
-		int insert_ret = 1;
-		request_or_reply request;
-		request.r_type = insert_req;
-		request.set_insert_fname(fname);
-		setpid(request);
-		for (int i = 0; i < global_num_servers; i++)
-			adaptor->send(i, global_num_proxies, request);
-
-		for (int i = 0; i < global_num_servers; i++) {
-			reply = adaptor->recv();
-			if (!reply.get_insert_ret())
-				insert_ret = 0;
-		}
-
-		return  insert_ret;
-	}
-#endif
-
 	int run_single_query(istream &is, int cnt,
 	                     request_or_reply &reply, Logger &logger) {
 		request_or_reply request;
@@ -310,7 +290,7 @@ public:
 			cout << "planning time : " << t_plan2 - t_plan1 << " usec" << endl;
 			if (exec == false) { // for empty result
 				cout << "(last) result size: 0" << endl;
-				return -1; // planning failed
+				return -3; // planning failed
 			}
 		}
 
@@ -323,11 +303,11 @@ public:
 			reply = recv_reply();
 		}
 		logger.finish();
-		return 0;
+		return 0; // success
 	}
 
-	void run_batch_query(istream &is, Logger &logger, int d, int w) {
-		uint64_t duration  = SEC(d);
+	int run_batch_query(istream &is, int d, int w, Logger &logger) {
+		uint64_t duration = SEC(d);
 		uint64_t warmup = SEC(w);
 
 		int ntypes;
@@ -345,7 +325,7 @@ public:
 			ifstream ifs(fname);
 			if (!ifs) {
 				cout << "[ERROR] Query file not found: " << fname << endl;
-				return ;
+				return -1; // file not found
 			}
 
 			int load;
@@ -356,8 +336,9 @@ public:
 			bool success = parser.parse_template(ifs, tpls[i]);
 			if (!success) {
 				cout << "[ERROR] Template parsing failed!" << endl;
-				return ;
+				return -2; // parsing failed
 			}
+
 			fill_template(tpls[i]);
 		}
 
@@ -415,5 +396,30 @@ public:
 		}
 
 		logger.finish();
+
+		return 0; // success
 	}
+
+#if DYNAMIC_GSTORE
+	int dynamic_load_data(string &fname, request_or_reply &reply,
+	                      Logger &logger) {
+		request_or_reply request;
+		request.type = DYNAMIC_LOAD;
+		request.load_fname = fname;
+
+		logger.init();
+		setpid(request);
+		for (int i = 0; i < global_num_servers; i++)
+			send(request, i);
+
+		int ret = 0;
+		for (int i = 0; i < global_num_servers; i++) {
+			reply = adaptor->recv();
+			if (reply.load_ret < 0)
+				ret = reply.load_ret;
+		}
+		logger.finish();
+		return ret;
+	}
+#endif
 };

@@ -96,8 +96,8 @@ void print_help(void)
 	cout << "        -b <file> [<args>]  run queries configured by <file> (batch-mode)" << endl;
 	cout << "           -d <sec>            eval <sec> seconds" << endl;
 	cout << "           -w <sec>            warmup <sec> seconds" << endl;
-	cout << "    insert <args>        insert new data into wukong" << endl;
-	cout << "        -f <file>        load new data from <file>" << endl;
+	cout << "    load <args>         load linked data into dynamic (in-memmory) graph-store" << endl;
+	cout << "        -f <file>           load data from <file>" << endl;
 }
 
 // the master proxy is the 1st proxy of the 1st server (i.e., sid == 0 and tid == 0)
@@ -241,7 +241,7 @@ next:
 						reload_config(str);
 					} else {
 						if (IS_MASTER(proxy))
-							cout << "Failed to load config file: " << fname << endl;
+							cout << "[ERROR] Failed to load config file: " << fname << endl;
 					}
 				} else {
 					goto failed;
@@ -277,7 +277,7 @@ next:
 
 				if (!f_enable && !b_enable) goto failed; // meaningless args for SPARQL queries
 
-				if (f_enable) { // -f <file>
+				if (f_enable) { // -f <file> -n <num> -v <num> -o <file>
 					// use the main proxy thread to run a single query
 					if (IS_MASTER(proxy)) {
 						ifstream ifs(fname);
@@ -302,7 +302,7 @@ next:
 						Logger logger;
 						int ret = proxy->run_single_query(ifs, cnt, reply, logger);
 						if (ret != 0) {
-							cout << "Failed to run the query (ERROR: " << ret << ")!" << endl;
+							cout << "[ERROR] Failed to run the query (ERRNO: " << ret << ")!" << endl;
 							continue;
 						}
 
@@ -324,7 +324,7 @@ next:
 					}
 				}
 
-				if (b_enable) { // -b <config>
+				if (b_enable) { // -b <file> -d <sec> -w <sec>
 					Logger logger;
 
 					// dedicate the master frontend worker to run a single query
@@ -343,7 +343,7 @@ next:
 							continue;
 						}
 
-						proxy->run_batch_query(ifs, logger, duration, warmup);
+						proxy->run_batch_query(ifs, duration, warmup, logger);
 					}
 
 					// FIXME: maybe hang in here if the input file misses in some machines
@@ -363,10 +363,11 @@ next:
 						console_send<Logger>(0, 0, logger);
 					}
 				}
-			} else if (token == "insert") {
+			} else if (token == "load") {
 #if DYNAMIC_GSTORE
 				string fname;
 				bool f_enable = false;
+
 				while (cmd_ss >> token) {
 					if (token == "-f") {
 						cmd_ss >> fname;
@@ -375,27 +376,31 @@ next:
 						goto failed;
 					}
 				}
-				if (f_enable) {
+
+				if (f_enable) { // -f <file>
 					if (IS_MASTER(proxy)) {
+						Logger logger;
 						request_or_reply reply;
-						if (proxy->insert_new_data(fname, reply)) {
-							cout << "Insert data succeeded" << endl;
-						} else {
-							cout << "Insert file not found: " << fname << endl;
+						int ret = proxy->dynamic_load_data(fname, reply, logger);
+						if (ret != 0) {
+							cout << "[ERROR] Failed to load dynamic data from " << fname
+							     << " (ERRNO: " << ret << ")!" << endl;
+							continue;
 						}
+						logger.print_latency();
 					}
 				} else
 					goto failed;
 #else
 				if (IS_MASTER(proxy)) {
-					cout << "Error: Can't insert new data without dynamic GStore support\n"
-					     << "You can handle this by using -DUSE_DYNAMIC_GSTORE=ON configuration while building." << endl;
+					cout << "[ERROR] Can't load linked data into static graph-store." << endl;
+					cout << "You can enable it by buidling Wukong with -DUSE_DYNAMIC_GSTORE=ON." << endl;
 				}
 #endif
 			} else {
 failed:
 				if (IS_MASTER(proxy)) {
-					cout << "Failed to run the command: " << cmd << endl;
+					cout << "[ERROR] Failed to run the command: " << cmd << endl;
 					print_help();
 				}
 			}

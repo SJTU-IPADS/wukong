@@ -557,7 +557,7 @@ public:
 		load_attr_from_allfiles(attr_files);
 
 		// initiate gstore (kvstore) after loading and exchanging triples (memory reused)
-		gstore.init();
+		gstore.refresh();
 
 		uint64_t t1 = timer::get_usec();
 		#pragma omp parallel for num_threads(global_num_engines)
@@ -585,6 +585,47 @@ public:
 		gstore.print_mem_usage();
 	}
 
+
+#if DYNAMIC_GSTORE
+	bool check_sid(const sid_t id) {
+		if (!global_load_minimal_index) { // complete string server
+			if (!str_server->exist(id)) {
+				cout << "[WARNING] Unknown SID: " << id << endl;
+				return false;
+			}
+		}
+		return true;
+	}
+
+
+	int64_t dynamic_load_data(string fname) {
+		ifstream file(fname.c_str());
+		if (!file.good()) {
+			cout << "[ERROR] Query file not found: " << fname << endl;
+			return -1; // file not found
+		}
+
+		int64_t cnt = 0;
+		sid_t s, p, o;
+		while (file >> s >> p >> o) {
+			/// FIXME: just check and print warning
+			check_sid(s); check_sid(p); check_sid(o);
+
+			if (sid == mymath::hash_mod(s, global_num_servers)) {
+				gstore.insert_triple_out(triple_t(s, p, o));
+				cnt ++;
+			}
+
+			if (sid == mymath::hash_mod(o, global_num_servers)) {
+				gstore.insert_triple_in(triple_t(s, p, o));
+				cnt ++;
+			}
+		}
+		file.close();
+		return cnt;
+	}
+#endif
+
 	// FIXME: rename the function by the term of RDF model (e.g., subject/object)
 	edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
 		return gstore.get_edges_global(tid, vid, d, pid, sz);
@@ -594,32 +635,6 @@ public:
 	edge_t *get_index_edges_local(int tid, sid_t vid, dir_t d, uint64_t *sz) {
 		return gstore.get_index_edges_local(tid, vid, d, sz);
 	}
-
-#if DYNAMIC_GSTORE
-	bool exist_in_str_server(const triple_t &spo) {
-		return (str_server->exist(spo.s) &&
-		        str_server->exist(spo.p) &&
-		        str_server->exist(spo.o));
-	}
-
-	void static_insert(ifstream &input) {
-		uint64_t s, p, o = 0;
-		while (input >> s >> p >> o) {
-			if (!global_load_minimal_index && !exist_in_str_server(triple_t(s, p, o)))
-				continue;
-			int s_mid = mymath::hash_mod(s, global_num_servers);
-			int o_mid = mymath::hash_mod(o, global_num_servers);
-			if (s_mid == sid) {
-				gstore.insert_triple_out(triple_t(s, p, o));
-			}
-			if (o_mid == sid) {
-				gstore.insert_triple_in(triple_t(s, p, o));
-			}
-		}
-		input.close();
-		return;
-	}
-#endif
 
 	// FIXME: rename the function by the term of attribute graph model (e.g., value)
 	bool get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &result) {

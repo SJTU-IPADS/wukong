@@ -35,21 +35,13 @@ using namespace std;
 using namespace boost::archive;
 
 
+
 enum var_type {
     known_var,
     unknown_var,
     const_var
 };
 
-enum req_type {
-    query_req,
-    insert_req
-};
-
-enum res_type {
-    normal = 0,
-    attr = 1
-};
 // defined as constexpr due to switch-case
 constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
@@ -58,9 +50,11 @@ constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 #define NBITS_COL  16
 #define NO_RESULT  ((1 << NBITS_COL) - 1)
 
-int col2ext(int col, int type) { return ((type << NBITS_COL) | col); }
+int col2ext(int col, int t) { return ((t << NBITS_COL) | col); }
 int ext2col(int ext) { return (ext & ((1 << NBITS_COL) - 1)); }
 
+
+enum req_type { SPARQL_QUERY, DYNAMIC_LOAD };
 
 class request_or_reply {
 
@@ -69,7 +63,9 @@ public:
     int pid = -1;    // parqnt query id
     int tid = 0;     // engine thread id (MT)
 
-    // runtime state
+    req_type type = SPARQL_QUERY;
+
+    // SPARQL query
     int step = 0;
     int col_num = 0;
     int row_num = 0;
@@ -77,12 +73,6 @@ public:
     int attr_col_num = 0;
 
     bool blind = false;
-    req_type r_type = query_req;
-
-#ifdef DYNAMIC_GSTORE
-    int insert_ret = 0;
-    string insert_fname = "";   // the file name used to be inserted
-#endif
 
     int nvars = 0; // the number of variables
     ssid_t local_var = 0;   // the local variable
@@ -97,6 +87,12 @@ public:
     vector<int>  pred_type_chains;
     vector<attr_t> attr_res_table; // result table for others
 
+    // dynamic load
+#ifdef DYNAMIC_GSTORE
+    string load_fname = "";   // the file name used to be inserted
+    int load_ret = 0;
+#endif
+
     request_or_reply() { }
 
     // build a request by existing triple patterns and variables
@@ -110,6 +106,7 @@ public:
         ar & id;
         ar & pid;
         ar & tid;
+        ar & type;
         ar & step;
         ar & col_num;
         ar & row_num;
@@ -117,34 +114,27 @@ public:
         ar & blind;
         ar & nvars;
         ar & local_var;
-        ar & r_type;
-#if DYNAMIC_GSTORE
-        ar & insert_ret;
-        ar & insert_fname;
-#endif
         ar & v2c_map;
         ar & cmd_chains;
         ar & result_table;
         ar & pred_type_chains;
         ar & attr_res_table;
+#if DYNAMIC_GSTORE
+        ar & load_fname;
+        ar & load_ret;
+#endif
     }
 
     void clear_data() { result_table.clear(); attr_res_table.clear(); }
 
-#if DYNAMIC_GSTORE
-    void set_insert_fname(string& fname) { insert_fname = fname; }
-
-    void set_insert_ret(int ret) {insert_ret = ret;}
-
-    string get_insert_fname() { return insert_fname; }
-
-    int get_insert_ret() { return insert_ret; }
-#endif
     bool is_finished() { return (step * 4 >= cmd_chains.size()); } // FIXME: it's trick
 
     bool is_request() { return (id == -1); } // FIXME: it's trick
 
     bool start_from_index() {
+        if (type != SPARQL_QUERY)
+            return false;
+
         /*
          * Wukong assumes that its planner will generate a dummy pattern to hint
          * the query should start from a certain index (i.e., predicate or type).
@@ -158,8 +148,6 @@ public:
          * ?X P0 ?Y .             // then from ?X's edge with P0
          *
          */
-        if (r_type != query_req)
-            return false;
         if (is_tpid(cmd_chains[0])) {
             assert(cmd_chains[1] == PREDICATE_ID || cmd_chains[1] == TYPE_ID);
             return true;
@@ -189,7 +177,7 @@ public:
     }
 
     // add column id to vid (pattern variable)
-    void add_var2col(ssid_t vid, int col, int type = SID_t) {
+    void add_var2col(ssid_t vid, int col, int t = SID_t) {
         assert(vid < 0 && col >= 0);
         if (v2c_map.size() == 0) // init
             v2c_map.resize(nvars, NO_RESULT);
@@ -197,7 +185,7 @@ public:
         assert(idx < nvars);
 
         assert(v2c_map[idx] == NO_RESULT);
-        v2c_map[idx] = col2ext(col, type);
+        v2c_map[idx] = col2ext(col, t);
     }
 
     // result table for string IDs
