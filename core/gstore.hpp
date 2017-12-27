@@ -194,33 +194,24 @@ private:
     //                                      (+VERSATILE)
     //                                      #verts += #S + #O
     //                                      #edges += (#S + #O) * AVG(#P) ~= #T
-    static const int MHD_RATIO = 80; // main-header / (main-header + indirect-header)
-    static const int HD_RATIO = (128 * 100 / (128 + 3 * std::numeric_limits<sid_t>::digits)); // header * 100 / (header + entry)
+    //
+    // main-header / (main-header + indirect-header)
+    static const int MHD_RATIO = 80;
+    // header * 100 / (header + entry)
+    static const int HD_RATIO = (128 * 100 / (128 + 3 * std::numeric_limits<sid_t>::digits));
 
     int sid;
     Mem *mem;
 
     vertex_t *vertices;
-    edge_t *edges;
-
     uint64_t num_slots;       // 1 bucket = ASSOCIATIVITY slots
     uint64_t num_buckets;     // main-header region (static)
-    uint64_t num_buckets_ext; // indirect-header region (dynamical)
-    uint64_t num_entries;     // entry region (dynamical)
-
-    uint64_t last_ext;
-    pthread_spinlock_t bucket_ext_lock;
     pthread_spinlock_t bucket_locks[NUM_LOCKS]; // lock virtualization (see paper: vLokc CGO'13)
 
-    RDMA_Cache rdma_cache;
+    uint64_t num_buckets_ext; // indirect-header region (dynamical)
+    uint64_t last_ext;
+    pthread_spinlock_t bucket_ext_lock;
 
-#if DYNAMIC_GSTORE
-    // manage the memory of edges(val)
-    Malloc_Interface *edge_allocator;
-#else
-    uint64_t last_entry;
-    pthread_spinlock_t entry_lock;
-#endif
 
     // cluster chaining hash-table (see paper: DrTM SOSP'15)
     uint64_t insert_key(ikey_t key, bool check_dup = true) {
@@ -284,11 +275,29 @@ done:
         return slot_id;
     }
 
-    uint64_t alloc_edges(uint64_t n, int64_t tid = -1) {
+
+    edge_t *edges;
+    uint64_t num_entries;     // entry region (dynamical)
+
 #if DYNAMIC_GSTORE
+    // manage the memory of edges(val)
+    Malloc_Interface *edge_allocator;
+
+    uint64_t realloc_edges(uint64_t off, uint64_t n) {
+        uint64_t ptr = off * sizeof(edge_t);
+        uint64_t sz = n * sizeof(edge_t);
+        return edge_allocator->realloc(ptr, sz) / sizeof(edge_t);
+    }
+
+    uint64_t alloc_edges(uint64_t n, int64_t tid = -1) {
         uint64_t sz = n * sizeof(edge_t);
         return edge_allocator->malloc(sz, tid) / sizeof(edge_t);
+    }
 #else
+    uint64_t last_entry;
+    pthread_spinlock_t entry_lock;
+
+    uint64_t alloc_edges(uint64_t n, int64_t tid = -1) {
         uint64_t orig;
         pthread_spin_lock(&entry_lock);
         orig = last_entry;
@@ -299,16 +308,11 @@ done:
         }
         pthread_spin_unlock(&entry_lock);
         return orig;
-#endif
     }
+#endif
+
 
 #if DYNAMIC_GSTORE
-    uint64_t realloc_edges(uint64_t p, uint64_t n) {
-        uint64_t ptr = p * sizeof(edge_t);
-        uint64_t sz = n * sizeof(edge_t);
-        return edge_allocator->realloc(ptr, sz) / sizeof(edge_t);
-    }
-
     bool insert_vertex_edge(ikey_t key, uint64_t value) {
         uint64_t bucket_id = key.hash() % num_buckets;
         uint64_t lock_id = bucket_id % NUM_LOCKS;
@@ -332,6 +336,51 @@ done:
         }
     }
 #endif
+
+    typedef tbb::concurrent_hash_map<sid_t, vector<sid_t>> tbb_hash_map;
+
+    tbb_hash_map pidx_in_map; // predicate-index (IN)
+    tbb_hash_map pidx_out_map; // predicate-index (OUT)
+    tbb_hash_map tidx_map; // type-index
+
+    void insert_index_map(tbb_hash_map &map, dir_t d) {
+        for (auto const &e : map) {
+            sid_t pid = e.first;
+            uint64_t sz = e.second.size();
+            uint64_t off = alloc_edges(sz);
+
+            ikey_t key = ikey_t(0, pid, d);
+            uint64_t slot_id = insert_key(key);
+            iptr_t ptr = iptr_t(sz, off);
+            vertices[slot_id].ptr = ptr;
+
+            for (auto const &vid : e.second)
+                edges[off++].val = vid;
+        }
+    }
+
+#ifdef VERSATILE
+    typedef tbb::concurrent_unordered_set<sid_t> tbb_unordered_set;
+
+    tbb_unordered_set v_set; // all of subjects and objects
+    tbb_unordered_set t_set; // all of types
+    tbb_unordered_set p_set; // all of predicates
+
+    void insert_index_set(tbb_unordered_set &set, sid_t tpid, dir_t d) {
+        uint64_t sz = set.size();
+        uint64_t off = alloc_edges(sz);
+
+        ikey_t key = ikey_t(0, tpid, d);
+        uint64_t slot_id = insert_key(key);
+        iptr_t ptr = iptr_t(sz, off);
+        vertices[slot_id].ptr = ptr;
+
+        for (auto const &e : set)
+            edges[off++].val = e;
+    }
+#endif
+
+    RDMA_Cache rdma_cache;
 
     vertex_t get_vertex_remote(int tid, ikey_t key) {
         int dst_sid = mymath::hash_mod(key.vid, global_num_servers);
@@ -432,68 +481,106 @@ done:
         return &(edges[off]);
     }
 
+    bool get_vertex_attr_remote(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &r) {
+        int dst_sid = mymath::hash_mod(vid, global_num_servers);
+        ikey_t key = ikey_t(vid, pid, d);
+        vertex_t v = get_vertex_remote(tid, key);
 
-    typedef tbb::concurrent_hash_map<sid_t, vector<sid_t>> tbb_hash_map;
+        if (v.key.is_empty())
+            return false; // not found
 
-    tbb_hash_map pidx_in_map; // predicate-index (IN)
-    tbb_hash_map pidx_out_map; // predicate-index (OUT)
-    tbb_hash_map tidx_map; // type-index
+        // TODO: implement it w/o RDMA
+        assert(global_use_rdma);
 
-    void insert_index_map(tbb_hash_map &map, dir_t d) {
-        for (auto const &e : map) {
-            sid_t pid = e.first;
-            uint64_t sz = e.second.size();
-            uint64_t off = alloc_edges(sz);
+        char *buf = mem->buffer(tid);
+        uint64_t r_off = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
+        uint64_t r_sz = v.ptr.size * sizeof(edge_t);
 
-            ikey_t key = ikey_t(0, pid, d);
-            uint64_t slot_id = insert_key(key);
-            iptr_t ptr = iptr_t(sz, off);
-            vertices[slot_id].ptr = ptr;
-
-            for (auto const &vid : e.second)
-                edges[off++].val = vid;
+        RDMA &rdma = RDMA::get_rdma();
+        rdma.dev->RdmaRead(tid, dst_sid, buf, r_sz, r_off);
+        switch (v.ptr.type) {
+        case INT_t:
+            r = *((int *)(&(edges[r_off])));
+            break;
+        case FLOAT_t:
+            r = *((float *)(&(edges[r_off])));
+            break;
+        case DOUBLE_t:
+            r = *((double *)(&(edges[r_off])));
+            break;
+        default:
+            cout << "Not support value type" << endl;
+            break;
         }
+
+        return true;
     }
 
+    bool get_vertex_attr_local(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &r) {
+        ikey_t key = ikey_t(vid, pid, d);
+        vertex_t v = get_vertex_local(tid, key);
 
-#ifdef VERSATILE
-    typedef tbb::concurrent_unordered_set<sid_t> tbb_unordered_set;
+        if (v.key.is_empty())
+            return false; // not found
 
-    tbb_unordered_set p_set; // all of predicates
-    tbb_unordered_set v_set; // all of vertices (subjects and objects)
+        uint64_t off = v.ptr.off;
+        switch (v.ptr.type) {
+        case INT_t:
+            r = *((int *)(&(edges[off])));
+            break;
+        case FLOAT_t:
+            r = *((float *)(&(edges[off])));
+            break;
+        case DOUBLE_t:
+            r = *((double *)(&(edges[off])));
+            break;
+        default:
+            cout << "Not support value type" << endl;
+            break;
+        }
 
-
-    void insert_index_set(tbb_unordered_set &set, dir_t d) {
-        uint64_t sz = set.size();
-        uint64_t off = alloc_edges(sz);
-
-        ikey_t key = ikey_t(0, TYPE_ID, d);
-        uint64_t slot_id = insert_key(key);
-        iptr_t ptr = iptr_t(sz, off);
-        vertices[slot_id].ptr = ptr;
-
-        for (auto const &e : set)
-            edges[off++].val = e;
+        return true;
     }
-#endif
 
 public:
-
-    // encoding rules of gstore
+    // encoding rules of GStore
     // subject/object (vid) >= 2^NBITS_IDX, 2^NBITS_IDX > predicate/type (p/tid) >= 2^1,
     // TYPE_ID = 1, PREDICATE_ID = 0, OUT = 1, IN = 0
     //
-    // NORMAL key/value pair
-    //   key = [vid |    predicate | IN/OUT]  value = [vid0, vid1, ..]  i.e., vid's ngbrs w/ predicate
-    //   key = [vid |      TYPE_ID |    OUT]  value = [tid0, tid1, ..]  i.e., vid's all types
-    //   key = [vid | PREDICATE_ID | IN/OUT]  value = [pid0, pid1, ..]  i.e., vid's all predicates
-    // INDEX key/value pair
-    //   key = [  0 |          pid | IN/OUT]  value = [vid0, vid1, ..]  i.e., predicate-index
-    //   key = [  0 |          tid |     IN]  value = [vid0, vid1, ..]  i.e., type-index
-    //   key = [  0 |      TYPE_ID |     IN]  value = [vid0, vid1, ..]  i.e., all objects/subjects
-    //   key = [  0 |      TYPE_ID |    OUT]  value = [vid0, vid1, ..]  i.e., all predicates
     // Empty key
-    //   key = [  0 |            0 |      0]  value = [vid0, vid1, ..]  i.e., init
+    // (0)   key = [  0 |            0 |      0]  value = [vid0, vid1, ..]  i.e., init
+    // INDEX key/value pair
+    // (1)   key = [  0 |          pid | IN/OUT]  value = [vid0, vid1, ..]  i.e., predicate-index
+    // (2)   key = [  0 |          tid |     IN]  value = [vid0, vid1, ..]  i.e., type-index
+    // (*3)  key = [  0 |      TYPE_ID |     IN]  value = [vid0, vid1, ..]  i.e., all local objects/subjects
+    // (*4)  key = [  0 |      TYPE_ID |    OUT]  value = [pid0, pid1, ..]  i.e., all local types
+    // (*5)  key = [  0 | PREDICATE_ID |    OUT]  value = [pid0, pid1, ..]  i.e., all local predicates
+    // NORMAL key/value pair
+    // (6)   key = [vid |          pid | IN/OUT]  value = [vid0, vid1, ..]  i.e., vid's ngbrs w/ predicate
+    // (7)   key = [vid |      TYPE_ID |    OUT]  value = [tid0, tid1, ..]  i.e., vid's all types
+    // (*8)  key = [vid | PREDICATE_ID | IN/OUT]  value = [pid0, pid1, ..]  i.e., vid's all predicates
+    //
+    // < S,  P, ?O>  ?O : (6)
+    // <?S,  P,  O>  ?S : (6)
+    // < S,  1, ?T>  ?T : (7)
+    // <?S,  1,  T>  ?S : (2)
+    // < S, ?P,  O>  ?P : (8)
+    //
+    // <?S,  P, ?O>  ?S : (1)
+    //               ?O : (1)
+    // <?S,  1, ?O>  ?O : (4)
+    //               ?S : (4) +> (2)
+    // < S, ?P, ?O>  ?P : (8) AND exist(7)
+    //               ?O : (8) AND exist(7) +> (6)
+    // <?S, ?P,  O>  ?P : (8)
+    //               ?S : (8) +> (6)
+    // <?S, ?P,  T>  ?P : exist(2)
+    //               ?S : (2)
+    //
+    // <?S, ?P, ?O>  ?S : (3)
+    //               ?O : (3) AND (4)
+    //               ?P : (5)
+    //               ?S ?P ?O : (3) +> (7) AND (8) +> (6)
 
     // GStore: key (main-header and indirect-header region) | value (entry region)
     //         head region is a cluster chaining hash-table (with associativity)
@@ -686,9 +773,10 @@ public:
                 if (vertices[slot_id].key.dir == IN) {
                     if (pid == PREDICATE_ID) {
 #ifdef VERSATILE
-                        v_set.insert(vid);
+                        // every subject/object has at least one predicate or one type
+                        v_set.insert(vid); // collect all local objects w/ predicate
                         for (uint64_t e = 0; e < sz; e++)
-                            p_set.insert(edges[off + e].val);
+                            p_set.insert(edges[off + e].val); // collect all local predicates
 #endif
                     } else if (pid == TYPE_ID) {
                         assert(false); // (IN) type triples should be skipped
@@ -700,16 +788,24 @@ public:
                 } else {
                     if (pid == PREDICATE_ID) {
 #ifdef VERSATILE
-                        v_set.insert(vid);
+                        // every subject/object has at least one predicate or one type
+                        v_set.insert(vid); // collect all local subjects w/ predicate
                         for (uint64_t e = 0; e < sz; e++)
-                            p_set.insert(edges[off + e].val);
+                            p_set.insert(edges[off + e].val); // collect all local predicates
 #endif
                     } else if (pid == TYPE_ID) {
+#ifdef VERSATILE
+                        // every subject/object has at least one predicate or one type
+                        v_set.insert(vid); // collect all local subjects w/ type
+#endif
                         // type-index (IN) vid
                         for (uint64_t e = 0; e < sz; e++) {
                             tbb_hash_map::accessor a;
                             tidx_map.insert(a, edges[off + e].val);
                             a->second.push_back(vid);
+#ifdef VERSATILE
+                            t_set.insert(edges[off + e].val); // collect all local types
+#endif
                         }
                     } else { // predicate-index (IN) vid
                         tbb_hash_map::accessor a;
@@ -734,10 +830,12 @@ public:
         tbb_hash_map().swap(tidx_map);
 
 #ifdef VERSATILE
-        insert_index_set(v_set, IN);
-        insert_index_set(p_set, OUT);
+        insert_index_set(v_set, TYPE_ID, IN);
+        insert_index_set(t_set, TYPE_ID, OUT);
+        insert_index_set(p_set, PREDICATE_ID, OUT);
 
         tbb_unordered_set().swap(v_set);
+        tbb_unordered_set().swap(t_set);
         tbb_unordered_set().swap(p_set);
 #endif
 
@@ -765,7 +863,7 @@ public:
                 insert_vertex_edge(key, triple.s);
             } else {
                 key = ikey_t(0, triple.p, IN);
-                insert_vertex_edge(key, triple.o);
+                insert_vertex_edge(key, triple.o); // triple.s
             }
         }
     }
@@ -784,15 +882,67 @@ public:
                 key = ikey_t(0, TYPE_ID, OUT);
                 insert_vertex_edge(key, triple.s);
 #endif
-            } else if (triple.p == TYPE_ID) {
+            } else if (triple.p == TYPE_ID) {  // insert unused
                 return;
             } else {
                 key = ikey_t(0, triple.p, OUT);
-                insert_vertex_edge(key, triple.s);
+                insert_vertex_edge(key, triple.s); // triple.o
             }
         }
     }
 #endif
+
+    // FIXME: refine parameters with vertex_t
+    edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
+        if (mymath::hash_mod(vid, global_num_servers) == sid)
+            return get_edges_local(tid, vid, d, pid, sz);
+        else
+            return get_edges_remote(tid, vid, d, pid, sz);
+    }
+
+    edge_t *get_index_edges_local(int tid, sid_t pid, dir_t d, uint64_t *sz) {
+        // the vid of index vertex should be 0
+        return get_edges_local(tid, 0, d, pid, sz);
+    }
+
+    // insert vertex attributes
+    void insert_vertex_attr(vector<triple_attr_t> &attrs, int64_t tid) {
+        for (auto const &attr : attrs) {
+            // allocate a vertex and edges
+            ikey_t key = ikey_t(attr.s, attr.a, OUT);
+            int type = boost::apply_visitor(get_type, attr.v);
+            uint64_t sz = (get_sizeof(type) - 1) / sizeof(edge_t) + 1;   // get the ceil size;
+            uint64_t off = alloc_edges(sz, tid);
+
+            // insert a vertex
+            uint64_t slot_id = insert_key(key);
+            iptr_t ptr = iptr_t(sz, off, type);
+            vertices[slot_id].ptr = ptr;
+
+            // insert edges (attributes)
+            switch (type) {
+            case INT_t:
+                *(int *)(edges + off) = boost::get<int>(attr.v);
+                break;
+            case FLOAT_t:
+                *(float *)(edges + off) = boost::get<float>(attr.v);
+                break;
+            case DOUBLE_t:
+                *(double *)(edges + off) = boost::get<double>(attr.v);
+                break;
+            default:
+                cout << "Unsupported value type of attribute" << endl;
+            }
+        }
+    }
+
+    // get vertex attributes
+    bool get_vertex_attr_global(int tid, sid_t vid, dir_t d , sid_t pid, attr_t &r) {
+        if (sid == mymath::hash_mod(vid, global_num_servers))
+            return get_vertex_attr_local(tid, vid, d, pid, r);
+        else
+            return get_vertex_attr_remote(tid, vid, d, pid, r);
+    }
 
     // prepare data for planner
     void generate_statistic(data_statistic & stat) {
@@ -912,119 +1062,6 @@ public:
         }
         //cout << "sizeof correlation = " << stat.correlation.size() << endl;
         cout << "INFO#" << sid << ": generating stats is finished." << endl;
-    }
-
-    // FIXME: refine parameters with vertex_t
-    edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
-        if (mymath::hash_mod(vid, global_num_servers) == sid)
-            return get_edges_local(tid, vid, d, pid, sz);
-        else
-            return get_edges_remote(tid, vid, d, pid, sz);
-    }
-
-    edge_t *get_index_edges_local(int tid, sid_t pid, dir_t d, uint64_t *sz) {
-        // the vid of index vertex should be 0
-        return get_edges_local(tid, 0, d, pid, sz);
-    }
-
-    // insert vertex attributes
-    void insert_vertex_attr(vector<triple_attr_t> &attrs, int64_t tid) {
-        for (auto const &attr : attrs) {
-            // allocate a vertex and edges
-            ikey_t key = ikey_t(attr.s, attr.a, OUT);
-            int type = boost::apply_visitor(get_type, attr.v);
-            uint64_t sz = (get_sizeof(type) - 1) / sizeof(edge_t) + 1;   // get the ceil size;
-            uint64_t off = alloc_edges(sz, tid);
-
-            // insert a vertex
-            uint64_t slot_id = insert_key(key);
-            iptr_t ptr = iptr_t(sz, off, type);
-            vertices[slot_id].ptr = ptr;
-
-            // insert edges (attributes)
-            switch (type) {
-            case INT_t:
-                *(int *)(edges + off) = boost::get<int>(attr.v);
-                break;
-            case FLOAT_t:
-                *(float *)(edges + off) = boost::get<float>(attr.v);
-                break;
-            case DOUBLE_t:
-                *(double *)(edges + off) = boost::get<double>(attr.v);
-                break;
-            default:
-                cout << "Unsupported value type of attribute" << endl;
-            }
-        }
-    }
-
-    bool get_vertex_attr_remote(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &r) {
-        int dst_sid = mymath::hash_mod(vid, global_num_servers);
-        ikey_t key = ikey_t(vid, pid, d);
-        vertex_t v = get_vertex_remote(tid, key);
-
-        if (v.key.is_empty())
-            return false; // not found
-
-        // TODO: implement it w/o RDMA
-        assert(global_use_rdma);
-
-        char *buf = mem->buffer(tid);
-        uint64_t r_off = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
-        uint64_t r_sz = v.ptr.size * sizeof(edge_t);
-
-        RDMA &rdma = RDMA::get_rdma();
-        rdma.dev->RdmaRead(tid, dst_sid, buf, r_sz, r_off);
-        switch (v.ptr.type) {
-        case INT_t:
-            r = *((int *)(&(edges[r_off])));
-            break;
-        case FLOAT_t:
-            r = *((float *)(&(edges[r_off])));
-            break;
-        case DOUBLE_t:
-            r = *((double *)(&(edges[r_off])));
-            break;
-        default:
-            cout << "Not support value type" << endl;
-            break;
-        }
-
-        return true;
-    }
-
-    bool get_vertex_attr_local(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &r) {
-        ikey_t key = ikey_t(vid, pid, d);
-        vertex_t v = get_vertex_local(tid, key);
-
-        if (v.key.is_empty())
-            return false; // not found
-
-        uint64_t off = v.ptr.off;
-        switch (v.ptr.type) {
-        case INT_t:
-            r = *((int *)(&(edges[off])));
-            break;
-        case FLOAT_t:
-            r = *((float *)(&(edges[off])));
-            break;
-        case DOUBLE_t:
-            r = *((double *)(&(edges[off])));
-            break;
-        default:
-            cout << "Not support value type" << endl;
-            break;
-        }
-
-        return true;
-    }
-
-    // get vertex attributes
-    bool get_vertex_attr_global(int tid, sid_t vid, dir_t d , sid_t pid, attr_t &r) {
-        if (sid == mymath::hash_mod(vid, global_num_servers))
-            return get_vertex_attr_local(tid, vid, d, pid, r);
-        else
-            return get_vertex_attr_remote(tid, vid, d, pid, r);
     }
 
     // analysis and debuging

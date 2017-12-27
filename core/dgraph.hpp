@@ -75,7 +75,9 @@ struct triple_sort_by_ops {
  */
 class DGraph {
 	int sid;
+
 	Mem *mem;
+
 	String_Server *str_server;
 
 	vector<uint64_t> num_triples;  // record #triples loaded from input data for each server
