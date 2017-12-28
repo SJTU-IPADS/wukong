@@ -97,7 +97,7 @@ void print_help(void)
 	cout << "           -d <sec>            eval <sec> seconds" << endl;
 	cout << "           -w <sec>            warmup <sec> seconds" << endl;
 	cout << "    load <args>         load linked data into dynamic (in-memmory) graph-store" << endl;
-	cout << "        -f <file>           load data from <file>" << endl;
+	cout << "        -d <directory>           load data from <directory>" << endl;
 }
 
 // the master proxy is the 1st proxy of the 1st server (i.e., sid == 0 and tid == 0)
@@ -365,25 +365,25 @@ next:
 				}
 			} else if (token == "load") {
 #if DYNAMIC_GSTORE
-				string fname;
-				bool f_enable = false;
+				string dname;
+				bool d_enable = false;
 
 				while (cmd_ss >> token) {
-					if (token == "-f") {
-						cmd_ss >> fname;
-						f_enable = true;
+					if (token == "-d") {
+						cmd_ss >> dname;
+						d_enable = true;
 					} else {
 						goto failed;
 					}
 				}
 
-				if (f_enable) { // -f <file>
+				if (d_enable) { // -d <directory>
 					if (IS_MASTER(proxy)) {
 						Logger logger;
 						request_or_reply reply;
-						int ret = proxy->dynamic_load_data(fname, reply, logger);
+						int ret = proxy->dynamic_load_data(dname, reply, logger);
 						if (ret != 0) {
-							cout << "[ERROR] Failed to load dynamic data from " << fname
+							cout << "[ERORR] Failed to load dynamic data from directory " << dname
 							     << " (ERRNO: " << ret << ")!" << endl;
 							continue;
 						}
@@ -394,7 +394,7 @@ next:
 #else
 				if (IS_MASTER(proxy)) {
 					cout << "[ERROR] Can't load linked data into static graph-store." << endl;
-					cout << "You can enable it by buidling Wukong with -DUSE_DYNAMIC_GSTORE=ON." << endl;
+					cout << "You can enable it by building Wukong with -DUSE_DYNAMIC_GSTORE=ON." << endl;
 				}
 #endif
 			} else {

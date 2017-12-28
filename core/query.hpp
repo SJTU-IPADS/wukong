@@ -89,7 +89,7 @@ public:
 
     // dynamic load
 #ifdef DYNAMIC_GSTORE
-    string load_fname = "";   // the file name used to be inserted
+    string load_dname = "";   // the file name used to be inserted
     int load_ret = 0;
 #endif
 
@@ -120,7 +120,7 @@ public:
         ar & pred_type_chains;
         ar & attr_res_table;
 #if DYNAMIC_GSTORE
-        ar & load_fname;
+        ar & load_dname;
         ar & load_ret;
 #endif
     }
