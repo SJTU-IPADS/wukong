@@ -24,6 +24,7 @@
 
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
+#include <unistd.h>
 
 #include "config.hpp"
 #include "coder.hpp"
@@ -306,9 +307,10 @@ public:
 		return 0; // success
 	}
 
-	int run_batch_query(istream &is, int d, int w, Logger &logger) {
+	int run_batch_query(istream &is, int d, int w, int s, Logger &logger) {
 		uint64_t duration = SEC(d);
 		uint64_t warmup = SEC(w);
+		uint64_t sleep = USEC(s);
 
 		int ntypes;
 		int nqueries;
@@ -381,6 +383,8 @@ public:
 				logger.start_thpt(recv_cnt);
 				timing = true;
 			}
+
+			usleep(sleep);
 		}
 		logger.end_thpt(recv_cnt);
 

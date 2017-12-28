@@ -96,6 +96,7 @@ void print_help(void)
 	cout << "        -b <file> [<args>]  run queries configured by <file> (batch-mode)" << endl;
 	cout << "           -d <sec>            eval <sec> seconds" << endl;
 	cout << "           -w <sec>            warmup <sec> seconds" << endl;
+	cout << "           -s <usec>           sleep <usec> micro-seconds before sending a batch of queries" << endl;
 	cout << "    load <args>         load linked data into dynamic (in-memmory) graph-store" << endl;
 	cout << "        -f <file>           load data from <file>" << endl;
 }
@@ -248,7 +249,7 @@ next:
 				}
 			} else if (token == "sparql") { // handle SPARQL queries
 				string fname, bfname, ofname;
-				int cnt = 1, nlines = 0, duration = 10, warmup = 5;
+				int cnt = 1, nlines = 0, duration = 10, warmup = 5, sleep = 0;
 				bool f_enable = false, b_enable = false, o_enable = false;
 
 				// parse parameters
@@ -270,6 +271,8 @@ next:
 						cmd_ss >> duration;
 					} else if (token == "-w") {
 						cmd_ss >> warmup;
+					} else if (token == "-s") {
+						cmd_ss >> sleep;
 					} else {
 						goto failed;
 					}
@@ -343,7 +346,7 @@ next:
 							continue;
 						}
 
-						proxy->run_batch_query(ifs, duration, warmup, logger);
+						proxy->run_batch_query(ifs, duration, warmup, sleep, logger);
 					}
 
 					// FIXME: maybe hang in here if the input file misses in some machines
