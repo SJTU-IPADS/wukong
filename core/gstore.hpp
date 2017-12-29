@@ -843,7 +843,7 @@ public:
         cout << (t3 - t2) / 1000 << " ms for insert index data into gstore" << endl;
     }
 
-#if DYNAMIC_GSTORE
+#if DYNAMIC_GSTORE    //with bug, fix it later
     void insert_triple_out(const triple_t &triple) {
         // (s, ->, p) ---> normal vertex(o)
         // (s, ->, 0) ---> predicts

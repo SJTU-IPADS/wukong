@@ -405,22 +405,25 @@ public:
 	}
 
 #if DYNAMIC_GSTORE
-	int dynamic_load_data(string &fname, request_or_reply &reply,
+	int dynamic_load_data(string &dname, request_or_reply &reply,
 	                      Logger &logger) {
 		request_or_reply request;
 		request.type = DYNAMIC_LOAD;
-		request.load_fname = fname;
+		request.load_dname = dname;
 
 		logger.init();
 		setpid(request);
 		for (int i = 0; i < global_num_servers; i++)
-			send(request, i);
+			for(int j = 0; j < global_num_engines; j++)
+				send(request, i, j + global_num_proxies);
 
 		int ret = 0;
 		for (int i = 0; i < global_num_servers; i++) {
-			reply = adaptor->recv();
-			if (reply.load_ret < 0)
-				ret = reply.load_ret;
+			for(int j = 0; j < global_num_engines; j++) {
+				reply = adaptor->recv();
+				if (reply.load_ret < 0)
+					ret = reply.load_ret;
+			}
 		}
 		logger.finish();
 		return ret;

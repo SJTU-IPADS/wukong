@@ -599,31 +599,75 @@ public:
 		return true;
 	}
 
-
-	int64_t dynamic_load_data(string fname) {
-		ifstream file(fname.c_str());
-		if (!file.good()) {
-			cout << "[ERROR] Query file not found: " << fname << endl;
-			return -1; // file not found
+	int64_t extract_seq_num(string const & fname) {
+		size_t const n = fname.find_first_of("0123456789");
+		if(n != string::npos) {
+			size_t const m = fname.find_first_not_of("0123456789", n);
+			return stoi(fname.substr(n, m != string::npos ? m - n : m));
 		}
+		return -1;
+	}
 
+	bool get_load_files(string dname, int eid, vector<string> &dynamic_load_fnames) {
+		DIR *dir = opendir(dname.c_str());
+		if (dir == NULL) 
+			return false;
+
+		struct dirent *ent;
+		while ((ent = readdir(dir)) != NULL) {
+			if (ent->d_name[0] == '.')
+				continue;
+
+			string fname(dname + ent->d_name);
+			// Assume the fnames of RDF data files (ID-format) start with 'id_'.
+			/// TODO: move RDF data files and metadata files to different directories
+			if (boost::starts_with(fname, dname + "id_")) {
+				int64_t seq_num = extract_seq_num(ent->d_name);
+				if (seq_num < 0) {
+					if (eid == 0) {
+						cout << "[WARNING] failed to load file (" << ent->d_name
+		    			 << ") at server " << sid << endl;
+						cout << "All the files to be dynamic loaded should be numbered" << endl;
+					}
+					continue;
+				}
+				else if ((seq_num % global_num_engines == eid))
+					dynamic_load_fnames.push_back(fname);
+			}
+		}
+		return true;
+	}
+
+	int64_t dynamic_load_data(string dname, int tid) {
 		int64_t cnt = 0;
 		sid_t s, p, o;
-		while (file >> s >> p >> o) {
-			/// FIXME: just check and print warning
-			check_sid(s); check_sid(p); check_sid(o);
+		int eid = tid - global_num_proxies;
+		vector<string> dynamic_load_fnames;
+		if (!get_load_files(dname, eid, dynamic_load_fnames))
+			return -1;
 
-			if (sid == mymath::hash_mod(s, global_num_servers)) {
-				gstore.insert_triple_out(triple_t(s, p, o));
-				cnt ++;
-			}
+		sort(dynamic_load_fnames.begin(), dynamic_load_fnames.end());
+		int num_files = dynamic_load_fnames.size();
 
-			if (sid == mymath::hash_mod(o, global_num_servers)) {
-				gstore.insert_triple_in(triple_t(s, p, o));
-				cnt ++;
+		for (int i = 0; i < num_files; i++) {
+			ifstream file(dynamic_load_fnames[i].c_str());
+
+			while (file >> s >> p >> o) {
+				/// FIXME: just check and print warning
+				check_sid(s); check_sid(p); check_sid(o);
+
+				if (sid == mymath::hash_mod(s, global_num_servers)) {
+					gstore.insert_triple_out(triple_t(s, p, o));
+					cnt ++;
+				}
+
+				if (sid == mymath::hash_mod(o, global_num_servers)) {
+					gstore.insert_triple_in(triple_t(s, p, o));
+					cnt ++;
+				}
 			}
+			file.close();
 		}
-		file.close();
 		return cnt;
 	}
 #endif
