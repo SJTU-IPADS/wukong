@@ -599,59 +599,66 @@ public:
 		return true;
 	}
 
-	int64_t extract_seq_num(string const & fname) {
-		size_t const n = fname.find_first_of("0123456789");
-		if(n != string::npos) {
-			size_t const m = fname.find_first_not_of("0123456789", n);
-			return stoi(fname.substr(n, m != string::npos ? m - n : m));
-		}
-		return -1;
-	}
-
-	bool get_load_files(string dname, int eid, vector<string> &dynamic_load_fnames) {
-		DIR *dir = opendir(dname.c_str());
-		if (dir == NULL) 
-			return false;
-
-		struct dirent *ent;
-		while ((ent = readdir(dir)) != NULL) {
-			if (ent->d_name[0] == '.')
-				continue;
-
-			string fname(dname + ent->d_name);
-			// Assume the fnames of RDF data files (ID-format) start with 'id_'.
-			/// TODO: move RDF data files and metadata files to different directories
-			if (boost::starts_with(fname, dname + "id_")) {
-				int64_t seq_num = extract_seq_num(ent->d_name);
-				if (seq_num < 0) {
-					if (eid == 0) {
-						cout << "[WARNING] failed to load file (" << ent->d_name
-		    			 << ") at server " << sid << endl;
-						cout << "All the files to be dynamic loaded should be numbered" << endl;
-					}
-					continue;
-				}
-				else if ((seq_num % global_num_engines == eid))
-					dynamic_load_fnames.push_back(fname);
+	inline vector<string> list_files(string dname, string prefix) {
+		if (boost::starts_with(dname, "hdfs:")) {
+			if (!wukong::hdfs::has_hadoop()) {
+				cout << "ERROR: attempting to load data files from HDFS "
+				     << "but Wukong was built without HDFS."
+				     << endl;
+				exit(-1);
 			}
+
+			wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
+			return vector<string>(hdfs.list_files(dname, prefix));
+		} else {
+			// files located on a shared filesystem (e.g., NFS)
+			DIR *dir = opendir(dname.c_str());
+			if (dir == NULL) {
+				cout << "ERORR: failed to open directory (" << dname
+				     << ") at server " << sid << endl;
+				exit(-1);
+			}
+
+			vector<string> files;
+			struct dirent *ent;
+			while ((ent = readdir(dir)) != NULL) {
+				if (ent->d_name[0] == '.')
+					continue;
+
+				string fname(dname + ent->d_name);
+				// Assume the fnames (ID-format) start with the prefix.
+				if (boost::starts_with(fname, dname + prefix))
+					files.push_back(fname);
+			}
+			return files;
 		}
-		return true;
+
 	}
 
-	int64_t dynamic_load_data(string dname, int tid) {
-		int64_t cnt = 0;
-		sid_t s, p, o;
-		int eid = tid - global_num_proxies;
-		vector<string> dynamic_load_fnames;
-		if (!get_load_files(dname, eid, dynamic_load_fnames))
-			return -1;
+	int64_t dynamic_load_data(string dname) {
+		vector<string> dfiles(list_files(dname, "id_"));   // ID-format data files
+		vector<string> afiles(list_files(dname, "attr_")); // ID-format attribute files
 
-		sort(dynamic_load_fnames.begin(), dynamic_load_fnames.end());
-		int num_files = dynamic_load_fnames.size();
+		if (dfiles.size() == 0 && afiles.size() == 0) {
+			cout << "[WARNING] no files found in directory (" << dname
+			     << ") at server " << sid << endl;
+			return 0;
+		} else {
+			cout << "[INFO] " << dfiles.size() << " data files and " << afiles.size()
+			     << " attribute files found in directory (" << dname
+			     << ") at server " << sid << endl;
+		}
 
-		for (int i = 0; i < num_files; i++) {
-			ifstream file(dynamic_load_fnames[i].c_str());
+		sort(dfiles.begin(), dfiles.end());
 
+		int num_dfiles = dfiles.size();
+		#pragma omp parallel for num_threads(global_num_engines)
+		for (int i = 0; i < num_dfiles; i++) {
+			int64_t cnt = 0;
+
+			/// FIXME: support HDFS
+			ifstream file(dfiles[i]);
+			sid_t s, p, o;
 			while (file >> s >> p >> o) {
 				/// FIXME: just check and print warning
 				check_sid(s); check_sid(p); check_sid(o);
@@ -667,8 +674,58 @@ public:
 				}
 			}
 			file.close();
+
+			cout << "[INFO] load " << cnt << " triples from file " << dfiles[i] << endl;
 		}
-		return cnt;
+
+		sort(afiles.begin(), afiles.end());
+		int num_afiles = afiles.size();
+		#pragma omp parallel for num_threads(global_num_engines)
+		for (int i = 0; i < num_afiles; i++) {
+			int64_t cnt = 0;
+
+			/// FIXME: support HDFS
+			ifstream file(afiles[i]);
+			sid_t s, a;
+			attr_t v;
+			int type;
+			while (file >> s >> a >> type) {
+				/// FIXME: just check and print warning
+				check_sid(s); check_sid(a);
+
+				switch (type) {
+				case 1:
+					int i;
+					file >> i;
+					v = i;
+					break;
+				case 2:
+					float f;
+					file >> f;
+					v = f;
+					break;
+				case 3:
+					double d;
+					file >> d;
+					v = d;
+					break;
+				default:
+					cout << "[ERROR] Unsupported value type" << endl;
+					break;
+				}
+
+				if (sid == mymath::hash_mod(s, global_num_servers)) {
+					/// Support attribute files
+					// gstore.insert_triple_attribute(triple_sav_t(s, a, v));
+					cnt ++;
+				}
+			}
+			file.close();
+
+			cout << "[INFO] load " << cnt << " attributes from file " << afiles[i] << endl;
+		}
+
+		return 0;
 	}
 #endif
 

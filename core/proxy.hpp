@@ -414,16 +414,13 @@ public:
 		logger.init();
 		setpid(request);
 		for (int i = 0; i < global_num_servers; i++)
-			for(int j = 0; j < global_num_engines; j++)
-				send(request, i, j + global_num_proxies);
+			send(request, i);
 
 		int ret = 0;
 		for (int i = 0; i < global_num_servers; i++) {
-			for(int j = 0; j < global_num_engines; j++) {
-				reply = adaptor->recv();
-				if (reply.load_ret < 0)
-					ret = reply.load_ret;
-			}
+			reply = adaptor->recv();
+			if (reply.load_ret < 0)
+				ret = reply.load_ret;
 		}
 		logger.finish();
 		return ret;

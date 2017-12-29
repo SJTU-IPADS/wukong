@@ -863,7 +863,7 @@ public:
                 insert_vertex_edge(key, triple.s);
             } else {
                 key = ikey_t(0, triple.p, IN);
-                insert_vertex_edge(key, triple.o); // triple.s
+                insert_vertex_edge(key, triple.s); // triple.s
             }
         }
     }
@@ -886,7 +886,7 @@ public:
                 return;
             } else {
                 key = ikey_t(0, triple.p, OUT);
-                insert_vertex_edge(key, triple.s); // triple.o
+                insert_vertex_edge(key, triple.o); // triple.o
             }
         }
     }

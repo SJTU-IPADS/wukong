@@ -768,7 +768,7 @@ private:
 
 #if DYNAMIC_GSTORE
     void execute_load_data(request_or_reply &r) {
-        r.load_ret = graph->dynamic_load_data(r.load_dname, tid);
+        r.load_ret = graph->dynamic_load_data(r.load_dname);
         send_request(r, coder.sid_of(r.pid), coder.tid_of(r.pid));
     }
 #endif

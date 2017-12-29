@@ -98,7 +98,7 @@ void print_help(void)
 	cout << "           -w <sec>            warmup <sec> seconds" << endl;
 	cout << "           -s <usec>           sleep <usec> micro-seconds before sending a batch of queries" << endl;
 	cout << "    load <args>         load linked data into dynamic (in-memmory) graph-store" << endl;
-	cout << "        -d <directory>           load data from <directory>" << endl;
+	cout << "        -d <dname>          load data from directory <dname>" << endl;
 }
 
 // the master proxy is the 1st proxy of the 1st server (i.e., sid == 0 and tid == 0)
@@ -381,6 +381,10 @@ next:
 				}
 
 				if (d_enable) { // -d <directory>
+					// force a "/" at the end of dname.
+					if (dname[dname.length() - 1] != '/')
+						dname = dname + "/";
+
 					if (IS_MASTER(proxy)) {
 						Logger logger;
 						request_or_reply reply;
