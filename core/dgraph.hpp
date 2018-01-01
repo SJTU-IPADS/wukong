@@ -460,6 +460,42 @@ class DGraph {
 		cout << (t2 - t1) / 1000 << " ms for aggregrating triples" << endl;
 	}
 
+	inline vector<string> list_files(string dname, string prefix) {
+		if (boost::starts_with(dname, "hdfs:")) {
+			if (!wukong::hdfs::has_hadoop()) {
+				cout << "ERROR: attempting to load data files from HDFS "
+				     << "but Wukong was built without HDFS."
+				     << endl;
+				exit(-1);
+			}
+
+			wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
+			return vector<string>(hdfs.list_files(dname, prefix));
+		} else {
+			// files located on a shared filesystem (e.g., NFS)
+			DIR *dir = opendir(dname.c_str());
+			if (dir == NULL) {
+				cout << "ERORR: failed to open directory (" << dname
+				     << ") at server " << sid << endl;
+				exit(-1);
+			}
+
+			vector<string> files;
+			struct dirent *ent;
+			while ((ent = readdir(dir)) != NULL) {
+				if (ent->d_name[0] == '.')
+					continue;
+
+				string fname(dname + ent->d_name);
+				// Assume the fnames (ID-format) start with the prefix.
+				if (boost::starts_with(fname, dname + prefix))
+					files.push_back(fname);
+			}
+			return files;
+		}
+
+	}
+
 	uint64_t inline floor(uint64_t original, uint64_t n) {
 		assert(n != 0);
 		return original - original % n;
@@ -484,50 +520,14 @@ public:
 		triple_ops.resize(global_num_engines);
 		triple_sav.resize(global_num_engines);
 
-		vector<string> files; // ID-format data files
-		vector<string> attr_files; // ID-format (attribute) data files
-		if (boost::starts_with(dname, "hdfs:")) {
-			if (!wukong::hdfs::has_hadoop()) {
-				cout << "ERROR: attempting to load data files from HDFS "
-				     << "but Wukong was built without HDFS."
-				     << endl;
-				exit(-1);
-			}
+		vector<string> dfiles(list_files(dname, "id_"));   // ID-format data files
+		vector<string> afiles(list_files(dname, "attr_")); // ID-format attribute files
 
-			wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
-			files = hdfs.list_files(dname);
-		} else {
-			// files located on a shared filesystem (e.g., NFS)
-			DIR *dir = opendir(dname.c_str());
-			if (dir == NULL) {
-				cout << "ERORR: failed to open directory (" << dname
-				     << ") at server " << sid << endl;
-				exit(-1);
-			}
-
-			struct dirent *ent;
-			while ((ent = readdir(dir)) != NULL) {
-				if (ent->d_name[0] == '.')
-					continue;
-
-				string fname(dname + ent->d_name);
-				// Assume the fnames of RDF data files (ID-format) start with 'id_'.
-				/// TODO: move RDF data files and metadata files to different directories
-				if (boost::starts_with(fname, dname + "id_"))
-					files.push_back(fname);
-
-				// Assume the fnames of RDF attribute files (ID-format) start with 'attr_'.
-				if (global_enable_vattr && boost::starts_with(fname, dname + "attr_"))
-					attr_files.push_back(fname);
-			}
-		}
-
-		if (files.size() == 0) {
-			cout << "[ERORR] no files found in directory (" << dname
+		if (dfiles.size() == 0) {
+			cout << "[WARNING] no data files found in directory (" << dname
 			     << ") at server " << sid << endl;
-			assert(false);
 		} else {
-			cout << "[INFO] " << files.size() << " files and " << attr_files.size()
+			cout << "[INFO] " << dfiles.size() << " files and " << afiles.size()
 			     << " attributed files found in directory (" << dname
 			     << ") at server " << sid << endl;
 		}
@@ -545,9 +545,9 @@ public:
 		int num_partitons = 0;
 
 		if (global_use_rdma)
-			num_partitons = load_data(files);
+			num_partitons = load_data(dfiles);
 		else
-			num_partitons = load_data_from_allfiles(files);
+			num_partitons = load_data_from_allfiles(dfiles);
 
 		// all triples are partitioned and temporarily stored in the kvstore on each server.
 		// the kvstore is split into num_partitions partitions, each contains #triples and triples
@@ -556,7 +556,7 @@ public:
 		aggregate_data(num_partitons);
 
 		// load attribute files
-		load_attr_from_allfiles(attr_files);
+		load_attr_from_allfiles(afiles);
 
 		// initiate gstore (kvstore) after loading and exchanging triples (memory reused)
 		gstore.refresh();
@@ -599,42 +599,6 @@ public:
 		return true;
 	}
 
-	inline vector<string> list_files(string dname, string prefix) {
-		if (boost::starts_with(dname, "hdfs:")) {
-			if (!wukong::hdfs::has_hadoop()) {
-				cout << "ERROR: attempting to load data files from HDFS "
-				     << "but Wukong was built without HDFS."
-				     << endl;
-				exit(-1);
-			}
-
-			wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
-			return vector<string>(hdfs.list_files(dname, prefix));
-		} else {
-			// files located on a shared filesystem (e.g., NFS)
-			DIR *dir = opendir(dname.c_str());
-			if (dir == NULL) {
-				cout << "ERORR: failed to open directory (" << dname
-				     << ") at server " << sid << endl;
-				exit(-1);
-			}
-
-			vector<string> files;
-			struct dirent *ent;
-			while ((ent = readdir(dir)) != NULL) {
-				if (ent->d_name[0] == '.')
-					continue;
-
-				string fname(dname + ent->d_name);
-				// Assume the fnames (ID-format) start with the prefix.
-				if (boost::starts_with(fname, dname + prefix))
-					files.push_back(fname);
-			}
-			return files;
-		}
-
-	}
-
 	int64_t dynamic_load_data(string dname) {
 		vector<string> dfiles(list_files(dname, "id_"));   // ID-format data files
 		vector<string> afiles(list_files(dname, "attr_")); // ID-format attribute files
@@ -675,7 +639,8 @@ public:
 			}
 			file.close();
 
-			cout << "[INFO] load " << cnt << " triples from file " << dfiles[i] << endl;
+			cout << "[INFO] load " << cnt << " triples from file " << dfiles[i]
+			     << " at server " << sid << endl;
 		}
 
 		sort(afiles.begin(), afiles.end());
@@ -722,7 +687,8 @@ public:
 			}
 			file.close();
 
-			cout << "[INFO] load " << cnt << " attributes from file " << afiles[i] << endl;
+			cout << "[INFO] load " << cnt << " attributes from file " << afiles[i]
+			     << " at server " << sid << endl;
 		}
 
 		return 0;
