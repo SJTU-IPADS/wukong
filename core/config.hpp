@@ -55,7 +55,7 @@ int global_rdma_rbf_size_mb = 16;
 
 bool global_use_rdma = true;
 bool global_enable_caching = true;
-int global_enable_workstealing = false;
+bool global_enable_workstealing = false;
 
 int global_mt_threshold = 16;
 int global_rdma_threshold = 300;
