@@ -62,9 +62,9 @@ int global_rdma_threshold = 300;
 
 bool global_silent = true;  // don't take back results by default
 
-// for planner
-bool global_enable_planner = true;
+bool global_enable_planner = true;  // for planner
 
+bool global_enable_vattr = false;  // for attr
 
 static bool set_immutable_config(string cfg_name, string value)
 {
@@ -140,6 +140,8 @@ static bool set_mutable_config(string cfg_name, string value)
 		global_silent = atoi(value.c_str());
 	} else if (cfg_name == "global_enable_planner") {
 		global_enable_planner = atoi(value.c_str());
+	} else if (cfg_name == "global_enable_vattr") {
+		global_enable_vattr = atoi(value.c_str());
 	} else {
 		return false;
 	}
@@ -248,6 +250,7 @@ void print_config(void)
 	cout << "global_mt_threshold: " 		<< global_mt_threshold  		<< endl;
 	cout << "global_silent: " 				<< global_silent				<< endl;
 	cout << "global_enable_planner: " 		<< global_enable_planner 		<< endl;
+	cout << "global_enable_vattr: " 		<< global_enable_vattr 			<< endl;
 
 	cout << "--" << endl;
 

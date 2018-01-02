@@ -24,6 +24,7 @@
 
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
+#include <unistd.h>
 
 #include "config.hpp"
 #include "coder.hpp"
@@ -38,6 +39,7 @@
 #include "mymath.hpp"
 #include "timer.hpp"
 
+using namespace std;
 
 #define PARALLEL_FACTOR 20
 
@@ -49,6 +51,18 @@ std::vector<Proxy *> proxies;
 class Proxy {
 
 private:
+	class Message {
+	public:
+		int sid;
+		int tid;
+		request_or_reply r;
+
+		Message(int sid, int tid, request_or_reply &r)
+			: sid(sid), tid(tid), r(r) { }
+	};
+
+	vector<Message> pending_msgs;
+
 	void fill_template(request_template &req_template) {
 		req_template.ptypes_grp.resize(req_template.ptypes_str.size());
 		for (int i = 0; i < req_template.ptypes_str.size(); i++) {
@@ -76,7 +90,47 @@ private:
 
 			req_template.ptypes_grp[i] = candidates;
 
-			cout << type << " has " << req_template.ptypes_grp[i].size() << " candidates" << endl;
+			cout << "[INFO] " << type << " has "
+			     << req_template.ptypes_grp[i].size() << " candidates" << endl;
+		}
+	}
+
+	inline bool send(request_or_reply &r, int dst_sid, int dst_tid) {
+		if (adaptor->send(dst_sid, dst_tid, r))
+			return true;
+
+		pending_msgs.push_back(Message(dst_sid, dst_tid, r));
+		return false;
+	}
+
+	inline bool send(request_or_reply &r, int dst_sid) {
+		// NOTE: the partitioned mapping has better tail latency in batch mode
+		int range = global_num_engines / global_num_proxies;
+		// FIXME: BUG if global_num_engines < global_num_proxies
+		assert(range > 0);
+
+		int base = global_num_proxies + (range * tid);
+		// randomly choose engine without preferred one
+		int dst_eid = coder.get_random() % range;
+
+		// If the preferred engine is busy, try the rest engines with round robin
+		for (int i = 0; i < range; i++)
+			if (adaptor->send(dst_sid, base + (dst_eid + i) % range, r))
+				return true;
+
+		pending_msgs.push_back(Message(dst_sid, (base + dst_eid), r));
+		return false;
+	}
+
+	inline void sweep_msgs() {
+		if (!pending_msgs.size()) return;
+
+		cout << "[INFO]#" << tid << " " << pending_msgs.size() << " pending msgs on proxy." << endl;
+		for (vector<Message>::iterator it = pending_msgs.begin(); it != pending_msgs.end();) {
+			if (adaptor->send(it->sid, it->tid, it->r))
+				it = pending_msgs.erase(it);
+			else
+				++it;
 		}
 	}
 
@@ -106,24 +160,16 @@ public:
 		if (r.start_from_index()) {
 			for (int i = 0; i < global_num_servers; i++) {
 				for (int j = 0; j < global_mt_threshold; j++) {
-					r.tid = j;
-					adaptor->send(i, global_num_proxies + j, r);
+					r.tid = j; // specified engine
+					send(r, i, global_num_proxies + j);
 				}
 			}
-			return ;
+			return;
 		}
 
-		// submit the request to a certain engine
+		// submit the request to a certain server
 		int start_sid = mymath::hash_mod(r.cmd_chains[0], global_num_servers);
-
-		// random assign request to range partitioned engines
-		// NOTE: the partitioned mapping has better tail latency in batch mode
-		int ratio = global_num_engines / global_num_proxies;
-		// TODO: BUG if global_num_engines < global_num_proxies
-		assert(ratio > 0);
-		int start_tid = global_num_proxies + (ratio * tid) + (coder.get_random() % ratio);
-
-		adaptor->send(start_sid, start_tid, r);
+		send(r, start_sid);
 	}
 
 	request_or_reply recv_reply(void) {
@@ -135,6 +181,10 @@ public:
 				int new_size = r.result_table.size() + r2.result_table.size();
 				r.result_table.reserve(new_size);
 				r.result_table.insert(r.result_table.end(), r2.result_table.begin(), r2.result_table.end());
+
+				int new_attr_size = r.attr_res_table.size() + r2.attr_res_table.size();
+				r.attr_res_table.reserve(new_attr_size);
+				r.attr_res_table.insert(r.attr_res_table.end(), r2.attr_res_table.begin(), r2.attr_res_table.end());
 			}
 		}
 		return r;
@@ -156,15 +206,19 @@ public:
 		for (int i = 0; i < row2print; i++) {
 			cout << i + 1 << ":  ";
 			for (int c = 0; c < r.get_col_num(); c++) {
-				int id = r.get_row_col(i, c);
+				sid_t id = r.get_row_col(i, c);
 				// WARNING: If you want to print the query results with strings,
 				// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
 				//
 				// TODO: good format
-				if (str_server->id2str.find(id) == str_server->id2str.end())
-					cout << id << "\t";
+				if (str_server->exist(id))
+					cout << str_server->id2str[id] << "\t";
 				else
-					cout << str_server->id2str[r.get_row_col(i, c)] << "\t";
+					cout << id << "\t";
+			}
+			for (int c = 0; c < r.get_attr_col_num(); c++) {
+				attr_t  tmp = r.get_attr_row_col(i, c);
+				cout << tmp << "\t";
 			}
 			cout << endl;
 		}
@@ -174,40 +228,44 @@ public:
 		if (boost::starts_with(ofname, "hdfs:")) {
 			wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
 			wukong::hdfs::fstream file(hdfs, ofname, true);
+
+			// FIXME: row_num vs. get_col_num()
 			for (int i = 0; i < r.row_num; i++) {
 				file << i + 1 << ": ";
 				for (int c = 0; c < r.get_col_num(); c++) {
-					int id = r.get_row_col(i, c);
+					sid_t id = r.get_row_col(i, c);
 					// WARNING: If you want to print the query results with strings,
 					// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
-					if (str_server->id2str.find(id) == str_server->id2str.end())
-						file << id << "\t";
+					if (str_server->exist(id))
+						file << str_server->id2str[id] << "\t";
 					else
-						file << str_server->id2str[r.get_row_col(i, c)] << "\t";
+						file << id << "\t";
 				}
 				file << endl;
 			}
 			file.close();
 		} else {
-			ofstream ofs(ofname, std::ios::out);
-			if (!ofs.good()) {
+			ofstream file(ofname, std::ios::out);
+			if (!file.good()) {
 				cout << "Can't open/create output file: " << ofname << endl;
-			} else {
-				for (int i = 0; i < r.row_num; i++) {
-					ofs << i + 1 << ": ";
-					for (int c = 0; c < r.get_col_num(); c++) {
-						int id = r.get_row_col(i, c);
-						// WARNING: If you want to print the query results with strings,
-						// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
-						if (str_server->id2str.find(id) == str_server->id2str.end())
-							ofs << id << "\t";
-						else
-							ofs << str_server->id2str[r.get_row_col(i, c)] << "\t";
-					}
-					ofs << endl;
-				}
+				return;
 			}
-			ofs.close();
+
+			// FIXME: row_num vs. get_col_num()
+			for (int i = 0; i < r.row_num; i++) {
+				file << i + 1 << ": ";
+				for (int c = 0; c < r.get_col_num(); c++) {
+					sid_t id = r.get_row_col(i, c);
+					// WARNING: If you want to print the query results with strings,
+					// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
+					if (str_server->exist(id))
+						file << str_server->id2str[id] << "\t";
+					else
+						file << id << "\t";
+				}
+				file << endl;
+			}
+			file.close();
 		}
 	}
 
@@ -233,7 +291,7 @@ public:
 			cout << "planning time : " << t_plan2 - t_plan1 << " usec" << endl;
 			if (exec == false) { // for empty result
 				cout << "(last) result size: 0" << endl;
-				return -1; // planning failed
+				return -3; // planning failed
 			}
 		}
 
@@ -246,15 +304,19 @@ public:
 			reply = recv_reply();
 		}
 		logger.finish();
-		return 0;
+		return 0; // success
 	}
 
-	void nonblocking_run_batch_query(istream &is, Logger &logger) {
+	int run_batch_query(istream &is, int d, int w, int s, Logger &logger) {
+		uint64_t duration = SEC(d);
+		uint64_t warmup = SEC(w);
+		uint64_t sleep = USEC(s);
+
 		int ntypes;
 		int nqueries;
-		int try_round = 1;
+		int try_rounds = 1;
 
-		is >> ntypes >> nqueries >> try_round;
+		is >> ntypes >> try_rounds;
 
 		vector<request_template> tpls(ntypes);
 		vector<int> loads(ntypes);
@@ -264,8 +326,8 @@ public:
 			is >> fname;
 			ifstream ifs(fname);
 			if (!ifs) {
-				cout << "ERROR: Query file not found: " << fname << endl;
-				return ;
+				cout << "[ERROR] Query file not found: " << fname << endl;
+				return -1; // file not found
 			}
 
 			int load;
@@ -275,116 +337,93 @@ public:
 
 			bool success = parser.parse_template(ifs, tpls[i]);
 			if (!success) {
-				cout << "ERROR: Template parsing failed!" << endl;
-				return ;
+				cout << "[ERROR] Template parsing failed!" << endl;
+				return -2; // parsing failed
 			}
+
 			fill_template(tpls[i]);
 		}
 
 		logger.init();
-		int send_cnt = 0, recv_cnt = 0, flying_cnt = 0;
-		while (recv_cnt < nqueries) {
+
+		bool timing = false;
+		uint64_t send_cnt = 0, recv_cnt = 0;
+		uint64_t init = timer::get_usec();
+		while ((timer::get_usec() - init) < duration) {
+			// send requests
 			for (int t = 0; t < PARALLEL_FACTOR; t++) {
-				if (send_cnt < nqueries) {
-					int idx = mymath::get_distribution(coder.get_random(), loads);
-					request_or_reply request = tpls[idx].instantiate(coder.get_random());
-					if (global_enable_planner)
-						planner.generate_plan(request, statistic);
-					setpid(request);
-					request.blind = true; // always not take back results in batch mode
-					logger.start_record(request.pid, idx);
-					send_request(request);
-					send_cnt ++;
-				}
+				sweep_msgs(); // sweep pending msgs first
+
+				int idx = mymath::get_distribution(coder.get_random(), loads);
+				request_or_reply request = tpls[idx].instantiate(coder.get_random());
+				if (global_enable_planner)
+					planner.generate_plan(request, statistic);
+				setpid(request);
+				request.blind = true; // always not take back results in batch mode
+
+				logger.start_record(request.pid, idx);
+				send_request(request);
+
+				send_cnt++;
 			}
 
-			// wait a piece of time and try several times
-			for (int i = 0; i < try_round; i++) {
-				timer::cpu_relax(100);
-
-				// try to recieve the replies (best of effort)
+			// recieve replies (best of effort)
+			for (int i = 0; i < try_rounds; i++) {
 				request_or_reply r;
-				bool success = tryrecv_reply(r);
-				while (success) {
-					recv_cnt ++;
+				while (bool success = tryrecv_reply(r)) {
+					recv_cnt++;
 					logger.end_record(r.pid);
-
-					success = tryrecv_reply(r);
 				}
 			}
+
+			logger.print_timely_thpt(recv_cnt, sid, tid);
+
+			// skip warmup
+			if (!timing && (timer::get_usec() - init) > warmup) {
+				logger.start_thpt(recv_cnt);
+				timing = true;
+			}
+
+			usleep(sleep);
 		}
+		logger.end_thpt(recv_cnt);
+
+		// recieve all replies to calculate the tail latency
+		while (recv_cnt < send_cnt) {
+			request_or_reply r;
+			if (tryrecv_reply(r)) {
+				recv_cnt ++;
+				logger.end_record(r.pid);
+			}
+
+			logger.print_timely_thpt(recv_cnt, sid, tid);
+		}
+
 		logger.finish();
+
+		return 0; // success
 	}
 
-	void run_batch_query(istream &is, Logger &logger) {
-		int ntypes;
-		int nqueries;
-		int try_round = 1; // dummy
-
-		is >> ntypes >> nqueries >> try_round;
-
-		vector<int> loads(ntypes);
-		vector<request_template> tpls(ntypes);
-
-		// prepare various temples
-		for (int i = 0; i < ntypes; i++) {
-			string fname;
-			is >> fname;
-			ifstream ifs(fname);
-			if (!ifs) {
-				cout << "Query file not found: " << fname << endl;
-				return ;
-			}
-
-			int load;
-			is >> load;
-			assert(load > 0);
-			loads[i] = load;
-
-			bool success = parser.parse_template(ifs, tpls[i]);
-			if (!success) {
-				cout << "sparql parse error" << endl;
-				return ;
-			}
-			fill_template(tpls[i]);
-		}
+#if DYNAMIC_GSTORE
+	int dynamic_load_data(string &dname, request_or_reply &reply,
+	                      Logger &logger) {
+		request_or_reply request;
+		request.type = DYNAMIC_LOAD;
+		request.load_dname = dname;
 
 		logger.init();
-		// send PARALLEL_FACTOR queries and keep PARALLEL_FACTOR flying queries
-		for (int i = 0; i < PARALLEL_FACTOR; i++) {
-			int idx = mymath::get_distribution(coder.get_random(), loads);
-			request_or_reply r = tpls[idx].instantiate(coder.get_random());
+		setpid(request);
+		for (int i = 0; i < global_num_servers; i++)
+			send(request, i);
 
-			setpid(r);
-			r.blind = true;  // avoid send back results by default
-			logger.start_record(r.pid, idx);
-			send_request(r);
+		int ret = 0;
+		for (int i = 0; i < global_num_servers; i++) {
+			reply = adaptor->recv();
+			if (reply.load_ret < 0)
+				ret = reply.load_ret;
 		}
-
-		// recv one query, and then send another query
-		for (int i = 0; i < nqueries - PARALLEL_FACTOR; i++) {
-			// recv one query
-			request_or_reply r2 = recv_reply();
-			logger.end_record(r2.pid);
-
-			// send another query
-			int idx = mymath::get_distribution(coder.get_random(), loads);
-			request_or_reply r = tpls[idx].instantiate(coder.get_random());
-
-			setpid(r);
-			r.blind = true;  // avoid send back results by default
-			logger.start_record(r.pid, idx);
-			send_request(r);
-		}
-
-		// recv the rest queries
-		for (int i = 0; i < PARALLEL_FACTOR; i++) {
-			request_or_reply r = recv_reply();
-			logger.end_record(r.pid);
-		}
-
 		logger.finish();
-		logger.print_thpt();
+		return ret;
 	}
-
+#endif
 };

@@ -128,8 +128,31 @@ private:
         }
         lmeta->head += 2 * sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t));
 
+        // update heads
+        char *head = mem->local_ring_head(tid, dst_sid);
+        if (lmeta->head - * (uint64_t *)head > 8 * 1024) {
+            *(uint64_t *)head = lmeta->head;
+
+            // update to remote
+            if (sid != dst_sid) {
+                RDMA &rdma = RDMA::get_rdma();
+                uint64_t remote_head = mem->remote_ring_head_offset(tid, sid);
+                rdma.dev->RdmaWrite(tid, dst_sid, head, mem->remote_ring_head_size(), remote_head);
+            } else {
+                *(uint64_t *)mem->remote_ring_head(tid, sid) = lmeta->head;
+            }
+        }
+
         uint64_t t3 = timer::get_usec();
         return result;
+    }
+
+    inline bool rbf_full(int tid, int dst_sid, int dst_tid, uint64_t msg_sz) {
+        uint64_t rbf_sz = mem->ring_size();
+        uint64_t tail = rmetas[dst_sid * num_threads + dst_tid].tail;
+        uint64_t head = *(uint64_t *)mem->remote_ring_head(dst_tid, dst_sid);
+
+        return (rbf_sz < (tail - head + msg_sz));
     }
 
 public:
@@ -166,7 +189,7 @@ public:
 
     ~RDMA_Adaptor() { }  //TODO
 
-    void send(int tid, int dst_sid, int dst_tid, string str) {
+    bool send(int tid, int dst_sid, int dst_tid, string str) {
         assert(init);
 
         rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
@@ -179,10 +202,13 @@ public:
         uint64_t msg_sz = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
 
         assert(msg_sz < rbf_sz);
-        /// TODO: check overwriting (i.e., (tail + msg_sz) % rbf_sz >= head)
-        /// maintain a stale header for each remote ring buffer, and update it when may occur overwriting
 
         pthread_spin_lock(&rmeta->lock);
+        if (rbf_full(tid, dst_sid, dst_tid, msg_sz)) {
+            pthread_spin_unlock(&rmeta->lock);
+            return false;
+        }
+
         if (sid == dst_sid) { // local physical-queue
             uint64_t off = rmeta->tail;
             rmeta->tail += msg_sz;
@@ -218,13 +244,15 @@ public:
             RDMA &rdma = RDMA::get_rdma();
             uint64_t rdma_off = mem->ring_offset(dst_tid, sid);
             if (off / rbf_sz == (off + msg_sz - 1) / rbf_sz ) {
-                rdma.dev->RdmaWriteSelective(tid, dst_sid, mem->buffer(tid), msg_sz, rdma_off + (off % rbf_sz));
+                rdma.dev->RdmaWrite(tid, dst_sid, mem->buffer(tid), msg_sz, rdma_off + (off % rbf_sz));
             } else {
                 uint64_t _sz = rbf_sz - (off % rbf_sz);
-                rdma.dev->RdmaWriteSelective(tid, dst_sid, mem->buffer(tid), _sz, rdma_off + (off % rbf_sz));
-                rdma.dev->RdmaWriteSelective(tid, dst_sid, mem->buffer(tid) + _sz, msg_sz - _sz, rdma_off);
+                rdma.dev->RdmaWrite(tid, dst_sid, mem->buffer(tid), _sz, rdma_off + (off % rbf_sz));
+                rdma.dev->RdmaWrite(tid, dst_sid, mem->buffer(tid) + _sz, msg_sz - _sz, rdma_off);
             }
         }
+
+        return true;
     }
 
     std::string recv(int tid) {
