@@ -225,6 +225,8 @@ public:
     ProjectionModifier getProjectionModifier() const { return projectionModifier; }
     /// The size limit
     unsigned getLimit() const { return limit; }
+    /// Get the variableCount
+    unsigned getVariableCount() const { return variableCount; } 
 };
 //---------------------------------------------------------------------------
 

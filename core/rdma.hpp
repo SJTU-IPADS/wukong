@@ -37,11 +37,12 @@ using namespace rdmaio;
 
 class RDMA {
     class RDMA_Device {
+        static const uint64_t RDMA_CTRL_PORT = 19344;
     public:
         RdmaCtrl* ctrl = NULL;
 
-        RDMA_Device(int num_nodes, int num_threads, int nid, char *mem, uint64_t mem_sz, string ipfn) {
-
+        RDMA_Device(int nnodes, int nthds, int nid,
+                    char *mem, uint64_t sz, string ipfn) {
             // record IPs of ndoes
             vector<string> ipset;
             ifstream ipfile(ipfn);
@@ -49,76 +50,81 @@ class RDMA {
             while (ipfile >> ip)
                 ipset.push_back(ip);
 
-            // initialization of new librdma
-            // nid, ipset, port, thread_id-no use, enable single memory region
-            ctrl = new RdmaCtrl(nid, ipset, 19344, true);
+            // init device and create QPs
+            ctrl = new RdmaCtrl(nid, ipset, RDMA_CTRL_PORT, true); // enable single context
             ctrl->open_device();
-            ctrl->set_connect_mr(mem, mem_sz);
+            ctrl->set_connect_mr(mem, sz);
             ctrl->register_connect_mr();//single
             ctrl->start_server();
-            for (uint j = 0; j < num_threads; ++j) {
-                for (uint i = 0; i < num_nodes; ++i) {
+            for (uint j = 0; j < nthds; ++j) {
+                for (uint i = 0; i < nnodes; ++i) {
+                    // FIXME: statically use 1 device and 1 port
+                    //
+                    // devID: [0, #devs), portID: (0, #ports]
+                    // 0: always choose the 1st (RDMA) device
+                    // 1: always choose the 1st (RDMA) port
                     Qp *qp = ctrl->create_rc_qp(j, i, 0, 1);
                     assert(qp != NULL);
                 }
             }
 
+            // connect all QPs
             while (1) {
                 int connected = 0;
-                for (uint j = 0; j < num_threads; ++j) {
-                    for (uint i = 0; i < num_nodes; ++i) {
-                        Qp *qp = ctrl->create_rc_qp(j, i, 0, 1);
-                        if (qp->inited_) connected += 1;
-                        else {
-                            if (qp->connect_rc()) {
-                                connected += 1;
-                            }
-                        }
+                for (uint j = 0; j < nthds; ++j) {
+                    for (uint i = 0; i < nnodes; ++i) {
+                        Qp *qp = ctrl->get_rc_qp(j, i);
+
+                        if (qp->inited_) // has connected
+                            connected ++;
+                        else if (qp->connect_rc())
+                            connected ++;
                     }
                 }
-                if (connected == num_nodes * num_threads)
-                    break;
-                else
-                    sleep(1);
+
+                if (connected == nthds * nnodes) break; // done
             }
         }
 
-        // 0 on success, -1 otherwise
-        int RdmaRead(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t off) {
-            Qp* qp = ctrl->get_rc_qp(dst_tid, dst_nid);
-            qp->rc_post_send(IBV_WR_RDMA_READ, local, size, off, IBV_SEND_SIGNALED);
+        // (sync) RDMA Read (w/ completion)
+        int RdmaRead(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
+            Qp* qp = ctrl->get_rc_qp(tid, nid);
+
+            // sweep remaining completion events (due to selective RDMA writes)
             if (!qp->first_send())
                 qp->poll_completion();
+
+            qp->rc_post_send(IBV_WR_RDMA_READ, local, sz, off, IBV_SEND_SIGNALED);
             qp->poll_completion();
             return 0;
-            // return rdmaOp(dst_tid, dst_nid, local, size, off, IBV_WR_RDMA_READ);
         }
 
-        int RdmaWrite(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t off) {
-            Qp* qp = ctrl->get_rc_qp(dst_tid, dst_nid);
-            // int flags = (qp->first_send() ? IBV_SEND_SIGNALED : 0);
+        // (sync) RDMA Write (w/ completion)
+        int RdmaWrite(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
+            Qp* qp = ctrl->get_rc_qp(tid, nid);
+
             int flags = IBV_SEND_SIGNALED;
-            qp->rc_post_send(IBV_WR_RDMA_WRITE, local, size, off, flags);
-            // if(qp->need_poll())
+            qp->rc_post_send(IBV_WR_RDMA_WRITE, local, sz, off, flags);
             qp->poll_completion();
             return 0;
-            // return rdmaOp(dst_tid, dst_nid, local, size, off, IBV_WR_RDMA_WRITE);
         }
 
-        int RdmaWriteSelective(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t off) {
-            Qp* qp = ctrl->get_rc_qp(dst_tid, dst_nid);
-            int flags = (qp->first_send() ? IBV_SEND_SIGNALED : 0);
-            // int flags = IBV_SEND_SIGNALED;
-            qp->rc_post_send(IBV_WR_RDMA_WRITE, local, size, off, flags);
-            if (qp->need_poll()) qp->poll_completion();
-            return 0;
-            // return rdmaOp(dst_tid, dst_nid, local, size, off, IBV_WR_RDMA_WRITE);
-        }
-
-        int RdmaWriteNonSignal(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t off) {
-            Qp* qp = ctrl->get_rc_qp(dst_tid, dst_nid);
+        // (blind) RDMA Write (w/o completion)
+        int RdmaWriteNonSignal(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
+            Qp* qp = ctrl->get_rc_qp(tid, nid);
             int flags = 0;
-            qp->rc_post_send(IBV_WR_RDMA_WRITE, local, size, off, flags);
+            qp->rc_post_send(IBV_WR_RDMA_WRITE, local, sz, off, flags);
+            return 0;
+        }
+
+        // (adaptive) RDMA Write (w/o completion)
+        int RdmaWriteSelective(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
+            Qp* qp = ctrl->get_rc_qp(tid, nid);
+
+            int flags = (qp->first_send() ? IBV_SEND_SIGNALED : 0);
+            qp->rc_post_send(IBV_WR_RDMA_WRITE, local, sz, off, flags);
+            if (qp->need_poll())  // sweep all completion (batch)
+                qp->poll_completion();
             return 0;
         }
     };
@@ -130,8 +136,9 @@ public:
 
     ~RDMA() { if (dev != NULL) delete dev; }
 
-    void init_dev(int num_nodes, int num_threads, int nid, char *mem, uint64_t mem_sz, string ipfn) {
-        dev = new RDMA_Device(num_nodes, num_threads, nid, mem, mem_sz, ipfn);
+    void init_dev(int nnodes, int nthds, int nid,
+                  char *mem, uint64_t sz, string ipfn) {
+        dev = new RDMA_Device(nnodes, nthds, nid, mem, sz, ipfn);
     }
 
     inline static bool has_rdma() { return true; }
@@ -142,12 +149,13 @@ public:
     }
 };
 
-void RDMA_init(int num_nodes, int num_threads, int nid, char *mem, uint64_t mem_sz, string ipfn) {
+void RDMA_init(int nnodes, int nthds, int nid,
+               char *mem, uint64_t sz, string ipfn) {
     uint64_t t = timer::get_usec();
 
     // init RDMA device
     RDMA &rdma = RDMA::get_rdma();
-    rdma.init_dev(num_nodes, num_threads, nid, mem, mem_sz, ipfn);
+    rdma.init_dev(nnodes, nthds, nid, mem, sz, ipfn);
 
     t = timer::get_usec() - t;
     cout << "INFO: initializing RMDA done (" << t / 1000  << " ms)" << endl;
@@ -158,30 +166,30 @@ void RDMA_init(int num_nodes, int num_threads, int nid, char *mem, uint64_t mem_
 class RDMA {
     class RDMA_Device {
     public:
-        RDMA_Device(int num_nodes, int num_threads, int nid, char *mem, uint64_t mem_sz, string fname) {
+        RDMA_Device(int nnodes, int nthds, int nid, char *mem, uint64_t sz, string fname) {
             cout << "This system is compiled without RDMA support." << endl;
             assert(false);
         }
 
-        int RdmaRead(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t remote_offset) {
-            cout << "This system is compiled without RDMA support." << endl;
-            assert(false);
-            return 0;
-        }
-
-        int RdmaWrite(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t remote_offset) {
+        int RdmaRead(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
             cout << "This system is compiled without RDMA support." << endl;
             assert(false);
             return 0;
         }
 
-        int RdmaWriteSelective(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t remote_offset) {
+        int RdmaWrite(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
             cout << "This system is compiled without RDMA support." << endl;
             assert(false);
             return 0;
         }
 
-        int RdmaWriteNonSignal(int dst_tid, int dst_nid, char *local, uint64_t size, uint64_t off) {
+        int RdmaWriteNonSignal(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
+            cout << "This system is compiled without RDMA support." << endl;
+            assert(false);
+            return 0;
+        }
+
+        int RdmaWriteSelective(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
             cout << "This system is compiled without RDMA support." << endl;
             assert(false);
             return 0;
@@ -195,8 +203,8 @@ public:
 
     ~RDMA() { }
 
-    void init_dev(int num_nodes, int num_threads, int nid, char *mem, uint64_t mem_sz, string ipfn) {
-        dev = new RDMA_Device(num_nodes, num_threads, nid, mem, mem_sz, ipfn);
+    void init_dev(int nnodes, int nthds, int nid, char *mem, uint64_t sz, string ipfn) {
+        dev = new RDMA_Device(nnodes, nthds, nid, mem, sz, ipfn);
     }
 
     inline static bool has_rdma() { return false; }
@@ -207,7 +215,7 @@ public:
     }
 };
 
-void RDMA_init(int num_nodes, int num_threads, int nid, char *mem, uint64_t mem_sz, string ipfn) {
+void RDMA_init(int nnodes, int nthds, int nid, char *mem, uint64_t sz, string ipfn) {
     std::cout << "This system is compiled without RDMA support." << std::endl;
 }
 

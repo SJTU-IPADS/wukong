@@ -46,6 +46,12 @@ if(USE_HADOOP)
   target_link_libraries(wukong hdfs)
 endif(USE_HADOOP)
 
+#### Dynamic GStore
+option (USE_DYNAMIC_GSTORE "enable dynamic gstore" ON)
+if(USE_DYNAMIC_GSTORE)
+  add_definitions(-DDYNAMIC_GSTORE)
+endif(USE_DYNAMIC_GSTORE)
+
 #### Verstile queries (e.g., ?S ?P ?O)
 option (USE_VERSATILE "support versatile queries" OFF)
 if(USE_VERSATILE)

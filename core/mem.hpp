@@ -49,6 +49,20 @@ private:
 	uint64_t rbf_sz;
 	uint64_t rbf_off;
 
+	// NOTE: To maintain the head of remote ring buffer, the reciever
+	// actively pushes the head of (local) ring buffer to the (remote)
+	// sender by RDMA WRITE (rdma_adpator.lmeta.head > lrbf_hds > rrbf_hds).
+
+	// the head of local RDMA ring buffer (#thread x #servers)
+	char *lrbf_hd; // written and read by reciever (local)
+	uint64_t lrbf_hd_sz;
+	uint64_t lrbf_hd_off;
+
+	// the head of remote RDMA ring buffer (#thread x #servers)
+	char *rrbf_hd; // written by reciever (remote) and read by sender (local)
+	uint64_t rrbf_hd_sz;
+	uint64_t rrbf_hd_off;
+
 public:
 	Mem(int num_servers, int num_threads)
 		: num_servers(num_servers), num_threads(num_threads) {
@@ -64,7 +78,13 @@ public:
 			buf_sz = rbf_sz = 0;
 		}
 
-		mem_sz = kvs_sz + buf_sz * num_threads + rbf_sz * num_servers * num_threads;
+		lrbf_hd_sz = rrbf_hd_sz = sizeof(uint64_t);
+
+		mem_sz = kvs_sz
+		         + buf_sz * num_threads
+		         + rbf_sz * num_servers * num_threads
+		         + lrbf_hd_sz * num_servers * num_threads
+		         + rrbf_hd_sz * num_servers * num_threads;
 		mem = (char *)malloc(mem_sz);
 		memset(mem, 0, mem_sz);
 
@@ -73,8 +93,15 @@ public:
 
 		buf_off = kvs_off + kvs_sz;
 		buf = mem + buf_off;
+
 		rbf_off = buf_off + buf_sz * num_threads;
 		rbf = mem + rbf_off;
+
+		lrbf_hd_off = rbf_off + rbf_sz * num_servers * num_threads;
+		lrbf_hd = mem + lrbf_hd_off;
+
+		rrbf_hd_off = lrbf_hd_off + lrbf_hd_sz * num_servers * num_threads;
+		rrbf_hd =  mem + rrbf_hd_off;
 	}
 
 	~Mem() { free(mem); }
@@ -96,4 +123,22 @@ public:
 	inline char *ring(int tid, int sid) { return rbf + (rbf_sz * num_servers) * tid + rbf_sz * sid; }
 	inline uint64_t ring_size() { return rbf_sz; }
 	inline uint64_t ring_offset(int tid, int sid) { return rbf_off + (rbf_sz * num_servers) * tid + rbf_sz * sid; }
+
+	// head of local ring-buffer
+	inline char *local_ring_head(int tid, int sid) { return lrbf_hd + (lrbf_hd_sz * num_servers) * tid + lrbf_hd_sz * sid; }
+	inline uint64_t local_ring_head_size() { return lrbf_hd_sz; }
+	inline uint64_t local_ring_head_offset(int tid, int sid) { return lrbf_hd_off + (lrbf_hd_sz * num_servers) * tid + lrbf_hd_sz * sid; }
+
+	// head of remote ring-buffer
+	inline char *remote_ring_head(int tid, int sid) { return rrbf_hd + (rrbf_hd_sz * num_servers) * tid + rrbf_hd_sz * sid; }
+	inline uint64_t remote_ring_head_size() { return rrbf_hd_sz; }
+	inline uint64_t remote_ring_head_offset(int tid, int sid) { return rrbf_hd_off + (rrbf_hd_sz * num_servers) * tid + rrbf_hd_sz * sid; }
+
 }; // end of class Mem
+
+#define ADDR_PER_SRV(_addr, _sz, _tid) ((_addr) + ((_sz) * (_tid)));
+#define OFFSET_PER_SRV(_off, _sz, _tid) ((_off) + ((_sz) * (_tid)));
+
+#define ADDR_PER_TH(_addr, _sz, _tid, _sid) ((_addr) + (((_sz) * num_servers) * (_tid)) + ((_sz) * (_sid)));
+#define OFFSET_PER_TH(_off, _sz, _tid, _sid) ((_off) + (((_sz) * num_servers) * (_tid)) + ((_sz) * (_sid)));
+

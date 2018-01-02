@@ -214,7 +214,7 @@ private:
             req_template.ptypes_str.push_back(token.substr(1));
             return PTYPE_PH;
         } else {  // pattern constant
-            if (str_server->str2id.find(token) == str_server->str2id.end()) {
+            if (!str_server->exist(token)) {
                 strerror = "Unknown constant: " + token;
                 valid = false;
                 return DUMMY_ID;
@@ -262,6 +262,16 @@ private:
             req_template.cmd_chains.push_back(token2id(triple[1]));
             req_template.cmd_chains.push_back(d);
             req_template.cmd_chains.push_back(token2id(triple[2]));
+
+            /// FIXME: support unknown predicate/attributed (token2id(triple[1]) < 0)
+            int type = str_server->id2type[token2id(triple[1])];
+            if (type > 0 && (!global_enable_vattr)) {
+                cout << "Need to change config to enable vertex_attr " << endl;
+                assert(false);
+            }
+            req_template.pred_type_chains.push_back(type);
+
+            req_template.nvars = pvars.size();
         }
 
         // insert a new CORUN pattern
@@ -279,6 +289,7 @@ private:
 
                 req_template.cmd_chains.insert(req_template.cmd_chains.begin() + corun_step * 4,
                                                corun_pattern.begin(), corun_pattern.end());
+                req_template.pred_type_chains.insert(req_template.pred_type_chains.begin() + corun_step, 0);
             }
         }
 
@@ -314,7 +325,7 @@ private:
         case SPARQLParser::Element::IRI:
         {
             string strIRI = "<" + element.value + ">" ;
-            if (str_server->str2id.find(strIRI) == str_server->str2id.end()) {
+            if (!str_server->exist(strIRI)) {
                 cout << "Unknown IRI: " + strIRI << endl;
                 return DUMMY_ID;
             }
@@ -329,6 +340,7 @@ private:
     }
     void _H_simplist_transfer(const SPARQLParser &parser, request_or_reply &r) {
         vector<ssid_t> temp_cmd_chains ;
+        vector<int> temp_pred_type_chains;
         SPARQLParser::PatternGroup group = parser.getPatterns();
         for (std::vector<SPARQLParser::Pattern>::const_iterator iter = group.patterns.begin(),
                 limit = group.patterns.end(); iter != limit; ++iter) {
@@ -336,8 +348,18 @@ private:
             temp_cmd_chains.push_back(_H_encode(iter->predicate));
             temp_cmd_chains.push_back(OUT);
             temp_cmd_chains.push_back(_H_encode(iter->object));
+
+            int type =  str_server->id2type[_H_encode(iter->predicate)];
+            if (type > 0 && (!global_enable_vattr)) {
+                cout << "Need to change config to enable vertex_attr " << endl;
+                assert(false);
+            }
+            temp_pred_type_chains.push_back(str_server->id2type[_H_encode(iter->predicate)]);
         }
         r.cmd_chains = temp_cmd_chains;
+        r.pred_type_chains = temp_pred_type_chains;
+        // init the var_map
+        r.nvars = parser.getVariableCount();
     }
 
     void _H_push(const SPARQLParser::Element &element, request_template &r, int pos) {
@@ -359,7 +381,17 @@ private:
             r.cmd_chains.push_back(_H_encode(iter->predicate)); pos++;
             r.cmd_chains.push_back(OUT); pos++;
             _H_push(iter->object, r, pos++);
+
+            int type =  str_server->id2type[_H_encode(iter->predicate)];
+            if (type > 0 && (!global_enable_vattr)) {
+                cout << "Need to change config to enable vertex_attr " << endl;
+                assert(false);
+            }
+            r.pred_type_chains.push_back(type);
         }
+
+        // set the number of variables in triple patterns
+        r.nvars = parser.getVariableCount();
     }
     bool _H_do_parse(istream &is, request_or_reply &r) {
         string query = read_input(is);
@@ -425,11 +457,14 @@ public:
                 return false;
 
             if (req_template.ptypes_pos.size() != 0) {
-                cout << "ERROR: there is unsupported tempate pattern." << endl;
+                cout << "ERROR: there is unsupported template pattern." << endl;
                 return false;
             }
 
             r.cmd_chains = req_template.cmd_chains;
+            r.pred_type_chains = req_template.pred_type_chains;
+            //init the var map in the req
+            r.nvars = req_template.nvars;
             return true;
         }
     }
@@ -468,6 +503,9 @@ public:
         r.cmd_chains.push_back(TYPE_ID);  // reserved ID for "rdf:type"
         r.cmd_chains.push_back(IN);
         r.cmd_chains.push_back(-1);
+
+        r.pred_type_chains.push_back(0);
+        r.nvars = 1;
         return true;
     }
 
