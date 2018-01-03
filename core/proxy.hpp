@@ -41,8 +41,6 @@
 
 using namespace std;
 
-#define PARALLEL_FACTOR 20
-
 
 // a vector of pointers of all local proxies
 class Proxy;
@@ -239,16 +237,19 @@ public:
 		return 0; // success
 	}
 
-	int run_batch_query(istream &is, int d, int w, int s, Logger &logger) {
+	int run_batch_query(istream &is, int d, int w, int s, int p, Logger &logger) {
 		uint64_t duration = SEC(d);
 		uint64_t warmup = SEC(w);
 		uint64_t sleep = USEC(s);
+		int parallel_factor = p;
+		int try_rounds = 5;
 
 		int ntypes;
-		int nqueries;
-		int try_rounds = 1;
-
-		is >> ntypes >> try_rounds;
+		is >> ntypes;
+		if (ntypes <= 0) {
+			cout << "[ERROR] invalid #query_types! (" << ntypes << " < 0)" << endl;
+			return -2; // parsing failed
+		}
 
 		vector<request_template> tpls(ntypes);
 		vector<int> loads(ntypes);
@@ -283,7 +284,7 @@ public:
 		uint64_t init = timer::get_usec();
 		while ((timer::get_usec() - init) < duration) {
 			// send requests
-			for (int t = 0; t < PARALLEL_FACTOR; t++) {
+			for (int t = 0; t < parallel_factor; t++) {
 				sweep_msgs(); // sweep pending msgs first
 
 				int idx = mymath::get_distribution(coder.get_random(), loads);
@@ -301,6 +302,8 @@ public:
 
 			// recieve replies (best of effort)
 			for (int i = 0; i < try_rounds; i++) {
+				usleep(sleep / try_rounds);
+
 				request_or_reply r;
 				while (bool success = tryrecv_reply(r)) {
 					recv_cnt++;
@@ -315,8 +318,6 @@ public:
 				logger.start_thpt(recv_cnt);
 				timing = true;
 			}
-
-			usleep(sleep);
 		}
 		logger.end_thpt(recv_cnt);
 

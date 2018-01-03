@@ -249,7 +249,8 @@ next:
 				}
 			} else if (token == "sparql") { // handle SPARQL queries
 				string fname, bfname, ofname;
-				int cnt = 1, nlines = 0, duration = 10, warmup = 5, sleep = 0;
+				int cnt = 1, nlines = 0;
+				int duration = 10, warmup = 5, sleep = 500, parallel_factor = 20;
 				bool f_enable = false, b_enable = false, o_enable = false;
 
 				// parse parameters
@@ -273,6 +274,8 @@ next:
 						cmd_ss >> warmup;
 					} else if (token == "-s") {
 						cmd_ss >> sleep;
+					} else if (token == "-p") {
+						cmd_ss >> parallel_factor;
 					} else {
 						goto failed;
 					}
@@ -285,18 +288,18 @@ next:
 					if (IS_MASTER(proxy)) {
 						ifstream ifs(fname);
 						if (!ifs.good()) {
-							cout << "Query file not found: " << fname << endl;
+							cout << "[ERROR] Query file not found: " << fname << endl;
 							continue ;
 						}
 
 						if (global_silent) {
 							if (nlines > 0) {
-								cout << "Can't print results (-v) with global_silent." << endl;
+								cout << "[ERROR] Can't print results (-v) with global_silent." << endl;
 								continue;
 							}
 
 							if (o_enable) {
-								cout << "Can't output results (-o) with global_silent." << endl;
+								cout << "[ERROR] Can't output results (-o) with global_silent." << endl;
 								continue;
 							}
 						}
@@ -339,6 +342,14 @@ next:
 							continue;
 						}
 
+						if (duration <= 0 || warmup < 0 || sleep < 0
+						        || parallel_factor <= 0) {
+							cout << "[ERROR] invalid parameters for batch mode! "
+							     << "(duration=" << duration << ", warmup=" << warmup << ", sleep=" << sleep
+							     << ", parallel_factor=" << parallel_factor << ")" << endl;
+							continue;
+						}
+
 						if (duration <= warmup) {
 							cout << "Duration time (" << duration
 							     << "sec) is less than warmup time ("
@@ -346,7 +357,7 @@ next:
 							continue;
 						}
 
-						proxy->run_batch_query(ifs, duration, warmup, sleep, logger);
+						proxy->run_batch_query(ifs, duration, warmup, sleep, parallel_factor, logger);
 					}
 
 					// FIXME: maybe hang in here if the input file misses in some machines
