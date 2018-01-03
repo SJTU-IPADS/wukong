@@ -140,18 +140,27 @@ main(int argc, char *argv[])
 	// launch proxy and engine threads
 	assert(global_num_threads == global_num_proxies + global_num_engines);
 	pthread_t *threads  = new pthread_t[global_num_threads];
+	// push back all proxies and engines
 	for (int tid = 0; tid < global_num_threads; tid++) {
 		Adaptor *adaptor = new Adaptor(tid, tcp_adaptor, rdma_adaptor);
 
 		// TID: proxy = [0, #proxies), engine = [#proxies, #proxies + #engines)
 		if (tid < global_num_proxies) {
 			Proxy *proxy = new Proxy(sid, tid, &str_server, adaptor, &stat);
-			pthread_create(&(threads[tid]), NULL, proxy_thread, (void *)proxy);
 			proxies.push_back(proxy);
 		} else {
 			Engine *engine = new Engine(sid, tid, &dgraph, adaptor);
-			pthread_create(&(threads[tid]), NULL, engine_thread, (void *)engine);
 			engines.push_back(engine);
+		}
+	}
+
+	// create and run all proxies and engines
+	for (int tid = 0; tid < global_num_threads; tid++) {
+		// TID: proxy = [0, #proxies), engine = [#proxies, #proxies + #engines)
+		if (tid < global_num_proxies) {
+			pthread_create(&(threads[tid]), NULL, proxy_thread, (void *)proxies[tid]);
+		} else {
+			pthread_create(&(threads[tid]), NULL, engine_thread, (void *)engines[tid - global_num_proxies]);
 		}
 	}
 
