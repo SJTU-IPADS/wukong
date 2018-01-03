@@ -44,21 +44,21 @@ private:
 
     struct Item {
         int count;
-        request_or_reply parent_request;
-        request_or_reply merged_reply;
+        Request parent_request;
+        Request merged_reply;
     };
 
     boost::unordered_map<int, Item> internal_item_map;
 
 public:
-    void put_parent_request(request_or_reply &r, int cnt) {
+    void put_parent_request(Request &r, int cnt) {
         Item data;
         data.count = cnt;
         data.parent_request = r;
         internal_item_map[r.id] = data;
     }
 
-    void put_reply(request_or_reply &r) {
+    void put_reply(Request &r) {
         int pid = r.pid;
         Item &data = internal_item_map[pid];
 
@@ -84,9 +84,9 @@ public:
         return internal_item_map[pid].count == 0;
     }
 
-    request_or_reply get_merged_reply(int pid) {
-        request_or_reply r = internal_item_map[pid].parent_request;
-        request_or_reply &merged_reply = internal_item_map[pid].merged_reply;
+    Request get_merged_reply(int pid) {
+        Request r = internal_item_map[pid].parent_request;
+        Request &merged_reply = internal_item_map[pid].merged_reply;
 
         r.step = merged_reply.step;
         r.col_num = merged_reply.col_num;
@@ -124,14 +124,14 @@ private:
     public:
         int sid;
         int tid;
-        request_or_reply r;
+        Request r;
 
-        Message(int sid, int tid, request_or_reply &r)
+        Message(int sid, int tid, Request &r)
             : sid(sid), tid(tid), r(r) { }
     };
 
     pthread_spinlock_t recv_lock;
-    std::vector<request_or_reply> msg_fast_path;
+    std::vector<Request> msg_fast_path;
 
     Reply_Map rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
@@ -149,7 +149,7 @@ private:
                 ++it;
     }
 
-    bool send_request(request_or_reply &r, int dst_sid, int dst_tid) {
+    bool send_request(Request &r, int dst_sid, int dst_tid) {
         if (adaptor->send(dst_sid, dst_tid, r))
             return true;
 
@@ -158,10 +158,10 @@ private:
         return false;
     }
 
-    void const_to_known(request_or_reply &req) { assert(false); } /// TODO
+    void const_to_known(Request &req) { assert(false); } /// TODO
 
     // all of these means const predicate
-    void const_to_unknown(request_or_reply &req) {
+    void const_to_unknown(Request &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -183,7 +183,7 @@ private:
     }
 
     // all of these means const attribute
-    void const_to_unknown_attr(request_or_reply & req ) {
+    void const_to_unknown_attr(Request & req ) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t aid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -205,7 +205,7 @@ private:
     }
 
 
-    void known_to_unknown(request_or_reply &req) {
+    void known_to_unknown(Request &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -232,7 +232,7 @@ private:
         req.step++;
     }
 
-    void known_to_unknown_attr(request_or_reply &req) {
+    void known_to_unknown_attr(Request &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -264,7 +264,7 @@ private:
         req.step++;
     }
 
-    void known_to_known(request_or_reply &req) {
+    void known_to_known(Request &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -293,7 +293,7 @@ private:
         req.step++;
     }
 
-    void known_to_const(request_or_reply &req) {
+    void known_to_const(Request &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -321,7 +321,7 @@ private:
         req.step++;
     }
 
-    void index_to_unknown(request_or_reply &req) {
+    void index_to_unknown(Request &req) {
         ssid_t tpid  = req.cmd_chains[req.step * 4];
         ssid_t id01 = req.cmd_chains[req.step * 4 + 1];
         dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -346,7 +346,7 @@ private:
     }
 
     // e.g., "<http://www.Department0.University0.edu> ?P ?X"
-    void const_unknown_unknown(request_or_reply &req) {
+    void const_unknown_unknown(Request &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -383,7 +383,7 @@ private:
 
     // e.g., "<http://www.University0.edu> ub:subOrganizationOf ?D"
     //       "?D ?P ?X"
-    void known_unknown_unknown(request_or_reply &req) {
+    void known_unknown_unknown(Request &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -420,7 +420,7 @@ private:
     }
 
     // FIXME: deadcode
-    void known_unknown_const(request_or_reply &req) {
+    void known_unknown_const(Request &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -457,12 +457,12 @@ private:
         req.step++;
     }
 
-    vector<request_or_reply> generate_sub_query(request_or_reply &req) {
+    vector<Request> generate_sub_query(Request &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
 
         // generate sub requests for all servers
-        vector<request_or_reply> sub_reqs(global_num_servers);
+        vector<Request> sub_reqs(global_num_servers);
         for (int i = 0; i < global_num_servers; i++) {
             sub_reqs[i].pid = req.id;
             sub_reqs[i].cmd_chains = req.cmd_chains;
@@ -486,7 +486,7 @@ private:
     }
 
     // fork-join or in-place execution
-    bool need_fork_join(request_or_reply &req) {
+    bool need_fork_join(Request &req) {
         // always need fork-join mode w/o RDMA
         if (!global_use_rdma) return true;
 
@@ -495,7 +495,7 @@ private:
                 && (req.get_row_num() >= global_rdma_threshold));
     }
 
-    void do_corun(request_or_reply &req) {
+    void do_corun(Request &req) {
         int corun_step = req.step + 1;
         int fetch_step = req.cmd_chains[req.step * 4 + 3];
 
@@ -537,7 +537,7 @@ private:
         }
 
         // step.3 make sub-req
-        request_or_reply sub_req;
+        Request sub_req;
 
         // query
         sub_req.cmd_chains = sub_chain;
@@ -614,7 +614,7 @@ private:
         req.step = fetch_step;
     }
 
-    bool execute_one_step(request_or_reply &req) {
+    bool execute_one_step(Request &req) {
         if (req.is_finished())
             return false;
 
@@ -715,7 +715,7 @@ private:
         return true;
     }
 
-    void execute_request(request_or_reply &r) {
+    void execute_request(Request &r) {
         r.id = coder.get_and_inc_qid();
         while (true) {
             uint64_t t1 = timer::get_usec();
@@ -736,7 +736,7 @@ private:
             }
 
             if (need_fork_join(r)) {
-                vector<request_or_reply> sub_reqs = generate_sub_query(r);
+                vector<Request> sub_reqs = generate_sub_query(r);
                 rmap.put_parent_request(r, sub_reqs.size());
                 for (int i = 0; i < sub_reqs.size(); i++) {
                     if (i != sid) {
@@ -753,11 +753,11 @@ private:
         return;
     }
 
-    void execute_reply(request_or_reply &r, Engine *engine) {
+    void execute_reply(Request &r, Engine *engine) {
         pthread_spin_lock(&engine->rmap_lock);
         engine->rmap.put_reply(r);
         if (engine->rmap.is_ready(r.pid)) {
-            request_or_reply reply = engine->rmap.get_merged_reply(r.pid);
+            Request reply = engine->rmap.get_merged_reply(r.pid);
             pthread_spin_unlock(&engine->rmap_lock);
 
             send_request(reply, coder.sid_of(reply.pid), coder.tid_of(reply.pid));
@@ -767,13 +767,13 @@ private:
     }
 
 #if DYNAMIC_GSTORE
-    void execute_load_data(request_or_reply &r) {
+    void execute_load_data(Request &r) {
         r.load_ret = graph->dynamic_load_data(r.load_dname);
         send_request(r, coder.sid_of(r.pid), coder.tid_of(r.pid));
     }
 #endif
 
-    void execute(request_or_reply &r, Engine *engine) {
+    void execute(Request &r, Engine *engine) {
         if (r.type == SPARQL_QUERY) {
             if (r.is_request())
                 execute_request(r);
@@ -817,7 +817,7 @@ public:
 
         int send_wait_cnt = 0;
         while (true) {
-            request_or_reply r;
+            Request r;
             bool success;
 
             // fast path
