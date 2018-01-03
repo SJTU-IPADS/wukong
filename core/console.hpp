@@ -319,10 +319,10 @@ next:
 								     << "         with global_load_minimal_index enabled." << endl;
 
 							if (nlines > 0)
-								proxy->print_result(reply, min(reply.row_num, nlines));
+								reply.print_result(min(reply.row_num, nlines), proxy->str_server);
 
 							if (o_enable)
-								proxy->dump_result(reply, ofname);
+								reply.dump_result(ofname, reply.row_num, proxy->str_server);
 						}
 					}
 				}

@@ -57,6 +57,26 @@ int ext2col(int ext) { return (ext & ((1 << NBITS_COL) - 1)); }
 enum req_type { SPARQL_QUERY, DYNAMIC_LOAD };
 
 class request_or_reply {
+private:
+    void output_result(ostream &stream, int size, String_Server *str_server) {
+        for (int i = 0; i < size; i++) {
+            stream << i + 1 << ": ";
+            for (int c = 0; c < col_num; c++) {
+                int id = this->get_row_col(i, c);
+                if (str_server->exist(id)) {
+                    stream << str_server->id2str[id] << "\t";
+                }
+                else {
+                    stream << id << "\t";
+                }
+            }
+            for (int c = 0; c < this->get_attr_col_num(); c++) {
+                attr_t tmp = this->get_attr_row_col(i, c);
+                cout << tmp << "\t";
+            }
+            stream << endl;
+        }
+    }
 
 public:
     int id = -1;     // query id
@@ -221,6 +241,28 @@ public:
         for (int c = 0; c < attr_col_num; c++)
             updated_result_table.push_back(get_attr_row_col(r, c));
     }
+
+    void print_result(int row2print, String_Server *str_server) {
+		cout << "The first " << row2print << " rows of results: " << endl;
+		output_result(cout, row2print, str_server);
+	}
+
+	void dump_result(string path, int row2print, String_Server *str_server) {
+        if (boost::starts_with(path, "hdfs:")) {
+            wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
+            wukong::hdfs::fstream ofs(hdfs, path, true);
+            output_result(ofs, row2print, str_server);
+            ofs.close();
+        } else {
+            ofstream ofs(path);
+            if (!ofs.good()) {
+				cout << "Can't open/create output file: " << path << endl;
+			} else {
+                output_result(ofs, row2print, str_server);
+                ofs.close();
+            }
+        }
+	}
 };
 
 class request_template {
