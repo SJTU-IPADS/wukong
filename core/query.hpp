@@ -56,7 +56,7 @@ int ext2col(int ext) { return (ext & ((1 << NBITS_COL) - 1)); }
 
 enum req_type { SPARQL_QUERY, DYNAMIC_LOAD };
 
-class request_or_reply {
+class Request {
 
 public:
     int id = -1;     // query id
@@ -93,10 +93,10 @@ public:
     int load_ret = 0;
 #endif
 
-    request_or_reply() { }
+    Request() { }
 
     // build a request by existing triple patterns and variables
-    request_or_reply(vector<ssid_t> cc, int n, vector<int> p)
+    Request(vector<ssid_t> cc, int n, vector<int> p)
         : cmd_chains(cc), nvars(n), pred_type_chains(p) {
         v2c_map.resize(n, NO_RESULT);
     }
@@ -237,10 +237,10 @@ public:
     vector<string> ptypes_str; // the Types of random-constants
     vector<vector<sid_t>> ptypes_grp; // the candidates for random-constants
 
-    request_or_reply instantiate(int seed) {
+    Request instantiate(int seed) {
         for (int i = 0; i < ptypes_pos.size(); i++)
             cmd_chains[ptypes_pos[i]] =
                 ptypes_grp[i][seed % ptypes_grp[i].size()];
-        return request_or_reply(cmd_chains, nvars, pred_type_chains);
+        return Request(cmd_chains, nvars, pred_type_chains);
     }
 };

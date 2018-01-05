@@ -43,7 +43,7 @@ public:
 
     ~Adaptor() { }
 
-    bool send(int dst_sid, int dst_tid, request_or_reply &r) {
+    bool send(int dst_sid, int dst_tid, Request &r) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
 
@@ -56,7 +56,7 @@ public:
         }
     }
 
-    request_or_reply recv() {
+    Request recv() {
         std::string str;
         if (global_use_rdma && rdma->init) {
             str = rdma->recv(tid);
@@ -68,12 +68,12 @@ public:
         ss << str;
 
         boost::archive::binary_iarchive ia(ss);
-        request_or_reply r;
+        Request r;
         ia >> r;
         return r;
     }
 
-    bool tryrecv(request_or_reply &r) {
+    bool tryrecv(Request &r) {
         std::string str;
         if (global_use_rdma && rdma->init) {
             if (!rdma->tryrecv(tid, str)) return false;
