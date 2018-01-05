@@ -51,8 +51,7 @@ public:
         if (global_use_rdma && rdma->init) {
             return rdma->send(tid, dst_sid, dst_tid, ss.str());
         } else {
-            tcp->send(dst_sid, dst_tid, ss.str());
-            return true;
+            return tcp->send(dst_sid, dst_tid, ss.str());
         }
     }
 
