@@ -691,6 +691,8 @@ public:
 			     << " at server " << sid << endl;
 		}
 
+		gstore.flush_cache();
+
 		return 0;
 	}
 #endif
