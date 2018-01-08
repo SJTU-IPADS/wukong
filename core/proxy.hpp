@@ -199,12 +199,14 @@ public:
 	bool tryrecv_reply(SPARQLRequest &r) {
 		Bundle bundle;
 		bool success = adaptor->tryrecv(bundle);
-		assert(bundle.type == SPARQL_QUERY);
-		r = bundle.getSPARQLRequest();
-		if (success && r.start_from_index()) {
-			// TODO: avoid parallel submit for try recieve mode
-			cout << "Unsupport try recieve parallel query now!" << endl;
-			assert(false);
+		if(success){
+			assert(bundle.type == SPARQL_QUERY);
+			r = bundle.getSPARQLRequest();
+
+			if(r.start_from_index()){
+				cout << "Unsupport try recieve parallel query now!" << endl;
+				assert(false);
+			}
 		}
 
 		return success;
