@@ -730,8 +730,8 @@ private:
                 r.row_num = r.get_row_num();
                 if (r.blind)
                     r.clear_data(); // avoid take back the results
-
-                send_request(r, coder.sid_of(r.pid), coder.tid_of(r.pid));
+                Bundle bundle(r);
+                send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
                 return;
             }
 
@@ -740,7 +740,8 @@ private:
                 rmap.put_parent_request(r, sub_reqs.size());
                 for (int i = 0; i < sub_reqs.size(); i++) {
                     if (i != sid) {
-                        send_request(sub_reqs[i], i, tid);
+                        Bundle bundle(sub_reqs[i]);
+                        send_request(bundle, i, tid);
                     } else {
                         pthread_spin_lock(&recv_lock);
                         msg_fast_path.push_back(sub_reqs[i]);
@@ -759,8 +760,8 @@ private:
         if (engine->rmap.is_ready(r.pid)) {
             SPARQLRequest reply = engine->rmap.get_merged_reply(r.pid);
             pthread_spin_unlock(&engine->rmap_lock);
-
-            send_request(reply, coder.sid_of(reply.pid), coder.tid_of(reply.pid));
+            Bundle bundle(reply);
+            send_request(bundle, coder.sid_of(reply.pid), coder.tid_of(reply.pid));
         } else {
             pthread_spin_unlock(&engine->rmap_lock);
         }
@@ -769,11 +770,12 @@ private:
 #if DYNAMIC_GSTORE
     void execute_load_data(DynamicLoadRequest &r) {
         r.load_ret = graph->dynamic_load_data(r.load_dname);
-        send_request(r, coder.sid_of(r.pid), coder.tid_of(r.pid));
+        Bundle bundle(r);
+        send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
     }
 #endif
 
-    void execute_sparql_request(SPARQLRequest &r){
+    void execute_sparql_request(SPARQLRequest &r, Engine *engine){
         if (r.is_request())
             execute_request(r);
         else
@@ -783,7 +785,7 @@ private:
     void execute(Bundle &bundle, Engine *engine) {
         if (bundle.type == SPARQL_QUERY) {
             SPARQLRequest r = bundle.getSPARQLRequest();
-            execute_sparql_request(r);
+            execute_sparql_request(r, engine);
         }
 #if DYNAMIC_GSTORE
         else if (bundle.type == DYNAMIC_LOAD)
