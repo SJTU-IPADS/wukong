@@ -690,8 +690,9 @@ public:
 			cout << "[INFO] load " << cnt << " attributes from file " << afiles[i]
 			     << " at server " << sid << endl;
 		}
-
-		gstore.flush_cache();
+		
+		if(global_enable_caching)
+			gstore.flush_cache();
 
 		return 0;
 	}
