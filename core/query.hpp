@@ -333,7 +333,7 @@ public:
         return result;
     }
 
-    SPARQLRequest getDynamicLoadRequest() {
+    DynamicLoadRequest getDynamicLoadRequest() {
         assert(type == DYNAMIC_LOAD);
         std::stringstream ss;
         ss << data;
