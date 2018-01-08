@@ -92,7 +92,7 @@ public:
 
     string ip_of(int sid) { return ipset[sid]; }
 
-    void send(int sid, int tid, string str) {
+    bool send(int sid, int tid, string str) {
         int pid = port_code(sid, tid);
 
         // new socket if needed
@@ -106,8 +106,9 @@ public:
 
         zmq::message_t msg(str.length());
         memcpy((void *)msg.data(), str.c_str(), str.length());
-        senders[pid]->send(msg);
+        bool result = senders[pid]->send(msg, ZMQ_DONTWAIT);
         pthread_spin_unlock(&locks[tid]);
+        return result;
     }
 
     string recv(int tid) {
