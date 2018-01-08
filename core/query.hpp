@@ -56,7 +56,7 @@ int ext2col(int ext) { return (ext & ((1 << NBITS_COL) - 1)); }
 
 enum req_type { SPARQL_QUERY, DYNAMIC_LOAD };
 
-class request_or_reply {
+class Request {
 private:
     void output_result(ostream &stream, int size, String_Server *str_server) {
         for (int i = 0; i < size; i++) {
@@ -77,7 +77,6 @@ private:
             stream << endl;
         }
     }
-
 public:
     int id = -1;     // query id
     int pid = -1;    // parqnt query id
@@ -113,10 +112,10 @@ public:
     int load_ret = 0;
 #endif
 
-    request_or_reply() { }
+    Request() { }
 
     // build a request by existing triple patterns and variables
-    request_or_reply(vector<ssid_t> cc, int n, vector<int> p)
+    Request(vector<ssid_t> cc, int n, vector<int> p)
         : cmd_chains(cc), nvars(n), pred_type_chains(p) {
         v2c_map.resize(n, NO_RESULT);
     }
@@ -243,11 +242,11 @@ public:
     }
 
     void print_result(int row2print, String_Server *str_server) {
-		cout << "The first " << row2print << " rows of results: " << endl;
-		output_result(cout, row2print, str_server);
-	}
+        cout << "The first " << row2print << " rows of results: " << endl;
+        output_result(cout, row2print, str_server);
+    }
 
-	void dump_result(string path, int row2print, String_Server *str_server) {
+    void dump_result(string path, int row2print, String_Server *str_server) {
         if (boost::starts_with(path, "hdfs:")) {
             wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
             wukong::hdfs::fstream ofs(hdfs, path, true);
@@ -256,13 +255,13 @@ public:
         } else {
             ofstream ofs(path);
             if (!ofs.good()) {
-				cout << "Can't open/create output file: " << path << endl;
-			} else {
+                cout << "Can't open/create output file: " << path << endl;
+            } else {
                 output_result(ofs, row2print, str_server);
                 ofs.close();
             }
         }
-	}
+    }
 };
 
 class request_template {
@@ -279,10 +278,10 @@ public:
     vector<string> ptypes_str; // the Types of random-constants
     vector<vector<sid_t>> ptypes_grp; // the candidates for random-constants
 
-    request_or_reply instantiate(int seed) {
+    Request instantiate(int seed) {
         for (int i = 0; i < ptypes_pos.size(); i++)
             cmd_chains[ptypes_pos[i]] =
                 ptypes_grp[i][seed % ptypes_grp[i].size()];
-        return request_or_reply(cmd_chains, nvars, pred_type_chains);
+        return Request(cmd_chains, nvars, pred_type_chains);
     }
 };
