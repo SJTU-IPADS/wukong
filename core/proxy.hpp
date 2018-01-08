@@ -161,7 +161,8 @@ public:
 			for (int i = 0; i < global_num_servers; i++) {
 				for (int j = 0; j < global_mt_threshold; j++) {
 					r.tid = j; // specified engine
-					send(Bundle(r), i, global_num_proxies + j);
+					Bundle bundle(r);
+					send(bundle, i, global_num_proxies + j);
 				}
 			}
 			return;
@@ -169,7 +170,8 @@ public:
 
 		// submit the request to a certain server
 		int start_sid = mymath::hash_mod(r.cmd_chains[0], global_num_servers);
-		send(Bundle(r), start_sid);
+		Bundle bundle(r);
+		send(bundle, start_sid);
 	}
 
 	SPARQLRequest recv_reply(void) {
@@ -313,11 +315,10 @@ public:
 			for (int i = 0; i < try_rounds; i++) {
 				usleep(sleep / try_rounds);
 
-				Bundle bundle;
-				while (bool success = tryrecv_reply(bundle)) {
+				SPARQLRequest r;
+				while (bool success = tryrecv_reply(r)) {
 					recv_cnt++;
-					assert(bundle.type == SPARQL_QUERY);
-					logger.end_record(bundle.getSPARQLRequest().pid);
+					logger.end_record(r.pid);
 				}
 			}
 
@@ -334,11 +335,10 @@ public:
 		// recieve all replies to calculate the tail latency
 		while (recv_cnt < send_cnt) {
 			sweep_msgs();
-			Bundle bundle;
-			if (tryrecv_reply(bundle)) {
+			SPARQLRequest r;
+			if (tryrecv_reply(r)) {
 				recv_cnt ++;
-				assert(bundle.type == SPARQL_QUERY);
-				logger.end_record(bundle.getSPARQLRequest().pid);
+				logger.end_record(r.pid);
 			}
 
 			logger.print_timely_thpt(recv_cnt, sid, tid);
@@ -359,7 +359,8 @@ public:
 		logger.init();
 		setpid(request);
 		for (int i = 0; i < global_num_servers; i++) {
-			send(Bundle(request), i);
+			Bundle bundle(request);
+			send(bundle, i);
 		}
 
 		int ret = 0;
