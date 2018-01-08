@@ -53,10 +53,10 @@ private:
 	public:
 		int sid;
 		int tid;
-		SPARQLRequest r;
+		Bundle bundle;
 
-		Message(int sid, int tid, SPARQLRequest &r)
-			: sid(sid), tid(tid), r(r) { }
+		Message(int sid, int tid, Bundle &bundle)
+			: sid(sid), tid(tid), bundle(bundle) { }
 	};
 
 	vector<Message> pending_msgs;
@@ -66,7 +66,7 @@ private:
 		for (int i = 0; i < req_template.ptypes_str.size(); i++) {
 			string type = req_template.ptypes_str[i]; // the Types of random-constant
 
-			Request type_request, type_reply;
+			SPARQLRequest type_request, type_reply;
 
 			// a TYPE query to collect constants with the certain type
 			if (!parser.add_type_pattern(type, type_request)) {
@@ -93,15 +93,15 @@ private:
 		}
 	}
 
-	inline bool send(Request &r, int dst_sid, int dst_tid) {
-		if (adaptor->send(dst_sid, dst_tid, r))
+	inline bool send(Bundle &bundle, int dst_sid, int dst_tid) {
+		if (adaptor->send(dst_sid, dst_tid, bundle))
 			return true;
 
-		pending_msgs.push_back(Message(dst_sid, dst_tid, r));
+		pending_msgs.push_back(Message(dst_sid, dst_tid, bundle));
 		return false;
 	}
 
-	inline bool send(Request &r, int dst_sid) {
+	inline bool send(Bundle &bundle, int dst_sid) {
 		// NOTE: the partitioned mapping has better tail latency in batch mode
 		int range = global_num_engines / global_num_proxies;
 		// FIXME: BUG if global_num_engines < global_num_proxies
@@ -113,10 +113,10 @@ private:
 
 		// If the preferred engine is busy, try the rest engines with round robin
 		for (int i = 0; i < range; i++)
-			if (adaptor->send(dst_sid, base + (dst_eid + i) % range, r))
+			if (adaptor->send(dst_sid, base + (dst_eid + i) % range, bundle))
 				return true;
 
-		pending_msgs.push_back(Message(dst_sid, (base + dst_eid), r));
+		pending_msgs.push_back(Message(dst_sid, (base + dst_eid), bundle));
 		return false;
 	}
 
@@ -125,7 +125,7 @@ private:
 
 		cout << "[INFO]#" << tid << " " << pending_msgs.size() << " pending msgs on proxy." << endl;
 		for (vector<Message>::iterator it = pending_msgs.begin(); it != pending_msgs.end();) {
-			if (adaptor->send(it->sid, it->tid, it->r))
+			if (adaptor->send(it->sid, it->tid, it->bundle))
 				it = pending_msgs.erase(it);
 			else
 				++it;
@@ -149,7 +149,9 @@ public:
 		: sid(sid), tid(tid), str_server(str_server), adaptor(adaptor),
 		  coder(sid, tid), parser(str_server), statistic(statistic) { }
 
-	void setpid(Request &r) { r.pid = coder.get_and_inc_qid(); }
+	void setpid(SPARQLRequest &r) { r.pid = coder.get_and_inc_qid(); }
+
+	void setpid(DynamicLoadRequest &r) { r.pid = coder.get_and_inc_qid(); }
 
 	void send_request(SPARQLRequest &r) {
 		assert(r.pid != -1);
@@ -159,7 +161,7 @@ public:
 			for (int i = 0; i < global_num_servers; i++) {
 				for (int j = 0; j < global_mt_threshold; j++) {
 					r.tid = j; // specified engine
-					send(Bundle(SPARQL_QUERY, r), i, global_num_proxies + j);
+					send(Bundle(r), i, global_num_proxies + j);
 				}
 			}
 			return;
@@ -167,7 +169,7 @@ public:
 
 		// submit the request to a certain server
 		int start_sid = mymath::hash_mod(r.cmd_chains[0], global_num_servers);
-		send(Bundle(SPARQL_QUERY, r), start_sid);
+		send(Bundle(r), start_sid);
 	}
 
 	SPARQLRequest recv_reply(void) {
@@ -196,7 +198,7 @@ public:
 		Bundle bundle;
 		bool success = adaptor->tryrecv(bundle);
 		assert(bundle.type == SPARQL_QUERY);
-		SPARQLRequest r = bundle.getSPARQLRequest();
+		r = bundle.getSPARQLRequest();
 		if (success && r.start_from_index()) {
 			// TODO: avoid parallel submit for try recieve mode
 			cout << "Unsupport try recieve parallel query now!" << endl;
@@ -295,7 +297,7 @@ public:
 				sweep_msgs(); // sweep pending msgs first
 
 				int idx = mymath::get_distribution(coder.get_random(), loads);
-				Request request = tpls[idx].instantiate(coder.get_random());
+				SPARQLRequest request = tpls[idx].instantiate(coder.get_random());
 				if (global_enable_planner)
 					planner.generate_plan(request, statistic);
 				setpid(request);
@@ -311,10 +313,11 @@ public:
 			for (int i = 0; i < try_rounds; i++) {
 				usleep(sleep / try_rounds);
 
-				Request r;
-				while (bool success = tryrecv_reply(r)) {
+				Bundle bundle;
+				while (bool success = tryrecv_reply(bundle)) {
 					recv_cnt++;
-					logger.end_record(r.pid);
+					assert(bundle.type == SPARQL_QUERY);
+					logger.end_record(bundle.getSPARQLRequest().pid);
 				}
 			}
 
@@ -331,10 +334,11 @@ public:
 		// recieve all replies to calculate the tail latency
 		while (recv_cnt < send_cnt) {
 			sweep_msgs();
-			Request r;
-			if (tryrecv_reply(r)) {
+			Bundle bundle;
+			if (tryrecv_reply(bundle)) {
 				recv_cnt ++;
-				logger.end_record(r.pid);
+				assert(bundle.type == SPARQL_QUERY);
+				logger.end_record(bundle.getSPARQLRequest().pid);
 			}
 
 			logger.print_timely_thpt(recv_cnt, sid, tid);
@@ -346,20 +350,23 @@ public:
 	}
 
 #if DYNAMIC_GSTORE
-	int dynamic_load_data(string &dname, Request &reply,
+	int dynamic_load_data(string &dname, DynamicLoadRequest &reply,
 	                      Logger &logger) {
-		Request request;
+		DynamicLoadRequest request;
 		request.type = DYNAMIC_LOAD;
 		request.load_dname = dname;
 
 		logger.init();
 		setpid(request);
-		for (int i = 0; i < global_num_servers; i++)
-			send(request, i);
+		for (int i = 0; i < global_num_servers; i++) {
+			send(Bundle(request), i);
+		}
 
 		int ret = 0;
 		for (int i = 0; i < global_num_servers; i++) {
-			reply = adaptor->recv();
+			Bundle bundle = adaptor->recv();
+			assert(bundle.type == DYNAMIC_LOAD);
+			reply = bundle.getDynamicLoadRequest();
 			if (reply.load_ret < 0)
 				ret = reply.load_ret;
 		}

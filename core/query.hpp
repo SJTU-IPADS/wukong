@@ -306,7 +306,7 @@ public:
 
     Bundle() {}
 
-    Bundle(req_type type, SPARQLRequest request): type(type) {
+    Bundle(SPARQLRequest request): type(request.type) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
 
@@ -314,7 +314,7 @@ public:
         data = ss.str();
     }
 
-    Bundle(req_type type, DynamicLoadRequest request): type(type) {
+    Bundle(DynamicLoadRequest request): type(request.type) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
 
@@ -333,7 +333,7 @@ public:
         return result;
     }
 
-    SPARQLRequest getDynamicLoadRequest() {
+    DynamicLoadRequest getDynamicLoadRequest() {
         assert(type == DYNAMIC_LOAD);
         std::stringstream ss;
         ss << data;
