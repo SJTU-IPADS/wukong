@@ -336,8 +336,9 @@ public:
 
 		// recieve all replies to calculate the tail latency
 		while (recv_cnt < send_cnt) {
-			sweep_msgs();
+			sweep_msgs();	// sweep pending msgs first
 			SPARQLRequest r;
+
 			if (tryrecv_reply(r)) {
 				recv_cnt ++;
 				logger.end_record(r.pid);

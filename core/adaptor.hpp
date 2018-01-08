@@ -48,20 +48,18 @@ public:
         boost::archive::binary_oarchive oa(ss);
 
         oa << bundle;
-        if (global_use_rdma && rdma->init) {
+        if (global_use_rdma && rdma->init)
             return rdma->send(tid, dst_sid, dst_tid, ss.str());
-        } else {
+        else
             return tcp->send(dst_sid, dst_tid, ss.str());
-        }
     }
 
     Bundle recv() {
         std::string str;
-        if (global_use_rdma && rdma->init) {
+        if (global_use_rdma && rdma->init)
             str = rdma->recv(tid);
-        } else {
+        else
             str = tcp->recv(tid);
-        }
 
         std::stringstream ss;
         ss << str;

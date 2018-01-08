@@ -97,6 +97,7 @@ void print_help(void)
 	cout << "           -d <sec>            eval <sec> seconds" << endl;
 	cout << "           -w <sec>            warmup <sec> seconds" << endl;
 	cout << "           -s <usec>           sleep <usec> micro-seconds before sending a batch of queries" << endl;
+	cout << "           -p <num>            send <num> queries in parallel" << endl;
 	cout << "    load <args>         load linked data into dynamic (in-memmory) graph-store" << endl;
 	cout << "        -d <dname>          load data from directory <dname>" << endl;
 }

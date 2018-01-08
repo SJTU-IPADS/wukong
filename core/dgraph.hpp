@@ -182,7 +182,8 @@ class DGraph {
 
 			// each server only load a part of files
 			if (i % global_num_servers != sid) continue;
-			auto lambda = [&](istream& file) {
+
+			auto lambda = [&](istream & file) {
 				sid_t s, p, o;
 				while (file >> s >> p >> o) {
 					int s_sid = mymath::hash_mod(s, global_num_servers);
@@ -195,6 +196,7 @@ class DGraph {
 					}
 				}
 			};
+
 			if (boost::starts_with(fnames[i], "hdfs:")) {
 				// files located on HDFS
 				wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
@@ -254,7 +256,7 @@ class DGraph {
 			// the 1st uint64_t of kvs records #triples
 			uint64_t n = *pn;
 
-			auto lambda = [&](istream& file) {
+			auto lambda = [&](istream & file) {
 				sid_t s, p, o;
 				while (file >> s >> p >> o) {
 					int s_sid = mymath::hash_mod(s, global_num_servers);
@@ -269,6 +271,7 @@ class DGraph {
 					}
 				}
 			};
+
 			if (boost::starts_with(fnames[i], "hdfs:")) {
 				// files located on HDFS
 				wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
@@ -303,7 +306,7 @@ class DGraph {
 		#pragma omp parallel for num_threads(global_num_engines)
 		for (int i = 0; i < num_files; i++) {
 			int localtid = omp_get_thread_num();
-			auto lambda = [&](istream& file) {
+			auto lambda = [&](istream & file) {
 				sid_t s, a;
 				attr_t v;
 				int type;
@@ -341,7 +344,7 @@ class DGraph {
 			} else {
 				ifstream file(fnames[i].c_str());
 				lambda(file);
-				file.close();				
+				file.close();
 			}
 		}
 		// timing
