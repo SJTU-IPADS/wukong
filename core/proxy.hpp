@@ -323,7 +323,8 @@ public:
 
 		// recieve all replies to calculate the tail latency
 		while (recv_cnt < send_cnt) {
-			sweep_msgs();
+			sweep_msgs(); // sweep pending msgs first
+
 			Request r;
 			if (tryrecv_reply(r)) {
 				recv_cnt ++;

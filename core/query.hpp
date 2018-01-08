@@ -63,12 +63,10 @@ private:
             stream << i + 1 << ": ";
             for (int c = 0; c < col_num; c++) {
                 int id = this->get_row_col(i, c);
-                if (str_server->exist(id)) {
+                if (str_server->exist(id))
                     stream << str_server->id2str[id] << "\t";
-                }
-                else {
+                else
                     stream << id << "\t";
-                }
             }
             for (int c = 0; c < this->get_attr_col_num(); c++) {
                 attr_t tmp = this->get_attr_row_col(i, c);
@@ -77,6 +75,7 @@ private:
             stream << endl;
         }
     }
+
 public:
     int id = -1;     // query id
     int pid = -1;    // parqnt query id
