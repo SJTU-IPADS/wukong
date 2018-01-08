@@ -304,7 +304,7 @@ next:
 							}
 						}
 
-						Request reply;
+						SPARQLRequest reply;
 						Logger logger;
 						int ret = proxy->run_single_query(ifs, cnt, reply, logger);
 						if (ret != 0) {
@@ -398,7 +398,7 @@ next:
 
 					if (IS_MASTER(proxy)) {
 						Logger logger;
-						Request reply;
+						DynamicLoadRequest reply;
 						int ret = proxy->dynamic_load_data(dname, reply, logger);
 						if (ret != 0) {
 							cout << "[ERORR] Failed to load dynamic data from directory " << dname

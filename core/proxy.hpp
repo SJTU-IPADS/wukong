@@ -53,9 +53,9 @@ private:
 	public:
 		int sid;
 		int tid;
-		Request r;
+		SPARQLRequest r;
 
-		Message(int sid, int tid, Request &r)
+		Message(int sid, int tid, SPARQLRequest &r)
 			: sid(sid), tid(tid), r(r) { }
 	};
 
@@ -151,7 +151,7 @@ public:
 
 	void setpid(Request &r) { r.pid = coder.get_and_inc_qid(); }
 
-	void send_request(Request &r) {
+	void send_request(SPARQLRequest &r) {
 		assert(r.pid != -1);
 
 		// submit the request to all engines (parallel)
@@ -159,7 +159,7 @@ public:
 			for (int i = 0; i < global_num_servers; i++) {
 				for (int j = 0; j < global_mt_threshold; j++) {
 					r.tid = j; // specified engine
-					send(r, i, global_num_proxies + j);
+					send(Bundle(SPARQL_QUERY, r), i, global_num_proxies + j);
 				}
 			}
 			return;
@@ -167,14 +167,18 @@ public:
 
 		// submit the request to a certain server
 		int start_sid = mymath::hash_mod(r.cmd_chains[0], global_num_servers);
-		send(r, start_sid);
+		send(Bundle(SPARQL_QUERY, r), start_sid);
 	}
 
-	Request recv_reply(void) {
-		Request r = adaptor->recv();
+	SPARQLRequest recv_reply(void) {
+		Bundle bundle = adaptor->recv();
+		assert(bundle.type == SPARQL_QUERY);
+		SPARQLRequest r = bundle.getSPARQLRequest();
 		if (r.start_from_index()) {
 			for (int count = 0; count < global_num_servers * global_mt_threshold - 1 ; count++) {
-				Request r2 = adaptor->recv();
+				Bundle bundle2 = adaptor->recv();
+				assert(bundle2.type == SPARQL_QUERY);
+				SPARQLRequest r2 = bundle2.getSPARQLRequest();
 				r.row_num += r2.row_num;
 				int new_size = r.result_table.size() + r2.result_table.size();
 				r.result_table.reserve(new_size);
@@ -188,8 +192,11 @@ public:
 		return r;
 	}
 
-	bool tryrecv_reply(Request &r) {
-		bool success = adaptor->tryrecv(r);
+	bool tryrecv_reply(SPARQLRequest &r) {
+		Bundle bundle;
+		bool success = adaptor->tryrecv(bundle);
+		assert(bundle.type == SPARQL_QUERY);
+		SPARQLRequest r = bundle.getSPARQLRequest();
 		if (success && r.start_from_index()) {
 			// TODO: avoid parallel submit for try recieve mode
 			cout << "Unsupport try recieve parallel query now!" << endl;
@@ -200,8 +207,8 @@ public:
 	}
 
 	int run_single_query(istream &is, int cnt,
-	                     Request &reply, Logger &logger) {
-		Request request;
+	                     SPARQLRequest &reply, Logger &logger) {
+		SPARQLRequest request;
 		uint64_t t_parse1 = timer::get_usec();
 		if (!parser.parse(is, request)) {
 			cout << "ERROR: Parsing failed! ("
