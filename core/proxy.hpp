@@ -53,9 +53,9 @@ private:
 	public:
 		int sid;
 		int tid;
-		request_or_reply r;
+		Request r;
 
-		Message(int sid, int tid, request_or_reply &r)
+		Message(int sid, int tid, Request &r)
 			: sid(sid), tid(tid), r(r) { }
 	};
 
@@ -66,7 +66,7 @@ private:
 		for (int i = 0; i < req_template.ptypes_str.size(); i++) {
 			string type = req_template.ptypes_str[i]; // the Types of random-constant
 
-			request_or_reply type_request, type_reply;
+			Request type_request, type_reply;
 
 			// a TYPE query to collect constants with the certain type
 			if (!parser.add_type_pattern(type, type_request)) {
@@ -93,7 +93,7 @@ private:
 		}
 	}
 
-	inline bool send(request_or_reply &r, int dst_sid, int dst_tid) {
+	inline bool send(Request &r, int dst_sid, int dst_tid) {
 		if (adaptor->send(dst_sid, dst_tid, r))
 			return true;
 
@@ -101,7 +101,7 @@ private:
 		return false;
 	}
 
-	inline bool send(request_or_reply &r, int dst_sid) {
+	inline bool send(Request &r, int dst_sid) {
 		// NOTE: the partitioned mapping has better tail latency in batch mode
 		int range = global_num_engines / global_num_proxies;
 		// FIXME: BUG if global_num_engines < global_num_proxies
@@ -149,9 +149,9 @@ public:
 		: sid(sid), tid(tid), str_server(str_server), adaptor(adaptor),
 		  coder(sid, tid), parser(str_server), statistic(statistic) { }
 
-	void setpid(request_or_reply &r) { r.pid = coder.get_and_inc_qid(); }
+	void setpid(Request &r) { r.pid = coder.get_and_inc_qid(); }
 
-	void send_request(request_or_reply &r) {
+	void send_request(Request &r) {
 		assert(r.pid != -1);
 
 		// submit the request to all engines (parallel)
@@ -170,11 +170,11 @@ public:
 		send(r, start_sid);
 	}
 
-	request_or_reply recv_reply(void) {
-		request_or_reply r = adaptor->recv();
+	Request recv_reply(void) {
+		Request r = adaptor->recv();
 		if (r.start_from_index()) {
 			for (int count = 0; count < global_num_servers * global_mt_threshold - 1 ; count++) {
-				request_or_reply r2 = adaptor->recv();
+				Request r2 = adaptor->recv();
 				r.row_num += r2.row_num;
 				int new_size = r.result_table.size() + r2.result_table.size();
 				r.result_table.reserve(new_size);
@@ -188,7 +188,7 @@ public:
 		return r;
 	}
 
-	bool tryrecv_reply(request_or_reply &r) {
+	bool tryrecv_reply(Request &r) {
 		bool success = adaptor->tryrecv(r);
 		if (success && r.start_from_index()) {
 			// TODO: avoid parallel submit for try recieve mode
@@ -199,77 +199,9 @@ public:
 		return success;
 	}
 
-	void print_result(request_or_reply &r, int row2print) {
-		cout << "The first " << row2print << " rows of results: " << endl;
-		for (int i = 0; i < row2print; i++) {
-			cout << i + 1 << ":  ";
-			for (int c = 0; c < r.get_col_num(); c++) {
-				sid_t id = r.get_row_col(i, c);
-				// WARNING: If you want to print the query results with strings,
-				// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
-				//
-				// TODO: good format
-				if (str_server->exist(id))
-					cout << str_server->id2str[id] << "\t";
-				else
-					cout << id << "\t";
-			}
-			for (int c = 0; c < r.get_attr_col_num(); c++) {
-				attr_t  tmp = r.get_attr_row_col(i, c);
-				cout << tmp << "\t";
-			}
-			cout << endl;
-		}
-	}
-
-	void dump_result(request_or_reply &r, string ofname) {
-		if (boost::starts_with(ofname, "hdfs:")) {
-			wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
-			wukong::hdfs::fstream file(hdfs, ofname, true);
-
-			// FIXME: row_num vs. get_col_num()
-			for (int i = 0; i < r.row_num; i++) {
-				file << i + 1 << ": ";
-				for (int c = 0; c < r.get_col_num(); c++) {
-					sid_t id = r.get_row_col(i, c);
-					// WARNING: If you want to print the query results with strings,
-					// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
-					if (str_server->exist(id))
-						file << str_server->id2str[id] << "\t";
-					else
-						file << id << "\t";
-				}
-				file << endl;
-			}
-			file.close();
-		} else {
-			ofstream file(ofname, std::ios::out);
-			if (!file.good()) {
-				cout << "Can't open/create output file: " << ofname << endl;
-				return;
-			}
-
-			// FIXME: row_num vs. get_col_num()
-			for (int i = 0; i < r.row_num; i++) {
-				file << i + 1 << ": ";
-				for (int c = 0; c < r.get_col_num(); c++) {
-					sid_t id = r.get_row_col(i, c);
-					// WARNING: If you want to print the query results with strings,
-					// must load the entire ID mapping files (i.e., global_load_minimal_index=false).
-					if (str_server->exist(id))
-						file << str_server->id2str[id] << "\t";
-					else
-						file << id << "\t";
-				}
-				file << endl;
-			}
-			file.close();
-		}
-	}
-
 	int run_single_query(istream &is, int cnt,
-	                     request_or_reply &reply, Logger &logger) {
-		request_or_reply request;
+	                     Request &reply, Logger &logger) {
+		Request request;
 		uint64_t t_parse1 = timer::get_usec();
 		if (!parser.parse(is, request)) {
 			cout << "ERROR: Parsing failed! ("
@@ -356,7 +288,7 @@ public:
 				sweep_msgs(); // sweep pending msgs first
 
 				int idx = mymath::get_distribution(coder.get_random(), loads);
-				request_or_reply request = tpls[idx].instantiate(coder.get_random());
+				Request request = tpls[idx].instantiate(coder.get_random());
 				if (global_enable_planner)
 					planner.generate_plan(request, statistic);
 				setpid(request);
@@ -372,7 +304,7 @@ public:
 			for (int i = 0; i < try_rounds; i++) {
 				usleep(sleep / try_rounds);
 
-				request_or_reply r;
+				Request r;
 				while (bool success = tryrecv_reply(r)) {
 					recv_cnt++;
 					logger.end_record(r.pid);
@@ -392,7 +324,7 @@ public:
 		// recieve all replies to calculate the tail latency
 		while (recv_cnt < send_cnt) {
 			sweep_msgs();
-			request_or_reply r;
+			Request r;
 			if (tryrecv_reply(r)) {
 				recv_cnt ++;
 				logger.end_record(r.pid);
@@ -407,9 +339,9 @@ public:
 	}
 
 #if DYNAMIC_GSTORE
-	int dynamic_load_data(string &dname, request_or_reply &reply,
+	int dynamic_load_data(string &dname, Request &reply,
 	                      Logger &logger) {
-		request_or_reply request;
+		Request request;
 		request.type = DYNAMIC_LOAD;
 		request.load_dname = dname;
 

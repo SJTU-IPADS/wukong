@@ -304,7 +304,7 @@ next:
 							}
 						}
 
-						request_or_reply reply;
+						Request reply;
 						Logger logger;
 						int ret = proxy->run_single_query(ifs, cnt, reply, logger);
 						if (ret != 0) {
@@ -322,10 +322,10 @@ next:
 								     << "         with global_load_minimal_index enabled." << endl;
 
 							if (nlines > 0)
-								proxy->print_result(reply, min(reply.row_num, nlines));
+								reply.print_result(min(reply.row_num, nlines), proxy->str_server);
 
 							if (o_enable)
-								proxy->dump_result(reply, ofname);
+								reply.dump_result(ofname, reply.row_num, proxy->str_server);
 						}
 					}
 				}
@@ -398,7 +398,7 @@ next:
 
 					if (IS_MASTER(proxy)) {
 						Logger logger;
-						request_or_reply reply;
+						Request reply;
 						int ret = proxy->dynamic_load_data(dname, reply, logger);
 						if (ret != 0) {
 							cout << "[ERORR] Failed to load dynamic data from directory " << dname

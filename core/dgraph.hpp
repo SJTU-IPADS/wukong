@@ -182,37 +182,29 @@ class DGraph {
 
 			// each server only load a part of files
 			if (i % global_num_servers != sid) continue;
-
+			auto lambda = [&](istream& file) {
+				sid_t s, p, o;
+				while (file >> s >> p >> o) {
+					int s_sid = mymath::hash_mod(s, global_num_servers);
+					int o_sid = mymath::hash_mod(o, global_num_servers);
+					if (s_sid == o_sid) {
+						send_triple(localtid, s_sid, s, p, o);
+					} else {
+						send_triple(localtid, s_sid, s, p, o);
+						send_triple(localtid, o_sid, s, p, o);
+					}
+				}
+			};
 			if (boost::starts_with(fnames[i], "hdfs:")) {
 				// files located on HDFS
 				wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
 				wukong::hdfs::fstream file(hdfs, fnames[i]);
-				sid_t s, p, o;
-				while (file >> s >> p >> o) {
-					int s_sid = mymath::hash_mod(s, global_num_servers);
-					int o_sid = mymath::hash_mod(o, global_num_servers);
-					if (s_sid == o_sid) {
-						send_triple(localtid, s_sid, s, p, o);
-					} else {
-						send_triple(localtid, s_sid, s, p, o);
-						send_triple(localtid, o_sid, s, p, o);
-					}
-				}
+				lambda(file);
 				file.close();
 			} else {
 				// files located on a shared filesystem (e.g., NFS)
 				ifstream file(fnames[i].c_str());
-				sid_t s, p, o;
-				while (file >> s >> p >> o) {
-					int s_sid = mymath::hash_mod(s, global_num_servers);
-					int o_sid = mymath::hash_mod(o, global_num_servers);
-					if (s_sid == o_sid) {
-						send_triple(localtid, s_sid, s, p, o);
-					} else {
-						send_triple(localtid, s_sid, s, p, o);
-						send_triple(localtid, o_sid, s, p, o);
-					}
-				}
+				lambda(file);
 				file.close();
 			}
 		}
@@ -262,41 +254,30 @@ class DGraph {
 			// the 1st uint64_t of kvs records #triples
 			uint64_t n = *pn;
 
+			auto lambda = [&](istream& file) {
+				sid_t s, p, o;
+				while (file >> s >> p >> o) {
+					int s_sid = mymath::hash_mod(s, global_num_servers);
+					int o_sid = mymath::hash_mod(o, global_num_servers);
+					if ((s_sid == sid) || (o_sid == sid)) {
+						assert((n * 3 + 3) * sizeof(sid_t) <= kvs_sz);
+						// buffer the triple and update the counter
+						kvs[n * 3 + 0] = s;
+						kvs[n * 3 + 1] = p;
+						kvs[n * 3 + 2] = o;
+						n++;
+					}
+				}
+			};
 			if (boost::starts_with(fnames[i], "hdfs:")) {
 				// files located on HDFS
 				wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
 				wukong::hdfs::fstream file(hdfs, fnames[i]);
-				sid_t s, p, o;
-				while (file >> s >> p >> o) {
-					int s_sid = mymath::hash_mod(s, global_num_servers);
-					int o_sid = mymath::hash_mod(o, global_num_servers);
-					if ((s_sid == sid) || (o_sid == sid)) {
-						assert((n * 3 + 3) * sizeof(sid_t) <= kvs_sz);
-
-						// buffer the triple and update the counter
-						kvs[n * 3 + 0] = s;
-						kvs[n * 3 + 1] = p;
-						kvs[n * 3 + 2] = o;
-						n++;
-					}
-				}
+				lambda(file);
 				file.close();
 			} else {
 				ifstream file(fnames[i].c_str());
-				sid_t s, p, o;
-				while (file >> s >> p >> o) {
-					int s_sid = mymath::hash_mod(s, global_num_servers);
-					int o_sid = mymath::hash_mod(o, global_num_servers);
-					if ((s_sid == sid) || (o_sid == sid)) {
-						assert((n * 3 + 3) * sizeof(sid_t) <= kvs_sz);
-
-						// buffer the triple and update the counter
-						kvs[n * 3 + 0] = s;
-						kvs[n * 3 + 1] = p;
-						kvs[n * 3 + 2] = o;
-						n++;
-					}
-				}
+				lambda(file);
 				file.close();
 			}
 			*pn = n;
@@ -322,70 +303,45 @@ class DGraph {
 		#pragma omp parallel for num_threads(global_num_engines)
 		for (int i = 0; i < num_files; i++) {
 			int localtid = omp_get_thread_num();
+			auto lambda = [&](istream& file) {
+				sid_t s, a;
+				attr_t v;
+				int type;
+				while (file >> s >> a >> type) {
+					switch (type) {
+					case 1:
+						int i;
+						file >> i;
+						v = i;
+						break;
+					case 2:
+						float f;
+						file >> f;
+						v = f;
+						break;
+					case 3:
+						double d;
+						file >> d;
+						v = d;
+						break;
+					default:
+						cout << "[ERROR] Unsupported value type" << endl;
+						break;
+					}
+					if (sid == mymath::hash_mod(s, global_num_servers))
+						triple_sav[localtid].push_back(triple_attr_t(s, a, v));
+				}
+			};
 			if (boost::starts_with(fnames[i], "hdfs:")) {
 				// files located on HDFS
 				wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
 				wukong::hdfs::fstream file(hdfs, fnames[i]);
-				sid_t s, a;
-				attr_t v;
-				int type;
-				while (file >> s >> a >> type) {
-					switch (type) {
-					case 1:
-						int i;
-						file >> i;
-						v = i;
-						break;
-					case 2:
-						float f;
-						file >> f;
-						v = f;
-						break;
-					case 3:
-						double d;
-						file >> d;
-						v = d;
-						break;
-					default:
-						cout << "[ERROR] Unsupported value type" << endl;
-						break;
-					}
-
-					if (sid == mymath::hash_mod(s, global_num_servers))
-						triple_sav[localtid].push_back(triple_attr_t(s, a, v));
-				}
+				lambda(file);
 				file.close();
 			} else {
 				ifstream file(fnames[i].c_str());
-				sid_t s, a;
-				attr_t v;
-				int type;
-				while (file >> s >> a >> type) {
-					switch (type) {
-					case 1:
-						int i;
-						file >> i;
-						v = i;
-						break;
-					case 2:
-						float f;
-						file >> f;
-						v = f;
-						break;
-					case 3:
-						double d;
-						file >> d;
-						v = d;
-						break;
-					default:
-						cout << "[ERROR] Unsupported value type" << endl;
-						break;
-					}
-
-					if (sid == mymath::hash_mod(s, global_num_servers))
-						triple_sav[localtid].push_back(triple_attr_t(s, a, v));
-				}
-				file.close();
+				lambda(file);
+				file.close();				
 			}
 		}
 		// timing
