@@ -788,11 +788,12 @@ private:
             execute_sparql_request(r, engine);
         }
 #if DYNAMIC_GSTORE
-        else if (bundle.type == DYNAMIC_LOAD)
-            execute_load_data(bundle.getDynamicLoadRequest());
+        else if (bundle.type == DYNAMIC_LOAD){
+            DynamicLoadRequest r = bundle.getDynamicLoadRequest();
+            execute_load_data(r);
+        }
+            
 #endif
-        else
-            cout << "[ERROR] unsupported request type (" << r.type << ")." << endl;
     }
 
 public:
@@ -824,7 +825,7 @@ public:
 
         int send_wait_cnt = 0;
         while (true) {
-            Buddle bundle;
+            Bundle bundle;
             bool success;
 
             // fast path
