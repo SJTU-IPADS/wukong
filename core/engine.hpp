@@ -44,21 +44,21 @@ private:
 
     struct Item {
         int count;
-        Request parent_request;
-        Request merged_reply;
+        SPARQLRequest parent_request;
+        SPARQLRequest merged_reply;
     };
 
     boost::unordered_map<int, Item> internal_item_map;
 
 public:
-    void put_parent_request(Request &r, int cnt) {
+    void put_parent_request(SPARQLRequest &r, int cnt) {
         Item data;
         data.count = cnt;
         data.parent_request = r;
         internal_item_map[r.id] = data;
     }
 
-    void put_reply(Request &r) {
+    void put_reply(SPARQLRequest &r) {
         int pid = r.pid;
         Item &data = internal_item_map[pid];
 
@@ -84,9 +84,9 @@ public:
         return internal_item_map[pid].count == 0;
     }
 
-    Request get_merged_reply(int pid) {
-        Request r = internal_item_map[pid].parent_request;
-        Request &merged_reply = internal_item_map[pid].merged_reply;
+    SPARQLRequest get_merged_reply(int pid) {
+        SPARQLRequest r = internal_item_map[pid].parent_request;
+        SPARQLRequest &merged_reply = internal_item_map[pid].merged_reply;
 
         r.step = merged_reply.step;
         r.col_num = merged_reply.col_num;
@@ -124,14 +124,14 @@ private:
     public:
         int sid;
         int tid;
-        Request r;
+        Bundle bundle;
 
-        Message(int sid, int tid, Request &r)
-            : sid(sid), tid(tid), r(r) { }
+        Message(int sid, int tid, Bundle &bundle)
+            : sid(sid), tid(tid), bundle(bundle) { }
     };
 
     pthread_spinlock_t recv_lock;
-    std::vector<Request> msg_fast_path;
+    std::vector<SPARQLRequest> msg_fast_path;
 
     Reply_Map rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
@@ -143,25 +143,25 @@ private:
 
         cout << "[INFO]#" << tid << " " << pending_msgs.size() << " pending msgs on engine." << endl;
         for (vector<Message>::iterator it = pending_msgs.begin(); it != pending_msgs.end();)
-            if (adaptor->send(it->sid, it->tid, it->r))
+            if (adaptor->send(it->sid, it->tid, it->bundle))
                 it = pending_msgs.erase(it);
             else
                 ++it;
     }
 
-    bool send_request(Request &r, int dst_sid, int dst_tid) {
-        if (adaptor->send(dst_sid, dst_tid, r))
+    bool send_request(Bundle &bundle, int dst_sid, int dst_tid) {
+        if (adaptor->send(dst_sid, dst_tid, bundle))
             return true;
 
         // failed to send, then stash the msg to void deadlock
-        pending_msgs.push_back(Message(dst_sid, dst_tid, r));
+        pending_msgs.push_back(Message(dst_sid, dst_tid, bundle));
         return false;
     }
 
-    void const_to_known(Request &req) { assert(false); } /// TODO
+    void const_to_known(SPARQLRequest &req) { assert(false); } /// TODO
 
     // all of these means const predicate
-    void const_to_unknown(Request &req) {
+    void const_to_unknown(SPARQLRequest &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -183,7 +183,7 @@ private:
     }
 
     // all of these means const attribute
-    void const_to_unknown_attr(Request & req ) {
+    void const_to_unknown_attr(SPARQLRequest & req ) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t aid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -205,7 +205,7 @@ private:
     }
 
 
-    void known_to_unknown(Request &req) {
+    void known_to_unknown(SPARQLRequest &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -232,7 +232,7 @@ private:
         req.step++;
     }
 
-    void known_to_unknown_attr(Request &req) {
+    void known_to_unknown_attr(SPARQLRequest &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -264,7 +264,7 @@ private:
         req.step++;
     }
 
-    void known_to_known(Request &req) {
+    void known_to_known(SPARQLRequest &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -293,7 +293,7 @@ private:
         req.step++;
     }
 
-    void known_to_const(Request &req) {
+    void known_to_const(SPARQLRequest &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -321,7 +321,7 @@ private:
         req.step++;
     }
 
-    void index_to_unknown(Request &req) {
+    void index_to_unknown(SPARQLRequest &req) {
         ssid_t tpid  = req.cmd_chains[req.step * 4];
         ssid_t id01 = req.cmd_chains[req.step * 4 + 1];
         dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -346,7 +346,7 @@ private:
     }
 
     // e.g., "<http://www.Department0.University0.edu> ?P ?X"
-    void const_unknown_unknown(Request &req) {
+    void const_unknown_unknown(SPARQLRequest &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -383,7 +383,7 @@ private:
 
     // e.g., "<http://www.University0.edu> ub:subOrganizationOf ?D"
     //       "?D ?P ?X"
-    void known_unknown_unknown(Request &req) {
+    void known_unknown_unknown(SPARQLRequest &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -420,7 +420,7 @@ private:
     }
 
     // FIXME: deadcode
-    void known_unknown_const(Request &req) {
+    void known_unknown_const(SPARQLRequest &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -457,12 +457,12 @@ private:
         req.step++;
     }
 
-    vector<Request> generate_sub_query(Request &req) {
+    vector<SPARQLRequest> generate_sub_query(SPARQLRequest &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
 
         // generate sub requests for all servers
-        vector<Request> sub_reqs(global_num_servers);
+        vector<SPARQLRequest> sub_reqs(global_num_servers);
         for (int i = 0; i < global_num_servers; i++) {
             sub_reqs[i].pid = req.id;
             sub_reqs[i].cmd_chains = req.cmd_chains;
@@ -486,7 +486,7 @@ private:
     }
 
     // fork-join or in-place execution
-    bool need_fork_join(Request &req) {
+    bool need_fork_join(SPARQLRequest &req) {
         // always need fork-join mode w/o RDMA
         if (!global_use_rdma) return true;
 
@@ -495,7 +495,7 @@ private:
                 && (req.get_row_num() >= global_rdma_threshold));
     }
 
-    void do_corun(Request &req) {
+    void do_corun(SPARQLRequest &req) {
         int corun_step = req.step + 1;
         int fetch_step = req.cmd_chains[req.step * 4 + 3];
 
@@ -537,7 +537,7 @@ private:
         }
 
         // step.3 make sub-req
-        Request sub_req;
+        SPARQLRequest sub_req;
 
         // query
         sub_req.cmd_chains = sub_chain;
@@ -614,7 +614,7 @@ private:
         req.step = fetch_step;
     }
 
-    bool execute_one_step(Request &req) {
+    bool execute_one_step(SPARQLRequest &req) {
         if (req.is_finished())
             return false;
 
@@ -715,7 +715,7 @@ private:
         return true;
     }
 
-    void execute_request(Request &r) {
+    void execute_request(SPARQLRequest &r) {
         r.id = coder.get_and_inc_qid();
         while (true) {
             uint64_t t1 = timer::get_usec();
@@ -736,7 +736,7 @@ private:
             }
 
             if (need_fork_join(r)) {
-                vector<Request> sub_reqs = generate_sub_query(r);
+                vector<SPARQLRequest> sub_reqs = generate_sub_query(r);
                 rmap.put_parent_request(r, sub_reqs.size());
                 for (int i = 0; i < sub_reqs.size(); i++) {
                     if (i != sid) {
@@ -753,11 +753,11 @@ private:
         return;
     }
 
-    void execute_reply(Request &r, Engine *engine) {
+    void execute_reply(SPARQLRequest &r, Engine *engine) {
         pthread_spin_lock(&engine->rmap_lock);
         engine->rmap.put_reply(r);
         if (engine->rmap.is_ready(r.pid)) {
-            Request reply = engine->rmap.get_merged_reply(r.pid);
+            SPARQLRequest reply = engine->rmap.get_merged_reply(r.pid);
             pthread_spin_unlock(&engine->rmap_lock);
 
             send_request(reply, coder.sid_of(reply.pid), coder.tid_of(reply.pid));
@@ -767,22 +767,27 @@ private:
     }
 
 #if DYNAMIC_GSTORE
-    void execute_load_data(Request &r) {
+    void execute_load_data(DynamicLoadRequest &r) {
         r.load_ret = graph->dynamic_load_data(r.load_dname);
         send_request(r, coder.sid_of(r.pid), coder.tid_of(r.pid));
     }
 #endif
 
-    void execute(Request &r, Engine *engine) {
-        if (r.type == SPARQL_QUERY) {
-            if (r.is_request())
-                execute_request(r);
-            else
-                execute_reply(r, engine);
+    void execute_sparql_request(SPARQLRequest &r){
+        if (r.is_request())
+            execute_request(r);
+        else
+            execute_reply(r, engine);
+    }
+
+    void execute(Bundle &bundle, Engine *engine) {
+        if (bundle.type == SPARQL_QUERY) {
+            SPARQLRequest r = bundle.getSPARQLRequest();
+            execute_sparql_request(r);
         }
 #if DYNAMIC_GSTORE
-        else if (r.type == DYNAMIC_LOAD)
-            execute_load_data(r);
+        else if (bundle.type == DYNAMIC_LOAD)
+            execute_load_data(bundle.getDynamicLoadRequest());
 #endif
         else
             cout << "[ERROR] unsupported request type (" << r.type << ")." << endl;
@@ -817,23 +822,24 @@ public:
 
         int send_wait_cnt = 0;
         while (true) {
-            Request r;
+            Buddle bundle;
             bool success;
 
             // fast path
             last_time = timer::get_usec();
             success = false;
 
+            SPARQLRequest request;
             pthread_spin_lock(&recv_lock);
             if (msg_fast_path.size() > 0) {
-                r = msg_fast_path.back();
+                request = msg_fast_path.back();
                 msg_fast_path.pop_back();
                 success = true;
             }
             pthread_spin_unlock(&recv_lock);
 
             if (success) {
-                execute(r, engines[own_id]);
+                execute_sparql_request(request, engines[own_id]);
                 continue; // fast-path priority
             }
 
@@ -846,14 +852,10 @@ public:
             // own queue
             success = false;
             pthread_spin_lock(&recv_lock);
-            success = adaptor->tryrecv(r);
-            if (success && r.start_from_index()) {
-                msg_fast_path.push_back(r);
-                success = false;
-            }
+            success = adaptor->tryrecv(bundle);
             pthread_spin_unlock(&recv_lock);
 
-            if (success) execute(r, engines[own_id]);
+            if (success) execute(bundle, engines[own_id]);
 
             // work-oblige is disabled
             if (!global_enable_workstealing) continue;
@@ -865,14 +867,10 @@ public:
 
             success = false;
             pthread_spin_lock(&engines[nbr_id]->recv_lock);
-            success = engines[nbr_id]->adaptor->tryrecv(r);
-            if (success && r.start_from_index()) {
-                engines[nbr_id]->msg_fast_path.push_back(r);
-                success = false;
-            }
+            success = engines[nbr_id]->adaptor->tryrecv(bundle);
             pthread_spin_unlock(&engines[nbr_id]->recv_lock);
 
-            if (success) execute(r, engines[nbr_id]);
+            if (success) execute(bundle, engines[nbr_id]);
         }
     }
 
