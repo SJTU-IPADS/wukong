@@ -112,13 +112,79 @@ private:
         ar & nvars;
         ar & local_var;
         ar & v2c_map;
-        ar & cmd_chains;
+        ar & pattern_group;
         ar & result_table;
         ar & pred_type_chains;
         ar & attr_res_table;
     }
 
 public:
+    class Pattern {
+    public:
+        ssid_t subject;
+        ssid_t predicate;
+        ssid_t object;
+        dir_t direction;
+
+        Pattern(){}
+
+        Pattern(ssid_t subject, ssid_t predicate, ssid_t object, dir_t direction):
+            subject(subject), predicate(predicate), object(object), direction(direction) {}
+
+        Pattern(ssid_t subject, ssid_t predicate, ssid_t object, ssid_t direction):
+            subject(subject), predicate(predicate), object(object), direction((dir_t)direction) {}
+
+    private:
+        friend class boost::serialization::access;
+        template <typename Archive>
+        void serialize(Archive &ar, const unsigned int version) {
+            ar & subject;
+            ar & predicate;
+            ar & object;
+            ar & direction;
+        }
+    };
+
+    class PatternGroup {
+    public:
+        vector<Pattern> patterns;
+        vector<Filter> filters;
+        vector<PatternGroup> optional;
+        vector<PatternGroup> unions;
+
+    private:
+        friend class boost::serialization::access;
+        template <typename Archive>
+        void serialize(Archive &ar, const unsigned int version) {
+            ar & patterns;
+            ar & filters;
+            ar & optional;
+            ar & unions;
+        }
+    };
+
+    class Filter {
+    private:
+        friend class boost::serialization::access;
+        template <typename Archive>
+        void serialize(Archive &ar, const unsigned int version) {}
+    };
+
+    class Order {
+    public:
+        ssid_t id;  /// variable id
+        bool descending;    /// desending
+
+    private:
+        friend class boost::serialization::access;
+        template <typename Archive>
+        void serialize(Archive &ar, const unsigned int version) {
+            ar & id;
+            ar & descending;
+        }
+    };
+
+
     int id = -1;     // query id
     int pid = -1;    // parqnt query id
     int tid = 0;     // engine thread id (MT)
@@ -140,7 +206,7 @@ public:
     vector<int> v2c_map; // from variable ID (vid) to column ID
 
     // ID-format triple patterns (Subject, Predicat, Direction, Object)
-    vector<ssid_t> cmd_chains;
+    PatternGroup pattern_group;
     vector<sid_t> result_table; // result table for string IDs
 
     // ID-format attribute triple patterns (Subject, Attribute, Direction, Value)
@@ -150,8 +216,8 @@ public:
     SPARQLQuery() { }
 
     // build a request by existing triple patterns and variables
-    SPARQLQuery(vector<ssid_t> cc, int n, vector<int> p)
-        : cmd_chains(cc), nvars(n), pred_type_chains(p) {
+    SPARQLQuery(PatternGroup g, int n, vector<int> p)
+        : pattern_group(g), nvars(n), pred_type_chains(p) {
         v2c_map.resize(n, NO_RESULT);
     }
 
