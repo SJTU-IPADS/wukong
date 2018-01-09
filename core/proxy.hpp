@@ -169,7 +169,7 @@ public:
 		}
 
 		// submit the request to a certain server
-		int start_sid = mymath::hash_mod(r.cmd_chains[0], global_num_servers);
+		int start_sid = mymath::hash_mod(r.pattern_group.patterns[0].subject, global_num_servers);
 		Bundle bundle(r);
 		send(bundle, start_sid);
 	}

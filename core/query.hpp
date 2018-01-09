@@ -113,6 +113,7 @@ private:
         ar & local_var;
         ar & v2c_map;
         ar & pattern_group;
+        ar & orders;
         ar & result_table;
         ar & pred_type_chains;
         ar & attr_res_table;
@@ -128,10 +129,10 @@ public:
 
         Pattern(){}
 
-        Pattern(ssid_t subject, ssid_t predicate, ssid_t object, dir_t direction):
+        Pattern(ssid_t subject, ssid_t predicate, dir_t direction, ssid_t object):
             subject(subject), predicate(predicate), object(object), direction(direction) {}
 
-        Pattern(ssid_t subject, ssid_t predicate, ssid_t object, ssid_t direction):
+        Pattern(ssid_t subject, ssid_t predicate, ssid_t direction, ssid_t object):
             subject(subject), predicate(predicate), object(object), direction((dir_t)direction) {}
 
     private:
@@ -207,6 +208,7 @@ public:
 
     // ID-format triple patterns (Subject, Predicat, Direction, Object)
     PatternGroup pattern_group;
+    vector<Order> orders;
     vector<sid_t> result_table; // result table for string IDs
 
     // ID-format attribute triple patterns (Subject, Attribute, Direction, Value)
@@ -221,9 +223,11 @@ public:
         v2c_map.resize(n, NO_RESULT);
     }
 
+    Pattern& get_current_pattern() { return pattern_group.patterns[step]; }
+
     void clear_data() { result_table.clear(); attr_res_table.clear(); }
 
-    bool is_finished() { return (step * 4 >= cmd_chains.size()); } // FIXME: it's trick
+    bool is_finished() { return (step >= pattern_group.patterns.size()); } // FIXME: it's trick
 
     bool is_request() { return (id == -1); } // FIXME: it's trick
 
@@ -244,8 +248,9 @@ public:
          * ?X P0 ?Y .             // then from ?X's edge with P0
          *
          */
-        if (is_tpid(cmd_chains[0])) {
-            assert(cmd_chains[1] == PREDICATE_ID || cmd_chains[1] == TYPE_ID);
+        if (is_tpid(pattern_group.patterns[0].subject)) {
+            assert(pattern_group.patterns[0].predicate == PREDICATE_ID
+                || pattern_group.patterns[0].predicate == TYPE_ID);
             return true;
         }
         return false;
@@ -345,6 +350,7 @@ class request_template {
 
 public:
     vector<ssid_t> cmd_chains;
+    PatternGroup pattern_group;
 
     int nvars;  // the number of variable in triple patterns
     // store the query predicate type
@@ -359,7 +365,14 @@ public:
         for (int i = 0; i < ptypes_pos.size(); i++)
             cmd_chains[ptypes_pos[i]] =
                 ptypes_grp[i][seed % ptypes_grp[i].size()];
-        return SPARQLQuery(cmd_chains, nvars, pred_type_chains);
+        for(int i = 0; i < cmd_chains.size(); i += 4) {
+            pattern_group.patterns.push_back(Pattern(
+                cmd_chains[i],
+                cmd_chains[i + 1],
+                cmd_chains[i + 2],
+                cmd_chains[i + 3]));
+        }
+        return SPARQLQuery(pattern_group, nvars, pred_type_chains);
     }
 };
 
