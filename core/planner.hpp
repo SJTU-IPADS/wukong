@@ -446,7 +446,7 @@ class Planner {
     }
 
     // remove the attr pattern query before doing the planner
-    void remove_attr_pattern(SPARQLRequest &r, vector<ssid_t> &attr_pattern, vector<int>& attr_pred_chains) {
+    void remove_attr_pattern(SPARQLQuery &r, vector<ssid_t> &attr_pattern, vector<int>& attr_pred_chains) {
         vector<ssid_t> temp;
         for (int i = 0; i < r.cmd_chains.size(); i += 4) {
             if ( r.pred_type_chains[i / 4] == 0 ) {
@@ -481,7 +481,7 @@ class Planner {
 public:
     Planner() { }
 
-    bool generate_plan(SPARQLRequest &r, data_statistic *statistic) {
+    bool generate_plan(SPARQLQuery &r, data_statistic *statistic) {
         vector<ssid_t> attr_pattern;
         vector<int> attr_pred_chains;
         remove_attr_pattern(r, attr_pattern, attr_pred_chains);
@@ -590,4 +590,3 @@ public:
         return true;
     }
 };
-

@@ -56,7 +56,7 @@ int ext2col(int ext) { return (ext & ((1 << NBITS_COL) - 1)); }
 
 enum req_type { SPARQL_QUERY, DYNAMIC_LOAD };
 
-class DynamicLoadRequest {
+class RDFLoad {
 private:
     friend class boost::serialization::access;
     template <typename Archive>
@@ -74,10 +74,10 @@ public:
     string load_dname = "";   // the file name used to be inserted
     int load_ret = 0;
 
-    DynamicLoadRequest() {}
+    RDFLoad() {}
 };
 
-class SPARQLRequest {
+class SPARQLQuery {
 private:
     void output_result(ostream &stream, int size, String_Server *str_server) {
         for (int i = 0; i < size; i++) {
@@ -147,10 +147,10 @@ public:
     vector<int>  pred_type_chains;
     vector<attr_t> attr_res_table; // result table for others
 
-    SPARQLRequest() { }
+    SPARQLQuery() { }
 
     // build a request by existing triple patterns and variables
-    SPARQLRequest(vector<ssid_t> cc, int n, vector<int> p)
+    SPARQLQuery(vector<ssid_t> cc, int n, vector<int> p)
         : cmd_chains(cc), nvars(n), pred_type_chains(p) {
         v2c_map.resize(n, NO_RESULT);
     }
@@ -289,11 +289,11 @@ public:
     vector<string> ptypes_str; // the Types of random-constants
     vector<vector<sid_t>> ptypes_grp; // the candidates for random-constants
 
-    SPARQLRequest instantiate(int seed) {
+    SPARQLQuery instantiate(int seed) {
         for (int i = 0; i < ptypes_pos.size(); i++)
             cmd_chains[ptypes_pos[i]] =
                 ptypes_grp[i][seed % ptypes_grp[i].size()];
-        return SPARQLRequest(cmd_chains, nvars, pred_type_chains);
+        return SPARQLQuery(cmd_chains, nvars, pred_type_chains);
     }
 };
 
@@ -304,7 +304,7 @@ public:
 
     Bundle() {}
 
-    Bundle(SPARQLRequest request): type(request.type) {
+    Bundle(SPARQLQuery request): type(request.type) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
 
@@ -312,7 +312,7 @@ public:
         data = ss.str();
     }
 
-    Bundle(DynamicLoadRequest request): type(request.type) {
+    Bundle(RDFLoad request): type(request.type) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
 
@@ -320,24 +320,24 @@ public:
         data = ss.str();
     }
 
-    SPARQLRequest getSPARQLRequest() {
+    SPARQLQuery get_sparql_query() {
         assert(type == SPARQL_QUERY);
         std::stringstream ss;
         ss << data;
 
         boost::archive::binary_iarchive ia(ss);
-        SPARQLRequest result;
+        SPARQLQuery result;
         ia >> result;
         return result;
     }
 
-    DynamicLoadRequest getDynamicLoadRequest() {
+    RDFLoad get_rdf_load() {
         assert(type == DYNAMIC_LOAD);
         std::stringstream ss;
         ss << data;
 
         boost::archive::binary_iarchive ia(ss);
-        DynamicLoadRequest result;
+        RDFLoad result;
         ia >> result;
         return result;
     }

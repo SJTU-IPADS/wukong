@@ -66,7 +66,7 @@ private:
 		for (int i = 0; i < req_template.ptypes_str.size(); i++) {
 			string type = req_template.ptypes_str[i]; // the Types of random-constant
 
-			SPARQLRequest type_request, type_reply;
+			SPARQLQuery type_request, type_reply;
 
 			// a TYPE query to collect constants with the certain type
 			if (!parser.add_type_pattern(type, type_request)) {
@@ -149,11 +149,11 @@ public:
 		: sid(sid), tid(tid), str_server(str_server), adaptor(adaptor),
 		  coder(sid, tid), parser(str_server), statistic(statistic) { }
 
-	void setpid(SPARQLRequest &r) { r.pid = coder.get_and_inc_qid(); }
+	void setpid(SPARQLQuery &r) { r.pid = coder.get_and_inc_qid(); }
 
-	void setpid(DynamicLoadRequest &r) { r.pid = coder.get_and_inc_qid(); }
+	void setpid(RDFLoad &r) { r.pid = coder.get_and_inc_qid(); }
 
-	void send_request(SPARQLRequest &r) {
+	void send_request(SPARQLQuery &r) {
 		assert(r.pid != -1);
 
 		// submit the request to all engines (parallel)
@@ -174,15 +174,15 @@ public:
 		send(bundle, start_sid);
 	}
 
-	SPARQLRequest recv_reply(void) {
+	SPARQLQuery recv_reply(void) {
 		Bundle bundle = adaptor->recv();
 		assert(bundle.type == SPARQL_QUERY);
-		SPARQLRequest r = bundle.getSPARQLRequest();
+		SPARQLQuery r = bundle.get_sparql_query();
 		if (r.start_from_index()) {
 			for (int count = 0; count < global_num_servers * global_mt_threshold - 1 ; count++) {
 				Bundle bundle2 = adaptor->recv();
 				assert(bundle2.type == SPARQL_QUERY);
-				SPARQLRequest r2 = bundle2.getSPARQLRequest();
+				SPARQLQuery r2 = bundle2.get_sparql_query();
 				r.row_num += r2.row_num;
 				int new_size = r.result_table.size() + r2.result_table.size();
 				r.result_table.reserve(new_size);
@@ -196,12 +196,12 @@ public:
 		return r;
 	}
 
-	bool tryrecv_reply(SPARQLRequest &r) {
+	bool tryrecv_reply(SPARQLQuery &r) {
 		Bundle bundle;
 		bool success = adaptor->tryrecv(bundle);
 		if(success){
 			assert(bundle.type == SPARQL_QUERY);
-			r = bundle.getSPARQLRequest();
+			r = bundle.get_sparql_query();
 
 			if(r.start_from_index()){
 				cout << "Unsupport try recieve parallel query now!" << endl;
@@ -213,8 +213,8 @@ public:
 	}
 
 	int run_single_query(istream &is, int cnt,
-	                     SPARQLRequest &reply, Logger &logger) {
-		SPARQLRequest request;
+	                     SPARQLQuery &reply, Logger &logger) {
+		SPARQLQuery request;
 		uint64_t t_parse1 = timer::get_usec();
 		if (!parser.parse(is, request)) {
 			cout << "ERROR: Parsing failed! ("
@@ -301,7 +301,7 @@ public:
 				sweep_msgs(); // sweep pending msgs first
 
 				int idx = mymath::get_distribution(coder.get_random(), loads);
-				SPARQLRequest request = tpls[idx].instantiate(coder.get_random());
+				SPARQLQuery request = tpls[idx].instantiate(coder.get_random());
 				if (global_enable_planner)
 					planner.generate_plan(request, statistic);
 				setpid(request);
@@ -317,7 +317,7 @@ public:
 			for (int i = 0; i < try_rounds; i++) {
 				usleep(sleep / try_rounds);
 
-				SPARQLRequest r;
+				SPARQLQuery r;
 				while (bool success = tryrecv_reply(r)) {
 					recv_cnt++;
 					logger.end_record(r.pid);
@@ -337,7 +337,7 @@ public:
 		// recieve all replies to calculate the tail latency
 		while (recv_cnt < send_cnt) {
 			sweep_msgs();	// sweep pending msgs first
-			SPARQLRequest r;
+			SPARQLQuery r;
 
 			if (tryrecv_reply(r)) {
 				recv_cnt ++;
@@ -353,9 +353,9 @@ public:
 	}
 
 #if DYNAMIC_GSTORE
-	int dynamic_load_data(string &dname, DynamicLoadRequest &reply,
+	int dynamic_load_data(string &dname, RDFLoad &reply,
 	                      Logger &logger) {
-		DynamicLoadRequest request;
+		RDFLoad request;
 		request.type = DYNAMIC_LOAD;
 		request.load_dname = dname;
 
@@ -370,7 +370,7 @@ public:
 		for (int i = 0; i < global_num_servers; i++) {
 			Bundle bundle = adaptor->recv();
 			assert(bundle.type == DYNAMIC_LOAD);
-			reply = bundle.getDynamicLoadRequest();
+			reply = bundle.get_rdf_load();
 			if (reply.load_ret < 0)
 				ret = reply.load_ret;
 		}

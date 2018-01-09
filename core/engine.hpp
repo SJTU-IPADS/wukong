@@ -44,21 +44,21 @@ private:
 
     struct Item {
         int count;
-        SPARQLRequest parent_request;
-        SPARQLRequest merged_reply;
+        SPARQLQuery parent_request;
+        SPARQLQuery merged_reply;
     };
 
     boost::unordered_map<int, Item> internal_item_map;
 
 public:
-    void put_parent_request(SPARQLRequest &r, int cnt) {
+    void put_parent_request(SPARQLQuery &r, int cnt) {
         Item data;
         data.count = cnt;
         data.parent_request = r;
         internal_item_map[r.id] = data;
     }
 
-    void put_reply(SPARQLRequest &r) {
+    void put_reply(SPARQLQuery &r) {
         int pid = r.pid;
         Item &data = internal_item_map[pid];
 
@@ -84,9 +84,9 @@ public:
         return internal_item_map[pid].count == 0;
     }
 
-    SPARQLRequest get_merged_reply(int pid) {
-        SPARQLRequest r = internal_item_map[pid].parent_request;
-        SPARQLRequest &merged_reply = internal_item_map[pid].merged_reply;
+    SPARQLQuery get_merged_reply(int pid) {
+        SPARQLQuery r = internal_item_map[pid].parent_request;
+        SPARQLQuery &merged_reply = internal_item_map[pid].merged_reply;
 
         r.step = merged_reply.step;
         r.col_num = merged_reply.col_num;
@@ -131,7 +131,7 @@ private:
     };
 
     pthread_spinlock_t recv_lock;
-    std::vector<SPARQLRequest> msg_fast_path;
+    std::vector<SPARQLQuery> msg_fast_path;
 
     Reply_Map rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
@@ -158,10 +158,10 @@ private:
         return false;
     }
 
-    void const_to_known(SPARQLRequest &req) { assert(false); } /// TODO
+    void const_to_known(SPARQLQuery &req) { assert(false); } /// TODO
 
     // all of these means const predicate
-    void const_to_unknown(SPARQLRequest &req) {
+    void const_to_unknown(SPARQLQuery &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -183,7 +183,7 @@ private:
     }
 
     // all of these means const attribute
-    void const_to_unknown_attr(SPARQLRequest & req ) {
+    void const_to_unknown_attr(SPARQLQuery & req ) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t aid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -205,7 +205,7 @@ private:
     }
 
 
-    void known_to_unknown(SPARQLRequest &req) {
+    void known_to_unknown(SPARQLQuery &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -232,7 +232,7 @@ private:
         req.step++;
     }
 
-    void known_to_unknown_attr(SPARQLRequest &req) {
+    void known_to_unknown_attr(SPARQLQuery &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -264,7 +264,7 @@ private:
         req.step++;
     }
 
-    void known_to_known(SPARQLRequest &req) {
+    void known_to_known(SPARQLQuery &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -293,7 +293,7 @@ private:
         req.step++;
     }
 
-    void known_to_const(SPARQLRequest &req) {
+    void known_to_const(SPARQLQuery &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -321,7 +321,7 @@ private:
         req.step++;
     }
 
-    void index_to_unknown(SPARQLRequest &req) {
+    void index_to_unknown(SPARQLQuery &req) {
         ssid_t tpid  = req.cmd_chains[req.step * 4];
         ssid_t id01 = req.cmd_chains[req.step * 4 + 1];
         dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -346,7 +346,7 @@ private:
     }
 
     // e.g., "<http://www.Department0.University0.edu> ?P ?X"
-    void const_unknown_unknown(SPARQLRequest &req) {
+    void const_unknown_unknown(SPARQLQuery &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -383,7 +383,7 @@ private:
 
     // e.g., "<http://www.University0.edu> ub:subOrganizationOf ?D"
     //       "?D ?P ?X"
-    void known_unknown_unknown(SPARQLRequest &req) {
+    void known_unknown_unknown(SPARQLQuery &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -420,7 +420,7 @@ private:
     }
 
     // FIXME: deadcode
-    void known_unknown_const(SPARQLRequest &req) {
+    void known_unknown_const(SPARQLQuery &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -457,12 +457,12 @@ private:
         req.step++;
     }
 
-    vector<SPARQLRequest> generate_sub_query(SPARQLRequest &req) {
+    vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t end   = req.cmd_chains[req.step * 4 + 3];
 
         // generate sub requests for all servers
-        vector<SPARQLRequest> sub_reqs(global_num_servers);
+        vector<SPARQLQuery> sub_reqs(global_num_servers);
         for (int i = 0; i < global_num_servers; i++) {
             sub_reqs[i].pid = req.id;
             sub_reqs[i].cmd_chains = req.cmd_chains;
@@ -486,7 +486,7 @@ private:
     }
 
     // fork-join or in-place execution
-    bool need_fork_join(SPARQLRequest &req) {
+    bool need_fork_join(SPARQLQuery &req) {
         // always need fork-join mode w/o RDMA
         if (!global_use_rdma) return true;
 
@@ -495,7 +495,7 @@ private:
                 && (req.get_row_num() >= global_rdma_threshold));
     }
 
-    void do_corun(SPARQLRequest &req) {
+    void do_corun(SPARQLQuery &req) {
         int corun_step = req.step + 1;
         int fetch_step = req.cmd_chains[req.step * 4 + 3];
 
@@ -537,7 +537,7 @@ private:
         }
 
         // step.3 make sub-req
-        SPARQLRequest sub_req;
+        SPARQLQuery sub_req;
 
         // query
         sub_req.cmd_chains = sub_chain;
@@ -614,7 +614,7 @@ private:
         req.step = fetch_step;
     }
 
-    bool execute_one_step(SPARQLRequest &req) {
+    bool execute_one_step(SPARQLQuery &req) {
         if (req.is_finished())
             return false;
 
@@ -715,7 +715,7 @@ private:
         return true;
     }
 
-    void execute_request(SPARQLRequest &r) {
+    void execute_request(SPARQLQuery &r) {
         r.id = coder.get_and_inc_qid();
         while (true) {
             uint64_t t1 = timer::get_usec();
@@ -736,7 +736,7 @@ private:
             }
 
             if (need_fork_join(r)) {
-                vector<SPARQLRequest> sub_reqs = generate_sub_query(r);
+                vector<SPARQLQuery> sub_reqs = generate_sub_query(r);
                 rmap.put_parent_request(r, sub_reqs.size());
                 for (int i = 0; i < sub_reqs.size(); i++) {
                     if (i != sid) {
@@ -754,11 +754,11 @@ private:
         return;
     }
 
-    void execute_reply(SPARQLRequest &r, Engine *engine) {
+    void execute_reply(SPARQLQuery &r, Engine *engine) {
         pthread_spin_lock(&engine->rmap_lock);
         engine->rmap.put_reply(r);
         if (engine->rmap.is_ready(r.pid)) {
-            SPARQLRequest reply = engine->rmap.get_merged_reply(r.pid);
+            SPARQLQuery reply = engine->rmap.get_merged_reply(r.pid);
             pthread_spin_unlock(&engine->rmap_lock);
             Bundle bundle(reply);
             send_request(bundle, coder.sid_of(reply.pid), coder.tid_of(reply.pid));
@@ -768,14 +768,14 @@ private:
     }
 
 #if DYNAMIC_GSTORE
-    void execute_load_data(DynamicLoadRequest &r) {
+    void execute_load_data(RDFLoad &r) {
         r.load_ret = graph->dynamic_load_data(r.load_dname);
         Bundle bundle(r);
         send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
     }
 #endif
 
-    void execute_sparql_request(SPARQLRequest &r, Engine *engine){
+    void execute_sparql_request(SPARQLQuery &r, Engine *engine){
         if (r.is_request())
             execute_request(r);
         else
@@ -784,12 +784,12 @@ private:
 
     void execute(Bundle &bundle, Engine *engine) {
         if (bundle.type == SPARQL_QUERY) {
-            SPARQLRequest r = bundle.getSPARQLRequest();
+            SPARQLQuery r = bundle.get_sparql_query();
             execute_sparql_request(r, engine);
         }
 #if DYNAMIC_GSTORE
         else if (bundle.type == DYNAMIC_LOAD){
-            DynamicLoadRequest r = bundle.getDynamicLoadRequest();
+            RDFLoad r = bundle.get_rdf_load();
             execute_load_data(r);
         }
 
@@ -832,7 +832,7 @@ public:
             last_time = timer::get_usec();
             success = false;
 
-            SPARQLRequest request;
+            SPARQLQuery request;
             pthread_spin_lock(&recv_lock);
             if (msg_fast_path.size() > 0) {
                 request = msg_fast_path.back();
