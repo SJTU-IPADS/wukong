@@ -847,10 +847,10 @@ public:
             success = false;
             pthread_spin_lock(&recv_lock);
             success = adaptor->tryrecv(r);
-            if (success && r.start_from_index()) {
-                msg_fast_path.push_back(r);
-                success = false;
-            }
+            // if (success && r.start_from_index()) {
+            //     msg_fast_path.push_back(r);
+            //     success = false;
+            // }
             pthread_spin_unlock(&recv_lock);
 
             if (success) execute(r, engines[own_id]);
@@ -866,10 +866,10 @@ public:
             success = false;
             pthread_spin_lock(&engines[nbr_id]->recv_lock);
             success = engines[nbr_id]->adaptor->tryrecv(r);
-            if (success && r.start_from_index()) {
-                engines[nbr_id]->msg_fast_path.push_back(r);
-                success = false;
-            }
+            // if (success && r.start_from_index()) {
+            //     engines[nbr_id]->msg_fast_path.push_back(r);
+            //     success = false;
+            // }
             pthread_spin_unlock(&engines[nbr_id]->recv_lock);
 
             if (success) execute(r, engines[nbr_id]);
