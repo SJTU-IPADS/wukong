@@ -362,25 +362,25 @@ private:
         r.nvars = parser.getVariableCount();
     }
 
-    void _H_push(const SPARQLParser::Element &element, request_template &r, int pos) {
-        ssid_t id = _H_encode(element);
-        if (id == PTYPE_PH) {
-            string strIRI = "<" + element.value + ">";
-            r.ptypes_str.push_back(strIRI);
-            r.ptypes_pos.push_back(pos);
-        }
-        r.cmd_chains.push_back(id);
-    }
-
     void _H_template_transfer(const SPARQLParser &parser, request_template &r) {
         SPARQLParser::PatternGroup group = parser.getPatterns();
         int pos = 0;
+        auto func_push = [&](const SPARQLParser::Element &element) {
+            ssid_t id = _H_encode(element);
+            if (id == PTYPE_PH) {
+                string strIRI = "<" + element.value + ">";
+                r.ptypes_str.push_back(strIRI);
+                r.ptypes_pos.push_back(pos++);
+            }
+            return id;
+        };
         for (std::vector<SPARQLParser::Pattern>::const_iterator iter = group.patterns.begin(),
                 limit = group.patterns.end(); iter != limit; ++iter) {
-            _H_push(iter->subject, r, pos++);
-            r.cmd_chains.push_back(_H_encode(iter->predicate)); pos++;
-            r.cmd_chains.push_back(OUT); pos++;
-            _H_push(iter->object, r, pos++);
+            ssid_t subject = func_push(iter->subject);
+            ssid_t predicate = _H_encode(iter->predicate); pos++;
+            dir_t direction = OUT; pos++;
+            ssid_t object = func_push(iter->object);
+            r.pattern_group.patterns.push_back(SPARQLQuery::Pattern(subject, predicate, direction, object));
 
             int type =  str_server->id2type[_H_encode(iter->predicate)];
             if (type > 0 && (!global_enable_vattr)) {
@@ -461,7 +461,7 @@ public:
                 return false;
             }
 
-            r.cmd_chains = req_template.cmd_chains;
+            r.pattern_group = req_template.pattern_group;
             r.pred_type_chains = req_template.pred_type_chains;
             //init the var map in the req
             r.nvars = req_template.nvars;
@@ -499,14 +499,10 @@ public:
         r = SPARQLQuery();
 
         // add an additonal pattern cmd to collect pattern constants with a certain type
-        r.cmd_chains.push_back(str_server->str2id[type]); // type ID
-        r.cmd_chains.push_back(TYPE_ID);  // reserved ID for "rdf:type"
-        r.cmd_chains.push_back(IN);
-        r.cmd_chains.push_back(-1);
-
+        r.pattern_group.patterns.push_back(SPARQLQuery::Pattern(
+            str_server->str2id[type], TYPE_ID, IN, -1));
         r.pred_type_chains.push_back(0);
         r.nvars = 1;
         return true;
     }
-
 };
