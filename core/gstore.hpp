@@ -181,6 +181,14 @@ private:
             items[idx].v = v;
             pthread_spin_unlock(&items[idx].lock);
         }
+
+#if DYNAMIC_GSTORE
+        void flush() {
+            for(int i = 0; i < NUM_ITEMS; i++) {
+                items[i].v = vertex_t();
+            }
+        }
+#endif
     };
 
     static const int NUM_LOCKS = 1024;
@@ -889,6 +897,10 @@ public:
                 insert_vertex_edge(key, triple.o); // triple.o
             }
         }
+    }
+
+    void flush_cache() {
+        rdma_cache.flush();
     }
 #endif
 
