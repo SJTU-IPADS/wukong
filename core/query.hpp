@@ -223,7 +223,15 @@ public:
         v2c_map.resize(n, NO_RESULT);
     }
 
-    Pattern& get_current_pattern() { return pattern_group.patterns[step]; }
+    Pattern& get_current_pattern() {
+        assert(this->step < pattern_group.patterns.size());
+        return pattern_group.patterns[this->step];
+    }
+
+    Pattern& get_pattern(int step) {
+        assert(step < pattern_group.patterns.size());
+        return pattern_group.patterns[step];
+    }
 
     void clear_data() { result_table.clear(); attr_res_table.clear(); }
 

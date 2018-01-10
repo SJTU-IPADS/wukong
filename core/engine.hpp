@@ -162,10 +162,11 @@ private:
 
     // all of these means const predicate
     void const_to_unknown(SPARQLQuery &req) {
-        ssid_t start = req.cmd_chains[req.step * 4];
-        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
-        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        ssid_t start = pattern.subject;
+        ssid_t pid   = pattern.predicate;
+        dir_t d      = pattern.direction;
+        ssid_t end   = pattern.object;
         std::vector<sid_t> updated_result_table;
 
         // the query plan is wrong
@@ -184,10 +185,11 @@ private:
 
     // all of these means const attribute
     void const_to_unknown_attr(SPARQLQuery & req ) {
-        ssid_t start = req.cmd_chains[req.step * 4];
-        ssid_t aid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
-        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        ssid_t start = pattern.subject;
+        ssid_t aid   = pattern.predicate;
+        dir_t d      = pattern.direction;
+        ssid_t end   = pattern.object;
         std::vector<attr_t> updated_result_table;
 
         assert(d == OUT); // attribute always uses OUT
@@ -206,10 +208,11 @@ private:
 
 
     void known_to_unknown(SPARQLQuery &req) {
-        ssid_t start = req.cmd_chains[req.step * 4];
-        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
-        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        ssid_t start = pattern.subject;
+        ssid_t pid   = pattern.predicate;
+        dir_t d      = pattern.direction;
+        ssid_t end   = pattern.object;
         std::vector<sid_t> updated_result_table;
 
         // the query plan is wrong
@@ -233,10 +236,11 @@ private:
     }
 
     void known_to_unknown_attr(SPARQLQuery &req) {
-        ssid_t start = req.cmd_chains[req.step * 4];
-        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
-        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        ssid_t start = pattern.subject;
+        ssid_t pid   = pattern.predicate;
+        dir_t d      = pattern.direction;
+        ssid_t end   = pattern.object;
         std::vector<attr_t> updated_attr_result_table;
         std::vector<sid_t> updated_result_table;
 
@@ -265,10 +269,11 @@ private:
     }
 
     void known_to_known(SPARQLQuery &req) {
-        ssid_t start = req.cmd_chains[req.step * 4];
-        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
-        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        ssid_t start = pattern.subject;
+        ssid_t pid   = pattern.predicate;
+        dir_t d      = pattern.direction;
+        ssid_t end   = pattern.object;
         vector<sid_t> updated_result_table;
         vector<attr_t> updated_attr_res_table;
 
@@ -294,10 +299,11 @@ private:
     }
 
     void known_to_const(SPARQLQuery &req) {
-        ssid_t start = req.cmd_chains[req.step * 4];
-        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
-        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        ssid_t start = pattern.subject;
+        ssid_t pid   = pattern.predicate;
+        dir_t d      = pattern.direction;
+        ssid_t end   = pattern.object;
         vector<sid_t> updated_result_table;
         vector<attr_t> updated_attr_res_table;
 
@@ -322,10 +328,11 @@ private:
     }
 
     void index_to_unknown(SPARQLQuery &req) {
-        ssid_t tpid  = req.cmd_chains[req.step * 4];
-        ssid_t id01 = req.cmd_chains[req.step * 4 + 1];
-        dir_t d     = (dir_t)req.cmd_chains[req.step * 4 + 2];
-        ssid_t var  = req.cmd_chains[req.step * 4 + 3];
+        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        ssid_t tpid = pattern.subject;
+        ssid_t id01   = pattern.predicate;
+        dir_t d      = pattern.direction;
+        ssid_t var   = pattern.object;
         vector<sid_t> updated_result_table;
 
         assert(id01 == PREDICATE_ID || id01 == TYPE_ID); // predicate or type index
@@ -347,10 +354,11 @@ private:
 
     // e.g., "<http://www.Department0.University0.edu> ?P ?X"
     void const_unknown_unknown(SPARQLQuery &req) {
-        ssid_t start = req.cmd_chains[req.step * 4];
-        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
-        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        ssid_t start = pattern.subject;
+        ssid_t pid   = pattern.predicate;
+        dir_t d      = pattern.direction;
+        ssid_t end   = pattern.object;
         vector<sid_t> updated_result_table;
 
         // the query plan is wrong
@@ -384,10 +392,11 @@ private:
     // e.g., "<http://www.University0.edu> ub:subOrganizationOf ?D"
     //       "?D ?P ?X"
     void known_unknown_unknown(SPARQLQuery &req) {
-        ssid_t start = req.cmd_chains[req.step * 4];
-        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
-        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        ssid_t start = pattern.subject;
+        ssid_t pid   = pattern.predicate;
+        dir_t d      = pattern.direction;
+        ssid_t end   = pattern.object;
         vector<sid_t> updated_result_table;
 
         for (int i = 0; i < req.get_row_num(); i++) {
@@ -421,10 +430,11 @@ private:
 
     // FIXME: deadcode
     void known_unknown_const(SPARQLQuery &req) {
-        ssid_t start = req.cmd_chains[req.step * 4];
-        ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
-        dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
-        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        ssid_t start = pattern.subject;
+        ssid_t pid   = pattern.predicate;
+        dir_t d      = pattern.direction;
+        ssid_t end   = pattern.object;
         vector<sid_t> updated_result_table;
 
         for (int i = 0; i < req.get_row_num(); i++) {
@@ -458,14 +468,14 @@ private:
     }
 
     vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req) {
-        ssid_t start = req.cmd_chains[req.step * 4];
-        ssid_t end   = req.cmd_chains[req.step * 4 + 3];
+        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        ssid_t start = pattern.subject;
 
         // generate sub requests for all servers
         vector<SPARQLQuery> sub_reqs(global_num_servers);
         for (int i = 0; i < global_num_servers; i++) {
             sub_reqs[i].pid = req.id;
-            sub_reqs[i].cmd_chains = req.cmd_chains;
+            sub_reqs[i].pattern_group = req.pattern_group;
             sub_reqs[i].step = req.step;
             sub_reqs[i].col_num = req.col_num;
             sub_reqs[i].blind = req.blind;
@@ -490,44 +500,52 @@ private:
         // always need fork-join mode w/o RDMA
         if (!global_use_rdma) return true;
 
-        ssid_t start = req.cmd_chains[req.step * 4];
+        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        ssid_t start = pattern.subject;
         return ((req.local_var != start)
                 && (req.get_row_num() >= global_rdma_threshold));
     }
 
     void do_corun(SPARQLQuery &req) {
         int corun_step = req.step + 1;
-        int fetch_step = req.cmd_chains[req.step * 4 + 3];
+        int fetch_step = req.get_current_pattern().object;
 
         // step.1 remove dup;
         uint64_t t0 = timer::get_usec();
 
         boost::unordered_set<sid_t> unique_set;
-        ssid_t vid = req.cmd_chains[corun_step * 4];
+        ssid_t vid = req.get_pattern(corun_step).subject;
         assert(vid < 0);
         int col_idx = req.var2col(vid);
         for (int i = 0; i < req.get_row_num(); i++)
             unique_set.insert(req.get_row_col(i, col_idx));
 
         // step.2 generate cmd_chain for sub-reqs
-        vector<ssid_t> sub_chain;
+        SPARQLQuery::PatternGroup subgroup;
         vector<int> pvars_map; // from new_id to col_idx of id
 
         boost::unordered_map<sid_t, sid_t> sub_pvars;
-        for (int i = corun_step * 4; i < fetch_step * 4; i++) {
-            ssid_t id = req.cmd_chains[i];
 
+        auto lambda = [&](ssid_t id) {
             if (id < 0) { // remap pattern variable
                 if (sub_pvars.find(id) == sub_pvars.end()) {
                     sid_t new_id = - (sub_pvars.size() + 1); // starts from -1
                     sub_pvars[id] = new_id;
                     pvars_map.push_back(req.var2col(id));
                 }
-
-                sub_chain.push_back(sub_pvars[id]);
+                return sub_pvars[id];
             } else {
-                sub_chain.push_back(id);
+                return id;
             }
+        };
+
+        for(int i = corun_step; i < fetch_step; i++) {
+            SPARQLQuery::Pattern &pattern = req.get_pattern(i);
+            ssid_t subject = lambda(pattern.subject);
+            ssid_t predicate = lambda(pattern.predicate);
+            dir_t direction = pattern.direction;
+            ssid_t object = lambda(pattern.object);
+            subgroup.patterns.push_back(Pattern(subject, predicate, direction, object));
         }
 
         // sub-reqs pred_type
@@ -540,7 +558,7 @@ private:
         SPARQLQuery sub_req;
 
         // query
-        sub_req.cmd_chains = sub_chain;
+        sub_req.pattern_group = subgroup;
         sub_req.nvars = pvars_map.size();
 
         // result
@@ -623,10 +641,11 @@ private:
             return true;
         }
 
-        ssid_t start     = req.cmd_chains[req.step * 4];
-        ssid_t predicate = req.cmd_chains[req.step * 4 + 1];
-        dir_t direction  = (dir_t)req.cmd_chains[req.step * 4 + 2];
-        ssid_t end       = req.cmd_chains[req.step * 4 + 3];
+        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        ssid_t start     = pattern.subject;
+        ssid_t predicate = pattern.predicate;
+        dir_t direction  = pattern.direction;
+        ssid_t end       = pattern.object;
 
         // triple pattern with unknown predicate/attribute
         if (predicate < 0) {
@@ -723,7 +742,7 @@ private:
             t1 = timer::get_usec() - t1;
 
             // co-run optimization
-            if (!r.is_finished() && (r.cmd_chains[r.step * 4 + 2] == CORUN))
+            if (!r.is_finished() && (r.get_current_pattern().direction == CORUN))
                 do_corun(r);
 
             if (r.is_finished()) {
