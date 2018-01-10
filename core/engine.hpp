@@ -844,16 +844,8 @@ public:
             last_time = timer::get_usec();
 
             // own queue
-            success = false;
-            pthread_spin_lock(&recv_lock);
-            success = adaptor->tryrecv(r);
-            // if (success && r.start_from_index()) {
-            //     msg_fast_path.push_back(r);
-            //     success = false;
-            // }
-            pthread_spin_unlock(&recv_lock);
-
-            if (success) execute(r, engines[own_id]);
+            if (adaptor->tryrecv(r))
+                execute(r, engines[own_id]);
 
             // work-oblige is disabled
             if (!global_enable_workstealing) continue;
@@ -863,16 +855,8 @@ public:
             if (last_time < engines[nbr_id]->last_time + TIMEOUT_THRESHOLD)
                 continue; // neighboring worker is self-sufficient
 
-            success = false;
-            pthread_spin_lock(&engines[nbr_id]->recv_lock);
-            success = engines[nbr_id]->adaptor->tryrecv(r);
-            // if (success && r.start_from_index()) {
-            //     engines[nbr_id]->msg_fast_path.push_back(r);
-            //     success = false;
-            // }
-            pthread_spin_unlock(&engines[nbr_id]->recv_lock);
-
-            if (success) execute(r, engines[nbr_id]);
+            if (engines[nbr_id]->adaptor->tryrecv(r))
+                execute(r, engines[nbr_id]);
         }
     }
 
