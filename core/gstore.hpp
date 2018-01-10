@@ -143,10 +143,12 @@ struct edge_t {
  */
 class GStore {
 private:
+    /// TODO: use more clever cache structure with lock-free implementation
     class RDMA_Cache {
         struct Item {
             pthread_spinlock_t lock;
             vertex_t v;
+
             Item() {
                 pthread_spin_init(&lock, 0);
             }
@@ -156,7 +158,6 @@ private:
         Item items[NUM_ITEMS];
 
     public:
-        /// TODO: use more clever cache structure with lock-free implementation
         bool lookup(ikey_t key, vertex_t &ret) {
             if (!global_enable_caching)
                 return false;
@@ -181,6 +182,13 @@ private:
             items[idx].v = v;
             pthread_spin_unlock(&items[idx].lock);
         }
+
+#if DYNAMIC_GSTORE
+        void flush() {
+            for (int i = 0; i < NUM_ITEMS; i++)
+                items[i].v = vertex_t();
+        }
+#endif
     };
 
     static const int NUM_LOCKS = 1024;
@@ -843,7 +851,7 @@ public:
         cout << (t3 - t2) / 1000 << " ms for insert index data into gstore" << endl;
     }
 
-#if DYNAMIC_GSTORE    //with bug, fix it later
+#if DYNAMIC_GSTORE
     void insert_triple_out(const triple_t &triple) {
         // (s, ->, p) ---> normal vertex(o)
         // (s, ->, 0) ---> predicts
@@ -890,6 +898,8 @@ public:
             }
         }
     }
+
+    void flush_cache() { rdma_cache.flush(); }
 #endif
 
     // FIXME: refine parameters with vertex_t

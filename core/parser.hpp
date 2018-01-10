@@ -338,7 +338,7 @@ private:
         }
         return DUMMY_ID;
     }
-    void _H_simplist_transfer(const SPARQLParser &parser, Request &r) {
+    void _H_simplist_transfer(const SPARQLParser &parser, SPARQLQuery &r) {
         vector<ssid_t> temp_cmd_chains ;
         vector<int> temp_pred_type_chains;
         SPARQLParser::PatternGroup group = parser.getPatterns();
@@ -393,7 +393,7 @@ private:
         // set the number of variables in triple patterns
         r.nvars = parser.getVariableCount();
     }
-    bool _H_do_parse(istream &is, Request &r) {
+    bool _H_do_parse(istream &is, SPARQLQuery &r) {
         string query = read_input(is);
         SPARQLLexer lexer(query);
         SPARQLParser parser(lexer);
@@ -433,7 +433,7 @@ public:
     Parser(String_Server *_ss): str_server(_ss) { clear(); }
 
     /* Used in single-mode */
-    bool parse(istream &is, Request &r) {
+    bool parse(istream &is, SPARQLQuery &r) {
         // clear intermediate states of parser
         clear();
 
@@ -494,9 +494,9 @@ public:
         return true;
     }
 
-    bool add_type_pattern(string type, Request &r) {
+    bool add_type_pattern(string type, SPARQLQuery &r) {
         clear();
-        r = Request();
+        r = SPARQLQuery();
 
         // add an additonal pattern cmd to collect pattern constants with a certain type
         r.cmd_chains.push_back(str_server->str2id[type]); // type ID

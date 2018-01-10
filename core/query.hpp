@@ -56,7 +56,28 @@ int ext2col(int ext) { return (ext & ((1 << NBITS_COL) - 1)); }
 
 enum req_type { SPARQL_QUERY, DYNAMIC_LOAD };
 
-class Request {
+class RDFLoad {
+private:
+    friend class boost::serialization::access;
+    template <typename Archive>
+    void serialize(Archive &ar, const unsigned int version) {
+        ar & pid;
+        ar & type;
+        ar & load_dname;
+        ar & load_ret;
+    }
+
+public:
+    int pid = -1;    // parqnt query id
+    req_type type = DYNAMIC_LOAD;
+
+    string load_dname = "";   // the file name used to be inserted
+    int load_ret = 0;
+
+    RDFLoad() {}
+};
+
+class SPARQLQuery {
 private:
     void output_result(ostream &stream, int size, String_Server *str_server) {
         for (int i = 0; i < size; i++) {
@@ -74,6 +95,27 @@ private:
             }
             stream << endl;
         }
+    }
+
+    friend class boost::serialization::access;
+    template <typename Archive>
+    void serialize(Archive &ar, const unsigned int version) {
+        ar & id;
+        ar & pid;
+        ar & tid;
+        ar & type;
+        ar & step;
+        ar & col_num;
+        ar & row_num;
+        ar & attr_col_num;
+        ar & blind;
+        ar & nvars;
+        ar & local_var;
+        ar & v2c_map;
+        ar & cmd_chains;
+        ar & result_table;
+        ar & pred_type_chains;
+        ar & attr_res_table;
     }
 
 public:
@@ -105,42 +147,12 @@ public:
     vector<int>  pred_type_chains;
     vector<attr_t> attr_res_table; // result table for others
 
-    // dynamic load
-#ifdef DYNAMIC_GSTORE
-    string load_dname = "";   // the file name used to be inserted
-    int load_ret = 0;
-#endif
-
-    Request() { }
+    SPARQLQuery() { }
 
     // build a request by existing triple patterns and variables
-    Request(vector<ssid_t> cc, int n, vector<int> p)
+    SPARQLQuery(vector<ssid_t> cc, int n, vector<int> p)
         : cmd_chains(cc), nvars(n), pred_type_chains(p) {
         v2c_map.resize(n, NO_RESULT);
-    }
-
-    template <typename Archive>
-    void serialize(Archive &ar, const unsigned int version) {
-        ar & id;
-        ar & pid;
-        ar & tid;
-        ar & type;
-        ar & step;
-        ar & col_num;
-        ar & row_num;
-        ar & attr_col_num;
-        ar & blind;
-        ar & nvars;
-        ar & local_var;
-        ar & v2c_map;
-        ar & cmd_chains;
-        ar & result_table;
-        ar & pred_type_chains;
-        ar & attr_res_table;
-#if DYNAMIC_GSTORE
-        ar & load_dname;
-        ar & load_ret;
-#endif
     }
 
     void clear_data() { result_table.clear(); attr_res_table.clear(); }
@@ -277,10 +289,64 @@ public:
     vector<string> ptypes_str; // the Types of random-constants
     vector<vector<sid_t>> ptypes_grp; // the candidates for random-constants
 
-    Request instantiate(int seed) {
+    SPARQLQuery instantiate(int seed) {
         for (int i = 0; i < ptypes_pos.size(); i++)
             cmd_chains[ptypes_pos[i]] =
                 ptypes_grp[i][seed % ptypes_grp[i].size()];
-        return Request(cmd_chains, nvars, pred_type_chains);
+        return SPARQLQuery(cmd_chains, nvars, pred_type_chains);
+    }
+};
+
+class Bundle {
+public:
+    req_type type;
+    string data;
+
+    Bundle() {}
+
+    Bundle(SPARQLQuery request): type(request.type) {
+        std::stringstream ss;
+        boost::archive::binary_oarchive oa(ss);
+
+        oa << request;
+        data = ss.str();
+    }
+
+    Bundle(RDFLoad request): type(request.type) {
+        std::stringstream ss;
+        boost::archive::binary_oarchive oa(ss);
+
+        oa << request;
+        data = ss.str();
+    }
+
+    SPARQLQuery get_sparql_query() {
+        assert(type == SPARQL_QUERY);
+        std::stringstream ss;
+        ss << data;
+
+        boost::archive::binary_iarchive ia(ss);
+        SPARQLQuery result;
+        ia >> result;
+        return result;
+    }
+
+    RDFLoad get_rdf_load() {
+        assert(type == DYNAMIC_LOAD);
+        std::stringstream ss;
+        ss << data;
+
+        boost::archive::binary_iarchive ia(ss);
+        RDFLoad result;
+        ia >> result;
+        return result;
+    }
+
+private:
+    friend class boost::serialization::access;
+    template <typename Archive>
+    void serialize(Archive &ar, const unsigned int version) {
+        ar & type;
+        ar & data;
     }
 };
