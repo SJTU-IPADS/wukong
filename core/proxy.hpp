@@ -261,7 +261,7 @@ public:
 		uint64_t duration = SEC(d);
 		uint64_t warmup = SEC(w);
 		uint64_t sleep = USEC(s);
-		int parallel_factor = p;
+		int parallel_factor = p, send_rate = p;
 		int try_rounds = 5;
 
 		int ntypes;
@@ -300,11 +300,11 @@ public:
 		logger.init();
 
 		bool timing = false;
-		uint64_t send_cnt = 0, recv_cnt = 0;
+		uint64_t send_cnt = 0, recv_cnt = 0, flying_cnt = 0;
 		uint64_t init = timer::get_usec();
 		while ((timer::get_usec() - init) < duration) {
 			// send requests
-			for (int t = 0; t < parallel_factor; t++) {
+			for (int t = 0; t < send_rate; t++) {
 				sweep_msgs(); // sweep pending msgs first
 
 				int idx = mymath::get_distribution(coder.get_random(), loads);
@@ -338,6 +338,19 @@ public:
 				logger.start_thpt(recv_cnt);
 				timing = true;
 			}
+
+                        flying_cnt = send_cnt - recv_cnt;
+
+                        if (flying_cnt > parallel_factor) {  // send too many queries
+				send_rate = send_rate - (int)(flying_cnt - parallel_factor);
+                                send_rate = send_rate > 0 ? send_rate : 1; // at least send 1 query
+                                continue;
+                        }
+                        if (send_rate < parallel_factor) {
+				send_rate = send_rate + (parallel_factor - flying_cnt);
+                                send_rate = send_rate < parallel_factor ?
+                                    send_rate : parallel_factor; // at most send parallel_factor queries
+                        }
 		}
 		logger.end_thpt(recv_cnt);
 
@@ -346,7 +359,7 @@ public:
 			sweep_msgs();	// sweep pending msgs first
 
 			SPARQLQuery r;
-			if (tryrecv_reply(r)) {
+			while (tryrecv_reply(r)) {
 				recv_cnt ++;
 				logger.end_record(r.pid);
 			}
