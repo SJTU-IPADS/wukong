@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <iostream>
 #include "SPARQLLexer.hpp"
+#include "type.hpp"
 //---------------------------------------------------------------------------
 class SPARQLLexer;
 //---------------------------------------------------------------------------
@@ -40,7 +41,7 @@ public:
     /// An element in a graph pattern
     struct Element {
         /// Possible types
-        enum Type { Variable, Literal, IRI, Template };
+        enum Type { Variable, Literal, IRI, Template, Predicate };
         /// Possible sub-types for literals
         enum SubType { None, CustomLanguage, CustomType };
         /// The type
@@ -58,6 +59,8 @@ public:
     struct Pattern {
         /// The entires
         Element subject, predicate, object;
+        /// Direction
+        dir_t direction = IN;
         /// Constructor
         Pattern(Element subject, Element predicate, Element object);
         /// Destructor
@@ -1009,6 +1012,8 @@ SPARQLParser::Element SPARQLParser::parsePatternElement(PatternGroup& group, map
 			throw ParserException("IRI expected after '%'");
 		result.type = Element::Template;
         result.value = predicate.value;
+    } else if (token == SPARQLLexer::PREDICATE) {
+        result.type = Element::Predicate;
     } else {
         throw ParserException("invalid pattern element");
     }
@@ -1039,6 +1044,9 @@ void SPARQLParser::parseGraphPattern(PatternGroup& group)
             group.patterns.push_back(Pattern(subject, predicate, object));
             continue;
         } else if (token == SPARQLLexer::Dot) {
+            return;
+        } else if (token == SPARQLLexer::LArrow){
+            group.patterns[group.patterns.size() - 1].direction = OUT;
             return;
         } else if (token == SPARQLLexer::RCurly) {
             lexer.unget(token);

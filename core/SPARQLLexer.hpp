@@ -118,7 +118,7 @@ SPARQLLexer::Token SPARQLLexer::getNext()
         case ',': return Comma;
         case '.': return Dot;
         case '_':
-            if(input.end() - pos >= 12 && strcmp(&*pos, "_PREDICATE__") == 0){
+            if(input.end() - pos >= 12 && strncmp(&*pos, "_PREDICATE__", 12) == 0){
                 pos += 12;
                 return PREDICATE;
             }
@@ -210,12 +210,12 @@ SPARQLLexer::Token SPARQLLexer::getNext()
             pos = tokenStart;
 
             // No, do we have a less-or-equal?
-            if (((pos + 1) != input.end()) && ((*(pos + 1)) == '=')) {
+            if ((pos != input.end()) && ((*pos) == '=')) {
                 pos++;
                 return LessOrEqual;
             }
             // No, do we have a left arrow?
-            if (((pos + 1) != input.end()) && ((*(pos + 1)) == '-')) {
+            if ((pos != input.end()) && ((*pos) == '-')) {
                 pos++;
                 return LArrow;
             }
