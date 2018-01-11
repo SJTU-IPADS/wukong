@@ -44,14 +44,11 @@ public:
     ~Adaptor() { }
 
     bool send(int dst_sid, int dst_tid, Bundle &bundle) {
-        std::stringstream ss;
-        boost::archive::binary_oarchive oa(ss);
-
-        oa << bundle;
+        string message = bundle.get_type() + bundle.data;
         if (global_use_rdma && rdma->init)
-            return rdma->send(tid, dst_sid, dst_tid, ss.str());
+            return rdma->send(tid, dst_sid, dst_tid, message);
         else
-            return tcp->send(dst_sid, dst_tid, ss.str());
+            return tcp->send(dst_sid, dst_tid, message);
     }
 
     Bundle recv() {
@@ -61,12 +58,7 @@ public:
         else
             str = tcp->recv(tid);
 
-        std::stringstream ss;
-        ss << str;
-
-        boost::archive::binary_iarchive ia(ss);
-        Bundle bundle;
-        ia >> bundle;
+        Bundle bundle(str);
         return bundle;
     }
 
@@ -77,12 +69,8 @@ public:
         } else {
             if (!tcp->tryrecv(tid, str)) return false;
         }
-
-        std::stringstream ss;
-        ss << str;
-
-        boost::archive::binary_iarchive ia(ss);
-        ia >> bundle;
+        bundle.set_type(str.at(0));
+        bundle.data = str.substr(1);
         return true;
     }
 };
