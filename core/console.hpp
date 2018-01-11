@@ -251,7 +251,7 @@ next:
 			} else if (token == "sparql") { // handle SPARQL queries
 				string fname, bfname, ofname;
 				int cnt = 1, nlines = 0;
-				int duration = 10, warmup = 5, sleep = 500, parallel_factor = 20;
+				int duration = 10, warmup = 5, parallel_factor = 20;
 				bool f_enable = false, b_enable = false, o_enable = false;
 
 				// parse parameters
@@ -273,8 +273,6 @@ next:
 						cmd_ss >> duration;
 					} else if (token == "-w") {
 						cmd_ss >> warmup;
-					} else if (token == "-s") {
-						cmd_ss >> sleep;
 					} else if (token == "-p") {
 						cmd_ss >> parallel_factor;
 					} else {
@@ -358,7 +356,7 @@ next:
 							continue;
 						}
 
-						proxy->run_batch_query(ifs, duration, warmup, sleep, parallel_factor, logger);
+						proxy->run_batch_query(ifs, duration, warmup, parallel_factor, logger);
 					}
 
 					// FIXME: maybe hang in here if the input file misses in some machines
