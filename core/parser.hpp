@@ -393,6 +393,7 @@ private:
         // set the number of variables in triple patterns
         r.nvars = parser.getVariableCount();
     }
+
     bool _H_do_parse(istream &is, SPARQLQuery &r) {
         string query = read_input(is);
         SPARQLLexer lexer(query);
@@ -402,22 +403,6 @@ private:
         try {
             parser.parse();//sparql -f query/lubm_q1
             _H_simplist_transfer(parser, r);
-        } catch (const SPARQLParser::ParserException &e) {
-            cerr << "parse error: " << e.message << endl;
-            return false;
-        }
-        return true;
-    }
-
-    bool _H_do_parse_template(istream &is, request_template &r) {
-        string query = read_input(is);
-        SPARQLLexer lexer(query);
-        SPARQLParser parser(lexer);
-        varId = -1;
-        _H_incVarIdMap.clear();
-        try {
-            parser.parse();
-            _H_template_transfer(parser, r);
         } catch (const SPARQLParser::ParserException &e) {
             cerr << "parse error: " << e.message << endl;
             return false;
@@ -477,26 +462,18 @@ public:
 
     /* Used in batch-mode */
     bool parse_template(istream &is, request_template &r) {
-        if (global_enable_planner) {
-            if (!_H_do_parse_template(is, r))
-                return false;
-            // cout << "parsing template is finished." << endl;
-            return true;
-        }
-
-        // clear intermediate states of parser
-        clear();
-
-        vector<string> tokens = get_tokens(is);
-        if (!do_parse(tokens))
-            return false;
-
-        if (req_template.ptypes_pos.size() == 0) {
-            cout << "ERROR: there is no template pattern!" << endl;
+        string query = read_input(is);
+        SPARQLLexer lexer(query);
+        SPARQLParser parser(lexer);
+        varId = -1;
+        _H_incVarIdMap.clear();
+        try {
+            parser.parse();
+            _H_template_transfer(parser, r);
+        } catch (const SPARQLParser::ParserException &e) {
+            cerr << "parse error: " << e.message << endl;
             return false;
         }
-
-        r = req_template;
         return true;
     }
 
