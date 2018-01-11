@@ -17,7 +17,7 @@ class SPARQLLexer
 {
 public:
     /// Possible tokens
-    enum Token { None, Error, Eof, IRI, String, Variable, Identifier, Colon, Semicolon, Comma, Dot, Underscore, LCurly, RCurly, LParen, RParen, LBracket, RBracket, Anon, Equal, NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual, At, Type, Not, Or, And, Plus, Minus, Mul, Div, Integer, Decimal, Double, Percent };
+    enum Token { None, Error, Eof, IRI, String, Variable, Identifier, Colon, Semicolon, Comma, Dot, Underscore, LCurly, RCurly, LParen, RParen, LBracket, RBracket, LArrow, RArrow, Anon, Equal, NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual, At, Type, Not, Or, And, Plus, Minus, Mul, Div, Integer, Decimal, Double, Percent, PREDICATE };
 
 private:
     /// The input
@@ -117,14 +117,25 @@ SPARQLLexer::Token SPARQLLexer::getNext()
         case ';': return Semicolon;
         case ',': return Comma;
         case '.': return Dot;
-        case '_': return Underscore;
+        case '_':
+            if(input.end() - pos >= 12 && strncmp(&*pos, "_PREDICATE__", 12) == 0){
+                pos += 12;
+                return PREDICATE;
+            }
+            return Underscore;
         case '{': return LCurly;
         case '}': return RCurly;
         case '(': return LParen;
         case ')': return RParen;
         case '@': return At;
         case '+': return Plus;
-        case '-': return Minus;
+        case '-': 
+            // check if it is a right arrow
+            if ((pos != input.end()) && ((*pos) == '>')) {
+                pos++;
+                return RArrow;
+            }
+            return Minus;
         case '*': return Mul;
         case '/': return Div;
         case '=': return Equal;
@@ -205,9 +216,14 @@ SPARQLLexer::Token SPARQLLexer::getNext()
             pos = tokenStart;
 
             // No, do we have a less-or-equal?
-            if (((pos + 1) != input.end()) && ((*(pos + 1)) == '=')) {
+            if ((pos != input.end()) && ((*pos) == '=')) {
                 pos++;
                 return LessOrEqual;
+            }
+            // No, do we have a left arrow?
+            if ((pos != input.end()) && ((*pos) == '-')) {
+                pos++;
+                return LArrow;
             }
             // Just a less
             return Less;

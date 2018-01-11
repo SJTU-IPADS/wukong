@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <iostream>
 #include "SPARQLLexer.hpp"
+#include "type.hpp"
 //---------------------------------------------------------------------------
 class SPARQLLexer;
 //---------------------------------------------------------------------------
@@ -40,7 +41,7 @@ public:
     /// An element in a graph pattern
     struct Element {
         /// Possible types
-        enum Type { Variable, Literal, IRI, Template };
+        enum Type { Variable, Literal, IRI, Template, Predicate };
         /// Possible sub-types for literals
         enum SubType { None, CustomLanguage, CustomType };
         /// The type
@@ -58,6 +59,8 @@ public:
     struct Pattern {
         /// The entires
         Element subject, predicate, object;
+        /// Direction
+        dir_t direction = OUT;
         /// Constructor
         Pattern(Element subject, Element predicate, Element object);
         /// Destructor
@@ -135,6 +138,10 @@ private:
     std::vector<Order> order;
     /// The result limit
     unsigned limit;
+    // indicate if custom grammar is in use
+    bool usingCustomGrammar;
+    int corun_step;
+    int fetch_step;
 
     /// Lookup or create a named variable
     unsigned nameVariable(const std::string &name);
@@ -182,6 +189,8 @@ private:
 
     /// Parse the prefix part if any
     void parsePrefix();
+    /// Parse corun
+    void parseCorun();
     /// Parse the projection
     void parseProjection();
     /// Parse the from part if any
@@ -227,6 +236,8 @@ public:
     unsigned getLimit() const { return limit; }
     /// Get the variableCount
     unsigned getVariableCount() const { return variableCount; } 
+    // indicate if custom grammar is in use
+    bool isUsingCustomGrammar() const { return usingCustomGrammar; }
 };
 //---------------------------------------------------------------------------
 
@@ -325,6 +336,10 @@ SPARQLParser::SPARQLParser(SPARQLLexer& lexer)
     : lexer(lexer), variableCount(0), projectionModifier(Modifier_None), limit(~0u)
       // Constructor
 {
+    limit = -1;
+    usingCustomGrammar = false;
+    corun_step = 0;
+    fetch_step = 0;
 }
 //---------------------------------------------------------------------------
 SPARQLParser::~SPARQLParser()
@@ -364,6 +379,34 @@ void SPARQLParser::parsePrefix()
             if (prefixes.count(name))
                 throw ParserException("duplicate prefix '" + name + "'");
             prefixes[name] = iri;
+        } else {
+            lexer.unget(token);
+            return;
+        }
+    }
+}
+//--------------------------------------------------------------------------
+void SPARQLParser::parseCorun()
+// Parse corun
+{
+    while (true) {
+        SPARQLLexer::Token token = lexer.getNext();
+        if ((token == SPARQLLexer::Identifier) && (lexer.isKeyword("corun"))) {
+            usingCustomGrammar = true;
+            // Parse the corun entry
+            if (lexer.getNext() != SPARQLLexer::Identifier)
+                throw ParserException("prefix name expected");
+
+            if (lexer.getNext() != SPARQLLexer::Integer)
+                throw ParserException("Integer(corun step) expected");
+            string corun_step_str = lexer.getTokenValue();
+            cout << corun_step_str << endl;
+            corun_step = stoi(corun_step_str);
+            if (lexer.getNext() != SPARQLLexer::Integer)
+                throw ParserException("Integer(fetch step) expected");
+            string fetch_step_str = lexer.getTokenValue();
+            fetch_step = stoi(fetch_step_str);
+            cout << fetch_step_str << endl;
         } else {
             lexer.unget(token);
             return;
@@ -1004,11 +1047,15 @@ SPARQLParser::Element SPARQLParser::parsePatternElement(PatternGroup& group, map
             result.value = prefixes[prefix] + lexer.getIRIValue();
         }
     } else if (token == SPARQLLexer::Percent) {
+        usingCustomGrammar = true;
         Element predicate = parsePatternElement(group, localVars);
         if(predicate.type != Element::IRI)
 			throw ParserException("IRI expected after '%'");
 		result.type = Element::Template;
         result.value = predicate.value;
+    } else if (token == SPARQLLexer::PREDICATE) {
+        usingCustomGrammar = true;
+        result.type = Element::Predicate;
     } else {
         throw ParserException("invalid pattern element");
     }
@@ -1039,6 +1086,17 @@ void SPARQLParser::parseGraphPattern(PatternGroup& group)
             group.patterns.push_back(Pattern(subject, predicate, object));
             continue;
         } else if (token == SPARQLLexer::Dot) {
+            return;
+        } else if (token == SPARQLLexer::LArrow){
+            usingCustomGrammar = true;
+            Pattern last_pattern = group.patterns.back();
+            Pattern pattern(last_pattern.object,last_pattern.predicate,last_pattern.subject);
+            pattern.direction = IN;
+            group.patterns.pop_back();
+            group.patterns.push_back(pattern);
+            return;
+        } else if (token == SPARQLLexer::RArrow){
+            usingCustomGrammar = true;
             return;
         } else if (token == SPARQLLexer::RCurly) {
             lexer.unget(token);
