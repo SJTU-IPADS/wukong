@@ -354,10 +354,11 @@ public:
 
 #if DYNAMIC_GSTORE
 	int dynamic_load_data(string &dname, RDFLoad &reply,
-	                      Logger &logger) {
+	                      Logger &logger, bool &check_dup) {
 		RDFLoad request;
 		request.type = DYNAMIC_LOAD;
 		request.load_dname = dname;
+		request.check_dup = check_dup;
 
 		logger.init();
 		setpid(request);

@@ -65,14 +65,16 @@ private:
         ar & type;
         ar & load_dname;
         ar & load_ret;
+        ar & check_dup;
     }
 
 public:
-    int pid = -1;    // parqnt query id
+    int pid = -1;    // parent query id
     req_type type = DYNAMIC_LOAD;
 
     string load_dname = "";   // the file name used to be inserted
     int load_ret = 0;
+    bool check_dup = false;
 
     RDFLoad() {}
 };

@@ -558,7 +558,7 @@ public:
 		return true;
 	}
 
-	int64_t dynamic_load_data(string dname) {
+	int64_t dynamic_load_data(string dname, bool check_dup) {
 		vector<string> dfiles(list_files(dname, "id_"));   // ID-format data files
 		vector<string> afiles(list_files(dname, "attr_")); // ID-format attribute files
 
@@ -587,12 +587,12 @@ public:
 				check_sid(s); check_sid(p); check_sid(o);
 
 				if (sid == mymath::hash_mod(s, global_num_servers)) {
-					gstore.insert_triple_out(triple_t(s, p, o));
+					gstore.insert_triple_out(triple_t(s, p, o), check_dup);
 					cnt ++;
 				}
 
 				if (sid == mymath::hash_mod(o, global_num_servers)) {
-					gstore.insert_triple_in(triple_t(s, p, o));
+					gstore.insert_triple_in(triple_t(s, p, o), check_dup);
 					cnt ++;
 				}
 			}

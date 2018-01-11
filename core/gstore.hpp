@@ -321,7 +321,17 @@ done:
 
 
 #if DYNAMIC_GSTORE
-    bool insert_vertex_edge(ikey_t key, uint64_t value) {
+     bool is_dup(vertex_t *v,uint64_t value) {
+        int size = v->ptr.size;
+        for(int i = 0; i < size; i++) {
+            if(edges[v->ptr.off+i].val == value) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool insert_vertex_edge(ikey_t key, uint64_t value, bool &dedup_or_isdup) {
         uint64_t bucket_id = key.hash() % num_buckets;
         uint64_t lock_id = bucket_id % NUM_LOCKS;
         uint64_t v_ptr = insert_key(key, false);
@@ -332,8 +342,16 @@ done:
             vertices[v_ptr].ptr = iptr_t(1, off);
             edges[off].val = value;
             pthread_spin_unlock(&bucket_locks[lock_id]);
+            dedup_or_isdup = false;
             return true;
         } else {
+
+             if(dedup_or_isdup && is_dup(v, value)) {
+                 pthread_spin_unlock(&bucket_locks[lock_id]);
+                 return false;
+            }
+            dedup_or_isdup = false;
+
             uint64_t need_size = v->ptr.size + 1;
             uint64_t off = realloc_edges(v->ptr.off, need_size);
             v->ptr = iptr_t(need_size, off);
@@ -851,53 +869,76 @@ public:
         cout << (t3 - t2) / 1000 << " ms for insert index data into gstore" << endl;
     }
 
-#if DYNAMIC_GSTORE    //with bug, fix it later
-    void insert_triple_out(const triple_t &triple) {
-        // (s, ->, p) ---> normal vertex(o)
-        // (s, ->, 0) ---> predicts
-        // (p, <-, 0) ---> normal vertex(s)
-        ikey_t key = ikey_t(triple.s, triple.p, OUT);
-        if (insert_vertex_edge(key, triple.o)) {
-            // key doesn't exist before
-            if (triple.p == PREDICATE_ID) {
-#ifdef VERSATILE
-                key = ikey_t(0, TYPE_ID, IN);
-                insert_vertex_edge(key, triple.s);
-                key = ikey_t(0, TYPE_ID, OUT);
-                insert_vertex_edge(key, triple.o);
-#endif
-            } else if (triple.p == TYPE_ID) {
-                key = ikey_t(0, triple.o, IN);
-                insert_vertex_edge(key, triple.s);
-            } else {
+#if DYNAMIC_GSTORE   
+    void insert_triple_out(const triple_t &triple, bool check_dup) {
+        bool dedup_or_isdup = check_dup;
+        bool nodup = false;
+        if (triple.p == TYPE_ID) {
+             dedup_or_isdup = true;  // for TYPE_ID condition, dedup is always needed for LUBM benchmark, maybe for others,too.
+             ikey_t key = ikey_t(triple.s, triple.p, OUT); 
+             if (insert_vertex_edge(key, triple.o, dedup_or_isdup)) { // <1> vid's type (7) [need dedup]
+    #ifdef VERSATILE
+                key = ikey_t(triple.s, PREDICATE_ID, OUT); 
+                if (insert_vertex_edge(key, triple.p, nodup)) { // <2> vid's predicate, value is TYPE_ID (*8) [dedup from <1>]
+                    key = ikey_t(0, TYPE_ID, IN); 
+                    insert_vertex_edge(key, triple.s, nodup); // <3> the index to vid (*3) [dedup from <2>]
+                }
+    #endif
+             }
+             if (!dedup_or_isdup) {
+                  key = ikey_t(0, triple.o, IN);
+                  if (insert_vertex_edge(key, triple.s, nodup)) { // <4> type-index (2) [if <1>'s result is not dup, this is not dup, too]
+    #ifdef VERSATILE
+                        key = ikey_t(0, TYPE_ID, OUT);
+                        insert_vertex_edge(key, triple.o, nodup);// <5> index to this type (*4) [dedup from <4>]
+    #endif
+                  }
+             }
+        } else {
+            ikey_t key = ikey_t(triple.s, triple.p, OUT);
+            if (insert_vertex_edge(key, triple.o, dedup_or_isdup)) {  // <6> vid's ngbrs w/ predicate (6) [need dedup]
                 key = ikey_t(0, triple.p, IN);
-                insert_vertex_edge(key, triple.s); // triple.s
+                if(insert_vertex_edge(key, triple.s, nodup)) { // <7> predicate-index (1) [dedup from <6>]
+    #ifdef VERSATILE
+                    key = ikey_t(0, PREDICATE_ID, OUT);
+                    insert_vertex_edge(key, triple.p, nodup); // <8> the index to predicate (*5) [dedup from <7>]
+    #endif
+                }
+    #ifdef VERSATILE
+                key = ikey_t(triple.s, PREDICATE_ID, OUT);
+                if (insert_vertex_edge(key, triple.p, nodup)) { // <9> vid's predicate (*8) [dedup from <6>]
+                    key = ikey_t(0, TYPE_ID, IN);
+                    insert_vertex_edge(key, triple.s, nodup); // <10> the index to vid (*3) [dedup from <9>]
+                }
+    #endif
             }
         }
     }
 
-    void insert_triple_in(const triple_t &triple) {
-        // (o, <-, p) ---> normal vertex(s)
-        // (o, <-, 0) ---> predicts
-        // (p, ->, 0) ---> normal vertex(o)
+    void insert_triple_in(const triple_t &triple, bool check_dup) {
+        bool dedup_or_isdup = check_dup;
+        bool nodup = false;
+        if (triple.p == TYPE_ID) // skipped
+            return;
         ikey_t key = ikey_t(triple.o, triple.p, IN);
-        if (insert_vertex_edge(key, triple.s)) {
-            // key doesn't exist before
-            if (triple.p == PREDICATE_ID) {
-#ifdef VERSATILE
-                key = ikey_t(0, TYPE_ID, IN);
-                insert_vertex_edge(key, triple.o);
-                key = ikey_t(0, TYPE_ID, OUT);
-                insert_vertex_edge(key, triple.s);
-#endif
-            } else if (triple.p == TYPE_ID) {  // insert unused
-                return;
-            } else {
-                key = ikey_t(0, triple.p, OUT);
-                insert_vertex_edge(key, triple.o); // triple.o
+        if (insert_vertex_edge(key, triple.s, dedup_or_isdup)) {  // <1> vid's ngbrs w/ predicate (6) [need dedup]
+        // key doesn't exist before
+            key = ikey_t(0, triple.p, OUT);
+            if(insert_vertex_edge(key, triple.o, nodup)) { // <2> predicate-index (1) [dedup from <1>]
+            #ifdef VERSATILE
+                  key = ikey_t(0, PREDICATE_ID, OUT);
+                  insert_vertex_edge(key, triple.p, nodup); // <3> the index to predicate (*5) [dedup from <2>]
+            #endif
             }
+        #ifdef VERSATILE
+            key = ikey_t(triple.o, PREDICATE_ID, IN);
+            if(insert_vertex_edge(key, triple.p, nodup)) { // <4> vid's predicate (*8) [dedup from <1>]
+                key = ikey_t(0, TYPE_ID, IN);
+                insert_vertex_edge(key, triple.o, nodup); // <5> the index to vid (*3) [dedup from <4>]
+            }
+        #endif
         }
-    }
+	}
 
     void flush_cache() {
         rdma_cache.flush();

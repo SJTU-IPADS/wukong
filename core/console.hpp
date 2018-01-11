@@ -382,9 +382,12 @@ next:
 #if DYNAMIC_GSTORE
 				string dname;
 				bool d_enable = false;
+				bool c_enable = false;
 
 				while (cmd_ss >> token) {
-					if (token == "-d") {
+					if (token == "-c") {
+						c_enable = true;
+					} else if (token == "-d") {
 						cmd_ss >> dname;
 						d_enable = true;
 					} else {
@@ -400,7 +403,7 @@ next:
 					if (IS_MASTER(proxy)) {
 						Logger logger;
 						RDFLoad reply;
-						int ret = proxy->dynamic_load_data(dname, reply, logger);
+						int ret = proxy->dynamic_load_data(dname, reply, logger, c_enable);
 						if (ret != 0) {
 							cout << "[ERORR] Failed to load dynamic data from directory " << dname
 							     << " (ERRNO: " << ret << ")!" << endl;
