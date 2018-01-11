@@ -143,10 +143,12 @@ struct edge_t {
  */
 class GStore {
 private:
+    /// TODO: use more clever cache structure with lock-free implementation
     class RDMA_Cache {
         struct Item {
             pthread_spinlock_t lock;
             vertex_t v;
+
             Item() {
                 pthread_spin_init(&lock, 0);
             }
@@ -156,7 +158,6 @@ private:
         Item items[NUM_ITEMS];
 
     public:
-        /// TODO: use more clever cache structure with lock-free implementation
         bool lookup(ikey_t key, vertex_t &ret) {
             if (!global_enable_caching)
                 return false;
@@ -184,9 +185,8 @@ private:
 
 #if DYNAMIC_GSTORE
         void flush() {
-            for(int i = 0; i < NUM_ITEMS; i++) {
+            for (int i = 0; i < NUM_ITEMS; i++)
                 items[i].v = vertex_t();
-            }
         }
 #endif
     };
@@ -940,9 +940,7 @@ public:
         }
 	}
 
-    void flush_cache() {
-        rdma_cache.flush();
-    }
+    void flush_cache() { rdma_cache.flush(); }
 #endif
 
     // FIXME: refine parameters with vertex_t

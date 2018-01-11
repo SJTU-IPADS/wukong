@@ -306,6 +306,11 @@ public:
 
     Bundle() {}
 
+    Bundle(string str) {
+        this->set_type(str.at(0));
+        this->data = str.substr(1);
+    }
+
     Bundle(SPARQLQuery request): type(request.type) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
@@ -320,6 +325,20 @@ public:
 
         oa << request;
         data = ss.str();
+    }
+
+    string get_type() {
+        switch(type) {
+            case SPARQL_QUERY: return "0";
+            case DYNAMIC_LOAD: return "1";
+        }
+    }
+
+    void set_type(char t) {
+        switch(t) {
+            case '0': this->type = SPARQL_QUERY; return;
+            case '1': this->type = DYNAMIC_LOAD; return;
+        }
     }
 
     SPARQLQuery get_sparql_query() {

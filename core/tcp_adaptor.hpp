@@ -59,7 +59,9 @@ private:
 
 public:
 
-    TCP_Adaptor(int sid, string fname, int num_threads, int port_base): port_base(port_base), context(1) {
+    TCP_Adaptor(int sid, string fname, int num_threads, int port_base)
+        : port_base(port_base), context(1) {
+
         ifstream hostfile(fname);
         string ip;
         while (hostfile >> ip)

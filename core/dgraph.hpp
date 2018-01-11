@@ -649,8 +649,9 @@ public:
 			cout << "[INFO] load " << cnt << " attributes from file " << afiles[i]
 			     << " at server " << sid << endl;
 		}
-		
-		if(global_enable_caching)
+
+		// FIXME: the current rdma_cache is designed for static gstore
+		if (global_enable_caching)
 			gstore.flush_cache();
 
 		return 0;

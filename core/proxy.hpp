@@ -123,8 +123,10 @@ private:
 	inline void sweep_msgs() {
 		if (!pending_msgs.size()) return;
 
-		cout << "[INFO]#" << tid << " " << pending_msgs.size() << " pending msgs on proxy." << endl;
-		for (vector<Message>::iterator it = pending_msgs.begin(); it != pending_msgs.end();) {
+		cout << "[INFO]#" << tid << " " << pending_msgs.size()
+		     << " pending msgs on proxy." << endl;
+		for (vector<Message>::iterator it = pending_msgs.begin();
+		        it != pending_msgs.end();) {
 			if (adaptor->send(it->sid, it->tid, it->bundle))
 				it = pending_msgs.erase(it);
 			else
@@ -145,7 +147,8 @@ public:
 	data_statistic *statistic;
 
 
-	Proxy(int sid, int tid, String_Server *str_server, Adaptor *adaptor, data_statistic *statistic)
+	Proxy(int sid, int tid, String_Server *str_server,
+	      Adaptor *adaptor, data_statistic *statistic)
 		: sid(sid), tid(tid), str_server(str_server), adaptor(adaptor),
 		  coder(sid, tid), parser(str_server), statistic(statistic) { }
 
@@ -179,18 +182,22 @@ public:
 		assert(bundle.type == SPARQL_QUERY);
 		SPARQLQuery r = bundle.get_sparql_query();
 		if (r.start_from_index()) {
-			for (int count = 0; count < global_num_servers * global_mt_threshold - 1 ; count++) {
+			for (int count = 0; count < global_num_servers * global_mt_threshold - 1; count++) {
 				Bundle bundle2 = adaptor->recv();
 				assert(bundle2.type == SPARQL_QUERY);
 				SPARQLQuery r2 = bundle2.get_sparql_query();
 				r.row_num += r2.row_num;
 				int new_size = r.result_table.size() + r2.result_table.size();
 				r.result_table.reserve(new_size);
-				r.result_table.insert(r.result_table.end(), r2.result_table.begin(), r2.result_table.end());
+				r.result_table.insert(r.result_table.end(),
+				                      r2.result_table.begin(),
+				                      r2.result_table.end());
 
 				int new_attr_size = r.attr_res_table.size() + r2.attr_res_table.size();
 				r.attr_res_table.reserve(new_attr_size);
-				r.attr_res_table.insert(r.attr_res_table.end(), r2.attr_res_table.begin(), r2.attr_res_table.end());
+				r.attr_res_table.insert(r.attr_res_table.end(),
+				                        r2.attr_res_table.begin(),
+				                        r2.attr_res_table.end());
 			}
 		}
 		return r;
@@ -199,11 +206,11 @@ public:
 	bool tryrecv_reply(SPARQLQuery &r) {
 		Bundle bundle;
 		bool success = adaptor->tryrecv(bundle);
-		if(success){
+		if (success) {
 			assert(bundle.type == SPARQL_QUERY);
 			r = bundle.get_sparql_query();
 
-			if(r.start_from_index()){
+			if (r.start_from_index()) {
 				cout << "Unsupport try recieve parallel query now!" << endl;
 				assert(false);
 			}
@@ -337,8 +344,8 @@ public:
 		// recieve all replies to calculate the tail latency
 		while (recv_cnt < send_cnt) {
 			sweep_msgs();	// sweep pending msgs first
-			SPARQLQuery r;
 
+			SPARQLQuery r;
 			if (tryrecv_reply(r)) {
 				recv_cnt ++;
 				logger.end_record(r.pid);
@@ -353,14 +360,14 @@ public:
 	}
 
 #if DYNAMIC_GSTORE
-	int dynamic_load_data(string &dname, RDFLoad &reply,
-	                      Logger &logger, bool &check_dup) {
+	int dynamic_load_data(string &dname, RDFLoad &reply, Logger &logger, bool &check_dup) {
 		RDFLoad request;
 		request.type = DYNAMIC_LOAD;
 		request.load_dname = dname;
 		request.check_dup = check_dup;
 
 		logger.init();
+
 		setpid(request);
 		for (int i = 0; i < global_num_servers; i++) {
 			Bundle bundle(request);
@@ -371,10 +378,12 @@ public:
 		for (int i = 0; i < global_num_servers; i++) {
 			Bundle bundle = adaptor->recv();
 			assert(bundle.type == DYNAMIC_LOAD);
+
 			reply = bundle.get_rdf_load();
 			if (reply.load_ret < 0)
 				ret = reply.load_ret;
 		}
+
 		logger.finish();
 		return ret;
 	}
