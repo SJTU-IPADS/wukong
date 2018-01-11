@@ -341,6 +341,7 @@ private:
         }
         return DUMMY_ID;
     }
+
     void _H_simplist_transfer(const SPARQLParser &parser, SPARQLQuery &r) {
         vector<ssid_t> temp_cmd_chains ;
         vector<int> temp_pred_type_chains;
@@ -406,7 +407,17 @@ private:
         r.nvars = parser.getVariableCount();
     }
 
-    bool _H_do_parse(istream &is, SPARQLQuery &r) {
+public:
+    // the stat of query parsing
+    bool valid;
+    std::string strerror;
+
+    Parser(String_Server *_ss): str_server(_ss) { clear(); }
+
+    /* Used in single-mode */
+    bool parse(istream &is, SPARQLQuery &r) {
+        // clear intermediate states of parser
+        clear();
         string query = read_input(is);
         SPARQLLexer lexer(query);
         SPARQLParser parser(lexer);
@@ -424,27 +435,8 @@ private:
             cerr << "custom grammar can only be used when planner is off! " << endl;
             return false;
         }
-        return true;
-    }
-
-public:
-    // the stat of query parsing
-    bool valid;
-    std::string strerror;
-
-    Parser(String_Server *_ss): str_server(_ss) { clear(); }
-
-    /* Used in single-mode */
-    bool parse(istream &is, SPARQLQuery &r) {
-        // clear intermediate states of parser
-        clear();
-
-        if (!_H_do_parse(is, r))
-            return false;
-
         cout << "parsing triples is finished." << endl;
         return true;
-
     }
 
     /* Used in batch-mode */
