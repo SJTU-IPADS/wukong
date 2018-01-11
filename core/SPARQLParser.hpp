@@ -60,7 +60,7 @@ public:
         /// The entires
         Element subject, predicate, object;
         /// Direction
-        dir_t direction = IN;
+        dir_t direction = OUT;
         /// Constructor
         Pattern(Element subject, Element predicate, Element object);
         /// Destructor
@@ -138,6 +138,8 @@ private:
     std::vector<Order> order;
     /// The result limit
     unsigned limit;
+    // indicate if custom grammar is in use
+    bool usingCustomGrammar;
 
     /// Lookup or create a named variable
     unsigned nameVariable(const std::string &name);
@@ -230,6 +232,8 @@ public:
     unsigned getLimit() const { return limit; }
     /// Get the variableCount
     unsigned getVariableCount() const { return variableCount; } 
+    // indicate if custom grammar is in use
+    bool isUsingCustomGrammar() const { return usingCustomGrammar; }
 };
 //---------------------------------------------------------------------------
 
@@ -328,6 +332,8 @@ SPARQLParser::SPARQLParser(SPARQLLexer& lexer)
     : lexer(lexer), variableCount(0), projectionModifier(Modifier_None), limit(~0u)
       // Constructor
 {
+    limit = -1;
+    usingCustomGrammar = false;
 }
 //---------------------------------------------------------------------------
 SPARQLParser::~SPARQLParser()
@@ -1007,12 +1013,14 @@ SPARQLParser::Element SPARQLParser::parsePatternElement(PatternGroup& group, map
             result.value = prefixes[prefix] + lexer.getIRIValue();
         }
     } else if (token == SPARQLLexer::Percent) {
+        usingCustomGrammar = true;
         Element predicate = parsePatternElement(group, localVars);
         if(predicate.type != Element::IRI)
 			throw ParserException("IRI expected after '%'");
 		result.type = Element::Template;
         result.value = predicate.value;
     } else if (token == SPARQLLexer::PREDICATE) {
+        usingCustomGrammar = true;
         result.type = Element::Predicate;
     } else {
         throw ParserException("invalid pattern element");
@@ -1046,7 +1054,15 @@ void SPARQLParser::parseGraphPattern(PatternGroup& group)
         } else if (token == SPARQLLexer::Dot) {
             return;
         } else if (token == SPARQLLexer::LArrow){
-            group.patterns[group.patterns.size() - 1].direction = OUT;
+            usingCustomGrammar = true;
+            Pattern last_pattern = group.patterns.back();
+            Pattern pattern(last_pattern.object,last_pattern.predicate,last_pattern.subject);
+            pattern.direction = IN;
+            group.patterns.pop_back();
+            group.patterns.push_back(pattern);
+            return;
+        } else if (token == SPARQLLexer::RArrow){
+            usingCustomGrammar = true;
             return;
         } else if (token == SPARQLLexer::RCurly) {
             lexer.unget(token);
