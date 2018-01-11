@@ -361,12 +361,9 @@ public:
 
 #if DYNAMIC_GSTORE
 	int dynamic_load_data(string &dname, RDFLoad &reply, Logger &logger) {
-		RDFLoad request;
-		request.type = DYNAMIC_LOAD;
-		request.load_dname = dname;
-
 		logger.init();
 
+		RDFLoad request(dname);
 		setpid(request);
 		for (int i = 0; i < global_num_servers; i++) {
 			Bundle bundle(request);

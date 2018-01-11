@@ -423,7 +423,7 @@ public:
             return false;
         }
         // check if using custom grammar when planner is on
-        if(parser.isUsingCustomGrammar() && global_enable_planner){
+        if (parser.isUsingCustomGrammar() && global_enable_planner) {
             cerr << "custom grammar can only be used when planner is off! " << endl;
             return false;
         }
