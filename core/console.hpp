@@ -96,7 +96,6 @@ void print_help(void)
 	cout << "        -b <file> [<args>]  run queries configured by <file> (batch-mode)" << endl;
 	cout << "           -d <sec>            eval <sec> seconds" << endl;
 	cout << "           -w <sec>            warmup <sec> seconds" << endl;
-	cout << "           -s <usec>           sleep <usec> micro-seconds before sending a batch of queries" << endl;
 	cout << "           -p <num>            send <num> queries in parallel" << endl;
 	cout << "    load <args>         load linked data into dynamic (in-memmory) graph-store" << endl;
 	cout << "        -d <dname>          load data from directory <dname>" << endl;
@@ -341,10 +340,9 @@ next:
 							continue;
 						}
 
-						if (duration <= 0 || warmup < 0 || sleep < 0
-						        || parallel_factor <= 0) {
+						if (duration <= 0 || warmup < 0 || parallel_factor <= 0) {
 							cout << "[ERROR] invalid parameters for batch mode! "
-							     << "(duration=" << duration << ", warmup=" << warmup << ", sleep=" << sleep
+							     << "(duration=" << duration << ", warmup=" << warmup
 							     << ", parallel_factor=" << parallel_factor << ")" << endl;
 							continue;
 						}

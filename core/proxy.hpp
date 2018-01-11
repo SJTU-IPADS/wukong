@@ -321,9 +321,8 @@ public:
 
 			// recieve replies (best of effort)
 			for (int i = 0; i < try_rounds; i++) {
-
 				SPARQLQuery r;
-				while (bool success = tryrecv_reply(r)) {
+				while (tryrecv_reply(r)) {
 					recv_cnt++;
 					logger.end_record(r.pid);
 				}
@@ -337,7 +336,7 @@ public:
 				timing = true;
 			}
 
-                        flying_cnt = send_cnt - recv_cnt;
+			flying_cnt = send_cnt - recv_cnt;
 		}
 		logger.end_thpt(recv_cnt);
 
