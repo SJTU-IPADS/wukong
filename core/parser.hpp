@@ -445,36 +445,6 @@ public:
         cout << "parsing triples is finished." << endl;
         return true;
 
-        // if (global_enable_planner) {
-        //     // ASSUMPTION: a normal SPARQL query
-
-        //     if (!_H_do_parse(is, r))
-        //         return false;
-
-        //     cout << "parsing triples is finished." << endl;
-        //     return true;
-        // } else {
-        //     // ASSUMPTION: an extended SPARQL query w/o planning
-        //     // TODO: only support the clause "SELECT ... WHERE { ... }"
-
-        //     // spilt stream into tokens
-        //     vector<string> tokens = get_tokens(is);
-
-        //     // parse the tokens
-        //     if (!do_parse(tokens))
-        //         return false;
-
-        //     if (req_template.ptypes_pos.size() != 0) {
-        //         cout << "ERROR: there is unsupported template pattern." << endl;
-        //         return false;
-        //     }
-
-        //     r.cmd_chains = req_template.cmd_chains;
-        //     r.pred_type_chains = req_template.pred_type_chains;
-        //     //init the var map in the req
-        //     r.nvars = req_template.nvars;
-        //     return true;
-        // }
     }
 
     /* Used in batch-mode */
