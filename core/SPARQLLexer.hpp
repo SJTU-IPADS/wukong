@@ -17,7 +17,7 @@ class SPARQLLexer
 {
 public:
     /// Possible tokens
-    enum Token { None, Error, Eof, IRI, String, Variable, Identifier, Colon, Semicolon, Comma, Dot, Underscore, LCurly, RCurly, LParen, RParen, LBracket, RBracket, LArrow, Anon, Equal, NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual, At, Type, Not, Or, And, Plus, Minus, Mul, Div, Integer, Decimal, Double, Percent };
+    enum Token { None, Error, Eof, IRI, String, Variable, Identifier, Colon, Semicolon, Comma, Dot, Underscore, LCurly, RCurly, LParen, RParen, LBracket, RBracket, LArrow, Anon, Equal, NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual, At, Type, Not, Or, And, Plus, Minus, Mul, Div, Integer, Decimal, Double, Percent, PREDICATE };
 
 private:
     /// The input
@@ -117,7 +117,12 @@ SPARQLLexer::Token SPARQLLexer::getNext()
         case ';': return Semicolon;
         case ',': return Comma;
         case '.': return Dot;
-        case '_': return Underscore;
+        case '_':
+            if(input.end() - pos >= 12 && strcmp(&*pos, "_PREDICATE__") == 0){
+                pos += 12;
+                return PREDICATE;
+            }
+            return Underscore;
         case '{': return LCurly;
         case '}': return RCurly;
         case '(': return LParen;
