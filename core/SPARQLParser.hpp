@@ -140,6 +140,8 @@ private:
     unsigned limit;
     // indicate if custom grammar is in use
     bool usingCustomGrammar;
+    int corun_step;
+    int fetch_step;
 
     /// Lookup or create a named variable
     unsigned nameVariable(const std::string &name);
@@ -187,6 +189,8 @@ private:
 
     /// Parse the prefix part if any
     void parsePrefix();
+    /// Parse corun
+    void parseCorun();
     /// Parse the projection
     void parseProjection();
     /// Parse the from part if any
@@ -334,6 +338,8 @@ SPARQLParser::SPARQLParser(SPARQLLexer& lexer)
 {
     limit = -1;
     usingCustomGrammar = false;
+    corun_step = 0;
+    fetch_step = 0;
 }
 //---------------------------------------------------------------------------
 SPARQLParser::~SPARQLParser()
@@ -373,6 +379,34 @@ void SPARQLParser::parsePrefix()
             if (prefixes.count(name))
                 throw ParserException("duplicate prefix '" + name + "'");
             prefixes[name] = iri;
+        } else {
+            lexer.unget(token);
+            return;
+        }
+    }
+}
+//--------------------------------------------------------------------------
+void parseCorun()
+// Parse corun
+{
+    while (true) {
+        SPARQLLexer::Token token = lexer.getNext();
+        if ((token == SPARQLLexer::Identifier) && (lexer.isKeyword("corun"))) {
+            usingCustomGrammar = true;
+            // Parse the corun entry
+            if (lexer.getNext() != SPARQLLexer::Identifier)
+                throw ParserException("prefix name expected");
+
+            if (lexer.getNext() != SPARQLLexer::Integer)
+                throw ParserException("Integer(corun step) expected");
+            string corun_step_str = lexer.getTokenValue();
+            cout << corun_step_str << endl;
+            corun_step = stoi(corun_step_str);
+            if (lexer.getNext() != SPARQLLexer::Integer)
+                throw ParserException("Integer(fetch step) expected");
+            string fetch_step_str = lexer.getTokenValue();
+            fetch_step = stoi(fetch_step_str);
+            cout << fetch_step_str << endl;
         } else {
             lexer.unget(token);
             return;
