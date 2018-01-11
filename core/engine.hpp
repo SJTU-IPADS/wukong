@@ -75,8 +75,8 @@ public:
         result_table.insert( result_table.end(), r.result_table.begin(), r.result_table.end());
 
         vector<attr_t> & attr_res_table = data.merged_reply.attr_res_table;
-        int new_attr_size = attr_res_table.size() + r.result_table.size();
-        result_table.reserve(new_attr_size);
+        int new_attr_size = attr_res_table.size() + r.attr_res_table.size();
+        attr_res_table.reserve(new_attr_size);
         attr_res_table.insert(attr_res_table.end(), r.attr_res_table.begin(), r.attr_res_table.end());
     }
 
