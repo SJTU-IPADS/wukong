@@ -261,7 +261,7 @@ public:
 		uint64_t duration = SEC(d);
 		uint64_t warmup = SEC(w);
 		uint64_t sleep = USEC(s);
-		int parallel_factor = p, send_rate = p;
+		int parallel_factor = p;
 		int try_rounds = 5;
 
 		int ntypes;
@@ -304,7 +304,7 @@ public:
 		uint64_t init = timer::get_usec();
 		while ((timer::get_usec() - init) < duration) {
 			// send requests
-			for (int t = 0; t < send_rate; t++) {
+			for (int t = 0; t < parallel_factor - flying_cnt; t++) {
 				sweep_msgs(); // sweep pending msgs first
 
 				int idx = mymath::get_distribution(coder.get_random(), loads);
@@ -340,17 +340,6 @@ public:
 			}
 
                         flying_cnt = send_cnt - recv_cnt;
-
-                        if (flying_cnt > parallel_factor) {  // send too many queries
-				send_rate = send_rate - (int)(flying_cnt - parallel_factor);
-                                send_rate = send_rate > 0 ? send_rate : 1; // at least send 1 query
-                                continue;
-                        }
-                        if (send_rate < parallel_factor) {
-				send_rate = send_rate + (parallel_factor - flying_cnt);
-                                send_rate = send_rate < parallel_factor ?
-                                    send_rate : parallel_factor; // at most send parallel_factor queries
-                        }
 		}
 		logger.end_thpt(recv_cnt);
 
