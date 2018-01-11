@@ -75,6 +75,7 @@ private:
     // place holder of pattern type (a special group of objects)
     const static ssid_t PTYPE_PH = std::numeric_limits<ssid_t>::min() + 1;
     const static ssid_t DUMMY_ID = std::numeric_limits<ssid_t>::min();
+    const static ssid_t PREDICATE_ID = 0;
 
     // str2ID mapping for pattern constants (e.g., <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> 1)
     String_Server *str_server;
@@ -333,6 +334,8 @@ private:
         }
         case SPARQLParser::Element::Template:
             return PTYPE_PH;
+        case SPARQLParser::Element::Predicate:
+            return PREDICATE_ID;
         default:
             return DUMMY_ID;
         }
@@ -346,7 +349,7 @@ private:
                 limit = group.patterns.end(); iter != limit; ++iter) {
             temp_cmd_chains.push_back(_H_encode(iter->subject));
             temp_cmd_chains.push_back(_H_encode(iter->predicate));
-            temp_cmd_chains.push_back(OUT);
+            temp_cmd_chains.push_back(iter->direction);
             temp_cmd_chains.push_back(_H_encode(iter->object));
 
             int type =  str_server->id2type[_H_encode(iter->predicate)];
@@ -360,6 +363,15 @@ private:
         r.pred_type_chains = temp_pred_type_chains;
         // init the var_map
         r.nvars = parser.getVariableCount();
+
+        //debug for direction
+        for(int i = 0;i < temp_cmd_chains.size()/4; i ++){
+            cout << temp_cmd_chains[4*i + 0] << "\t"
+                << temp_cmd_chains[4*i + 1] << "\t"
+                << temp_cmd_chains[4*i + 2] << "\t"
+                << temp_cmd_chains[4*i + 3] << "\t"
+                << endl;
+        }
     }
 
     void _H_push(const SPARQLParser::Element &element, request_template &r, int pos) {
