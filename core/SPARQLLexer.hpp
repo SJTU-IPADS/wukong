@@ -17,7 +17,7 @@ class SPARQLLexer
 {
 public:
     /// Possible tokens
-    enum Token { None, Error, Eof, IRI, String, Variable, Identifier, Colon, Semicolon, Comma, Dot, Underscore, LCurly, RCurly, LParen, RParen, LBracket, RBracket, Anon, Equal, NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual, At, Type, Not, Or, And, Plus, Minus, Mul, Div, Integer, Decimal, Double, Percent };
+    enum Token { None, Error, Eof, IRI, String, Variable, Identifier, Colon, Semicolon, Comma, Dot, Underscore, LCurly, RCurly, LParen, RParen, LBracket, RBracket, LArrow, Anon, Equal, NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual, At, Type, Not, Or, And, Plus, Minus, Mul, Div, Integer, Decimal, Double, Percent };
 
 private:
     /// The input
@@ -208,6 +208,11 @@ SPARQLLexer::Token SPARQLLexer::getNext()
             if (((pos + 1) != input.end()) && ((*(pos + 1)) == '=')) {
                 pos++;
                 return LessOrEqual;
+            }
+            // No, do we have a left arrow?
+            if (((pos + 1) != input.end()) && ((*(pos + 1)) == '-')) {
+                pos++;
+                return LArrow;
             }
             // Just a less
             return Less;
