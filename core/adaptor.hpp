@@ -44,11 +44,10 @@ public:
     ~Adaptor() { }
 
     bool send(int dst_sid, int dst_tid, Bundle &bundle) {
-        string message = bundle.get_type() + bundle.data;
         if (global_use_rdma && rdma->init)
-            return rdma->send(tid, dst_sid, dst_tid, message);
+            return rdma->send(tid, dst_sid, dst_tid, bundle.get_type() + bundle.data);
         else
-            return tcp->send(dst_sid, dst_tid, message);
+            return tcp->send(dst_sid, dst_tid, bundle.get_type() + bundle.data);
     }
 
     Bundle recv() {
