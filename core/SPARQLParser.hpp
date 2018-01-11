@@ -386,7 +386,7 @@ void SPARQLParser::parsePrefix()
     }
 }
 //--------------------------------------------------------------------------
-void parseCorun()
+void SPARQLParser::parseCorun()
 // Parse corun
 {
     while (true) {
