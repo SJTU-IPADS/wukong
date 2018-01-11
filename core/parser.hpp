@@ -365,14 +365,6 @@ private:
         // init the var_map
         r.nvars = parser.getVariableCount();
 
-        //debug for direction
-        for(int i = 0;i < temp_cmd_chains.size()/4; i ++){
-            cout << temp_cmd_chains[4*i + 0] << "\t"
-                << temp_cmd_chains[4*i + 1] << "\t"
-                << temp_cmd_chains[4*i + 2] << "\t"
-                << temp_cmd_chains[4*i + 3] << "\t"
-                << endl;
-        }
     }
 
     void _H_push(const SPARQLParser::Element &element, request_template &r, int pos) {
