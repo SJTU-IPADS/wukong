@@ -473,6 +473,7 @@ private:
             sub_reqs[i].v2c_map  = req.v2c_map;
             sub_reqs[i].nvars  = req.nvars;
             sub_reqs[i].pred_type_chains = req.pred_type_chains;
+            sub_reqs[i].corun_step = req.corun_step;
         }
 
         // group intermediate results to servers
@@ -496,8 +497,13 @@ private:
     }
 
     void do_corun(SPARQLQuery &req) {
-        int corun_step = req.step + 1;
-        int fetch_step = req.cmd_chains[req.step * 4 + 3];
+        // int corun_step = req.step + 1;
+        // int fetch_step = req.cmd_chains[req.step * 4 + 3];
+
+        int corun_step = req.corun_step;
+        int fetch_step = req.fetch_step;
+        cout << corun_step << endl;
+        cout << fetch_step << endl;
 
         // step.1 remove dup;
         uint64_t t0 = timer::get_usec();
@@ -723,7 +729,10 @@ private:
             t1 = timer::get_usec() - t1;
 
             // co-run optimization
-            if (!r.is_finished() && (r.cmd_chains[r.step * 4 + 2] == CORUN))
+            // if (!r.is_finished() && (r.cmd_chains[r.step * 4 + 2] == CORUN))
+            //     do_corun(r);
+
+            if (!r.is_finished() && (r.step == r.corun_step))
                 do_corun(r);
 
             if (r.is_finished()) {

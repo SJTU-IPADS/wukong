@@ -105,6 +105,8 @@ private:
         ar & tid;
         ar & type;
         ar & step;
+        ar & corun_step;
+        ar & fetch_step;
         ar & col_num;
         ar & row_num;
         ar & attr_col_num;
@@ -125,8 +127,10 @@ public:
 
     req_type type = SPARQL_QUERY;
 
-    // SPARQL query
+    // SPARQL query, all step start from 0
     int step = 0;
+    int corun_step = -1;
+    int fetch_step = -1;
     int col_num = 0;
     int row_num = 0;
 

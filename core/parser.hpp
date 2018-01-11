@@ -365,6 +365,14 @@ private:
         // init the var_map
         r.nvars = parser.getVariableCount();
 
+        if (!global_use_rdma) {
+            // TODO: corun optimization is not supported w/o RDMA
+            cout << "[WARNING]: RDMA is not enabled, skip corun optimization!" << endl;
+        } else {
+            r.corun_step = parser.getCorunStep();
+            r.fetch_step = parser.getFetchStep();
+        }
+        
     }
 
     void _H_push(const SPARQLParser::Element &element, request_template &r, int pos) {
