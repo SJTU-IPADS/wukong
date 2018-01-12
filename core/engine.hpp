@@ -527,7 +527,7 @@ private:
 
         boost::unordered_map<sid_t, sid_t> sub_pvars;
 
-        auto lambda = [&](ssid_t id) {
+        auto lambda = [&](ssid_t id) -> ssid_t {
             if (id < 0) { // remap pattern variable
                 if (sub_pvars.find(id) == sub_pvars.end()) {
                     sid_t new_id = - (sub_pvars.size() + 1); // starts from -1
@@ -546,7 +546,7 @@ private:
             ssid_t predicate = lambda(pattern.predicate);
             dir_t direction = pattern.direction;
             ssid_t object = lambda(pattern.object);
-            subgroup.patterns.push_back(Pattern(subject, predicate, direction, object));
+            subgroup.patterns.push_back(SPARQLQuery::Pattern(subject, predicate, direction, object));
         }
 
         // sub-reqs pred_type
