@@ -928,19 +928,14 @@ private:
             if ((token == SPARQLLexer::Identifier) && (lexer.isKeyword("corun"))) {
                 usingCustomGrammar = true;
                 // Parse the corun entry
-                if (lexer.getNext() != SPARQLLexer::Identifier)
-                    throw ParserException("prefix name expected");
-
                 if (lexer.getNext() != SPARQLLexer::Integer)
                     throw ParserException("Integer(corun step) expected");
                 string corun_step_str = lexer.getTokenValue();
-                cout << corun_step_str << endl;
                 corun_step = stoi(corun_step_str);
                 if (lexer.getNext() != SPARQLLexer::Integer)
                     throw ParserException("Integer(fetch step) expected");
                 string fetch_step_str = lexer.getTokenValue();
                 fetch_step = stoi(fetch_step_str);
-                cout << fetch_step_str << endl;
             } else {
                 lexer.unget(token);
                 return;
@@ -1086,6 +1081,9 @@ public:
         // Parse the prefix part
         parsePrefix();
 
+        // Parse the corun part
+        parseCorun();
+
         // Parse the projection
         parseProjection();
 
@@ -1146,4 +1144,8 @@ public:
     unsigned getVariableCount() const { return variableCount; }
     // indicate if custom grammar is in use
     bool isUsingCustomGrammar() const { return usingCustomGrammar; }
+    // get the corun step
+    int getCorunStep() const { return corun_step; }
+    // get the fetch step
+    int getFetchStep() const { return fetch_step; }
 };

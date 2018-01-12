@@ -101,6 +101,8 @@ private:
         ar & pid;
         ar & tid;
         ar & step;
+        ar & corun_step;
+        ar & fetch_step;
         ar & col_num;
         ar & row_num;
         ar & attr_col_num;
@@ -121,6 +123,8 @@ public:
 
     // SPARQL query
     int step = 0;
+    int corun_step = -1;
+    int fetch_step = -1;
     int col_num = 0;
     int row_num = 0;
 
