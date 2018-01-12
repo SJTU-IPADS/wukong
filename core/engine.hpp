@@ -743,11 +743,7 @@ private:
             t1 = timer::get_usec() - t1;
 
             // co-run optimization
-<<<<<<< HEAD
-            if (!r.is_finished() && (r.get_current_pattern().direction == CORUN))
-=======
             if (!r.is_finished() && (r.step == r.corun_step))
->>>>>>> wk/master
                 do_corun(r);
 
             if (r.is_finished()) {
