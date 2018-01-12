@@ -546,7 +546,9 @@ private:
             ssid_t predicate = lambda(pattern.predicate);
             dir_t direction = pattern.direction;
             ssid_t object = lambda(pattern.object);
-            subgroup.patterns.push_back(SPARQLQuery::Pattern(subject, predicate, direction, object));
+            SPARQLQuery::Pattern newPattern(subject,predicate,direction,object);
+            newPattern.pred_type = 0;
+            subgroup.patterns.push_back(newPattern);
         }
 
         // step.3 make sub-req

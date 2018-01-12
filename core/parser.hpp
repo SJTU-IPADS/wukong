@@ -149,26 +149,27 @@ private:
 
     }
 
+    ssid_t _H_push(const SPARQLParser::Element &element, request_template &r, int pos) {
+        ssid_t id = _H_encode(element);
+        if (id == PTYPE_PH) {
+            string strIRI = "<" + element.value + ">";
+            r.ptypes_str.push_back(strIRI);
+            r.ptypes_pos.push_back(pos);
+        }
+        return id;
+    }
+
+
     void _H_template_transfer(const SPARQLParser &parser, request_template &r) {
         SPARQLParser::PatternGroup group = parser.getPatterns();
         int pos = 0;
-        auto func_push = [&](const SPARQLParser::Element &element) {
-            ssid_t id = _H_encode(element);
-            if (id == PTYPE_PH) {
-                string strIRI = "<" + element.value + ">";
-                r.ptypes_str.push_back(strIRI);
-                r.ptypes_pos.push_back(pos++);
-            }
-            return id;
-        };
         for (std::vector<SPARQLParser::Pattern>::const_iterator iter = group.patterns.begin(),
                 limit = group.patterns.end(); iter != limit; ++iter) {
-            ssid_t subject = func_push(iter->subject);
+            ssid_t subject = _H_push(iter->subject, r, pos++);
             ssid_t predicate = _H_encode(iter->predicate); pos++;
-            dir_t direction = OUT; pos++;
-            ssid_t object = func_push(iter->object);
-            SPARQLQuery::Pattern pattern(subject, predicate, direction, object);
-
+            ssid_t direction = (dir_t)OUT; pos++;
+            ssid_t object = _H_push(iter->object, r, pos++);
+            SPARQLQuery::Pattern pattern(subject,predicate,direction,object);
             int type =  str_server->id2type[_H_encode(iter->predicate)];
             if (type > 0 && (!global_enable_vattr)) {
                 cout << "Need to change config to enable vertex_attr " << endl;
@@ -180,6 +181,7 @@ private:
 
         // set the number of variables in triple patterns
         r.nvars = parser.getVariableCount();
+
     }
 
 public:
