@@ -68,6 +68,7 @@ public:
         } else {
             if (!tcp->tryrecv(tid, str)) return false;
         }
+
         bundle.set_type(str.at(0));
         bundle.data = str.substr(1);
         return true;
