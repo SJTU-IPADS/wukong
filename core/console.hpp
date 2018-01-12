@@ -96,7 +96,6 @@ void print_help(void)
 	cout << "        -b <file> [<args>]  run queries configured by <file> (batch-mode)" << endl;
 	cout << "           -d <sec>            eval <sec> seconds" << endl;
 	cout << "           -w <sec>            warmup <sec> seconds" << endl;
-	cout << "           -s <usec>           sleep <usec> micro-seconds before sending a batch of queries" << endl;
 	cout << "           -p <num>            send <num> queries in parallel" << endl;
 	cout << "    load <args>         load linked data into dynamic (in-memmory) graph-store" << endl;
 	cout << "        -d <dname>          load data from directory <dname>" << endl;
@@ -251,7 +250,7 @@ next:
 			} else if (token == "sparql") { // handle SPARQL queries
 				string fname, bfname, ofname;
 				int cnt = 1, nlines = 0;
-				int duration = 10, warmup = 5, sleep = 500, parallel_factor = 20;
+				int duration = 10, warmup = 5, parallel_factor = 20;
 				bool f_enable = false, b_enable = false, o_enable = false;
 
 				// parse parameters
@@ -273,8 +272,6 @@ next:
 						cmd_ss >> duration;
 					} else if (token == "-w") {
 						cmd_ss >> warmup;
-					} else if (token == "-s") {
-						cmd_ss >> sleep;
 					} else if (token == "-p") {
 						cmd_ss >> parallel_factor;
 					} else {
@@ -343,10 +340,9 @@ next:
 							continue;
 						}
 
-						if (duration <= 0 || warmup < 0 || sleep < 0
-						        || parallel_factor <= 0) {
+						if (duration <= 0 || warmup < 0 || parallel_factor <= 0) {
 							cout << "[ERROR] invalid parameters for batch mode! "
-							     << "(duration=" << duration << ", warmup=" << warmup << ", sleep=" << sleep
+							     << "(duration=" << duration << ", warmup=" << warmup
 							     << ", parallel_factor=" << parallel_factor << ")" << endl;
 							continue;
 						}
@@ -358,7 +354,7 @@ next:
 							continue;
 						}
 
-						proxy->run_batch_query(ifs, duration, warmup, sleep, parallel_factor, logger);
+						proxy->run_batch_query(ifs, duration, warmup, parallel_factor, logger);
 					}
 
 					// FIXME: maybe hang in here if the input file misses in some machines

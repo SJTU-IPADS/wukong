@@ -75,6 +75,7 @@ private:
     // place holder of pattern type (a special group of objects)
     const static ssid_t PTYPE_PH = std::numeric_limits<ssid_t>::min() + 1;
     const static ssid_t DUMMY_ID = std::numeric_limits<ssid_t>::min();
+    const static ssid_t PREDICATE_ID = 0;
 
     // str2ID mapping for pattern constants (e.g., <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> 1)
     String_Server *str_server;
@@ -333,11 +334,14 @@ private:
         }
         case SPARQLParser::Element::Template:
             return PTYPE_PH;
+        case SPARQLParser::Element::Predicate:
+            return PREDICATE_ID;
         default:
             return DUMMY_ID;
         }
         return DUMMY_ID;
     }
+
     void _H_simplist_transfer(const SPARQLParser &parser, SPARQLQuery &r) {
         vector<ssid_t> temp_cmd_chains ;
         vector<int> temp_pred_type_chains;
@@ -346,7 +350,7 @@ private:
                 limit = group.patterns.end(); iter != limit; ++iter) {
             temp_cmd_chains.push_back(_H_encode(iter->subject));
             temp_cmd_chains.push_back(_H_encode(iter->predicate));
-            temp_cmd_chains.push_back(OUT);
+            temp_cmd_chains.push_back(iter->direction);
             temp_cmd_chains.push_back(_H_encode(iter->object));
 
             int type =  str_server->id2type[_H_encode(iter->predicate)];
@@ -360,6 +364,7 @@ private:
         r.pred_type_chains = temp_pred_type_chains;
         // init the var_map
         r.nvars = parser.getVariableCount();
+
     }
 
     void _H_push(const SPARQLParser::Element &element, request_template &r, int pos) {
@@ -393,37 +398,6 @@ private:
         // set the number of variables in triple patterns
         r.nvars = parser.getVariableCount();
     }
-    bool _H_do_parse(istream &is, SPARQLQuery &r) {
-        string query = read_input(is);
-        SPARQLLexer lexer(query);
-        SPARQLParser parser(lexer);
-        varId = -1;
-        _H_incVarIdMap.clear();
-        try {
-            parser.parse();//sparql -f query/lubm_q1
-            _H_simplist_transfer(parser, r);
-        } catch (const SPARQLParser::ParserException &e) {
-            cerr << "parse error: " << e.message << endl;
-            return false;
-        }
-        return true;
-    }
-
-    bool _H_do_parse_template(istream &is, request_template &r) {
-        string query = read_input(is);
-        SPARQLLexer lexer(query);
-        SPARQLParser parser(lexer);
-        varId = -1;
-        _H_incVarIdMap.clear();
-        try {
-            parser.parse();
-            _H_template_transfer(parser, r);
-        } catch (const SPARQLParser::ParserException &e) {
-            cerr << "parse error: " << e.message << endl;
-            return false;
-        }
-        return true;
-    }
 
 public:
     // the stat of query parsing
@@ -436,61 +410,41 @@ public:
     bool parse(istream &is, SPARQLQuery &r) {
         // clear intermediate states of parser
         clear();
-
-        if (global_enable_planner) {
-            // ASSUMPTION: a normal SPARQL query
-
-            if (!_H_do_parse(is, r))
-                return false;
-
-            cout << "parsing triples is finished." << endl;
-            return true;
-        } else {
-            // ASSUMPTION: an extended SPARQL query w/o planning
-            // TODO: only support the clause "SELECT ... WHERE { ... }"
-
-            // spilt stream into tokens
-            vector<string> tokens = get_tokens(is);
-
-            // parse the tokens
-            if (!do_parse(tokens))
-                return false;
-
-            if (req_template.ptypes_pos.size() != 0) {
-                cout << "ERROR: there is unsupported template pattern." << endl;
-                return false;
-            }
-
-            r.cmd_chains = req_template.cmd_chains;
-            r.pred_type_chains = req_template.pred_type_chains;
-            //init the var map in the req
-            r.nvars = req_template.nvars;
-            return true;
+        string query = read_input(is);
+        SPARQLLexer lexer(query);
+        SPARQLParser parser(lexer);
+        varId = -1;
+        _H_incVarIdMap.clear();
+        try {
+            parser.parse();//sparql -f query/lubm_q1
+            _H_simplist_transfer(parser, r);
+        } catch (const SPARQLParser::ParserException &e) {
+            cerr << "parse error: " << e.message << endl;
+            return false;
         }
+        // check if using custom grammar when planner is on
+        if (parser.isUsingCustomGrammar() && global_enable_planner) {
+            cerr << "custom grammar can only be used when planner is off! " << endl;
+            return false;
+        }
+        cout << "parsing triples is finished." << endl;
+        return true;
     }
 
     /* Used in batch-mode */
     bool parse_template(istream &is, request_template &r) {
-        if (global_enable_planner) {
-            if (!_H_do_parse_template(is, r))
-                return false;
-            // cout << "parsing template is finished." << endl;
-            return true;
-        }
-
-        // clear intermediate states of parser
-        clear();
-
-        vector<string> tokens = get_tokens(is);
-        if (!do_parse(tokens))
-            return false;
-
-        if (req_template.ptypes_pos.size() == 0) {
-            cout << "ERROR: there is no template pattern!" << endl;
+        string query = read_input(is);
+        SPARQLLexer lexer(query);
+        SPARQLParser parser(lexer);
+        varId = -1;
+        _H_incVarIdMap.clear();
+        try {
+            parser.parse();
+            _H_template_transfer(parser, r);
+        } catch (const SPARQLParser::ParserException &e) {
+            cerr << "parse error: " << e.message << endl;
             return false;
         }
-
-        r = req_template;
         return true;
     }
 

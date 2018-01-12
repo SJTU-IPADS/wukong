@@ -257,10 +257,9 @@ public:
 		return 0; // success
 	}
 
-	int run_batch_query(istream &is, int d, int w, int s, int p, Logger &logger) {
+	int run_batch_query(istream &is, int d, int w, int p, Logger &logger) {
 		uint64_t duration = SEC(d);
 		uint64_t warmup = SEC(w);
-		uint64_t sleep = USEC(s);
 		int parallel_factor = p;
 		int try_rounds = 5;
 
@@ -300,11 +299,11 @@ public:
 		logger.init();
 
 		bool timing = false;
-		uint64_t send_cnt = 0, recv_cnt = 0;
+		uint64_t send_cnt = 0, recv_cnt = 0, flying_cnt = 0;
 		uint64_t init = timer::get_usec();
 		while ((timer::get_usec() - init) < duration) {
 			// send requests
-			for (int t = 0; t < parallel_factor; t++) {
+			for (int t = 0; t < parallel_factor - flying_cnt; t++) {
 				sweep_msgs(); // sweep pending msgs first
 
 				int idx = mymath::get_distribution(coder.get_random(), loads);
@@ -322,10 +321,8 @@ public:
 
 			// recieve replies (best of effort)
 			for (int i = 0; i < try_rounds; i++) {
-				usleep(sleep / try_rounds);
-
 				SPARQLQuery r;
-				while (bool success = tryrecv_reply(r)) {
+				while (tryrecv_reply(r)) {
 					recv_cnt++;
 					logger.end_record(r.pid);
 				}
@@ -338,6 +335,8 @@ public:
 				logger.start_thpt(recv_cnt);
 				timing = true;
 			}
+
+			flying_cnt = send_cnt - recv_cnt;
 		}
 		logger.end_thpt(recv_cnt);
 
@@ -346,7 +345,7 @@ public:
 			sweep_msgs();	// sweep pending msgs first
 
 			SPARQLQuery r;
-			if (tryrecv_reply(r)) {
+			while (tryrecv_reply(r)) {
 				recv_cnt ++;
 				logger.end_record(r.pid);
 			}
@@ -361,13 +360,9 @@ public:
 
 #if DYNAMIC_GSTORE
 	int dynamic_load_data(string &dname, RDFLoad &reply, Logger &logger, bool &check_dup) {
-		RDFLoad request;
-		request.type = DYNAMIC_LOAD;
-		request.load_dname = dname;
-		request.check_dup = check_dup;
-
 		logger.init();
 
+		RDFLoad request(dname, check_dup);
 		setpid(request);
 		for (int i = 0; i < global_num_servers; i++) {
 			Bundle bundle(request);
