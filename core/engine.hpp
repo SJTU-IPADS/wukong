@@ -482,8 +482,8 @@ private:
             sub_reqs[i].local_var = start;
             sub_reqs[i].v2c_map  = req.v2c_map;
             sub_reqs[i].nvars  = req.nvars;
-            sub_reqs[i].pred_type_chains = req.pred_type_chains;
             sub_reqs[i].corun_step = req.corun_step;
+            sub_reqs[i].fetch_step = req.fetch_step;
         }
 
         // group intermediate results to servers
@@ -549,12 +549,6 @@ private:
             subgroup.patterns.push_back(SPARQLQuery::Pattern(subject, predicate, direction, object));
         }
 
-        // sub-reqs pred_type
-        vector<int> sub_pred_type_chains;
-        for (int i = corun_step; i < fetch_step; i++) {
-            sub_pred_type_chains.push_back(req.pred_type_chains[i]);
-        }
-
         // step.3 make sub-req
         SPARQLQuery sub_req;
 
@@ -570,7 +564,6 @@ private:
 
         //init var_map
         sub_req.add_var2col(sub_pvars[vid], 0);
-        sub_req.pred_type_chains = sub_pred_type_chains;
 
         sub_req.blind = false; // must take back results
         uint64_t t1 = timer::get_usec(); // time to generate the sub-request
@@ -674,7 +667,7 @@ private:
         }
 
         // triple pattern with attribute
-        if (global_enable_vattr && req.pred_type_chains[req.step] > 0) {
+        if (global_enable_vattr && req.get_pattern(req.step).pred_type > 0) {
             switch (var_pair(req.variable_type(start),
                              req.variable_type(end))) {
             case var_pair(const_var, unknown_var):
