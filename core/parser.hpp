@@ -184,7 +184,7 @@ public:
     // the stat of query parsing
     std::string strerror;
 
-    Parser(String_Server *_ss): str_server(_ss) { clear(); }
+    Parser(String_Server *_ss): str_server(_ss) {}
 
     /* Used in single-mode */
     bool parse(istream &is, SPARQLQuery &r) {
@@ -228,7 +228,6 @@ public:
     }
 
     bool add_type_pattern(string type, SPARQLQuery &r) {
-        clear();
         r = SPARQLQuery();
 
         // add an additonal pattern cmd to collect pattern constants with a certain type
