@@ -39,10 +39,6 @@
 
 using namespace std;
 
-inline bool is_upper(string str1, string str2) {
-    return boost::to_upper_copy<std::string>(str1) == str2;
-}
-
 // Read a stream into a string
 static string read_input(istream& in) {
     string result;
@@ -79,10 +75,6 @@ private:
 
     // str2ID mapping for pattern constants (e.g., <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> 1)
     String_Server *str_server;
-
-    void clear(void) {
-        valid = true;
-    }
 
     //_H_ means helper
     boost::unordered_map<unsigned, ssid_t> _H_incVarIdMap;
@@ -190,7 +182,6 @@ private:
 
 public:
     // the stat of query parsing
-    bool valid;
     std::string strerror;
 
     Parser(String_Server *_ss): str_server(_ss) { clear(); }
@@ -198,7 +189,6 @@ public:
     /* Used in single-mode */
     bool parse(istream &is, SPARQLQuery &r) {
         // clear intermediate states of parser
-        clear();
         string query = read_input(is);
         SPARQLLexer lexer(query);
         SPARQLParser parser(lexer);
