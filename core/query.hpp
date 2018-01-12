@@ -53,28 +53,25 @@ constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 int col2ext(int col, int t) { return ((t << NBITS_COL) | col); }
 int ext2col(int ext) { return (ext & ((1 << NBITS_COL) - 1)); }
 
-
-enum req_type { SPARQL_QUERY, DYNAMIC_LOAD };
-
 class RDFLoad {
 private:
     friend class boost::serialization::access;
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
         ar & pid;
-        ar & type;
         ar & load_dname;
         ar & load_ret;
     }
 
 public:
     int pid = -1;    // parqnt query id
-    req_type type = DYNAMIC_LOAD;
 
     string load_dname = "";   // the file name used to be inserted
     int load_ret = 0;
 
     RDFLoad() {}
+
+    RDFLoad(string s) : load_dname(s) { }
 };
 
 class SPARQLQuery {
@@ -103,8 +100,9 @@ private:
         ar & id;
         ar & pid;
         ar & tid;
-        ar & type;
         ar & step;
+        ar & corun_step;
+        ar & fetch_step;
         ar & col_num;
         ar & row_num;
         ar & attr_col_num;
@@ -190,10 +188,10 @@ public:
     int pid = -1;    // parqnt query id
     int tid = 0;     // engine thread id (MT)
 
-    req_type type = SPARQL_QUERY;
-
     // SPARQL query
     int step = 0;
+    int corun_step = -1;
+    int fetch_step = -1;
     int col_num = 0;
     int row_num = 0;
 
@@ -240,9 +238,6 @@ public:
     bool is_request() { return (id == -1); } // FIXME: it's trick
 
     bool start_from_index() {
-        if (type != SPARQL_QUERY)
-            return false;
-
         /*
          * Wukong assumes that its planner will generate a dummy pattern to hint
          * the query should start from a certain index (i.e., predicate or type).
@@ -384,31 +379,53 @@ public:
     }
 };
 
+enum req_type { SPARQL_QUERY, DYNAMIC_LOAD };
+
 class Bundle {
 public:
     req_type type;
     string data;
 
-    Bundle() {}
+    Bundle() { }
 
-    Bundle(SPARQLQuery request): type(request.type) {
+    Bundle(string str) {
+        set_type(str.at(0));
+        data = str.substr(1);
+    }
+
+    Bundle(SPARQLQuery r): type(SPARQL_QUERY) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
 
-        oa << request;
+        oa << r;
         data = ss.str();
     }
 
-    Bundle(RDFLoad request): type(request.type) {
+    Bundle(RDFLoad r): type(DYNAMIC_LOAD) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
 
-        oa << request;
+        oa << r;
         data = ss.str();
+    }
+
+    string get_type() {
+        switch (type) {
+        case SPARQL_QUERY: return "0";
+        case DYNAMIC_LOAD: return "1";
+        }
+    }
+
+    void set_type(char t) {
+        switch (t) {
+        case '0': type = SPARQL_QUERY; return;
+        case '1': type = DYNAMIC_LOAD; return;
+        }
     }
 
     SPARQLQuery get_sparql_query() {
         assert(type == SPARQL_QUERY);
+
         std::stringstream ss;
         ss << data;
 
@@ -420,6 +437,7 @@ public:
 
     RDFLoad get_rdf_load() {
         assert(type == DYNAMIC_LOAD);
+
         std::stringstream ss;
         ss << data;
 

@@ -483,6 +483,7 @@ private:
             sub_reqs[i].v2c_map  = req.v2c_map;
             sub_reqs[i].nvars  = req.nvars;
             sub_reqs[i].pred_type_chains = req.pred_type_chains;
+            sub_reqs[i].corun_step = req.corun_step;
         }
 
         // group intermediate results to servers
@@ -507,8 +508,8 @@ private:
     }
 
     void do_corun(SPARQLQuery &req) {
-        int corun_step = req.step + 1;
-        int fetch_step = req.get_current_pattern().object;
+        int corun_step = req.corun_step;
+        int fetch_step = req.fetch_step;
 
         // step.1 remove dup;
         uint64_t t0 = timer::get_usec();
@@ -742,7 +743,11 @@ private:
             t1 = timer::get_usec() - t1;
 
             // co-run optimization
+<<<<<<< HEAD
             if (!r.is_finished() && (r.get_current_pattern().direction == CORUN))
+=======
+            if (!r.is_finished() && (r.step == r.corun_step))
+>>>>>>> wk/master
                 do_corun(r);
 
             if (r.is_finished()) {
@@ -794,7 +799,7 @@ private:
     }
 #endif
 
-    void execute_sparql_request(SPARQLQuery &r, Engine *engine){
+    void execute_sparql_request(SPARQLQuery &r, Engine *engine) {
         if (r.is_request())
             execute_request(r);
         else
@@ -807,7 +812,7 @@ private:
             execute_sparql_request(r, engine);
         }
 #if DYNAMIC_GSTORE
-        else if (bundle.type == DYNAMIC_LOAD){
+        else if (bundle.type == DYNAMIC_LOAD) {
             RDFLoad r = bundle.get_rdf_load();
             execute_load_data(r);
         }
@@ -872,12 +877,8 @@ public:
             last_time = timer::get_usec();
 
             // own queue
-            success = false;
-            pthread_spin_lock(&recv_lock);
-            success = adaptor->tryrecv(bundle);
-            pthread_spin_unlock(&recv_lock);
-
-            if (success) execute(bundle, engines[own_id]);
+            if (adaptor->tryrecv(bundle))
+                execute(bundle, engines[own_id]);
 
             // work-oblige is disabled
             if (!global_enable_workstealing) continue;
@@ -887,12 +888,8 @@ public:
             if (last_time < engines[nbr_id]->last_time + TIMEOUT_THRESHOLD)
                 continue; // neighboring worker is self-sufficient
 
-            success = false;
-            pthread_spin_lock(&engines[nbr_id]->recv_lock);
-            success = engines[nbr_id]->adaptor->tryrecv(bundle);
-            pthread_spin_unlock(&engines[nbr_id]->recv_lock);
-
-            if (success) execute(bundle, engines[nbr_id]);
+            if (engines[nbr_id]->adaptor->tryrecv(bundle))
+                execute(bundle, engines[nbr_id]);
         }
     }
 
