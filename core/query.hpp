@@ -144,6 +144,13 @@ public:
         }
     };
 
+    class Filter {
+    private:
+        friend class boost::serialization::access;
+        template <typename Archive>
+        void serialize(Archive &ar, const unsigned int version) {}
+    };
+
     class PatternGroup {
     public:
         vector<Pattern> patterns;
@@ -162,13 +169,6 @@ public:
         }
     };
 
-    class Filter {
-    private:
-        friend class boost::serialization::access;
-        template <typename Archive>
-        void serialize(Archive &ar, const unsigned int version) {}
-    };
-
     class Order {
     public:
         ssid_t id;  /// variable id
@@ -182,7 +182,6 @@ public:
             ar & descending;
         }
     };
-
 
     int id = -1;     // query id
     int pid = -1;    // parqnt query id
@@ -353,7 +352,7 @@ class request_template {
 
 public:
     vector<ssid_t> cmd_chains;
-    PatternGroup pattern_group;
+    SPARQLQuery::PatternGroup pattern_group;
 
     int nvars;  // the number of variable in triple patterns
     // store the query predicate type
@@ -369,7 +368,7 @@ public:
             cmd_chains[ptypes_pos[i]] =
                 ptypes_grp[i][seed % ptypes_grp[i].size()];
         for(int i = 0; i < cmd_chains.size(); i += 4) {
-            pattern_group.patterns.push_back(Pattern(
+            pattern_group.patterns.push_back(SPARQLQuery::Pattern(
                 cmd_chains[i],
                 cmd_chains[i + 1],
                 cmd_chains[i + 2],
