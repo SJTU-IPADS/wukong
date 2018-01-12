@@ -158,9 +158,9 @@ private:
         return false;
     }
 
+
     void const_to_known(SPARQLQuery &req) { assert(false); } /// TODO
 
-    // all of these means const predicate
     void const_to_unknown(SPARQLQuery &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t pid   = req.cmd_chains[req.step * 4 + 1];
@@ -182,8 +182,7 @@ private:
         req.step++;
     }
 
-    // all of these means const attribute
-    void const_to_unknown_attr(SPARQLQuery & req ) {
+    void const_to_unknown_attr(SPARQLQuery &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
         ssid_t aid   = req.cmd_chains[req.step * 4 + 1];
         dir_t d      = (dir_t)req.cmd_chains[req.step * 4 + 2];
@@ -203,7 +202,6 @@ private:
         req.set_attr_col_num(1);
         req.step++;
     }
-
 
     void known_to_unknown(SPARQLQuery &req) {
         ssid_t start = req.cmd_chains[req.step * 4];
@@ -758,6 +756,7 @@ private:
     void execute_reply(SPARQLQuery &r, Engine *engine) {
         pthread_spin_lock(&engine->rmap_lock);
         engine->rmap.put_reply(r);
+
         if (engine->rmap.is_ready(r.pid)) {
             SPARQLQuery reply = engine->rmap.get_merged_reply(r.pid);
             pthread_spin_unlock(&engine->rmap_lock);
@@ -768,6 +767,13 @@ private:
         }
     }
 
+    void execute_sparql_request(SPARQLQuery &r, Engine *engine) {
+        if (r.is_request())
+            execute_request(r);
+        else
+            execute_reply(r, engine);
+    }
+
 #if DYNAMIC_GSTORE
     void execute_load_data(RDFLoad &r) {
         r.load_ret = graph->dynamic_load_data(r.load_dname);
@@ -775,13 +781,6 @@ private:
         send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
     }
 #endif
-
-    void execute_sparql_request(SPARQLQuery &r, Engine *engine) {
-        if (r.is_request())
-            execute_request(r);
-        else
-            execute_reply(r, engine);
-    }
 
     void execute(Bundle &bundle, Engine *engine) {
         if (bundle.type == SPARQL_QUERY) {
@@ -793,7 +792,6 @@ private:
             RDFLoad r = bundle.get_rdf_load();
             execute_load_data(r);
         }
-
 #endif
     }
 
