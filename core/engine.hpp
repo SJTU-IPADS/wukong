@@ -75,8 +75,8 @@ public:
         result_table.insert( result_table.end(), r.result_table.begin(), r.result_table.end());
 
         vector<attr_t> & attr_res_table = data.merged_reply.attr_res_table;
-        int new_attr_size = attr_res_table.size() + r.result_table.size();
-        result_table.reserve(new_attr_size);
+        int new_attr_size = attr_res_table.size() + r.attr_res_table.size();
+        attr_res_table.reserve(new_attr_size);
         attr_res_table.insert(attr_res_table.end(), r.attr_res_table.begin(), r.attr_res_table.end());
     }
 
@@ -158,9 +158,9 @@ private:
         return false;
     }
 
+
     void const_to_known(SPARQLQuery &req) { assert(false); } /// TODO
 
-    // all of these means const predicate
     void const_to_unknown(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_current_pattern();
         ssid_t start = pattern.subject;
@@ -205,7 +205,6 @@ private:
         req.set_attr_col_num(1);
         req.step++;
     }
-
 
     void known_to_unknown(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_current_pattern();
@@ -772,6 +771,7 @@ private:
     void execute_reply(SPARQLQuery &r, Engine *engine) {
         pthread_spin_lock(&engine->rmap_lock);
         engine->rmap.put_reply(r);
+
         if (engine->rmap.is_ready(r.pid)) {
             SPARQLQuery reply = engine->rmap.get_merged_reply(r.pid);
             pthread_spin_unlock(&engine->rmap_lock);
@@ -782,6 +782,13 @@ private:
         }
     }
 
+    void execute_sparql_request(SPARQLQuery &r, Engine *engine) {
+        if (r.is_request())
+            execute_request(r);
+        else
+            execute_reply(r, engine);
+    }
+
 #if DYNAMIC_GSTORE
     void execute_load_data(RDFLoad &r) {
         r.load_ret = graph->dynamic_load_data(r.load_dname);
@@ -789,13 +796,6 @@ private:
         send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
     }
 #endif
-
-    void execute_sparql_request(SPARQLQuery &r, Engine *engine) {
-        if (r.is_request())
-            execute_request(r);
-        else
-            execute_reply(r, engine);
-    }
 
     void execute(Bundle &bundle, Engine *engine) {
         if (bundle.type == SPARQL_QUERY) {
@@ -807,7 +807,6 @@ private:
             RDFLoad r = bundle.get_rdf_load();
             execute_load_data(r);
         }
-
 #endif
     }
 
