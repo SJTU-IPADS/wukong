@@ -121,20 +121,21 @@ private:
         SPARQLParser::PatternGroup group = parser.getPatterns();
         for (std::vector<SPARQLParser::Pattern>::const_iterator iter = group.patterns.begin(),
                 limit = group.patterns.end(); iter != limit; ++iter) {
-            temp_cmd_chains.push_back(_H_encode(iter->subject));
-            temp_cmd_chains.push_back(_H_encode(iter->predicate));
-            temp_cmd_chains.push_back(iter->direction);
-            temp_cmd_chains.push_back(_H_encode(iter->object));
+
+            SPARQLQuery::Pattern pattern(_H_encode(iter->subject),
+                            _H_encode(iter->predicate),
+                            iter->direction,
+                            _H_encode(iter->object));
 
             int type =  str_server->id2type[_H_encode(iter->predicate)];
             if (type > 0 && (!global_enable_vattr)) {
                 cout << "Need to change config to enable vertex_attr " << endl;
                 assert(false);
             }
-            temp_pred_type_chains.push_back(str_server->id2type[_H_encode(iter->predicate)]);
+            pattern.pred_type = str_server->id2type[_H_encode(iter->predicate)];
+            r.pattern_group.patterns.push_back(pattern);
         }
-        r.cmd_chains = temp_cmd_chains;
-        r.pred_type_chains = temp_pred_type_chains;
+        
         // init the var_map
         r.nvars = parser.getVariableCount();
 
@@ -145,39 +146,42 @@ private:
             r.corun_step = parser.getCorunStep();
             r.fetch_step = parser.getFetchStep();
         }
-        
+
     }
 
-    void _H_push(const SPARQLParser::Element &element, request_template &r, int pos) {
+    ssid_t _H_push(const SPARQLParser::Element &element, request_template &r, int pos) {
         ssid_t id = _H_encode(element);
         if (id == PTYPE_PH) {
             string strIRI = "<" + element.value + ">";
             r.ptypes_str.push_back(strIRI);
             r.ptypes_pos.push_back(pos);
         }
-        r.cmd_chains.push_back(id);
+        return id;
     }
+
 
     void _H_template_transfer(const SPARQLParser &parser, request_template &r) {
         SPARQLParser::PatternGroup group = parser.getPatterns();
         int pos = 0;
         for (std::vector<SPARQLParser::Pattern>::const_iterator iter = group.patterns.begin(),
                 limit = group.patterns.end(); iter != limit; ++iter) {
-            _H_push(iter->subject, r, pos++);
-            r.cmd_chains.push_back(_H_encode(iter->predicate)); pos++;
-            r.cmd_chains.push_back(OUT); pos++;
-            _H_push(iter->object, r, pos++);
-
+            ssid_t subject = _H_push(iter->subject, r, pos++);
+            ssid_t predicate = _H_encode(iter->predicate); pos++;
+            ssid_t direction = (dir_t)OUT; pos++;
+            ssid_t object = _H_push(iter->object, r, pos++);
+            SPARQLQuery::Pattern pattern(subject,predicate,direction,object);
             int type =  str_server->id2type[_H_encode(iter->predicate)];
             if (type > 0 && (!global_enable_vattr)) {
                 cout << "Need to change config to enable vertex_attr " << endl;
                 assert(false);
             }
-            r.pred_type_chains.push_back(type);
+            pattern.pred_type = type;
+            r.pattern_group.patterns.push_back(pattern);
         }
 
         // set the number of variables in triple patterns
         r.nvars = parser.getVariableCount();
+
     }
 
 public:
@@ -231,14 +235,10 @@ public:
         r = SPARQLQuery();
 
         // add an additonal pattern cmd to collect pattern constants with a certain type
-        r.cmd_chains.push_back(str_server->str2id[type]); // type ID
-        r.cmd_chains.push_back(TYPE_ID);  // reserved ID for "rdf:type"
-        r.cmd_chains.push_back(IN);
-        r.cmd_chains.push_back(-1);
-
-        r.pred_type_chains.push_back(0);
+        SPARQLQuery::Pattern pattern(str_server->str2id[type], TYPE_ID, IN, -1);
+        pattern.pred_type = 0;
+        r.pattern_group.patterns.push_back(pattern);
         r.nvars = 1;
         return true;
     }
-
 };

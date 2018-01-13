@@ -110,13 +110,80 @@ private:
         ar & nvars;
         ar & local_var;
         ar & v2c_map;
-        ar & cmd_chains;
+        ar & pattern_group;
+        ar & orders;
         ar & result_table;
-        ar & pred_type_chains;
         ar & attr_res_table;
     }
 
 public:
+    class Pattern {
+    public:
+        ssid_t subject;
+        ssid_t predicate;
+        ssid_t object;
+        dir_t  direction;
+        int    pred_type;
+
+        Pattern(){}
+
+        Pattern(ssid_t subject, ssid_t predicate, dir_t direction, ssid_t object):
+            subject(subject), predicate(predicate), object(object), direction(direction) {}
+
+        Pattern(ssid_t subject, ssid_t predicate, ssid_t direction, ssid_t object):
+            subject(subject), predicate(predicate), object(object), direction((dir_t)direction) {}
+
+    private:
+        friend class boost::serialization::access;
+        template <typename Archive>
+        void serialize(Archive &ar, const unsigned int version) {
+            ar & subject;
+            ar & predicate;
+            ar & object;
+            ar & direction;
+            ar & pred_type;
+        }
+    };
+
+    class Filter {
+    private:
+        friend class boost::serialization::access;
+        template <typename Archive>
+        void serialize(Archive &ar, const unsigned int version) {}
+    };
+
+    class PatternGroup {
+    public:
+        vector<Pattern> patterns;
+        vector<Filter> filters;
+        vector<PatternGroup> optional;
+        vector<PatternGroup> unions;
+
+    private:
+        friend class boost::serialization::access;
+        template <typename Archive>
+        void serialize(Archive &ar, const unsigned int version) {
+            ar & patterns;
+            ar & filters;
+            ar & optional;
+            ar & unions;
+        }
+    };
+
+    class Order {
+    public:
+        ssid_t id;  /// variable id
+        bool descending;    /// desending
+
+    private:
+        friend class boost::serialization::access;
+        template <typename Archive>
+        void serialize(Archive &ar, const unsigned int version) {
+            ar & id;
+            ar & descending;
+        }
+    };
+
     int id = -1;     // query id
     int pid = -1;    // parqnt query id
     int tid = 0;     // engine thread id (MT)
@@ -138,24 +205,33 @@ public:
     vector<int> v2c_map; // from variable ID (vid) to column ID
 
     // ID-format triple patterns (Subject, Predicat, Direction, Object)
-    vector<ssid_t> cmd_chains;
+    PatternGroup pattern_group;
+    vector<Order> orders;
     vector<sid_t> result_table; // result table for string IDs
 
-    // ID-format attribute triple patterns (Subject, Attribute, Direction, Value)
-    vector<int>  pred_type_chains;
     vector<attr_t> attr_res_table; // result table for others
 
     SPARQLQuery() { }
 
     // build a request by existing triple patterns and variables
-    SPARQLQuery(vector<ssid_t> cc, int n, vector<int> p)
-        : cmd_chains(cc), nvars(n), pred_type_chains(p) {
+    SPARQLQuery(PatternGroup g, int n)
+        : pattern_group(g), nvars(n) {
         v2c_map.resize(n, NO_RESULT);
+    }
+
+    Pattern& get_current_pattern() {
+        assert(this->step < pattern_group.patterns.size());
+        return pattern_group.patterns[this->step];
+    }
+
+    Pattern& get_pattern(int step) {
+        assert(step < pattern_group.patterns.size());
+        return pattern_group.patterns[step];
     }
 
     void clear_data() { result_table.clear(); attr_res_table.clear(); }
 
-    bool is_finished() { return (step * 4 >= cmd_chains.size()); } // FIXME: it's trick
+    bool is_finished() { return (step >= pattern_group.patterns.size()); } // FIXME: it's trick
 
     bool is_request() { return (id == -1); } // FIXME: it's trick
 
@@ -173,8 +249,9 @@ public:
          * ?X P0 ?Y .             // then from ?X's edge with P0
          *
          */
-        if (is_tpid(cmd_chains[0])) {
-            assert(cmd_chains[1] == PREDICATE_ID || cmd_chains[1] == TYPE_ID);
+        if (is_tpid(pattern_group.patterns[0].subject)) {
+            assert(pattern_group.patterns[0].predicate == PREDICATE_ID
+                || pattern_group.patterns[0].predicate == TYPE_ID);
             return true;
         }
         return false;
@@ -273,11 +350,9 @@ public:
 class request_template {
 
 public:
-    vector<ssid_t> cmd_chains;
+    SPARQLQuery::PatternGroup pattern_group;
 
     int nvars;  // the number of variable in triple patterns
-    // store the query predicate type
-    vector<int> pred_type_chains;
 
     // no serialize
     vector<int> ptypes_pos; // the locations of random-constants
@@ -285,10 +360,22 @@ public:
     vector<vector<sid_t>> ptypes_grp; // the candidates for random-constants
 
     SPARQLQuery instantiate(int seed) {
-        for (int i = 0; i < ptypes_pos.size(); i++)
-            cmd_chains[ptypes_pos[i]] =
-                ptypes_grp[i][seed % ptypes_grp[i].size()];
-        return SPARQLQuery(cmd_chains, nvars, pred_type_chains);
+        for (int i = 0; i < ptypes_pos.size(); i++){
+            int pos = ptypes_pos[i];
+            switch(pos % 4){
+                case 0:
+                    pattern_group.patterns[pos / 4].subject = ptypes_grp[i][seed % ptypes_grp[i].size()];
+                    break;
+                case 1:
+                    pattern_group.patterns[pos / 4].predicate = ptypes_grp[i][seed % ptypes_grp[i].size()];
+                    break;
+                case 3:
+                    pattern_group.patterns[pos / 4].object = ptypes_grp[i][seed % ptypes_grp[i].size()];
+                    break;
+            }
+        }
+
+        return SPARQLQuery(pattern_group, nvars);
     }
 };
 
