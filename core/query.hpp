@@ -22,11 +22,12 @@
 
 #pragma once
 
-#include <boost/archive/text_oarchive.hpp>
-#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/variant.hpp>
+#include <boost/serialization/split_free.hpp>
 #include <vector>
 
 #include "type.hpp"
@@ -95,26 +96,6 @@ private:
     }
 
     friend class boost::serialization::access;
-    template <typename Archive>
-    void serialize(Archive &ar, const unsigned int version) {
-        ar & id;
-        ar & pid;
-        ar & tid;
-        ar & step;
-        ar & corun_step;
-        ar & fetch_step;
-        ar & col_num;
-        ar & row_num;
-        ar & attr_col_num;
-        ar & blind;
-        ar & nvars;
-        ar & local_var;
-        ar & v2c_map;
-        ar & pattern_group;
-        ar & orders;
-        ar & result_table;
-        ar & attr_res_table;
-    }
 
 public:
     class Pattern {
@@ -123,7 +104,7 @@ public:
         ssid_t predicate;
         ssid_t object;
         dir_t  direction;
-        int    pred_type;
+        char  pred_type;
 
         Pattern(){}
 
@@ -135,14 +116,6 @@ public:
 
     private:
         friend class boost::serialization::access;
-        template <typename Archive>
-        void serialize(Archive &ar, const unsigned int version) {
-            ar & subject;
-            ar & predicate;
-            ar & object;
-            ar & direction;
-            ar & pred_type;
-        }
     };
 
     class Filter {
@@ -161,13 +134,6 @@ public:
 
     private:
         friend class boost::serialization::access;
-        template <typename Archive>
-        void serialize(Archive &ar, const unsigned int version) {
-            ar & patterns;
-            ar & filters;
-            ar & optional;
-            ar & unions;
-        }
     };
 
     class Order {
@@ -346,6 +312,141 @@ public:
         }
     }
 };
+
+namespace boost { namespace serialization {
+    char occupied = 0;
+    char empty = 1;
+    template<class Archive>
+    void save(Archive & ar, const SPARQLQuery::PatternGroup & t, unsigned int version){
+        ar << t.patterns;
+        if(t.filters.size() > 0){
+            ar << occupied;
+            ar << t.filters;
+        }
+        else{
+            ar << empty;
+        }
+        if(t.optional.size() > 0){
+            ar << occupied;
+            ar << t.optional;
+        }
+        else{
+            ar << empty;
+        }
+        if(t.unions.size() > 0){
+            ar << occupied;
+            ar << t.unions;
+        }
+        else{
+            ar << empty;
+        }
+    }
+    template<class Archive>
+    void load(Archive & ar, SPARQLQuery::PatternGroup & t, unsigned int version){
+        char temp = 2;
+        ar >> t.patterns;
+        ar >> temp;
+        if(temp == occupied){
+            ar >> t.filters;
+            temp = 2;
+        }
+        ar >> temp;
+        if(temp == occupied){
+            ar >> t.optional;
+            temp = 2;
+        }
+        ar >> temp;
+        if(temp == occupied){
+            ar >> t.unions;
+            temp = 2;
+        }
+    }
+    template<class Archive>
+    void save(Archive & ar, const SPARQLQuery & t, unsigned int version){
+        ar << t.id;
+        ar << t.pid;
+        ar << t.tid;
+        ar << t.step;
+        ar << t.corun_step;
+        ar << t.fetch_step;
+        ar << t.col_num;
+        ar << t.row_num;
+        ar << t.attr_col_num;
+        ar << t.blind;
+        ar << t.nvars;
+        ar << t.local_var;
+        ar << t.v2c_map;
+        ar << t.pattern_group;
+        if(t.orders.size() > 0){
+            ar << occupied;
+            ar << t.orders;
+        }
+        else{
+            ar << empty;
+        }
+        ar << t.result_table;
+        ar << t.attr_res_table;
+    }
+    template<class Archive>
+    void load(Archive & ar, SPARQLQuery & t, unsigned int version){
+        char temp = 2;
+        ar >> t.id;
+        ar >> t.pid;
+        ar >> t.tid;
+        ar >> t.step;
+        ar >> t.corun_step;
+        ar >> t.fetch_step;
+        ar >> t.col_num;
+        ar >> t.row_num;
+        ar >> t.attr_col_num;
+        ar >> t.blind;
+        ar >> t.nvars;
+        ar >> t.local_var;
+        ar >> t.v2c_map;
+        ar >> t.pattern_group;
+        ar >> temp;
+        if(temp == occupied){
+            ar >> t.orders;
+        }
+        ar >> t.result_table;
+        ar >> t.attr_res_table;
+    }
+    template<class Archive>
+    void save(Archive & ar, const SPARQLQuery::Pattern & t, unsigned int version){
+        ar << t.subject;
+        ar << t.predicate;
+        ar << t.object;
+        ar << t.direction;
+        ar << t.pred_type;
+    }
+    template<class Archive>
+    void load(Archive & ar, SPARQLQuery::Pattern & t, unsigned int version){
+        ar >> t.subject;
+        ar >> t.predicate;
+        ar >> t.object;
+        ar >> t.direction;
+        ar >> t.pred_type;
+    }
+}}
+BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::Pattern);
+BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::PatternGroup);
+BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery);
+//remove class information at the cost of losing auto versioning, which is useless currently because wukong 
+//use boost serialization to transmit data between endpoints running the same code.
+BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Pattern, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Filter, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::PatternGroup, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Order, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(SPARQLQuery, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(RDFLoad, boost::serialization::object_serializable);
+//remove object tracking information at the cost of that multiple identical objects may be created when an archive is loaded. 
+//current query data structure does not contain two identical object reference with the same pointer
+BOOST_CLASS_TRACKING(SPARQLQuery::Pattern, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(SPARQLQuery::Filter, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(SPARQLQuery::PatternGroup, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(SPARQLQuery::Order, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(SPARQLQuery, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(RDFLoad, boost::serialization::track_never);
 
 class request_template {
 

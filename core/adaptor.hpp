@@ -22,9 +22,6 @@
 
 #pragma once
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
-
 #include "config.hpp"
 #include "query.hpp"
 #include "tcp_adaptor.hpp"
