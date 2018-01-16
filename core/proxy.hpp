@@ -359,10 +359,10 @@ public:
 	}
 
 #if DYNAMIC_GSTORE
-	int dynamic_load_data(string &dname, RDFLoad &reply, Logger &logger) {
+	int dynamic_load_data(string &dname, RDFLoad &reply, Logger &logger, bool &check_dup) {
 		logger.init();
 
-		RDFLoad request(dname);
+		RDFLoad request(dname, check_dup);
 		setpid(request);
 		for (int i = 0; i < global_num_servers; i++) {
 			Bundle bundle(request);

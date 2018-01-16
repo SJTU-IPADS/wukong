@@ -62,17 +62,19 @@ private:
         ar & pid;
         ar & load_dname;
         ar & load_ret;
+        ar & check_dup;
     }
 
 public:
-    int pid = -1;    // parqnt query id
+    int pid = -1;    // parent query id
 
     string load_dname = "";   // the file name used to be inserted
     int load_ret = 0;
+    bool check_dup = false;
 
     RDFLoad() {}
 
-    RDFLoad(string s) : load_dname(s) { }
+    RDFLoad(string s, bool b) : load_dname(s), check_dup(b) { }
 };
 
 class SPARQLQuery {

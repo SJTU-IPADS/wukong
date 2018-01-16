@@ -791,7 +791,7 @@ private:
 
 #if DYNAMIC_GSTORE
     void execute_load_data(RDFLoad &r) {
-        r.load_ret = graph->dynamic_load_data(r.load_dname);
+        r.load_ret = graph->dynamic_load_data(r.load_dname, r.check_dup);
         Bundle bundle(r);
         send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
     }
