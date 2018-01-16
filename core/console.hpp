@@ -303,6 +303,7 @@ next:
 						}
 
 						SPARQLQuery reply;
+						SPARQLQuery::Result &result = reply.result;
 						Logger logger;
 						int ret = proxy->run_single_query(ifs, cnt, reply, logger);
 						if (ret != 0) {
@@ -311,19 +312,19 @@ next:
 						}
 
 						logger.print_latency(cnt);
-						cout << "(last) result size: " << reply.row_num << endl;
+						cout << "(last) result size: " << result.row_num << endl;
 
 						// print or dump results
-						if (!global_silent && !reply.blind && (nlines > 0 || o_enable)) {
+						if (!global_silent && !result.blind && (nlines > 0 || o_enable)) {
 							if (global_load_minimal_index)
 								cout << "WARNING: Can't print/output results in string format\n"
 								     << "         with global_load_minimal_index enabled." << endl;
 
 							if (nlines > 0)
-								reply.print_result(min(reply.row_num, nlines), proxy->str_server);
+								result.print_result(min(result.row_num, nlines), proxy->str_server);
 
 							if (o_enable)
-								reply.dump_result(ofname, reply.row_num, proxy->str_server);
+								result.dump_result(ofname, result.row_num, proxy->str_server);
 						}
 					}
 				}
