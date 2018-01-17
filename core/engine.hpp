@@ -487,7 +487,6 @@ private:
             sub_reqs[i].result.col_num = req.result.col_num;
             sub_reqs[i].result.blind = req.result.blind;
             sub_reqs[i].result.v2c_map  = req.result.v2c_map;
-            sub_reqs[i].result.required_vars  = req.result.required_vars;
             sub_reqs[i].result.nvars  = req.result.nvars;
         }
 
@@ -751,8 +750,7 @@ private:
 
             if (r.is_finished()) {
                 result.row_num = result.get_row_num();
-                if (result.blind)
-                    result.clear_data(); // avoid take back the results
+                r.clear_data();
                 Bundle bundle(r);
                 send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
                 return;

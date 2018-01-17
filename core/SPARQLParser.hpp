@@ -199,14 +199,16 @@ private:
     /// The registered prefixes
     std::map<std::string, std::string> prefixes;
     /// The named variables
-    std::map<std::string, unsigned> namedVariables;
+    std::map<std::string, int> namedVariables;
     /// The total variable count
     unsigned variableCount;
+    /// The named variable count
+    unsigned namedVariableCount;
 
     /// The projection modifier
     ProjectionModifier projectionModifier;
     /// The projection clause
-    std::vector<unsigned> projection;
+    std::vector<int> projection;
     /// The pattern
     PatternGroup patterns;
     /// The sort order
@@ -219,13 +221,14 @@ private:
     int fetch_step;
 
     /// Lookup or create a named variable
-    unsigned nameVariable(const std::string &name) {
+    int nameVariable(const std::string &name) {
         if (namedVariables.count(name))
             return namedVariables[name];
 
-        unsigned result = variableCount++;
-        namedVariables[name] = result;
-        return result;
+        variableCount++;
+        int result = ++namedVariableCount;
+        namedVariables[name] = -result;
+        return -result;
     }
 
     /// Parse an RDF literal
@@ -1066,7 +1069,7 @@ private:
 public:
     /// Constructor
     explicit SPARQLParser(SPARQLLexer &lexer)
-        : lexer(lexer), variableCount(0),
+        : lexer(lexer), variableCount(0), namedVariableCount(0),
           projectionModifier(Modifier_None), limit(~0u) {
         limit = -1;
         usingCustomGrammar = false;
@@ -1105,7 +1108,7 @@ public:
 
         // Fixup empty projections (i.e. *)
         if (!projection.size()) {
-            for (map<string, unsigned>::const_iterator iter = namedVariables.begin(), limit = namedVariables.end();
+            for (map<string, int>::const_iterator iter = namedVariables.begin(), limit = namedVariables.end();
                     iter != limit; ++iter)
                 projection.push_back((*iter).second);
         }
@@ -1114,8 +1117,8 @@ public:
     /// Get the patterns
     const PatternGroup &getPatterns() const { return patterns; }
     /// Get the name of a variable
-    std::string getVariableName(unsigned id) const {
-        for (map<string, unsigned>::const_iterator iter = namedVariables.begin(), limit = namedVariables.end();
+    std::string getVariableName(int id) const {
+        for (map<string, int>::const_iterator iter = namedVariables.begin(), limit = namedVariables.end();
                 iter != limit; ++iter)
             if ((*iter).second == id)
                 return (*iter).first;
@@ -1123,7 +1126,7 @@ public:
     }
 
     /// Iterator over the projection clause
-    typedef std::vector<unsigned>::const_iterator projection_iterator;
+    typedef std::vector<int>::const_iterator projection_iterator;
     /// Iterator over the projection
     projection_iterator projectionBegin() const { return projection.begin(); }
     /// Iterator over the projection
