@@ -156,6 +156,8 @@ public:
 
 	void setpid(RDFLoad &r) { r.pid = coder.get_and_inc_qid(); }
 
+	void setpid(STORECheck &r) { r.pid = coder.get_and_inc_qid(); }
+
 	void send_request(SPARQLQuery &r) {
 		assert(r.pid != -1);
 
@@ -383,4 +385,30 @@ public:
 		return ret;
 	}
 #endif
+
+	int check_store_data(STORECheck &reply, Logger &logger) {
+		logger.init();
+
+
+		STORECheck request;
+		setpid(request);
+		for (int i = 0; i < global_num_servers; i++) {
+			Bundle bundle(request);
+			send(bundle, i);
+		}
+
+		int ret = 0;
+		for (int i = 0; i < global_num_servers; i++) {
+			Bundle bundle = adaptor->recv();
+			assert(bundle.type == STORE_CHECK);
+
+			reply = bundle.get_store_check();
+			if (reply.check_ret < 0)
+				ret = reply.check_ret;
+		}
+
+		logger.finish();
+		return ret;
+
+	}
 };

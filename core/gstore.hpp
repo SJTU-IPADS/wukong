@@ -857,7 +857,7 @@ public:
 
 #ifdef VERSATILE
         insert_index_set(v_set, TYPE_ID, IN);
-        insert_index_set(t_set, TYPE_ID, OUT);
+        insert_index_set(t_set, TYPE_ID, OUT);res[i].val,
         insert_index_set(p_set, PREDICATE_ID, OUT);
 
         tbb_unordered_set().swap(v_set);
@@ -942,6 +942,123 @@ public:
 
     void flush_cache() { rdma_cache.flush(); }
 #endif
+
+     void test_vertex(ikey_t key) {
+        if(key.vid == 0 && is_tpid(key.pid) && key.dir == IN) { // (2)/(1)  predicate/type index, how to figure it out
+            /*uint64_t sz = 0;
+            edge_t *res = get_edges_local(0, key.vid, key.dir, key.pid, &sz);
+            for(int i = 0; i < sz; i++) {
+                uint64_t tsz = 0;
+                edge_t *tes = get_edges_local(0, res[i].val, OUT, TYPE_ID, &tsz);
+                if(tsz == 0) {         //predicate index
+                   tes = get_edges_local(0, res[i].val, OUT, key.pid, &tsz);
+                   for(int j = 0; j < tsz; j++) {
+                       if (get_vertex_local(0,ikey_t(tes[j].val, key.pid, OUT)).key.is_empty()) {
+                           cout<< "error"<<endl;
+                       }
+                   }
+                } else {   //type index
+                    int j = 0; 
+                    for(j = 0; j < tsz; j++) {
+                        if(tes[j].val == key.pid) {
+                            break;
+                        }
+                    }
+                    if (j == tsz) {
+                        cout<<"First Error: "<<"In the value part of "<<res[i].val <<"'s type index there is no "<<key.pid<<endl;
+                        cout<<"key1: ["<<key.vid<<" , "<<key.pid<<" , IN]  Value: "<<res[i].val<<endl;
+                        cout<<"key2: ["<<res[i].val<<","<<"TYPE_ID, OUT]  Value: ";
+                        for(int j = 0; j <tsz; j++) {
+                            cout<<tes[j].val<<" ";
+                        }
+                        cout<<endl;
+                    }
+                }
+            }*/
+            uint64_t sz = 0;
+            edge_t *res = get_edges_local(0, key.vid, key.dir, key.pid, &sz); //(1)[IN]/(2)
+            for(int i = 0; i < sz; i++) {
+                uint64_t tsz = 0;
+                edge_t *tes = get_edges_local(0, res[i].val, OUT, TYPE_ID, &tsz);
+                int j = 0; 
+                for(j = 0; j < tsz; j++) {     //(2)
+                    if(tes[j].val == key.pid) {
+                        break;
+                    }
+                }
+                if(tsz != 0 && j == tsz) {  //(1)[IN]
+                    if (get_vertex_local(0,ikey_t(res[i].val, key.pid, OUT)).key.is_empty()) { 
+                           cout<< "error"<<endl;
+                       }
+                }
+            }
+        } else if (!is_tpid(key.vid) && key.pid == TYPE_ID && key.dir == OUT) { // (7) vid's all types
+              uint64_t sz = 0;
+              edge_t *res = get_edges_local(0, key.vid, key.dir, key.pid, &sz);
+              for(int i = 0; i < sz; i++) {
+                  uint64_t tsz = 0;
+                  edge_t *tes = get_edges_local(0, 0, IN, res[i].val, &tsz);
+                  int j = 0; 
+                  for(j = 0; j < tsz; j++) {
+                      if(tes[j].val == key.vid) {
+                          break;
+                      }
+                  }
+                  if (j == tsz) {
+                      cout<<"Second Error: "<<"In the value part of "<<res[i].val <<"'s type index there is no "<<key.vid<<endl;
+                  }
+              }
+        } else if (key.vid == 0 && is_tpid(key.pid) && key.dir == OUT) {  //(1) predicate index (OUT)
+             uint64_t sz = 0;
+             edge_t *res = get_edges_local(0, key.vid, key.dir, key.pid, &sz);//predicate index
+             for(int i = 0; i < sz; i++) {
+                 if (get_vertex_local(0, ikey_t(res[i].val, key.pid, IN)).key.is_empty()) {
+                    cout<<"Error: key "<< "[ " <<res[i].val<< " , "<< key.pid<<" , "<<" IN ] does not exist."<<endl;
+                  }
+             }
+        } else if (!is_tpid(key.vid) && is_tpid(key.pid) && key.dir == OUT) {  //normal key/value pair (6)(OUT)
+              uint64_t sz = 0;
+              edge_t *res = get_edges_local(0, 0, IN, key.pid, &sz);//predicate-index (1)
+              int i = 0;
+              for(i = 0; i < sz; i++) {
+                  if(res[i].val == key.vid) {
+                        break;                     //need some method to get to the true way
+                  }
+              }
+              if (i == sz) {
+                  cout<<"Error: "<<"In the predicate index [0, " <<key.pid<<", IN]"<<" there is no value "<<key.vid<<endl;
+              }
+        } else if (!is_tpid(key.vid) && is_tpid(key.pid) && key.dir == IN) {
+               uint64_t sz = 0;
+               edge_t *res = get_edges_local(0, 0, OUT, key.pid, &sz);//predicate-index (1)
+               int i = 0;
+               for(i = 0; i < sz; i++) {
+                  if(res[i].val == key.vid) {
+                        break;                     //need some method to get to the true way
+                  }
+              }
+              if (i == sz) {
+                  cout<<"Error: "<<"In the predicate index [0, " <<key.pid<<", OUT]"<<" there is no value "<<key.vid<<endl;
+              }
+        } else {
+            cout<<" A new key pattern : [ "<<key.vid<<" , "<<key.pid<<" , "<<key.dir<<" ]"<<endl; 
+        }
+    }
+
+    int store_check() {
+        uint64_t slot_id;
+        uint64_t cnt = 0;
+        for (uint64_t bucket_id = 0; bucket_id < num_slots/ASSOCIATIVITY; bucket_id++) {
+            slot_id = bucket_id * ASSOCIATIVITY;
+            for (int i = 0; i < ASSOCIATIVITY - 1 && slot_id < num_slots; i++, slot_id++) {
+                if(!vertices[slot_id].key.is_empty()) {
+                    test_vertex(vertices[slot_id].key);
+                    cnt++;
+                }
+            }
+        }
+        return 0;
+    }
 
     // FIXME: refine parameters with vertex_t
     edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {

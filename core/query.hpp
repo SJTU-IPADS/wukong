@@ -53,6 +53,23 @@ constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 int col2ext(int col, int t) { return ((t << NBITS_COL) | col); }
 int ext2col(int ext) { return (ext & ((1 << NBITS_COL) - 1)); }
 
+class STORECheck {
+private:
+    friend class boost::serialization::access;
+    template <typename Archive>
+    void serialize(Archive &ar, const unsigned int version) {
+        ar & pid;
+        ar & check_ret;
+    }
+
+public:
+    int pid = -1;    // parent query id
+
+    int check_ret = 0;
+
+    STORECheck() {}
+};
+
 class RDFLoad {
 private:
     friend class boost::serialization::access;
@@ -290,7 +307,7 @@ public:
     }
 };
 
-enum req_type { SPARQL_QUERY, DYNAMIC_LOAD };
+enum req_type { SPARQL_QUERY, DYNAMIC_LOAD, STORE_CHECK };
 
 class Bundle {
 public:
@@ -320,10 +337,19 @@ public:
         data = ss.str();
     }
 
+    Bundle(STORECheck r): type(STORE_CHECK) {
+        std::stringstream ss;
+        boost::archive::binary_oarchive oa(ss);
+
+        oa << r;
+        data = ss.str();
+    }
+
     string get_type() {
         switch (type) {
         case SPARQL_QUERY: return "0";
         case DYNAMIC_LOAD: return "1";
+        case STORE_CHECK: return "2";
         }
     }
 
@@ -331,6 +357,7 @@ public:
         switch (t) {
         case '0': type = SPARQL_QUERY; return;
         case '1': type = DYNAMIC_LOAD; return;
+        case '2': type = STORE_CHECK; return;
         }
     }
 
@@ -354,6 +381,18 @@ public:
 
         boost::archive::binary_iarchive ia(ss);
         RDFLoad result;
+        ia >> result;
+        return result;
+    }
+
+    STORECheck get_store_check() {
+        assert(type == STORE_CHECK);
+
+        std::stringstream ss;
+        ss << data;
+
+        boost::archive::binary_iarchive ia(ss);
+        STORECheck result;
         ia >> result;
         return result;
     }

@@ -415,6 +415,18 @@ next:
 					cout << "You can enable it by building Wukong with -DUSE_DYNAMIC_GSTORE=ON." << endl;
 				}
 #endif
+			} else if (token == "test") {
+				if (IS_MASTER(proxy)) {
+						Logger logger;
+						STORECheck reply;
+						int ret = proxy->check_store_data(reply, logger);
+						if (ret != 0) {
+							cout << "[ERORR] Some error found in gstore "
+							     << " (ERRNO: " << ret << ")!" << endl;
+							continue;
+						}
+						logger.print_latency();
+					}
 			} else {
 failed:
 				if (IS_MASTER(proxy)) {

@@ -775,6 +775,12 @@ private:
     }
 #endif
 
+    void execute_store_check(STORECheck& r) {
+        r.check_ret = graph->store_check();
+        Bundle bundle(r);
+        send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
+    }
+
     void execute_sparql_request(SPARQLQuery &r, Engine *engine) {
         if (r.is_request())
             execute_request(r);
@@ -792,8 +798,11 @@ private:
             RDFLoad r = bundle.get_rdf_load();
             execute_load_data(r);
         }
-
 #endif
+        else if (bundle.type == STORE_CHECK) {
+            STORECheck r = bundle.get_store_check();
+            execute_store_check(r);
+        }
     }
 
 public:
