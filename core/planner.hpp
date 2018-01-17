@@ -538,22 +538,6 @@ public:
           }
         }*/
 
-        uint64_t t_convert1 = timer::get_usec();
-        boost::unordered_map<int, int> convert;
-        for (int i = 0, ilimit = min_path.size(); i < ilimit; i++) {
-            if (min_path[i] < 0 ) {
-                if (convert.find(min_path[i]) == convert.end()) {
-                    int value =  -1 - convert.size();
-                    convert[min_path[i]] = value;
-                    min_path[i] = value;
-                } else {
-                    min_path[i] = convert[min_path[i]];
-                }
-            }
-        }
-        uint64_t t_convert2 = timer::get_usec();
-        //cout << "convert time : " << t_convert2 - t_convert1 << " us" << endl;
-
         //for (int i = 0, ilimit = r.cmd_chains.size(); i < ilimit; i = i + 4)
         //  cout << "cmd_chain " << " : " << r.cmd_chains[i] << " "
         //    << r.cmd_chains[i+1] << " "

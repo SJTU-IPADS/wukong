@@ -139,7 +139,8 @@ public:
         void output_result(ostream &stream, int size, String_Server *str_server) {
             for (int i = 0; i < size; i++) {
                 stream << i + 1 << ": ";
-                for (int c = 0; c < col_num; c++) {
+                for (int j = 0; j < required_vars.size(); j++){
+                    int c = var2col(required_vars[j]);
                     int id = this->get_row_col(i, c);
                     if (str_server->exist(id))
                         stream << str_server->id2str[id] << "\t";
@@ -148,26 +149,12 @@ public:
                 }
                 for (int c = 0; c < this->get_attr_col_num(); c++) {
                     attr_t tmp = this->get_attr_row_col(i, c);
-                    cout << tmp << "\t";
+                    stream << tmp << "\t";
                 }
                 stream << endl;
             }
         }
-
         friend class boost::serialization::access;
-        template <typename Archive>
-        void serialize(Archive &ar, const unsigned int version) {
-            ar & col_num;
-            ar & row_num;
-            ar & attr_col_num;
-            ar & blind;
-            ar & nvars;
-            ar & v2c_map;
-            ar & required_vars;
-            ar & result_table;
-            ar & attr_res_table;
-        }
-
     public:
         int col_num = 0;
         int row_num = 0;
@@ -179,7 +166,7 @@ public:
         vector<sid_t> result_table; // result table for string IDs
         vector<attr_t> attr_res_table; // result table for others
 
-        void clear_data() { result_table.clear(); attr_res_table.clear(); }
+        void clear_data() { result_table.clear(); attr_res_table.clear(); required_vars.clear(); }
 
         var_type variable_type(ssid_t vid) {
             if (vid >= 0)
@@ -316,6 +303,19 @@ public:
         return pattern_group.patterns[step];
     }
 
+    // clear query when send back result to achieve better performance
+    void clear_data(){
+        orders.clear();
+        // the first pattern indicating if this query is starting from index. It can't be removed.
+        pattern_group.patterns.erase(pattern_group.patterns.begin() + 1, pattern_group.patterns.end());
+        pattern_group.filters.clear();
+        pattern_group.optional.clear();
+        pattern_group.unions.clear();
+
+        if(result.blind)
+            result.clear_data(); // avoid take back all the results
+    }
+
     bool is_finished() { return (step >= pattern_group.patterns.size()); } // FIXME: it's trick
 
     bool is_request() { return (id == -1); } // FIXME: it's trick
@@ -444,9 +444,45 @@ namespace boost { namespace serialization {
         ar >> t.direction;
         ar >> t.pred_type;
     }
+    template<class Archive>
+    void save(Archive & ar, const SPARQLQuery::Result & t, unsigned int version){
+        ar << t.col_num;
+        ar << t.row_num;
+        ar << t.attr_col_num;
+        ar << t.blind;
+        ar << t.nvars;
+        ar << t.v2c_map;
+        if(!t.blind) ar << t.required_vars;
+        // attr_res_table must be empty if result_table is empty
+        if(t.result_table.size() > 0){
+            ar << occupied;
+            ar << t.result_table;
+            ar << t.attr_res_table;
+        }
+        else{
+            ar << empty;
+        }
+    }
+    template<class Archive>
+    void load(Archive & ar, SPARQLQuery::Result & t, unsigned int version){
+        char temp = 2;
+        ar >> t.col_num;
+        ar >> t.row_num;
+        ar >> t.attr_col_num;
+        ar >> t.blind;
+        ar >> t.nvars;
+        ar >> t.v2c_map;
+        if(!t.blind) ar >> t.required_vars;
+        ar >> temp;
+        if(temp == occupied){
+            ar >> t.result_table;
+            ar >> t.attr_res_table;
+        }
+    }
 }}
 BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::Pattern);
 BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::PatternGroup);
+BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::Result);
 BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery);
 //remove class information at the cost of losing auto versioning, which is useless currently because wukong 
 //use boost serialization to transmit data between endpoints running the same code.

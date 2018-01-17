@@ -92,7 +92,7 @@ private:
     ssid_t _H_encode(const SPARQLParser::Element& element) {//const
         switch (element.type) {
         case SPARQLParser::Element::Variable:
-            return _H_inc_var_id(element.id);
+            return element.id;
         case SPARQLParser::Element::Literal:
             cout << "Not Support Literal" << endl;
             return DUMMY_ID;
@@ -138,6 +138,9 @@ private:
         
         // init the var_map
         r.result.nvars = parser.getVariableCount();
+        for(SPARQLParser::projection_iterator iter = parser.projectionBegin();iter != parser.projectionEnd(); iter ++){
+		    r.result.required_vars.push_back(*iter);
+        }
 
         if (!global_use_rdma) {
             // TODO: corun optimization is not supported w/o RDMA
