@@ -77,11 +77,11 @@ private:
 
 			// do a TYPE query to collect all of candidates for a certain type
 			setpid(type_request);
-			type_request.blind = false; // must take back the results
+			type_request.result.blind = false; // must take back the results
 			send_request(type_request);
 			type_reply = recv_reply();
 
-			vector<sid_t> candidates(type_reply.result_table);
+			vector<sid_t> candidates(type_reply.result.result_table);
 			// There is no candidate with the Type for a random-constant in the template
 			// TODO: it should report empty for all queries of the template
 			assert(candidates.size() > 0);
@@ -186,18 +186,8 @@ public:
 				Bundle bundle2 = adaptor->recv();
 				assert(bundle2.type == SPARQL_QUERY);
 				SPARQLQuery r2 = bundle2.get_sparql_query();
-				r.row_num += r2.row_num;
-				int new_size = r.result_table.size() + r2.result_table.size();
-				r.result_table.reserve(new_size);
-				r.result_table.insert(r.result_table.end(),
-				                      r2.result_table.begin(),
-				                      r2.result_table.end());
-
-				int new_attr_size = r.attr_res_table.size() + r2.attr_res_table.size();
-				r.attr_res_table.reserve(new_attr_size);
-				r.attr_res_table.insert(r.attr_res_table.end(),
-				                        r2.attr_res_table.begin(),
-				                        r2.attr_res_table.end());
+				r.result.row_num += r2.result.row_num;
+				r.result.append_result(r2.result);
 			}
 		}
 		return r;
@@ -249,7 +239,7 @@ public:
 		for (int i = 0; i < cnt; i++) {
 			setpid(request);
 			// only take back results of the last request if not silent
-			request.blind = i < (cnt - 1) ? true : global_silent;
+			request.result.blind = i < (cnt - 1) ? true : global_silent;
 			send_request(request);
 			reply = recv_reply();
 		}
@@ -311,7 +301,7 @@ public:
 				if (global_enable_planner)
 					planner.generate_plan(request, statistic);
 				setpid(request);
-				request.blind = true; // always not take back results in batch mode
+				request.result.blind = true; // always not take back results in batch mode
 
 				logger.start_record(request.pid, idx);
 				send_request(request);

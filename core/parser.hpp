@@ -137,7 +137,7 @@ private:
         }
         
         // init the var_map
-        r.nvars = parser.getVariableCount();
+        r.result.nvars = parser.getVariableCount();
 
         if (!global_use_rdma) {
             // TODO: corun optimization is not supported w/o RDMA
@@ -238,7 +238,7 @@ public:
         SPARQLQuery::Pattern pattern(str_server->str2id[type], TYPE_ID, IN, -1);
         pattern.pred_type = 0;
         r.pattern_group.patterns.push_back(pattern);
-        r.nvars = 1;
+        r.result.nvars = 1;
         return true;
     }
 };
