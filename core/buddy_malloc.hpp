@@ -20,6 +20,7 @@ public:
 
     virtual void print_memory_usage() = 0;
 
+    virtual uint64_t sz_to_blksz(uint64_t sz) = 0;
 };
 
 class Buddy_Malloc : public Malloc_Interface {
@@ -250,6 +251,9 @@ public:
         }
     }
 
+    uint64_t sz_to_blksz (uint64_t size) {
+        return ((1 << size_to_level(size)) - size_per_header);
+    }
     // return value: an index of starting unit
     uint64_t malloc(uint64_t size, int64_t tid = -1) {
         //pthread_spin_lock(&debug_lock);

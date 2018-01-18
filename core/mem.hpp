@@ -63,6 +63,9 @@ private:
 	uint64_t rrbf_hd_sz;
 	uint64_t rrbf_hd_off;
 
+        //term of cache lease
+        char *term;
+        uint64_t term_off;
 public:
 	Mem(int num_servers, int num_threads)
 		: num_servers(num_servers), num_threads(num_threads) {
@@ -79,13 +82,14 @@ public:
 		}
 
 		lrbf_hd_sz = rrbf_hd_sz = sizeof(uint64_t);
+                uint64_t term_sz = sizeof(uint64_t);
 
 		mem_sz = kvs_sz
 		         + buf_sz * num_threads
 		         + rbf_sz * num_servers * num_threads
 		         + lrbf_hd_sz * num_servers * num_threads
-		         + rrbf_hd_sz * num_servers * num_threads;
-		mem = (char *)malloc(mem_sz);
+		         + rrbf_hd_sz * num_servers * num_threads
+                         + term_sz;
 		memset(mem, 0, mem_sz);
 
 		kvs_off = 0;
@@ -102,6 +106,10 @@ public:
 
 		rrbf_hd_off = lrbf_hd_off + lrbf_hd_sz * num_servers * num_threads;
 		rrbf_hd =  mem + rrbf_hd_off;
+
+                term_off = rrbf_hd_off + rrbf_hd_sz * num_servers * num_threads;
+                term = mem + term_off;
+                *(uint64_t *)term = SEC(20);
 	}
 
 	~Mem() { free(mem); }
@@ -133,6 +141,9 @@ public:
 	inline char *remote_ring_head(int tid, int sid) { return rrbf_hd + (rrbf_hd_sz * num_servers) * tid + rrbf_hd_sz * sid; }
 	inline uint64_t remote_ring_head_size() { return rrbf_hd_sz; }
 	inline uint64_t remote_ring_head_offset(int tid, int sid) { return rrbf_hd_off + (rrbf_hd_sz * num_servers) * tid + rrbf_hd_sz * sid; }
+
+        inline uint64_t cache_term() { return *(uint64_t *)term; }
+        inline uint64_t cache_term_off() { return term_off; }
 
 }; // end of class Mem
 
