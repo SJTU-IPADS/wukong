@@ -175,9 +175,9 @@ public:
         /// The filter conditions
         std::vector<Filter> filters;
         /// The optional parts
-        std::vector<PatternGroup> optional;
+        std::vector<std::vector<PatternGroup>> optional;
         /// The union parts
-        std::vector<std::vector<PatternGroup> > unions;
+        std::vector<PatternGroup> unions;
     };
 
     /// The projection modifier
@@ -188,7 +188,7 @@ public:
     /// Sort order
     struct Order {
         /// Variable id
-        unsigned id;
+        int id;
         /// Desending
         bool descending;
     };
@@ -215,6 +215,8 @@ private:
     std::vector<Order> order;
     /// The result limit
     unsigned limit;
+    /// The result offset
+    unsigned offset;
     // indicate if custom grammar is in use
     bool usingCustomGrammar;
     int corun_step;
@@ -853,15 +855,13 @@ private:
                 // Union statement?
                 token = lexer.getNext();
                 if ((token == SPARQLLexer::Identifier) && (lexer.isKeyword("union"))) {
-                    group.unions.push_back(vector<PatternGroup>());
-                    vector<PatternGroup>& currentUnion = group.unions.back();
-                    currentUnion.push_back(newGroup);
+                    group.unions.push_back(newGroup);
                     while (true) {
                         if (lexer.getNext() != SPARQLLexer::LCurly)
                             throw ParserException("'{' expected");
                         PatternGroup subGroup;
                         parseGroupGraphPattern(subGroup);
-                        currentUnion.push_back(subGroup);
+                        group.unions.push_back(subGroup);
 
                         // Another union?
                         token = lexer.getNext();
