@@ -753,6 +753,28 @@ private:
     void execute_sparql_request(SPARQLQuery &r) {
         SPARQLQuery::Result &result = r.result;
         r.id = coder.get_and_inc_qid();
+        // if r starts from index and get from proxy, dispatch it to every engine
+        if (r.step == 0 && coder.tid_of(r.pid) < global_num_proxies && r.start_from_index()){
+            int sub_reqs_size = global_num_servers * global_mt_threshold;
+            rmap.put_parent_request(r, sub_reqs_size);
+            SPARQLQuery sub_query = r;
+            for (int i = 0; i < global_num_servers; i++) {
+                for (int j = 0; j < global_mt_threshold; j++) {
+                    sub_query.id = -1;
+                    sub_query.pid = r.id;
+                    sub_query.tid = j; // specified engine
+                    Bundle bundle(sub_query);
+                    if (i == sid && j == tid){
+                        pthread_spin_lock(&recv_lock);
+                        msg_fast_path.push_back(sub_query);
+                        pthread_spin_unlock(&recv_lock);
+                    }else{
+                        send_request(bundle, i, global_num_proxies + j);
+                    }
+                }
+		    }
+            return;
+        }
         while (true) {
             uint64_t t1 = timer::get_usec();
             execute_one_step(r);
