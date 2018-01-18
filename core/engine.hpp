@@ -776,7 +776,7 @@ private:
 #endif
 
     void execute_store_check(STORECheck& r) {
-        r.check_ret = graph->store_check();
+        r.check_ret = graph->store_check(r.index_check, r.normal_check);
         Bundle bundle(r);
         send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
     }

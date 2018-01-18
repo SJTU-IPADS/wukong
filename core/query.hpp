@@ -60,14 +60,20 @@ private:
     void serialize(Archive &ar, const unsigned int version) {
         ar & pid;
         ar & check_ret;
+        ar & index_check;
+        ar & normal_check;
     }
 
 public:
     int pid = -1;    // parent query id
 
     int check_ret = 0;
+    bool index_check = false;
+    bool normal_check = false;
 
     STORECheck() {}
+
+    STORECheck(bool i, bool n) : index_check(i), normal_check(n) { }
 };
 
 class RDFLoad {

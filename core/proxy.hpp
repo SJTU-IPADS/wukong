@@ -386,11 +386,11 @@ public:
 	}
 #endif
 
-	int check_store_data(STORECheck &reply, Logger &logger) {
+	int graph_storage_check(STORECheck &reply, Logger &logger, bool i_enable, bool n_enable) {
 		logger.init();
 
 
-		STORECheck request;
+		STORECheck request(i_enable, n_enable);
 		setpid(request);
 		for (int i = 0; i < global_num_servers; i++) {
 			Bundle bundle(request);
