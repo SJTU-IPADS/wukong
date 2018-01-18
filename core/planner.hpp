@@ -445,36 +445,24 @@ class Planner {
         min_select_record[0] -= lastnum + 1;
     }
 
-    // remove the attr pattern query before doing the planner
-    void remove_attr_pattern(SPARQLQuery &r, vector<ssid_t> &attr_pattern, vector<int>& attr_pred_chains) {
-        vector<ssid_t> temp;
-        for (int i = 0; i < r.cmd_chains.size(); i += 4) {
-            if ( r.pred_type_chains[i / 4] == 0 ) {
-                temp.push_back(r.cmd_chains[i]);
-                temp.push_back(r.cmd_chains[i + 1]);
-                temp.push_back(r.cmd_chains[i + 2]);
-                temp.push_back(r.cmd_chains[i + 3]);
-            } else {
-                attr_pattern.push_back(r.cmd_chains[i]);
-                attr_pattern.push_back(r.cmd_chains[i + 1]);
-                attr_pattern.push_back(r.cmd_chains[i + 2]);
-                attr_pattern.push_back(r.cmd_chains[i + 3]);
-
-                attr_pred_chains.push_back(r.pred_type_chains[i / 4]);
+    // remove the attr pattern query before doing the planner and transfer pattern to cmd_chains
+    void transfer_to_cmd_chains(SPARQLQuery &r, vector<ssid_t> &attr_pattern, vector<int>& attr_pred_chains, vector<ssid_t> &temp_cmd_chains) {
+        for(int i = 0;i < r.pattern_group.patterns.size();i ++){
+            SPARQLQuery::Pattern pattern = r.get_pattern(i);
+            if(pattern.pred_type == 0){
+                temp_cmd_chains.push_back(pattern.subject);
+                temp_cmd_chains.push_back(pattern.predicate);
+                temp_cmd_chains.push_back((ssid_t)pattern.direction);
+                temp_cmd_chains.push_back(pattern.object);
             }
-        }
-        r.cmd_chains = temp;
-    }
+            else {
+                attr_pattern.push_back(pattern.subject);
+                attr_pattern.push_back(pattern.predicate);
+                attr_pattern.push_back((ssid_t)pattern.direction);
+                attr_pattern.push_back(pattern.object);
 
-    // add the previous removed attr patterns at the end of query after doing the planner
-    void add_attr_pattern(vector<ssid_t> &min_path, vector<ssid_t> attr_pattern, vector<int> attr_pred_chains, vector<int>& pred_chains) {
-        for (int i = 0; i < attr_pattern.size() / 4; i++) {
-            min_path.push_back(attr_pattern[4 * i]);
-            min_path.push_back(attr_pattern[4 * i + 1]);
-            min_path.push_back(attr_pattern[4 * i + 2]);
-            min_path.push_back(attr_pattern[4 * i + 3]);
-
-            pred_chains.push_back (attr_pred_chains[i]);
+                attr_pred_chains.push_back(pattern.pred_type);
+            }
         }
     }
 
@@ -482,9 +470,11 @@ public:
     Planner() { }
 
     bool generate_plan(SPARQLQuery &r, data_statistic *statistic) {
+        // transfer from patterns to temp_cmd_chains, may cause performance decrease
+        vector<ssid_t> temp_cmd_chains;
         vector<ssid_t> attr_pattern;
         vector<int> attr_pred_chains;
-        remove_attr_pattern(r, attr_pattern, attr_pred_chains);
+        transfer_to_cmd_chains(r, attr_pattern, attr_pred_chains, temp_cmd_chains);
         this->statistic = statistic;
         min_path.clear();
         path.clear();
@@ -495,22 +485,22 @@ public:
 
         uint64_t t_prepare1 = timer::get_usec();
         // prepare for heuristic
-        for (int i = 0, ilimit = r.cmd_chains.size(); i < ilimit; i = i + 4) {
-            if (r.cmd_chains[i] >= (1 << NBITS_IDX) || r.cmd_chains[i + 3] >= (1 << NBITS_IDX)) {
+        for (int i = 0, ilimit = temp_cmd_chains.size(); i < ilimit; i = i + 4) {
+            if (temp_cmd_chains[i] >= (1 << NBITS_IDX) || temp_cmd_chains[i + 3] >= (1 << NBITS_IDX)) {
                 if (i == 0) break;
                 int ta, tb, tc, td;
-                ta = r.cmd_chains[i];
-                tb = r.cmd_chains[i + 1];
-                tc = r.cmd_chains[i + 2];
-                td = r.cmd_chains[i + 3];
-                r.cmd_chains[i] = r.cmd_chains[0];
-                r.cmd_chains[i + 1] = r.cmd_chains[1];
-                r.cmd_chains[i + 2] = r.cmd_chains[2];
-                r.cmd_chains[i + 3] = r.cmd_chains[3];
-                r.cmd_chains[0] = ta;
-                r.cmd_chains[1] = tb;
-                r.cmd_chains[2] = tc;
-                r.cmd_chains[3] = td;
+                ta = temp_cmd_chains[i];
+                tb = temp_cmd_chains[i + 1];
+                tc = temp_cmd_chains[i + 2];
+                td = temp_cmd_chains[i + 3];
+                temp_cmd_chains[i] = temp_cmd_chains[0];
+                temp_cmd_chains[i + 1] = temp_cmd_chains[1];
+                temp_cmd_chains[i + 2] = temp_cmd_chains[2];
+                temp_cmd_chains[i + 3] = temp_cmd_chains[3];
+                temp_cmd_chains[0] = ta;
+                temp_cmd_chains[1] = tb;
+                temp_cmd_chains[2] = tc;
+                temp_cmd_chains[3] = td;
                 break;
             }
         }
@@ -518,9 +508,9 @@ public:
         //cout << "prepare time : " << t_prepare2 - t_prepare1 << " us" << endl;
 
         uint64_t t_traverse1 = timer::get_usec();
-        this->triples = r.cmd_chains;
+        this->triples = temp_cmd_chains;
         this->min_select = new unordered_map<int, shared_ptr<Minimum_maintenance<select_record>>>;
-        _chains_size_div_4 = r.cmd_chains.size() / 4 ;
+        _chains_size_div_4 = temp_cmd_chains.size() / 4 ;
         min_select_record = new int[1 + 6 * _chains_size_div_4];
         min_select_record[0] = 0;
         com_traverse(0, cost, 0);
@@ -548,25 +538,6 @@ public:
           }
         }*/
 
-        pred_chains.resize(min_path.size() / 4, 0);
-        add_attr_pattern(min_path, attr_pattern, attr_pred_chains, pred_chains);
-
-        uint64_t t_convert1 = timer::get_usec();
-        boost::unordered_map<int, int> convert;
-        for (int i = 0, ilimit = min_path.size(); i < ilimit; i++) {
-            if (min_path[i] < 0 ) {
-                if (convert.find(min_path[i]) == convert.end()) {
-                    int value =  -1 - convert.size();
-                    convert[min_path[i]] = value;
-                    min_path[i] = value;
-                } else {
-                    min_path[i] = convert[min_path[i]];
-                }
-            }
-        }
-        uint64_t t_convert2 = timer::get_usec();
-        //cout << "convert time : " << t_convert2 - t_convert1 << " us" << endl;
-
         //for (int i = 0, ilimit = r.cmd_chains.size(); i < ilimit; i = i + 4)
         //  cout << "cmd_chain " << " : " << r.cmd_chains[i] << " "
         //    << r.cmd_chains[i+1] << " "
@@ -585,8 +556,29 @@ public:
         cout << "query planning is finished." << endl;
         cout << "estimated cost: " << min_cost << endl;
 
-        r.cmd_chains = min_path;
-        r.pred_type_chains = pred_chains;
+        //transfer from min_path to patterns
+        r.pattern_group.patterns.clear();
+        for(int i = 0;i < min_path.size() / 4;i ++){
+            SPARQLQuery::Pattern pattern(
+                min_path[4 * i],
+                min_path[4 * i + 1],
+                min_path[4 * i + 2],
+                min_path[4 * i + 3]
+            );
+            pattern.pred_type = 0;
+            r.pattern_group.patterns.push_back(pattern);
+        }
+        //add_attr_pattern to the end of patterns
+        for(int i = 0 ;i < attr_pred_chains.size(); i ++){
+            SPARQLQuery::Pattern pattern(
+                attr_pattern[4 * i],
+                attr_pattern[4 * i + 1],
+                attr_pattern[4 * i + 2],
+                attr_pattern[4 * i + 3]
+            );
+            pattern.pred_type = attr_pred_chains[i];
+            r.pattern_group.patterns.push_back(pattern);
+        }
         return true;
     }
 };

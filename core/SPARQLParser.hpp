@@ -175,9 +175,9 @@ public:
         /// The filter conditions
         std::vector<Filter> filters;
         /// The optional parts
-        std::vector<PatternGroup> optional;
+        std::vector<std::vector<PatternGroup>> optional;
         /// The union parts
-        std::vector<std::vector<PatternGroup> > unions;
+        std::vector<PatternGroup> unions;
     };
 
     /// The projection modifier
@@ -188,7 +188,7 @@ public:
     /// Sort order
     struct Order {
         /// Variable id
-        unsigned id;
+        int id;
         /// Desending
         bool descending;
     };
@@ -199,33 +199,38 @@ private:
     /// The registered prefixes
     std::map<std::string, std::string> prefixes;
     /// The named variables
-    std::map<std::string, unsigned> namedVariables;
+    std::map<std::string, int> namedVariables;
     /// The total variable count
     unsigned variableCount;
+    /// The named variable count
+    unsigned namedVariableCount;
 
     /// The projection modifier
     ProjectionModifier projectionModifier;
     /// The projection clause
-    std::vector<unsigned> projection;
+    std::vector<int> projection;
     /// The pattern
     PatternGroup patterns;
     /// The sort order
     std::vector<Order> order;
     /// The result limit
     unsigned limit;
+    /// The result offset
+    unsigned offset;
     // indicate if custom grammar is in use
     bool usingCustomGrammar;
     int corun_step;
     int fetch_step;
 
     /// Lookup or create a named variable
-    unsigned nameVariable(const std::string &name) {
+    int nameVariable(const std::string &name) {
         if (namedVariables.count(name))
             return namedVariables[name];
 
-        unsigned result = variableCount++;
-        namedVariables[name] = result;
-        return result;
+        variableCount++;
+        int result = ++namedVariableCount;
+        namedVariables[name] = -result;
+        return -result;
     }
 
     /// Parse an RDF literal
@@ -850,15 +855,13 @@ private:
                 // Union statement?
                 token = lexer.getNext();
                 if ((token == SPARQLLexer::Identifier) && (lexer.isKeyword("union"))) {
-                    group.unions.push_back(vector<PatternGroup>());
-                    vector<PatternGroup>& currentUnion = group.unions.back();
-                    currentUnion.push_back(newGroup);
+                    group.unions.push_back(newGroup);
                     while (true) {
                         if (lexer.getNext() != SPARQLLexer::LCurly)
                             throw ParserException("'{' expected");
                         PatternGroup subGroup;
                         parseGroupGraphPattern(subGroup);
-                        currentUnion.push_back(subGroup);
+                        group.unions.push_back(subGroup);
 
                         // Another union?
                         token = lexer.getNext();
@@ -928,19 +931,14 @@ private:
             if ((token == SPARQLLexer::Identifier) && (lexer.isKeyword("corun"))) {
                 usingCustomGrammar = true;
                 // Parse the corun entry
-                if (lexer.getNext() != SPARQLLexer::Identifier)
-                    throw ParserException("prefix name expected");
-
                 if (lexer.getNext() != SPARQLLexer::Integer)
                     throw ParserException("Integer(corun step) expected");
                 string corun_step_str = lexer.getTokenValue();
-                cout << corun_step_str << endl;
                 corun_step = stoi(corun_step_str);
                 if (lexer.getNext() != SPARQLLexer::Integer)
                     throw ParserException("Integer(fetch step) expected");
                 string fetch_step_str = lexer.getTokenValue();
                 fetch_step = stoi(fetch_step_str);
-                cout << fetch_step_str << endl;
             } else {
                 lexer.unget(token);
                 return;
@@ -1071,7 +1069,7 @@ private:
 public:
     /// Constructor
     explicit SPARQLParser(SPARQLLexer &lexer)
-        : lexer(lexer), variableCount(0),
+        : lexer(lexer), variableCount(0), namedVariableCount(0),
           projectionModifier(Modifier_None), limit(~0u) {
         limit = -1;
         usingCustomGrammar = false;
@@ -1085,6 +1083,9 @@ public:
     void parse(bool multiQuery = false) {
         // Parse the prefix part
         parsePrefix();
+
+        // Parse the corun part
+        parseCorun();
 
         // Parse the projection
         parseProjection();
@@ -1107,7 +1108,7 @@ public:
 
         // Fixup empty projections (i.e. *)
         if (!projection.size()) {
-            for (map<string, unsigned>::const_iterator iter = namedVariables.begin(), limit = namedVariables.end();
+            for (map<string, int>::const_iterator iter = namedVariables.begin(), limit = namedVariables.end();
                     iter != limit; ++iter)
                 projection.push_back((*iter).second);
         }
@@ -1116,8 +1117,8 @@ public:
     /// Get the patterns
     const PatternGroup &getPatterns() const { return patterns; }
     /// Get the name of a variable
-    std::string getVariableName(unsigned id) const {
-        for (map<string, unsigned>::const_iterator iter = namedVariables.begin(), limit = namedVariables.end();
+    std::string getVariableName(int id) const {
+        for (map<string, int>::const_iterator iter = namedVariables.begin(), limit = namedVariables.end();
                 iter != limit; ++iter)
             if ((*iter).second == id)
                 return (*iter).first;
@@ -1125,7 +1126,7 @@ public:
     }
 
     /// Iterator over the projection clause
-    typedef std::vector<unsigned>::const_iterator projection_iterator;
+    typedef std::vector<int>::const_iterator projection_iterator;
     /// Iterator over the projection
     projection_iterator projectionBegin() const { return projection.begin(); }
     /// Iterator over the projection
@@ -1146,4 +1147,8 @@ public:
     unsigned getVariableCount() const { return variableCount; }
     // indicate if custom grammar is in use
     bool isUsingCustomGrammar() const { return usingCustomGrammar; }
+    // get the corun step
+    int getCorunStep() const { return corun_step; }
+    // get the fetch step
+    int getFetchStep() const { return fetch_step; }
 };
