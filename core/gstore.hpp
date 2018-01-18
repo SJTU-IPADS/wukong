@@ -855,7 +855,7 @@ public:
 
 #ifdef VERSATILE
         insert_index_set(v_set, TYPE_ID, IN);
-        insert_index_set(t_set, TYPE_ID, OUT);res[i].val,
+        insert_index_set(t_set, TYPE_ID, OUT);
         insert_index_set(p_set, PREDICATE_ID, OUT);
 
         tbb_unordered_set().swap(v_set);
