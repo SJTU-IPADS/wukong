@@ -124,9 +124,9 @@ private:
                 limit = group.patterns.end(); iter != limit; ++iter) {
 
             SPARQLQuery::Pattern pattern(_H_encode(iter->subject),
-                            _H_encode(iter->predicate),
-                            iter->direction,
-                            _H_encode(iter->object));
+                                         _H_encode(iter->predicate),
+                                         iter->direction,
+                                         _H_encode(iter->object));
 
             int type =  str_server->id2type[_H_encode(iter->predicate)];
             if (type > 0 && (!global_enable_vattr)) {
@@ -137,17 +137,21 @@ private:
             r.pattern_group.patterns.push_back(pattern);
         }
         // other parts in PatternGroup
-        
+
         // init the var_map
         r.result.nvars = parser.getVariableCount();
         // required vars
-        for(SPARQLParser::projection_iterator iter = parser.projectionBegin();iter != parser.projectionEnd(); iter ++){
-		    r.result.required_vars.push_back(*iter);
-        }
+        for (SPARQLParser::projection_iterator iter = parser.projectionBegin();
+                iter != parser.projectionEnd();
+                iter ++)
+            r.result.required_vars.push_back(*iter);
+
         // orders
-        for(SPARQLParser::order_iterator iter = parser.orderBegin();iter != parser.orderEnd(); iter ++){
+        for (SPARQLParser::order_iterator iter = parser.orderBegin();
+                iter != parser.orderEnd();
+                iter ++)
             r.orders.push_back(SPARQLQuery::Order((*iter).id, (*iter).descending));
-        }
+
         // corun
         if (!global_use_rdma) {
             // TODO: corun optimization is not supported w/o RDMA
@@ -179,7 +183,7 @@ private:
             ssid_t predicate = _H_encode(iter->predicate); pos++;
             ssid_t direction = (dir_t)OUT; pos++;
             ssid_t object = _H_push(iter->object, r, pos++);
-            SPARQLQuery::Pattern pattern(subject,predicate,direction,object);
+            SPARQLQuery::Pattern pattern(subject, predicate, direction, object);
             int type =  str_server->id2type[_H_encode(iter->predicate)];
             if (type > 0 && (!global_enable_vattr)) {
                 cout << "Need to change config to enable vertex_attr " << endl;
