@@ -736,7 +736,21 @@ private:
         return true;
     }
 
-    void execute_request(SPARQLQuery &r) {
+    void filter(SPARQLQuery &r){
+
+    }
+
+    void final_process(SPARQLQuery &r){
+        // DISTINCT
+
+        // ORDER BY
+
+        // OFFSET
+
+        // LIMIT
+    }
+
+    void execute_sparql_request(SPARQLQuery &r) {
         SPARQLQuery::Result &result = r.result;
         r.id = coder.get_and_inc_qid();
         while (true) {
@@ -749,6 +763,13 @@ private:
                 do_corun(r);
 
             if (r.is_finished()) {
+                // result should be filtered at the end of every distributed query because FILTER could be nested in every PatternGroup
+                filter(r);
+                // if all data has been merged and next will be sent back to proxy
+                if(coder.tid_of(r.pid) < global_num_proxies){
+                    final_process(r);
+                }
+
                 result.row_num = result.get_row_num();
                 r.clear_data();
                 Bundle bundle(r);
@@ -775,13 +796,17 @@ private:
         return;
     }
 
-    void execute_reply(SPARQLQuery &r, Engine *engine) {
+    void execute_sparql_reply(SPARQLQuery &r, Engine *engine) {
         pthread_spin_lock(&engine->rmap_lock);
         engine->rmap.put_reply(r);
 
         if (engine->rmap.is_ready(r.pid)) {
             SPARQLQuery reply = engine->rmap.get_merged_reply(r.pid);
             pthread_spin_unlock(&engine->rmap_lock);
+            // if all data has been merged and next will be sent back to proxy
+            if(coder.tid_of(reply.pid) < global_num_proxies){
+                final_process(reply);
+            }
             Bundle bundle(reply);
             send_request(bundle, coder.sid_of(reply.pid), coder.tid_of(reply.pid));
         } else {
@@ -789,11 +814,11 @@ private:
         }
     }
 
-    void execute_sparql_request(SPARQLQuery &r, Engine *engine) {
+    void execute_sparql_query(SPARQLQuery &r, Engine *engine) {
         if (r.is_request())
-            execute_request(r);
+            execute_sparql_request(r);
         else
-            execute_reply(r, engine);
+            execute_sparql_reply(r, engine);
     }
 
 #if DYNAMIC_GSTORE
@@ -807,7 +832,7 @@ private:
     void execute(Bundle &bundle, Engine *engine) {
         if (bundle.type == SPARQL_QUERY) {
             SPARQLQuery r = bundle.get_sparql_query();
-            execute_sparql_request(r, engine);
+            execute_sparql_query(r, engine);
         }
 #if DYNAMIC_GSTORE
         else if (bundle.type == DYNAMIC_LOAD) {
@@ -863,7 +888,7 @@ public:
             pthread_spin_unlock(&recv_lock);
 
             if (success) {
-                execute_sparql_request(request, engines[own_id]);
+                execute_sparql_query(request, engines[own_id]);
                 continue; // fast-path priority
             }
 

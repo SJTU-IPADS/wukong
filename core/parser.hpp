@@ -119,6 +119,7 @@ private:
         vector<ssid_t> temp_cmd_chains ;
         vector<int> temp_pred_type_chains;
         SPARQLParser::PatternGroup group = parser.getPatterns();
+        // patterns
         for (std::vector<SPARQLParser::Pattern>::const_iterator iter = group.patterns.begin(),
                 limit = group.patterns.end(); iter != limit; ++iter) {
 
@@ -135,13 +136,19 @@ private:
             pattern.pred_type = str_server->id2type[_H_encode(iter->predicate)];
             r.pattern_group.patterns.push_back(pattern);
         }
+        // other parts in PatternGroup
         
         // init the var_map
         r.result.nvars = parser.getVariableCount();
+        // required vars
         for(SPARQLParser::projection_iterator iter = parser.projectionBegin();iter != parser.projectionEnd(); iter ++){
 		    r.result.required_vars.push_back(*iter);
         }
-
+        // orders
+        for(SPARQLParser::order_iterator iter = parser.orderBegin();iter != parser.orderEnd(); iter ++){
+            r.orders.push_back(SPARQLQuery::Order((*iter).id, (*iter).descending));
+        }
+        // corun
         if (!global_use_rdma) {
             // TODO: corun optimization is not supported w/o RDMA
             cout << "[WARNING]: RDMA is not enabled, skip corun optimization!" << endl;

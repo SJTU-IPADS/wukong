@@ -113,7 +113,7 @@ public:
     public:
         vector<Pattern> patterns;
         vector<Filter> filters;
-        vector<PatternGroup> optional;
+        vector<vector<PatternGroup>> optional;
         vector<PatternGroup> unions;
 
     private:
@@ -124,6 +124,11 @@ public:
     public:
         ssid_t id;  /// variable id
         bool descending;    /// desending
+
+        Order(){}
+
+        Order(ssid_t _id, bool _descending)
+            : id(_id), descending(_descending){}
 
     private:
         friend class boost::serialization::access;
