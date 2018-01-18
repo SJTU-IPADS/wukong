@@ -376,7 +376,7 @@ done:
     }
     
 
-    uint64_t realloc_edges(uint64_t off, uint64_t old_n, uint64_t n) {
+    uint64_t realloc_edges(uint64_t off, uint64_t n) {
         uint64_t ptr = off * sizeof(edge_t);
         uint64_t sz = n * sizeof(edge_t);
         return edge_allocator->realloc(ptr, sz) / sizeof(edge_t);

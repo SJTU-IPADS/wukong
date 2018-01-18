@@ -90,7 +90,8 @@ public:
 		         + lrbf_hd_sz * num_servers * num_threads
 		         + rrbf_hd_sz * num_servers * num_threads
                          + term_sz;
-		memset(mem, 0, mem_sz);
+		mem = (char *)malloc(mem_sz);
+                memset(mem, 0, mem_sz);
 
 		kvs_off = 0;
 		kvs = mem + kvs_off;
