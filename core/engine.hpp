@@ -304,7 +304,7 @@ private:
         ssid_t end   = pattern.object;
         vector<sid_t> updated_result_table;
         vector<attr_t> updated_attr_res_table;
-        SPARQLQuery::Result &result = req.result;        
+        SPARQLQuery::Result &result = req.result;
 
         for (int i = 0; i < result.get_row_num(); i++) {
             sid_t prev_id = result.get_row_col(i, result.var2col(start));
@@ -333,7 +333,7 @@ private:
         dir_t d      = pattern.direction;
         ssid_t var   = pattern.object;
         vector<sid_t> updated_result_table;
-        SPARQLQuery::Result &result = req.result;                
+        SPARQLQuery::Result &result = req.result;
 
         assert(id01 == PREDICATE_ID || id01 == TYPE_ID); // predicate or type index
 
@@ -360,7 +360,7 @@ private:
         dir_t d      = pattern.direction;
         ssid_t end   = pattern.object;
         vector<sid_t> updated_result_table;
-        SPARQLQuery::Result &result = req.result;                
+        SPARQLQuery::Result &result = req.result;
 
         // the query plan is wrong
         assert(result.get_col_num() == 0);
@@ -399,7 +399,7 @@ private:
         dir_t d      = pattern.direction;
         ssid_t end   = pattern.object;
         vector<sid_t> updated_result_table;
-        SPARQLQuery::Result &result = req.result;                
+        SPARQLQuery::Result &result = req.result;
 
         for (int i = 0; i < result.get_row_num(); i++) {
             sid_t prev_id = result.get_row_col(i, result.var2col(start));
@@ -438,7 +438,7 @@ private:
         dir_t d      = pattern.direction;
         ssid_t end   = pattern.object;
         vector<sid_t> updated_result_table;
-        SPARQLQuery::Result &result = req.result;                
+        SPARQLQuery::Result &result = req.result;
 
         for (int i = 0; i < result.get_row_num(); i++) {
             sid_t prev_id = result.get_row_col(i, result.var2col(start));
@@ -545,13 +545,13 @@ private:
             }
         };
 
-        for(int i = corun_step; i < fetch_step; i++) {
+        for (int i = corun_step; i < fetch_step; i++) {
             SPARQLQuery::Pattern &pattern = req.get_pattern(i);
             ssid_t subject = lambda(pattern.subject);
             ssid_t predicate = lambda(pattern.predicate);
             dir_t direction = pattern.direction;
             ssid_t object = lambda(pattern.object);
-            SPARQLQuery::Pattern newPattern(subject,predicate,direction,object);
+            SPARQLQuery::Pattern newPattern(subject, predicate, direction, object);
             newPattern.pred_type = 0;
             subgroup.patterns.push_back(newPattern);
         }
@@ -736,11 +736,11 @@ private:
         return true;
     }
 
-    void filter(SPARQLQuery &r){
+    void filter(SPARQLQuery &r) {
 
     }
 
-    void final_process(SPARQLQuery &r){
+    void final_process(SPARQLQuery &r) {
         // DISTINCT
 
         // ORDER BY
@@ -766,7 +766,7 @@ private:
                 // result should be filtered at the end of every distributed query because FILTER could be nested in every PatternGroup
                 filter(r);
                 // if all data has been merged and next will be sent back to proxy
-                if(coder.tid_of(r.pid) < global_num_proxies){
+                if (coder.tid_of(r.pid) < global_num_proxies) {
                     final_process(r);
                 }
 
@@ -804,7 +804,7 @@ private:
             SPARQLQuery reply = engine->rmap.get_merged_reply(r.pid);
             pthread_spin_unlock(&engine->rmap_lock);
             // if all data has been merged and next will be sent back to proxy
-            if(coder.tid_of(reply.pid) < global_num_proxies){
+            if (coder.tid_of(reply.pid) < global_num_proxies) {
                 final_process(reply);
             }
             Bundle bundle(reply);
