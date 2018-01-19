@@ -54,6 +54,29 @@ constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 int col2ext(int col, int t) { return ((t << NBITS_COL) | col); }
 int ext2col(int ext) { return (ext & ((1 << NBITS_COL) - 1)); }
 
+class GStoreCheck {
+private:
+    friend class boost::serialization::access;
+    template <typename Archive>
+    void serialize(Archive &ar, const unsigned int version) {
+        ar & pid;
+        ar & check_ret;
+        ar & index_check;
+        ar & normal_check;
+    }
+
+public:
+    int pid = -1;    // parent query id
+
+    int check_ret = 0;
+    bool index_check = false;
+    bool normal_check = false;
+
+    GStoreCheck() {}
+
+    GStoreCheck(bool i, bool n) : index_check(i), normal_check(n) { }
+};
+
 class RDFLoad {
 private:
     friend class boost::serialization::access;
@@ -542,7 +565,7 @@ public:
     }
 };
 
-enum req_type { SPARQL_QUERY, DYNAMIC_LOAD };
+enum req_type { SPARQL_QUERY, DYNAMIC_LOAD, GSTORE_CHECK };
 
 class Bundle {
 public:
@@ -572,10 +595,19 @@ public:
         data = ss.str();
     }
 
+    Bundle(GStoreCheck r): type(GSTORE_CHECK) {
+        std::stringstream ss;
+        boost::archive::binary_oarchive oa(ss);
+
+        oa << r;
+        data = ss.str();
+    }
+
     string get_type() {
         switch (type) {
         case SPARQL_QUERY: return "0";
         case DYNAMIC_LOAD: return "1";
+        case GSTORE_CHECK: return "2";
         }
     }
 
@@ -583,6 +615,7 @@ public:
         switch (t) {
         case '0': type = SPARQL_QUERY; return;
         case '1': type = DYNAMIC_LOAD; return;
+        case '2': type = GSTORE_CHECK; return;
         }
     }
 
@@ -608,5 +641,25 @@ public:
         RDFLoad result;
         ia >> result;
         return result;
+    }
+
+    GStoreCheck get_gstore_check() {
+        assert(type == GSTORE_CHECK);
+
+        std::stringstream ss;
+        ss << data;
+
+        boost::archive::binary_iarchive ia(ss);
+        GStoreCheck result;
+        ia >> result;
+        return result;
+    }
+
+private:
+    friend class boost::serialization::access;
+    template <typename Archive>
+    void serialize(Archive &ar, const unsigned int version) {
+        ar & type;
+        ar & data;
     }
 };

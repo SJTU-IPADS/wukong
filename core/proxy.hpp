@@ -156,6 +156,8 @@ public:
 
 	void setpid(RDFLoad &r) { r.pid = coder.get_and_inc_qid(); }
 
+	void setpid(GStoreCheck &r) { r.pid = coder.get_and_inc_qid(); }
+
 	void send_request(SPARQLQuery &r) {
 		assert(r.pid != -1);
 
@@ -352,4 +354,30 @@ public:
 		return ret;
 	}
 #endif
+
+	int gstore_check(GStoreCheck &reply, Logger &logger, bool i_enable, bool n_enable) {
+		logger.init();
+
+
+		GStoreCheck request(i_enable, n_enable);
+		setpid(request);
+		for (int i = 0; i < global_num_servers; i++) {
+			Bundle bundle(request);
+			send(bundle, i);
+		}
+
+		int ret = 0;
+		for (int i = 0; i < global_num_servers; i++) {
+			Bundle bundle = adaptor->recv();
+			assert(bundle.type == GSTORE_CHECK);
+
+			reply = bundle.get_gstore_check();
+			if (reply.check_ret < 0)
+				ret = reply.check_ret;
+		}
+
+		logger.finish();
+		return ret;
+
+	}
 };
