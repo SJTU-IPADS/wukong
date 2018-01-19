@@ -206,7 +206,7 @@ private:
 
 #if DYNAMIC_GSTORE
         bool is_valid(vertex_t &v) {
-            if(global_enable_caching)
+            if(!global_enable_caching)
                 return true;
 
             int idx = v.key.hash() % NUM_ITEMS;
