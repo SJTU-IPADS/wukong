@@ -504,7 +504,9 @@ done:
     }
 #endif
 
+
     RDMA_Cache rdma_cache;
+
     vertex_t rdma_get_vertex(int tid, ikey_t key) {
         int dst_sid = mymath::hash_mod(key.vid, global_num_servers);
         uint64_t bucket_id = key.hash() % num_buckets;
@@ -538,188 +540,33 @@ done:
         }
     }
 
-#if DYNAMIC_GSTORE
-     inline edge_t *rdma_get_edges(int tid, int dst_sid, vertex_t &v) {
+    inline edge_t *rdma_get_edges(int tid, int dst_sid, vertex_t &v) {
         // Currently, we don't support to directly get remote vertex/edge without RDMA
         // TODO: implement it w/o RDMA
         assert(global_use_rdma);
 
         char *buf = mem->buffer(tid);
         uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
+#if DYNAMIC_GSTORE
         uint64_t r_sz = edge_allocator->sz_to_blksz(v.ptr.size * sizeof(edge_t));  //get whole blk
-
+#else
+        uint64_t r_sz = v.ptr.size * sizeof(edge_t);  //get whole blk
+#endif
         RDMA &rdma = RDMA::get_rdma();
         rdma.dev->RdmaRead(tid, dst_sid, buf, r_sz, r_off);
         edge_t *result_ptr = (edge_t *)buf;
         return result_ptr;
      }
 
-     edge_t *get_edges_remote(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
-        int dst_sid = mymath::hash_mod(vid, global_num_servers);
-        ikey_t key = ikey_t(vid, pid, d);
-        vertex_t v;
-        edge_t *edge_ptr;
-        bool valid = false;
-
-        if (rdma_cache.lookup(key, v)) {
-            edge_ptr = rdma_get_edges(tid, dst_sid, v);
-            valid = edge_is_valid(v, edge_ptr);
-        }
-
-        while(!valid){
-            v = rdma_get_vertex(tid, key);
-            if (v.key.is_empty()) {
-                *sz = 0;
-                return NULL; // not found
-            }
-            rdma_cache.insert(v);
-            edge_ptr = rdma_get_edges(tid, dst_sid, v);
-            valid = edge_is_valid(v, edge_ptr);
-        }
-                
-        *sz = v.ptr.size;
-        return edge_ptr;
-    }
-    
-    bool get_vertex_attr_remote(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &r) {
-        int dst_sid = mymath::hash_mod(vid, global_num_servers);
-        ikey_t key = ikey_t(vid, pid, d);
-        vertex_t v;
-        edge_t *edge_ptr;
-        bool valid = false;
-
-        if (rdma_cache.lookup(key, v)) {
-            edge_ptr = rdma_get_edges(tid, dst_sid, v);
-            valid = edge_is_valid(v, edge_ptr);
-        }
-
-        while(!valid){
-            v = rdma_get_vertex(tid, key);
-            if (v.key.is_empty()) {
-                return false; // not found
-            }
-            rdma_cache.insert(v);
-            edge_ptr = rdma_get_edges(tid, dst_sid, v);
-            valid = edge_is_valid(v, edge_ptr);
-        }
-        
-        uint64_t r_off = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
-
-        switch (v.ptr.type) {
-        case INT_t:
-            r = *((int *)(&(edges[r_off])));
-            break;
-        case FLOAT_t:
-            r = *((float *)(&(edges[r_off])));
-            break;
-        case DOUBLE_t:
-            r = *((double *)(&(edges[r_off])));
-            break;
-        default:
-            cout << "Not support value type" << endl;
-            break;
-        }
-
-        return true;
-    }
-
-#else
-    edge_t *get_edges_remote(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
-        int dst_sid = mymath::hash_mod(vid, global_num_servers);
-        ikey_t key = ikey_t(vid, pid, d);
-        vertex_t v = get_vertex_remote(tid, key);
-
-        if (v.key.is_empty()) {
-            *sz = 0;
-            return NULL; // not found
-        }
-
-        // Currently, we don't support to directly get remote vertex/edge without RDMA
-        // TODO: implement it w/o RDMA
-        assert(global_use_rdma);
-
-        char *buf = mem->buffer(tid);
-        uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
-        uint64_t r_sz = v.ptr.size * sizeof(edge_t);
-
-        RDMA &rdma = RDMA::get_rdma();
-        rdma.dev->RdmaRead(tid, dst_sid, buf, r_sz, r_off);
-        edge_t *result_ptr = (edge_t *)buf;
-
-        *sz = v.ptr.size;
-        return result_ptr;
-    }
- 
-    bool get_vertex_attr_remote(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &r) {
-        int dst_sid = mymath::hash_mod(vid, global_num_servers);
-        ikey_t key = ikey_t(vid, pid, d);
-        vertex_t v = get_vertex_remote(tid, key);
-
-        if (v.key.is_empty())
-            return false; // not found
-
-        // TODO: implement it w/o RDMA
-        assert(global_use_rdma);
-
-        char *buf = mem->buffer(tid);
-        uint64_t r_off = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
-        uint64_t r_sz = v.ptr.size * sizeof(edge_t);
-
-        RDMA &rdma = RDMA::get_rdma();
-        rdma.dev->RdmaRead(tid, dst_sid, buf, r_sz, r_off);
-        switch (v.ptr.type) {
-        case INT_t:
-            r = *((int *)(&(edges[r_off])));
-            break;
-        case FLOAT_t:
-            r = *((float *)(&(edges[r_off])));
-            break;
-        case DOUBLE_t:
-            r = *((double *)(&(edges[r_off])));
-            break;
-        default:
-            cout << "Not support value type" << endl;
-            break;
-        }
-
-        return true;
-    }   
-#endif
     vertex_t get_vertex_remote(int tid, ikey_t key) {
-        int dst_sid = mymath::hash_mod(key.vid, global_num_servers);
-        uint64_t bucket_id = key.hash() % num_buckets;
         vertex_t vert;
-
-        // Currently, we don't support to directly get remote vertex/edge without RDMA
-        // TODO: implement it w/o RDMA
-        assert(global_use_rdma);
 
         if (rdma_cache.lookup(key, vert))
             return vert; // found
 
-        char *buf = mem->buffer(tid);
-        while (true) {
-            uint64_t off = bucket_id * ASSOCIATIVITY * sizeof(vertex_t);
-            uint64_t sz = ASSOCIATIVITY * sizeof(vertex_t);
-
-            RDMA &rdma = RDMA::get_rdma();
-            rdma.dev->RdmaRead(tid, dst_sid, buf, sz, off);
-            vertex_t *verts = (vertex_t *)buf;
-            for (int i = 0; i < ASSOCIATIVITY; i++) {
-                if (i < ASSOCIATIVITY - 1) {
-                    if (verts[i].key == key) {
-                        rdma_cache.insert(verts[i]);
-                        return verts[i]; // found
-                    }
-                } else {
-                    if (verts[i].key.is_empty())
-                        return vertex_t(); // not found
-
-                    bucket_id = verts[i].key.vid; // move to next bucket
-                    break; // break for-loop
-                }
-            }
-        }
+        vert = rdma_get_vertex(tid, key);
+        rdma_cache.insert(vert);
+        return vert;
     }
 
     vertex_t get_vertex_local(int tid, ikey_t key) {
@@ -744,6 +591,44 @@ done:
         }
     }
 
+    edge_t *get_edges_remote(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
+        int dst_sid = mymath::hash_mod(vid, global_num_servers);
+        ikey_t key = ikey_t(vid, pid, d);
+        vertex_t v;
+        edge_t *edge_ptr;
+
+#if DYNAMIC_GSTORE
+        bool valid = false;
+
+        if (rdma_cache.lookup(key, v)) {
+            edge_ptr = rdma_get_edges(tid, dst_sid, v);
+            valid = edge_is_valid(v, edge_ptr);
+        }
+
+        while(!valid){
+            v = rdma_get_vertex(tid, key);
+            if (v.key.is_empty()) {
+                *sz = 0;
+                return NULL; // not found
+            }
+            rdma_cache.insert(v);
+            edge_ptr = rdma_get_edges(tid, dst_sid, v);
+            valid = edge_is_valid(v, edge_ptr);
+        }
+#else
+        v = get_vertex_remote(tid, key);
+        if (v.key.is_empty()) {
+            *sz = 0;
+            return NULL; // not found
+        }
+        
+        edge_ptr = rdma_get_edges(tid, dst_sid, v)        
+#endif
+
+        *sz = v.ptr.size;
+        return edge_ptr;
+    }
+
     edge_t *get_edges_local(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
         ikey_t key = ikey_t(vid, pid, d);
         vertex_t v = get_vertex_local(tid, key);
@@ -756,6 +641,57 @@ done:
         *sz = v.ptr.size;
         uint64_t off = v.ptr.off;
         return &(edges[off]);
+    }
+
+    bool get_vertex_attr_remote(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &r) {
+        int dst_sid = mymath::hash_mod(vid, global_num_servers);
+        ikey_t key = ikey_t(vid, pid, d);
+        vertex_t v;
+        edge_t *edge_ptr;
+ 
+#if DYNAMIC_GSTORE
+        bool valid = false;
+
+        if (rdma_cache.lookup(key, v)) {
+            edge_ptr = rdma_get_edges(tid, dst_sid, v);
+            valid = edge_is_valid(v, edge_ptr);
+        }
+
+        while(!valid){
+            v = rdma_get_vertex(tid, key);
+            if (v.key.is_empty()) {
+                return false; // not found
+            }
+            rdma_cache.insert(v);
+            edge_ptr = rdma_get_edges(tid, dst_sid, v);
+            valid = edge_is_valid(v, edge_ptr);
+        }
+#else
+         v = get_vertex_remote(tid, key);
+        if (v.key.is_empty()) {
+            return false; // not found
+        }
+        
+        edge_ptr = rdma_get_edges(tid, dst_sid, v)        
+#endif
+
+        uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
+        switch (v.ptr.type) {
+        case INT_t:
+            r = *((int *)(&(edges[r_off])));
+            break;
+        case FLOAT_t:
+            r = *((float *)(&(edges[r_off])));
+            break;
+        case DOUBLE_t:
+            r = *((double *)(&(edges[r_off])));
+            break;
+        default:
+            cout << "Not support value type" << endl;
+            break;
+        }
+
+        return true;
     }
 
     bool get_vertex_attr_local(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &r) {
@@ -783,6 +719,7 @@ done:
 
         return true;
     }
+
 
 public:
     // encoding rules of GStore
