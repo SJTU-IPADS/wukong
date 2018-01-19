@@ -658,6 +658,10 @@ public:
 	}
 #endif
 
+	int gstore_check(bool index_check, bool normal_check) {
+		return gstore.gstore_check(index_check, normal_check);
+	}
+
 	// FIXME: rename the function by the term of RDF model (e.g., subject/object)
 	edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
 		return gstore.get_edges_global(tid, vid, d, pid, sz);
