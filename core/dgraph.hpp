@@ -658,8 +658,8 @@ public:
 	}
 #endif
 
-	int store_check(bool index_check, bool normal_check) {
-		return gstore.store_check(index_check, normal_check);
+	int gstore_check(bool index_check, bool normal_check) {
+		return gstore.gstore_check(index_check, normal_check);
 	}
 
 	// FIXME: rename the function by the term of RDF model (e.g., subject/object)

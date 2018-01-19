@@ -445,8 +445,8 @@ next:
 
 				if (IS_MASTER(proxy)) {
 						Logger logger;
-						STORECheck reply;
-						int ret = proxy->graph_storage_check(reply, logger, i_enable, n_enable);
+						GStoreCheck reply;
+						int ret = proxy->gstore_check(reply, logger, i_enable, n_enable);
 						if (ret != 0) {
 							cout << "[ERORR] Some error found in gstore "
 							     << " (ERRNO: " << ret << ")!" << endl;

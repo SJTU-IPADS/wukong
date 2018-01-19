@@ -829,8 +829,8 @@ private:
     }
 #endif
 
-    void execute_store_check(STORECheck& r) {
-        r.check_ret = graph->store_check(r.index_check, r.normal_check);
+    void execute_gstore_check(GStoreCheck& r) {
+        r.check_ret = graph->gstore_check(r.index_check, r.normal_check);
         Bundle bundle(r);
         send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
     }
@@ -846,9 +846,9 @@ private:
             execute_load_data(r);
         }
 #endif
-        else if (bundle.type == STORE_CHECK) {
-            STORECheck r = bundle.get_store_check();
-            execute_store_check(r);
+        else if (bundle.type == GSTORE_CHECK) {
+            GStoreCheck r = bundle.get_gstore_check();
+            execute_gstore_check(r);
         }
     }
 

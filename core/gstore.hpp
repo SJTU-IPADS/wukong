@@ -1049,8 +1049,8 @@ public:
               cout<<" Error key : [ " << key.vid << " | " << key.pid << " | " << key.dir << " ]" << endl; 
       }
 
-    int store_check(bool index_check, bool normal_check) {
-        cout << "Storage intergity check has started on server " << sid << endl;
+    int gstore_check(bool index_check, bool normal_check) {
+        cout << "Graph storage intergity check has started on server " << sid << endl;
         ivertex_num = 0;
         nvertex_num = 0;
         uint64_t slot_id;
