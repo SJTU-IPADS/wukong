@@ -579,7 +579,7 @@ public:
         data = str.substr(1);
     }
 
-    Bundle(SPARQLQuery r): type(SPARQL_QUERY) {
+    Bundle(SPARQLQuery &r): type(SPARQL_QUERY) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
 
@@ -587,7 +587,7 @@ public:
         data = ss.str();
     }
 
-    Bundle(RDFLoad r): type(DYNAMIC_LOAD) {
+    Bundle(RDFLoad &r): type(DYNAMIC_LOAD) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
 

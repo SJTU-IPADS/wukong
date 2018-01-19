@@ -342,9 +342,16 @@ private:
         uint64_t sz = 0;
         edge_t *res = graph->get_index_edges_local(tid, tpid, d, &sz);
         int start = req.tid;
-        for (uint64_t k = start; k < sz; k += global_mt_threshold)
-            updated_result_table.push_back(res[k].val);
-
+        if(start < 0){
+            start = - start - 1;    // request from the same server
+            for (uint64_t k = start; k < sz; k += global_mt_threshold - 1)
+                updated_result_table.push_back(res[k].val);
+        }
+        else{
+            for (uint64_t k = start; k < sz; k += global_mt_threshold)
+                updated_result_table.push_back(res[k].val);
+        }
+        
         result.result_table.swap(updated_result_table);
         result.set_col_num(1);
         result.add_var2col(var, 0);
@@ -753,6 +760,31 @@ private:
     void execute_sparql_request(SPARQLQuery &r) {
         SPARQLQuery::Result &result = r.result;
         r.id = coder.get_and_inc_qid();
+        // if r starts from index and is from proxy, dispatch it to every engine except itself
+        if (r.step == 0 && coder.tid_of(r.pid) < global_num_proxies && r.start_from_index() && global_mt_threshold * global_num_servers > 1){
+            int sub_reqs_size = global_num_servers * global_mt_threshold - 1;
+            rmap.put_parent_request(r, sub_reqs_size);
+            SPARQLQuery sub_query = r;
+            for (int i = 0; i < global_num_servers; i++) {
+                for (int j = 0; j < global_mt_threshold; j++) {
+                    sub_query.id = -1;
+                    sub_query.pid = r.id;
+                    sub_query.tid = j; // specified engine
+                    if (i == sid && j + global_num_proxies == tid){
+                        //dispatching engine thread shall do nothing
+                        continue;
+                    }else if (i == sid && j + global_num_proxies > tid){
+                        sub_query.tid -- ;  // [0, infinity)
+                        sub_query.tid = - sub_query.tid - 1; // means send to the same server
+                    }else if (i == sid){
+                        sub_query.tid = - sub_query.tid - 1; // means send to the same server
+                    }
+                    Bundle bundle(sub_query);
+                    send_request(bundle, i, global_num_proxies + j);
+                }
+		    }
+            return;
+        }
         while (true) {
             uint64_t t1 = timer::get_usec();
             execute_one_step(r);

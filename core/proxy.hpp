@@ -161,18 +161,6 @@ public:
 	void send_request(SPARQLQuery &r) {
 		assert(r.pid != -1);
 
-		// submit the request to all engines (parallel)
-		if (r.start_from_index()) {
-			for (int i = 0; i < global_num_servers; i++) {
-				for (int j = 0; j < global_mt_threshold; j++) {
-					r.tid = j; // specified engine
-					Bundle bundle(r);
-					send(bundle, i, global_num_proxies + j);
-				}
-			}
-			return;
-		}
-
 		// submit the request to a certain server
 		int start_sid = mymath::hash_mod(r.pattern_group.patterns[0].subject, global_num_servers);
 		Bundle bundle(r);
@@ -183,15 +171,6 @@ public:
 		Bundle bundle = adaptor->recv();
 		assert(bundle.type == SPARQL_QUERY);
 		SPARQLQuery r = bundle.get_sparql_query();
-		if (r.start_from_index()) {
-			for (int count = 0; count < global_num_servers * global_mt_threshold - 1; count++) {
-				Bundle bundle2 = adaptor->recv();
-				assert(bundle2.type == SPARQL_QUERY);
-				SPARQLQuery r2 = bundle2.get_sparql_query();
-				r.result.row_num += r2.result.row_num;
-				r.result.append_result(r2.result);
-			}
-		}
 		return r;
 	}
 
