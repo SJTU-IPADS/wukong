@@ -524,7 +524,7 @@ public:
             return false;
         }
 
-        cout << "query planning for one part is finfished." << endl;
+        cout << "query planning for one part is finished." << endl;
         cout << "estimated cost: " << min_cost << endl;
 
         //transfer from min_path to patterns
