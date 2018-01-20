@@ -110,7 +110,7 @@ private:
 
     void transfer_patterns(SPARQLParser::PatternGroup &src, SPARQLQuery::PatternGroup &dest) {
         // patterns
-        for (auto src_p : src.patterns) {
+        for (auto &src_p : src.patterns) {
             SPARQLQuery::Pattern pattern(encode(src_p.subject),
                                          encode(src_p.predicate),
                                          src_p.direction,
@@ -124,7 +124,7 @@ private:
             dest.patterns.push_back(pattern);
         }
         // unions
-        for (auto union_group : src.unions) {
+        for (auto &union_group : src.unions) {
             dest.unions.push_back(SPARQLQuery::PatternGroup());
             transfer_patterns(union_group, dest.unions.back());
         }

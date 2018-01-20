@@ -556,7 +556,7 @@ public:
     bool generate_for_group(SPARQLQuery::PatternGroup &group) {
         bool success = true;
         success = generate_for_patterns(group.patterns);
-        for (auto g : group.unions)
+        for (auto &g : group.unions)
             success = generate_for_group(g);
         return success;
     }

@@ -370,6 +370,26 @@ public:
         return false;
     }
 
+    void print_group(SPARQLQuery::PatternGroup &group) {
+        cout << "patterns:" << endl;
+        for (int i = 0; i < group.patterns.size(); i++) {
+            cout << group.patterns[i].subject << "\t"
+                 << group.patterns[i].predicate << "\t"
+                 << group.patterns[i].direction << "\t"
+                 << group.patterns[i].object << endl;
+        }
+        cout << "unions:" << endl;
+        for(int i = 0; i < group.unions.size(); i++) {
+            print_group(group.unions[i]);
+        }
+    }
+
+    void print_patterns() {
+        cout << "---- SPARQLQuery ----" << endl;
+        cout << "id: " << id << ", pid: " << pid << ", tid: " << tid << endl;
+        print_group(pattern_group);
+        cout << "---------------------" << endl;
+    }
 };
 
 namespace boost {
