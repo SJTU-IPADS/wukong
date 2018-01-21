@@ -336,7 +336,7 @@ done:
     inline uint64_t blksz(uint64_t sz) { return b2e(edge_allocator->sz_to_blksz(e2b(sz))); } //unit: edge
 
     inline void insert_sz(uint64_t n, uint64_t sz, uint64_t off) {
-        uint64_t blk_sz = blksz(sz);
+        uint64_t blk_sz = blksz(sz + 1);   // reserve one space for sz
         edges[off + blk_sz - 1].val = n;  // store num of edges in array's tail
     }
 
@@ -346,7 +346,7 @@ done:
     }
     
     inline bool edge_is_valid(vertex_t &v, edge_t *edge_ptr) {
-        uint64_t blk_sz = blksz(v.ptr.size);
+        uint64_t blk_sz = blksz(v.ptr.size + 1);  // reserve one space for sz
         return (edge_ptr[blk_sz - 1].val == v.ptr.size   //check if sz is consistent
                 && rdma_cache.is_valid(v));    //check if vertex is valid
     }
@@ -548,7 +548,7 @@ done:
         char *buf = mem->buffer(tid);
         uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
 #if DYNAMIC_GSTORE
-        uint64_t r_sz = edge_allocator->sz_to_blksz(v.ptr.size * sizeof(edge_t));  //get whole blk
+        uint64_t r_sz = blksz(v.ptr.size + 1) * sizeof(edge_t);  //get whole blk
 #else
         uint64_t r_sz = v.ptr.size * sizeof(edge_t);  //get whole blk
 #endif
