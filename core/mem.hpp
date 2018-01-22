@@ -110,7 +110,6 @@ public:
 
                 term_off = rrbf_hd_off + rrbf_hd_sz * num_servers * num_threads;
                 term = mem + term_off;
-                *(uint64_t *)term = SEC(20);
 	}
 
 	~Mem() { free(mem); }
@@ -143,7 +142,7 @@ public:
 	inline uint64_t remote_ring_head_size() { return rrbf_hd_sz; }
 	inline uint64_t remote_ring_head_offset(int tid, int sid) { return rrbf_hd_off + (rrbf_hd_sz * num_servers) * tid + rrbf_hd_sz * sid; }
 
-        inline uint64_t cache_term() { return *(uint64_t *)term; }
+        inline uint64_t *cache_term() { return (uint64_t *)term; }
         inline uint64_t cache_term_off() { return term_off; }
 
 }; // end of class Mem

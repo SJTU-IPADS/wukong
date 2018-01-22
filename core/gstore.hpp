@@ -778,6 +778,7 @@ public:
 #if DYNAMIC_GSTORE
         edge_allocator = new Buddy_Malloc();
         pthread_spin_init(&free_queue_lock, 0);
+        *(mem->cache_term()) = SEC(20);
 #else
         pthread_spin_init(&entry_lock, 0);
 #endif
