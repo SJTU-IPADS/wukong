@@ -622,7 +622,7 @@ done:
             return NULL; // not found
         }
         
-        edge_ptr = rdma_get_edges(tid, dst_sid, v)        
+        edge_ptr = rdma_get_edges(tid, dst_sid, v); 
 #endif
 
         *sz = v.ptr.size;
@@ -672,7 +672,7 @@ done:
             return false; // not found
         }
         
-        edge_ptr = rdma_get_edges(tid, dst_sid, v)        
+        edge_ptr = rdma_get_edges(tid, dst_sid, v); 
 #endif
 
         uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
