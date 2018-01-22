@@ -76,26 +76,19 @@ private:
     // str2ID mapping for pattern constants (e.g., <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> 1)
     String_Server *str_server;
 
-    //_H_ means helper
-    boost::unordered_map<unsigned, ssid_t> _H_incVarIdMap;
-    ssid_t varId = -1;
-
-    ssid_t _H_inc_var_id(unsigned ori_id) {
-        if (_H_incVarIdMap.find(ori_id) == _H_incVarIdMap.end()) {
-            _H_incVarIdMap[ori_id] = varId;
-            return varId--;
-        } else {
-            return _H_incVarIdMap[ori_id];
-        }
-    }
-
-    ssid_t _H_encode(const SPARQLParser::Element& element) {//const
+    ssid_t encode(const SPARQLParser::Element& element) {//const
         switch (element.type) {
         case SPARQLParser::Element::Variable:
             return element.id;
         case SPARQLParser::Element::Literal:
-            cout << "Not Support Literal" << endl;
-            return DUMMY_ID;
+        {
+            string str = "\"" + element.value + "\"";
+            if (!str_server->exist(str)) {
+                cout << "Unknown Literal: " + str << endl;
+                return DUMMY_ID;
+            }
+            return str_server->str2id[str];
+        }
         case SPARQLParser::Element::IRI:
         {
             string strIRI = "<" + element.value + ">" ;
@@ -115,28 +108,32 @@ private:
         return DUMMY_ID;
     }
 
-    void _H_simplist_transfer(const SPARQLParser &parser, SPARQLQuery &r) {
-        vector<ssid_t> temp_cmd_chains ;
-        vector<int> temp_pred_type_chains;
-        SPARQLParser::PatternGroup group = parser.getPatterns();
+    void transfer_patterns(SPARQLParser::PatternGroup &src, SPARQLQuery::PatternGroup &dest) {
         // patterns
-        for (std::vector<SPARQLParser::Pattern>::const_iterator iter = group.patterns.begin(),
-                limit = group.patterns.end(); iter != limit; ++iter) {
-
-            SPARQLQuery::Pattern pattern(_H_encode(iter->subject),
-                                         _H_encode(iter->predicate),
-                                         iter->direction,
-                                         _H_encode(iter->object));
-
-            int type =  str_server->id2type[_H_encode(iter->predicate)];
+        for (auto &src_p : src.patterns) {
+            SPARQLQuery::Pattern pattern(encode(src_p.subject),
+                                         encode(src_p.predicate),
+                                         src_p.direction,
+                                         encode(src_p.object));
+            int type =  str_server->id2type[encode(src_p.predicate)];
             if (type > 0 && (!global_enable_vattr)) {
                 cout << "Need to change config to enable vertex_attr " << endl;
                 assert(false);
             }
-            pattern.pred_type = str_server->id2type[_H_encode(iter->predicate)];
-            r.pattern_group.patterns.push_back(pattern);
+            pattern.pred_type = str_server->id2type[encode(src_p.predicate)];
+            dest.patterns.push_back(pattern);
+        }
+        // unions
+        for (auto &union_group : src.unions) {
+            dest.unions.push_back(SPARQLQuery::PatternGroup());
+            transfer_patterns(union_group, dest.unions.back());
         }
         // other parts in PatternGroup
+    }
+
+    void transfer(const SPARQLParser &parser, SPARQLQuery &r) {
+        SPARQLParser::PatternGroup group = parser.getPatterns();
+        transfer_patterns(group, r.pattern_group);
 
         // init the var_map
         r.result.nvars = parser.getVariableCount();
@@ -164,7 +161,7 @@ private:
     }
 
     ssid_t _H_push(const SPARQLParser::Element &element, request_template &r, int pos) {
-        ssid_t id = _H_encode(element);
+        ssid_t id = encode(element);
         if (id == PTYPE_PH) {
             string strIRI = "<" + element.value + ">";
             r.ptypes_str.push_back(strIRI);
@@ -174,17 +171,17 @@ private:
     }
 
 
-    void _H_template_transfer(const SPARQLParser &parser, request_template &r) {
+    void template_transfer(const SPARQLParser &parser, request_template &r) {
         SPARQLParser::PatternGroup group = parser.getPatterns();
         int pos = 0;
         for (std::vector<SPARQLParser::Pattern>::const_iterator iter = group.patterns.begin(),
                 limit = group.patterns.end(); iter != limit; ++iter) {
             ssid_t subject = _H_push(iter->subject, r, pos++);
-            ssid_t predicate = _H_encode(iter->predicate); pos++;
+            ssid_t predicate = encode(iter->predicate); pos++;
             ssid_t direction = (dir_t)OUT; pos++;
             ssid_t object = _H_push(iter->object, r, pos++);
             SPARQLQuery::Pattern pattern(subject, predicate, direction, object);
-            int type =  str_server->id2type[_H_encode(iter->predicate)];
+            int type =  str_server->id2type[encode(iter->predicate)];
             if (type > 0 && (!global_enable_vattr)) {
                 cout << "Need to change config to enable vertex_attr " << endl;
                 assert(false);
@@ -210,11 +207,9 @@ public:
         string query = read_input(is);
         SPARQLLexer lexer(query);
         SPARQLParser parser(lexer);
-        varId = -1;
-        _H_incVarIdMap.clear();
         try {
             parser.parse();//sparql -f query/lubm_q1
-            _H_simplist_transfer(parser, r);
+            transfer(parser, r);
         } catch (const SPARQLParser::ParserException &e) {
             cerr << "parse error: " << e.message << endl;
             return false;
@@ -233,11 +228,9 @@ public:
         string query = read_input(is);
         SPARQLLexer lexer(query);
         SPARQLParser parser(lexer);
-        varId = -1;
-        _H_incVarIdMap.clear();
         try {
             parser.parse();
-            _H_template_transfer(parser, r);
+            template_transfer(parser, r);
         } catch (const SPARQLParser::ParserException &e) {
             cerr << "parse error: " << e.message << endl;
             return false;

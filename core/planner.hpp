@@ -446,9 +446,9 @@ class Planner {
     }
 
     // remove the attr pattern query before doing the planner and transfer pattern to cmd_chains
-    void transfer_to_cmd_chains(SPARQLQuery &r, vector<ssid_t> &attr_pattern, vector<int>& attr_pred_chains, vector<ssid_t> &temp_cmd_chains) {
-        for(int i = 0;i < r.pattern_group.patterns.size();i ++){
-            SPARQLQuery::Pattern pattern = r.get_pattern(i);
+    void transfer_to_cmd_chains(vector<SPARQLQuery::Pattern> &p, vector<ssid_t> &attr_pattern, vector<int>& attr_pred_chains, vector<ssid_t> &temp_cmd_chains) {
+        for (int i = 0; i < p.size(); i++) {
+            SPARQLQuery::Pattern pattern = p[i];
             if(pattern.pred_type == 0){
                 temp_cmd_chains.push_back(pattern.subject);
                 temp_cmd_chains.push_back(pattern.predicate);
@@ -469,13 +469,12 @@ class Planner {
 public:
     Planner() { }
 
-    bool generate_plan(SPARQLQuery &r, data_statistic *statistic) {
+    bool generate_for_patterns(vector<SPARQLQuery::Pattern> &patterns) {
         // transfer from patterns to temp_cmd_chains, may cause performance decrease
         vector<ssid_t> temp_cmd_chains;
         vector<ssid_t> attr_pattern;
         vector<int> attr_pred_chains;
-        transfer_to_cmd_chains(r, attr_pattern, attr_pred_chains, temp_cmd_chains);
-        this->statistic = statistic;
+        transfer_to_cmd_chains(patterns, attr_pattern, attr_pred_chains, temp_cmd_chains);
         min_path.clear();
         path.clear();
         is_empty = false;
@@ -525,39 +524,11 @@ public:
             return false;
         }
 
-        // check for middle heuristic, swap the direction
-        /*if (min_path[0] == min_path[5]) {
-          int count_s = statistic->global_pscount[min_path[0]];
-          int count_o = statistic->global_pocount[min_path[0]];
-          if ((min_path[2] == 0 && count_s < count_o) || (min_path[2] == 1 && count_s > count_o)) {
-            min_path[2] = 1 - min_path[2];
-            min_path[6] = 1 - min_path[6];
-            min_path[3] = min_path[7];
-            min_path[7] = min_path[4];
-            min_path[4] = min_path[3];
-          }
-        }*/
-
-        //for (int i = 0, ilimit = r.cmd_chains.size(); i < ilimit; i = i + 4)
-        //  cout << "cmd_chain " << " : " << r.cmd_chains[i] << " "
-        //    << r.cmd_chains[i+1] << " "
-        //    << r.cmd_chains[i+2] << " "
-        //    << r.cmd_chains[i+3] << " "
-        //    << "ps : " << statistic->global_pscount[r.cmd_chains[i+1]]
-        //    << " pt : " << statistic->global_ptcount[r.cmd_chains[i+1]]
-        //    << " po : " << statistic->global_pocount[r.cmd_chains[i+1]]
-        //    << endl;
-
-        //for (int i = 0, ilimit = min_path.size(); i < ilimit; i = i + 4)
-        //  cout << "min_path " << " : " << min_path[i] << " "
-        //    << min_path[i+1] << " "
-        //    << min_path[i+2] << " "
-        //    << min_path[i+3] << endl;
-        cout << "query planning is finished." << endl;
+        cout << "query planning for one part is finished." << endl;
         cout << "estimated cost: " << min_cost << endl;
 
         //transfer from min_path to patterns
-        r.pattern_group.patterns.clear();
+        patterns.clear();
         for(int i = 0;i < min_path.size() / 4;i ++){
             SPARQLQuery::Pattern pattern(
                 min_path[4 * i],
@@ -566,7 +537,7 @@ public:
                 min_path[4 * i + 3]
             );
             pattern.pred_type = 0;
-            r.pattern_group.patterns.push_back(pattern);
+            patterns.push_back(pattern);
         }
         //add_attr_pattern to the end of patterns
         for(int i = 0 ;i < attr_pred_chains.size(); i ++){
@@ -577,8 +548,21 @@ public:
                 attr_pattern[4 * i + 3]
             );
             pattern.pred_type = attr_pred_chains[i];
-            r.pattern_group.patterns.push_back(pattern);
+            patterns.push_back(pattern);
         }
         return true;
+    }
+
+    bool generate_for_group(SPARQLQuery::PatternGroup &group) {
+        bool success = true;
+        success = generate_for_patterns(group.patterns);
+        for (auto &g : group.unions)
+            success = generate_for_group(g);
+        return success;
+    }
+
+    bool generate_plan(SPARQLQuery &r, data_statistic *statistic) {
+        this->statistic = statistic;
+        return generate_for_group(r.pattern_group);
     }
 };
