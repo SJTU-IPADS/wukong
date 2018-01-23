@@ -264,7 +264,65 @@ public:
                 updated_result_table.push_back(get_attr_row_col(r, c));
         }
 
+        // insert a blank col to result table without updating col_num and v2c_map
+        void insert_blank_col(int col) {
+            vector<sid_t> new_table;
+            for (int i = 0; i < this->get_row_num(); i++) {
+                new_table.insert(new_table.end(),
+                this->result_table.begin() + (i * this->col_num),
+                this->result_table.begin() + (i * this->col_num + col));
+                new_table.push_back(BLANK_ID);
+                new_table.insert(new_table.end(),
+                this->result_table.begin() + (i * this->col_num + col),
+                this->result_table.begin() + ((i + 1) * this->col_num));
+            }
+            this->result_table.swap(new_table);
+        }
+
+        void merge_result(SPARQLQuery::Result &result) {
+            this->nvars = result.nvars;
+            this->v2c_map.resize(this->nvars, NO_RESULT);
+            this->blind = result.blind;
+            this->row_num += result.row_num;
+            this->attr_col_num = result.attr_col_num;
+            vector<int> col_map(this->nvars, -1);  // idx: my_col, value: your_col
+
+            for (int i = 0; i < result.v2c_map.size(); i++) {
+                ssid_t vid = -1 - i;
+                if (this->v2c_map[i] == NO_RESULT && result.v2c_map[i] != NO_RESULT) {
+                    this->insert_blank_col(this->col_num);
+                    this->add_var2col(vid, this->col_num);
+                    col_map[this->col_num] = result.var2col(vid);
+                    this->col_num++;
+                } else if (this->v2c_map[i] != NO_RESULT && result.v2c_map[i] == NO_RESULT) {
+                    col_map[this->var2col(vid)] = -1;
+                } else if (this->v2c_map[i] != NO_RESULT && result.v2c_map[i] != NO_RESULT){
+                    col_map[this->var2col(vid)] = result.var2col(vid);
+                }
+            }
+
+            int new_size = this->col_num * this->row_num;
+            this->result_table.reserve(new_size);
+            for (int i = 0; i < result.row_num; i++) {
+                for (int j = 0; j < this->col_num; j++) {
+                    if (col_map[j] == -1) {
+                        this->result_table.push_back(BLANK_ID);
+                    } else {
+                        this->result_table.push_back(result.result_table[i * result.col_num + col_map[j]]);
+                    }
+                }
+            }
+            new_size = this->attr_res_table.size() + result.attr_res_table.size();
+            this->attr_res_table.reserve(new_size);
+            this->attr_res_table.insert(this->attr_res_table.end(), result.attr_res_table.begin(), result.attr_res_table.end());
+        }
+
         void append_result(SPARQLQuery::Result &result) {
+            this->col_num = result.col_num;
+            this->blind = result.blind;
+            this->row_num += result.row_num;
+            this->attr_col_num = result.attr_col_num;
+            this->v2c_map = result.v2c_map;
             int new_size = this->result_table.size() + result.result_table.size();
             this->result_table.reserve(new_size);
             this->result_table.insert(this->result_table.end(), result.result_table.begin(), result.result_table.end());

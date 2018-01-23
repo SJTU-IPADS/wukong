@@ -29,11 +29,13 @@
 
 typedef uint64_t sid_t;  // data type for string-id
 typedef int64_t ssid_t;  // signed string id
+#define BLANK_ID UINT64_MAX
 
 #else
 
 typedef uint32_t sid_t;  // data type for string-id
 typedef int32_t ssid_t;  // signed string id
+#define BLANK_ID UINT32_MAX
 
 #endif
 

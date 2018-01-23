@@ -64,14 +64,12 @@ public:
 
         SPARQLQuery::Result &data_result = data.merged_reply.result;
         SPARQLQuery::Result &r_result = r.result;
-        data.count --;
-        data_result.col_num = r_result.col_num;
-        data_result.blind = r_result.blind;
-        data_result.row_num += r_result.row_num;
-        data_result.attr_col_num = r_result.attr_col_num;
-        data_result.v2c_map = r_result.v2c_map;
-
-        data_result.append_result(r_result);
+        data.count--;
+        if(data.parent_request.is_union()) {
+            data_result.merge_result(r_result);
+        } else {
+            data_result.append_result(r_result);
+        }
     }
 
     bool is_ready(int pid) {
