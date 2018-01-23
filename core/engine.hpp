@@ -24,7 +24,7 @@
 
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
-#include <stdlib.h> //qsort
+#include <algorithm>//sort
 
 #include "config.hpp"
 #include "type.hpp"
@@ -747,14 +747,127 @@ private:
 
     }
 
+    class Compare{
+        private:
+            SPARQLQuery &query;
+            String_Server *str_server;
+        public:
+            Compare(SPARQLQuery &query, String_Server *str_server):query(query), str_server(str_server){}
+            bool operator()(const int* a,const int* b){
+                int cmp = 0;
+                for(int i = 0; i < query.orders.size(); i ++){
+                    int col = query.result.var2col(query.orders[i].id);
+                    string str_a = str_server->exist(a[col])?str_server->id2str[a[col]]:"";
+                    string str_b = str_server->exist(a[col])?str_server->id2str[b[col]]:"";
+                    cmp = str_a.compare(str_b);
+                    if(cmp != 0){
+                        cmp = query.orders[i].descending?-cmp:cmp;
+                        break;
+                    }
+                }
+                return cmp < 0;
+            }
+    };
+
+    class ReduceCmp{
+        private:
+            int col_num;
+        public:
+            ReduceCmp(int col_num):col_num(col_num){}
+            bool operator()(const int* a,const int* b){
+                for(int i = 0;i < col_num;i ++){
+                    if(a[i] == b[i]){
+                        continue;
+                    }
+                    return a[i] < b[i];
+                }
+                return 0;
+            }
+    };
+
     void final_process(SPARQLQuery &r) {
-        // DISTINCT
-
-        // ORDER BY
-
+        if(r.result.result_table.size() == 0) return;
+        // DISTINCT and ORDER BY
+        if(r.distinct || r.orders.size() > 0){
+            // initialize table
+            int **table;
+            int size = r.result.get_row_num();
+            int new_size = size;
+            table = new int*[size];
+            for(int i = 0;i < size;i ++){
+                table[i] = new int[r.result.col_num];
+            }
+            for(int i = 0;i < size;i ++){
+                for(int j = 0;j < r.result.col_num;j ++){
+                    table[i][j] = r.result.get_row_col(i,j);
+                }
+            }
+            // DISTINCT
+            if(r.distinct){
+                // sort and then compare
+                sort(table,table + size,ReduceCmp(r.result.col_num));
+                int p = 0, q = 1;
+                auto equal = [&r](int *a,int *b) -> bool{
+                    for(int i = 0;i < r.result.required_vars.size();i ++){
+                        int col = r.result.var2col(r.result.required_vars[i]);
+                        if(a[col] != b[col]) return false;
+                    }
+                    return true;
+                };
+                auto swap = [](int *&a,int *&b){
+                    int *temp = a;
+                    a = b;
+                    b = temp;
+                };
+                while(q < size){
+                    while(equal(table[p],table[q])){
+                        q++;
+                        if(q >= size) goto out;
+                    }
+                    p ++;
+                    swap(table[p],table[q]);
+                    q ++;
+                }
+out:            new_size = p + 1;
+            }
+            // ORDER BY
+            if(r.orders.size() > 0){
+                sort(table,table + new_size,Compare(r, str_server));
+            }
+            //write back data and delete **table
+            for(int i = 0;i < new_size;i ++){
+                for(int j = 0;j < r.result.col_num;j ++){
+                    r.result.result_table[r.result.col_num * i + j] = table[i][j];
+                }
+            }
+            if(new_size < size){
+                r.result.result_table.erase(r.result.result_table.begin() + new_size * r.result.col_num, r.result.result_table.begin() + size * r.result.col_num);
+            }
+            for(int i = 0;i < size;i ++){
+                delete[] table[i];
+            }
+            delete[] table;
+        }
         // OFFSET
-
+        if(r.offset > 0){
+            r.result.result_table.erase(r.result.result_table.begin(), min(r.result.result_table.begin() + r.offset * r.result.col_num, r.result.result_table.end()));
+        }
         // LIMIT
+        if(r.limit >= 0){
+            r.result.result_table.erase( min(r.result.result_table.begin() + r.limit * r.result.col_num ,r.result.result_table.end()), r.result.result_table.end() );
+        }
+        // remove unrequested variables
+        int new_col_num = r.result.required_vars.size();
+        int new_row_num = r.result.get_row_num();
+        vector<sid_t> new_result_table(new_row_num * new_col_num);
+        for(int i = 0; i < new_row_num; i ++){
+            for(int j = 0;j < new_col_num;j ++){
+                int col = r.result.var2col(r.result.required_vars[j]);
+                new_result_table[i * new_col_num + j] = r.result.get_row_col(i,col);
+            }
+        }
+        r.result.result_table.swap(new_result_table);
+        r.result.col_num = new_col_num;
     }
 
     void execute_sparql_request(SPARQLQuery &r) {
@@ -890,6 +1003,7 @@ public:
     int sid;    // server id
     int tid;    // thread id
 
+    String_Server *str_server;
     DGraph *graph;
     Adaptor *adaptor;
 
@@ -897,8 +1011,8 @@ public:
 
     uint64_t last_time; // busy or not (work-oblige)
 
-    Engine(int sid, int tid, DGraph *graph, Adaptor *adaptor)
-        : sid(sid), tid(tid), graph(graph), adaptor(adaptor),
+    Engine(int sid, int tid, String_Server *str_server, DGraph *graph, Adaptor *adaptor)
+        : sid(sid), tid(tid), str_server(str_server), graph(graph), adaptor(adaptor),
           coder(sid, tid), last_time(0) {
         pthread_spin_init(&recv_lock, 0);
         pthread_spin_init(&rmap_lock, 0);
