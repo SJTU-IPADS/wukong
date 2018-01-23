@@ -213,8 +213,8 @@ private:
     PatternGroup patterns;
     /// The sort order
     std::vector<Order> order;
-    /// The result limit
-    unsigned limit;
+    /// The result limit, -1 means no limit
+    int limit;
     /// The result offset
     unsigned offset;
     // indicate if custom grammar is in use
@@ -1059,8 +1059,22 @@ private:
             if (lexer.getNext() != SPARQLLexer::Integer)
                 throw ParserException("number expected after 'limit'");
             limit = atoi(lexer.getTokenValue().c_str());
-            if (limit == 0)
+            if (limit < 0)
                 throw ParserException("invalid limit specifier");
+        } else {
+            lexer.unget(token);
+        }
+    }
+    /// Parse the offset part if any
+    void parseOffset() {
+        SPARQLLexer::Token token = lexer.getNext();
+
+        if ((token == SPARQLLexer::Identifier) && (lexer.isKeyword("offset"))) {
+            if (lexer.getNext() != SPARQLLexer::Integer)
+                throw ParserException("number expected after 'offset'");
+            offset = atoi(lexer.getTokenValue().c_str());
+            if (offset < 0)
+                throw ParserException("invalid offset specifier");
         } else {
             lexer.unget(token);
         }
@@ -1070,8 +1084,7 @@ public:
     /// Constructor
     explicit SPARQLParser(SPARQLLexer &lexer)
         : lexer(lexer), variableCount(0), namedVariableCount(0),
-          projectionModifier(Modifier_None), limit(~0u) {
-        limit = -1;
+          projectionModifier(Modifier_None), limit(-1), offset(0u) {
         usingCustomGrammar = false;
         corun_step = 0;
         fetch_step = 0;
@@ -1101,6 +1114,9 @@ public:
 
         // Parse the limit clause
         parseLimit();
+
+        // Parse the offset clause
+        parseOffset();
 
         // Check that the input is done
         if ((!multiQuery) && (lexer.getNext() != SPARQLLexer::Eof))
@@ -1142,7 +1158,9 @@ public:
     /// The projection modifier
     ProjectionModifier getProjectionModifier() const { return projectionModifier; }
     /// The size limit
-    unsigned getLimit() const { return limit; }
+    int getLimit() const { return limit; }
+    /// The offset
+    unsigned getOffset() const { return offset; }
     /// Get the variableCount
     unsigned getVariableCount() const { return variableCount; }
     // indicate if custom grammar is in use

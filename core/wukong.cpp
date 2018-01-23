@@ -121,7 +121,7 @@ main(int argc, char *argv[])
 	RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mem, global_num_servers, global_num_threads);
 	TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_num_threads, global_data_port_base);
 
-	// load string server (read-only, shared by all proxies)
+	// load string server (read-only, shared by all proxies and all engines)
 	String_Server str_server(global_input_folder);
 
 	// load RDF graph (shared by all engines)
@@ -147,7 +147,7 @@ main(int argc, char *argv[])
 			Proxy *proxy = new Proxy(sid, tid, &str_server, adaptor, &stat);
 			proxies.push_back(proxy);
 		} else {
-			Engine *engine = new Engine(sid, tid, &dgraph, adaptor);
+			Engine *engine = new Engine(sid, tid, &str_server, &dgraph, adaptor);
 			engines.push_back(engine);
 		}
 	}
