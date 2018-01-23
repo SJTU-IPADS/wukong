@@ -307,6 +307,8 @@ public:
 
     ssid_t local_var = 0;   // the local variable
 
+    bool force_dispatch = false;
+
     // ID-format triple patterns (Subject, Predicat, Direction, Object)
     PatternGroup pattern_group;
     vector<Order> orders;
@@ -344,6 +346,8 @@ public:
             result.clear_data(); // avoid take back all the results
     }
 
+    bool is_union() { return pattern_group.unions.size() > 0; }
+
     bool is_finished() { return (step >= pattern_group.patterns.size()); } // FIXME: it's trick
 
     bool is_request() { return (id == -1); } // FIXME: it's trick
@@ -362,7 +366,8 @@ public:
          * ?X P0 ?Y .             // then from ?X's edge with P0
          *
          */
-        if (is_tpid(pattern_group.patterns[0].subject)) {
+        if (pattern_group.patterns.size() == 0) return false;
+        else if (is_tpid(pattern_group.patterns[0].subject)) {
             assert(pattern_group.patterns[0].predicate == PREDICATE_ID
                    || pattern_group.patterns[0].predicate == TYPE_ID);
             return true;
