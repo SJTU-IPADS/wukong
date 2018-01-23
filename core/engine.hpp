@@ -747,12 +747,12 @@ private:
 
     }
 
-    class compare{
+    class Compare{
         private:
             SPARQLQuery &query;
             String_Server *str_server;
         public:
-            compare(SPARQLQuery &query, String_Server *str_server):query(query), str_server(str_server){}
+            Compare(SPARQLQuery &query, String_Server *str_server):query(query), str_server(str_server){}
             bool operator()(const int* a,const int* b){
                 int cmp = 0;
                 for(int i = 0; i < query.orders.size(); i ++){
@@ -769,11 +769,11 @@ private:
             }
     };
 
-    class reduce_cmp{
+    class ReduceCmp{
         private:
             int col_num;
         public:
-            reduce_cmp(int col_num):col_num(col_num){}
+            ReduceCmp(int col_num):col_num(col_num){}
             bool operator()(const int* a,const int* b){
                 for(int i = 0;i < col_num;i ++){
                     if(a[i] == b[i]){
@@ -805,7 +805,7 @@ private:
             // DISTINCT
             if(r.distinct){
                 // sort and then compare
-                sort(table,table + size,reduce_cmp(r.result.col_num));
+                sort(table,table + size,ReduceCmp(r.result.col_num));
                 int p = 0, q = 1;
                 auto equal = [&r](int *a,int *b) -> bool{
                     for(int i = 0;i < r.result.required_vars.size();i ++){
@@ -832,7 +832,7 @@ out:            new_size = p + 1;
             }
             // ORDER BY
             if(r.orders.size() > 0){
-                sort(table,table + new_size,compare(r, str_server));
+                sort(table,table + new_size,Compare(r, str_server));
             }
             //write back data and delete **table
             for(int i = 0;i < new_size;i ++){
