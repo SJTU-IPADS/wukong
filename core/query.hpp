@@ -518,6 +518,7 @@ void save(Archive & ar, const SPARQLQuery & t, unsigned int version) {
     ar << t.corun_step;
     ar << t.fetch_step;
     ar << t.local_var;
+    ar << t.force_dispatch;
     ar << t.pattern_group;
     if (t.orders.size() > 0) {
         ar << occupied;
@@ -541,6 +542,7 @@ void load(Archive & ar, SPARQLQuery & t, unsigned int version) {
     ar >> t.corun_step;
     ar >> t.fetch_step;
     ar >> t.local_var;
+    ar >> t.force_dispatch;
     ar >> t.pattern_group;
     ar >> temp;
     if (temp == occupied) {
