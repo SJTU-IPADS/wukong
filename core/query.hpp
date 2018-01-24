@@ -167,9 +167,8 @@ public:
         void output_result(ostream &stream, int size, String_Server *str_server) {
             for (int i = 0; i < size; i++) {
                 stream << i + 1 << ": ";
-                for (int j = 0; j < required_vars.size(); j++) {
-                    int c = var2col(required_vars[j]);
-                    int id = this->get_row_col(i, c);
+                for (int j = 0; j < col_num; j++) {
+                    int id = this->get_row_col(i, j);
                     if (str_server->exist(id))
                         stream << str_server->id2str[id] << "\t";
                     else
@@ -362,6 +361,9 @@ public:
     int step = 0;
     int corun_step = -1;
     int fetch_step = -1;
+    int limit = -1;
+    unsigned offset = 0;
+    bool distinct = false;
 
     ssid_t local_var = 0;   // the local variable
 
@@ -509,6 +511,9 @@ void save(Archive & ar, const SPARQLQuery & t, unsigned int version) {
     ar << t.id;
     ar << t.pid;
     ar << t.tid;
+    ar << t.limit;
+    ar << t.offset;
+    ar << t.distinct;
     ar << t.step;
     ar << t.corun_step;
     ar << t.fetch_step;
@@ -529,6 +534,9 @@ void load(Archive & ar, SPARQLQuery & t, unsigned int version) {
     ar >> t.id;
     ar >> t.pid;
     ar >> t.tid;
+    ar >> t.limit;
+    ar >> t.offset;
+    ar >> t.distinct;
     ar >> t.step;
     ar >> t.corun_step;
     ar >> t.fetch_step;

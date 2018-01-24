@@ -155,6 +155,15 @@ private:
                 iter ++)
             r.orders.push_back(SPARQLQuery::Order((*iter).id, (*iter).descending));
 
+        // limit and offset
+        r.limit = parser.getLimit();
+        r.offset = parser.getOffset();
+
+        // distinct
+        if(parser.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Distinct || parser.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Reduced){
+            r.distinct = true;
+        }
+
         // corun
         if (!global_use_rdma) {
             // TODO: corun optimization is not supported w/o RDMA
@@ -252,6 +261,7 @@ public:
         pattern.pred_type = 0;
         r.pattern_group.patterns.push_back(pattern);
         r.result.nvars = 1;
+        r.result.required_vars.push_back(-1);
         return true;
     }
 };
