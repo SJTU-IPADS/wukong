@@ -64,14 +64,12 @@ public:
 
         SPARQLQuery::Result &data_result = data.merged_reply.result;
         SPARQLQuery::Result &r_result = r.result;
-        data.count --;
-        data_result.col_num = r_result.col_num;
-        data_result.blind = r_result.blind;
-        data_result.row_num += r_result.row_num;
-        data_result.attr_col_num = r_result.attr_col_num;
-        data_result.v2c_map = r_result.v2c_map;
-
-        data_result.append_result(r_result);
+        data.count--;
+        if(data.parent_request.is_union()) {
+            data_result.merge_result(r_result);
+        } else {
+            data_result.append_result(r_result);
+        }
     }
 
     bool is_ready(int pid) {
@@ -351,7 +349,7 @@ private:
             for (uint64_t k = start; k < sz; k += global_mt_threshold)
                 updated_result_table.push_back(res[k].val);
         }
-        
+
         result.result_table.swap(updated_result_table);
         result.set_col_num(1);
         result.add_var2col(var, 0);
@@ -475,6 +473,21 @@ private:
         result.set_col_num(result.get_col_num() + 1);
         result.result_table.swap(updated_result_table);
         req.step++;
+    }
+
+    vector<SPARQLQuery> generate_union_query(SPARQLQuery &req) {
+        int size = req.pattern_group.unions.size();
+        vector<SPARQLQuery> union_reqs(size);
+        for (int i = 0; i < size; i++) {
+            union_reqs[i].pid = req.id;
+            union_reqs[i].pattern_group = req.pattern_group.unions[i];
+            if (union_reqs[i].start_from_index()) {
+                union_reqs[i].force_dispatch = true;
+            }
+            union_reqs[i].step = 0;
+            union_reqs[i].result = req.result;
+        }
+        return union_reqs;
     }
 
     vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req) {
@@ -874,10 +887,11 @@ out:            new_size = p + 1;
         SPARQLQuery::Result &result = r.result;
         r.id = coder.get_and_inc_qid();
         // if r starts from index and is from proxy, dispatch it to every engine except itself
-        if (r.step == 0 && coder.tid_of(r.pid) < global_num_proxies && r.start_from_index() && global_mt_threshold * global_num_servers > 1){
+        if (r.force_dispatch || (r.step == 0 && coder.tid_of(r.pid) < global_num_proxies && r.start_from_index() && global_mt_threshold * global_num_servers > 1)){
             int sub_reqs_size = global_num_servers * global_mt_threshold - 1;
             rmap.put_parent_request(r, sub_reqs_size);
             SPARQLQuery sub_query = r;
+            sub_query.force_dispatch = false;
             for (int i = 0; i < global_num_servers; i++) {
                 for (int j = 0; j < global_mt_threshold; j++) {
                     sub_query.id = -1;
@@ -910,6 +924,23 @@ out:            new_size = p + 1;
             if (r.is_finished()) {
                 // result should be filtered at the end of every distributed query because FILTER could be nested in every PatternGroup
                 filter(r);
+                // union
+                if (r.is_union()) {
+                    vector<SPARQLQuery> union_reqs = generate_union_query(r);
+                    rmap.put_parent_request(r, union_reqs.size());
+                    for (int i = 0; i < union_reqs.size(); i++) {
+                        int dst_sid = mymath::hash_mod(union_reqs[i].pattern_group.patterns[0].subject, global_num_servers);
+                        if (dst_sid != sid) {
+                            Bundle bundle(union_reqs[i]);
+                            send_request(bundle, i, tid);
+                        } else {
+                            pthread_spin_lock(&recv_lock);
+                            msg_fast_path.push_back(union_reqs[i]);
+                            pthread_spin_unlock(&recv_lock);
+                        }
+                    }
+                    return;
+                }
                 // if all data has been merged and next will be sent back to proxy
                 if (coder.tid_of(r.pid) < global_num_proxies) {
                     final_process(r);

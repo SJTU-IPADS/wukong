@@ -162,7 +162,9 @@ public:
 		assert(r.pid != -1);
 
 		// submit the request to a certain server
-		int start_sid = mymath::hash_mod(r.pattern_group.patterns[0].subject, global_num_servers);
+		ssid_t start = r.pattern_group.patterns.size() > 0 ?
+			r.pattern_group.patterns[0].subject : r.pattern_group.unions[0].patterns[0].subject;
+		int start_sid = mymath::hash_mod(start, global_num_servers);
 		Bundle bundle(r);
 		send(bundle, start_sid);
 	}

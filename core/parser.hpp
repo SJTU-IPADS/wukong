@@ -124,9 +124,15 @@ private:
             dest.patterns.push_back(pattern);
         }
         // unions
-        for (auto &union_group : src.unions) {
-            dest.unions.push_back(SPARQLQuery::PatternGroup());
-            transfer_patterns(union_group, dest.unions.back());
+        if (src.unions.size() > 0) {
+            int i = 0;
+            for (auto &union_group : src.unions) {
+                dest.unions.push_back(SPARQLQuery::PatternGroup());
+                transfer_patterns(union_group, dest.unions.back());
+                dest.unions[i].patterns.insert(dest.unions[i].patterns.end(), dest.patterns.begin(), dest.patterns.end());
+                i++;
+            }
+            dest.patterns.clear();
         }
         // other parts in PatternGroup
     }
