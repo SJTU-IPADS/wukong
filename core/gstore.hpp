@@ -944,7 +944,7 @@ public:
      uint64_t ivertex_num = 0;
      uint64_t nvertex_num = 0;
 
-     void outdir_index_to_normal(ikey_t key, bool check) {
+     void outdir_idx_to_normal(ikey_t key, bool check) {
          if (!check)
             return;
          ivertex_num ++;
@@ -973,7 +973,7 @@ public:
         }
      }
 
-     void indir_predicateindex_to_normalpredicate(ikey_t key, bool check) {
+     void indir_pidx_to_np(ikey_t key, bool check) {
          if (!check)
             return;
          ivertex_num ++;
@@ -987,7 +987,7 @@ public:
         }
      }
 
-     void normaltypes_to_typeindex(ikey_t key, bool check) {
+     void nt_to_tidx(ikey_t key, bool check) {
          if (!check)
             return;
          nvertex_num ++;
@@ -1012,7 +1012,7 @@ public:
         }
      }
 
-     void normalpredicates_to_predicateindex(ikey_t key, dir_t dir, bool check) {
+     void np_to_pidx(ikey_t key, dir_t dir, bool check) {
          if (!check)
             return;
          nvertex_num ++;
@@ -1036,15 +1036,15 @@ public:
 
       void check_on_vertex(ikey_t key, bool index_check, bool normal_check) {
           if (key.vid == 0 && is_tpid(key.pid) && key.dir == IN)
-              outdir_index_to_normal(key, index_check);         //(2)/(1)(OUT) -->(7)/(6)
+              outdir_idx_to_normal(key, index_check);         //(2)/(1)(OUT) -->(7)/(6)
           else if (key.vid == 0 && is_tpid(key.pid) && key.dir == OUT)
-              indir_predicateindex_to_normalpredicate(key, index_check); //(1)[IN]-->(6)
+              indir_pidx_to_np(key, index_check); //(1)[IN]-->(6)
           else if (!is_tpid(key.vid) && key.pid == TYPE_ID && key.dir == OUT)
-              normaltypes_to_typeindex(key, normal_check);        //(7)-->(2)
+              nt_to_tidx(key, normal_check);        //(7)-->(2)
           else if (!is_tpid(key.vid) && is_tpid(key.pid) && key.dir == OUT) 
-              normalpredicates_to_predicateindex(key, IN, normal_check); //(6)[OUT]-->(1)
+              np_to_pidx(key, IN,normal_check); //(6)[OUT]-->(1)
           else if (!is_tpid(key.vid) && is_tpid(key.pid) && key.dir == IN)
-              normalpredicates_to_predicateindex(key, OUT, normal_check); //(6)[IN]-->(1)
+              np_to_pidx(key, OUT, normal_check); //(6)[IN]-->(1)
           else 
               cout<<" Error key : [ " << key.vid << " | " << key.pid << " | " << key.dir << " ]" << endl; 
       }
