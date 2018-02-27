@@ -486,6 +486,7 @@ private:
             }
             union_reqs[i].step = 0;
             union_reqs[i].result = req.result;
+            union_reqs[i].result.blind = false;
         }
         return union_reqs;
     }
