@@ -115,7 +115,7 @@ public:
         /// The type (for constants)
         std::string valueType;
         /// Possible subtypes or variable ids
-        unsigned valueArg;
+        int valueArg;
 
         /// Constructor
         Filter() : arg1(0), arg2(0), arg3(0), valueArg(0) { }
@@ -347,6 +347,7 @@ private:
             unique_ptr<Filter> arg(new Filter());
             arg->type = Filter::Variable;
             arg->valueArg = nameVariable(lexer.getTokenValue());
+            result->arg1 = arg.release();
             if (lexer.getNext() != SPARQLLexer::RParen)
                 throw ParserException("')' expected");
         } else if (lexer.isKeyword("sameTerm")) {

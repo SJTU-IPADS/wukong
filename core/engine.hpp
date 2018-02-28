@@ -25,6 +25,7 @@
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
 #include <algorithm>//sort
+#include <regex>
 
 #include "config.hpp"
 #include "type.hpp"
@@ -756,8 +757,174 @@ private:
         return true;
     }
 
-    void filter(SPARQLQuery &r) {
+    // relational operator: < <= > >= == !=
+    void relational_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy){
+        int col1 = (filter.arg1->type == SPARQLQuery::Filter::Type::Variable)?result.var2col(filter.arg1->valueArg):-1;
+        int col2 = (filter.arg2->type == SPARQLQuery::Filter::Type::Variable)?result.var2col(filter.arg2->valueArg):-1;
 
+        auto get_str = [&](SPARQLQuery::Filter &filter, int row, int col) -> string {
+            int id = 0;
+            switch(filter.type){
+                case SPARQLQuery::Filter::Type::Variable:
+                    id = result.get_row_col(row,col);
+                    return str_server->exist(id)?str_server->id2str[id]:"";
+                case SPARQLQuery::Filter::Type::Literal:
+                    return "\"" + filter.value + "\"";
+                default:
+                    cout << "filter type not supported currently" << endl;
+                    assert(false);
+            }
+            return "";
+        };
+
+        switch(filter.type){
+            case SPARQLQuery::Filter::Type::Equal:
+                for(int row = 0;row < result.get_row_num();row ++){
+                    if(is_satisfy[row] && get_str(*filter.arg1, row, col1) != get_str(*filter.arg2, row, col2)){
+                        is_satisfy[row] = false;
+                    }
+                }
+                break;
+            case SPARQLQuery::Filter::Type::NotEqual:
+                for(int row = 0;row < result.get_row_num();row ++){
+                    if(is_satisfy[row] && get_str(*filter.arg1, row, col1) == get_str(*filter.arg2, row, col2)){
+                        is_satisfy[row] = false;
+                    }
+                }
+                break;
+            case SPARQLQuery::Filter::Type::Less:
+                for(int row = 0;row < result.get_row_num();row ++){
+                    if(is_satisfy[row] && get_str(*filter.arg1, row, col1) >= get_str(*filter.arg2, row, col2)){
+                        is_satisfy[row] = false;
+                    }
+                }
+                break;
+            case SPARQLQuery::Filter::Type::LessOrEqual:
+                for(int row = 0;row < result.get_row_num();row ++){
+                    if(is_satisfy[row] && get_str(*filter.arg1, row, col1) > get_str(*filter.arg2, row, col2)){
+                        is_satisfy[row] = false;
+                    }
+                }
+                break;
+            case SPARQLQuery::Filter::Type::Greater:
+                for(int row = 0;row < result.get_row_num();row ++){
+                    if(is_satisfy[row] && get_str(*filter.arg1, row, col1) <= get_str(*filter.arg2, row, col2)){
+                        is_satisfy[row] = false;
+                    }
+                }
+                break;
+            case SPARQLQuery::Filter::Type::GreaterOrEqual:
+                for(int row = 0;row < result.get_row_num();row ++){
+                    if(is_satisfy[row] && get_str(*filter.arg1, row, col1) < get_str(*filter.arg2, row, col2)){
+                        is_satisfy[row] = false;
+                    }
+                }
+                break;
+        }
+
+    }
+    
+    // TODO to be more precise
+    // IRI and URI are the same in SPARQL
+    void is_IRI_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy){
+        int col = result.var2col(filter.arg1->valueArg);
+        for(int row = 0;row < is_satisfy.size();row ++){
+            if(is_satisfy[row])
+                continue;
+
+            int id = result.get_row_col(row,col);
+            string str = str_server->exist(id)?str_server->id2str[id]:"";
+            if(str.front() != '<' || str.back() != '>'){
+                is_satisfy[row] = false;
+            }
+        }
+    }
+
+    // TODO to be more precise
+    void is_literal_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy){
+        int col = result.var2col(filter.arg1->valueArg);
+        for(int row = 0;row < is_satisfy.size();row ++){
+            if(is_satisfy[row])
+                continue;
+
+            int id = result.get_row_col(row,col);
+            string str = str_server->exist(id)?str_server->id2str[id]:"";
+            if(str.front() != '\"' || str.back() != '\"'){
+                is_satisfy[row] = false;
+            }
+        }
+    }
+
+    // TODO to support regex flag
+    void regex_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy){
+        regex pattern(filter.arg2->value);
+        int col = result.var2col(filter.arg1->valueArg);
+        for(int row = 0;row < is_satisfy.size();row ++){
+            if(is_satisfy[row])
+                continue;
+
+            int id = result.get_row_col(row,col);
+            string str = str_server->exist(id)?str_server->id2str[id]:"";
+            if(str.front() != '\"' || str.back() != '\"'){
+                cout << "the first parameter of function regex can only be string" << endl;
+            }
+            else{
+                str = str.substr(1, str.length() - 2);
+            }
+            if(!regex_match(str, pattern)){
+                is_satisfy[row] = false;
+            }
+        }
+    }
+
+    void general_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy){
+        // conditional operator
+        if(filter.type <= 1){
+            vector<bool> is_satisfy1(result.get_row_num(),true);
+            vector<bool> is_satisfy2(result.get_row_num(),true);
+            if(filter.type == SPARQLQuery::Filter::Type::And){
+                general_filter(*filter.arg1, result, is_satisfy);
+                general_filter(*filter.arg2, result, is_satisfy);
+            }
+            else if(filter.type == SPARQLQuery::Filter::Type::Or){
+                general_filter(*filter.arg1, result, is_satisfy1);
+                general_filter(*filter.arg2, result, is_satisfy2);
+                for(int i = 0;i < is_satisfy.size();i ++){
+                    is_satisfy[i] = is_satisfy[i] && (is_satisfy1[i] || is_satisfy2[i]);
+                }
+            }
+        }
+        // relational operator
+        else if(filter.type <= 7){
+            return relational_filter(filter, result, is_satisfy);
+        }
+        else if(filter.type == SPARQLQuery::Filter::Type::Builtin_isiri){
+            return is_IRI_filter(filter, result, is_satisfy);
+        }
+        else if(filter.type == SPARQLQuery::Filter::Type::Builtin_isliteral){
+            return is_literal_filter(filter, result, is_satisfy);
+        }
+        else if(filter.type == SPARQLQuery::Filter::Type::Builtin_regex){
+            return regex_filter(filter, result, is_satisfy);
+        }
+    }
+
+    void filter(SPARQLQuery &r) {
+        // during filtering, flag of unsatified row will be set to false one by one
+        vector<bool> is_satisfy(r.result.get_row_num(),true);
+
+        for(int i = 0;i < r.pattern_group.filters.size();i ++){
+            SPARQLQuery::Filter filter = r.pattern_group.filters[i];
+            general_filter(filter, r.result, is_satisfy);
+        }
+
+        vector<sid_t> new_table;
+        for(int row = 0;row < r.result.get_row_num();row ++){
+            if(is_satisfy[row]){
+                r.result.append_row_to(row, new_table);
+            }
+        }
+        r.result.result_table.swap(new_table);
     }
 
     class Compare{
