@@ -481,7 +481,7 @@ private:
         for (int i = 0; i < size; i++) {
             union_reqs[i].pid = req.id;
             union_reqs[i].pattern_group = req.pattern_group.unions[i];
-            if (union_reqs[i].start_from_index()) {
+            if (union_reqs[i].start_from_index() && global_mt_threshold * global_num_servers > 1) {
                 union_reqs[i].force_dispatch = true;
             }
             union_reqs[i].step = 0;
