@@ -200,7 +200,7 @@ public:
     public:
         vector<Pattern> patterns;
         vector<Filter> filters;
-        vector<vector<PatternGroup>> optional;
+        vector<PatternGroup> optional;
         vector<PatternGroup> unions;
 
     private:
