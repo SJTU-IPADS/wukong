@@ -486,6 +486,7 @@ private:
             }
             union_reqs[i].step = 0;
             union_reqs[i].result = req.result;
+            union_reqs[i].result.blind = false;
         }
         return union_reqs;
     }
@@ -799,7 +800,7 @@ private:
     };
 
     void final_process(SPARQLQuery &r) {
-        if(r.result.result_table.size() == 0) return;
+        if(r.result.blind || r.result.result_table.size() == 0) return;
         // DISTINCT and ORDER BY
         if(r.distinct || r.orders.size() > 0){
             // initialize table
