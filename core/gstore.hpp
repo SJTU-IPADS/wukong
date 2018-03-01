@@ -1034,19 +1034,21 @@ public:
          }
       } 
 
-      void check_on_vertex(ikey_t key, bool index_check, bool normal_check) {
-          if (key.vid == 0 && is_tpid(key.pid) && key.dir == IN)
-              outdir_idx_to_normal(key, index_check);         //(2)/(1)(OUT) -->(7)/(6)
-          else if (key.vid == 0 && is_tpid(key.pid) && key.dir == OUT)
-              indir_pidx_to_np(key, index_check); //(1)[IN]-->(6)
-          else if (!is_tpid(key.vid) && key.pid == TYPE_ID && key.dir == OUT)
-              nt_to_tidx(key, normal_check);        //(7)-->(2)
-          else if (!is_tpid(key.vid) && is_tpid(key.pid) && key.dir == OUT) 
-              np_to_pidx(key, IN,normal_check); //(6)[OUT]-->(1)
-          else if (!is_tpid(key.vid) && is_tpid(key.pid) && key.dir == IN)
-              np_to_pidx(key, OUT, normal_check); //(6)[IN]-->(1)
-          else 
-              cout<<" Error key : [ " << key.vid << " | " << key.pid << " | " << key.dir << " ]" << endl; 
+    void check_on_vertex(ikey_t key, bool index_check, bool normal_check) {
+        if (key.vid == 0 && is_tpid(key.pid) && key.dir == IN)
+            outdir_idx_to_normal(key, index_check);         //(2)/(1)(OUT) -->(7)/(6)
+        else if (key.vid == 0 && is_tpid(key.pid) && key.dir == OUT)
+            indir_pidx_to_np(key, index_check); //(1)[IN]-->(6)
+        else if (!is_tpid(key.vid) && key.pid == TYPE_ID && key.dir == OUT)
+            nt_to_tidx(key, normal_check);        //(7)-->(2)
+        else if (!is_tpid(key.vid) && is_tpid(key.pid) && key.dir == OUT) 
+            np_to_pidx(key, IN,normal_check); //(6)[OUT]-->(1)
+        else if (!is_tpid(key.vid) && is_tpid(key.pid) && key.dir == IN)
+            np_to_pidx(key, OUT, normal_check); //(6)[IN]-->(1)
+    #ifdef VERSATILE
+    #endif     
+        else 
+            cout<<" Error key : [ " << key.vid << " | " << key.pid << " | " << key.dir << " ]" << endl; 
       }
 
     int gstore_check(bool index_check, bool normal_check) {
