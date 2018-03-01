@@ -220,6 +220,39 @@ private:
     uint64_t last_ext;
     pthread_spinlock_t bucket_ext_lock;
 
+    bool check_key_exist(ikey_t key) {
+        uint64_t bucket_id = key.hash() % num_buckets;
+        uint64_t slot_id = bucket_id * ASSOCIATIVITY;
+        uint64_t lock_id = bucket_id % NUM_LOCKS;
+
+        pthread_spin_lock(&bucket_locks[lock_id]);
+        while (slot_id < num_slots) {
+            // the last slot of each bucket is always reserved for pointer to indirect header
+            /// TODO: add type info to slot and reuse the last slot to store key
+            /// TODO: key.vid is reused to store the bucket_id of indirect header rather than ptr.off,
+            ///       since the is_empty() is not robust.
+            for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
+                //assert(vertices[slot_id].key != key); // no duplicate key
+                if (vertices[slot_id].key == key) {
+                    pthread_spin_unlock(&bucket_locks[lock_id]);
+                    return true;
+                }
+
+                // insert to an empty slot
+                if (vertices[slot_id].key.is_empty()) {
+                    pthread_spin_unlock(&bucket_locks[lock_id]);
+                    return false;
+                }
+            }
+            // whether the bucket_ext (indirect-header region) is used
+            if (!vertices[slot_id].key.is_empty()) {
+                slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY;
+                continue; // continue and jump to next bucket
+            }
+            pthread_spin_unlock(&bucket_locks[lock_id]);
+            return false;
+        }
+    }
 
     // cluster chaining hash-table (see paper: DrTM SOSP'15)
     uint64_t insert_key(ikey_t key, bool check_dup = true) {
@@ -896,7 +929,8 @@ public:
             ikey_t key = ikey_t(triple.s, triple.p, OUT);
             if (insert_vertex_edge(key, triple.o, dedup_or_isdup)) {  // <6> vid's ngbrs w/ predicate (6) [need dedup]
                 key = ikey_t(0, triple.p, IN);
-                if (insert_vertex_edge(key, triple.s, nodup)) { // <7> predicate-index (1) [dedup from <6>]
+                ikey_t buddy_key = ikey_t(0, triple.p, OUT);
+                if (insert_vertex_edge(key, triple.s, nodup) && !check_key_exist(buddy_key)) { // <7> predicate-index (1) [dedup from <6>]
 #ifdef VERSATILE
                     key = ikey_t(0, PREDICATE_ID, OUT);
                     insert_vertex_edge(key, triple.p, nodup); // <8> the index to predicate (*5) [dedup from <7>]
@@ -904,7 +938,8 @@ public:
                 }
 #ifdef VERSATILE
                 key = ikey_t(triple.s, PREDICATE_ID, OUT);
-                if (insert_vertex_edge(key, triple.p, nodup)) { // <9> vid's predicate (*8) [dedup from <6>]
+                buddy_key = ikey_t(triple.s, PREDICATE_ID, IN);
+                if (insert_vertex_edge(key, triple.p, nodup) && !check_key_exist(buddy_key)) { // <9> vid's predicate (*8) [dedup from <6>]
                     key = ikey_t(0, TYPE_ID, IN);
                     insert_vertex_edge(key, triple.s, nodup); // <10> the index to vid (*3) [dedup from <9>]
                 }
@@ -922,7 +957,8 @@ public:
         if (insert_vertex_edge(key, triple.s, dedup_or_isdup)) {  // <1> vid's ngbrs w/ predicate (6) [need dedup]
             // key doesn't exist before
             key = ikey_t(0, triple.p, OUT);
-            if (insert_vertex_edge(key, triple.o, nodup)) { // <2> predicate-index (1) [dedup from <1>]
+            ikey_t buddy_key = ikey_t(0, triple.p, IN);
+            if (insert_vertex_edge(key, triple.o, nodup) && !check_key_exist(buddy_key)) { // <2> predicate-index (1) [dedup from <1>]
 #ifdef VERSATILE
                 key = ikey_t(0, PREDICATE_ID, OUT);
                 insert_vertex_edge(key, triple.p, nodup); // <3> the index to predicate (*5) [dedup from <2>]
@@ -930,7 +966,8 @@ public:
             }
 #ifdef VERSATILE
             key = ikey_t(triple.o, PREDICATE_ID, IN);
-            if (insert_vertex_edge(key, triple.p, nodup)) { // <4> vid's predicate (*8) [dedup from <1>]
+            buddy_key = ikey_t(triple.o, PREDICATE_ID, OUT);
+            if (insert_vertex_edge(key, triple.p, nodup) && !check_key_exist(buddy_key)) { // <4> vid's predicate (*8) [dedup from <1>]
                 key = ikey_t(0, TYPE_ID, IN);
                 insert_vertex_edge(key, triple.o, nodup); // <5> the index to vid (*3) [dedup from <4>]
             }
