@@ -126,10 +126,74 @@ public:
     };
 
     class Filter {
+    public:
+        enum Type{Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,
+            GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,
+            Literal, Variable, IRI, Function, ArgumentList, Builtin_str,
+            Builtin_lang, Builtin_langmatches, Builtin_datatype, Builtin_bound,
+            Builtin_sameterm, Builtin_isiri, Builtin_isblank, Builtin_isliteral,
+            Builtin_regex, Builtin_in};
+        Type type;
+        /// Input arguments
+        Filter *arg1, *arg2, *arg3;
+        /// The value (for constants param)
+        std::string value;
+        /// variable ids
+        int valueArg;
+
+        /// Constructor
+        Filter() : arg1(0), arg2(0), arg3(0), valueArg(0) {}
+        /// Copy-Constructor
+        Filter(const Filter &other)
+            : type(other.type), arg1(0), arg2(0), arg3(0),
+              value(other.value), valueArg(other.valueArg) {
+            if (other.arg1)
+                arg1 = new Filter(*other.arg1);
+            if (other.arg2)
+                arg2 = new Filter(*other.arg2);
+            if (other.arg3)
+                arg3 = new Filter(*other.arg3);
+        }
+
+        /// Destructor
+        ~Filter() {
+            delete arg1;
+            delete arg2;
+            delete arg3;
+        }
+
+        void print(){
+            // print info
+            cout << "---------------------filter---------------------------" << endl;
+            cout << "TYPE: " << this->type << endl;
+            if(this->value != ""){
+                cout << "value: " << this->value << endl;
+            }
+            cout << "valueArg: " << this->valueArg << endl;
+
+            if(arg1 != NULL){
+                arg1->print();
+            }
+            if(arg2 != NULL){
+                arg2->print();
+            }
+            if(arg3 != NULL){
+                arg3->print();
+            }
+            cout << "------------------------------------------------------" << endl;
+        }
+
     private:
         friend class boost::serialization::access;
         template <typename Archive>
-        void serialize(Archive &ar, const unsigned int version) {}
+        void serialize(Archive &ar, const unsigned int version) {
+            ar & type;
+            ar & arg1;
+            ar & arg2;
+            ar & arg3;
+            ar & value;
+            ar & valueArg;
+        }
     };
 
     class PatternGroup {
