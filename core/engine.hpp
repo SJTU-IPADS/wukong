@@ -25,6 +25,7 @@
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
 #include <algorithm>//sort
+#include <regex>
 
 #include "config.hpp"
 #include "type.hpp"
@@ -64,14 +65,12 @@ public:
 
         SPARQLQuery::Result &data_result = data.merged_reply.result;
         SPARQLQuery::Result &r_result = r.result;
-        data.count --;
-        data_result.col_num = r_result.col_num;
-        data_result.blind = r_result.blind;
-        data_result.row_num += r_result.row_num;
-        data_result.attr_col_num = r_result.attr_col_num;
-        data_result.v2c_map = r_result.v2c_map;
-
-        data_result.append_result(r_result);
+        data.count--;
+        if(data.parent_request.is_union()) {
+            data_result.merge_result(r_result);
+        } else {
+            data_result.append_result(r_result);
+        }
     }
 
     bool is_ready(int pid) {
@@ -351,7 +350,7 @@ private:
             for (uint64_t k = start; k < sz; k += global_mt_threshold)
                 updated_result_table.push_back(res[k].val);
         }
-        
+
         result.result_table.swap(updated_result_table);
         result.set_col_num(1);
         result.add_var2col(var, 0);
@@ -475,6 +474,22 @@ private:
         result.set_col_num(result.get_col_num() + 1);
         result.result_table.swap(updated_result_table);
         req.step++;
+    }
+
+    vector<SPARQLQuery> generate_union_query(SPARQLQuery &req) {
+        int size = req.pattern_group.unions.size();
+        vector<SPARQLQuery> union_reqs(size);
+        for (int i = 0; i < size; i++) {
+            union_reqs[i].pid = req.id;
+            union_reqs[i].pattern_group = req.pattern_group.unions[i];
+            if (union_reqs[i].start_from_index() && global_mt_threshold * global_num_servers > 1) {
+                union_reqs[i].force_dispatch = true;
+            }
+            union_reqs[i].step = 0;
+            union_reqs[i].result = req.result;
+            union_reqs[i].result.blind = false;
+        }
+        return union_reqs;
     }
 
     vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req) {
@@ -743,8 +758,174 @@ private:
         return true;
     }
 
-    void filter(SPARQLQuery &r) {
+    // relational operator: < <= > >= == !=
+    void relational_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy){
+        int col1 = (filter.arg1->type == SPARQLQuery::Filter::Type::Variable)?result.var2col(filter.arg1->valueArg):-1;
+        int col2 = (filter.arg2->type == SPARQLQuery::Filter::Type::Variable)?result.var2col(filter.arg2->valueArg):-1;
 
+        auto get_str = [&](SPARQLQuery::Filter &filter, int row, int col) -> string {
+            int id = 0;
+            switch(filter.type){
+                case SPARQLQuery::Filter::Type::Variable:
+                    id = result.get_row_col(row,col);
+                    return str_server->exist(id)?str_server->id2str[id]:"";
+                case SPARQLQuery::Filter::Type::Literal:
+                    return "\"" + filter.value + "\"";
+                default:
+                    cout << "filter type not supported currently" << endl;
+                    assert(false);
+            }
+            return "";
+        };
+
+        switch(filter.type){
+            case SPARQLQuery::Filter::Type::Equal:
+                for(int row = 0;row < result.get_row_num();row ++){
+                    if(is_satisfy[row] && get_str(*filter.arg1, row, col1) != get_str(*filter.arg2, row, col2)){
+                        is_satisfy[row] = false;
+                    }
+                }
+                break;
+            case SPARQLQuery::Filter::Type::NotEqual:
+                for(int row = 0;row < result.get_row_num();row ++){
+                    if(is_satisfy[row] && get_str(*filter.arg1, row, col1) == get_str(*filter.arg2, row, col2)){
+                        is_satisfy[row] = false;
+                    }
+                }
+                break;
+            case SPARQLQuery::Filter::Type::Less:
+                for(int row = 0;row < result.get_row_num();row ++){
+                    if(is_satisfy[row] && get_str(*filter.arg1, row, col1) >= get_str(*filter.arg2, row, col2)){
+                        is_satisfy[row] = false;
+                    }
+                }
+                break;
+            case SPARQLQuery::Filter::Type::LessOrEqual:
+                for(int row = 0;row < result.get_row_num();row ++){
+                    if(is_satisfy[row] && get_str(*filter.arg1, row, col1) > get_str(*filter.arg2, row, col2)){
+                        is_satisfy[row] = false;
+                    }
+                }
+                break;
+            case SPARQLQuery::Filter::Type::Greater:
+                for(int row = 0;row < result.get_row_num();row ++){
+                    if(is_satisfy[row] && get_str(*filter.arg1, row, col1) <= get_str(*filter.arg2, row, col2)){
+                        is_satisfy[row] = false;
+                    }
+                }
+                break;
+            case SPARQLQuery::Filter::Type::GreaterOrEqual:
+                for(int row = 0;row < result.get_row_num();row ++){
+                    if(is_satisfy[row] && get_str(*filter.arg1, row, col1) < get_str(*filter.arg2, row, col2)){
+                        is_satisfy[row] = false;
+                    }
+                }
+                break;
+        }
+
+    }
+    
+    // TODO to be more precise
+    // IRI and URI are the same in SPARQL
+    void is_IRI_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy){
+        int col = result.var2col(filter.arg1->valueArg);
+        for(int row = 0;row < is_satisfy.size();row ++){
+            if(is_satisfy[row])
+                continue;
+
+            int id = result.get_row_col(row,col);
+            string str = str_server->exist(id)?str_server->id2str[id]:"";
+            if(str.front() != '<' || str.back() != '>'){
+                is_satisfy[row] = false;
+            }
+        }
+    }
+
+    // TODO to be more precise
+    void is_literal_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy){
+        int col = result.var2col(filter.arg1->valueArg);
+        for(int row = 0;row < is_satisfy.size();row ++){
+            if(is_satisfy[row])
+                continue;
+
+            int id = result.get_row_col(row,col);
+            string str = str_server->exist(id)?str_server->id2str[id]:"";
+            if(str.front() != '\"' || str.back() != '\"'){
+                is_satisfy[row] = false;
+            }
+        }
+    }
+
+    // TODO to support regex flag
+    void regex_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy){
+        regex pattern(filter.arg2->value);
+        int col = result.var2col(filter.arg1->valueArg);
+        for(int row = 0;row < is_satisfy.size();row ++){
+            if(is_satisfy[row])
+                continue;
+
+            int id = result.get_row_col(row,col);
+            string str = str_server->exist(id)?str_server->id2str[id]:"";
+            if(str.front() != '\"' || str.back() != '\"'){
+                cout << "the first parameter of function regex can only be string" << endl;
+            }
+            else{
+                str = str.substr(1, str.length() - 2);
+            }
+            if(!regex_match(str, pattern)){
+                is_satisfy[row] = false;
+            }
+        }
+    }
+
+    void general_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy){
+        // conditional operator
+        if(filter.type <= 1){
+            vector<bool> is_satisfy1(result.get_row_num(),true);
+            vector<bool> is_satisfy2(result.get_row_num(),true);
+            if(filter.type == SPARQLQuery::Filter::Type::And){
+                general_filter(*filter.arg1, result, is_satisfy);
+                general_filter(*filter.arg2, result, is_satisfy);
+            }
+            else if(filter.type == SPARQLQuery::Filter::Type::Or){
+                general_filter(*filter.arg1, result, is_satisfy1);
+                general_filter(*filter.arg2, result, is_satisfy2);
+                for(int i = 0;i < is_satisfy.size();i ++){
+                    is_satisfy[i] = is_satisfy[i] && (is_satisfy1[i] || is_satisfy2[i]);
+                }
+            }
+        }
+        // relational operator
+        else if(filter.type <= 7){
+            return relational_filter(filter, result, is_satisfy);
+        }
+        else if(filter.type == SPARQLQuery::Filter::Type::Builtin_isiri){
+            return is_IRI_filter(filter, result, is_satisfy);
+        }
+        else if(filter.type == SPARQLQuery::Filter::Type::Builtin_isliteral){
+            return is_literal_filter(filter, result, is_satisfy);
+        }
+        else if(filter.type == SPARQLQuery::Filter::Type::Builtin_regex){
+            return regex_filter(filter, result, is_satisfy);
+        }
+    }
+
+    void filter(SPARQLQuery &r) {
+        // during filtering, flag of unsatified row will be set to false one by one
+        vector<bool> is_satisfy(r.result.get_row_num(),true);
+
+        for(int i = 0;i < r.pattern_group.filters.size();i ++){
+            SPARQLQuery::Filter filter = r.pattern_group.filters[i];
+            general_filter(filter, r.result, is_satisfy);
+        }
+
+        vector<sid_t> new_table;
+        for(int row = 0;row < r.result.get_row_num();row ++){
+            if(is_satisfy[row]){
+                r.result.append_row_to(row, new_table);
+            }
+        }
+        r.result.result_table.swap(new_table);
     }
 
     class Compare{
@@ -786,7 +967,7 @@ private:
     };
 
     void final_process(SPARQLQuery &r) {
-        if(r.result.result_table.size() == 0) return;
+        if(r.result.blind || r.result.result_table.size() == 0) return;
         // DISTINCT and ORDER BY
         if(r.distinct || r.orders.size() > 0){
             // initialize table
@@ -874,10 +1055,11 @@ out:            new_size = p + 1;
         SPARQLQuery::Result &result = r.result;
         r.id = coder.get_and_inc_qid();
         // if r starts from index and is from proxy, dispatch it to every engine except itself
-        if (r.step == 0 && coder.tid_of(r.pid) < global_num_proxies && r.start_from_index() && global_mt_threshold * global_num_servers > 1){
+        if (r.force_dispatch || (r.step == 0 && coder.tid_of(r.pid) < global_num_proxies && r.start_from_index() && global_mt_threshold * global_num_servers > 1)){
             int sub_reqs_size = global_num_servers * global_mt_threshold - 1;
             rmap.put_parent_request(r, sub_reqs_size);
             SPARQLQuery sub_query = r;
+            sub_query.force_dispatch = false;
             for (int i = 0; i < global_num_servers; i++) {
                 for (int j = 0; j < global_mt_threshold; j++) {
                     sub_query.id = -1;
@@ -910,6 +1092,23 @@ out:            new_size = p + 1;
             if (r.is_finished()) {
                 // result should be filtered at the end of every distributed query because FILTER could be nested in every PatternGroup
                 filter(r);
+                // union
+                if (r.is_union()) {
+                    vector<SPARQLQuery> union_reqs = generate_union_query(r);
+                    rmap.put_parent_request(r, union_reqs.size());
+                    for (int i = 0; i < union_reqs.size(); i++) {
+                        int dst_sid = mymath::hash_mod(union_reqs[i].pattern_group.patterns[0].subject, global_num_servers);
+                        if (dst_sid != sid) {
+                            Bundle bundle(union_reqs[i]);
+                            send_request(bundle, i, tid);
+                        } else {
+                            pthread_spin_lock(&recv_lock);
+                            msg_fast_path.push_back(union_reqs[i]);
+                            pthread_spin_unlock(&recv_lock);
+                        }
+                    }
+                    return;
+                }
                 // if all data has been merged and next will be sent back to proxy
                 if (coder.tid_of(r.pid) < global_num_proxies) {
                     final_process(r);

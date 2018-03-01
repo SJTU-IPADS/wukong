@@ -108,6 +108,24 @@ private:
         return DUMMY_ID;
     }
 
+    void transfer_filter(SPARQLParser::Filter &src, SPARQLQuery::Filter &dest){
+        dest.type = (SPARQLQuery::Filter::Type)src.type;
+        dest.value = src.value;
+        dest.valueArg = src.valueArg;
+        if(src.arg1 != NULL){
+            dest.arg1 = new SPARQLQuery::Filter();
+            transfer_filter(*src.arg1, *dest.arg1);
+        }
+        if(src.arg2 != NULL){
+            dest.arg2 = new SPARQLQuery::Filter();
+            transfer_filter(*src.arg2, *dest.arg2);
+        }
+        if(src.arg3 != NULL){
+            dest.arg3 = new SPARQLQuery::Filter();
+            transfer_filter(*src.arg3, *dest.arg3);
+        }
+    }
+
     void transfer_patterns(SPARQLParser::PatternGroup &src, SPARQLQuery::PatternGroup &dest) {
         // patterns
         for (auto &src_p : src.patterns) {
@@ -123,10 +141,23 @@ private:
             pattern.pred_type = str_server->id2type[encode(src_p.predicate)];
             dest.patterns.push_back(pattern);
         }
+        // filters
+        if (src.filters.size() > 0){
+            for(int i = 0; i < src.filters.size(); i++){
+                dest.filters.push_back(SPARQLQuery::Filter());
+                transfer_filter(src.filters[i], dest.filters.back());
+            }
+        }
         // unions
-        for (auto &union_group : src.unions) {
-            dest.unions.push_back(SPARQLQuery::PatternGroup());
-            transfer_patterns(union_group, dest.unions.back());
+        if (src.unions.size() > 0) {
+            int i = 0;
+            for (auto &union_group : src.unions) {
+                dest.unions.push_back(SPARQLQuery::PatternGroup());
+                transfer_patterns(union_group, dest.unions.back());
+                dest.unions[i].patterns.insert(dest.unions[i].patterns.end(), dest.patterns.begin(), dest.patterns.end());
+                i++;
+            }
+            dest.patterns.clear();
         }
         // other parts in PatternGroup
     }

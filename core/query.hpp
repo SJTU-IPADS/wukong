@@ -126,10 +126,74 @@ public:
     };
 
     class Filter {
+    public:
+        enum Type{Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,
+            GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,
+            Literal, Variable, IRI, Function, ArgumentList, Builtin_str,
+            Builtin_lang, Builtin_langmatches, Builtin_datatype, Builtin_bound,
+            Builtin_sameterm, Builtin_isiri, Builtin_isblank, Builtin_isliteral,
+            Builtin_regex, Builtin_in};
+        Type type;
+        /// Input arguments
+        Filter *arg1, *arg2, *arg3;
+        /// The value (for constants param)
+        std::string value;
+        /// variable ids
+        int valueArg;
+
+        /// Constructor
+        Filter() : arg1(0), arg2(0), arg3(0), valueArg(0) {}
+        /// Copy-Constructor
+        Filter(const Filter &other)
+            : type(other.type), arg1(0), arg2(0), arg3(0),
+              value(other.value), valueArg(other.valueArg) {
+            if (other.arg1)
+                arg1 = new Filter(*other.arg1);
+            if (other.arg2)
+                arg2 = new Filter(*other.arg2);
+            if (other.arg3)
+                arg3 = new Filter(*other.arg3);
+        }
+
+        /// Destructor
+        ~Filter() {
+            delete arg1;
+            delete arg2;
+            delete arg3;
+        }
+
+        void print(){
+            // print info
+            cout << "---------------------filter---------------------------" << endl;
+            cout << "TYPE: " << this->type << endl;
+            if(this->value != ""){
+                cout << "value: " << this->value << endl;
+            }
+            cout << "valueArg: " << this->valueArg << endl;
+
+            if(arg1 != NULL){
+                arg1->print();
+            }
+            if(arg2 != NULL){
+                arg2->print();
+            }
+            if(arg3 != NULL){
+                arg3->print();
+            }
+            cout << "------------------------------------------------------" << endl;
+        }
+
     private:
         friend class boost::serialization::access;
         template <typename Archive>
-        void serialize(Archive &ar, const unsigned int version) {}
+        void serialize(Archive &ar, const unsigned int version) {
+            ar & type;
+            ar & arg1;
+            ar & arg2;
+            ar & arg3;
+            ar & value;
+            ar & valueArg;
+        }
     };
 
     class PatternGroup {
@@ -263,7 +327,65 @@ public:
                 updated_result_table.push_back(get_attr_row_col(r, c));
         }
 
+        // insert a blank col to result table without updating col_num and v2c_map
+        void insert_blank_col(int col) {
+            vector<sid_t> new_table;
+            for (int i = 0; i < this->get_row_num(); i++) {
+                new_table.insert(new_table.end(),
+                this->result_table.begin() + (i * this->col_num),
+                this->result_table.begin() + (i * this->col_num + col));
+                new_table.push_back(BLANK_ID);
+                new_table.insert(new_table.end(),
+                this->result_table.begin() + (i * this->col_num + col),
+                this->result_table.begin() + ((i + 1) * this->col_num));
+            }
+            this->result_table.swap(new_table);
+        }
+
+        void merge_result(SPARQLQuery::Result &result) {
+            this->nvars = result.nvars;
+            this->v2c_map.resize(this->nvars, NO_RESULT);
+            this->blind = result.blind;
+            this->row_num += result.row_num;
+            this->attr_col_num = result.attr_col_num;
+            vector<int> col_map(this->nvars, -1);  // idx: my_col, value: your_col
+
+            for (int i = 0; i < result.v2c_map.size(); i++) {
+                ssid_t vid = -1 - i;
+                if (this->v2c_map[i] == NO_RESULT && result.v2c_map[i] != NO_RESULT) {
+                    this->insert_blank_col(this->col_num);
+                    this->add_var2col(vid, this->col_num);
+                    col_map[this->col_num] = result.var2col(vid);
+                    this->col_num++;
+                } else if (this->v2c_map[i] != NO_RESULT && result.v2c_map[i] == NO_RESULT) {
+                    col_map[this->var2col(vid)] = -1;
+                } else if (this->v2c_map[i] != NO_RESULT && result.v2c_map[i] != NO_RESULT){
+                    col_map[this->var2col(vid)] = result.var2col(vid);
+                }
+            }
+
+            int new_size = this->col_num * this->row_num;
+            this->result_table.reserve(new_size);
+            for (int i = 0; i < result.row_num; i++) {
+                for (int j = 0; j < this->col_num; j++) {
+                    if (col_map[j] == -1) {
+                        this->result_table.push_back(BLANK_ID);
+                    } else {
+                        this->result_table.push_back(result.result_table[i * result.col_num + col_map[j]]);
+                    }
+                }
+            }
+            new_size = this->attr_res_table.size() + result.attr_res_table.size();
+            this->attr_res_table.reserve(new_size);
+            this->attr_res_table.insert(this->attr_res_table.end(), result.attr_res_table.begin(), result.attr_res_table.end());
+        }
+
         void append_result(SPARQLQuery::Result &result) {
+            this->col_num = result.col_num;
+            this->blind = result.blind;
+            this->row_num += result.row_num;
+            this->attr_col_num = result.attr_col_num;
+            this->v2c_map = result.v2c_map;
             int new_size = this->result_table.size() + result.result_table.size();
             this->result_table.reserve(new_size);
             this->result_table.insert(this->result_table.end(), result.result_table.begin(), result.result_table.end());
@@ -309,6 +431,8 @@ public:
 
     ssid_t local_var = 0;   // the local variable
 
+    bool force_dispatch = false;
+
     // ID-format triple patterns (Subject, Predicat, Direction, Object)
     PatternGroup pattern_group;
     vector<Order> orders;
@@ -346,6 +470,8 @@ public:
             result.clear_data(); // avoid take back all the results
     }
 
+    bool is_union() { return pattern_group.unions.size() > 0; }
+
     bool is_finished() { return (step >= pattern_group.patterns.size()); } // FIXME: it's trick
 
     bool is_request() { return (id == -1); } // FIXME: it's trick
@@ -364,7 +490,8 @@ public:
          * ?X P0 ?Y .             // then from ?X's edge with P0
          *
          */
-        if (is_tpid(pattern_group.patterns[0].subject)) {
+        if (pattern_group.patterns.size() == 0) return false;
+        else if (is_tpid(pattern_group.patterns[0].subject)) {
             assert(pattern_group.patterns[0].predicate == PREDICATE_ID
                    || pattern_group.patterns[0].predicate == TYPE_ID);
             return true;
@@ -455,6 +582,7 @@ void save(Archive & ar, const SPARQLQuery & t, unsigned int version) {
     ar << t.corun_step;
     ar << t.fetch_step;
     ar << t.local_var;
+    ar << t.force_dispatch;
     ar << t.pattern_group;
     if (t.orders.size() > 0) {
         ar << occupied;
@@ -478,6 +606,7 @@ void load(Archive & ar, SPARQLQuery & t, unsigned int version) {
     ar >> t.corun_step;
     ar >> t.fetch_step;
     ar >> t.local_var;
+    ar >> t.force_dispatch;
     ar >> t.pattern_group;
     ar >> temp;
     if (temp == occupied) {
