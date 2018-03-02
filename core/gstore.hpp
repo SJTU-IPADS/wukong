@@ -437,7 +437,6 @@ done:
         for (auto const &e : set)
             edges[off++].val = e;
     }
-
 #endif
 
     RDMA_Cache rdma_cache;
@@ -894,7 +893,6 @@ public:
         insert_index_set(t_set, TYPE_ID, OUT);
         insert_index_set(p_set, PREDICATE_ID, OUT);
 
-
         tbb_unordered_set().swap(v_set);
         tbb_unordered_set().swap(t_set);
         tbb_unordered_set().swap(p_set);
@@ -1075,6 +1073,7 @@ public:
          }
       }
 
+#ifdef VERSATILE
     void outdir_idx_vercheck(ikey_t key, bool check) {
         if (!check)
             return;
@@ -1245,6 +1244,7 @@ public:
                  << " there is no value " << key.vid << endl; 
         }
     }
+#endif
 
     void check_on_vertex(ikey_t key, bool index_check, bool normal_check) {
         if (key.vid == 0 && is_tpid(key.pid) && key.dir == IN) {
@@ -1269,18 +1269,15 @@ public:
             np_to_pidx(key, IN,normal_check); //(6)[OUT]-->(1)  no versatile need
         else if (is_vid(key.vid) && is_tpid(key.pid) && key.dir == IN)
             np_to_pidx(key, OUT, normal_check); //(6)[IN]-->(1) no versatile need
-        //else 
-            //cout<<" Error key : [ " << key.vid << " | " << key.pid << " | " << key.dir << " ]" << endl; 
       }
 
     int gstore_check(bool index_check, bool normal_check) {
         cout << "Graph storage intergity check has started on server " << sid << endl;
         ivertex_num = 0;
         nvertex_num = 0;
-        uint64_t slot_id;
-        for (uint64_t bucket_id = 0; bucket_id < num_slots/ASSOCIATIVITY; bucket_id++) {
-            slot_id = bucket_id * ASSOCIATIVITY;
-            for (int i = 0; i < ASSOCIATIVITY - 1 && slot_id < num_slots; i++, slot_id++) {
+        for (uint64_t bucket_id = 0; bucket_id < num_buckets + num_buckets_ext; bucket_id++) {
+            uint64_t slot_id = bucket_id * ASSOCIATIVITY;
+            for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
                 if (!vertices[slot_id].key.is_empty()) {
                     check_on_vertex(vertices[slot_id].key, index_check, normal_check);
                 }
