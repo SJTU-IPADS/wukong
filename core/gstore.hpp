@@ -52,6 +52,8 @@ enum { PREDICATE_ID = 0, TYPE_ID = 1 };
 
 static inline bool is_tpid(ssid_t id) { return (id > 1) && (id < (1 << NBITS_IDX)); }
 
+static inline bool is_vid(ssid_t id) { return id >= (1 << NBITS_IDX); }
+
 /**
  * predicate-base key/value store
  * key: vid | t/pid | direction
@@ -435,6 +437,7 @@ done:
         for (auto const &e : set)
             edges[off++].val = e;
     }
+
 #endif
 
     RDMA_Cache rdma_cache;
@@ -891,6 +894,7 @@ public:
         insert_index_set(t_set, TYPE_ID, OUT);
         insert_index_set(p_set, PREDICATE_ID, OUT);
 
+
         tbb_unordered_set().swap(v_set);
         tbb_unordered_set().swap(t_set);
         tbb_unordered_set().swap(p_set);
@@ -1000,7 +1004,7 @@ public:
                 }
              }
              if (tsz != 0 && !found) {  //(1)[IN]
-                if (get_vertex_local(0,ikey_t(vres[i].val, key.pid, OUT)).key.is_empty()) {
+                if (get_vertex_local(0, ikey_t(vres[i].val, key.pid, OUT)).key.is_empty()) {
                     cout << "Error: if " << key.pid << " is type id, then there is no type "
                          << key.pid << "in normal key/value pair [" <<key.vid << " | TYPE_ID | OUT] 's value part" << endl;
                     cout << "And if " << key.pid << " is predicate id, then there is no key called "
@@ -1069,23 +1073,204 @@ public:
              cout << "Error: " << "In the value part of predicate index [ 0 | " << key.pid 
                   << " | " << dir << " ]" << " there is no value " << key.vid << endl;
          }
-      } 
+      }
+
+    void outdir_idx_vercheck(ikey_t key, bool check) {
+        if (!check)
+            return;
+         uint64_t vsz = 0;
+         edge_t *vres = get_edges_local(0, 0, OUT, TYPE_ID, &vsz); //(1)[IN]/(2)
+         bool found = false;
+         for (int i = 0; i < vsz; i++) {
+            if (vres[i].val == key.pid && !found)
+                found = true;
+            else if (vres[i].val == key.pid && found) {
+                cout << "Error: " << "In the value part of all local types [ 0 | TYPE_ID | OUT ]"
+                     << " there is duplicate value " << key.pid << endl; 
+            }      
+         }
+         if(!found) {
+            uint64_t psz = 0;
+            edge_t *pres = get_edges_local(0, 0, OUT, PREDICATE_ID, &psz);
+            bool found = false;
+            for (int i = 0; i < psz; i++) {
+                if (pres[i].val == key.pid && !found)
+                    found = true;
+                else if (pres[i].val == key.pid && found) {
+                    cout << "Error: " << "In the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
+                         << " there is duplicate value " << key.pid << endl; 
+                    break;
+                }
+            } 
+            if (!found) {  
+                cout << "Error: " << "if " <<key.pid << "is predicate, in the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
+                     << " there is no value " << key.pid << endl;
+                cout << "Error: " << "if " << key.pid <<" is type, in the value part of all local types [ 0 | TYPE_ID | OUT ]"
+                     << " there is no value " << key.pid << endl;  
+            }
+            uint64_t vsz = 0;
+            edge_t *vres = get_edges_local(0, 0, IN, key.pid, &vsz);
+            if (vsz == 0) {
+                cout << "Error: " << "if " << key.pid <<" is type, in the value part of all local types [ 0 | TYPE_ID | OUT ]"
+                     << " there is no value " << key.pid << endl;  
+                return;
+            }
+            for (int i = 0; i < vsz; i++) {
+                found = false;
+                uint64_t sosz = 0;
+                edge_t *sores = get_edges_local(0, 0, IN, TYPE_ID, &sosz);
+                for (int j = 0; j < sosz; j++) {
+                    if (sores[j].val == vres[i].val && !found)
+                        found = true;
+                    else if (sores[j].val == vres[i].val && found) {
+                        cout << "Error: " << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
+                            << " there is duplicate value " << vres[i].val << endl; 
+                        break;
+                    }
+                }
+                if(!found) {
+                    cout << "Error: " << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
+                         << " there is no value " << vres[i].val << endl;
+                }
+                found = false;
+                uint64_t p2sz = 0;
+                edge_t *p2res = get_edges_local(0, vres[i].val, OUT, PREDICATE_ID, &p2sz);
+                for (int j = 0; j < p2sz; j++) {
+                    if (p2res[j].val == key.pid && !found)
+                        found = true;
+                    else if (p2res[j].val == key.pid && found) {
+                        cout << "Error: " << "In the value part of " << vres[i].val << "'s all predicates [ "
+                             << vres[i].val << " | PREDICATE_ID | OUT ], there is duplicate value " << key.pid << endl; 
+                        break;
+                    }
+                }
+                if (!found) {
+                    cout << "Error: " << "In the value part of " << vres[i].val << "'s all predicates [ "
+                         << vres[i].val << " | PREDICATE_ID | OUT ], there is no value " << key.pid << endl; 
+                }
+            }
+         }
+    }
+
+    void indir_pidx_vercheck(ikey_t key, bool check) {
+        if (!check)
+            return;
+        uint64_t psz = 0;
+        edge_t *pres = get_edges_local(0, 0, OUT, PREDICATE_ID, &psz);
+        bool found = false;
+        for (int i = 0; i < psz; i++) {
+            if (pres[i].val == key.pid && !found)
+                found = true;
+            else if (pres[i].val == key.pid && found) {
+                cout << "Error: " << "In the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
+                     << " there is duplicate value " << key.pid << endl; 
+                break;
+            }
+        } 
+        if (!found) {  
+            cout << "Error: " << "In the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
+                 << " there is no value " << key.pid << endl;
+        }
+        uint64_t vsz = 0;
+        edge_t *vres = get_edges_local(0, 0, OUT, key.pid, &vsz);
+        for (int i = 0; i < vsz; i++) {
+            found = false;
+            uint64_t sosz = 0;
+            edge_t *sores = get_edges_local(0, 0, IN, TYPE_ID, &sosz);
+            for (int j = 0; j < sosz; j++) {
+                if (sores[j].val == vres[i].val && !found)
+                    found = true;
+                else if (sores[j].val == vres[i].val && found) {
+                    cout << "Error: " << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
+                         << " there is duplicate value " << vres[i].val << endl; 
+                    break;
+                }
+            }
+            if(!found) {
+                cout << "Error: " << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
+                 << " there is no value " << vres[i].val << endl;
+            }
+            found = false;
+            uint64_t psz = 0;
+            edge_t *pres = get_edges_local(0, vres[i].val, IN, PREDICATE_ID, &psz);
+            for (int j = 0; j < psz; j++) {
+                if (pres[j].val == key.pid && !found)
+                    found = true;
+                else if (pres[j].val == key.pid && found) {
+                    cout << "Error: " << "In the value part of " << vres[i].val << "'s all predicates [ "
+                         << vres[i].val << "PREDICATE_ID | IN ], there is duplicate value " << key.pid << endl; 
+                    break;
+                }
+            }
+            if (!found) {
+                cout << "Error: " << "In the value part of " << vres[i].val << "'s all predicates [ "
+                    << vres[i].val << "PREDICATE_ID | IN ], there is no value " << key.pid << endl; 
+            }
+        }
+    }
+
+    void nt_vercheck(ikey_t key, bool check) {
+        if (!check)
+            return;
+        bool found = false;
+        uint64_t psz = 0;
+        edge_t *pres = get_edges_local(0, key.vid, OUT, PREDICATE_ID, &psz);
+        for (int i = 0; i < psz; i++) {
+            if (pres[i].val == key.pid && !found) 
+                found = true;
+            else if (pres[i].val == key.pid && found) {
+                cout << "Error: " << "In the value part of " << key.vid << "'s all predicates [ "
+                     << key.vid << "PREDICATE_ID | OUT ], there is duplicate value " << key.pid << endl; 
+                break;
+            }
+        }
+        if (!found) {
+            cout << "Error: " << "In the value part of " << key.vid << "'s all predicates [ "
+                     << key.vid << "PREDICATE_ID | OUT ], there is no value " << key.pid << endl; 
+        }
+        found = false;
+        uint64_t ossz = 0;
+        edge_t *osres = get_edges_local(0, 0, IN, key.pid, &ossz);
+        for (int i = 0; i < ossz; i++) {
+            if (osres[i].val == key.vid && !found) 
+                found = true;
+            else if (osres[i].val == key.vid && found) {
+                cout << "Error: " << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
+                     << " there is duplicate value " << key.vid << endl; 
+                break;
+            }
+        }
+        if (!found) {
+            cout << "Error: " << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
+                 << " there is no value " << key.vid << endl; 
+        }
+    }
 
     void check_on_vertex(ikey_t key, bool index_check, bool normal_check) {
-        if (key.vid == 0 && is_tpid(key.pid) && key.dir == IN)
-            outdir_idx_to_normal(key, index_check);         //(2)/(1)(OUT) -->(7)/(6)
-        else if (key.vid == 0 && is_tpid(key.pid) && key.dir == OUT)
-            indir_pidx_to_np(key, index_check); //(1)[IN]-->(6)
-        else if (!is_tpid(key.vid) && key.pid == TYPE_ID && key.dir == OUT)
+        if (key.vid == 0 && is_tpid(key.pid) && key.dir == IN) {
+            outdir_idx_to_normal(key, index_check);         //(2)/(1)[IN] -->(7)/(6)
+        #ifdef VERSATILE
+            outdir_idx_vercheck(key, index_check);    //
+        #endif
+        }
+        else if (key.vid == 0 && is_tpid(key.pid) && key.dir == OUT) {
+            indir_pidx_to_np(key, index_check); //(1)[OUT]-->(6)
+        #ifdef VERSTAILE
+            indir_pidx_vercheck(key, index_check); //
+        #endif
+        }
+        else if (is_vid(key.vid) && key.pid == TYPE_ID && key.dir == OUT) {
             nt_to_tidx(key, normal_check);        //(7)-->(2)
-        else if (!is_tpid(key.vid) && is_tpid(key.pid) && key.dir == OUT) 
-            np_to_pidx(key, IN,normal_check); //(6)[OUT]-->(1)
-        else if (!is_tpid(key.vid) && is_tpid(key.pid) && key.dir == IN)
-            np_to_pidx(key, OUT, normal_check); //(6)[IN]-->(1)
-    #ifdef VERSATILE
-    #endif     
-        else 
-            cout<<" Error key : [ " << key.vid << " | " << key.pid << " | " << key.dir << " ]" << endl; 
+        #ifdef VERSTAILE
+            nt_vercheck(key, index_check); // 
+        #endif
+        }
+        else if (is_vid(key.vid) && is_tpid(key.pid) && key.dir == OUT) 
+            np_to_pidx(key, IN,normal_check); //(6)[OUT]-->(1)  no versatile need
+        else if (is_vid(key.vid) && is_tpid(key.pid) && key.dir == IN)
+            np_to_pidx(key, OUT, normal_check); //(6)[IN]-->(1) no versatile need
+        //else 
+            //cout<<" Error key : [ " << key.vid << " | " << key.pid << " | " << key.dir << " ]" << endl; 
       }
 
     int gstore_check(bool index_check, bool normal_check) {
