@@ -910,7 +910,8 @@ public:
             if (insert_vertex_edge(key, triple.o, dedup_or_isdup)) { // <1> vid's type (7) [need dedup]
 #ifdef VERSATILE
                 key = ikey_t(triple.s, PREDICATE_ID, OUT);
-                if (insert_vertex_edge(key, triple.p, nodup)) { // <2> vid's predicate, value is TYPE_ID (*8) [dedup from <1>]
+                ikey_t buddy_key = ikey_t(triple.s, PREDICATE_ID, IN);
+                if (insert_vertex_edge(key, triple.p, nodup) && !check_key_exist(buddy_key)) { // <2> vid's predicate, value is TYPE_ID (*8) [dedup from <1>]
                     key = ikey_t(0, TYPE_ID, IN);
                     insert_vertex_edge(key, triple.s, nodup); // <3> the index to vid (*3) [dedup from <2>]
                 }
