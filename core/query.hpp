@@ -252,7 +252,7 @@ public:
         int attr_col_num = 0;
         bool blind = false;
         int nvars = 0; // the number of variables
-        vector<int> v2c_map; // from variable ID (vid) to column ID
+        vector<int> v2c_map; // from variable ID (vid) to column ID, index: vid, value: col
         vector<ssid_t> required_vars; // variables selected to return
         vector<sid_t> result_table; // result table for string IDs
         vector<attr_t> attr_res_table; // result table for others
@@ -342,7 +342,61 @@ public:
             this->result_table.swap(new_table);
         }
 
-        void merge_result(SPARQLQuery::Result &result) {
+        void merge_optional(SPARQLQuery::Result &result) {
+            vector<int> col_map(this->nvars, -1);  // idx: my_col, value: your_col
+            vector<int> common_cols;    // value: the #col of my vids that you also have
+            vector<int> new_cols;   // value: my #col of new vids
+            int old_col_num = this->col_num;
+            for (int i = 0; i < result.v2c_map.size(); i++) {
+                ssid_t vid = -1 - i;
+                if (this->v2c_map[i] != NO_RESULT && result.v2c_map[i] != NO_RESULT) {
+                    col_map[this->var2col(vid)] = result.var2col(vid);
+                    common_cols.push_back(this->var2col(vid));
+                } else if (this->v2c_map[i] == NO_RESULT && result.v2c_map[i] != NO_RESULT) {
+                    this->add_var2col(vid, this->col_num);
+                    col_map[this->col_num] = result.var2col(vid);
+                    new_cols.push_back(this->col_num);
+                    this->col_num++;
+                }
+            }
+
+            vector<sid_t> new_table;
+            for(int i = 0; i < this->row_num; i++) {
+                bool printed = false;
+                for (int j = 0; j < result.row_num; j++) {
+                    // check if common_cols match
+                    bool same_common = true;
+                    for (auto common_col : common_cols) {
+                        if (result.result_table[j * result.col_num + col_map[common_col]]
+                            != this->result_table[i * old_col_num + common_col]) {
+                                same_common = false;
+                                break;
+                        }
+                    }
+                    if (same_common) {
+                        printed = true;
+                        new_table.insert(new_table.end(),
+                        this->result_table.begin() + (i * old_col_num),
+                        this->result_table.begin() + ((i + 1) * old_col_num));
+                        for (auto new_col : new_cols) {
+                            new_table.push_back(result.result_table[j * result.col_num + col_map[new_col]]);
+                        }
+                    }
+                }
+                if (!printed) {
+                    new_table.insert(new_table.end(),
+                    this->result_table.begin() + (i * old_col_num),
+                    this->result_table.begin() + ((i + 1) * old_col_num));
+                    for (auto new_col : new_cols) {
+                        new_table.push_back(BLANK_ID);
+                    }
+                }
+            }
+            this->result_table.swap(new_table);
+            this->row_num = this->get_row_num();
+        }
+
+        void merge_union(SPARQLQuery::Result &result) {
             this->nvars = result.nvars;
             this->v2c_map.resize(this->nvars, NO_RESULT);
             this->blind = result.blind;
@@ -428,6 +482,7 @@ public:
     int limit = -1;
     unsigned offset = 0;
     bool distinct = false;
+    bool optional_dispatched = true;
 
     ssid_t local_var = 0;   // the local variable
 
@@ -471,6 +526,8 @@ public:
     }
 
     bool is_union() { return pattern_group.unions.size() > 0; }
+
+    bool is_optional() { return pattern_group.optional.size() > 0; }
 
     bool is_finished() { return (step >= pattern_group.patterns.size()); } // FIXME: it's trick
 
@@ -578,6 +635,7 @@ void save(Archive & ar, const SPARQLQuery & t, unsigned int version) {
     ar << t.limit;
     ar << t.offset;
     ar << t.distinct;
+    ar << t.optional_dispatched;
     ar << t.step;
     ar << t.corun_step;
     ar << t.fetch_step;
@@ -602,6 +660,7 @@ void load(Archive & ar, SPARQLQuery & t, unsigned int version) {
     ar >> t.limit;
     ar >> t.offset;
     ar >> t.distinct;
+    ar >> t.optional_dispatched;
     ar >> t.step;
     ar >> t.corun_step;
     ar >> t.fetch_step;
