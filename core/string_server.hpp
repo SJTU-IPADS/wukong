@@ -44,11 +44,17 @@ class String_Server {
 public:
     boost::unordered_map<string, sid_t> str2id;
     boost::unordered_map<sid_t, string> id2str;
+    boost::unordered_map<sid_t, sid_t> id2id;
 
     // data type of predicate/attributed: sid=0, integer=1, float=2, double=3
     boost::unordered_map<sid_t, int32_t> id2type;
 
+    uint64_t next_index_id;
+    uint64_t next_normal_id;
+
     String_Server(string dname) {
+        next_index_id = 0;
+        next_normal_id = 0;
         if (boost::starts_with(dname, "hdfs:")) {
             if (!wukong::hdfs::has_hadoop()) {
                 cout << "ERORR: attempting to load ID-mapping files from HDFS "
@@ -62,6 +68,67 @@ public:
 
         cout << "loading String Server is finished." << endl;
     }
+
+    void dynamic_load_from_posixfs(string dname) {
+        DIR *dir = opendir(dname.c_str());
+        if (dir == NULL) {
+            cout << "ERROR: failed to open the directory of ID-mapping files ("
+                 << dname << ")." << endl;
+            exit(-1);
+        }
+        struct dirent *ent;
+        while ((ent = readdir(dir)) != NULL) {
+            if (ent->d_name[0] == '.')
+                continue;
+            string fname(dname + ent->d_name);
+            if (boost::ends_with(fname, "/str_index")) {
+                cout << "loading ID-mapping file: " << fname << endl;
+                ifstream file(fname.c_str());
+                string str;
+                sid_t id;
+                while (file >> str >> id) {
+                    if (exist(str)) {
+                        id2id[id] = str2id[str];
+                    } else {
+                        id2id[id] = next_index_id;
+                        str2id[str] = next_index_id;
+                        id2str[next_index_id] = str;
+                        next_index_id ++;
+                    }
+                }
+                file.close();
+            }
+            if (boost::ends_with(fname, "/str_normal")) {
+                if(global_load_minimal_index) {
+                    cout << "Error: ID converting is forbidden when global_load_minimal_index is on." << endl;
+                    exit(-1);
+                }
+                cout << "loading ID-mapping file: " << fname << endl;
+                ifstream file(fname.c_str());
+                string str;
+                sid_t id;
+                while (file >> str >> id) {
+                    if (exist(str)) {
+                        id2id[id] = str2id[str];
+                    } else {
+                        id2id[id] = next_normal_id;
+                        str2id[str] = next_normal_id;
+                        id2str[next_normal_id] = str;
+                        next_normal_id ++;
+                    }
+                }
+                file.close();
+            }
+        }
+    }
+
+    void convert(sid_t& sid) {
+        if(id2id.find(sid) != id2id.end()) {
+            sid = id2id[sid];
+        }
+    }
+
+    void flush_convertmap() { id2id.clear(); }
 
     bool exist(sid_t sid) { return id2str.find(sid) != id2str.end(); }
 
@@ -83,8 +150,21 @@ private:
                 continue;
 
             string fname(dname + ent->d_name);
-            if ((boost::ends_with(fname, "/str_index"))
-                    || (boost::ends_with(fname, "/str_normal") && !global_load_minimal_index)
+            if (boost::ends_with(fname, "/str_index")) {
+                cout << "loading ID-mapping file: " << fname << endl;
+                ifstream file(fname.c_str());
+                string str;
+                sid_t id;
+                while (file >> str >> id) {
+                    str2id[str] = id;
+                    id2str[id] = str;
+                    id2type[id] = SID_t;
+                }
+                next_index_id = ++id;
+                file.close();
+            }
+
+            if ((boost::ends_with(fname, "/str_normal") && !global_load_minimal_index)
                     || (boost::ends_with(fname, "/str_normal_minimal") && global_load_minimal_index)) {
                 cout << "loading ID-mapping file: " << fname << endl;
                 ifstream file(fname.c_str());
@@ -93,9 +173,8 @@ private:
                 while (file >> str >> id) {
                     str2id[str] = id;
                     id2str[id] = str;
-                    if (boost::ends_with(fname, "/str_index"))
-                        id2type[id] = SID_t;
                 }
+                next_normal_id = ++id;
                 file.close();
             }
 

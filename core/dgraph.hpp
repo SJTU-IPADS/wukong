@@ -548,6 +548,12 @@ public:
 
 
 #if DYNAMIC_GSTORE
+	void convert_sid(sid_t& id) {
+		if (!global_load_minimal_index) { // complete string server
+			str_server->convert(id);
+		}
+	}
+
 	bool check_sid(const sid_t id) {
 		if (!global_load_minimal_index) { // complete string server
 			if (!str_server->exist(id)) {
@@ -559,6 +565,8 @@ public:
 	}
 
 	int64_t dynamic_load_data(string dname, bool check_dup) {
+		str_server->dynamic_load_from_posixfs(dname);
+
 		vector<string> dfiles(list_files(dname, "id_"));   // ID-format data files
 		vector<string> afiles(list_files(dname, "attr_")); // ID-format attribute files
 
@@ -583,6 +591,7 @@ public:
 			ifstream file(dfiles[i]);
 			sid_t s, p, o;
 			while (file >> s >> p >> o) {
+				convert_sid(s); convert_sid(p); convert_sid(o);
 				/// FIXME: just check and print warning
 				check_sid(s); check_sid(p); check_sid(o);
 
@@ -601,6 +610,8 @@ public:
 			cout << "[INFO] load " << cnt << " triples from file " << dfiles[i]
 			     << " at server " << sid << endl;
 		}
+
+		str_server->flush_convertmap();
 
 		sort(afiles.begin(), afiles.end());
 		int num_afiles = afiles.size();
