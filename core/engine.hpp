@@ -989,14 +989,30 @@ private:
         vector<SPARQLQuery> optional_reqs = generate_optional_query(r);
         rmap.put_parent_request(r, optional_reqs.size());
         for (int i = 0; i < optional_reqs.size(); i++) {
-            int dst_sid = mymath::hash_mod(optional_reqs[i].pattern_group.patterns[0].subject, global_num_servers);
-            if (dst_sid != sid) {
-                Bundle bundle(optional_reqs[i]);
-                send_request(bundle, i, tid);
+            if (need_fork_join(optional_reqs[i])) {
+                optional_reqs[i].id = coder.get_and_inc_qid();
+                vector<SPARQLQuery> sub_reqs = generate_sub_query(optional_reqs[i]);
+                rmap.put_parent_request(optional_reqs[i], sub_reqs.size());
+                for (int j = 0; j < sub_reqs.size(); j++) {
+                    if (j != sid) {
+                        Bundle bundle(sub_reqs[j]);
+                        send_request(bundle, j, tid);
+                    } else {
+                        pthread_spin_lock(&recv_lock);
+                        msg_fast_path.push_back(sub_reqs[j]);
+                        pthread_spin_unlock(&recv_lock);
+                    }
+                }
             } else {
-                pthread_spin_lock(&recv_lock);
-                msg_fast_path.push_back(optional_reqs[i]);
-                pthread_spin_unlock(&recv_lock);
+                int dst_sid = mymath::hash_mod(optional_reqs[i].pattern_group.patterns[0].subject, global_num_servers);
+                if (dst_sid != sid) {
+                    Bundle bundle(optional_reqs[i]);
+                    send_request(bundle, i, tid);
+                } else {
+                    pthread_spin_lock(&recv_lock);
+                    msg_fast_path.push_back(optional_reqs[i]);
+                    pthread_spin_unlock(&recv_lock);
+                }
             }
         }
     }
