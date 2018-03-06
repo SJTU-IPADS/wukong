@@ -413,7 +413,8 @@ done:
             dedup_or_isdup = false;
             return true;
         } else {
-            if(dedup_or_isdup && is_dup(v, value)) {
+
+            if (dedup_or_isdup && is_dup(v, value)) {
                  pthread_spin_unlock(&bucket_locks[lock_id]);
                  return false;
             }
