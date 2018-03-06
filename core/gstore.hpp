@@ -180,15 +180,11 @@ private:
                     ret = items[idx].v;
                     found = true;
                 }
-                else
-                    cout << "[cache expires] now " << timer::get_usec() << " ex_time " << items[idx].expire_time << endl;
 #else
                 ret = items[idx].v;
                 found = true;
 #endif
             }
-            else
-                cout << "[cache miss]\n";
             pthread_spin_unlock(&(items[idx].lock));
             return found;
         }
@@ -334,8 +330,6 @@ done:
     
     inline bool edge_is_valid(vertex_t &v, edge_t *edge_ptr) {
         uint64_t blk_sz = blksz(v.ptr.size + 1);  // reserve one space for sz
-        if(edge_ptr[blk_sz - 1].val != v.ptr.size)
-            printf("[Invalid size flag] edge: %d v.ptr: %d\n",edge_ptr[blk_sz - 1].val, v.ptr.size);
         return (edge_ptr[blk_sz - 1].val == v.ptr.size);   //check if sz is consistant
             
     }
@@ -344,30 +338,24 @@ done:
         insert_sz(INVALID, ptr.size, ptr.off);
         uint64_t expire_time = timer::get_usec() + *(mem->cache_term());
         free_blk blk(ptr.off, expire_time);
-        cout << "[add pending free] off " << blk.off << " ex_time " << blk.expire_time << endl;
         
         pthread_spin_lock(&free_queue_lock);
         free_queue.push(blk);
-        
         pthread_spin_unlock(&free_queue_lock);
     }
 
     inline void sweep_free() {
         pthread_spin_lock(&free_queue_lock);
-        
         while (!free_queue.empty()) {
             free_blk blk = free_queue.front();
             if(timer::get_usec() < blk.expire_time) 
                 break;
-            cout <<"[sweep free] off " << blk.off << " now " << timer::get_usec() << " ex_time " << blk.expire_time << endl;
             edge_allocator->free(e2b(blk.off));
             free_queue.pop();
         }
-        
         pthread_spin_unlock(&free_queue_lock);
     }
     
-
     uint64_t realloc_edges(uint64_t off, uint64_t n) {
         uint64_t ptr = off * sizeof(edge_t);
         uint64_t sz = n * sizeof(edge_t);
@@ -434,6 +422,7 @@ done:
             uint64_t need_size = v->ptr.size + 1;
             if (need_realloc(v->ptr.size, need_size)) {
                 iptr_t old_ptr = v->ptr;
+
                 uint64_t off = alloc_edges(need_size);
                 memcpy(&edges[off], &edges[old_ptr.off], e2b(old_ptr.size));
                 edges[off + old_ptr.size].val = value;
