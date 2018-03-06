@@ -181,12 +181,14 @@ private:
                     found = true;
                 }
                 else
-                    printf("!!cache expire\n");
+                    cout << "[cache expires] now " << timer::get_usec() << " ex_time " << items[idx].expire_time << endl;
 #else
                 ret = items[idx].v;
                 found = true;
 #endif
             }
+            else
+                cout << "[cache miss]\n";
             pthread_spin_unlock(&(items[idx].lock));
             return found;
         }
@@ -194,7 +196,6 @@ private:
         void insert(vertex_t &v) {
             if (!global_enable_caching)
                 return;
-            printf("******insert cache******\n");
             int idx = v.key.hash() % NUM_ITEMS;
             pthread_spin_lock(&items[idx].lock);
 
@@ -334,17 +335,16 @@ done:
     inline bool edge_is_valid(vertex_t &v, edge_t *edge_ptr) {
         uint64_t blk_sz = blksz(v.ptr.size + 1);  // reserve one space for sz
         if(edge_ptr[blk_sz - 1].val != v.ptr.size)
-            printf("!!! %d, invalid size flag %d v.ptr: %d\n",sid, edge_ptr[blk_sz - 1].val, v.ptr.size);
-        bool ret = (edge_ptr[blk_sz - 1].val == v.ptr.size);   //check if sz is consistant
-        if(ret)
-                printf("edge is valid %d\n", sid);
-        return ret;
+            printf("[Invalid size flag] edge: %d v.ptr: %d\n",edge_ptr[blk_sz - 1].val, v.ptr.size);
+        return (edge_ptr[blk_sz - 1].val == v.ptr.size);   //check if sz is consistant
             
     }
 
     inline void add_pending_free(iptr_t ptr) {
         insert_sz(INVALID, ptr.size, ptr.off);
-        free_blk blk(ptr.off, timer::get_usec());
+        uint64_t expire_time = timer::get_usec() + *(mem->cache_term());
+        free_blk blk(ptr.off, expire_time);
+        cout << "[add pending free] off " << blk.off << " ex_time " << blk.expire_time << endl;
         
         pthread_spin_lock(&free_queue_lock);
         free_queue.push(blk);
@@ -359,6 +359,7 @@ done:
             free_blk blk = free_queue.front();
             if(timer::get_usec() < blk.expire_time) 
                 break;
+            cout <<"[sweep free] off " << blk.off << " now " << timer::get_usec() << " ex_time " << blk.expire_time << endl;
             edge_allocator->free(e2b(blk.off));
             free_queue.pop();
         }
@@ -437,8 +438,8 @@ done:
                 memcpy(&edges[off], &edges[old_ptr.off], e2b(old_ptr.size));
                 edges[off + old_ptr.size].val = value;
                 v->ptr = iptr_t(need_size, off);
-                
-                add_pending_free(old_ptr);
+
+                add_pending_free(old_ptr); //invalidating old blk included
             } else {
                 insert_sz(need_size, need_size, v->ptr.off);
                 edges[v->ptr.off + v->ptr.size].val = value;
@@ -588,7 +589,6 @@ done:
         edge_t *edge_ptr;
 
 #if DYNAMIC_GSTORE
-        printf("----get remote edges: %d----\n", sid);
         bool valid = false;
         if (rdma_cache.lookup(key, v)) {
             edge_ptr = rdma_get_edges(tid, dst_sid, v);
