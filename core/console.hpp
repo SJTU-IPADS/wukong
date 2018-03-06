@@ -99,6 +99,10 @@ void print_help(void)
 	cout << "           -p <num>            send <num> queries in parallel" << endl;
 	cout << "    load <args>         load linked data into dynamic (in-memmory) graph-store" << endl;
 	cout << "        -d <dname>          load data from directory <dname>" << endl;
+	cout << "    gsck <args>         check the graph storage integrity" << endl;
+	cout << "        -i                  check from index key/value pair to normal key/value pair" << endl;
+	cout << "        -n                  check from normal key/value pair to index key/value pair" << endl;
+	cout << "        -a                  check all the above" << endl;
 }
 
 // the master proxy is the 1st proxy of the 1st server (i.e., sid == 0 and tid == 0)
@@ -415,6 +419,41 @@ next:
 					cout << "[ERROR] Can't load linked data into static graph-store." << endl;
 					cout << "You can enable it by building Wukong with -DUSE_DYNAMIC_GSTORE=ON." << endl;
 				}
+#endif
+			} else if (token == "gsck") {
+#ifdef VERSATILE
+				if (IS_MASTER(proxy)) {
+					cout << "[ERROR] Now wukong has not support graph storage check while VERSATILE ON" << endl;
+					cout << "This feature will be supported soon." << endl;
+				}
+#else
+				bool i_enable = false;
+				bool n_enable = false;
+
+				while (cmd_ss >> token) {
+					if (token == "-i") {
+						i_enable = true;
+					} else if (token == "-n") {
+						n_enable = true;
+					} else if (token == "-a") {
+						i_enable = true;
+						n_enable = true;
+					} else {
+						goto failed;
+					}
+				}
+
+				if (IS_MASTER(proxy)) {
+						Logger logger;
+						GStoreCheck reply;
+						int ret = proxy->gstore_check(reply, logger, i_enable, n_enable);
+						if (ret != 0) {
+							cout << "[ERORR] Some error found in gstore "
+							     << " (ERRNO: " << ret << ")!" << endl;
+							continue;
+						}
+						logger.print_latency();
+					}
 #endif
 			} else {
 failed:

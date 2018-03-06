@@ -91,10 +91,6 @@ private:
                 string str;
                 sid_t id;
                 while (file >> str >> id) {
-                    // both string and ID are unique
-                    assert(!exist(str));
-                    assert(!exist(id));
-
                     str2id[str] = id;
                     id2str[id] = str;
                     if (boost::ends_with(fname, "/str_index"))
@@ -112,10 +108,6 @@ private:
                 sid_t id;
                 int32_t type;
                 while (file >> str >> id >> type) {
-                    // both string and ID are unique
-                    assert(!exist(str));
-                    assert(!exist(id));
-
                     str2id[str] = id;
                     id2str[id] = str;
                     id2type[id] = type;
@@ -145,10 +137,6 @@ private:
                 string str;
                 sid_t id;
                 while (file >> str >> id) {
-                    // both string and ID are unique
-                    assert(!exist(str));
-                    assert(!exist(id));
-
                     str2id[str] = id;
                     id2str[id] = str;
                     if (boost::ends_with(fname, "/str_index"))
@@ -166,10 +154,6 @@ private:
                 sid_t id;
                 int32_t type;
                 while (file >> str >> id >> type) {
-                    // both string and ID are unique
-                    assert(!exist(str));
-                    assert(!exist(id));
-
                     str2id[str] = id;
                     id2str[id] = str;
                     id2type[id] = type;

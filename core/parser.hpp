@@ -76,26 +76,19 @@ private:
     // str2ID mapping for pattern constants (e.g., <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> 1)
     String_Server *str_server;
 
-    //_H_ means helper
-    boost::unordered_map<unsigned, ssid_t> _H_incVarIdMap;
-    ssid_t varId = -1;
-
-    ssid_t _H_inc_var_id(unsigned ori_id) {
-        if (_H_incVarIdMap.find(ori_id) == _H_incVarIdMap.end()) {
-            _H_incVarIdMap[ori_id] = varId;
-            return varId--;
-        } else {
-            return _H_incVarIdMap[ori_id];
-        }
-    }
-
-    ssid_t _H_encode(const SPARQLParser::Element& element) {//const
+    ssid_t encode(const SPARQLParser::Element& element) {//const
         switch (element.type) {
         case SPARQLParser::Element::Variable:
             return element.id;
         case SPARQLParser::Element::Literal:
-            cout << "Not Support Literal" << endl;
-            return DUMMY_ID;
+        {
+            string str = "\"" + element.value + "\"";
+            if (!str_server->exist(str)) {
+                cout << "Unknown Literal: " + str << endl;
+                return DUMMY_ID;
+            }
+            return str_server->str2id[str];
+        }
         case SPARQLParser::Element::IRI:
         {
             string strIRI = "<" + element.value + ">" ;
@@ -115,33 +108,88 @@ private:
         return DUMMY_ID;
     }
 
-    void _H_simplist_transfer(const SPARQLParser &parser, SPARQLQuery &r) {
-        vector<ssid_t> temp_cmd_chains ;
-        vector<int> temp_pred_type_chains;
-        SPARQLParser::PatternGroup group = parser.getPatterns();
-        for (std::vector<SPARQLParser::Pattern>::const_iterator iter = group.patterns.begin(),
-                limit = group.patterns.end(); iter != limit; ++iter) {
+    void transfer_filter(SPARQLParser::Filter &src, SPARQLQuery::Filter &dest){
+        dest.type = (SPARQLQuery::Filter::Type)src.type;
+        dest.value = src.value;
+        dest.valueArg = src.valueArg;
+        if(src.arg1 != NULL){
+            dest.arg1 = new SPARQLQuery::Filter();
+            transfer_filter(*src.arg1, *dest.arg1);
+        }
+        if(src.arg2 != NULL){
+            dest.arg2 = new SPARQLQuery::Filter();
+            transfer_filter(*src.arg2, *dest.arg2);
+        }
+        if(src.arg3 != NULL){
+            dest.arg3 = new SPARQLQuery::Filter();
+            transfer_filter(*src.arg3, *dest.arg3);
+        }
+    }
 
-            SPARQLQuery::Pattern pattern(_H_encode(iter->subject),
-                            _H_encode(iter->predicate),
-                            iter->direction,
-                            _H_encode(iter->object));
-
-            int type =  str_server->id2type[_H_encode(iter->predicate)];
+    void transfer_patterns(SPARQLParser::PatternGroup &src, SPARQLQuery::PatternGroup &dest) {
+        // patterns
+        for (auto &src_p : src.patterns) {
+            SPARQLQuery::Pattern pattern(encode(src_p.subject),
+                                         encode(src_p.predicate),
+                                         src_p.direction,
+                                         encode(src_p.object));
+            int type =  str_server->id2type[encode(src_p.predicate)];
             if (type > 0 && (!global_enable_vattr)) {
                 cout << "Need to change config to enable vertex_attr " << endl;
                 assert(false);
             }
-            pattern.pred_type = str_server->id2type[_H_encode(iter->predicate)];
-            r.pattern_group.patterns.push_back(pattern);
+            pattern.pred_type = str_server->id2type[encode(src_p.predicate)];
+            dest.patterns.push_back(pattern);
         }
-        
+        // filters
+        if (src.filters.size() > 0){
+            for(int i = 0; i < src.filters.size(); i++){
+                dest.filters.push_back(SPARQLQuery::Filter());
+                transfer_filter(src.filters[i], dest.filters.back());
+            }
+        }
+        // unions
+        if (src.unions.size() > 0) {
+            int i = 0;
+            for (auto &union_group : src.unions) {
+                dest.unions.push_back(SPARQLQuery::PatternGroup());
+                transfer_patterns(union_group, dest.unions.back());
+                dest.unions[i].patterns.insert(dest.unions[i].patterns.end(), dest.patterns.begin(), dest.patterns.end());
+                i++;
+            }
+            dest.patterns.clear();
+        }
+        // other parts in PatternGroup
+    }
+
+    void transfer(const SPARQLParser &parser, SPARQLQuery &r) {
+        SPARQLParser::PatternGroup group = parser.getPatterns();
+        transfer_patterns(group, r.pattern_group);
+
         // init the var_map
         r.result.nvars = parser.getVariableCount();
-        for(SPARQLParser::projection_iterator iter = parser.projectionBegin();iter != parser.projectionEnd(); iter ++){
-		    r.result.required_vars.push_back(*iter);
+        // required vars
+        for (SPARQLParser::projection_iterator iter = parser.projectionBegin();
+                iter != parser.projectionEnd();
+                iter ++)
+            r.result.required_vars.push_back(*iter);
+
+        // orders
+        for (SPARQLParser::order_iterator iter = parser.orderBegin();
+                iter != parser.orderEnd();
+                iter ++)
+            r.orders.push_back(SPARQLQuery::Order((*iter).id, (*iter).descending));
+
+        // limit and offset
+        r.limit = parser.getLimit();
+        r.offset = parser.getOffset();
+
+        // distinct
+        if(parser.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Distinct || parser.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Reduced){
+            r.distinct = true;
         }
 
+        // corun
         if (!global_use_rdma) {
             // TODO: corun optimization is not supported w/o RDMA
             cout << "[WARNING]: RDMA is not enabled, skip corun optimization!" << endl;
@@ -153,7 +201,7 @@ private:
     }
 
     ssid_t _H_push(const SPARQLParser::Element &element, request_template &r, int pos) {
-        ssid_t id = _H_encode(element);
+        ssid_t id = encode(element);
         if (id == PTYPE_PH) {
             string strIRI = "<" + element.value + ">";
             r.ptypes_str.push_back(strIRI);
@@ -163,17 +211,17 @@ private:
     }
 
 
-    void _H_template_transfer(const SPARQLParser &parser, request_template &r) {
+    void template_transfer(const SPARQLParser &parser, request_template &r) {
         SPARQLParser::PatternGroup group = parser.getPatterns();
         int pos = 0;
         for (std::vector<SPARQLParser::Pattern>::const_iterator iter = group.patterns.begin(),
                 limit = group.patterns.end(); iter != limit; ++iter) {
             ssid_t subject = _H_push(iter->subject, r, pos++);
-            ssid_t predicate = _H_encode(iter->predicate); pos++;
+            ssid_t predicate = encode(iter->predicate); pos++;
             ssid_t direction = (dir_t)OUT; pos++;
             ssid_t object = _H_push(iter->object, r, pos++);
-            SPARQLQuery::Pattern pattern(subject,predicate,direction,object);
-            int type =  str_server->id2type[_H_encode(iter->predicate)];
+            SPARQLQuery::Pattern pattern(subject, predicate, direction, object);
+            int type =  str_server->id2type[encode(iter->predicate)];
             if (type > 0 && (!global_enable_vattr)) {
                 cout << "Need to change config to enable vertex_attr " << endl;
                 assert(false);
@@ -199,11 +247,9 @@ public:
         string query = read_input(is);
         SPARQLLexer lexer(query);
         SPARQLParser parser(lexer);
-        varId = -1;
-        _H_incVarIdMap.clear();
         try {
             parser.parse();//sparql -f query/lubm_q1
-            _H_simplist_transfer(parser, r);
+            transfer(parser, r);
         } catch (const SPARQLParser::ParserException &e) {
             cerr << "parse error: " << e.message << endl;
             return false;
@@ -222,11 +268,9 @@ public:
         string query = read_input(is);
         SPARQLLexer lexer(query);
         SPARQLParser parser(lexer);
-        varId = -1;
-        _H_incVarIdMap.clear();
         try {
             parser.parse();
-            _H_template_transfer(parser, r);
+            template_transfer(parser, r);
         } catch (const SPARQLParser::ParserException &e) {
             cerr << "parse error: " << e.message << endl;
             return false;
@@ -242,6 +286,7 @@ public:
         pattern.pred_type = 0;
         r.pattern_group.patterns.push_back(pattern);
         r.result.nvars = 1;
+        r.result.required_vars.push_back(-1);
         return true;
     }
 };

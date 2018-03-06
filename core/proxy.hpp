@@ -156,23 +156,15 @@ public:
 
 	void setpid(RDFLoad &r) { r.pid = coder.get_and_inc_qid(); }
 
+	void setpid(GStoreCheck &r) { r.pid = coder.get_and_inc_qid(); }
+
 	void send_request(SPARQLQuery &r) {
 		assert(r.pid != -1);
 
-		// submit the request to all engines (parallel)
-		if (r.start_from_index()) {
-			for (int i = 0; i < global_num_servers; i++) {
-				for (int j = 0; j < global_mt_threshold; j++) {
-					r.tid = j; // specified engine
-					Bundle bundle(r);
-					send(bundle, i, global_num_proxies + j);
-				}
-			}
-			return;
-		}
-
 		// submit the request to a certain server
-		int start_sid = mymath::hash_mod(r.pattern_group.patterns[0].subject, global_num_servers);
+		ssid_t start = r.pattern_group.patterns.size() > 0 ?
+			r.pattern_group.patterns[0].subject : r.pattern_group.unions[0].patterns[0].subject;
+		int start_sid = mymath::hash_mod(start, global_num_servers);
 		Bundle bundle(r);
 		send(bundle, start_sid);
 	}
@@ -181,15 +173,6 @@ public:
 		Bundle bundle = adaptor->recv();
 		assert(bundle.type == SPARQL_QUERY);
 		SPARQLQuery r = bundle.get_sparql_query();
-		if (r.start_from_index()) {
-			for (int count = 0; count < global_num_servers * global_mt_threshold - 1; count++) {
-				Bundle bundle2 = adaptor->recv();
-				assert(bundle2.type == SPARQL_QUERY);
-				SPARQLQuery r2 = bundle2.get_sparql_query();
-				r.result.row_num += r2.result.row_num;
-				r.result.append_result(r2.result);
-			}
-		}
 		return r;
 	}
 
@@ -373,4 +356,30 @@ public:
 		return ret;
 	}
 #endif
+
+	int gstore_check(GStoreCheck &reply, Logger &logger, bool i_enable, bool n_enable) {
+		logger.init();
+
+
+		GStoreCheck request(i_enable, n_enable);
+		setpid(request);
+		for (int i = 0; i < global_num_servers; i++) {
+			Bundle bundle(request);
+			send(bundle, i);
+		}
+
+		int ret = 0;
+		for (int i = 0; i < global_num_servers; i++) {
+			Bundle bundle = adaptor->recv();
+			assert(bundle.type == GSTORE_CHECK);
+
+			reply = bundle.get_gstore_check();
+			if (reply.check_ret < 0)
+				ret = reply.check_ret;
+		}
+
+		logger.finish();
+		return ret;
+
+	}
 };

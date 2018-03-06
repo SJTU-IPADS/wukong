@@ -115,7 +115,7 @@ public:
         /// The type (for constants)
         std::string valueType;
         /// Possible subtypes or variable ids
-        unsigned valueArg;
+        int valueArg;
 
         /// Constructor
         Filter() : arg1(0), arg2(0), arg3(0), valueArg(0) { }
@@ -175,9 +175,9 @@ public:
         /// The filter conditions
         std::vector<Filter> filters;
         /// The optional parts
-        std::vector<PatternGroup> optional;
+        std::vector<std::vector<PatternGroup>> optional;
         /// The union parts
-        std::vector<std::vector<PatternGroup> > unions;
+        std::vector<PatternGroup> unions;
     };
 
     /// The projection modifier
@@ -188,7 +188,7 @@ public:
     /// Sort order
     struct Order {
         /// Variable id
-        unsigned id;
+        int id;
         /// Desending
         bool descending;
     };
@@ -213,8 +213,10 @@ private:
     PatternGroup patterns;
     /// The sort order
     std::vector<Order> order;
-    /// The result limit
-    unsigned limit;
+    /// The result limit, -1 means no limit
+    int limit;
+    /// The result offset
+    unsigned offset;
     // indicate if custom grammar is in use
     bool usingCustomGrammar;
     int corun_step;
@@ -345,6 +347,7 @@ private:
             unique_ptr<Filter> arg(new Filter());
             arg->type = Filter::Variable;
             arg->valueArg = nameVariable(lexer.getTokenValue());
+            result->arg1 = arg.release();
             if (lexer.getNext() != SPARQLLexer::RParen)
                 throw ParserException("')' expected");
         } else if (lexer.isKeyword("sameTerm")) {
@@ -853,15 +856,13 @@ private:
                 // Union statement?
                 token = lexer.getNext();
                 if ((token == SPARQLLexer::Identifier) && (lexer.isKeyword("union"))) {
-                    group.unions.push_back(vector<PatternGroup>());
-                    vector<PatternGroup>& currentUnion = group.unions.back();
-                    currentUnion.push_back(newGroup);
+                    group.unions.push_back(newGroup);
                     while (true) {
                         if (lexer.getNext() != SPARQLLexer::LCurly)
                             throw ParserException("'{' expected");
                         PatternGroup subGroup;
                         parseGroupGraphPattern(subGroup);
-                        currentUnion.push_back(subGroup);
+                        group.unions.push_back(subGroup);
 
                         // Another union?
                         token = lexer.getNext();
@@ -1059,8 +1060,22 @@ private:
             if (lexer.getNext() != SPARQLLexer::Integer)
                 throw ParserException("number expected after 'limit'");
             limit = atoi(lexer.getTokenValue().c_str());
-            if (limit == 0)
+            if (limit < 0)
                 throw ParserException("invalid limit specifier");
+        } else {
+            lexer.unget(token);
+        }
+    }
+    /// Parse the offset part if any
+    void parseOffset() {
+        SPARQLLexer::Token token = lexer.getNext();
+
+        if ((token == SPARQLLexer::Identifier) && (lexer.isKeyword("offset"))) {
+            if (lexer.getNext() != SPARQLLexer::Integer)
+                throw ParserException("number expected after 'offset'");
+            offset = atoi(lexer.getTokenValue().c_str());
+            if (offset < 0)
+                throw ParserException("invalid offset specifier");
         } else {
             lexer.unget(token);
         }
@@ -1070,8 +1085,7 @@ public:
     /// Constructor
     explicit SPARQLParser(SPARQLLexer &lexer)
         : lexer(lexer), variableCount(0), namedVariableCount(0),
-          projectionModifier(Modifier_None), limit(~0u) {
-        limit = -1;
+          projectionModifier(Modifier_None), limit(-1), offset(0u) {
         usingCustomGrammar = false;
         corun_step = 0;
         fetch_step = 0;
@@ -1101,6 +1115,9 @@ public:
 
         // Parse the limit clause
         parseLimit();
+
+        // Parse the offset clause
+        parseOffset();
 
         // Check that the input is done
         if ((!multiQuery) && (lexer.getNext() != SPARQLLexer::Eof))
@@ -1142,7 +1159,9 @@ public:
     /// The projection modifier
     ProjectionModifier getProjectionModifier() const { return projectionModifier; }
     /// The size limit
-    unsigned getLimit() const { return limit; }
+    int getLimit() const { return limit; }
+    /// The offset
+    unsigned getOffset() const { return offset; }
     /// Get the variableCount
     unsigned getVariableCount() const { return variableCount; }
     // indicate if custom grammar is in use
