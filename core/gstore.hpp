@@ -180,6 +180,8 @@ private:
                     ret = items[idx].v;
                     found = true;
                 }
+                else
+                    printf("!!cache expire\n");
 #else
                 ret = items[idx].v;
                 found = true;
@@ -192,35 +194,19 @@ private:
         void insert(vertex_t &v) {
             if (!global_enable_caching)
                 return;
-
+            printf("******insert cache******\n");
             int idx = v.key.hash() % NUM_ITEMS;
             pthread_spin_lock(&items[idx].lock);
 
 #if DYNAMIC_GSTORE
-            items[idx].expire_time = timer::get_usec() + mem_cache->cache_term();
+            uint64_t term = *(mem_cache->cache_term());
+            items[idx].expire_time = timer::get_usec() + term;
 #endif
 
             items[idx].v = v;
             pthread_spin_unlock(&items[idx].lock);
         }
 
-#if DYNAMIC_GSTORE
-        bool is_valid(vertex_t &v) {
-            if(!global_enable_caching)
-                return true;
-
-            int idx = v.key.hash() % NUM_ITEMS;
-            bool found = false;
-            pthread_spin_lock(&(items[idx].lock));
-            if (items[idx].v.key == v.key 
-                    && items[idx].v.ptr == v.ptr
-                    && timer::get_usec() < items[idx].expire_time) {
-                found = true;
-            }
-            pthread_spin_unlock(&(items[idx].lock));
-            return found;
-        }
-#endif
     };
 
     static const int NUM_LOCKS = 1024;
@@ -347,8 +333,13 @@ done:
     
     inline bool edge_is_valid(vertex_t &v, edge_t *edge_ptr) {
         uint64_t blk_sz = blksz(v.ptr.size + 1);  // reserve one space for sz
-        return (edge_ptr[blk_sz - 1].val == v.ptr.size   //check if sz is consistent
-                && rdma_cache.is_valid(v));    //check if vertex is valid
+        if(edge_ptr[blk_sz - 1].val != v.ptr.size)
+            printf("!!! %d, invalid size flag %d v.ptr: %d\n",sid, edge_ptr[blk_sz - 1].val, v.ptr.size);
+        bool ret = (edge_ptr[blk_sz - 1].val == v.ptr.size);   //check if sz is consistant
+        if(ret)
+                printf("edge is valid %d\n", sid);
+        return ret;
+            
     }
 
     inline void add_pending_free(iptr_t ptr) {
@@ -433,8 +424,7 @@ done:
             dedup_or_isdup = false;
             return true;
         } else {
-
-             if(dedup_or_isdup && is_dup(v, value)) {
+            if(dedup_or_isdup && is_dup(v, value)) {
                  pthread_spin_unlock(&bucket_locks[lock_id]);
                  return false;
             }
@@ -598,8 +588,8 @@ done:
         edge_t *edge_ptr;
 
 #if DYNAMIC_GSTORE
+        printf("----get remote edges: %d----\n", sid);
         bool valid = false;
-
         if (rdma_cache.lookup(key, v)) {
             edge_ptr = rdma_get_edges(tid, dst_sid, v);
             valid = edge_is_valid(v, edge_ptr);
@@ -778,7 +768,7 @@ public:
 #if DYNAMIC_GSTORE
         edge_allocator = new Buddy_Malloc();
         pthread_spin_init(&free_queue_lock, 0);
-        *(mem->cache_term()) = SEC(20);
+        *(mem->cache_term()) = SEC(120);
 #else
         pthread_spin_init(&entry_lock, 0);
 #endif
