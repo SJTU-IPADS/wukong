@@ -368,7 +368,6 @@ done:
     }
 
     inline void add_pending_free(iptr_t ptr) {
-        insert_sz(INVALID, ptr.size, ptr.off);
         uint64_t expire_time = timer::get_usec() + *(mem->cache_term());
         free_blk blk(ptr.off, expire_time);
         
@@ -458,9 +457,10 @@ done:
                 uint64_t off = alloc_edges(need_size);
                 memcpy(&edges[off], &edges[old_ptr.off], e2b(old_ptr.size));
                 edges[off + old_ptr.size].val = value;
+                insert_sz(INVALID, old_ptr.size, old_ptr.off);  //invalidate old blk
                 v->ptr = iptr_t(need_size, off);
 
-                add_pending_free(old_ptr); //invalidating old blk included
+                add_pending_free(old_ptr);
             } else {
                 insert_sz(need_size, need_size, v->ptr.off);
                 edges[v->ptr.off + v->ptr.size].val = value;
