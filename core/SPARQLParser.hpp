@@ -175,7 +175,7 @@ public:
         /// The filter conditions
         std::vector<Filter> filters;
         /// The optional parts
-        std::vector<std::vector<PatternGroup>> optional;
+        std::vector<PatternGroup> optional;
         /// The union parts
         std::vector<PatternGroup> unions;
     };
@@ -802,7 +802,6 @@ private:
         Element predicate = parsePatternElement(group, localVars);
         Element object = parsePatternElement(group, localVars);
         group.patterns.push_back(Pattern(subject, predicate, object));
-
         // Check for the tail
         while (true) {
             SPARQLLexer::Token token = lexer.getNext();
@@ -887,12 +886,20 @@ private:
                 if ((token == SPARQLLexer::Identifier) && (lexer.isKeyword("filter"))) {
                     map<string, unsigned> localVars;
                     parseFilter(group, localVars);
+                } else if ((token == SPARQLLexer::Identifier) && (lexer.isKeyword("optional"))) {
+                    if (lexer.getNext() != SPARQLLexer::LCurly)
+                        throw ParserException("'{' expected");
+                    PatternGroup new_group;
+                    parseGroupGraphPattern(new_group);
+                    group.optional.push_back(new_group);
                 } else {
                     lexer.unget(token);
                     parseGraphPattern(group);
                 }
             } else if (token == SPARQLLexer::RCurly) {
                 break;
+            } else if (token == SPARQLLexer::Dot) {
+                continue;
             } else {
                 throw ParserException("'}' expected");
             }

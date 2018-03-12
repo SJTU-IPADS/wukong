@@ -421,12 +421,6 @@ next:
 				}
 #endif
 			} else if (token == "gsck") {
-#ifdef VERSATILE
-				if (IS_MASTER(proxy)) {
-					cout << "[ERROR] Now wukong has not support graph storage check while VERSATILE ON" << endl;
-					cout << "This feature will be supported soon." << endl;
-				}
-#else
 				bool i_enable = false;
 				bool n_enable = false;
 
@@ -454,7 +448,6 @@ next:
 					}
 					logger.print_latency();
 				}
-#endif
 			} else {
 failed:
 				if (IS_MASTER(proxy)) {

@@ -56,6 +56,9 @@ public:
         Item data;
         data.count = cnt;
         data.parent_request = r;
+        if (r.is_optional() && r.optional_dispatched)
+            data.merged_reply.result = r.result;
+
         internal_item_map[r.id] = data;
     }
 
@@ -66,11 +69,14 @@ public:
         SPARQLQuery::Result &data_result = data.merged_reply.result;
         SPARQLQuery::Result &r_result = r.result;
         data.count--;
-        if (data.parent_request.is_union()) {
-            data_result.merge_result(r_result);
-        } else {
+
+        if (data.parent_request.is_union())
+            data_result.merge_union(r_result);
+        else if (data.parent_request.is_optional()
+                 && data.parent_request.optional_dispatched)
+            data_result.merge_optional(r_result);
+        else
             data_result.append_result(r_result);
-        }
     }
 
     bool is_ready(int pid) {
@@ -93,7 +99,6 @@ public:
         return r;
     }
 };
-
 
 
 typedef pair<int64_t, int64_t> v_pair;
@@ -345,8 +350,7 @@ private:
             start = - start - 1;    // request from the same server
             for (uint64_t k = start; k < sz; k += global_mt_threshold - 1)
                 updated_result_table.push_back(res[k].val);
-        }
-        else {
+        } else {
             for (uint64_t k = start; k < sz; k += global_mt_threshold)
                 updated_result_table.push_back(res[k].val);
         }
@@ -474,6 +478,19 @@ private:
         result.set_col_num(result.get_col_num() + 1);
         result.result_table.swap(updated_result_table);
         req.step++;
+    }
+
+    vector<SPARQLQuery> generate_optional_query(SPARQLQuery &req) {
+        int size = req.pattern_group.optional.size();
+        vector<SPARQLQuery> optional_reqs(size);
+        for (int i = 0; i < size; i++) {
+            optional_reqs[i].pid = req.id;
+            optional_reqs[i].pattern_group = req.pattern_group.optional[i];
+            optional_reqs[i].step = 0;
+            optional_reqs[i].result = req.result;
+            optional_reqs[i].result.blind = false;
+        }
+        return optional_reqs;
     }
 
     vector<SPARQLQuery> generate_union_query(SPARQLQuery &req) {
@@ -966,6 +983,39 @@ private:
         }
     };
 
+    void execute_optional(SPARQLQuery &r) {
+        r.optional_dispatched = true;
+        vector<SPARQLQuery> optional_reqs = generate_optional_query(r);
+        rmap.put_parent_request(r, optional_reqs.size());
+        for (int i = 0; i < optional_reqs.size(); i++) {
+            if (need_fork_join(optional_reqs[i])) {
+                optional_reqs[i].id = coder.get_and_inc_qid();
+                vector<SPARQLQuery> sub_reqs = generate_sub_query(optional_reqs[i]);
+                rmap.put_parent_request(optional_reqs[i], sub_reqs.size());
+                for (int j = 0; j < sub_reqs.size(); j++) {
+                    if (j != sid) {
+                        Bundle bundle(sub_reqs[j]);
+                        send_request(bundle, j, tid);
+                    } else {
+                        pthread_spin_lock(&recv_lock);
+                        msg_fast_path.push_back(sub_reqs[j]);
+                        pthread_spin_unlock(&recv_lock);
+                    }
+                }
+            } else {
+                int dst_sid = mymath::hash_mod(optional_reqs[i].pattern_group.patterns[0].subject, global_num_servers);
+                if (dst_sid != sid) {
+                    Bundle bundle(optional_reqs[i]);
+                    send_request(bundle, i, tid);
+                } else {
+                    pthread_spin_lock(&recv_lock);
+                    msg_fast_path.push_back(optional_reqs[i]);
+                    pthread_spin_unlock(&recv_lock);
+                }
+            }
+        }
+    }
+
     void final_process(SPARQLQuery &r) {
         if (r.result.blind || r.result.result_table.size() == 0) return;
         // DISTINCT and ORDER BY
@@ -1111,6 +1161,10 @@ out:            new_size = p + 1;
                 }
                 // if all data has been merged and next will be sent back to proxy
                 if (coder.tid_of(r.pid) < global_num_proxies) {
+                    if (r.is_optional() && !r.optional_dispatched) {
+                        execute_optional(r);
+                        return;
+                    }
                     final_process(r);
                 }
 
@@ -1149,6 +1203,10 @@ out:            new_size = p + 1;
             pthread_spin_unlock(&engine->rmap_lock);
             // if all data has been merged and next will be sent back to proxy
             if (coder.tid_of(reply.pid) < global_num_proxies) {
+                if (reply.is_optional() && !reply.optional_dispatched) {
+                    execute_optional(reply);
+                    return;
+                }
                 final_process(reply);
             }
             Bundle bundle(reply);

@@ -159,6 +159,13 @@ private:
             }
             dest.patterns.clear();
         }
+        // optional
+        if (src.optional.size() > 0) {
+            for (auto &optional_group : src.optional) {
+                dest.optional.push_back(SPARQLQuery::PatternGroup());
+                transfer_patterns(optional_group, dest.optional.back());
+            }
+        }
         // other parts in PatternGroup
     }
 
@@ -173,6 +180,11 @@ private:
                 iter != parser.projectionEnd();
                 iter ++)
             r.result.required_vars.push_back(*iter);
+
+        // optional
+        if (r.pattern_group.optional.size() > 0) {
+            r.optional_dispatched = false;
+        }
 
         // orders
         for (SPARQLParser::order_iterator iter = parser.orderBegin();
