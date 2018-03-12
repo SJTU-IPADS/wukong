@@ -978,120 +978,120 @@ public:
     void flush_cache() { rdma_cache.flush(); }
 #endif
 
-     uint64_t ivertex_num = 0;
-     uint64_t nvertex_num = 0;
+    uint64_t ivertex_num = 0;
+    uint64_t nvertex_num = 0;
 
-     void outdir_index_to_normal(ikey_t key, bool check) {
-         if (!check)
+    void outdir_index_to_normal(ikey_t key, bool check) {
+        if (!check)
             return;
-         ivertex_num ++;
-         uint64_t vsz = 0;
-         edge_t *vres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &vsz); //(1)[IN]/(2)
-         for (int i = 0; i < vsz; i++) {
-             uint64_t tsz = 0;
-             edge_t *tres = get_edges_local(0, vres[i].val, OUT, TYPE_ID, &tsz);
-             bool found = false;
-             for (int j = 0; j < tsz; j++) {     //(2)
-                if (tres[j].val == key.pid && !found) 
+        ivertex_num ++;
+        uint64_t vsz = 0;
+        edge_t *vres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &vsz); //(1)[IN]/(2)
+        for (int i = 0; i < vsz; i++) {
+            uint64_t tsz = 0;
+            edge_t *tres = get_edges_local(0, vres[i].val, OUT, TYPE_ID, &tsz);
+            bool found = false;
+            for (int j = 0; j < tsz; j++) {     //(2)
+                if (tres[j].val == key.pid && !found)
                     found = true;
                 else if (tres[j].val == key.pid && found) {
-                    cout << "Error: " << "In the value part of normal key/value pair [ " <<key.vid 
-                         << " | TYPE_ID | OUT] there is duplicate type " << key.pid <<endl;
+                    cout << "Error: " << "In the value part of normal key/value pair [ " << key.vid
+                         << " | TYPE_ID | OUT] there is duplicate type " << key.pid << endl;
                 }
-             }
-             if (tsz != 0 && !found) {  //(1)[IN]
-                if (get_vertex_local(0,ikey_t(vres[i].val, key.pid, OUT)).key.is_empty()) {
+            }
+            if (tsz != 0 && !found) {  //(1)[IN]
+                if (get_vertex_local(0, ikey_t(vres[i].val, key.pid, OUT)).key.is_empty()) {
                     cout << "Error: if " << key.pid << " is type id, then there is no type "
-                         << key.pid << "in normal key/value pair [" <<key.vid << " | TYPE_ID | OUT] 's value part" << endl;
+                         << key.pid << "in normal key/value pair [" << key.vid << " | TYPE_ID | OUT] 's value part" << endl;
                     cout << "And if " << key.pid << " is predicate id, then there is no key called "
                          << "[ " << vres[i].val << " | " << key.pid << " | " << "] exist" << endl;
                 }
-             }
+            }
         }
-     }
+    }
 
-     void indir_predicateindex_to_normalpredicate(ikey_t key, bool check) {
-         if (!check)
+    void indir_predicateindex_to_normalpredicate(ikey_t key, bool check) {
+        if (!check)
             return;
-         ivertex_num ++;
-         uint64_t vsz = 0;
-         edge_t *vres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &vsz);//predicate index
-         for (int i = 0; i < vsz; i++) {
+        ivertex_num ++;
+        uint64_t vsz = 0;
+        edge_t *vres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &vsz);//predicate index
+        for (int i = 0; i < vsz; i++) {
             if (get_vertex_local(0, ikey_t(vres[i].val, key.pid, IN)).key.is_empty()) {
-                cout << "Error: key " << " [ " << vres[i].val << " | " 
+                cout << "Error: key " << " [ " << vres[i].val << " | "
                      << key.pid << " | " << " IN ] does not exist." << endl;
             }
         }
-     }
+    }
 
-     void normaltypes_to_typeindex(ikey_t key, bool check) {
-         if (!check)
+    void normaltypes_to_typeindex(ikey_t key, bool check) {
+        if (!check)
             return;
-         nvertex_num ++;
-         uint64_t tsz = 0;
-         edge_t *tres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &tsz);
-         for (int i = 0; i < tsz; i++) {
-             uint64_t vsz = 0;
-             edge_t *vres = get_edges_local(0, 0, IN, tres[i].val, &vsz);
-             bool found = false;
-             for (int j = 0; j < vsz; j++) {
-                 if(vres[j].val == key.vid && !found) 
-                     found = true;
-                 else if (vres[j].val == key.vid && found) {
-                     cout << "Error: " << "In the value part of type index [ 0 | " << tres[i].val 
-                          << " | IN ]" << " there is duplicate value " << key.vid << endl;
-                 }
+        nvertex_num ++;
+        uint64_t tsz = 0;
+        edge_t *tres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &tsz);
+        for (int i = 0; i < tsz; i++) {
+            uint64_t vsz = 0;
+            edge_t *vres = get_edges_local(0, 0, IN, tres[i].val, &vsz);
+            bool found = false;
+            for (int j = 0; j < vsz; j++) {
+                if (vres[j].val == key.vid && !found)
+                    found = true;
+                else if (vres[j].val == key.vid && found) {
+                    cout << "Error: " << "In the value part of type index [ 0 | " << tres[i].val
+                         << " | IN ]" << " there is duplicate value " << key.vid << endl;
+                }
             }
             if (!found) {
-                cout << "Error: " << "In the value part of type index [ 0 | " << tres[i].val  
+                cout << "Error: " << "In the value part of type index [ 0 | " << tres[i].val
                      << " | IN ]" << " there is no value " << key.vid << endl;
             }
         }
-     }
+    }
 
-     void normalpredicates_to_predicateindex(ikey_t key, dir_t dir, bool check) {
-         if (!check)
+    void normalpredicates_to_predicateindex(ikey_t key, dir_t dir, bool check) {
+        if (!check)
             return;
-         nvertex_num ++;
-         uint64_t vsz = 0;
-         edge_t *vres = get_edges_local(0, 0, dir, key.pid, &vsz);
-         bool found = false;
-         for (int i = 0; i < vsz; i++) {
-             if (vres[i].val == key.vid && !found)
-                found = true;                  
-             else if (vres[i].val == key.vid && found) {
-                 cout << "Error: " << "In the value part of predicate index [ 0 | " << key.pid
-                      << " | " << dir << " ]" << " there is duplicate value " << key.vid << endl; 
-                 break;
-             }
-         }
-         if (!found) {
-             cout << "Error: " << "In the value part of predicate index [ 0 | " << key.pid 
-                  << " | " << dir << " ]" << " there is no value " << key.vid << endl;
-         }
-      } 
+        nvertex_num ++;
+        uint64_t vsz = 0;
+        edge_t *vres = get_edges_local(0, 0, dir, key.pid, &vsz);
+        bool found = false;
+        for (int i = 0; i < vsz; i++) {
+            if (vres[i].val == key.vid && !found)
+                found = true;
+            else if (vres[i].val == key.vid && found) {
+                cout << "Error: " << "In the value part of predicate index [ 0 | " << key.pid
+                     << " | " << dir << " ]" << " there is duplicate value " << key.vid << endl;
+                break;
+            }
+        }
+        if (!found) {
+            cout << "Error: " << "In the value part of predicate index [ 0 | " << key.pid
+                 << " | " << dir << " ]" << " there is no value " << key.vid << endl;
+        }
+    }
 
-      void check_on_vertex(ikey_t key, bool index_check, bool normal_check) {
-          if (key.vid == 0 && is_tpid(key.pid) && key.dir == IN)
-              outdir_index_to_normal(key, index_check);         //(2)/(1)(OUT) -->(7)/(6)
-          else if (key.vid == 0 && is_tpid(key.pid) && key.dir == OUT)
-              indir_predicateindex_to_normalpredicate(key, index_check); //(1)[IN]-->(6)
-          else if (!is_tpid(key.vid) && key.pid == TYPE_ID && key.dir == OUT)
-              normaltypes_to_typeindex(key, normal_check);        //(7)-->(2)
-          else if (!is_tpid(key.vid) && is_tpid(key.pid) && key.dir == OUT) 
-              normalpredicates_to_predicateindex(key, IN, normal_check); //(6)[OUT]-->(1)
-          else if (!is_tpid(key.vid) && is_tpid(key.pid) && key.dir == IN)
-              normalpredicates_to_predicateindex(key, OUT, normal_check); //(6)[IN]-->(1)
-          else 
-              cout<<" Error key : [ " << key.vid << " | " << key.pid << " | " << key.dir << " ]" << endl; 
-      }
+    void check_on_vertex(ikey_t key, bool index_check, bool normal_check) {
+        if (key.vid == 0 && is_tpid(key.pid) && key.dir == IN)
+            outdir_index_to_normal(key, index_check);         //(2)/(1)(OUT) -->(7)/(6)
+        else if (key.vid == 0 && is_tpid(key.pid) && key.dir == OUT)
+            indir_predicateindex_to_normalpredicate(key, index_check); //(1)[IN]-->(6)
+        else if (!is_tpid(key.vid) && key.pid == TYPE_ID && key.dir == OUT)
+            normaltypes_to_typeindex(key, normal_check);        //(7)-->(2)
+        else if (!is_tpid(key.vid) && is_tpid(key.pid) && key.dir == OUT)
+            normalpredicates_to_predicateindex(key, IN, normal_check); //(6)[OUT]-->(1)
+        else if (!is_tpid(key.vid) && is_tpid(key.pid) && key.dir == IN)
+            normalpredicates_to_predicateindex(key, OUT, normal_check); //(6)[IN]-->(1)
+        else
+            cout << " Error key : [ " << key.vid << " | " << key.pid << " | " << key.dir << " ]" << endl;
+    }
 
     int gstore_check(bool index_check, bool normal_check) {
         cout << "Graph storage intergity check has started on server " << sid << endl;
         ivertex_num = 0;
         nvertex_num = 0;
         uint64_t slot_id;
-        for (uint64_t bucket_id = 0; bucket_id < num_slots/ASSOCIATIVITY; bucket_id++) {
+        for (uint64_t bucket_id = 0; bucket_id < num_slots / ASSOCIATIVITY; bucket_id++) {
             slot_id = bucket_id * ASSOCIATIVITY;
             for (int i = 0; i < ASSOCIATIVITY - 1 && slot_id < num_slots; i++, slot_id++) {
                 if (!vertices[slot_id].key.is_empty()) {

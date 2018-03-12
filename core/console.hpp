@@ -444,16 +444,16 @@ next:
 				}
 
 				if (IS_MASTER(proxy)) {
-						Logger logger;
-						GStoreCheck reply;
-						int ret = proxy->gstore_check(reply, logger, i_enable, n_enable);
-						if (ret != 0) {
-							cout << "[ERORR] Some error found in gstore "
-							     << " (ERRNO: " << ret << ")!" << endl;
-							continue;
-						}
-						logger.print_latency();
+					Logger logger;
+					GStoreCheck reply;
+					int ret = proxy->gstore_check(reply, logger, i_enable, n_enable);
+					if (ret != 0) {
+						cout << "[ERORR] Some error found in gstore "
+						     << " (ERRNO: " << ret << ")!" << endl;
+						continue;
 					}
+					logger.print_latency();
+				}
 #endif
 			} else {
 failed:
