@@ -449,7 +449,7 @@ class Planner {
     void transfer_to_cmd_chains(vector<SPARQLQuery::Pattern> &p, vector<ssid_t> &attr_pattern, vector<int>& attr_pred_chains, vector<ssid_t> &temp_cmd_chains) {
         for (int i = 0; i < p.size(); i++) {
             SPARQLQuery::Pattern pattern = p[i];
-            if(pattern.pred_type == 0){
+            if (pattern.pred_type == 0) {
                 temp_cmd_chains.push_back(pattern.subject);
                 temp_cmd_chains.push_back(pattern.predicate);
                 temp_cmd_chains.push_back((ssid_t)pattern.direction);
@@ -529,7 +529,7 @@ public:
 
         //transfer from min_path to patterns
         patterns.clear();
-        for(int i = 0;i < min_path.size() / 4;i ++){
+        for (int i = 0; i < min_path.size() / 4; i ++) {
             SPARQLQuery::Pattern pattern(
                 min_path[4 * i],
                 min_path[4 * i + 1],
@@ -540,7 +540,7 @@ public:
             patterns.push_back(pattern);
         }
         //add_attr_pattern to the end of patterns
-        for(int i = 0 ;i < attr_pred_chains.size(); i ++){
+        for (int i = 0 ; i < attr_pred_chains.size(); i ++) {
             SPARQLQuery::Pattern pattern(
                 attr_pattern[4 * i],
                 attr_pattern[4 * i + 1],

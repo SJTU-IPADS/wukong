@@ -421,12 +421,6 @@ next:
 				}
 #endif
 			} else if (token == "gsck") {
-#ifdef VERSATILE
-				if (IS_MASTER(proxy)) {
-					cout << "[ERROR] Now wukong has not support graph storage check while VERSATILE ON" << endl;
-					cout << "This feature will be supported soon." << endl;
-				}
-#else
 				bool i_enable = false;
 				bool n_enable = false;
 
@@ -444,17 +438,16 @@ next:
 				}
 
 				if (IS_MASTER(proxy)) {
-						Logger logger;
-						GStoreCheck reply;
-						int ret = proxy->gstore_check(reply, logger, i_enable, n_enable);
-						if (ret != 0) {
-							cout << "[ERORR] Some error found in gstore "
-							     << " (ERRNO: " << ret << ")!" << endl;
-							continue;
-						}
-						logger.print_latency();
+					Logger logger;
+					GStoreCheck reply;
+					int ret = proxy->gstore_check(reply, logger, i_enable, n_enable);
+					if (ret != 0) {
+						cout << "[ERORR] Some error found in gstore "
+						     << " (ERRNO: " << ret << ")!" << endl;
+						continue;
 					}
-#endif
+					logger.print_latency();
+				}
 			} else {
 failed:
 				if (IS_MASTER(proxy)) {
