@@ -565,7 +565,7 @@ public:
 	}
 
 	int64_t dynamic_load_data(string dname, bool check_dup) {
-		str_server->dynamic_load_from_posixfs(dname);
+		str_server->dynamic_load_from_posixfs(dname); // load ID-mapping files and construct id2id mapping
 
 		vector<string> dfiles(list_files(dname, "id_"));   // ID-format data files
 		vector<string> afiles(list_files(dname, "attr_")); // ID-format attribute files
@@ -591,7 +591,7 @@ public:
 			ifstream file(dfiles[i]);
 			sid_t s, p, o;
 			while (file >> s >> p >> o) {
-				convert_sid(s); convert_sid(p); convert_sid(o);
+				convert_sid(s); convert_sid(p); convert_sid(o); //convert origin ids to new ids
 				/// FIXME: just check and print warning
 				check_sid(s); check_sid(p); check_sid(o);
 
@@ -611,7 +611,7 @@ public:
 			     << " at server " << sid << endl;
 		}
 
-		str_server->flush_convertmap();
+		str_server->flush_convertmap(); //clean the id2id mapping
 
 		sort(afiles.begin(), afiles.end());
 		int num_afiles = afiles.size();
