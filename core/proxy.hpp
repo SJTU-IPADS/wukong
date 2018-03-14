@@ -66,22 +66,22 @@ private:
 		for (int i = 0; i < req_template.ptypes_str.size(); i++) {
 			string type = req_template.ptypes_str[i]; // the Types of random-constant
 
-			SPARQLQuery type_request, type_reply;
+			// create a TYPE query to collect constants with the certain type
+			SPARQLQuery type_request = SPARQLQuery();
+			SPARQLQuery::Pattern pattern(str_server->str2id[type], TYPE_ID, IN, -1);
+			pattern.pred_type = 0;
+			type_request.pattern_group.patterns.push_back(pattern);
 
-			// a TYPE query to collect constants with the certain type
-			if (!parser.add_type_pattern(type, type_request)) {
-				cout << "ERROR: failed to add a special type pattern (type: "
-				     << type << ")." << endl;
-				assert(false);
-			}
-
-			// do a TYPE query to collect all of candidates for a certain type
-			setpid(type_request);
+			type_request.result.nvars = 1;
+			type_request.result.required_vars.push_back(-1);
 			type_request.result.blind = false; // must take back the results
-			send_request(type_request);
-			type_reply = recv_reply();
 
+			setpid(type_request);
+			send_request(type_request);
+
+			SPARQLQuery type_reply = recv_reply();
 			vector<sid_t> candidates(type_reply.result.result_table);
+
 			// There is no candidate with the Type for a random-constant in the template
 			// TODO: it should report empty for all queries of the template
 			assert(candidates.size() > 0);

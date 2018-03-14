@@ -262,18 +262,20 @@ public:
         SPARQLLexer lexer(query);
         SPARQLParser parser(lexer);
         try {
-            parser.parse();//sparql -f query/lubm_q1
+            parser.parse(); //e.g., sparql -f query/lubm_q1
             transfer(parser, r);
         } catch (const SPARQLParser::ParserException &e) {
-            cerr << "parse error: " << e.message << endl;
+            cerr << "[ERROR] failed to parse a SPARQL query: " << e.message << endl;
             return false;
         }
+
         // check if using custom grammar when planner is on
         if (parser.isUsingCustomGrammar() && global_enable_planner) {
-            cerr << "custom grammar can only be used when planner is off! " << endl;
+            cerr << "[ERROR] unsupported custom grammar in SPARQL planner!" << endl;
             return false;
         }
-        cout << "parsing triples is finished." << endl;
+
+        cout << "[INFO] parsing a query is done." << endl;
         return true;
     }
 
@@ -286,21 +288,9 @@ public:
             parser.parse();
             template_transfer(parser, r);
         } catch (const SPARQLParser::ParserException &e) {
-            cerr << "parse error: " << e.message << endl;
+            cerr << "[ERROR] failed to parse a SPARQL query: " << e.message << endl;
             return false;
         }
-        return true;
-    }
-
-    bool add_type_pattern(string type, SPARQLQuery &r) {
-        r = SPARQLQuery();
-
-        // add an additonal pattern cmd to collect pattern constants with a certain type
-        SPARQLQuery::Pattern pattern(str_server->str2id[type], TYPE_ID, IN, -1);
-        pattern.pred_type = 0;
-        r.pattern_group.patterns.push_back(pattern);
-        r.result.nvars = 1;
-        r.result.required_vars.push_back(-1);
         return true;
     }
 };
