@@ -36,6 +36,8 @@ using namespace std;
 using namespace boost::archive;
 
 
+enum req_type { SPARQL_QUERY, DYNAMIC_LOAD, GSTORE_CHECK };
+
 
 enum var_type {
     known_var,
@@ -46,7 +48,6 @@ enum var_type {
 // defined as constexpr due to switch-case
 constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
-
 // EXT = [ TYPE:16 | COL:16 ]
 #define NBITS_COL  16
 #define NO_RESULT  ((1 << NBITS_COL) - 1)
@@ -54,52 +55,9 @@ constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 int col2ext(int col, int t) { return ((t << NBITS_COL) | col); }
 int ext2col(int ext) { return (ext & ((1 << NBITS_COL) - 1)); }
 
-class GStoreCheck {
-private:
-    friend class boost::serialization::access;
-    template <typename Archive>
-    void serialize(Archive &ar, const unsigned int version) {
-        ar & pid;
-        ar & check_ret;
-        ar & index_check;
-        ar & normal_check;
-    }
-
-public:
-    int pid = -1;    // parent query id
-
-    int check_ret = 0;
-    bool index_check = false;
-    bool normal_check = false;
-
-    GStoreCheck() {}
-
-    GStoreCheck(bool i, bool n) : index_check(i), normal_check(n) { }
-};
-
-class RDFLoad {
-private:
-    friend class boost::serialization::access;
-    template <typename Archive>
-    void serialize(Archive &ar, const unsigned int version) {
-        ar & pid;
-        ar & load_dname;
-        ar & load_ret;
-        ar & check_dup;
-    }
-
-public:
-    int pid = -1;    // parent query id
-
-    string load_dname = "";   // the file name used to be inserted
-    int load_ret = 0;
-    bool check_dup = false;
-
-    RDFLoad() {}
-
-    RDFLoad(string s, bool b) : load_dname(s), check_dup(b) { }
-};
-
+/**
+ * SPARQL Query
+ */
 class SPARQLQuery {
 private:
     friend class boost::serialization::access;
@@ -113,13 +71,13 @@ public:
         dir_t  direction;
         char  pred_type;
 
-        Pattern() {}
+        Pattern() { }
 
         Pattern(ssid_t subject, ssid_t predicate, dir_t direction, ssid_t object):
-            subject(subject), predicate(predicate), object(object), direction(direction) {}
+            subject(subject), predicate(predicate), object(object), direction(direction) { }
 
         Pattern(ssid_t subject, ssid_t predicate, ssid_t direction, ssid_t object):
-            subject(subject), predicate(predicate), object(object), direction((dir_t)direction) {}
+            subject(subject), predicate(predicate), object(object), direction((dir_t)direction) { }
 
     private:
         friend class boost::serialization::access;
@@ -127,22 +85,22 @@ public:
 
     class Filter {
     public:
-        enum Type{Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,
-            GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,
-            Literal, Variable, IRI, Function, ArgumentList, Builtin_str,
-            Builtin_lang, Builtin_langmatches, Builtin_datatype, Builtin_bound,
-            Builtin_sameterm, Builtin_isiri, Builtin_isblank, Builtin_isliteral,
-            Builtin_regex, Builtin_in};
+        enum Type {Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,
+                   GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,
+                   Literal, Variable, IRI, Function, ArgumentList, Builtin_str,
+                   Builtin_lang, Builtin_langmatches, Builtin_datatype, Builtin_bound,
+                   Builtin_sameterm, Builtin_isiri, Builtin_isblank, Builtin_isliteral,
+                   Builtin_regex, Builtin_in
+                  };
+
         Type type;
-        /// Input arguments
-        Filter *arg1, *arg2, *arg3;
-        /// The value (for constants param)
-        std::string value;
-        /// variable ids
-        int valueArg;
+        Filter *arg1, *arg2, *arg3; /// Input arguments
+        std::string value; /// The value (for constants param)
+        int valueArg; /// variable ids
 
         /// Constructor
-        Filter() : arg1(0), arg2(0), arg3(0), valueArg(0) {}
+        Filter() : arg1(0), arg2(0), arg3(0), valueArg(0) { }
+
         /// Copy-Constructor
         Filter(const Filter &other)
             : type(other.type), arg1(0), arg2(0), arg3(0),
@@ -162,22 +120,22 @@ public:
             delete arg3;
         }
 
-        void print(){
+        void print() {
             // print info
             cout << "---------------------filter---------------------------" << endl;
             cout << "TYPE: " << this->type << endl;
-            if(this->value != ""){
+            if (this->value != "") {
                 cout << "value: " << this->value << endl;
             }
             cout << "valueArg: " << this->valueArg << endl;
 
-            if(arg1 != NULL){
+            if (arg1 != NULL) {
                 arg1->print();
             }
-            if(arg2 != NULL){
+            if (arg2 != NULL) {
                 arg2->print();
             }
-            if(arg3 != NULL){
+            if (arg3 != NULL) {
                 arg3->print();
             }
             cout << "------------------------------------------------------" << endl;
@@ -185,6 +143,7 @@ public:
 
     private:
         friend class boost::serialization::access;
+
         template <typename Archive>
         void serialize(Archive &ar, const unsigned int version) {
             ar & type;
@@ -212,13 +171,14 @@ public:
         ssid_t id;  /// variable id
         bool descending;    /// desending
 
-        Order() {}
+        Order() { }
 
         Order(ssid_t _id, bool _descending)
-            : id(_id), descending(_descending) {}
+            : id(_id), descending(_descending) { }
 
     private:
         friend class boost::serialization::access;
+
         template <typename Archive>
         void serialize(Archive &ar, const unsigned int version) {
             ar & id;
@@ -332,12 +292,12 @@ public:
             vector<sid_t> new_table;
             for (int i = 0; i < this->get_row_num(); i++) {
                 new_table.insert(new_table.end(),
-                this->result_table.begin() + (i * this->col_num),
-                this->result_table.begin() + (i * this->col_num + col));
+                                 this->result_table.begin() + (i * this->col_num),
+                                 this->result_table.begin() + (i * this->col_num + col));
                 new_table.push_back(BLANK_ID);
                 new_table.insert(new_table.end(),
-                this->result_table.begin() + (i * this->col_num + col),
-                this->result_table.begin() + ((i + 1) * this->col_num));
+                                 this->result_table.begin() + (i * this->col_num + col),
+                                 this->result_table.begin() + ((i + 1) * this->col_num));
             }
             this->result_table.swap(new_table);
         }
@@ -361,23 +321,23 @@ public:
             }
 
             vector<sid_t> new_table;
-            for(int i = 0; i < this->row_num; i++) {
+            for (int i = 0; i < this->row_num; i++) {
                 bool printed = false;
                 for (int j = 0; j < result.row_num; j++) {
                     // check if common_cols match
                     bool same_common = true;
                     for (auto common_col : common_cols) {
                         if (result.result_table[j * result.col_num + col_map[common_col]]
-                            != this->result_table[i * old_col_num + common_col]) {
-                                same_common = false;
-                                break;
+                                != this->result_table[i * old_col_num + common_col]) {
+                            same_common = false;
+                            break;
                         }
                     }
                     if (same_common) {
                         printed = true;
                         new_table.insert(new_table.end(),
-                        this->result_table.begin() + (i * old_col_num),
-                        this->result_table.begin() + ((i + 1) * old_col_num));
+                                         this->result_table.begin() + (i * old_col_num),
+                                         this->result_table.begin() + ((i + 1) * old_col_num));
                         for (auto new_col : new_cols) {
                             new_table.push_back(result.result_table[j * result.col_num + col_map[new_col]]);
                         }
@@ -385,8 +345,8 @@ public:
                 }
                 if (!printed) {
                     new_table.insert(new_table.end(),
-                    this->result_table.begin() + (i * old_col_num),
-                    this->result_table.begin() + ((i + 1) * old_col_num));
+                                     this->result_table.begin() + (i * old_col_num),
+                                     this->result_table.begin() + ((i + 1) * old_col_num));
                     for (auto new_col : new_cols) {
                         new_table.push_back(BLANK_ID);
                     }
@@ -413,7 +373,7 @@ public:
                     this->col_num++;
                 } else if (this->v2c_map[i] != NO_RESULT && result.v2c_map[i] == NO_RESULT) {
                     col_map[this->var2col(vid)] = -1;
-                } else if (this->v2c_map[i] != NO_RESULT && result.v2c_map[i] != NO_RESULT){
+                } else if (this->v2c_map[i] != NO_RESULT && result.v2c_map[i] != NO_RESULT) {
                     col_map[this->var2col(vid)] = result.var2col(vid);
                 }
             }
@@ -496,8 +456,7 @@ public:
     SPARQLQuery() { }
 
     // build a request by existing triple patterns and variables
-    SPARQLQuery(PatternGroup g, int n)
-        : pattern_group(g) {
+    SPARQLQuery(PatternGroup g, int n) : pattern_group(g) {
         result.nvars = n;
         result.v2c_map.resize(n, NO_RESULT);
     }
@@ -565,7 +524,7 @@ public:
                  << group.patterns[i].object << endl;
         }
         cout << "unions:" << endl;
-        for(int i = 0; i < group.unions.size(); i++) {
+        for (int i = 0; i < group.unions.size(); i++) {
             print_group(group.unions[i]);
         }
     }
@@ -582,6 +541,25 @@ namespace boost {
 namespace serialization {
 char occupied = 0;
 char empty = 1;
+
+template<class Archive>
+void save(Archive & ar, const SPARQLQuery::Pattern & t, unsigned int version) {
+    ar << t.subject;
+    ar << t.predicate;
+    ar << t.object;
+    ar << t.direction;
+    ar << t.pred_type;
+}
+
+template<class Archive>
+void load(Archive & ar, SPARQLQuery::Pattern & t, unsigned int version) {
+    ar >> t.subject;
+    ar >> t.predicate;
+    ar >> t.object;
+    ar >> t.direction;
+    ar >> t.pred_type;
+}
+
 template<class Archive>
 void save(Archive & ar, const SPARQLQuery::PatternGroup & t, unsigned int version) {
     ar << t.patterns;
@@ -607,6 +585,7 @@ void save(Archive & ar, const SPARQLQuery::PatternGroup & t, unsigned int versio
         ar << empty;
     }
 }
+
 template<class Archive>
 void load(Archive & ar, SPARQLQuery::PatternGroup & t, unsigned int version) {
     char temp = 2;
@@ -627,6 +606,45 @@ void load(Archive & ar, SPARQLQuery::PatternGroup & t, unsigned int version) {
         temp = 2;
     }
 }
+
+template<class Archive>
+void save(Archive & ar, const SPARQLQuery::Result & t, unsigned int version) {
+    ar << t.col_num;
+    ar << t.row_num;
+    ar << t.attr_col_num;
+    ar << t.blind;
+    ar << t.nvars;
+    ar << t.v2c_map;
+    if (!t.blind) ar << t.required_vars;
+    // attr_res_table must be empty if result_table is empty
+    if (t.result_table.size() > 0) {
+        ar << occupied;
+        ar << t.result_table;
+        ar << t.attr_res_table;
+    }
+    else {
+        ar << empty;
+    }
+}
+
+template<class Archive>
+void load(Archive & ar, SPARQLQuery::Result & t, unsigned int version) {
+    char temp = 2;
+    ar >> t.col_num;
+    ar >> t.row_num;
+    ar >> t.attr_col_num;
+    ar >> t.blind;
+    ar >> t.nvars;
+    ar >> t.v2c_map;
+    if (!t.blind) ar >> t.required_vars;
+    ar >> temp;
+    if (temp == occupied) {
+        ar >> t.result_table;
+        ar >> t.attr_res_table;
+    }
+}
+
+
 template<class Archive>
 void save(Archive & ar, const SPARQLQuery & t, unsigned int version) {
     ar << t.id;
@@ -651,6 +669,7 @@ void save(Archive & ar, const SPARQLQuery & t, unsigned int version) {
     }
     ar << t.result;
 }
+
 template<class Archive>
 void load(Archive & ar, SPARQLQuery & t, unsigned int version) {
     char temp = 2;
@@ -673,72 +692,24 @@ void load(Archive & ar, SPARQLQuery & t, unsigned int version) {
     }
     ar >> t.result;
 }
-template<class Archive>
-void save(Archive & ar, const SPARQLQuery::Pattern & t, unsigned int version) {
-    ar << t.subject;
-    ar << t.predicate;
-    ar << t.object;
-    ar << t.direction;
-    ar << t.pred_type;
-}
-template<class Archive>
-void load(Archive & ar, SPARQLQuery::Pattern & t, unsigned int version) {
-    ar >> t.subject;
-    ar >> t.predicate;
-    ar >> t.object;
-    ar >> t.direction;
-    ar >> t.pred_type;
-}
-template<class Archive>
-void save(Archive & ar, const SPARQLQuery::Result & t, unsigned int version) {
-    ar << t.col_num;
-    ar << t.row_num;
-    ar << t.attr_col_num;
-    ar << t.blind;
-    ar << t.nvars;
-    ar << t.v2c_map;
-    if (!t.blind) ar << t.required_vars;
-    // attr_res_table must be empty if result_table is empty
-    if (t.result_table.size() > 0) {
-        ar << occupied;
-        ar << t.result_table;
-        ar << t.attr_res_table;
-    }
-    else {
-        ar << empty;
-    }
-}
-template<class Archive>
-void load(Archive & ar, SPARQLQuery::Result & t, unsigned int version) {
-    char temp = 2;
-    ar >> t.col_num;
-    ar >> t.row_num;
-    ar >> t.attr_col_num;
-    ar >> t.blind;
-    ar >> t.nvars;
-    ar >> t.v2c_map;
-    if (!t.blind) ar >> t.required_vars;
-    ar >> temp;
-    if (temp == occupied) {
-        ar >> t.result_table;
-        ar >> t.attr_res_table;
-    }
+
 }
 }
-}
+
 BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::Pattern);
 BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::PatternGroup);
 BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::Result);
 BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery);
+
 //remove class information at the cost of losing auto versioning, which is useless currently because wukong
 //use boost serialization to transmit data between endpoints running the same code.
 BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Pattern, boost::serialization::object_serializable);
-BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Filter, boost::serialization::object_serializable);
 BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::PatternGroup, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Filter, boost::serialization::object_serializable);
 BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Order, boost::serialization::object_serializable);
 BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Result, boost::serialization::object_serializable);
 BOOST_CLASS_IMPLEMENTATION(SPARQLQuery, boost::serialization::object_serializable);
-BOOST_CLASS_IMPLEMENTATION(RDFLoad, boost::serialization::object_serializable);
+
 //remove object tracking information at the cost of that multiple identical objects may be created when an archive is loaded.
 //current query data structure does not contain two identical object reference with the same pointer
 BOOST_CLASS_TRACKING(SPARQLQuery::Pattern, boost::serialization::track_never);
@@ -747,41 +718,64 @@ BOOST_CLASS_TRACKING(SPARQLQuery::PatternGroup, boost::serialization::track_neve
 BOOST_CLASS_TRACKING(SPARQLQuery::Order, boost::serialization::track_never);
 BOOST_CLASS_TRACKING(SPARQLQuery::Result, boost::serialization::track_never);
 BOOST_CLASS_TRACKING(SPARQLQuery, boost::serialization::track_never);
-BOOST_CLASS_TRACKING(RDFLoad, boost::serialization::track_never);
 
-class request_template {
+
+/**
+ * GStore consistency checker
+ */
+class GStoreCheck {
+private:
+    friend class boost::serialization::access;
+    template <typename Archive>
+    void serialize(Archive &ar, const unsigned int version) {
+        ar & pid;
+        ar & check_ret;
+        ar & index_check;
+        ar & normal_check;
+    }
 
 public:
-    SPARQLQuery::PatternGroup pattern_group;
+    int pid = -1;    // parent query id
 
-    int nvars;  // the number of variable in triple patterns
+    int check_ret = 0;
+    bool index_check = false;
+    bool normal_check = false;
 
-    // no serialize
-    vector<int> ptypes_pos; // the locations of random-constants
-    vector<string> ptypes_str; // the Types of random-constants
-    vector<vector<sid_t>> ptypes_grp; // the candidates for random-constants
+    GStoreCheck() { }
 
-    SPARQLQuery instantiate(int seed) {
-        for (int i = 0; i < ptypes_pos.size(); i++) {
-            int pos = ptypes_pos[i];
-            switch (pos % 4) {
-            case 0:
-                pattern_group.patterns[pos / 4].subject = ptypes_grp[i][seed % ptypes_grp[i].size()];
-                break;
-            case 1:
-                pattern_group.patterns[pos / 4].predicate = ptypes_grp[i][seed % ptypes_grp[i].size()];
-                break;
-            case 3:
-                pattern_group.patterns[pos / 4].object = ptypes_grp[i][seed % ptypes_grp[i].size()];
-                break;
-            }
-        }
-
-        return SPARQLQuery(pattern_group, nvars);
-    }
+    GStoreCheck(bool i, bool n) : index_check(i), normal_check(n) { }
 };
 
-enum req_type { SPARQL_QUERY, DYNAMIC_LOAD, GSTORE_CHECK };
+/**
+ * RDF data loader
+ */
+class RDFLoad {
+private:
+    friend class boost::serialization::access;
+    template <typename Archive>
+    void serialize(Archive &ar, const unsigned int version) {
+        ar & pid;
+        ar & load_dname;
+        ar & load_ret;
+        ar & check_dup;
+    }
+
+public:
+    int pid = -1;    // parent query id
+
+    string load_dname = "";   // the file name used to be inserted
+    int load_ret = 0;
+    bool check_dup = false;
+
+    RDFLoad() { }
+
+    RDFLoad(string s, bool b) : load_dname(s), check_dup(b) { }
+};
+
+BOOST_CLASS_IMPLEMENTATION(RDFLoad, boost::serialization::object_serializable);
+
+BOOST_CLASS_TRACKING(RDFLoad, boost::serialization::track_never);
+
 
 class Bundle {
 public:
@@ -873,9 +867,44 @@ public:
 
 private:
     friend class boost::serialization::access;
+
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
         ar & type;
         ar & data;
+    }
+};
+
+/**
+ * SPARQL query template
+ */
+class request_template {
+public:
+    SPARQLQuery::PatternGroup pattern_group;
+
+    int nvars;  // the number of variable in triple patterns
+
+    // no serialize
+    vector<int> ptypes_pos; // the locations of random-constants
+    vector<string> ptypes_str; // the Types of random-constants
+    vector<vector<sid_t>> ptypes_grp; // the candidates for random-constants
+
+    SPARQLQuery instantiate(int seed) {
+        for (int i = 0; i < ptypes_pos.size(); i++) {
+            int pos = ptypes_pos[i];
+            switch (pos % 4) {
+            case 0:
+                pattern_group.patterns[pos / 4].subject = ptypes_grp[i][seed % ptypes_grp[i].size()];
+                break;
+            case 1:
+                pattern_group.patterns[pos / 4].predicate = ptypes_grp[i][seed % ptypes_grp[i].size()];
+                break;
+            case 3:
+                pattern_group.patterns[pos / 4].object = ptypes_grp[i][seed % ptypes_grp[i].size()];
+                break;
+            }
+        }
+
+        return SPARQLQuery(pattern_group, nvars);
     }
 };
