@@ -352,22 +352,34 @@ done:
     inline uint64_t blksz(uint64_t sz) { return b2e(edge_allocator->sz_to_blksz(e2b(sz))); } //unit: edge
 
     inline void insert_sz(uint64_t n, uint64_t sz, uint64_t off) {
+        if (!global_enable_caching)
+            return;
+
         uint64_t blk_sz = blksz(sz + 1);   // reserve one space for sz
         edges[off + blk_sz - 1].val = n;  // store num of edges in array's tail
     }
 
     inline bool need_realloc(uint64_t old_sz, uint64_t need_sz) {
         uint64_t blk_sz = blksz(old_sz);
-        return (blk_sz <= need_sz); //reserve one space for sz
+        if (global_enable_caching)
+            need_sz ++; //reserve one space for sz
+        return (blk_sz < need_sz); 
     }
     
     inline bool edge_is_valid(vertex_t &v, edge_t *edge_ptr) {
+        if (!global_enable_caching)
+            return true;
+
         uint64_t blk_sz = blksz(v.ptr.size + 1);  // reserve one space for sz
         return (edge_ptr[blk_sz - 1].val == v.ptr.size);   //check if sz is consistant
-            
     }
 
     inline void add_pending_free(iptr_t ptr) {
+        if (!global_enable_caching) {
+            edge_allocator->free(e2b(ptr.off));
+            return;
+        } 
+ 
         uint64_t expire_time = timer::get_usec() + *(mem->cache_term());
         free_blk blk(ptr.off, expire_time);
         
@@ -395,10 +407,17 @@ done:
     }
 
     inline uint64_t alloc_edges(uint64_t n, int64_t tid = -1) {
-        sweep_free();
-        uint64_t sz = e2b(n + 1); // reserve one space for sz
-        uint64_t off = b2e(edge_allocator->malloc(sz, tid));
-        insert_sz(n, n, off);
+        uint64_t off;
+
+        if (global_enable_caching) {
+            sweep_free();
+            uint64_t sz = e2b(n + 1); // reserve one space for sz
+            uint64_t off = b2e(edge_allocator->malloc(sz, tid));
+            insert_sz(n, n, off);
+        } else {
+            uint64_t sz = e2b(n); // reserve one space for sz
+            uint64_t off = b2e(edge_allocator->malloc(sz, tid));
+        }
         return off;
     }
 #else
@@ -559,11 +578,18 @@ done:
 
         char *buf = mem->buffer(tid);
         uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
+
 #if DYNAMIC_GSTORE
-        uint64_t r_sz = blksz(v.ptr.size + 1) * sizeof(edge_t);  //get whole blk
+        uint64_t r_sz;
+        if (global_enable_caching)
+            r_sz = blksz(v.ptr.size + 1) * sizeof(edge_t);  //get whole blk
+        else
+            r_sz = v.ptr.size * sizeof(edge_t);
+
 #else
-        uint64_t r_sz = v.ptr.size * sizeof(edge_t);  //get whole blk
+        uint64_t r_sz = v.ptr.size * sizeof(edge_t);
 #endif
+
         RDMA &rdma = RDMA::get_rdma();
         rdma.dev->RdmaRead(tid, dst_sid, buf, r_sz, r_off);
         edge_t *result_ptr = (edge_t *)buf;
