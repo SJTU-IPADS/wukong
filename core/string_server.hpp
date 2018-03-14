@@ -45,8 +45,8 @@ public:
     boost::unordered_map<string, sid_t> str2id;
     boost::unordered_map<sid_t, string> id2str;
 
-    // data type of predicate/attributed: sid=0, integer=1, float=2, double=3
-    boost::unordered_map<sid_t, int32_t> id2type;
+    // the data type of predicate/attribute: sid=0, integer=1, float=2, double=3
+    boost::unordered_map<sid_t, int32_t> pid2type;
 
     String_Server(string dname) {
         if (boost::starts_with(dname, "hdfs:")) {
@@ -94,7 +94,7 @@ private:
                     str2id[str] = id;
                     id2str[id] = str;
                     if (boost::ends_with(fname, "/str_index"))
-                        id2type[id] = SID_t;
+                        pid2type[id] = SID_t;
                 }
                 file.close();
             }
@@ -110,7 +110,7 @@ private:
                 while (file >> str >> id >> type) {
                     str2id[str] = id;
                     id2str[id] = str;
-                    id2type[id] = type;
+                    pid2type[id] = type;
                     cout << " attribute[" << id << "] = " << type << endl;
                 }
                 file.close();
@@ -140,7 +140,7 @@ private:
                     str2id[str] = id;
                     id2str[id] = str;
                     if (boost::ends_with(fname, "/str_index"))
-                        id2type[id] = SID_t;
+                        pid2type[id] = SID_t;
                 }
                 file.close();
             }
@@ -156,7 +156,7 @@ private:
                 while (file >> str >> id >> type) {
                     str2id[str] = id;
                     id2str[id] = str;
-                    id2type[id] = type;
+                    pid2type[id] = type;
                     cout << " attribute[" << id << "] = " << type << endl;
                 }
                 file.close();

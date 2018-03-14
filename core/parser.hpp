@@ -133,12 +133,12 @@ private:
                                          encode(src_p.predicate),
                                          src_p.direction,
                                          encode(src_p.object));
-            int type =  str_server->id2type[encode(src_p.predicate)];
+            int type =  str_server->pid2type[encode(src_p.predicate)];
             if (type > 0 && (!global_enable_vattr)) {
                 cout << "Need to change config to enable vertex_attr " << endl;
                 assert(false);
             }
-            pattern.pred_type = str_server->id2type[encode(src_p.predicate)];
+            pattern.pred_type = str_server->pid2type[encode(src_p.predicate)];
             dest.patterns.push_back(pattern);
         }
         // filters
@@ -154,7 +154,8 @@ private:
             for (auto &union_group : src.unions) {
                 dest.unions.push_back(SPARQLQuery::PatternGroup());
                 transfer_patterns(union_group, dest.unions.back());
-                dest.unions[i].patterns.insert(dest.unions[i].patterns.end(), dest.patterns.begin(), dest.patterns.end());
+                dest.unions[i].patterns.insert(dest.unions[i].patterns.end(),
+                                               dest.patterns.begin(), dest.patterns.end());
                 i++;
             }
             dest.patterns.clear();
@@ -197,7 +198,8 @@ private:
         r.offset = parser.getOffset();
 
         // distinct
-        if (parser.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Distinct || parser.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Reduced) {
+        if (parser.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Distinct
+                || parser.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Reduced) {
             r.distinct = true;
         }
 
@@ -233,7 +235,7 @@ private:
             ssid_t direction = (dir_t)OUT; pos++;
             ssid_t object = _H_push(iter->object, r, pos++);
             SPARQLQuery::Pattern pattern(subject, predicate, direction, object);
-            int type =  str_server->id2type[encode(iter->predicate)];
+            int type =  str_server->pid2type[encode(iter->predicate)];
             if (type > 0 && (!global_enable_vattr)) {
                 cout << "Need to change config to enable vertex_attr " << endl;
                 assert(false);
