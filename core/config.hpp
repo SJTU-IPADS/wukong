@@ -44,7 +44,6 @@ int global_num_proxies = 1;    // the number of proxies
 int global_num_engines = 1;    // the number of engines
 
 string global_input_folder;
-bool global_load_minimal_index = true;
 
 int global_data_port_base = 5500;
 int global_ctrl_port_base = 9576;
@@ -88,8 +87,6 @@ static bool set_immutable_config(string cfg_name, string value)
 		// force a "/" at the end of global_input_folder.
 		if (global_input_folder[global_input_folder.length() - 1] != '/')
 			global_input_folder = global_input_folder + "/";
-	} else if (cfg_name == "global_load_minimal_index") {
-		global_load_minimal_index = atoi(value.c_str());
 	} else if (cfg_name == "global_data_port_base") {
 		global_data_port_base = atoi(value.c_str());
 		assert(global_data_port_base > 0);
@@ -237,7 +234,6 @@ void print_config(void)
 	cout << "the number of proxies: "		<< global_num_proxies			<< endl;
 	cout << "the number of engines: "		<< global_num_engines 			<< endl;
 	cout << "global_input_folder: " 		<< global_input_folder			<< endl;
-	cout << "global_load_minimal_index: " 	<< global_load_minimal_index 	<< endl;
 	cout << "global_data_port_base: " 		<< global_data_port_base		<< endl;
 	cout << "global_ctrl_port_base: " 		<< global_ctrl_port_base		<< endl;
 	cout << "global_memstore_size_gb: " 	<< global_memstore_size_gb		<< endl;

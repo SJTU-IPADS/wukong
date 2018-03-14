@@ -83,9 +83,8 @@ private:
                 continue;
 
             string fname(dname + ent->d_name);
-            if ((boost::ends_with(fname, "/str_index"))
-                    || (boost::ends_with(fname, "/str_normal") && !global_load_minimal_index)
-                    || (boost::ends_with(fname, "/str_normal_minimal") && global_load_minimal_index)) {
+            if (boost::ends_with(fname, "/str_index")
+                    || boost::ends_with(fname, "/str_normal")) {
                 cout << "loading ID-mapping file: " << fname << endl;
                 ifstream file(fname.c_str());
                 string str;
@@ -127,11 +126,8 @@ private:
             string fname = files[i];
             // NOTE: users may use a short path (w/o ip:port)
             // e.g., hdfs:/xxx/xxx/
-            if ((boost::ends_with(fname, "/str_index"))
-                    || (boost::ends_with(fname, "/str_normal")
-                        && !global_load_minimal_index)
-                    || (boost::ends_with(fname, "/str_normal_minimal")
-                        && global_load_minimal_index)) {
+            if (boost::ends_with(fname, "/str_index")
+                    || boost::ends_with(fname, "/str_normal")) {
                 cout << "loading ID-mapping file from HDFS: " << fname << endl;
                 wukong::hdfs::fstream file(hdfs, fname);
                 string str;

@@ -198,13 +198,16 @@ public:
                     else
                         stream << id << "\t";
                 }
+
                 for (int c = 0; c < this->get_attr_col_num(); c++) {
                     attr_t tmp = this->get_attr_row_col(i, c);
                     stream << tmp << "\t";
                 }
+
                 stream << endl;
             }
         }
+
         friend class boost::serialization::access;
     public:
         int col_num = 0;

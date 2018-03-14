@@ -320,10 +320,6 @@ next:
 
 						// print or dump results
 						if (!global_silent && !result.blind && (nlines > 0 || o_enable)) {
-							if (global_load_minimal_index)
-								cout << "WARNING: Can't print/output results in string format\n"
-								     << "         with global_load_minimal_index enabled." << endl;
-
 							if (nlines > 0)
 								result.print_result(min(result.row_num, nlines), proxy->str_server);
 

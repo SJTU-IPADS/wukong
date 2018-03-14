@@ -37,20 +37,10 @@
 
 /**
  * transfer str-format RDF data into id-format RDF data (triple rows)
- */
-
-
-/**
+ *
  * A simple manual
  *  $g++ -std=c++11 generate_data.cpp -o generate_data
  *  $./generate_data lubm_raw_40 id_lubm_40
- */
-
-/**
- * How to generate minimal_index file
- *  $grep "<http://www.University0.edu>" str_normal >> str_normal_minimal
- *  $grep "<http://www.Department0.University0.edu>" str_normal >> str_normal_minimal
- *  ...
  */
 
 using namespace std;

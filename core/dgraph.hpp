@@ -549,11 +549,9 @@ public:
 
 #if DYNAMIC_GSTORE
 	bool check_sid(const sid_t id) {
-		if (!global_load_minimal_index) { // complete string server
-			if (!str_server->exist(id)) {
-				cout << "[WARNING] Unknown SID: " << id << endl;
-				return false;
-			}
+		if (!str_server->exist(id)) {
+			cout << "[WARNING] Unknown SID: " << id << endl;
+			return false;
 		}
 		return true;
 	}
