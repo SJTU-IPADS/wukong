@@ -412,11 +412,11 @@ done:
         if (global_enable_caching) {
             sweep_free();
             uint64_t sz = e2b(n + 1); // reserve one space for sz
-            uint64_t off = b2e(edge_allocator->malloc(sz, tid));
+            off = b2e(edge_allocator->malloc(sz, tid));
             insert_sz(n, n, off);
         } else {
-            uint64_t sz = e2b(n); // reserve one space for sz
-            uint64_t off = b2e(edge_allocator->malloc(sz, tid));
+            uint64_t sz = e2b(n);
+            off = b2e(edge_allocator->malloc(sz, tid));
         }
         return off;
     }
