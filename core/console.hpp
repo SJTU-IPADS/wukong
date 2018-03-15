@@ -372,6 +372,7 @@ next:
 							Logger other = console_recv<Logger>(proxy->tid);
 							logger.merge(other);
 						}
+						logger.aggregate();
 						logger.print_cdf();
 						logger.print_thpt();
 					} else {

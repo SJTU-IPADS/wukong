@@ -183,7 +183,7 @@ public:
 			assert(bundle.type == SPARQL_QUERY);
 			r = bundle.get_sparql_query();
 
-			if (r.start_from_index()) {
+			if (false && r.start_from_index()) {
 				cout << "Unsupport try recieve parallel query now!" << endl;
 				assert(false);
 			}
@@ -269,7 +269,7 @@ public:
 			fill_template(tpls[i]);
 		}
 
-		logger.init();
+		logger.init(ntypes);
 
 		bool timing = false;
 		uint64_t send_cnt = 0, recv_cnt = 0, flying_cnt = 0;
