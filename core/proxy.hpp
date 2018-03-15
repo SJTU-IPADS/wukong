@@ -182,11 +182,6 @@ public:
 		if (success) {
 			assert(bundle.type == SPARQL_QUERY);
 			r = bundle.get_sparql_query();
-
-			if (false && r.start_from_index()) {
-				cout << "Unsupport try recieve parallel query now!" << endl;
-				assert(false);
-			}
 		}
 
 		return success;

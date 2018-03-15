@@ -127,14 +127,12 @@ public:
     }
 
     void start_thpt(uint64_t start) {
-        printf(">>>> Start throughput evaluation!\n");
         thpt_time = timer::get_usec();
         cnt = start;
     }
 
     void end_thpt(uint64_t end) {
         thpt = 1000000.0 * (end - cnt) / (timer::get_usec() - thpt_time);
-        printf("<<<< End throughput evaluation!\n");
     }
 
     void print_thpt() {
@@ -200,7 +198,7 @@ public:
         int cnt, query_type;//, query_cnt = 0;
         map<int, vector<uint64_t>> cdf_res;
 
-        // 从total_latency_map中选出25个点，作为最终的CDF图数据
+        // select 25 points from total_latency_map
         for (auto e : total_latency_map) {
             query_type = e.first;
             vector<uint64_t> &lats = e.second;
@@ -209,26 +207,22 @@ public:
                 continue;
 
             cnt = 0;
-            cout << "Query: " << query_type + 1 << ", size: " << lats.size() << endl;
             // result of CDF figure
             cdf_res[query_type] = std::vector<uint64_t>();
-            // 利用cdf_rates从lats中筛选出对应下标的点
+            // select points from lats corresponding to cdf_rates
             for (auto rate : cdf_rates) {
                 int idx = lats.size() * rate;
                 if (idx >= lats.size()) idx = lats.size() - 1;
-                cout << lats[idx] << "\t";
                 cdf_res[query_type].push_back(lats[idx]);
                 cnt++;
-                if (cnt % 5 == 0)   cout << endl;
             }
             assert(cdf_res[query_type].size() == 25);
-            cout << endl;
         }
 
         cout << "CDF Res: " << endl;
-        cout << "P ";
+        cout << "P";
         for (int i = 1; i <= nquery_types; ++i) {
-            cout << "Q" << i << " ";
+            cout << "\t" << "Q" << i;
         }
         cout << endl;
 
@@ -236,15 +230,14 @@ public:
         int row, p;
         for (row = 1; row <= 25; ++row) {
             if (row == 1)
-                cout << row << " ";
+                cout << row << "\t";
             else if (row <= 20)
-                cout << 5 * (row - 1) << " ";
+                cout << 5 * (row - 1) << "\t";
             else
-                cout << 95 + (row - 20) << " ";
+                cout << 95 + (row - 20) << "\t";
 
             for (int i = 0; i < nquery_types; ++i) {
-                cout << cdf_res[i][row - 1] << " ";
-
+                cout << cdf_res[i][row - 1] << "\t";
             }
             cout << endl;
         }
