@@ -676,7 +676,7 @@ done:
             edge_ptr = rdma_get_edges(tid, dst_sid, v);
         }
 #else
-         v = get_vertex_remote(tid, key);
+        v = get_vertex_remote(tid, key);
         if (v.key.is_empty()) {
             return false; // not found
         }
