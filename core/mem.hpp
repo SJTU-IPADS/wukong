@@ -78,7 +78,6 @@ public:
 		}
 
 		lrbf_hd_sz = rrbf_hd_sz = sizeof(uint64_t);
-                uint64_t term_sz = sizeof(uint64_t);
 
 		mem_sz = kvs_sz
 		         + buf_sz * num_threads
