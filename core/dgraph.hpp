@@ -86,6 +86,61 @@ class DGraph {
 	vector<vector<triple_t>> triple_ops;
 	vector<vector<triple_attr_t>> triple_sav;
 
+	#if DYNAMIC_GSTORE
+	boost::unordered_map<sid_t, sid_t> id2id;
+
+	void flush_convertmap() { id2id.clear(); }
+
+	void convert_sid(sid_t& sid) { 
+		if(id2id.find(sid) != id2id.end()) {
+            sid = id2id[sid];
+        }
+	}
+
+	bool check_sid(const sid_t id) {
+		if (!str_server->exist(id)) {
+			cout << "[WARNING] Unknown SID: " << id << endl;
+			return false;
+		}
+		return true;
+	}
+
+	void dynamic_load_mappings(string dname) {
+        DIR *dir = opendir(dname.c_str());
+        if (dir == NULL) {
+            cout << "ERROR: failed to open the directory of ID-mapping files ("
+                 << dname << ")." << endl;
+            exit(-1);
+        }
+        struct dirent *ent;
+        while ((ent = readdir(dir)) != NULL) {
+            if (ent->d_name[0] == '.')
+                continue;
+            string fname(dname + ent->d_name);
+			if (boost::ends_with(fname, "/str_index")
+                    || boost::ends_with(fname, "/str_normal")) {
+                cout << "loading ID-mapping file: " << fname << endl;
+                ifstream file(fname.c_str());
+                string str;
+                sid_t id;
+                while (file >> str >> id) {
+                   if (str_server->exist(str)) {
+                        id2id[id] = str_server->str2id[str];
+                    } else {
+						if(boost::ends_with(fname, "/str_index"))
+                        	id2id[id] = str_server->next_index_id ++;
+						else
+							id2id[id] = str_server->next_normal_id ++;
+                        str_server->str2id[str] = id2id[id];
+                        str_server->id2str[id2id[id]] = str;
+                    }
+                }
+                file.close();
+            }
+        }
+    }
+	#endif
+
 	void dedup_triples(vector<triple_t> &triples) {
 		if (triples.size() <= 1)
 			return;
@@ -548,20 +603,8 @@ public:
 
 
 #if DYNAMIC_GSTORE
-	void convert_sid(sid_t& id) { 
-		str_server->convert(id);
-	}
-
-	bool check_sid(const sid_t id) {
-		if (!str_server->exist(id)) {
-			cout << "[WARNING] Unknown SID: " << id << endl;
-			return false;
-		}
-		return true;
-	}
-
 	int64_t dynamic_load_data(string dname, bool check_dup) {
-		str_server->dynamic_load_from_posixfs(dname); // load ID-mapping files and construct id2id mapping
+		dynamic_load_mappings(dname); // load ID-mapping files and construct id2id mapping
 
 		vector<string> dfiles(list_files(dname, "id_"));   // ID-format data files
 		vector<string> afiles(list_files(dname, "attr_")); // ID-format attribute files
@@ -607,7 +650,7 @@ public:
 			     << " at server " << sid << endl;
 		}
 
-		str_server->flush_convertmap(); //clean the id2id mapping
+		flush_convertmap(); //clean the id2id mapping
 
 		sort(afiles.begin(), afiles.end());
 		int num_afiles = afiles.size();

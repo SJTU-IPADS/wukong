@@ -44,7 +44,6 @@ class String_Server {
 public:
     boost::unordered_map<string, sid_t> str2id;
     boost::unordered_map<sid_t, string> id2str;
-    boost::unordered_map<sid_t, sid_t> id2id;
 
     // the data type of predicate/attribute: sid=0, integer=1, float=2, double=3
     boost::unordered_map<sid_t, int32_t> pid2type;
@@ -69,63 +68,6 @@ public:
         cout << "loading String Server is finished." << endl;
     }
 
-    void dynamic_load_from_posixfs(string dname) {
-        DIR *dir = opendir(dname.c_str());
-        if (dir == NULL) {
-            cout << "ERROR: failed to open the directory of ID-mapping files ("
-                 << dname << ")." << endl;
-            exit(-1);
-        }
-        struct dirent *ent;
-        while ((ent = readdir(dir)) != NULL) {
-            if (ent->d_name[0] == '.')
-                continue;
-            string fname(dname + ent->d_name);
-            if (boost::ends_with(fname, "/str_index")) {
-                cout << "loading ID-mapping file: " << fname << endl;
-                ifstream file(fname.c_str());
-                string str;
-                sid_t id;
-                while (file >> str >> id) {
-                    if (exist(str)) {
-                        id2id[id] = str2id[str];
-                    } else {
-                        id2id[id] = next_index_id;
-                        str2id[str] = next_index_id;
-                        id2str[next_index_id] = str;
-                        next_index_id ++;
-                    }
-                }
-                file.close();
-            }
-            if (boost::ends_with(fname, "/str_normal")) {
-                cout << "loading ID-mapping file: " << fname << endl;
-                ifstream file(fname.c_str());
-                string str;
-                sid_t id;
-                while (file >> str >> id) {
-                    if (exist(str)) {
-                        id2id[id] = str2id[str];
-                    } else {
-                        id2id[id] = next_normal_id;
-                        str2id[str] = next_normal_id;
-                        id2str[next_normal_id] = str;
-                        next_normal_id ++;
-                    }
-                }
-                file.close();
-            }
-        }
-    }
-
-    void convert(sid_t& sid) {
-        if(id2id.find(sid) != id2id.end()) {
-            sid = id2id[sid];
-        }
-    }
-
-    void flush_convertmap() { id2id.clear(); }
-
     bool exist(sid_t sid) { return id2str.find(sid) != id2str.end(); }
 
     bool exist(string str) { return str2id.find(str) != str2id.end(); }
@@ -146,7 +88,8 @@ private:
                 continue;
 
             string fname(dname + ent->d_name);
-            if (boost::ends_with(fname, "/str_index")) {
+            if (boost::ends_with(fname, "/str_index")
+                    || boost::ends_with(fname, "/str_normal")) {
                 cout << "loading ID-mapping file: " << fname << endl;
                 ifstream file(fname.c_str());
                 string str;
@@ -154,25 +97,15 @@ private:
                 while (file >> str >> id) {
                     str2id[str] = id;
                     id2str[id] = str;
-                    pid2type[id] = SID_t;
+                    if (boost::ends_with(fname, "/str_index"))
+                        pid2type[id] = SID_t;
                 }
-                next_index_id = ++id;
+                if (boost::ends_with(fname, "/str_index"))
+                    next_index_id = ++id;
+                else 
+                    next_normal_id = ++id;
                 file.close();
             }
-
-            if (boost::ends_with(fname, "/str_normal")) {
-                cout << "loading ID-mapping file: " << fname << endl;
-                ifstream file(fname.c_str());
-                string str;
-                sid_t id;
-                while (file >> str >> id) {
-                    str2id[str] = id;
-                    id2str[id] = str;
-                }
-                next_normal_id = ++id;
-                file.close();
-            }
-
 
             /// FIXME: whether the predicates/attributes in str_attr_index should be
             ///        exclusive to the predicates/attributes in str_index or not?
@@ -214,6 +147,10 @@ private:
                     if (boost::ends_with(fname, "/str_index"))
                         pid2type[id] = SID_t;
                 }
+                if (boost::ends_with(fname, "/str_index"))
+                    next_index_id = ++id;
+                else 
+                    next_normal_id = ++id;
                 file.close();
             }
 
