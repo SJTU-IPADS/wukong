@@ -51,7 +51,6 @@ $cat config
 global_num_proxies          1
 global_num_engines          2
 global_input_folder         path/to/input/id_lubm_2
-global_load_minimal_index   0
 global_data_port_base       5500
 global_ctrl_port_base       9576
 global_memstore_size_gb     20
@@ -144,7 +143,6 @@ wukong> config -v
 the number of engines: 2
 the number of proxies: 1
 global_input_folder: /home/datanfs/nfs0/rdfdata/id_lubm_2/
-global_load_minimal_index: 0
 global_data_port_base: 5700
 global_ctrl_port_base: 9776
 global_memstore_size_gb: 20

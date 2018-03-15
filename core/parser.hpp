@@ -133,12 +133,12 @@ private:
                                          encode(src_p.predicate),
                                          src_p.direction,
                                          encode(src_p.object));
-            int type =  str_server->id2type[encode(src_p.predicate)];
+            int type =  str_server->pid2type[encode(src_p.predicate)];
             if (type > 0 && (!global_enable_vattr)) {
                 cout << "Need to change config to enable vertex_attr " << endl;
                 assert(false);
             }
-            pattern.pred_type = str_server->id2type[encode(src_p.predicate)];
+            pattern.pred_type = str_server->pid2type[encode(src_p.predicate)];
             dest.patterns.push_back(pattern);
         }
         // filters
@@ -154,7 +154,8 @@ private:
             for (auto &union_group : src.unions) {
                 dest.unions.push_back(SPARQLQuery::PatternGroup());
                 transfer_patterns(union_group, dest.unions.back());
-                dest.unions[i].patterns.insert(dest.unions[i].patterns.end(), dest.patterns.begin(), dest.patterns.end());
+                dest.unions[i].patterns.insert(dest.unions[i].patterns.end(),
+                                               dest.patterns.begin(), dest.patterns.end());
                 i++;
             }
             dest.patterns.clear();
@@ -197,7 +198,8 @@ private:
         r.offset = parser.getOffset();
 
         // distinct
-        if (parser.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Distinct || parser.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Reduced) {
+        if (parser.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Distinct
+                || parser.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Reduced) {
             r.distinct = true;
         }
 
@@ -233,7 +235,7 @@ private:
             ssid_t direction = (dir_t)OUT; pos++;
             ssid_t object = _H_push(iter->object, r, pos++);
             SPARQLQuery::Pattern pattern(subject, predicate, direction, object);
-            int type =  str_server->id2type[encode(iter->predicate)];
+            int type =  str_server->pid2type[encode(iter->predicate)];
             if (type > 0 && (!global_enable_vattr)) {
                 cout << "Need to change config to enable vertex_attr " << endl;
                 assert(false);
@@ -260,18 +262,20 @@ public:
         SPARQLLexer lexer(query);
         SPARQLParser parser(lexer);
         try {
-            parser.parse();//sparql -f query/lubm_q1
+            parser.parse(); //e.g., sparql -f query/lubm_q1
             transfer(parser, r);
         } catch (const SPARQLParser::ParserException &e) {
-            cerr << "parse error: " << e.message << endl;
+            cerr << "[ERROR] failed to parse a SPARQL query: " << e.message << endl;
             return false;
         }
+
         // check if using custom grammar when planner is on
         if (parser.isUsingCustomGrammar() && global_enable_planner) {
-            cerr << "custom grammar can only be used when planner is off! " << endl;
+            cerr << "[ERROR] unsupported custom grammar in SPARQL planner!" << endl;
             return false;
         }
-        cout << "parsing triples is finished." << endl;
+
+        cout << "[INFO] parsing a query is done." << endl;
         return true;
     }
 
@@ -284,21 +288,9 @@ public:
             parser.parse();
             template_transfer(parser, r);
         } catch (const SPARQLParser::ParserException &e) {
-            cerr << "parse error: " << e.message << endl;
+            cerr << "[ERROR] failed to parse a SPARQL query: " << e.message << endl;
             return false;
         }
-        return true;
-    }
-
-    bool add_type_pattern(string type, SPARQLQuery &r) {
-        r = SPARQLQuery();
-
-        // add an additonal pattern cmd to collect pattern constants with a certain type
-        SPARQLQuery::Pattern pattern(str_server->str2id[type], TYPE_ID, IN, -1);
-        pattern.pred_type = 0;
-        r.pattern_group.patterns.push_back(pattern);
-        r.result.nvars = 1;
-        r.result.required_vars.push_back(-1);
         return true;
     }
 };

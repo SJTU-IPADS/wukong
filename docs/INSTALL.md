@@ -128,7 +128,6 @@ $cat config
 global_num_proxies          4
 global_num_engines          16
 global_input_folder         /path/to/input/id_lubm_2
-global_load_minimal_index   1
 global_data_port_base       5500
 global_ctrl_port_base       9576
 global_memstore_size_gb     20
@@ -154,7 +153,7 @@ The main configuration items:
 * `global_enable_planner`: enable standard SPARQL parser and auto query planner
 
 
-> Note: disable `global_load_minimal_index` and `global_silent` if you'd like to print or dump query results.
+> Note: disable `global_silent` if you'd like to print or dump query results.
 
 
 2) Edit the file `core.bind` to manually control the thread binding with CPU cores. Each line corresponds to one NUMA node (CPU Socket) and each thread (identified by ID) will be orderly pinned to a core of the NUMA node.

@@ -46,8 +46,8 @@ public:
     boost::unordered_map<sid_t, string> id2str;
     boost::unordered_map<sid_t, sid_t> id2id;
 
-    // data type of predicate/attributed: sid=0, integer=1, float=2, double=3
-    boost::unordered_map<sid_t, int32_t> id2type;
+    // the data type of predicate/attribute: sid=0, integer=1, float=2, double=3
+    boost::unordered_map<sid_t, int32_t> pid2type;
 
     uint64_t next_index_id;
     uint64_t next_normal_id;
@@ -99,10 +99,6 @@ public:
                 file.close();
             }
             if (boost::ends_with(fname, "/str_normal")) {
-                if(global_load_minimal_index) {
-                    cout << "Error: ID converting is forbidden when global_load_minimal_index is on." << endl;
-                    exit(-1);
-                }
                 cout << "loading ID-mapping file: " << fname << endl;
                 ifstream file(fname.c_str());
                 string str;
@@ -158,14 +154,13 @@ private:
                 while (file >> str >> id) {
                     str2id[str] = id;
                     id2str[id] = str;
-                    id2type[id] = SID_t;
+                    pid2type[id] = SID_t;
                 }
                 next_index_id = ++id;
                 file.close();
             }
 
-            if ((boost::ends_with(fname, "/str_normal") && !global_load_minimal_index)
-                    || (boost::ends_with(fname, "/str_normal_minimal") && global_load_minimal_index)) {
+            if (boost::ends_with(fname, "/str_normal")) {
                 cout << "loading ID-mapping file: " << fname << endl;
                 ifstream file(fname.c_str());
                 string str;
@@ -178,6 +173,7 @@ private:
                 file.close();
             }
 
+
             /// FIXME: whether the predicates/attributes in str_attr_index should be
             ///        exclusive to the predicates/attributes in str_index or not?
             if (boost::ends_with(fname, "/str_attr_index")) {
@@ -189,7 +185,7 @@ private:
                 while (file >> str >> id >> type) {
                     str2id[str] = id;
                     id2str[id] = str;
-                    id2type[id] = type;
+                    pid2type[id] = type;
                     cout << " attribute[" << id << "] = " << type << endl;
                 }
                 file.close();
@@ -206,11 +202,8 @@ private:
             string fname = files[i];
             // NOTE: users may use a short path (w/o ip:port)
             // e.g., hdfs:/xxx/xxx/
-            if ((boost::ends_with(fname, "/str_index"))
-                    || (boost::ends_with(fname, "/str_normal")
-                        && !global_load_minimal_index)
-                    || (boost::ends_with(fname, "/str_normal_minimal")
-                        && global_load_minimal_index)) {
+            if (boost::ends_with(fname, "/str_index")
+                    || boost::ends_with(fname, "/str_normal")) {
                 cout << "loading ID-mapping file from HDFS: " << fname << endl;
                 wukong::hdfs::fstream file(hdfs, fname);
                 string str;
@@ -219,7 +212,7 @@ private:
                     str2id[str] = id;
                     id2str[id] = str;
                     if (boost::ends_with(fname, "/str_index"))
-                        id2type[id] = SID_t;
+                        pid2type[id] = SID_t;
                 }
                 file.close();
             }
@@ -235,7 +228,7 @@ private:
                 while (file >> str >> id >> type) {
                     str2id[str] = id;
                     id2str[id] = str;
-                    id2type[id] = type;
+                    pid2type[id] = type;
                     cout << " attribute[" << id << "] = " << type << endl;
                 }
                 file.close();
