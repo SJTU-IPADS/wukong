@@ -612,9 +612,10 @@ done:
         int dst_sid = mymath::hash_mod(vid, global_num_servers);
         ikey_t key = ikey_t(vid, pid, d);
         edge_t *edge_ptr;
+        vertex_t v;
 
 #if DYNAMIC_GSTORE
-        vertex_t v = get_vertex_remote(tid, key);
+        v = get_vertex_remote(tid, key);
         if (v.key.is_empty()) {
             *sz = 0;
             return NULL; // not found
@@ -659,9 +660,10 @@ done:
         int dst_sid = mymath::hash_mod(vid, global_num_servers);
         ikey_t key = ikey_t(vid, pid, d);
         edge_t *edge_ptr;
- 
+        vertex_t v;
+
 #if DYNAMIC_GSTORE
-        vertex_t v = get_vertex_remote(tid, key);
+        v = get_vertex_remote(tid, key);
         if (v.key.is_empty()) {
             return false; // not found
         }
