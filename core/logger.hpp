@@ -50,11 +50,19 @@ private:
     uint64_t last_time = 0ull, last_separator = 0ull;
     uint64_t last_cnt = 0ull;
 
-    uint64_t interval = MSEC(100);  // 50msec
+    uint64_t interval = MSEC(500);  // 50msec
 
     uint64_t thpt_time = 0ull;
     uint64_t cnt = 0ull;
     float thpt = 0.0;
+
+    int nquery_types = 0;
+    bool is_finish = false;
+    bool is_aggregated = false;
+
+    // key: query_type, value: latency of query
+    // ordered by query_type
+    std::map<int, vector<uint64_t>> total_latency_map;
 
     unordered_map<int, req_stats> stats_map; // CDF
 
@@ -64,8 +72,30 @@ public:
         last_time = last_separator = timer::get_usec();
     }
 
+    void init(int nquery_types) {
+        is_finish = false;
+        is_aggregated = false;
+        this->nquery_types = nquery_types;
+        done_time = 0ull;
+        last_cnt = 0ull;
+        thpt_time = 0ull;
+        cnt = 0ull;
+        thpt = 0.0;
+        init_time = timer::get_usec();
+        last_time = 0ull;
+        last_separator = 0ull;
+        stats_map.clear();
+        total_latency_map.clear();
+        for (int i = 0; i < nquery_types; ++i) {
+            total_latency_map[i] = std::vector<uint64_t>();
+        }
+    }
+
     void finish() {
-        done_time = timer::get_usec();
+        if (!is_finish) {
+            done_time = timer::get_usec();
+            is_finish = true;
+        }
     }
 
     // for single query
@@ -118,6 +148,20 @@ public:
         stats_map[reqid].end_time = timer::get_usec() - init_time;
     }
 
+    void aggregate() {
+        for (auto s : stats_map) {
+            total_latency_map[s.second.query_type].push_back(s.second.end_time - s.second.start_time);
+        }
+        // sort
+        for (int i = 0; i < nquery_types; ++i) {
+            vector<uint64_t> &lats = total_latency_map[i];
+            if (!lats.empty())
+                sort(lats.begin(), lats.end());
+        }
+
+        is_aggregated = true;
+    }
+
     void print_cdf() {
 #if 0
         // print range throughput with certain interval
@@ -137,27 +181,65 @@ public:
                  << print_interval * (i + 1) / 1000 << "ms)\t"
                  << (float)thpts[i] / (print_interval / 1000) << endl;
 #endif
+        assert(is_finish);
+        assert(is_aggregated);
 
-        // print CDF of query latency
-        vector<uint64_t> cdf;
-        int print_rate = stats_map.size() > 100 ? 100 : stats_map.size();
+        vector<double> cdf_rates = {0.01};
 
-        for (auto s : stats_map)
-            cdf.push_back(s.second.end_time - s.second.start_time);
-        sort(cdf.begin(), cdf.end());
+        for (int i = 1; i < 20; ++i) {
+            cdf_rates.push_back(0.05 * i);
+        }
+        for (int i = 1; i <= 5; ++i) {
+            cdf_rates.push_back(0.95 + i * 0.01);
+        }
+        assert(cdf_rates.size() == 25);
 
-        cout << "CDF graph" << endl;
-        int cnt = 0;
-        for (int i = 0; i < cdf.size(); i++) {
-            if ((i + 1) % (cdf.size() / print_rate) == 0) {
+        cout << "Per-query CDF graph" << endl;
+        int cnt, query_type;//, query_cnt = 0;
+        map<int, vector<uint64_t>> cdf_res;
+
+        // select 25 points from total_latency_map
+        for (auto e : total_latency_map) {
+            query_type = e.first;
+            vector<uint64_t> &lats = e.second;
+            // assert(lats.size() > cdf_rates.size());
+            if (lats.empty())
+                continue;
+
+            cnt = 0;
+            // result of CDF figure
+            cdf_res[query_type] = std::vector<uint64_t>();
+            // select points from lats corresponding to cdf_rates
+            for (auto rate : cdf_rates) {
+                int idx = lats.size() * rate;
+                if (idx >= lats.size()) idx = lats.size() - 1;
+                cdf_res[query_type].push_back(lats[idx]);
                 cnt++;
-                if (cnt != print_rate)
-                    cout << cdf[i] << "\t";
-                else
-                    cout << cdf[cdf.size() - 1] << "\t";
-
-                if (cnt % 5 == 0) cout << endl;
             }
+            assert(cdf_res[query_type].size() == 25);
+        }
+
+        cout << "CDF Res: " << endl;
+        cout << "P";
+        for (int i = 1; i <= nquery_types; ++i) {
+            cout << "\t" << "Q" << i;
+        }
+        cout << endl;
+
+        // print cdf data
+        int row, p;
+        for (row = 1; row <= 25; ++row) {
+            if (row == 1)
+                cout << row << "\t";
+            else if (row <= 20)
+                cout << 5 * (row - 1) << "\t";
+            else
+                cout << 95 + (row - 20) << "\t";
+
+            for (int i = 0; i < nquery_types; ++i) {
+                cout << cdf_res[i][row - 1] << "\t";
+            }
+            cout << endl;
         }
     }
 
