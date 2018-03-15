@@ -164,7 +164,8 @@ private:
         uint64_t lease;   // lease for dynamic cache
 
     public:
-        RDMA_Cache(uint64_t term): term(term) { } 
+        RDMA_Cache() { }
+        RDMA_Cache(uint64_t lease): lease(lease) { } 
         bool lookup(ikey_t key, vertex_t &ret) {
             if (!global_enable_caching)
                 return false;
@@ -201,6 +202,16 @@ private:
             pthread_spin_unlock(&items[idx].lock);
         }
 
+        void invalidate(ikey_t key) {
+            if (!global_enable_caching)
+                return;
+
+            int idx = key.hash() % NUM_ITEMS;
+            pthread_spin_lock(&(items[idx].lock));
+            if (items[idx].v.key == key) 
+                items[idx].v.key = ikey_t();
+            pthread_spin_unlock(&items[idx].lock);
+        }
     };
 
     static const int NUM_LOCKS = 1024;
@@ -336,7 +347,8 @@ done:
     // manage the memory of edges(val)
     Malloc_Interface *edge_allocator;
   
-    /**/
+    /*A size flag is put in edge blk's tail for dynamic cache.
+      Only when size in edge blk is consistent with size in ptr, the edge is valid.*/
     static const uint64_t INVALID = 1 << NBITS_SIZE;
 
     inline uint64_t b2e(uint64_t sz) { return sz / sizeof(edge_t); } //byte_to_edge
@@ -352,10 +364,14 @@ done:
         if (!global_enable_caching)
             return true;
         uint64_t blk_sz = blksz(v.ptr.size + 1);  // reserve one space for sz
+
         return (edge_ptr[blk_sz - 1].val == v.ptr.size);   //check if sz is consistent
     }
 
-    /**/
+    /*Defer blk's free operation for dynamic cache.
+      Pend free operation when blk is to be collected. (add_pending_free) 
+      When allocating new blk (alloc_edges), check if pending free's lease expires and collect free space (sweep_free).
+     */
     uint64_t lease;
     struct free_blk {
         uint64_t off;
@@ -456,7 +472,7 @@ done:
                 if (global_enable_caching)
                     add_pending_free(old_ptr);
                 else
-                    edge_allocator->free(e2b(old_off));
+                    edge_allocator->free(e2b(old_ptr.off));
             } else {
                 insert_sz(need_size, need_size, v->ptr.off);
                 edges[v->ptr.off + v->ptr.size].val = value;
@@ -515,37 +531,6 @@ done:
 
     RDMA_Cache rdma_cache;
 
-    vertex_t rdma_get_vertex(int tid, ikey_t key) {
-        int dst_sid = mymath::hash_mod(key.vid, global_num_servers);
-        uint64_t bucket_id = key.hash() % num_buckets;
-        vertex_t vert;
-
-        assert(global_use_rdma);
-        
-        char *buf = mem->buffer(tid);
-        while (true) {
-            uint64_t off = bucket_id * ASSOCIATIVITY * sizeof(vertex_t);
-            uint64_t sz = ASSOCIATIVITY * sizeof(vertex_t);
-
-            RDMA &rdma = RDMA::get_rdma();
-            rdma.dev->RdmaRead(tid, dst_sid, buf, sz, off);
-            vertex_t *verts = (vertex_t *)buf;
-            for (int i = 0; i < ASSOCIATIVITY; i++) {
-                if (i < ASSOCIATIVITY - 1) {
-                    if (verts[i].key == key) {
-                        return verts[i]; // found
-                    }
-                } else {
-                    if (verts[i].key.is_empty())
-                       return vertex_t(); // not found
-
-                    bucket_id = verts[i].key.vid; // move to next bucket
-                    break; // break for-loop
-                }
-            }
-        }
-    }
-
     inline edge_t *rdma_get_edges(int tid, int dst_sid, vertex_t &v) {
         assert(global_use_rdma);
 
@@ -565,14 +550,40 @@ done:
      }
 
     vertex_t get_vertex_remote(int tid, ikey_t key) {
+        int dst_sid = mymath::hash_mod(key.vid, global_num_servers);
+        uint64_t bucket_id = key.hash() % num_buckets;
         vertex_t vert;
+
+        // Currently, we don't support to directly get remote vertex/edge without RDMA
+        // TODO: implement it w/o RDMA
+        assert(global_use_rdma);
 
         if (rdma_cache.lookup(key, vert))
             return vert; // found
 
-        vert = rdma_get_vertex(tid, key);
-        rdma_cache.insert(vert);
-        return vert;
+        char *buf = mem->buffer(tid);
+        while (true) {
+            uint64_t off = bucket_id * ASSOCIATIVITY * sizeof(vertex_t);
+            uint64_t sz = ASSOCIATIVITY * sizeof(vertex_t);
+
+            RDMA &rdma = RDMA::get_rdma();
+            rdma.dev->RdmaRead(tid, dst_sid, buf, sz, off);
+            vertex_t *verts = (vertex_t *)buf;
+            for (int i = 0; i < ASSOCIATIVITY; i++) {
+                if (i < ASSOCIATIVITY - 1) {
+                    if (verts[i].key == key) {
+                        rdma_cache.insert(verts[i]);
+                        return verts[i]; // found
+                    }
+                } else {
+                    if (verts[i].key.is_empty())
+                        return vertex_t(); // not found
+
+                    bucket_id = verts[i].key.vid; // move to next bucket
+                    break; // break for-loop
+                }
+            }
+        }
     }
 
     vertex_t get_vertex_local(int tid, ikey_t key) {
@@ -612,7 +623,7 @@ done:
         edge_ptr = rdma_get_edges(tid, dst_sid, v);
 
         while (!edge_is_valid(v, edge_ptr)) { // edge is not valid
-            invalidate_cache(key);
+            rdma_cache.invalidate(key);
             v = get_vertex_remote(tid, key);
             edge_ptr = rdma_get_edges(tid, dst_sid, v);
         }
@@ -652,14 +663,13 @@ done:
 #if DYNAMIC_GSTORE
         vertex_t v = get_vertex_remote(tid, key);
         if (v.key.is_empty()) {
-            *sz = 0;
-            return NULL; // not found
+            return false; // not found
         }
 
         edge_ptr = rdma_get_edges(tid, dst_sid, v);
 
         while (!edge_is_valid(v, edge_ptr)) { // edge is not valid
-            invalidate_cache(key);
+            rdma_cache.invalidate(key);
             v = get_vertex_remote(tid, key);
             edge_ptr = rdma_get_edges(tid, dst_sid, v);
         }
@@ -717,7 +727,6 @@ done:
         return true;
     }
 
-
 public:
     // encoding rules of GStore
     // subject/object (vid) >= 2^NBITS_IDX, 2^NBITS_IDX > predicate/type (p/tid) >= 2^1,
@@ -761,7 +770,7 @@ public:
     // GStore: key (main-header and indirect-header region) | value (entry region)
     //         head region is a cluster chaining hash-table (with associativity)
     //         entry region is a varying-size array
-    GStore(int sid, Mem *mem): sid(sid), mem(mem){
+    GStore(int sid, Mem *mem): sid(sid), mem(mem) {
         uint64_t header_region = mem->kvstore_size() * HD_RATIO / 100;
         uint64_t entry_region = mem->kvstore_size() - header_region;
 
@@ -775,8 +784,8 @@ public:
 #if DYNAMIC_GSTORE
         edge_allocator = new Buddy_Malloc();
         pthread_spin_init(&free_queue_lock, 0);
-        term = SEC(120);
-        rdma_cache = RDMA_Cache(term);
+        lease = SEC(120);
+        rdma_cache = RDMA_Cache(lease);
 #else
         pthread_spin_init(&entry_lock, 0);
 #endif
