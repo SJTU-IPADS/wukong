@@ -12,7 +12,6 @@ public:
     // return value: (the ptr which can write value - start)
     virtual uint64_t malloc(uint64_t size, int64_t tid = -1) = 0;
 
-    virtual uint64_t realloc(uint64_t idx, uint64_t new_size) = 0;
     //the idx is exact the value return by alloc
     virtual void free(uint64_t idx) = 0;
     //merge the tmp freelists used to multithread insert_normal to the freelist
@@ -282,21 +281,6 @@ public:
 
         usage_counter[need_level]++;
         return get_value_idx(free_idx);
-    }
-
-    uint64_t realloc(uint64_t idx, uint64_t new_size) {
-        if (new_size == 0) {
-            free(idx);
-            return 0;
-        }
-        if (new_size <= block_size(idx)) {
-            return idx;
-        } else {
-            uint64_t new_idx = malloc(new_size);
-            copy(new_idx, idx, block_size(idx));
-            free(idx);
-            return new_idx;
-        }
     }
 
     void free(uint64_t free_idx) {
