@@ -1256,13 +1256,13 @@ public:
         }
         else if (key.vid == 0 && is_tpid(key.pid) && key.dir == OUT) {
             indir_pidx_to_np(key, index_check); //(1)[OUT]-->(6)
-#ifdef VERSTAILE
+#ifdef VERSATILE
             indir_pidx_vercheck(key, index_check); //
 #endif
         }
         else if (is_vid(key.vid) && key.pid == TYPE_ID && key.dir == OUT) {
             nt_to_tidx(key, normal_check);        //(7)-->(2)
-#ifdef VERSTAILE
+#ifdef VERSATILE
             nt_vercheck(key, index_check); //
 #endif
         }
