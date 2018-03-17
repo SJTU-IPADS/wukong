@@ -82,8 +82,7 @@ public:
         cnt = 0ull;
         thpt = 0.0;
         init_time = timer::get_usec();
-        last_time = 0ull;
-        last_separator = 0ull;
+        last_time = last_separator = timer::get_usec();
         stats_map.clear();
         total_latency_map.clear();
         for (int i = 0; i < nquery_types; ++i) {
@@ -202,6 +201,17 @@ public:
         for (auto e : total_latency_map) {
             query_type = e.first;
             vector<uint64_t> &lats = e.second;
+
+            cout << "Latency of query " << query_type << endl;
+            for (int i = 0; i < lats.size(); i++) {
+                cout << lats[i];
+                if ((i + 1) % 10 == 0) {
+                    cout << endl;
+                } else {
+                    cout << "\t";
+                }
+            }
+            cout << endl;
             // assert(lats.size() > cdf_rates.size());
             if (lats.empty())
                 continue;
