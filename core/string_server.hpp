@@ -48,7 +48,12 @@ public:
     // the data type of predicate/attribute: sid=0, integer=1, float=2, double=3
     boost::unordered_map<sid_t, int32_t> pid2type;
 
+    uint64_t next_index_id;
+    uint64_t next_normal_id;
+
     String_Server(string dname) {
+        next_index_id = 0;
+        next_normal_id = 0;
         if (boost::starts_with(dname, "hdfs:")) {
             if (!wukong::hdfs::has_hadoop()) {
                 cout << "ERORR: attempting to load ID-mapping files from HDFS "
@@ -95,6 +100,10 @@ private:
                     if (boost::ends_with(fname, "/str_index"))
                         pid2type[id] = SID_t;
                 }
+                if (boost::ends_with(fname, "/str_index"))
+                    next_index_id = ++id;
+                else 
+                    next_normal_id = ++id;
                 file.close();
             }
 
@@ -138,6 +147,10 @@ private:
                     if (boost::ends_with(fname, "/str_index"))
                         pid2type[id] = SID_t;
                 }
+                if (boost::ends_with(fname, "/str_index"))
+                    next_index_id = ++id;
+                else 
+                    next_normal_id = ++id;
                 file.close();
             }
 
