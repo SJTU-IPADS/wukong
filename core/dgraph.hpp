@@ -648,10 +648,6 @@ public:
 			     << " at server " << sid << endl;
 		}
 
-		// FIXME: the current rdma_cache is designed for static gstore
-		if (global_enable_caching)
-			gstore.flush_cache();
-
 		return 0;
 	}
 #endif

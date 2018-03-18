@@ -62,7 +62,6 @@ private:
 	char *rrbf_hd; // written by reciever (remote) and read by sender (local)
 	uint64_t rrbf_hd_sz;
 	uint64_t rrbf_hd_off;
-
 public:
 	Mem(int num_servers, int num_threads)
 		: num_servers(num_servers), num_threads(num_threads) {
@@ -86,7 +85,7 @@ public:
 		         + lrbf_hd_sz * num_servers * num_threads
 		         + rrbf_hd_sz * num_servers * num_threads;
 		mem = (char *)malloc(mem_sz);
-		memset(mem, 0, mem_sz);
+                memset(mem, 0, mem_sz);
 
 		kvs_off = 0;
 		kvs = mem + kvs_off;
