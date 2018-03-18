@@ -166,6 +166,30 @@ public:
             }
             return *this;
         }
+
+        void print(){
+            // print info
+            cout << "---------------------filter---------------------------" << endl;
+            cout << "TYPE: " << this->type << endl;
+            if(this->value != ""){
+                cout << "value: " << this->value << endl;
+            }
+            if(this->valueType != ""){
+                cout << "valueType: " << this->valueType << endl;
+            }
+            cout << "valueArg: " << this->valueArg << endl;
+
+            if(arg1 != NULL){
+                arg1->print();
+            }
+            if(arg2 != NULL){
+                arg2->print();
+            }
+            if(arg3 != NULL){
+                arg3->print();
+            }
+            cout << "------------------------------------------------------" << endl;
+        }
     };
 
     /// A group of patterns

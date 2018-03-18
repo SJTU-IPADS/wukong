@@ -8,7 +8,7 @@ WHERE
 FILTER ("FullProfessor7" != ?Y1)
 ?X  ub:name ?Y1 .
 ?X  ub:emailAddress ?Y2 .
-FILTER regex(?Y1, "FullProfessor.*")
+FILTER regex(?Y1, "FullProfessoR.*", "i")
 FILTER isLITERAL(?Y1)
 FILTER isIRI(?X)
 ?X  ub:telephone ?Y3 .
