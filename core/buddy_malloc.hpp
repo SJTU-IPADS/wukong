@@ -9,11 +9,13 @@ class Malloc_Interface {
 public:
     //init the memory area which start from start and have size bytes
     virtual void init(void *start, uint64_t size, uint64_t n) = 0;
+
     // return value: (the ptr which can write value - start)
     virtual uint64_t malloc(uint64_t size, int64_t tid = -1) = 0;
 
     //the idx is exact the value return by alloc
     virtual void free(uint64_t idx) = 0;
+
     //merge the tmp freelists used to multithread insert_normal to the freelist
     virtual void merge_freelists() = 0;
 

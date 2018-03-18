@@ -167,7 +167,7 @@ private:
 
     public:
         RDMA_Cache() { }
-        RDMA_Cache(uint64_t lease): lease(lease) { } 
+        RDMA_Cache(uint64_t lease): lease(lease) { }
         bool lookup(ikey_t key, vertex_t &ret) {
             if (!global_enable_caching)
                 return false;
@@ -178,7 +178,7 @@ private:
             if (items[idx].v.key == key) {
 
 #if DYNAMIC_GSTORE
-                if(timer::get_usec() < items[idx].expire_time){
+                if (timer::get_usec() < items[idx].expire_time) {
                     ret = items[idx].v;
                     found = true;
                 }
@@ -210,7 +210,7 @@ private:
 
             int idx = key.hash() % NUM_ITEMS;
             pthread_spin_lock(&(items[idx].lock));
-            if (items[idx].v.key == key) 
+            if (items[idx].v.key == key)
                 items[idx].v.key = ikey_t();
             pthread_spin_unlock(&items[idx].lock);
         }
@@ -348,10 +348,11 @@ done:
 #if DYNAMIC_GSTORE
     // manage the memory of edges(val)
     Malloc_Interface *edge_allocator;
-  
-    /*A size flag is put in edge blk's tail for dynamic cache.
-      Only when size in edge blk is consistent with size in ptr, the edge is valid.*/
-    static const uint64_t INVALID = 1 << NBITS_SIZE;
+
+    /// A size flag is put into the tail of edges (in the entry region) for dynamic cache.
+    /// NOTE: the (remote) edges accessed by (local) RDMA cache are valid
+    ///       if and only if the size flag of edges is consistent with the size within the pointer.
+    static const uint64_t INVALID_EDGES = 1 << NBITS_SIZE;
 
     inline uint64_t b2e(uint64_t sz) { return sz / sizeof(edge_t); } //byte_to_edge
     inline uint64_t e2b(uint64_t sz) { return sz * sizeof(edge_t); } //edge_to_byte
@@ -361,19 +362,19 @@ done:
         uint64_t blk_sz = blksz(sz + 1);   // reserve one space for sz
         edges[off + blk_sz - 1].val = n;  // store num of edges in array's tail
     }
-    
+
     inline bool edge_is_valid(vertex_t &v, edge_t *edge_ptr) {
         if (!global_enable_caching)
             return true;
-        uint64_t blk_sz = blksz(v.ptr.size + 1);  // reserve one space for sz
 
-        return (edge_ptr[blk_sz - 1].val == v.ptr.size);   //check if sz is consistent
+        uint64_t blk_sz = blksz(v.ptr.size + 1);  // reserve one space for the size of edges
+        return (edge_ptr[blk_sz - 1].val == v.ptr.size);   // check whether the sizes are consistent
     }
 
-    /*Defer blk's free operation for dynamic cache.
-      Pend free operation when blk is to be collected. (add_pending_free) 
-      When allocating new blk (alloc_edges), check if pending free's lease expires and collect free space (sweep_free).
-     */
+    /// Defer blk's free operation for dynamic cache.
+    /// Pending the free operation when blk is to be collected by add_pending_free()
+    /// When allocating a new blk by alloc_edges(), check if pending free's lease expires
+    /// and collect free space by sweep_free().
     uint64_t lease;
     struct free_blk {
         uint64_t off;
@@ -386,7 +387,7 @@ done:
     inline void add_pending_free(iptr_t ptr) {
         uint64_t expire_time = timer::get_usec() + lease;
         free_blk blk(ptr.off, expire_time);
-        
+
         pthread_spin_lock(&free_queue_lock);
         free_queue.push(blk);
         pthread_spin_unlock(&free_queue_lock);
@@ -396,14 +397,14 @@ done:
         pthread_spin_lock(&free_queue_lock);
         while (!free_queue.empty()) {
             free_blk blk = free_queue.front();
-            if(timer::get_usec() < blk.expire_time) 
+            if (timer::get_usec() < blk.expire_time)
                 break;
             edge_allocator->free(e2b(blk.off));
             free_queue.pop();
         }
         pthread_spin_unlock(&free_queue_lock);
     }
-    
+
     inline uint64_t alloc_edges(uint64_t n, int64_t tid = -1) {
         if (global_enable_caching)
             sweep_free();
@@ -412,7 +413,7 @@ done:
         insert_sz(n, n, off);
         return off;
     }
-#else
+#else // NOT DYNAMIC_GSTORE
     uint64_t last_entry;
     pthread_spinlock_t entry_lock;
 
@@ -428,7 +429,7 @@ done:
         pthread_spin_unlock(&entry_lock);
         return orig;
     }
-#endif
+#endif // DYNAMIC_GSTORE
 
 
 #if DYNAMIC_GSTORE
@@ -468,7 +469,7 @@ done:
                 uint64_t off = alloc_edges(need_size);
                 memcpy(&edges[off], &edges[old_ptr.off], e2b(old_ptr.size));
                 edges[off + old_ptr.size].val = value;
-                insert_sz(INVALID, old_ptr.size, old_ptr.off);  //invalidate old blk
+                insert_sz(INVALID_EDGES, old_ptr.size, old_ptr.off);  // invalidate old blk
                 v->ptr = iptr_t(need_size, off);
 
                 if (global_enable_caching)
@@ -480,12 +481,12 @@ done:
                 edges[v->ptr.off + v->ptr.size].val = value;
                 v->ptr.size = need_size;
             }
-            
+
             pthread_spin_unlock(&bucket_locks[lock_id]);
             return false;
         }
     }
-#endif
+#endif // DYNAMIC_GSTORE
 
     typedef tbb::concurrent_hash_map<sid_t, vector<sid_t>> tbb_hash_map;
 
@@ -528,7 +529,7 @@ done:
         for (auto const &e : set)
             edges[off++].val = e;
     }
-#endif
+#endif // VERSATILE
 
 
     RDMA_Cache rdma_cache;
@@ -549,7 +550,7 @@ done:
         rdma.dev->RdmaRead(tid, dst_sid, buf, r_sz, r_off);
         edge_t *result_ptr = (edge_t *)buf;
         return result_ptr;
-     }
+    }
 
     vertex_t get_vertex_remote(int tid, ikey_t key) {
         int dst_sid = mymath::hash_mod(key.vid, global_num_servers);
@@ -630,15 +631,15 @@ done:
             v = get_vertex_remote(tid, key);
             edge_ptr = rdma_get_edges(tid, dst_sid, v);
         }
-#else
+#else // NOT DYNAMIC_GSTORE
         v = get_vertex_remote(tid, key);
         if (v.key.is_empty()) {
             *sz = 0;
             return NULL; // not found
         }
-        
-        edge_ptr = rdma_get_edges(tid, dst_sid, v); 
-#endif
+
+        edge_ptr = rdma_get_edges(tid, dst_sid, v);
+#endif // DYNAMIC_GSTORE
 
         *sz = v.ptr.size;
         return edge_ptr;
@@ -677,14 +678,14 @@ done:
             v = get_vertex_remote(tid, key);
             edge_ptr = rdma_get_edges(tid, dst_sid, v);
         }
-#else
+#else // NOT DYNAMIC_GSTORE
         v = get_vertex_remote(tid, key);
         if (v.key.is_empty()) {
             return false; // not found
         }
-        
-        edge_ptr = rdma_get_edges(tid, dst_sid, v); 
-#endif
+
+        edge_ptr = rdma_get_edges(tid, dst_sid, v);
+#endif // DYNAMIC_GSTORE
 
         uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
         switch (v.ptr.type) {
@@ -732,48 +733,48 @@ done:
     }
 
 public:
-    // encoding rules of GStore
-    // subject/object (vid) >= 2^NBITS_IDX, 2^NBITS_IDX > predicate/type (p/tid) >= 2^1,
-    // TYPE_ID = 1, PREDICATE_ID = 0, OUT = 1, IN = 0
-    //
-    // Empty key
-    // (0)   key = [  0 |            0 |      0]  value = [vid0, vid1, ..]  i.e., init
-    // INDEX key/value pair
-    // (1)   key = [  0 |          pid | IN/OUT]  value = [vid0, vid1, ..]  i.e., predicate-index
-    // (2)   key = [  0 |          tid |     IN]  value = [vid0, vid1, ..]  i.e., type-index
-    // (*3)  key = [  0 |      TYPE_ID |     IN]  value = [vid0, vid1, ..]  i.e., all local objects/subjects
-    // (*4)  key = [  0 |      TYPE_ID |    OUT]  value = [pid0, pid1, ..]  i.e., all local types
-    // (*5)  key = [  0 | PREDICATE_ID |    OUT]  value = [pid0, pid1, ..]  i.e., all local predicates
-    // NORMAL key/value pair
-    // (6)   key = [vid |          pid | IN/OUT]  value = [vid0, vid1, ..]  i.e., vid's ngbrs w/ predicate
-    // (7)   key = [vid |      TYPE_ID |    OUT]  value = [tid0, tid1, ..]  i.e., vid's all types
-    // (*8)  key = [vid | PREDICATE_ID | IN/OUT]  value = [pid0, pid1, ..]  i.e., vid's all predicates
-    //
-    // < S,  P, ?O>  ?O : (6)
-    // <?S,  P,  O>  ?S : (6)
-    // < S,  1, ?T>  ?T : (7)
-    // <?S,  1,  T>  ?S : (2)
-    // < S, ?P,  O>  ?P : (8)
-    //
-    // <?S,  P, ?O>  ?S : (1)
-    //               ?O : (1)
-    // <?S,  1, ?O>  ?O : (4)
-    //               ?S : (4) +> (2)
-    // < S, ?P, ?O>  ?P : (8) AND exist(7)
-    //               ?O : (8) AND exist(7) +> (6)
-    // <?S, ?P,  O>  ?P : (8)
-    //               ?S : (8) +> (6)
-    // <?S, ?P,  T>  ?P : exist(2)
-    //               ?S : (2)
-    //
-    // <?S, ?P, ?O>  ?S : (3)
-    //               ?O : (3) AND (4)
-    //               ?P : (5)
-    //               ?S ?P ?O : (3) +> (7) AND (8) +> (6)
+    /// encoding rules of GStore
+    /// subject/object (vid) >= 2^NBITS_IDX, 2^NBITS_IDX > predicate/type (p/tid) >= 2^1,
+    /// TYPE_ID = 1, PREDICATE_ID = 0, OUT = 1, IN = 0
+    ///
+    /// Empty key
+    /// (0)   key = [  0 |            0 |      0]  value = [vid0, vid1, ..]  i.e., init
+    /// INDEX key/value pair
+    /// (1)   key = [  0 |          pid | IN/OUT]  value = [vid0, vid1, ..]  i.e., predicate-index
+    /// (2)   key = [  0 |          tid |     IN]  value = [vid0, vid1, ..]  i.e., type-index
+    /// (*3)  key = [  0 |      TYPE_ID |     IN]  value = [vid0, vid1, ..]  i.e., all local objects/subjects
+    /// (*4)  key = [  0 |      TYPE_ID |    OUT]  value = [pid0, pid1, ..]  i.e., all local types
+    /// (*5)  key = [  0 | PREDICATE_ID |    OUT]  value = [pid0, pid1, ..]  i.e., all local predicates
+    /// NORMAL key/value pair
+    /// (6)   key = [vid |          pid | IN/OUT]  value = [vid0, vid1, ..]  i.e., vid's ngbrs w/ predicate
+    /// (7)   key = [vid |      TYPE_ID |    OUT]  value = [tid0, tid1, ..]  i.e., vid's all types
+    /// (*8)  key = [vid | PREDICATE_ID | IN/OUT]  value = [pid0, pid1, ..]  i.e., vid's all predicates
+    ///
+    /// < S,  P, ?O>  ?O : (6)
+    /// <?S,  P,  O>  ?S : (6)
+    /// < S,  1, ?T>  ?T : (7)
+    /// <?S,  1,  T>  ?S : (2)
+    /// < S, ?P,  O>  ?P : (8)
+    ///
+    /// <?S,  P, ?O>  ?S : (1)
+    ///               ?O : (1)
+    /// <?S,  1, ?O>  ?O : (4)
+    ///               ?S : (4) +> (2)
+    /// < S, ?P, ?O>  ?P : (8) AND exist(7)
+    ///               ?O : (8) AND exist(7) +> (6)
+    /// <?S, ?P,  O>  ?P : (8)
+    ///               ?S : (8) +> (6)
+    /// <?S, ?P,  T>  ?P : exist(2)
+    ///               ?S : (2)
+    ///
+    /// <?S, ?P, ?O>  ?S : (3)
+    ///               ?O : (3) AND (4)
+    ///               ?P : (5)
+    ///               ?S ?P ?O : (3) +> (7) AND (8) +> (6)
 
-    // GStore: key (main-header and indirect-header region) | value (entry region)
-    //         head region is a cluster chaining hash-table (with associativity)
-    //         entry region is a varying-size array
+    /// GStore: key (main-header and indirect-header region) | value (entry region)
+    ///         head region is a cluster chaining hash-table (with associativity)
+    ///         entry region is a varying-size array
     GStore(int sid, Mem *mem): sid(sid), mem(mem) {
         uint64_t header_region = mem->kvstore_size() * HD_RATIO / 100;
         uint64_t entry_region = mem->kvstore_size() - header_region;
@@ -823,10 +824,10 @@ public:
 #endif
     }
 
-    // skip all TYPE triples (e.g., <http://www.Department0.University0.edu> rdf:type ub:University)
-    // because Wukong treats all TYPE triples as index vertices. In addition, the triples in triple_ops
-    // has been sorted by the vid of object, and IDs of types are always smaller than normal vertex IDs.
-    // Consequently, all TYPE triples are aggregated at the beggining of triple_ops
+    /// skip all TYPE triples (e.g., <http://www.Department0.University0.edu> rdf:type ub:University)
+    /// because Wukong treats all TYPE triples as index vertices. In addition, the triples in triple_ops
+    /// has been sorted by the vid of object, and IDs of types are always smaller than normal vertex IDs.
+    /// Consequently, all TYPE triples are aggregated at the beggining of triple_ops
     void insert_normal(vector<triple_t> &spo, vector<triple_t> &ops, int tid) {
         // treat type triples as index vertices
         uint64_t type_triples = 0;
@@ -834,15 +835,15 @@ public:
             type_triples++;
 
 #ifdef VERSATILE
-        // The following code is used to support a rare case where the predicate is unknown
-        // (e.g., <http://www.Department0.University0.edu> ?P ?O). Each normal vertex should
-        // add two key/value pairs with a reserved ID (i.e., PREDICATE_ID) as the predicate
-        // to store the IN and OUT lists of its predicates.
-        // e.g., key=(vid, PREDICATE_ID, IN/OUT), val=(predicate0, predicate1, ...)
-        //
-        // NOTE, it is disabled by default in order to save memory.
+        /// The following code is used to support a rare case where the predicate is unknown
+        /// (e.g., <http://www.Department0.University0.edu> ?P ?O). Each normal vertex should
+        /// add two key/value pairs with a reserved ID (i.e., PREDICATE_ID) as the predicate
+        /// to store the IN and OUT lists of its predicates.
+        /// e.g., key=(vid, PREDICATE_ID, IN/OUT), val=(predicate0, predicate1, ...)
+        ///
+        /// NOTE, it is disabled by default in order to save memory.
         vector<sid_t> predicates;
-#endif
+#endif // VERSATILE
 
         uint64_t s = 0;
         while (s < spo.size()) {
@@ -887,7 +888,7 @@ public:
 
                 predicates.clear();
             }
-#endif
+#endif // VERSATILE
 
             s = e;
         }
@@ -935,7 +936,7 @@ public:
 
                 predicates.clear();
             }
-#endif
+#endif // VERSATILE
             s = e;
         }
     }
@@ -1050,7 +1051,7 @@ public:
                     key = ikey_t(0, TYPE_ID, IN);
                     insert_vertex_edge(key, triple.s, nodup); // <3> the index to vid (*3) [dedup from <2>]
                 }
-#endif
+#endif // VERSATILE
             }
             if (!dedup_or_isdup) {
                 key = ikey_t(0, triple.o, IN);
@@ -1058,7 +1059,7 @@ public:
 #ifdef VERSATILE
                     key = ikey_t(0, TYPE_ID, OUT);
                     insert_vertex_edge(key, triple.o, nodup);// <5> index to this type (*4) [dedup from <4>]
-#endif
+#endif // VERSATILE
                 }
             }
         } else {
@@ -1070,7 +1071,7 @@ public:
 #ifdef VERSATILE
                     key = ikey_t(0, PREDICATE_ID, OUT);
                     insert_vertex_edge(key, triple.p, nodup); // <8> the index to predicate (*5) [dedup from <7>]
-#endif
+#endif // VERSATILE
                 }
 #ifdef VERSATILE
                 key = ikey_t(triple.s, PREDICATE_ID, OUT);
@@ -1079,7 +1080,7 @@ public:
                     key = ikey_t(0, TYPE_ID, IN);
                     insert_vertex_edge(key, triple.s, nodup); // <10> the index to vid (*3) [dedup from <9>]
                 }
-#endif
+#endif // VERSATILE
             }
         }
     }
@@ -1098,7 +1099,7 @@ public:
 #ifdef VERSATILE
                 key = ikey_t(0, PREDICATE_ID, OUT);
                 insert_vertex_edge(key, triple.p, nodup); // <3> the index to predicate (*5) [dedup from <2>]
-#endif
+#endif // VERSATILE
             }
 #ifdef VERSATILE
             key = ikey_t(triple.o, PREDICATE_ID, IN);
@@ -1107,11 +1108,11 @@ public:
                 key = ikey_t(0, TYPE_ID, IN);
                 insert_vertex_edge(key, triple.o, nodup); // <5> the index to vid (*3) [dedup from <4>]
             }
-#endif
+#endif // VERSATILE
         }
     }
 
-#endif
+#endif // DYNAMIC_GSTORE
 
     uint64_t ivertex_num = 0;
     uint64_t nvertex_num = 0;
@@ -1377,31 +1378,29 @@ public:
                  << " there is no value " << key.vid << endl;
         }
     }
-#endif
+#endif // VERSATILE
 
     void check_on_vertex(ikey_t key, bool index_check, bool normal_check) {
         if (key.vid == 0 && is_tpid(key.pid) && key.dir == IN) {
-            outdir_idx_to_normal(key, index_check);         //(2)/(1)[IN] -->(7)/(6)
+            outdir_idx_to_normal(key, index_check); // (2)/(1)[IN] -->(7)/(6)
 #ifdef VERSATILE
-            outdir_idx_vercheck(key, index_check);    //
+            outdir_idx_vercheck(key, index_check); //
 #endif
-        }
-        else if (key.vid == 0 && is_tpid(key.pid) && key.dir == OUT) {
-            indir_pidx_to_np(key, index_check); //(1)[OUT]-->(6)
+        } else if (key.vid == 0 && is_tpid(key.pid) && key.dir == OUT) {
+            indir_pidx_to_np(key, index_check); // (1)[OUT]-->(6)
 #ifdef VERSATILE
             indir_pidx_vercheck(key, index_check); //
 #endif
-        }
-        else if (is_vid(key.vid) && key.pid == TYPE_ID && key.dir == OUT) {
-            nt_to_tidx(key, normal_check);        //(7)-->(2)
+        } else if (is_vid(key.vid) && key.pid == TYPE_ID && key.dir == OUT) {
+            nt_to_tidx(key, normal_check); // (7)-->(2)
 #ifdef VERSATILE
             nt_vercheck(key, index_check); //
 #endif
+        } else if (is_vid(key.vid) && is_tpid(key.pid) && key.dir == OUT) {
+            np_to_pidx(key, IN, normal_check); // (6)[OUT]-->(1)
+        } else if (is_vid(key.vid) && is_tpid(key.pid) && key.dir == IN) {
+            np_to_pidx(key, OUT, normal_check); // (6)[IN]-->(1)
         }
-        else if (is_vid(key.vid) && is_tpid(key.pid) && key.dir == OUT)
-            np_to_pidx(key, IN, normal_check); //(6)[OUT]-->(1)  no versatile need
-        else if (is_vid(key.vid) && is_tpid(key.pid) && key.dir == IN)
-            np_to_pidx(key, OUT, normal_check); //(6)[IN]-->(1) no versatile need
     }
 
     int gstore_check(bool index_check, bool normal_check) {
@@ -1552,7 +1551,7 @@ public:
         //cout<<"sizeof type_to_subject = "<<stat.type_to_subject.size()<<endl;
         //cout<<"sizeof id_to_predicate = "<<stat.id_to_predicate.size()<<endl;
 
-        unordered_map<pair<ssid_t, ssid_t>, four_num, boost::hash<pair<int, int> > > &ppcount = stat.correlation;
+        unordered_map<pair<ssid_t, ssid_t>, four_num, boost::hash<pair<int, int>>> &ppcount = stat.correlation;
 
         // do statistic for correlation
         for (unordered_map<ssid_t, vector<direct_p> >::iterator it = stat.id_to_predicate.begin();

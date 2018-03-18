@@ -102,7 +102,7 @@ private:
                 }
                 if (boost::ends_with(fname, "/str_index"))
                     next_index_id = ++id;
-                else 
+                else
                     next_normal_id = ++id;
                 file.close();
             }
@@ -149,7 +149,7 @@ private:
                 }
                 if (boost::ends_with(fname, "/str_index"))
                     next_index_id = ++id;
-                else 
+                else
                     next_normal_id = ++id;
                 file.close();
             }

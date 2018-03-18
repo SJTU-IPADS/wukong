@@ -86,15 +86,14 @@ class DGraph {
 	vector<vector<triple_t>> triple_ops;
 	vector<vector<triple_attr_t>> triple_sav;
 
-	#if DYNAMIC_GSTORE
+#if DYNAMIC_GSTORE
 	boost::unordered_map<sid_t, sid_t> id2id;
 
 	void flush_convertmap() { id2id.clear(); }
 
-	void convert_sid(sid_t& sid) { 
-		if(id2id.find(sid) != id2id.end()) {
-            sid = id2id[sid];
-        }
+	void convert_sid(sid_t &sid) {
+		if (id2id.find(sid) != id2id.end())
+			sid = id2id[sid];
 	}
 
 	bool check_sid(const sid_t id) {
@@ -106,40 +105,42 @@ class DGraph {
 	}
 
 	void dynamic_load_mappings(string dname) {
-        DIR *dir = opendir(dname.c_str());
-        if (dir == NULL) {
-            cout << "ERROR: failed to open the directory of ID-mapping files ("
-                 << dname << ")." << endl;
-            exit(-1);
-        }
-        struct dirent *ent;
-        while ((ent = readdir(dir)) != NULL) {
-            if (ent->d_name[0] == '.')
-                continue;
-            string fname(dname + ent->d_name);
+		DIR *dir = opendir(dname.c_str());
+
+		if (dir == NULL) {
+			cout << "ERROR: failed to open the directory of ID-mapping files ("
+			     << dname << ")." << endl;
+			exit(-1);
+		}
+
+		struct dirent *ent;
+		while ((ent = readdir(dir)) != NULL) {
+			if (ent->d_name[0] == '.')
+				continue;
+			string fname(dname + ent->d_name);
 			if (boost::ends_with(fname, "/str_index")
-                    || boost::ends_with(fname, "/str_normal")) {
-                cout << "loading ID-mapping file: " << fname << endl;
-                ifstream file(fname.c_str());
-                string str;
-                sid_t id;
-                while (file >> str >> id) {
-                   if (str_server->exist(str)) {
-                        id2id[id] = str_server->str2id[str];
-                    } else {
-						if(boost::ends_with(fname, "/str_index"))
-                        	id2id[id] = str_server->next_index_id ++;
+			        || boost::ends_with(fname, "/str_normal")) {
+				cout << "loading ID-mapping file: " << fname << endl;
+				ifstream file(fname.c_str());
+				string str;
+				sid_t id;
+				while (file >> str >> id) {
+					if (str_server->exist(str)) {
+						id2id[id] = str_server->str2id[str];
+					} else {
+						if (boost::ends_with(fname, "/str_index"))
+							id2id[id] = str_server->next_index_id ++;
 						else
 							id2id[id] = str_server->next_normal_id ++;
-                        str_server->str2id[str] = id2id[id];
-                        str_server->id2str[id2id[id]] = str;
-                    }
-                }
-                file.close();
-            }
-        }
-    }
-	#endif
+						str_server->str2id[str] = id2id[id];
+						str_server->id2str[id2id[id]] = str;
+					}
+				}
+				file.close();
+			}
+		}
+	}
+#endif // DYNAMIC_GSTORE
 
 	void dedup_triples(vector<triple_t> &triples) {
 		if (triples.size() <= 1)
