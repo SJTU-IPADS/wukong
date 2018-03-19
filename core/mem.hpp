@@ -62,7 +62,6 @@ private:
 	char *rrbf_hd; // written by reciever (remote) and read by sender (local)
 	uint64_t rrbf_hd_sz;
 	uint64_t rrbf_hd_off;
-
 public:
 	Mem(int num_servers, int num_threads)
 		: num_servers(num_servers), num_threads(num_threads) {

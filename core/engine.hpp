@@ -842,43 +842,83 @@ private:
 
     }
 
-    // TODO to be more precise
+    void bound_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy) {
+        int col = result.var2col(filter.arg1 -> valueArg);
+        for(int row = 0; row < is_satisfy.size(); row ++){
+            if(!is_satisfy[row])
+                continue;
+            
+            int id = result.get_row_col(row, col);
+
+            if(id == BLANK_ID){
+                is_satisfy[row] = false;
+            }
+        }
+    }
+
     // IRI and URI are the same in SPARQL
     void is_IRI_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy) {
         int col = result.var2col(filter.arg1->valueArg);
+
+        string IRI_REF = R"(<([^<>\\"{}|^`\\])*>)";
+        string prefixed_name = ".*:.*";
+        string IRIref_str = "(" + IRI_REF + "|" + prefixed_name + ")";
+
+        regex IRI_pattern(IRIref_str);
         for (int row = 0; row < is_satisfy.size(); row ++) {
-            if (is_satisfy[row])
+            if (!is_satisfy[row])
                 continue;
 
             int id = result.get_row_col(row, col);
             string str = str_server->exist(id) ? str_server->id2str[id] : "";
-            if (str.front() != '<' || str.back() != '>') {
+            if (!regex_match(str, IRI_pattern)) {
                 is_satisfy[row] = false;
             }
         }
     }
 
-    // TODO to be more precise
     void is_literal_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy) {
         int col = result.var2col(filter.arg1->valueArg);
+
+        string langtag_pattern_str("@[a-zA-Z]+(-[a-zA-Z0-9]+)*");
+
+        string literal1_str = R"('([^\x27\x5C\x0A\x0D]|\\[tbnrf\"'])*')";
+        string literal2_str = R"("([^\x22\x5C\x0A\x0D]|\\[tbnrf\"'])*")";
+        string literal_long1_str = R"('''(('|'')?([^'\\]|\\[tbnrf\"']))*''')";
+        string literal_long2_str = R"("""(("|"")?([^"\\]|\\[tbnrf\"']))*""")";
+        string String = "(" + literal1_str + "|" + literal2_str + "|" + literal_long1_str + "|" + literal_long2_str + ")";
+        
+        string IRI_REF = R"(<([^<>\\"{}|^`\\])*>)";
+        string prefixed_name = ".*:.*";
+        string IRIref_str = "(" + IRI_REF + "|" + prefixed_name + ")";
+
+        regex RDFLiteral_pattern(String+"("+ langtag_pattern_str + "|(\\^\\^" + IRIref_str +  "))?");
+
         for (int row = 0; row < is_satisfy.size(); row ++) {
-            if (is_satisfy[row])
+            if (!is_satisfy[row])
                 continue;
 
             int id = result.get_row_col(row, col);
             string str = str_server->exist(id) ? str_server->id2str[id] : "";
-            if (str.front() != '\"' || str.back() != '\"') {
+            if (!regex_match(str, RDFLiteral_pattern)) {
                 is_satisfy[row] = false;
             }
         }
     }
 
-    // TODO to support regex flag
+    // regex flag only support "i" option now
     void regex_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy) {
-        regex pattern(filter.arg2->value);
+        regex pattern;
+        if(filter.arg3 != nullptr && filter.arg3->value == "i"){
+            pattern = regex(filter.arg2->value, std::regex::icase);
+        }
+        else{
+            pattern = regex(filter.arg2->value);
+        }
+        
         int col = result.var2col(filter.arg1->valueArg);
         for (int row = 0; row < is_satisfy.size(); row ++) {
-            if (is_satisfy[row])
+            if (!is_satisfy[row])
                 continue;
 
             int id = result.get_row_col(row, col);
@@ -916,6 +956,9 @@ private:
         else if (filter.type <= 7) {
             return relational_filter(filter, result, is_satisfy);
         }
+        else if (filter.type == SPARQLQuery::Filter::Type::Builtin_bound) {
+            return bound_filter(filter, result, is_satisfy);
+        }
         else if (filter.type == SPARQLQuery::Filter::Type::Builtin_isiri) {
             return is_IRI_filter(filter, result, is_satisfy);
         }
@@ -928,9 +971,10 @@ private:
     }
 
     void filter(SPARQLQuery &r) {
+        if(r.pattern_group.filters.size() == 0) return;
         // during filtering, flag of unsatified row will be set to false one by one
         vector<bool> is_satisfy(r.result.get_row_num(), true);
-
+        
         for (int i = 0; i < r.pattern_group.filters.size(); i ++) {
             SPARQLQuery::Filter filter = r.pattern_group.filters[i];
             general_filter(filter, r.result, is_satisfy);
@@ -943,6 +987,7 @@ private:
             }
         }
         r.result.result_table.swap(new_table);
+        r.result.row_num = r.result.get_row_num();
     }
 
     class Compare {
@@ -1140,9 +1185,7 @@ out:            new_size = p + 1;
                 do_corun(r);
 
             if (r.is_finished()) {
-                // result should be filtered at the end of every distributed query because FILTER could be nested in every PatternGroup
-                filter(r);
-                // union
+                // union, when union or optional occurs, filters will be delayed till they are processed.
                 if (r.is_union()) {
                     vector<SPARQLQuery> union_reqs = generate_union_query(r);
                     rmap.put_parent_request(r, union_reqs.size());
@@ -1158,6 +1201,10 @@ out:            new_size = p + 1;
                         }
                     }
                     return;
+                }
+                if(!r.is_union() && !r.is_optional()){
+                    // result should be filtered at the end of every distributed query because FILTER could be nested in every PatternGroup
+                    filter(r);
                 }
                 // if all data has been merged and next will be sent back to proxy
                 if (coder.tid_of(r.pid) < global_num_proxies) {
@@ -1201,6 +1248,10 @@ out:            new_size = p + 1;
         if (engine->rmap.is_ready(r.pid)) {
             SPARQLQuery reply = engine->rmap.get_merged_reply(r.pid);
             pthread_spin_unlock(&engine->rmap_lock);
+            // optional will be processed after union , and filter follows.
+            if (reply.is_optional() || (!reply.is_optional() && reply.is_union())){
+                filter(reply);
+            }
             // if all data has been merged and next will be sent back to proxy
             if (coder.tid_of(reply.pid) < global_num_proxies) {
                 if (reply.is_optional() && !reply.optional_dispatched) {

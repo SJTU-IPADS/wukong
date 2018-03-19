@@ -9,17 +9,19 @@ class Malloc_Interface {
 public:
     //init the memory area which start from start and have size bytes
     virtual void init(void *start, uint64_t size, uint64_t n) = 0;
+
     // return value: (the ptr which can write value - start)
     virtual uint64_t malloc(uint64_t size, int64_t tid = -1) = 0;
 
-    virtual uint64_t realloc(uint64_t idx, uint64_t new_size) = 0;
     //the idx is exact the value return by alloc
     virtual void free(uint64_t idx) = 0;
+
     //merge the tmp freelists used to multithread insert_normal to the freelist
     virtual void merge_freelists() = 0;
 
     virtual void print_memory_usage() = 0;
 
+    virtual uint64_t sz_to_blksz(uint64_t sz) = 0;
 };
 
 class Buddy_Malloc : public Malloc_Interface {
@@ -250,6 +252,9 @@ public:
         }
     }
 
+    uint64_t sz_to_blksz (uint64_t size) {
+        return ((1 << size_to_level(size)) - size_per_header);
+    }
     // return value: an index of starting unit
     uint64_t malloc(uint64_t size, int64_t tid = -1) {
         //pthread_spin_lock(&debug_lock);
@@ -278,21 +283,6 @@ public:
 
         usage_counter[need_level]++;
         return get_value_idx(free_idx);
-    }
-
-    uint64_t realloc(uint64_t idx, uint64_t new_size) {
-        if (new_size == 0) {
-            free(idx);
-            return 0;
-        }
-        if (new_size <= block_size(idx)) {
-            return idx;
-        } else {
-            uint64_t new_idx = malloc(new_size);
-            copy(new_idx, idx, block_size(idx));
-            free(idx);
-            return new_idx;
-        }
     }
 
     void free(uint64_t free_idx) {
