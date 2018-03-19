@@ -57,7 +57,6 @@ private:
     float thpt = 0.0;
 
     int nquery_types = 0;
-    bool is_finish = false;
     bool is_aggregated = false;
 
     // key: query_type, value: latency of query
@@ -73,7 +72,6 @@ public:
     }
 
     void init(int nquery_types) {
-        is_finish = false;
         is_aggregated = false;
         this->nquery_types = nquery_types;
         done_time = 0ull;
@@ -91,10 +89,7 @@ public:
     }
 
     void finish() {
-        if (!is_finish) {
-            done_time = timer::get_usec();
-            is_finish = true;
-        }
+        done_time = timer::get_usec();
     }
 
     // for single query
@@ -147,6 +142,7 @@ public:
         stats_map[reqid].end_time = timer::get_usec() - init_time;
     }
 
+    // calculate each query's cdf, then sort respectively
     void aggregate() {
         for (auto s : stats_map) {
             total_latency_map[s.second.query_type].push_back(s.second.end_time - s.second.start_time);
@@ -157,7 +153,6 @@ public:
             if (!lats.empty())
                 sort(lats.begin(), lats.end());
         }
-
         is_aggregated = true;
     }
 
@@ -180,9 +175,7 @@ public:
                  << print_interval * (i + 1) / 1000 << "ms)\t"
                  << (float)thpts[i] / (print_interval / 1000) << endl;
 #endif
-        assert(is_finish);
         assert(is_aggregated);
-
         vector<double> cdf_rates = {0.01};
 
         for (int i = 1; i < 20; ++i) {
@@ -202,16 +195,6 @@ public:
             query_type = e.first;
             vector<uint64_t> &lats = e.second;
 
-            cout << "Latency of query " << query_type << endl;
-            for (int i = 0; i < lats.size(); i++) {
-                cout << lats[i];
-                if ((i + 1) % 10 == 0) {
-                    cout << endl;
-                } else {
-                    cout << "\t";
-                }
-            }
-            cout << endl;
             // assert(lats.size() > cdf_rates.size());
             if (lats.empty())
                 continue;
@@ -254,6 +237,7 @@ public:
     }
 
     void merge(Logger & other) {
+        if (nquery_types < other.nquery_types) nquery_types = other.nquery_types;
         for (auto s : other.stats_map)
             stats_map[s.first] = s.second;
         thpt += other.thpt;
@@ -261,6 +245,7 @@ public:
 
     template <typename Archive>
     void serialize(Archive & ar, const unsigned int version) {
+        ar & nquery_types;
         ar & stats_map;
         ar & thpt;
     }

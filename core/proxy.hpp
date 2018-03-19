@@ -231,7 +231,7 @@ public:
 		int parallel_factor = p;
 		int try_rounds = 5;
 
-		int ntypes, nheavy;
+		int ntypes, nheavy; // the first line of batch config file should contain these two numbers
 		is >> ntypes >> nheavy;
 		if (ntypes <= 0) {
 			cout << "[ERROR] invalid #query_types! (" << ntypes << " < 0)" << endl;
