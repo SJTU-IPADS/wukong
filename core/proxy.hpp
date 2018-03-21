@@ -231,14 +231,16 @@ public:
 		int parallel_factor = p;
 		int try_rounds = 5;
 
-		int ntypes;
-		is >> ntypes;
+		int ntypes, nheavy; // the first line of batch config file should contain these two numbers
+		is >> ntypes >> nheavy;
 		if (ntypes <= 0) {
 			cout << "[ERROR] invalid #query_types! (" << ntypes << " < 0)" << endl;
 			return -2; // parsing failed
 		}
 
-		vector<request_template> tpls(ntypes);
+		int nlight = ntypes - nheavy;
+		vector<request_template> tpls(nlight);
+		vector<SPARQLQuery> heavy_reqs(nheavy);
 		vector<int> loads(ntypes);
 
 		for (int i = 0; i < ntypes; i++) {
@@ -254,14 +256,12 @@ public:
 			is >> load;
 			assert(load > 0);
 			loads[i] = load;
-
-			bool success = parser.parse_template(ifs, tpls[i]);
+			bool success = i < nlight ? parser.parse_template(ifs, tpls[i]) : parser.parse(ifs, heavy_reqs[i - nlight]);
 			if (!success) {
 				cout << "[ERROR] Template parsing failed!" << endl;
 				return -2; // parsing failed
 			}
-
-			fill_template(tpls[i]);
+			if (i < nlight) fill_template(tpls[i]);
 		}
 
 		logger.init(ntypes);
@@ -275,7 +275,9 @@ public:
 				sweep_msgs(); // sweep pending msgs first
 
 				int idx = mymath::get_distribution(coder.get_random(), loads);
-				SPARQLQuery request = tpls[idx].instantiate(coder.get_random());
+				SPARQLQuery request = idx < nlight ?
+					tpls[idx].instantiate(coder.get_random()) :
+					heavy_reqs[idx - nlight];
 				if (global_enable_planner)
 					planner.generate_plan(request, statistic);
 				setpid(request);
