@@ -130,6 +130,7 @@ private:
 
     pthread_spinlock_t recv_lock;
     std::vector<SPARQLQuery> msg_fast_path;
+    std::vector<SPARQLQuery> new_req_queue;
 
     Reply_Map rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
@@ -522,6 +523,7 @@ private:
             sub_reqs[i].corun_step = req.corun_step;
             sub_reqs[i].fetch_step = req.fetch_step;
             sub_reqs[i].local_var = start;
+            sub_reqs[i].priority = req.priority + 1;
 
             sub_reqs[i].result.col_num = req.result.col_num;
             sub_reqs[i].result.blind = req.result.blind;
@@ -847,7 +849,7 @@ private:
         for(int row = 0; row < is_satisfy.size(); row ++){
             if(!is_satisfy[row])
                 continue;
-            
+
             int id = result.get_row_col(row, col);
 
             if(id == BLANK_ID){
@@ -887,7 +889,7 @@ private:
         string literal_long1_str = R"('''(('|'')?([^'\\]|\\[tbnrf\"']))*''')";
         string literal_long2_str = R"("""(("|"")?([^"\\]|\\[tbnrf\"']))*""")";
         string String = "(" + literal1_str + "|" + literal2_str + "|" + literal_long1_str + "|" + literal_long2_str + ")";
-        
+
         string IRI_REF = R"(<([^<>\\"{}|^`\\])*>)";
         string prefixed_name = ".*:.*";
         string IRIref_str = "(" + IRI_REF + "|" + prefixed_name + ")";
@@ -915,7 +917,7 @@ private:
         else{
             pattern = regex(filter.arg2->value);
         }
-        
+
         int col = result.var2col(filter.arg1->valueArg);
         for (int row = 0; row < is_satisfy.size(); row ++) {
             if (!is_satisfy[row])
@@ -974,7 +976,7 @@ private:
         if(r.pattern_group.filters.size() == 0) return;
         // during filtering, flag of unsatified row will be set to false one by one
         vector<bool> is_satisfy(r.result.get_row_num(), true);
-        
+
         for (int i = 0; i < r.pattern_group.filters.size(); i ++) {
             SPARQLQuery::Filter filter = r.pattern_group.filters[i];
             general_filter(filter, r.result, is_satisfy);
@@ -1345,8 +1347,8 @@ public:
             SPARQLQuery request;
             pthread_spin_lock(&recv_lock);
             if (msg_fast_path.size() > 0) {
-                request = msg_fast_path.back();
-                msg_fast_path.pop_back();
+                request = msg_fast_path[0];
+                msg_fast_path.erase(msg_fast_path.begin());
                 success = true;
             }
             pthread_spin_unlock(&recv_lock);
@@ -1363,8 +1365,27 @@ public:
             last_time = timer::get_usec();
 
             // own queue
-            if (adaptor->tryrecv(bundle))
-                execute(bundle, engines[own_id]);
+            bool idle = true;
+            while (adaptor->tryrecv(bundle)) {
+                idle = false;
+                if (bundle.type == SPARQL_QUERY) {
+                    SPARQLQuery req = bundle.get_sparql_query();
+                    if (req.priority != 0) {
+                        execute_sparql_query(req, engines[own_id]);
+                        break;
+                    } else {
+                        new_req_queue.push_back(req);
+                    }
+                } else {
+                    execute(bundle, engines[own_id]);
+                    break;
+                }
+            }
+            if (idle && new_req_queue.size() > 0) {
+                SPARQLQuery req = new_req_queue[0];
+                new_req_queue.erase(new_req_queue.begin());
+                execute_sparql_query(req, engines[own_id]);
+            }
 
             // work-oblige is disabled
             if (!global_enable_workstealing) continue;
