@@ -1,10 +1,10 @@
 #pragma once
 
-#include <fstream>
 #include <pthread.h>
+#include <cstring>
+#include <fstream>
 #include <sstream>
 #include <string>
-#include <cstring>
 // for va_start/end
 #include <cstdarg>
 
@@ -32,16 +32,14 @@
 #define CYAN 6
 #define WHITE 7
 
-void textcolor(FILE *handle, int attr, int fg)
-{
+void textcolor(FILE *handle, int attr, int fg) {
   char command[13];
   /* Command is the control command to the terminal */
   sprintf(command, "%c[%d;%dm", 0x1B, attr, fg + 30);
   fprintf(handle, "%s", command);
 }
 
-void reset_color(FILE *handle)
-{
+void reset_color(FILE *handle) {
   char command[20];
   /* Command is the control command to the terminal */
   sprintf(command, "%c[0m", 0x1B);
@@ -84,17 +82,14 @@ const char *messages[] = {
 #endif
 
 // logger_impl for every single thread(get\set by the get\setSpecific function)
-namespace logger_impl
-{
-struct streambuf_entry
-{
+namespace logger_impl {
+struct streambuf_entry {
   std::stringstream streambuffer;
   bool streamactive;
 };
-}
+}  // namespace logger_impl
 
-void streambuffdestructor(void *v)
-{
+void streambuffdestructor(void *v) {
   logger_impl::streambuf_entry *t =
       reinterpret_cast<logger_impl::streambuf_entry *>(v);
   delete t;
@@ -104,9 +99,8 @@ void streambuffdestructor(void *v)
 file_logger.
 This class control the log being logged to log_file and/or console
 */
-class file_logger
-{
-private:
+class file_logger {
+ private:
   std::ofstream fout;
   std::string log_file;
 
@@ -118,9 +112,8 @@ private:
   bool log_to_console;
   int log_level;
 
-public:
-  file_logger()
-  {
+ public:
+  file_logger() {
     log_file = "";
     log_to_console = true;
     log_level = LOG_INFO;
@@ -128,10 +121,8 @@ public:
     pthread_key_create(&streambufkey, streambuffdestructor);
   }
 
-  ~file_logger()
-  {
-    if (fout.good())
-    {
+  ~file_logger() {
+    if (fout.good()) {
       fout.flush();
       fout.close();
     }
@@ -139,21 +130,17 @@ public:
     pthread_mutex_destroy(&mut);
   }
 
-  bool set_log_file(std::string file)
-  {
-    //close the file if it is open
-    if (fout.good())
-    {
+  bool set_log_file(std::string file) {
+    // close the file if it is open
+    if (fout.good()) {
       fout.flush();
       fout.close();
       log_file = "";
     }
-    //if file != "", then open a new file
-    if (file.length() > 0)
-    {
+    // if file != "", then open a new file
+    if (file.length() > 0) {
       fout.open(file.c_str());
-      if (fout.fail())
-        return false;
+      if (fout.fail()) return false;
       log_file = file;
     }
     return true;
@@ -177,58 +164,43 @@ public:
 
   // operators
   template <typename T>
-  file_logger &operator<<(T a)
-  {
+  file_logger &operator<<(T a) {
     // get the stream buffer entry first
     logger_impl::streambuf_entry *streambufentry =
         reinterpret_cast<logger_impl::streambuf_entry *>(
             pthread_getspecific(streambufkey));
 
-    if (streambufentry != NULL)
-    {
+    if (streambufentry != NULL) {
       std::stringstream &sstream = streambufentry->streambuffer;
       bool &streamactive = streambufentry->streamactive;
 
-      if (streamactive)
-      {
+      if (streamactive) {
         sstream << a;
       }
     }
     return *this;
   }
 
-  //F-file, C-console
-  void _print2FC(int loglevel, const char *buf, int len)
-  {
-    if (fout.good())
-    {
+  // F-file, C-console
+  void _print2FC(int loglevel, const char *buf, int len) {
+    if (fout.good()) {
       pthread_mutex_lock(&mut);
       fout.write(buf, len);
       pthread_mutex_unlock(&mut);
     }
-    if (log_to_console)
-    {
+    if (log_to_console) {
 #ifdef COLOROUTPUT
       pthread_mutex_lock(&mut);
 
-      if (loglevel == LOG_FATAL)
-      {
+      if (loglevel == LOG_FATAL) {
         textcolor(stderr, BRIGHT, RED);
-      }
-      else if (loglevel == LOG_ERROR)
-      {
+      } else if (loglevel == LOG_ERROR) {
         textcolor(stderr, BRIGHT, RED);
-      }
-      else if (loglevel == LOG_WARNING)
-      {
+      } else if (loglevel == LOG_WARNING) {
         textcolor(stderr, BRIGHT, MAGENTA);
-      }
-      else if (loglevel == LOG_DEBUG)
-      {
+      } else if (loglevel == LOG_DEBUG) {
         textcolor(stderr, BRIGHT, YELLOW);
-      }
-      else if (loglevel == LOG_EMPH)
-      {
+      } else if (loglevel == LOG_EMPH) {
         textcolor(stderr, BRIGHT, GREEN);
       }
 #endif
@@ -240,17 +212,15 @@ public:
     }
   }
 
-  void stream_flush()
-  {
+  void stream_flush() {
     // get the stream buffer entry first
     logger_impl::streambuf_entry *streambufentry =
         reinterpret_cast<logger_impl::streambuf_entry *>(
             pthread_getspecific(streambufkey));
-    if (streambufentry != NULL)
-    {
+    if (streambufentry != NULL) {
       std::stringstream &sstream = streambufentry->streambuffer;
 
-      //streambuffer.flush();
+      // streambuffer.flush();
       _print2FC(streamloglevel, sstream.str().c_str(),
                 (int)(sstream.str().length()));
       sstream.str("");
@@ -258,23 +228,19 @@ public:
   }
 
   // if the end is "\n" then flush the message to console and/or fout
-  file_logger &operator<<(const char *a)
-  {
+  file_logger &operator<<(const char *a) {
     // get the stream buffer entry first
     logger_impl::streambuf_entry *streambufentry =
         reinterpret_cast<logger_impl::streambuf_entry *>(
             pthread_getspecific(streambufkey));
 
-    if (streambufentry != NULL)
-    {
+    if (streambufentry != NULL) {
       std::stringstream &sstream = streambufentry->streambuffer;
       bool &streamactive = streambufentry->streamactive;
 
-      if (streamactive)
-      {
+      if (streamactive) {
         sstream << a;
-        if (a[strlen(a) - 1] == '\n')
-        {
+        if (a[strlen(a) - 1] == '\n') {
           stream_flush();
         }
       }
@@ -284,7 +250,7 @@ public:
 
   /**
    * use the stream operator to log
-   * 
+   *
    * lineloglevel: the log's loglevel(if greater than log_level then log)
    * file:  File where the logger call originated
    * function: Function where the logger call originated
@@ -292,18 +258,16 @@ public:
    * do_start: decide the true/false of streamactive(the streamactive decide
    * whether the stream operator being used to print the log to pthread-specific
    * stringstream buffer)
-  */
+   */
   file_logger &start_stream(int lineloglevel, const char *file,
                             const char *function, int line,
-                            bool do_start = true)
-  {
+                            bool do_start = true) {
     // get the pthread-specific stream buffer
     logger_impl::streambuf_entry *streambufentry =
         reinterpret_cast<logger_impl::streambuf_entry *>(
             pthread_getspecific(streambufkey));
     // create the key if it doesn't exist
-    if (streambufentry == NULL)
-    {
+    if (streambufentry == NULL) {
       streambufentry = new logger_impl::streambuf_entry;
       pthread_setspecific(streambufkey, streambufentry);
     }
@@ -311,10 +275,8 @@ public:
     std::stringstream &streambuffer = streambufentry->streambuffer;
     bool &streamactive = streambufentry->streamactive;
 
-    if (lineloglevel >= log_level)
-    {
-      if (do_start == false)
-      {
+    if (lineloglevel >= log_level) {
+      if (do_start == false) {
         streamactive = false;
         return *this;
       }
@@ -324,16 +286,13 @@ public:
       file = ((strrchr(file, '/') ?: file - 1) + 1);
 
       // print header to the streambuffer
-      if (streambuffer.str().length() == 0)
-      {
+      if (streambuffer.str().length() == 0) {
         streambuffer << messages[lineloglevel] << file << "(" << function << ":"
                      << line << "):";
       }
       streamactive = true;
       streamloglevel = lineloglevel;
-    }
-    else
-    {
+    } else {
       streamactive = false;
     }
     // return the file_logger itself
@@ -342,7 +301,7 @@ public:
 
   /**
    * logs the message if loglevel>=OUTPUTLEVEL
-   * 
+   *
    * loglevel: the log's loglevel(if greater than log_level then log)
    * file:  File where the logger call originated
    * function: Function where the logger call originated
@@ -351,11 +310,9 @@ public:
    * arg: variable args. The args will be print in fmt
    */
   void _log(int loglevel, const char *file, const char *function, int line,
-            const char *fmt, va_list arg)
-  {
+            const char *fmt, va_list arg) {
     // check the loglevel
-    if (loglevel >= log_level)
-    {
+    if (loglevel >= log_level) {
       // the +1 at the end is to recover the file=(-1) which means no-match to 0
       // which means the head
       file = (strchr(file, '/') ?: file - 1) + 1;
@@ -375,32 +332,23 @@ public:
       str[byteswritten] = '\n';
       str[byteswritten + 1] = 0;
 
-      if (fout.good())
-      {
+      if (fout.good()) {
         pthread_mutex_lock(&mut);
         fout << str;
         pthread_mutex_unlock(&mut);
       }
 
       // print to the console
-      if (log_to_console)
-      {
+      if (log_to_console) {
 #ifdef COLOROUTPUT
         pthread_mutex_lock(&mut);
-        if (loglevel == LOG_FATAL)
-        {
+        if (loglevel == LOG_FATAL) {
           textcolor(stderr, BRIGHT, RED);
-        }
-        else if (loglevel == LOG_ERROR)
-        {
+        } else if (loglevel == LOG_ERROR) {
           textcolor(stderr, BRIGHT, RED);
-        }
-        else if (loglevel == LOG_WARNING)
-        {
+        } else if (loglevel == LOG_WARNING) {
           textcolor(stderr, BRIGHT, MAGENTA);
-        }
-        else if (loglevel == LOG_EMPH)
-        {
+        } else if (loglevel == LOG_EMPH) {
           textcolor(stderr, BRIGHT, GREEN);
         }
 #endif
@@ -414,8 +362,7 @@ public:
   }
 };
 
-file_logger &global_logger()
-{
+file_logger &global_logger() {
   static file_logger l;
   return l;
 }
@@ -424,16 +371,12 @@ file_logger &global_logger()
 Wrapper to generate 0 code if the output level is lower than the log level
 */
 template <bool dostuff>
-struct log_dispatch
-{
-};
+struct log_dispatch {};
 
 template <>
-struct log_dispatch<true>
-{
+struct log_dispatch<true> {
   inline static void exec(int loglevel, const char *file, const char *function,
-                          int line, const char *fmt, ...)
-  {
+                          int line, const char *fmt, ...) {
     va_list argp;
     va_start(argp, fmt);
     global_logger()._log(loglevel, file, function, line, fmt, argp);
@@ -442,50 +385,40 @@ struct log_dispatch<true>
 };
 
 template <>
-struct log_dispatch<false>
-{
+struct log_dispatch<false> {
   inline static void exec(int loglevel, const char *file, const char *function,
                           int line, const char *fmt, ...) {}
 };
 
-struct null_stream
-{
+struct null_stream {
   template <typename T>
-  inline null_stream operator<<(T t)
-  {
+  inline null_stream operator<<(T t) {
     return null_stream();
   }
   inline null_stream operator<<(const char *a) { return null_stream(); }
-  inline null_stream operator<<(std::ostream &(*f)(std::ostream &))
-  {
+  inline null_stream operator<<(std::ostream &(*f)(std::ostream &)) {
     return null_stream();
   }
 };
 
 template <bool dostuff>
-struct log_stream_dispatch
-{
-};
+struct log_stream_dispatch {};
 
 template <>
-struct log_stream_dispatch<true>
-{
+struct log_stream_dispatch<true> {
   inline static file_logger &exec(int lineloglevel, const char *file,
                                   const char *function, int line,
-                                  bool do_start = true)
-  {
+                                  bool do_start = true) {
     return global_logger().start_stream(lineloglevel, file, function, line,
                                         do_start);
   }
 };
 
 template <>
-struct log_stream_dispatch<false>
-{
+struct log_stream_dispatch<false> {
   inline static null_stream exec(int lineloglevel, const char *file,
                                  const char *function, int line,
-                                 bool do_start = true)
-  {
+                                 bool do_start = true) {
     return null_stream();
   }
 };
@@ -495,8 +428,7 @@ struct log_stream_dispatch<false>
 // totally disable logging
 #define logger(lvl, fmt, ...)
 #define logstream(lvl) \
-  if (0)               \
-  null_stream()
+  if (0) null_stream()
 #else
 #define logger(lvl, fmt, ...)                                                  \
   (log_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl, __FILE__, __func__, __LINE__, \
