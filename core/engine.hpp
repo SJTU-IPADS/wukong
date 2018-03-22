@@ -500,9 +500,10 @@ private:
         for (int i = 0; i < size; i++) {
             union_reqs[i].pid = req.id;
             union_reqs[i].pattern_group = req.pattern_group.unions[i];
-            if (union_reqs[i].start_from_index() && global_mt_threshold * global_num_servers > 1) {
+            if (union_reqs[i].start_from_index()
+                    && (global_mt_threshold * global_num_servers > 1))
                 union_reqs[i].force_dispatch = true;
-            }
+
             union_reqs[i].step = 0;
             union_reqs[i].result = req.result;
             union_reqs[i].result.blind = false;
@@ -703,8 +704,9 @@ private:
                 break;
             default:
                 cout << "ERROR: unsupported triple pattern with unknown predicate "
-                     << "(" << req.result.variable_type(start) << "|" << req.result.variable_type(end) << ")"
-                     << endl;
+                     << "(" << req.result.variable_type(start)
+                     << "|" << req.result.variable_type(end)
+                     << ")" << endl;
                 assert(false);
             }
             return true;
@@ -727,8 +729,9 @@ private:
                 break;
             default:
                 cout << "ERROR: unsupported triple pattern with attribute "
-                     << "(" << req.result.variable_type(start) << "|" << req.result.variable_type(end) << ")"
-                     << endl;
+                     << "(" << req.result.variable_type(start)
+                     << "|" << req.result.variable_type(end)
+                     << ")" << endl;
                 assert(false);
             }
             return true;
@@ -769,8 +772,9 @@ private:
 
         default:
             cout << "ERROR: unsupported triple pattern with known predicate "
-                 << "(" << req.result.variable_type(start) << "|" << req.result.variable_type(end) << ")"
-                 << endl;
+                 << "(" << req.result.variable_type(start)
+                 << "|" << req.result.variable_type(end)
+                 << ")" << endl;
             assert(false);
         }
 
@@ -778,9 +782,13 @@ private:
     }
 
     // relational operator: < <= > >= == !=
-    void relational_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy) {
-        int col1 = (filter.arg1->type == SPARQLQuery::Filter::Type::Variable) ? result.var2col(filter.arg1->valueArg) : -1;
-        int col2 = (filter.arg2->type == SPARQLQuery::Filter::Type::Variable) ? result.var2col(filter.arg2->valueArg) : -1;
+    void relational_filter(SPARQLQuery::Filter &filter,
+                           SPARQLQuery::Result &result,
+                           vector<bool> &is_satisfy) {
+        int col1 = (filter.arg1->type == SPARQLQuery::Filter::Type::Variable)
+                   ? result.var2col(filter.arg1->valueArg) : -1;
+        int col2 = (filter.arg2->type == SPARQLQuery::Filter::Type::Variable)
+                   ? result.var2col(filter.arg2->valueArg) : -1;
 
         auto get_str = [&](SPARQLQuery::Filter & filter, int row, int col) -> string {
             int id = 0;
@@ -799,67 +807,68 @@ private:
 
         switch (filter.type) {
         case SPARQLQuery::Filter::Type::Equal:
-            for (int row = 0; row < result.get_row_num(); row ++) {
-                if (is_satisfy[row] && get_str(*filter.arg1, row, col1) != get_str(*filter.arg2, row, col2)) {
+            for (int row = 0; row < result.get_row_num(); row ++)
+                if (is_satisfy[row]
+                        && (get_str(*filter.arg1, row, col1)
+                            != get_str(*filter.arg2, row, col2)))
                     is_satisfy[row] = false;
-                }
-            }
             break;
         case SPARQLQuery::Filter::Type::NotEqual:
-            for (int row = 0; row < result.get_row_num(); row ++) {
-                if (is_satisfy[row] && get_str(*filter.arg1, row, col1) == get_str(*filter.arg2, row, col2)) {
+            for (int row = 0; row < result.get_row_num(); row ++)
+                if (is_satisfy[row]
+                        && (get_str(*filter.arg1, row, col1)
+                            == get_str(*filter.arg2, row, col2)))
                     is_satisfy[row] = false;
-                }
-            }
             break;
         case SPARQLQuery::Filter::Type::Less:
-            for (int row = 0; row < result.get_row_num(); row ++) {
-                if (is_satisfy[row] && get_str(*filter.arg1, row, col1) >= get_str(*filter.arg2, row, col2)) {
+            for (int row = 0; row < result.get_row_num(); row ++)
+                if (is_satisfy[row]
+                        && (get_str(*filter.arg1, row, col1)
+                            >= get_str(*filter.arg2, row, col2)))
                     is_satisfy[row] = false;
-                }
-            }
             break;
         case SPARQLQuery::Filter::Type::LessOrEqual:
-            for (int row = 0; row < result.get_row_num(); row ++) {
-                if (is_satisfy[row] && get_str(*filter.arg1, row, col1) > get_str(*filter.arg2, row, col2)) {
+            for (int row = 0; row < result.get_row_num(); row ++)
+                if (is_satisfy[row]
+                        && (get_str(*filter.arg1, row, col1)
+                            > get_str(*filter.arg2, row, col2)))
                     is_satisfy[row] = false;
-                }
-            }
             break;
         case SPARQLQuery::Filter::Type::Greater:
-            for (int row = 0; row < result.get_row_num(); row ++) {
-                if (is_satisfy[row] && get_str(*filter.arg1, row, col1) <= get_str(*filter.arg2, row, col2)) {
+            for (int row = 0; row < result.get_row_num(); row ++)
+                if (is_satisfy[row]
+                        && (get_str(*filter.arg1, row, col1)
+                            <= get_str(*filter.arg2, row, col2)))
                     is_satisfy[row] = false;
-                }
-            }
             break;
         case SPARQLQuery::Filter::Type::GreaterOrEqual:
-            for (int row = 0; row < result.get_row_num(); row ++) {
-                if (is_satisfy[row] && get_str(*filter.arg1, row, col1) < get_str(*filter.arg2, row, col2)) {
+            for (int row = 0; row < result.get_row_num(); row ++)
+                if (is_satisfy[row]
+                        && get_str(*filter.arg1, row, col1)
+                        < get_str(*filter.arg2, row, col2))
                     is_satisfy[row] = false;
-                }
-            }
             break;
         }
-
     }
 
-    void bound_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy) {
+    void bound_filter(SPARQLQuery::Filter &filter,
+                      SPARQLQuery::Result &result,
+                      vector<bool> &is_satisfy) {
         int col = result.var2col(filter.arg1 -> valueArg);
-        for(int row = 0; row < is_satisfy.size(); row ++){
-            if(!is_satisfy[row])
+
+        for (int row = 0; row < is_satisfy.size(); row ++) {
+            if (!is_satisfy[row])
                 continue;
 
-            int id = result.get_row_col(row, col);
-
-            if(id == BLANK_ID){
+            if (result.get_row_col(row, col) == BLANK_ID)
                 is_satisfy[row] = false;
-            }
         }
     }
 
     // IRI and URI are the same in SPARQL
-    void is_IRI_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy) {
+    void is_IRI_filter(SPARQLQuery::Filter &filter,
+                       SPARQLQuery::Result &result,
+                       vector<bool> &is_satisfy) {
         int col = result.var2col(filter.arg1->valueArg);
 
         string IRI_REF = R"(<([^<>\\"{}|^`\\])*>)";
@@ -873,13 +882,14 @@ private:
 
             int id = result.get_row_col(row, col);
             string str = str_server->exist(id) ? str_server->id2str[id] : "";
-            if (!regex_match(str, IRI_pattern)) {
+            if (!regex_match(str, IRI_pattern))
                 is_satisfy[row] = false;
-            }
         }
     }
 
-    void is_literal_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy) {
+    void is_literal_filter(SPARQLQuery::Filter &filter,
+                           SPARQLQuery::Result &result,
+                           vector<bool> &is_satisfy) {
         int col = result.var2col(filter.arg1->valueArg);
 
         string langtag_pattern_str("@[a-zA-Z]+(-[a-zA-Z0-9]+)*");
@@ -888,13 +898,14 @@ private:
         string literal2_str = R"("([^\x22\x5C\x0A\x0D]|\\[tbnrf\"'])*")";
         string literal_long1_str = R"('''(('|'')?([^'\\]|\\[tbnrf\"']))*''')";
         string literal_long2_str = R"("""(("|"")?([^"\\]|\\[tbnrf\"']))*""")";
-        string String = "(" + literal1_str + "|" + literal2_str + "|" + literal_long1_str + "|" + literal_long2_str + ")";
+        string literal = "(" + literal1_str + "|" + literal2_str + "|"
+                         + literal_long1_str + "|" + literal_long2_str + ")";
 
         string IRI_REF = R"(<([^<>\\"{}|^`\\])*>)";
         string prefixed_name = ".*:.*";
         string IRIref_str = "(" + IRI_REF + "|" + prefixed_name + ")";
 
-        regex RDFLiteral_pattern(String+"("+ langtag_pattern_str + "|(\\^\\^" + IRIref_str +  "))?");
+        regex RDFLiteral_pattern(literal + "(" + langtag_pattern_str + "|(\\^\\^" + IRIref_str +  "))?");
 
         for (int row = 0; row < is_satisfy.size(); row ++) {
             if (!is_satisfy[row])
@@ -902,21 +913,20 @@ private:
 
             int id = result.get_row_col(row, col);
             string str = str_server->exist(id) ? str_server->id2str[id] : "";
-            if (!regex_match(str, RDFLiteral_pattern)) {
+            if (!regex_match(str, RDFLiteral_pattern))
                 is_satisfy[row] = false;
-            }
         }
     }
 
     // regex flag only support "i" option now
-    void regex_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy) {
+    void regex_filter(SPARQLQuery::Filter &filter,
+                      SPARQLQuery::Result &result,
+                      vector<bool> &is_satisfy) {
         regex pattern;
-        if(filter.arg3 != nullptr && filter.arg3->value == "i"){
+        if (filter.arg3 != nullptr && filter.arg3->value == "i")
             pattern = regex(filter.arg2->value, std::regex::icase);
-        }
-        else{
+        else
             pattern = regex(filter.arg2->value);
-        }
 
         int col = result.var2col(filter.arg1->valueArg);
         for (int row = 0; row < is_satisfy.size(); row ++) {
@@ -925,19 +935,19 @@ private:
 
             int id = result.get_row_col(row, col);
             string str = str_server->exist(id) ? str_server->id2str[id] : "";
-            if (str.front() != '\"' || str.back() != '\"') {
+            if (str.front() != '\"' || str.back() != '\"')
                 cout << "the first parameter of function regex can only be string" << endl;
-            }
-            else {
+            else
                 str = str.substr(1, str.length() - 2);
-            }
-            if (!regex_match(str, pattern)) {
+
+            if (!regex_match(str, pattern))
                 is_satisfy[row] = false;
-            }
         }
     }
 
-    void general_filter(SPARQLQuery::Filter &filter, SPARQLQuery::Result &result, vector<bool> &is_satisfy) {
+    void general_filter(SPARQLQuery::Filter &filter,
+                        SPARQLQuery::Result &result,
+                        vector<bool> &is_satisfy) {
         // conditional operator
         if (filter.type <= 1) {
             vector<bool> is_satisfy1(result.get_row_num(), true);
@@ -945,35 +955,30 @@ private:
             if (filter.type == SPARQLQuery::Filter::Type::And) {
                 general_filter(*filter.arg1, result, is_satisfy);
                 general_filter(*filter.arg2, result, is_satisfy);
-            }
-            else if (filter.type == SPARQLQuery::Filter::Type::Or) {
+            } else if (filter.type == SPARQLQuery::Filter::Type::Or) {
                 general_filter(*filter.arg1, result, is_satisfy1);
                 general_filter(*filter.arg2, result, is_satisfy2);
-                for (int i = 0; i < is_satisfy.size(); i ++) {
+                for (int i = 0; i < is_satisfy.size(); i ++)
                     is_satisfy[i] = is_satisfy[i] && (is_satisfy1[i] || is_satisfy2[i]);
-                }
             }
         }
         // relational operator
-        else if (filter.type <= 7) {
+        else if (filter.type <= 7)
             return relational_filter(filter, result, is_satisfy);
-        }
-        else if (filter.type == SPARQLQuery::Filter::Type::Builtin_bound) {
+        else if (filter.type == SPARQLQuery::Filter::Type::Builtin_bound)
             return bound_filter(filter, result, is_satisfy);
-        }
-        else if (filter.type == SPARQLQuery::Filter::Type::Builtin_isiri) {
+        else if (filter.type == SPARQLQuery::Filter::Type::Builtin_isiri)
             return is_IRI_filter(filter, result, is_satisfy);
-        }
-        else if (filter.type == SPARQLQuery::Filter::Type::Builtin_isliteral) {
+        else if (filter.type == SPARQLQuery::Filter::Type::Builtin_isliteral)
             return is_literal_filter(filter, result, is_satisfy);
-        }
-        else if (filter.type == SPARQLQuery::Filter::Type::Builtin_regex) {
+        else if (filter.type == SPARQLQuery::Filter::Type::Builtin_regex)
             return regex_filter(filter, result, is_satisfy);
-        }
+
     }
 
     void filter(SPARQLQuery &r) {
-        if(r.pattern_group.filters.size() == 0) return;
+        if (r.pattern_group.filters.size() == 0) return;
+
         // during filtering, flag of unsatified row will be set to false one by one
         vector<bool> is_satisfy(r.result.get_row_num(), true);
 
@@ -997,7 +1002,9 @@ private:
         SPARQLQuery &query;
         String_Server *str_server;
     public:
-        Compare(SPARQLQuery &query, String_Server *str_server): query(query), str_server(str_server) {}
+        Compare(SPARQLQuery &query, String_Server *str_server)
+            : query(query), str_server(str_server) { }
+
         bool operator()(const int* a, const int* b) {
             int cmp = 0;
             for (int i = 0; i < query.orders.size(); i ++) {
@@ -1018,12 +1025,12 @@ private:
     private:
         int col_num;
     public:
-        ReduceCmp(int col_num): col_num(col_num) {}
+        ReduceCmp(int col_num): col_num(col_num) { }
+
         bool operator()(const int* a, const int* b) {
             for (int i = 0; i < col_num; i ++) {
-                if (a[i] == b[i]) {
+                if (a[i] == b[i])
                     continue;
-                }
                 return a[i] < b[i];
             }
             return 0;
@@ -1064,22 +1071,24 @@ private:
     }
 
     void final_process(SPARQLQuery &r) {
-        if (r.result.blind || r.result.result_table.size() == 0) return;
+        if (r.result.blind || r.result.result_table.size() == 0)
+            return;
+
         // DISTINCT and ORDER BY
         if (r.distinct || r.orders.size() > 0) {
             // initialize table
             int **table;
             int size = r.result.get_row_num();
             int new_size = size;
+
             table = new int*[size];
-            for (int i = 0; i < size; i ++) {
+            for (int i = 0; i < size; i ++)
                 table[i] = new int[r.result.col_num];
-            }
-            for (int i = 0; i < size; i ++) {
-                for (int j = 0; j < r.result.col_num; j ++) {
+
+            for (int i = 0; i < size; i ++)
+                for (int j = 0; j < r.result.col_num; j ++)
                     table[i][j] = r.result.get_row_col(i, j);
-                }
-            }
+
             // DISTINCT
             if (r.distinct) {
                 // sort and then compare
@@ -1106,34 +1115,41 @@ private:
                     swap(table[p], table[q]);
                     q ++;
                 }
-out:            new_size = p + 1;
+out:
+                new_size = p + 1;
             }
             // ORDER BY
             if (r.orders.size() > 0) {
                 sort(table, table + new_size, Compare(r, str_server));
             }
             //write back data and delete **table
-            for (int i = 0; i < new_size; i ++) {
-                for (int j = 0; j < r.result.col_num; j ++) {
+            for (int i = 0; i < new_size; i ++)
+                for (int j = 0; j < r.result.col_num; j ++)
                     r.result.result_table[r.result.col_num * i + j] = table[i][j];
-                }
-            }
-            if (new_size < size) {
-                r.result.result_table.erase(r.result.result_table.begin() + new_size * r.result.col_num, r.result.result_table.begin() + size * r.result.col_num);
-            }
-            for (int i = 0; i < size; i ++) {
+
+            if (new_size < size)
+                r.result.result_table.erase(r.result.result_table.begin() + new_size * r.result.col_num,
+                                            r.result.result_table.begin() + size * r.result.col_num);
+
+            for (int i = 0; i < size; i ++)
                 delete[] table[i];
-            }
             delete[] table;
         }
+
         // OFFSET
-        if (r.offset > 0) {
-            r.result.result_table.erase(r.result.result_table.begin(), min(r.result.result_table.begin() + r.offset * r.result.col_num, r.result.result_table.end()));
-        }
+        if (r.offset > 0)
+            r.result.result_table.erase(r.result.result_table.begin(),
+                                        min(r.result.result_table.begin()
+                                            + r.offset * r.result.col_num,
+                                            r.result.result_table.end()));
+
         // LIMIT
-        if (r.limit >= 0) {
-            r.result.result_table.erase( min(r.result.result_table.begin() + r.limit * r.result.col_num , r.result.result_table.end()), r.result.result_table.end() );
-        }
+        if (r.limit >= 0)
+            r.result.result_table.erase(min(r.result.result_table.begin()
+                                            + r.limit * r.result.col_num,
+                                            r.result.result_table.end()),
+                                        r.result.result_table.end() );
+
         // remove unrequested variables
         int new_col_num = r.result.required_vars.size();
         int new_row_num = r.result.get_row_num();
@@ -1144,6 +1160,7 @@ out:            new_size = p + 1;
                 new_result_table[i * new_col_num + j] = r.result.get_row_col(i, col);
             }
         }
+
         r.result.result_table.swap(new_result_table);
         r.result.col_num = new_col_num;
     }
@@ -1152,8 +1169,13 @@ out:            new_size = p + 1;
         SPARQLQuery::Result &result = r.result;
         r.id = coder.get_and_inc_qid();
         // if r starts from index and is from proxy, dispatch it to every engine except itself
-        if (r.force_dispatch || (r.step == 0 && coder.tid_of(r.pid) < global_num_proxies && r.start_from_index() && global_mt_threshold * global_num_servers > 1)) {
+        if (r.force_dispatch
+                || (r.step == 0
+                    && coder.tid_of(r.pid) < global_num_proxies
+                    && r.start_from_index()
+                    && global_mt_threshold * global_num_servers > 1)) {
             int sub_reqs_size = global_num_servers * global_mt_threshold - 1;
+
             rmap.put_parent_request(r, sub_reqs_size);
             SPARQLQuery sub_query = r;
             sub_query.force_dispatch = false;
@@ -1162,6 +1184,7 @@ out:            new_size = p + 1;
                     sub_query.id = -1;
                     sub_query.pid = r.id;
                     sub_query.tid = j; // specified engine
+
                     if (i == sid && j + global_num_proxies == tid) {
                         //dispatching engine thread shall do nothing
                         continue;
@@ -1171,12 +1194,14 @@ out:            new_size = p + 1;
                     } else if (i == sid) {
                         sub_query.tid = - sub_query.tid - 1; // means send to the same server
                     }
+
                     Bundle bundle(sub_query);
                     send_request(bundle, i, global_num_proxies + j);
                 }
             }
             return;
         }
+
         while (true) {
             uint64_t t1 = timer::get_usec();
             execute_one_step(r);
@@ -1192,7 +1217,8 @@ out:            new_size = p + 1;
                     vector<SPARQLQuery> union_reqs = generate_union_query(r);
                     rmap.put_parent_request(r, union_reqs.size());
                     for (int i = 0; i < union_reqs.size(); i++) {
-                        int dst_sid = mymath::hash_mod(union_reqs[i].pattern_group.patterns[0].subject, global_num_servers);
+                        int dst_sid = mymath::hash_mod(union_reqs[i].pattern_group.patterns[0].subject,
+                                                       global_num_servers);
                         if (dst_sid != sid) {
                             Bundle bundle(union_reqs[i]);
                             send_request(bundle, i, tid);
@@ -1204,10 +1230,13 @@ out:            new_size = p + 1;
                     }
                     return;
                 }
-                if(!r.is_union() && !r.is_optional()){
-                    // result should be filtered at the end of every distributed query because FILTER could be nested in every PatternGroup
+
+                if (!r.is_union() && !r.is_optional()) {
+                    // result should be filtered at the end of every distributed query
+                    // because FILTER could be nested in every PatternGroup
                     filter(r);
                 }
+
                 // if all data has been merged and next will be sent back to proxy
                 if (coder.tid_of(r.pid) < global_num_proxies) {
                     if (r.is_optional() && !r.optional_dispatched) {
@@ -1250,10 +1279,11 @@ out:            new_size = p + 1;
         if (engine->rmap.is_ready(r.pid)) {
             SPARQLQuery reply = engine->rmap.get_merged_reply(r.pid);
             pthread_spin_unlock(&engine->rmap_lock);
+
             // optional will be processed after union , and filter follows.
-            if (reply.is_optional() || (!reply.is_optional() && reply.is_union())){
+            if (reply.is_optional() || (!reply.is_optional() && reply.is_union()))
                 filter(reply);
-            }
+
             // if all data has been merged and next will be sent back to proxy
             if (coder.tid_of(reply.pid) < global_num_proxies) {
                 if (reply.is_optional() && !reply.optional_dispatched) {
