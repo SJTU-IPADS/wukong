@@ -123,7 +123,7 @@ public:
   {
     log_file = "";
     log_to_console = true;
-    log_level = LOG_EMPH;
+    log_level = LOG_INFO;
     pthread_mutex_init(&mut, NULL);
     pthread_key_create(&streambufkey, streambuffdestructor);
   }
