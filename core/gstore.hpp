@@ -541,15 +541,17 @@ done:
         uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
 
 #if DYNAMIC_GSTORE
-        uint64_t r_sz = blksz(v.ptr.size + 1) * sizeof(edge_t);  //get whole blk
+        uint64_t r_sz = blksz(v.ptr.size + 1) * sizeof(edge_t);  // the size of entire blk
 #else
-        uint64_t r_sz = v.ptr.size * sizeof(edge_t);
+        uint64_t r_sz = v.ptr.size * sizeof(edge_t); // the size of edges
 #endif
+
+        uint64_t buf_sz = mem->buffer_size();
+        assert(r_sz < buf_sz); // enough space to host the edges
 
         RDMA &rdma = RDMA::get_rdma();
         rdma.dev->RdmaRead(tid, dst_sid, buf, r_sz, r_off);
-        edge_t *result_ptr = (edge_t *)buf;
-        return result_ptr;
+        return (edge_t *)buf;
     }
 
     vertex_t get_vertex_remote(int tid, ikey_t key) {
@@ -565,9 +567,11 @@ done:
             return vert; // found
 
         char *buf = mem->buffer(tid);
+        uint64_t buf_sz = mem->buffer_size();
         while (true) {
             uint64_t off = bucket_id * ASSOCIATIVITY * sizeof(vertex_t);
             uint64_t sz = ASSOCIATIVITY * sizeof(vertex_t);
+            assert(sz < buf_sz); // enough space to host the vertices
 
             RDMA &rdma = RDMA::get_rdma();
             rdma.dev->RdmaRead(tid, dst_sid, buf, sz, off);
