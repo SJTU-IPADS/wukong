@@ -45,9 +45,6 @@ enum var_type {
     const_var
 };
 
-// defined as constexpr due to switch-case
-constexpr int var_pair(int t1, int t2) { return ((t1 << 4) | t2); }
-
 // EXT = [ TYPE:16 | COL:16 ]
 #define NBITS_COL  16
 #define NO_RESULT  ((1 << NBITS_COL) - 1)
@@ -120,24 +117,18 @@ public:
             delete arg3;
         }
 
-        void print() {
+        void print_filter() {
             // print info
             cout << "---------------------filter---------------------------" << endl;
             cout << "TYPE: " << this->type << endl;
-            if (this->value != "") {
+            if (this->value != "")
                 cout << "value: " << this->value << endl;
-            }
             cout << "valueArg: " << this->valueArg << endl;
 
-            if (arg1 != NULL) {
-                arg1->print();
-            }
-            if (arg2 != NULL) {
-                arg2->print();
-            }
-            if (arg3 != NULL) {
-                arg3->print();
-            }
+            if (arg1 != NULL) arg1->print_filter();
+            if (arg2 != NULL) arg2->print_filter();
+            if (arg3 != NULL) arg3->print_filter();
+
             cout << "------------------------------------------------------" << endl;
         }
 
@@ -255,7 +246,7 @@ public:
             v2c_map[idx] = col2ext(col, t);
         }
 
-        //TODO unused set get
+        // TODO unused set get
         // result table for string IDs
         void set_col_num(int n) { col_num = n; }
 
@@ -464,12 +455,12 @@ public:
         result.v2c_map.resize(n, NO_RESULT);
     }
 
-    Pattern& get_current_pattern() {
+    Pattern & get_current_pattern() {
         assert(this->step < pattern_group.patterns.size());
         return pattern_group.patterns[this->step];
     }
 
-    Pattern& get_pattern(int step) {
+    Pattern & get_pattern(int step) {
         assert(step < pattern_group.patterns.size());
         return pattern_group.patterns[step];
     }
@@ -593,160 +584,150 @@ public:
 };
 
 namespace boost {
-    namespace serialization {
-        char occupied = 0;
-        char empty = 1;
+namespace serialization {
+char occupied = 0;
+char empty = 1;
 
-        template<class Archive>
-        void save(Archive & ar, const SPARQLQuery::Pattern & t, unsigned int version) {
-            ar << t.subject;
-            ar << t.predicate;
-            ar << t.object;
-            ar << t.direction;
-            ar << t.pred_type;
-        }
+template<class Archive>
+void save(Archive &ar, const SPARQLQuery::Pattern &t, unsigned int version) {
+    ar << t.subject;
+    ar << t.predicate;
+    ar << t.object;
+    ar << t.direction;
+    ar << t.pred_type;
+}
 
-        template<class Archive>
-        void load(Archive & ar, SPARQLQuery::Pattern & t, unsigned int version) {
-            ar >> t.subject;
-            ar >> t.predicate;
-            ar >> t.object;
-            ar >> t.direction;
-            ar >> t.pred_type;
-        }
+template<class Archive>
+void load(Archive &ar, SPARQLQuery::Pattern &t, unsigned int version) {
+    ar >> t.subject;
+    ar >> t.predicate;
+    ar >> t.object;
+    ar >> t.direction;
+    ar >> t.pred_type;
+}
 
-        template<class Archive>
-        void save(Archive & ar, const SPARQLQuery::PatternGroup & t, unsigned int version) {
-            ar << t.patterns;
-            if (t.filters.size() > 0) {
-                ar << occupied;
-                ar << t.filters;
-            }
-            else {
-                ar << empty;
-            }
-            if (t.optional.size() > 0) {
-                ar << occupied;
-                ar << t.optional;
-            }
-            else {
-                ar << empty;
-            }
-            if (t.unions.size() > 0) {
-                ar << occupied;
-                ar << t.unions;
-            }
-            else {
-                ar << empty;
-            }
-        }
+template<class Archive>
+void save(Archive &ar, const SPARQLQuery::PatternGroup &t, unsigned int version) {
+    ar << t.patterns;
+    if (t.filters.size() > 0) {
+        ar << occupied;
+        ar << t.filters;
+    } else ar << empty;
 
-        template<class Archive>
-        void load(Archive & ar, SPARQLQuery::PatternGroup & t, unsigned int version) {
-            char temp = 2;
-            ar >> t.patterns;
-            ar >> temp;
-            if (temp == occupied) {
-                ar >> t.filters;
-                temp = 2;
-            }
-            ar >> temp;
-            if (temp == occupied) {
-                ar >> t.optional;
-                temp = 2;
-            }
-            ar >> temp;
-            if (temp == occupied) {
-                ar >> t.unions;
-                temp = 2;
-            }
-        }
+    if (t.optional.size() > 0) {
+        ar << occupied;
+        ar << t.optional;
+    } else ar << empty;
 
-        template<class Archive>
-        void save(Archive & ar, const SPARQLQuery::Result & t, unsigned int version) {
-            ar << t.col_num;
-            ar << t.row_num;
-            ar << t.attr_col_num;
-            ar << t.blind;
-            ar << t.nvars;
-            ar << t.v2c_map;
-            if (!t.blind) ar << t.required_vars;
-            // attr_res_table must be empty if result_table is empty
-            if (t.result_table.size() > 0) {
-                ar << occupied;
-                ar << t.result_table;
-                ar << t.attr_res_table;
-            }
-            else {
-                ar << empty;
-            }
-        }
+    if (t.unions.size() > 0) {
+        ar << occupied;
+        ar << t.unions;
+    } else ar << empty;
+}
 
-        template<class Archive>
-        void load(Archive & ar, SPARQLQuery::Result & t, unsigned int version) {
-            char temp = 2;
-            ar >> t.col_num;
-            ar >> t.row_num;
-            ar >> t.attr_col_num;
-            ar >> t.blind;
-            ar >> t.nvars;
-            ar >> t.v2c_map;
-            if (!t.blind) ar >> t.required_vars;
-            ar >> temp;
-            if (temp == occupied) {
-                ar >> t.result_table;
-                ar >> t.attr_res_table;
-            }
-        }
-
-        template<class Archive>
-        void save(Archive & ar, const SPARQLQuery & t, unsigned int version) {
-            ar << t.id;
-            ar << t.pid;
-            ar << t.tid;
-            ar << t.limit;
-            ar << t.offset;
-            ar << t.distinct;
-            ar << t.optional_dispatched;
-            ar << t.step;
-            ar << t.corun_step;
-            ar << t.fetch_step;
-            ar << t.local_var;
-            ar << t.force_dispatch;
-            ar << t.pattern_group;
-            if (t.orders.size() > 0) {
-                ar << occupied;
-                ar << t.orders;
-            }
-            else {
-                ar << empty;
-            }
-            ar << t.result;
-        }
-
-        template<class Archive>
-        void load(Archive & ar, SPARQLQuery & t, unsigned int version) {
-            char temp = 2;
-            ar >> t.id;
-            ar >> t.pid;
-            ar >> t.tid;
-            ar >> t.limit;
-            ar >> t.offset;
-            ar >> t.distinct;
-            ar >> t.optional_dispatched;
-            ar >> t.step;
-            ar >> t.corun_step;
-            ar >> t.fetch_step;
-            ar >> t.local_var;
-            ar >> t.force_dispatch;
-            ar >> t.pattern_group;
-            ar >> temp;
-            if (temp == occupied) {
-                ar >> t.orders;
-            }
-            ar >> t.result;
-        }
+template<class Archive>
+void load(Archive &ar, SPARQLQuery::PatternGroup &t, unsigned int version) {
+    char temp = 2;
+    ar >> t.patterns;
+    ar >> temp;
+    if (temp == occupied) {
+        ar >> t.filters;
+        temp = 2;
     }
+    ar >> temp;
+    if (temp == occupied) {
+        ar >> t.optional;
+        temp = 2;
+    }
+    ar >> temp;
+    if (temp == occupied) {
+        ar >> t.unions;
+        temp = 2;
+    }
+}
+
+template<class Archive>
+void save(Archive & ar, const SPARQLQuery::Result & t, unsigned int version) {
+    ar << t.col_num;
+    ar << t.row_num;
+    ar << t.attr_col_num;
+    ar << t.blind;
+    ar << t.nvars;
+    ar << t.v2c_map;
+    if (!t.blind) ar << t.required_vars;
+    // attr_res_table must be empty if result_table is empty
+    if (t.result_table.size() > 0) {
+        ar << occupied;
+        ar << t.result_table;
+        ar << t.attr_res_table;
+    } else {
+        ar << empty;
+    }
+}
+
+template<class Archive>
+void load(Archive & ar, SPARQLQuery::Result & t, unsigned int version) {
+    char temp = 2;
+    ar >> t.col_num;
+    ar >> t.row_num;
+    ar >> t.attr_col_num;
+    ar >> t.blind;
+    ar >> t.nvars;
+    ar >> t.v2c_map;
+    if (!t.blind) ar >> t.required_vars;
+    ar >> temp;
+    if (temp == occupied) {
+        ar >> t.result_table;
+        ar >> t.attr_res_table;
+    }
+}
+
+template<class Archive>
+void save(Archive & ar, const SPARQLQuery & t, unsigned int version) {
+    ar << t.id;
+    ar << t.pid;
+    ar << t.tid;
+    ar << t.limit;
+    ar << t.offset;
+    ar << t.distinct;
+    ar << t.optional_dispatched;
+    ar << t.step;
+    ar << t.corun_step;
+    ar << t.fetch_step;
+    ar << t.local_var;
+    ar << t.force_dispatch;
+    ar << t.pattern_group;
+    if (t.orders.size() > 0) {
+        ar << occupied;
+        ar << t.orders;
+    } else {
+        ar << empty;
+    }
+    ar << t.result;
+}
+
+template<class Archive>
+void load(Archive & ar, SPARQLQuery & t, unsigned int version) {
+    char temp = 2;
+    ar >> t.id;
+    ar >> t.pid;
+    ar >> t.tid;
+    ar >> t.limit;
+    ar >> t.offset;
+    ar >> t.distinct;
+    ar >> t.optional_dispatched;
+    ar >> t.step;
+    ar >> t.corun_step;
+    ar >> t.fetch_step;
+    ar >> t.local_var;
+    ar >> t.force_dispatch;
+    ar >> t.pattern_group;
+    ar >> temp;
+    if (temp == occupied) ar >> t.orders;
+    ar >> t.result;
+}
+
+}
 }
 
 BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::Pattern);
@@ -754,8 +735,9 @@ BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::PatternGroup);
 BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::Result);
 BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery);
 
-//remove class information at the cost of losing auto versioning, which is useless currently because wukong
-//use boost serialization to transmit data between endpoints running the same code.
+// remove class information at the cost of losing auto versioning,
+// which is useless currently because wukong use boost serialization to transmit data
+// between endpoints running the same code.
 BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Pattern, boost::serialization::object_serializable);
 BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::PatternGroup, boost::serialization::object_serializable);
 BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Filter, boost::serialization::object_serializable);
@@ -765,8 +747,10 @@ BOOST_CLASS_IMPLEMENTATION(SPARQLQuery, boost::serialization::object_serializabl
 BOOST_CLASS_IMPLEMENTATION(GStoreCheck, boost::serialization::object_serializable);
 BOOST_CLASS_IMPLEMENTATION(RDFLoad, boost::serialization::object_serializable);
 
-//remove object tracking information at the cost of that multiple identical objects may be created when an archive is loaded.
-//current query data structure does not contain two identical object reference with the same pointer
+// remove object tracking information at the cost of that multiple identical objects
+// may be created when an archive is loaded.
+// current query data structure does not contain two identical object reference
+// with the same pointer
 BOOST_CLASS_TRACKING(SPARQLQuery::Pattern, boost::serialization::track_never);
 BOOST_CLASS_TRACKING(SPARQLQuery::Filter, boost::serialization::track_never);
 BOOST_CLASS_TRACKING(SPARQLQuery::PatternGroup, boost::serialization::track_never);

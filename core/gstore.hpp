@@ -81,7 +81,7 @@ uint64_t vid : NBITS_VID; // vertex
 
     bool is_empty() { return ((vid == 0) && (pid == 0) && (dir == 0)); }
 
-    void print() { cout << "[" << vid << "|" << pid << "|" << dir << "]" << endl; }
+    void print_key() { cout << "[" << vid << "|" << pid << "|" << dir << "]" << endl; }
 
     uint64_t hash() {
         uint64_t r = 0;
@@ -296,8 +296,8 @@ private:
                 //assert(vertices[slot_id].key != key); // no duplicate key
                 if (vertices[slot_id].key == key) {
                     if (check_dup) {
-                        key.print();
-                        vertices[slot_id].key.print();
+                        key.print_key();
+                        vertices[slot_id].key.print_key();
                         cout << "ERROR: conflict at slot["
                              << slot_id << "] of bucket["
                              << bucket_id << "]" << endl;
