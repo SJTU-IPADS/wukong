@@ -540,189 +540,6 @@ public:
     }
 };
 
-namespace boost {
-namespace serialization {
-char occupied = 0;
-char empty = 1;
-
-template<class Archive>
-void save(Archive & ar, const SPARQLQuery::Pattern & t, unsigned int version) {
-    ar << t.subject;
-    ar << t.predicate;
-    ar << t.object;
-    ar << t.direction;
-    ar << t.pred_type;
-}
-
-template<class Archive>
-void load(Archive & ar, SPARQLQuery::Pattern & t, unsigned int version) {
-    ar >> t.subject;
-    ar >> t.predicate;
-    ar >> t.object;
-    ar >> t.direction;
-    ar >> t.pred_type;
-}
-
-template<class Archive>
-void save(Archive & ar, const SPARQLQuery::PatternGroup & t, unsigned int version) {
-    ar << t.patterns;
-    if (t.filters.size() > 0) {
-        ar << occupied;
-        ar << t.filters;
-    }
-    else {
-        ar << empty;
-    }
-    if (t.optional.size() > 0) {
-        ar << occupied;
-        ar << t.optional;
-    }
-    else {
-        ar << empty;
-    }
-    if (t.unions.size() > 0) {
-        ar << occupied;
-        ar << t.unions;
-    }
-    else {
-        ar << empty;
-    }
-}
-
-template<class Archive>
-void load(Archive & ar, SPARQLQuery::PatternGroup & t, unsigned int version) {
-    char temp = 2;
-    ar >> t.patterns;
-    ar >> temp;
-    if (temp == occupied) {
-        ar >> t.filters;
-        temp = 2;
-    }
-    ar >> temp;
-    if (temp == occupied) {
-        ar >> t.optional;
-        temp = 2;
-    }
-    ar >> temp;
-    if (temp == occupied) {
-        ar >> t.unions;
-        temp = 2;
-    }
-}
-
-template<class Archive>
-void save(Archive & ar, const SPARQLQuery::Result & t, unsigned int version) {
-    ar << t.col_num;
-    ar << t.row_num;
-    ar << t.attr_col_num;
-    ar << t.blind;
-    ar << t.nvars;
-    ar << t.v2c_map;
-    if (!t.blind) ar << t.required_vars;
-    // attr_res_table must be empty if result_table is empty
-    if (t.result_table.size() > 0) {
-        ar << occupied;
-        ar << t.result_table;
-        ar << t.attr_res_table;
-    }
-    else {
-        ar << empty;
-    }
-}
-
-template<class Archive>
-void load(Archive & ar, SPARQLQuery::Result & t, unsigned int version) {
-    char temp = 2;
-    ar >> t.col_num;
-    ar >> t.row_num;
-    ar >> t.attr_col_num;
-    ar >> t.blind;
-    ar >> t.nvars;
-    ar >> t.v2c_map;
-    if (!t.blind) ar >> t.required_vars;
-    ar >> temp;
-    if (temp == occupied) {
-        ar >> t.result_table;
-        ar >> t.attr_res_table;
-    }
-}
-
-
-template<class Archive>
-void save(Archive & ar, const SPARQLQuery & t, unsigned int version) {
-    ar << t.id;
-    ar << t.pid;
-    ar << t.tid;
-    ar << t.limit;
-    ar << t.offset;
-    ar << t.distinct;
-    ar << t.optional_dispatched;
-    ar << t.step;
-    ar << t.corun_step;
-    ar << t.fetch_step;
-    ar << t.local_var;
-    ar << t.force_dispatch;
-    ar << t.pattern_group;
-    if (t.orders.size() > 0) {
-        ar << occupied;
-        ar << t.orders;
-    }
-    else {
-        ar << empty;
-    }
-    ar << t.result;
-}
-
-template<class Archive>
-void load(Archive & ar, SPARQLQuery & t, unsigned int version) {
-    char temp = 2;
-    ar >> t.id;
-    ar >> t.pid;
-    ar >> t.tid;
-    ar >> t.limit;
-    ar >> t.offset;
-    ar >> t.distinct;
-    ar >> t.optional_dispatched;
-    ar >> t.step;
-    ar >> t.corun_step;
-    ar >> t.fetch_step;
-    ar >> t.local_var;
-    ar >> t.force_dispatch;
-    ar >> t.pattern_group;
-    ar >> temp;
-    if (temp == occupied) {
-        ar >> t.orders;
-    }
-    ar >> t.result;
-}
-
-}
-}
-
-BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::Pattern);
-BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::PatternGroup);
-BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::Result);
-BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery);
-
-//remove class information at the cost of losing auto versioning, which is useless currently because wukong
-//use boost serialization to transmit data between endpoints running the same code.
-BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Pattern, boost::serialization::object_serializable);
-BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::PatternGroup, boost::serialization::object_serializable);
-BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Filter, boost::serialization::object_serializable);
-BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Order, boost::serialization::object_serializable);
-BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Result, boost::serialization::object_serializable);
-BOOST_CLASS_IMPLEMENTATION(SPARQLQuery, boost::serialization::object_serializable);
-
-//remove object tracking information at the cost of that multiple identical objects may be created when an archive is loaded.
-//current query data structure does not contain two identical object reference with the same pointer
-BOOST_CLASS_TRACKING(SPARQLQuery::Pattern, boost::serialization::track_never);
-BOOST_CLASS_TRACKING(SPARQLQuery::Filter, boost::serialization::track_never);
-BOOST_CLASS_TRACKING(SPARQLQuery::PatternGroup, boost::serialization::track_never);
-BOOST_CLASS_TRACKING(SPARQLQuery::Order, boost::serialization::track_never);
-BOOST_CLASS_TRACKING(SPARQLQuery::Result, boost::serialization::track_never);
-BOOST_CLASS_TRACKING(SPARQLQuery, boost::serialization::track_never);
-
-
 /**
  * GStore consistency checker
  */
@@ -775,11 +592,194 @@ public:
     RDFLoad(string s, bool b) : load_dname(s), check_dup(b) { }
 };
 
+namespace boost {
+    namespace serialization {
+        char occupied = 0;
+        char empty = 1;
+
+        template<class Archive>
+        void save(Archive & ar, const SPARQLQuery::Pattern & t, unsigned int version) {
+            ar << t.subject;
+            ar << t.predicate;
+            ar << t.object;
+            ar << t.direction;
+            ar << t.pred_type;
+        }
+
+        template<class Archive>
+        void load(Archive & ar, SPARQLQuery::Pattern & t, unsigned int version) {
+            ar >> t.subject;
+            ar >> t.predicate;
+            ar >> t.object;
+            ar >> t.direction;
+            ar >> t.pred_type;
+        }
+
+        template<class Archive>
+        void save(Archive & ar, const SPARQLQuery::PatternGroup & t, unsigned int version) {
+            ar << t.patterns;
+            if (t.filters.size() > 0) {
+                ar << occupied;
+                ar << t.filters;
+            }
+            else {
+                ar << empty;
+            }
+            if (t.optional.size() > 0) {
+                ar << occupied;
+                ar << t.optional;
+            }
+            else {
+                ar << empty;
+            }
+            if (t.unions.size() > 0) {
+                ar << occupied;
+                ar << t.unions;
+            }
+            else {
+                ar << empty;
+            }
+        }
+
+        template<class Archive>
+        void load(Archive & ar, SPARQLQuery::PatternGroup & t, unsigned int version) {
+            char temp = 2;
+            ar >> t.patterns;
+            ar >> temp;
+            if (temp == occupied) {
+                ar >> t.filters;
+                temp = 2;
+            }
+            ar >> temp;
+            if (temp == occupied) {
+                ar >> t.optional;
+                temp = 2;
+            }
+            ar >> temp;
+            if (temp == occupied) {
+                ar >> t.unions;
+                temp = 2;
+            }
+        }
+
+        template<class Archive>
+        void save(Archive & ar, const SPARQLQuery::Result & t, unsigned int version) {
+            ar << t.col_num;
+            ar << t.row_num;
+            ar << t.attr_col_num;
+            ar << t.blind;
+            ar << t.nvars;
+            ar << t.v2c_map;
+            if (!t.blind) ar << t.required_vars;
+            // attr_res_table must be empty if result_table is empty
+            if (t.result_table.size() > 0) {
+                ar << occupied;
+                ar << t.result_table;
+                ar << t.attr_res_table;
+            }
+            else {
+                ar << empty;
+            }
+        }
+
+        template<class Archive>
+        void load(Archive & ar, SPARQLQuery::Result & t, unsigned int version) {
+            char temp = 2;
+            ar >> t.col_num;
+            ar >> t.row_num;
+            ar >> t.attr_col_num;
+            ar >> t.blind;
+            ar >> t.nvars;
+            ar >> t.v2c_map;
+            if (!t.blind) ar >> t.required_vars;
+            ar >> temp;
+            if (temp == occupied) {
+                ar >> t.result_table;
+                ar >> t.attr_res_table;
+            }
+        }
+
+        template<class Archive>
+        void save(Archive & ar, const SPARQLQuery & t, unsigned int version) {
+            ar << t.id;
+            ar << t.pid;
+            ar << t.tid;
+            ar << t.limit;
+            ar << t.offset;
+            ar << t.distinct;
+            ar << t.optional_dispatched;
+            ar << t.step;
+            ar << t.corun_step;
+            ar << t.fetch_step;
+            ar << t.local_var;
+            ar << t.force_dispatch;
+            ar << t.pattern_group;
+            if (t.orders.size() > 0) {
+                ar << occupied;
+                ar << t.orders;
+            }
+            else {
+                ar << empty;
+            }
+            ar << t.result;
+        }
+
+        template<class Archive>
+        void load(Archive & ar, SPARQLQuery & t, unsigned int version) {
+            char temp = 2;
+            ar >> t.id;
+            ar >> t.pid;
+            ar >> t.tid;
+            ar >> t.limit;
+            ar >> t.offset;
+            ar >> t.distinct;
+            ar >> t.optional_dispatched;
+            ar >> t.step;
+            ar >> t.corun_step;
+            ar >> t.fetch_step;
+            ar >> t.local_var;
+            ar >> t.force_dispatch;
+            ar >> t.pattern_group;
+            ar >> temp;
+            if (temp == occupied) {
+                ar >> t.orders;
+            }
+            ar >> t.result;
+        }
+    }
+}
+
+BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::Pattern);
+BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::PatternGroup);
+BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::Result);
+BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery);
+
+//remove class information at the cost of losing auto versioning, which is useless currently because wukong
+//use boost serialization to transmit data between endpoints running the same code.
+BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Pattern, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::PatternGroup, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Filter, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Order, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Result, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(SPARQLQuery, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(GStoreCheck, boost::serialization::object_serializable);
 BOOST_CLASS_IMPLEMENTATION(RDFLoad, boost::serialization::object_serializable);
 
+//remove object tracking information at the cost of that multiple identical objects may be created when an archive is loaded.
+//current query data structure does not contain two identical object reference with the same pointer
+BOOST_CLASS_TRACKING(SPARQLQuery::Pattern, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(SPARQLQuery::Filter, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(SPARQLQuery::PatternGroup, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(SPARQLQuery::Order, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(SPARQLQuery::Result, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(SPARQLQuery, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(GStoreCheck, boost::serialization::track_never);
 BOOST_CLASS_TRACKING(RDFLoad, boost::serialization::track_never);
 
-
+/**
+ * Bundle to be sent by network, with data type labeled
+ * Note this class does not use boost serialization
+ */
 class Bundle {
 public:
     req_type type;
@@ -866,15 +866,6 @@ public:
         GStoreCheck result;
         ia >> result;
         return result;
-    }
-
-private:
-    friend class boost::serialization::access;
-
-    template <typename Archive>
-    void serialize(Archive &ar, const unsigned int version) {
-        ar & type;
-        ar & data;
     }
 };
 
