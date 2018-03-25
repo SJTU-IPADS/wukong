@@ -1397,8 +1397,10 @@ public:
             last_time = timer::get_usec();
 
             // own queue
-            if (adaptor->tryrecv(bundle))
-                execute(bundle, engines[own_id]);
+            // use recv instead of tryrecv to free cpu
+            //if (adaptor->tryrecv(bundle))
+            bundle = adaptor->recv();
+            execute(bundle, engines[own_id]);
 
             // work-oblige is disabled
             if (!global_enable_workstealing) continue;
