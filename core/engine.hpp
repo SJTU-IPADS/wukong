@@ -39,12 +39,10 @@
 
 using namespace std;
 
-// the largest count of recv waiting
-#define WAIT_COUNT 3
 // the min waiting time if it could not recv the msg
-#define MIN_WAIT_TIME 100
+#define MIN_WAIT_TIME 10
 // the max waiting time if it could not recv the msg
-#define MAX_WAIT_TIME 800
+#define MAX_WAIT_TIME 80
 // The map is used to colloect the replies of sub-queries in fork-join execution
 
 class Reply_Map {
@@ -1375,7 +1373,7 @@ public:
         int nbr_id = (global_num_engines - 1) - own_id;
 
         int send_wait_cnt = 0;
-        int recv_wait_cnt = 0;
+        uint64_t recv_last_time = 0;
         int recv_wait_time = MIN_WAIT_TIME;
         while (true) {
             Bundle bundle;
@@ -1409,12 +1407,11 @@ public:
             // own queue
             if (adaptor->tryrecv(bundle)) {
                 recv_succ = true;
-                recv_wait_cnt = 0;
+                recv_last_time = last_time;
                 recv_wait_time = MIN_WAIT_TIME;
                 execute(bundle, engines[own_id]);
             } else {
                 recv_succ = false;
-                recv_wait_cnt += 1;
             }
 
             // work-oblige is enabled
@@ -1423,15 +1420,16 @@ public:
                 last_time = timer::get_usec();
                 if ((last_time >= engines[nbr_id]->last_time + TIMEOUT_THRESHOLD) && engines[nbr_id]->adaptor->tryrecv(bundle)) {
                     recv_succ = true;
-                    recv_wait_cnt = 0;
+                    recv_last_time = last_time;
                     recv_wait_time = MIN_WAIT_TIME;
                     execute(bundle, engines[nbr_id]);
                 }
             }
 
-            // if recv fail and wait time up to WAIT_COUNT
+            // if recv fail and wait time up to TIMEOUT_THRESHOLD
             // it should be delay
-            if (!recv_succ && (recv_wait_cnt > WAIT_COUNT)) {
+            uint64_t now_time = timer::get_usec();
+            if (!recv_succ && (now_time > recv_last_time + TIMEOUT_THRESHOLD)) {
                 // delay the thread to free cpu
                 thread_delay(recv_wait_time);
                 //  double the wait time for next time,until to MAX_WAIT_TIME
