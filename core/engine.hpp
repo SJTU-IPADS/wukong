@@ -38,7 +38,8 @@
 #include "timer.hpp"
 
 using namespace std;
-
+// the engine waiting threshold 10s
+#define ENGINE_WAIT_THRESHOLD 10000000
 // the min waiting time if it could not recv the msg
 #define MIN_WAIT_TIME 10
 // the max waiting time if it could not recv the msg
@@ -1407,9 +1408,9 @@ public:
             // own queue
             if (adaptor->tryrecv(bundle)) {
                 recv_succ = true;
-                recv_last_time = last_time;
                 recv_wait_time = MIN_WAIT_TIME;
                 execute(bundle, engines[own_id]);
+                recv_last_time = timer::get_usec();
             } else {
                 recv_succ = false;
             }
@@ -1420,16 +1421,16 @@ public:
                 last_time = timer::get_usec();
                 if ((last_time >= engines[nbr_id]->last_time + TIMEOUT_THRESHOLD) && engines[nbr_id]->adaptor->tryrecv(bundle)) {
                     recv_succ = true;
-                    recv_last_time = last_time;
                     recv_wait_time = MIN_WAIT_TIME;
                     execute(bundle, engines[nbr_id]);
+                    recv_last_time = timer::get_usec();
                 }
             }
 
-            // if recv fail and wait time up to TIMEOUT_THRESHOLD
-            // it should be delay
+            // if recv fail and wait time up to ENGINE_WAIT_THRESHOLD
+            // it should be delay for free cpu
             uint64_t now_time = timer::get_usec();
-            if (!recv_succ && (now_time > recv_last_time + TIMEOUT_THRESHOLD)) {
+            if (!recv_succ && (now_time > recv_last_time + ENGINE_WAIT_THRESHOLD)) {
                 // delay the thread to free cpu
                 thread_delay(recv_wait_time);
                 //  double the wait time for next time,until to MAX_WAIT_TIME
