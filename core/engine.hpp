@@ -39,7 +39,14 @@
 
 using namespace std;
 
+// the largest count of recv waiting
+#define WAIT_COUNT 3
+// the min waiting time if it could not recv the msg
+#define MIN_WAIT_TIME 100
+// the max waiting time if it could not recv the msg
+#define MAX_WAIT_TIME 800
 // The map is used to colloect the replies of sub-queries in fork-join execution
+
 class Reply_Map {
 private:
 
@@ -1368,9 +1375,12 @@ public:
         int nbr_id = (global_num_engines - 1) - own_id;
 
         int send_wait_cnt = 0;
+        int recv_wait_cnt = 0;
+        int recv_wait_time = MIN_WAIT_TIME;
         while (true) {
             Bundle bundle;
             bool success;
+            bool recv_succ;
 
             // fast path
             last_time = timer::get_usec();
@@ -1397,21 +1407,37 @@ public:
             last_time = timer::get_usec();
 
             // own queue
-            // use recv instead of tryrecv to free cpu
-            //if (adaptor->tryrecv(bundle))
-            bundle = adaptor->recv();
-            execute(bundle, engines[own_id]);
+            if (adaptor->tryrecv(bundle)) {
+                recv_succ = true;
+                recv_wait_cnt = 0;
+                recv_wait_time = MIN_WAIT_TIME;
+                execute(bundle, engines[own_id]);
+            } else {
+                recv_succ = false;
+                recv_wait_cnt += 1;
+            }
 
-            // work-oblige is disabled
-            if (!global_enable_workstealing) continue;
+            // work-oblige is enabled
+            if (global_enable_workstealing)  {
+                // if neighboring worker is not self-sufficient, try to get job
+                last_time = timer::get_usec();
+                if ((last_time >= engines[nbr_id]->last_time + TIMEOUT_THRESHOLD) && engines[nbr_id]->adaptor->tryrecv(bundle)) {
+                    recv_succ = true;
+                    recv_wait_cnt = 0;
+                    recv_wait_time = MIN_WAIT_TIME;
+                    execute(bundle, engines[nbr_id]);
+                }
+            }
 
-            // neighbor queue
-            last_time = timer::get_usec();
-            if (last_time < engines[nbr_id]->last_time + TIMEOUT_THRESHOLD)
-                continue; // neighboring worker is self-sufficient
-
-            if (engines[nbr_id]->adaptor->tryrecv(bundle))
-                execute(bundle, engines[nbr_id]);
+            // if recv fail and wait time up to WAIT_COUNT
+            // it should be delay
+            if (!recv_succ && (recv_wait_cnt > WAIT_COUNT)) {
+                // delay the thread to free cpu
+                thread_delay(recv_wait_time);
+                //  double the wait time for next time,until to MAX_WAIT_TIME
+                if(recv_wait_time < MAX_WAIT_TIME)
+                    recv_wait_time = recv_wait_time * 2;
+            }
         }
     }
 

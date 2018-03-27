@@ -36,10 +36,6 @@
 using namespace std;
 
 #define WK_CLINE 64
-// the min waiting time if it could not recv the msg
-#define MIN_WAIT_TIME 100
-// the max waiting time if it could not recv the msg
-#define MAX_WAIT_TIME 800
 
 // The communication over RDMA-based ring buffer
 class RDMA_Adaptor {
@@ -262,27 +258,14 @@ public:
         return true;
     }
 
-    /*
-     * recv will be delay if no msg come
-     * time of delay will be from MIN_WAIT_TIME to MAX_WAIT_TIME
-     */
     std::string recv(int tid) {
         assert(init);
 
-        int recv_wait_time = MIN_WAIT_TIME;
         while (true) {
-            for (int i = 0; i < num_servers; i++) {
-                // each thread has a logical-queue (#servers physical-queues)
-                int dst_sid = (schedulers[tid].rr_cnt++) % num_servers; // round-robin
-                if (check(tid, dst_sid))
-                    return fetch(tid, dst_sid);
-            }
-
-            // delay the thread to free cpu
-            thread_delay(recv_wait_time);
-            // if it does not recv, double the wait time,until to MAX_WAIT_TIME
-            if(recv_wait_time < MAX_WAIT_TIME)
-                recv_wait_time = recv_wait_time * 2;
+            // each thread has a logical-queue (#servers physical-queues)
+            int dst_sid = (schedulers[tid].rr_cnt++) % num_servers; // round-robin
+            if (check(tid, dst_sid))
+                return fetch(tid, dst_sid);
         }
     }
 
