@@ -1373,7 +1373,7 @@ public:
         int nbr_id = (global_num_engines - 1) - own_id;
 
         int send_wait_cnt = 0;
-        uint64_t recv_last_time = 0;
+        uint64_t recv_last_time = timer::get_usec();
         int recv_wait_time = MIN_WAIT_TIME;
         while (true) {
             Bundle bundle;
