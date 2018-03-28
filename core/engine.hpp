@@ -38,14 +38,12 @@
 #include "timer.hpp"
 
 using namespace std;
-// the engine waiting threshold 10s
-#define ENGINE_WAIT_THRESHOLD 10000000
-// the min waiting time if it could not recv the msg
-#define MIN_WAIT_TIME 10
-// the max waiting time if it could not recv the msg
-#define MAX_WAIT_TIME 80
-// The map is used to colloect the replies of sub-queries in fork-join execution
 
+#define BUSY_POLLING_THRESHOLD 10000000 // busy polling task queue 10s
+#define MIN_SNOOZE_TIME 10 // MIX snooze time
+#define MAX_SNOOZE_TIME 80 // MAX snooze time
+
+// The map is used to colloect the replies of sub-queries in fork-join execution
 class Reply_Map {
 private:
 
@@ -1373,28 +1371,28 @@ public:
         // TODO: replace pair to ring
         int nbr_id = (global_num_engines - 1) - own_id;
 
-        int send_wait_cnt = 0;
-        uint64_t recv_last_time = timer::get_usec();
-        int recv_wait_time = MIN_WAIT_TIME;
+        uint64_t last_recv_time = timer::get_usec();
+        uint64_t snooze_time = MIN_SNOOZE_TIME;
         while (true) {
             Bundle bundle;
-            bool success;
-            bool recv_succ;
+            bool has_msg = false;
 
             // fast path
             last_time = timer::get_usec();
-            success = false;
 
             SPARQLQuery request;
             pthread_spin_lock(&recv_lock);
             if (msg_fast_path.size() > 0) {
+                has_msg = true; // keep calm (no snooze)
+                snooze_time = MIN_SNOOZE_TIME;
+                last_recv_time = timer::get_usec();
+
                 request = msg_fast_path.back();
                 msg_fast_path.pop_back();
-                success = true;
             }
             pthread_spin_unlock(&recv_lock);
 
-            if (success) {
+            if (has_msg) {
                 execute_sparql_query(request, engines[own_id]);
                 continue; // fast-path priority
             }
@@ -1407,37 +1405,37 @@ public:
 
             // own queue
             if (adaptor->tryrecv(bundle)) {
-                recv_succ = true;
-                recv_wait_time = MIN_WAIT_TIME;
+                has_msg = true; // keep calm (no snooze)
+                snooze_time = MIN_SNOOZE_TIME;
+                last_recv_time = timer::get_usec();
+
                 execute(bundle, engines[own_id]);
-                recv_last_time = timer::get_usec();
-            } else {
-                recv_succ = false;
             }
 
             // work-oblige is enabled
             if (global_enable_workstealing)  {
                 // if neighboring worker is not self-sufficient, try to get job
                 last_time = timer::get_usec();
-                if ((last_time >= engines[nbr_id]->last_time + TIMEOUT_THRESHOLD) && engines[nbr_id]->adaptor->tryrecv(bundle)) {
-                    recv_succ = true;
-                    recv_wait_time = MIN_WAIT_TIME;
+                if ((last_time >= engines[nbr_id]->last_time + TIMEOUT_THRESHOLD) // neighbor is busy
+                        && engines[nbr_id]->adaptor->tryrecv(bundle)) {
+                    has_msg = true; // keep calm (no snooze)
+                    snooze_time = MIN_SNOOZE_TIME;
+                    last_recv_time = timer::get_usec();
+
                     execute(bundle, engines[nbr_id]);
-                    recv_last_time = timer::get_usec();
                 }
             }
 
-            // if recv fail and wait time up to ENGINE_WAIT_THRESHOLD
-            // it should be delay for free cpu
-            uint64_t now_time = timer::get_usec();
-            if (!recv_succ && (now_time > recv_last_time + ENGINE_WAIT_THRESHOLD)) {
-                // delay the thread to free cpu
-                thread_delay(recv_wait_time);
-                //  double the wait time for next time,until to MAX_WAIT_TIME
-                if(recv_wait_time < MAX_WAIT_TIME)
-                    recv_wait_time = recv_wait_time * 2;
+            if (has_msg) continue; // keep calm (no snooze)
+
+            // busy polling a little while (BUSY_POLLING_THRESHOLD) before snooze
+            if (snooze_time > MIN_SNOOZE_TIME // snooze again (no need polling again)
+                    || (timer::get_usec() - last_recv_time) > BUSY_POLLING_THRESHOLD) {
+                thread_delay(snooze_time); // release CPU (snooze)
+
+                // double snooze time till MAX_SNOOZE_TIME
+                snooze_time *= snooze_time < MAX_SNOOZE_TIME ? 2 : 1;
             }
         }
     }
-
 };

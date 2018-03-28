@@ -54,7 +54,6 @@ void thread_delay(const long usec_time, const long sec_time = 0) {
     time_out.tv_sec = sec_time;
     time_out.tv_usec = usec_time;
 
-    if (select(0,NULL,NULL,NULL, &time_out) != 0) {
-        cout << "WARNING: something disrupt the thread to delay"<< endl;
-    }
+    if (select(0, NULL, NULL, NULL, &time_out) != 0)
+        cout << "[WARNING] something disrupt the thread to delay" << endl;
 }
