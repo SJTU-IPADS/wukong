@@ -44,3 +44,17 @@ public:
             _mm_pause(); // a busy-wait loop
     }
 };
+
+/*
+ * use select to delay the thread
+ * beacause sleep or usleep is no accurate
+ */
+void thread_delay(const long usec_time, const long sec_time = 0) {
+    timeval time_out;
+    time_out.tv_sec = sec_time;
+    time_out.tv_usec = usec_time;
+
+    if (select(0,NULL,NULL,NULL, &time_out) != 0) {
+        cout << "WARNING: something disrupt the thread to delay"<< endl;
+    }
+}
