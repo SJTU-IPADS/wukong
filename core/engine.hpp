@@ -137,6 +137,7 @@ private:
 
     pthread_spinlock_t recv_lock;
     std::vector<SPARQLQuery> msg_fast_path;
+    std::vector<SPARQLQuery> new_req_queue;
 
     Reply_Map rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
@@ -530,6 +531,7 @@ private:
             sub_reqs[i].corun_step = req.corun_step;
             sub_reqs[i].fetch_step = req.fetch_step;
             sub_reqs[i].local_var = start;
+            sub_reqs[i].priority = req.priority + 1;
 
             sub_reqs[i].result.col_num = req.result.col_num;
             sub_reqs[i].result.blind = req.result.blind;
@@ -932,7 +934,6 @@ private:
             pattern = regex(filter.arg2->value, std::regex::icase);
         else
             pattern = regex(filter.arg2->value);
-
 
         int col = result.var2col(filter.arg1->valueArg);
         for (int row = 0; row < is_satisfy.size(); row ++) {
@@ -1373,6 +1374,12 @@ public:
 
         uint64_t last_recv_time = timer::get_usec();
         uint64_t snooze_time = MIN_SNOOZE_TIME;
+
+        auto set_recv_flag = [&last_recv_time, &snooze_time](bool &has_msg) {
+            has_msg = true; // keep calm (no snooze)
+            snooze_time = MIN_SNOOZE_TIME;
+            last_recv_time = timer::get_usec();
+        };
         while (true) {
             Bundle bundle;
             bool has_msg = false;
@@ -1383,12 +1390,10 @@ public:
             SPARQLQuery request;
             pthread_spin_lock(&recv_lock);
             if (msg_fast_path.size() > 0) {
-                has_msg = true; // keep calm (no snooze)
-                snooze_time = MIN_SNOOZE_TIME;
-                last_recv_time = timer::get_usec();
+                set_recv_flag(has_msg);
+                request = msg_fast_path[0];
+                msg_fast_path.erase(msg_fast_path.begin());
 
-                request = msg_fast_path.back();
-                msg_fast_path.pop_back();
             }
             pthread_spin_unlock(&recv_lock);
 
@@ -1404,24 +1409,37 @@ public:
             last_time = timer::get_usec();
 
             // own queue
-            if (adaptor->tryrecv(bundle)) {
-                has_msg = true; // keep calm (no snooze)
-                snooze_time = MIN_SNOOZE_TIME;
-                last_recv_time = timer::get_usec();
-
-                execute(bundle, engines[own_id]);
+            while (adaptor->tryrecv(bundle)) {
+                if (bundle.type == SPARQL_QUERY) {
+                    SPARQLQuery req = bundle.get_sparql_query();
+                    if (req.priority != 0) {
+                        set_recv_flag(has_msg);
+                        execute_sparql_query(req, engines[own_id]);
+                        break;
+                    } else {
+                        new_req_queue.push_back(req);
+                    }
+                } else {
+                    set_recv_flag(has_msg);
+                    execute(bundle, engines[own_id]);
+                    break;
+                }
+            }
+            if (!has_msg && new_req_queue.size() > 0) {
+                set_recv_flag(has_msg);
+                SPARQLQuery req = new_req_queue[0];
+                new_req_queue.erase(new_req_queue.begin());
+                execute_sparql_query(req, engines[own_id]);
             }
 
             // work-oblige is enabled
+            // FIXME: the job should be stealed from new_req_queue
             if (global_enable_workstealing)  {
                 // if neighboring worker is not self-sufficient, try to get job
                 last_time = timer::get_usec();
                 if ((last_time >= engines[nbr_id]->last_time + TIMEOUT_THRESHOLD) // neighbor is busy
                         && engines[nbr_id]->adaptor->tryrecv(bundle)) {
-                    has_msg = true; // keep calm (no snooze)
-                    snooze_time = MIN_SNOOZE_TIME;
-                    last_recv_time = timer::get_usec();
-
+                    set_recv_flag(has_msg);
                     execute(bundle, engines[nbr_id]);
                 }
             }

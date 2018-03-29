@@ -441,6 +441,7 @@ public:
     ssid_t local_var = 0;   // the local variable
 
     bool force_dispatch = false;
+    int priority = 0;
 
     // ID-format triple patterns (Subject, Predicat, Direction, Object)
     PatternGroup pattern_group;
@@ -696,6 +697,7 @@ void save(Archive & ar, const SPARQLQuery & t, unsigned int version) {
     ar << t.fetch_step;
     ar << t.local_var;
     ar << t.force_dispatch;
+    ar << t.priority;
     ar << t.pattern_group;
     if (t.orders.size() > 0) {
         ar << occupied;
@@ -721,6 +723,7 @@ void load(Archive & ar, SPARQLQuery & t, unsigned int version) {
     ar >> t.fetch_step;
     ar >> t.local_var;
     ar >> t.force_dispatch;
+    ar >> t.priority;
     ar >> t.pattern_group;
     ar >> temp;
     if (temp == occupied) ar >> t.orders;
