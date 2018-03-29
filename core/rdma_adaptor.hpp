@@ -234,6 +234,9 @@ public:
 
             // prepare RDMA buffer for RDMA-WRITE
             char *rdma_buf = mem->buffer(tid);
+            uint64_t buf_sz = mem->buffer_size();
+            assert(msg_sz < buf_sz); // enough space to buffer the msg
+
             *((uint64_t *)rdma_buf) = data_sz;  // header
             rdma_buf += sizeof(uint64_t);
             memcpy(rdma_buf, data, data_sz);    // data

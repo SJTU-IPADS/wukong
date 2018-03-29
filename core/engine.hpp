@@ -39,6 +39,10 @@
 
 using namespace std;
 
+#define BUSY_POLLING_THRESHOLD 10000000 // busy polling task queue 10s
+#define MIN_SNOOZE_TIME 10 // MIX snooze time
+#define MAX_SNOOZE_TIME 80 // MAX snooze time
+
 // The map is used to colloect the replies of sub-queries in fork-join execution
 class Reply_Map {
 private:
@@ -101,14 +105,17 @@ public:
 };
 
 
-typedef pair<int64_t, int64_t> v_pair;
+typedef pair<int64_t, int64_t> int64_pair;
 
-int64_t hash_pair(const v_pair &x) {
+int64_t hash_pair(const int64_pair &x) {
     int64_t r = x.first;
     r = r << 32;
     r += x.second;
     return hash<int64_t>()(r);
 }
+
+// defined as constexpr due to switch-case
+constexpr int const_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
 
 // a vector of pointers of all local engines
@@ -645,10 +652,10 @@ private:
             }
             t4 = timer::get_usec();
         } else { // hash join
-            boost::unordered_set<v_pair> remote_set;
+            boost::unordered_set<int64_pair> remote_set;
             for (int i = 0; i < sub_result.get_row_num(); i++)
-                remote_set.insert(v_pair(sub_result.get_row_col(i, 0),
-                                         sub_result.get_row_col(i, 1)));
+                remote_set.insert(int64_pair(sub_result.get_row_col(i, 0),
+                                             sub_result.get_row_col(i, 1)));
 
             t3 = timer::get_usec();
             vector<sid_t> tmp_vec;
@@ -657,7 +664,7 @@ private:
                 for (int c = 0; c < pvars_map.size(); c++)
                     tmp_vec[c] = req_result.get_row_col(i, pvars_map[c]);
 
-                v_pair target = v_pair(tmp_vec[0], tmp_vec[1]);
+                int64_pair target = int64_pair(tmp_vec[0], tmp_vec[1]);
                 if (remote_set.find(target) != remote_set.end())
                     req_result.append_row_to(i, updated_result_table);
             }
@@ -694,12 +701,12 @@ private:
         // triple pattern with unknown predicate/attribute
         if (predicate < 0) {
 #ifdef VERSATILE
-            switch (var_pair(req.result.variable_type(start),
-                             req.result.variable_type(end))) {
-            case var_pair(const_var, unknown_var):
+            switch (const_pair(req.result.variable_type(start),
+                               req.result.variable_type(end))) {
+            case const_pair(const_var, unknown_var):
                 const_unknown_unknown(req);
                 break;
-            case var_pair(known_var, unknown_var):
+            case const_pair(known_var, unknown_var):
                 known_unknown_unknown(req);
                 break;
             default:
@@ -719,12 +726,12 @@ private:
 
         // triple pattern with attribute
         if (global_enable_vattr && req.get_pattern(req.step).pred_type > 0) {
-            switch (var_pair(req.result.variable_type(start),
-                             req.result.variable_type(end))) {
-            case var_pair(const_var, unknown_var):
+            switch (const_pair(req.result.variable_type(start),
+                               req.result.variable_type(end))) {
+            case const_pair(const_var, unknown_var):
                 const_to_unknown_attr(req);
                 break;
-            case var_pair(known_var, unknown_var):
+            case const_pair(known_var, unknown_var):
                 known_to_unknown_attr(req);
                 break;
             default:
@@ -738,35 +745,35 @@ private:
         }
 
         // triple pattern with known predicate
-        switch (var_pair(req.result.variable_type(start),
-                         req.result.variable_type(end))) {
+        switch (const_pair(req.result.variable_type(start),
+                           req.result.variable_type(end))) {
 
         // start from const
-        case var_pair(const_var, const_var):
+        case const_pair(const_var, const_var):
             cout << "ERROR: unsupported triple pattern (from const to const)" << endl;
             assert(false);
-        case var_pair(const_var, known_var):
+        case const_pair(const_var, known_var):
             cout << "ERROR: unsupported triple pattern (from const to known)" << endl;
             assert(false);
-        case var_pair(const_var, unknown_var):
+        case const_pair(const_var, unknown_var):
             const_to_unknown(req);
             break;
 
         // start from known
-        case var_pair(known_var, const_var):
+        case const_pair(known_var, const_var):
             known_to_const(req);
             break;
-        case var_pair(known_var, known_var):
+        case const_pair(known_var, known_var):
             known_to_known(req);
             break;
-        case var_pair(known_var, unknown_var):
+        case const_pair(known_var, unknown_var):
             known_to_unknown(req);
             break;
 
         // start from unknown
-        case var_pair(unknown_var, const_var):
-        case var_pair(unknown_var, known_var):
-        case var_pair(unknown_var, unknown_var):
+        case const_pair(unknown_var, const_var):
+        case const_pair(unknown_var, known_var):
+        case const_pair(unknown_var, unknown_var):
             cout << "ERROR: unsupported triple pattern (from unknown)" << endl;
             assert(false);
 
@@ -1365,25 +1372,32 @@ public:
         // TODO: replace pair to ring
         int nbr_id = (global_num_engines - 1) - own_id;
 
-        int send_wait_cnt = 0;
+        uint64_t last_recv_time = timer::get_usec();
+        uint64_t snooze_time = MIN_SNOOZE_TIME;
+
+        auto set_recv_flag = [&last_recv_time, &snooze_time](bool &has_msg) {
+            has_msg = true; // keep calm (no snooze)
+            snooze_time = MIN_SNOOZE_TIME;
+            last_recv_time = timer::get_usec();
+        };
         while (true) {
             Bundle bundle;
-            bool success;
+            bool has_msg = false;
 
             // fast path
             last_time = timer::get_usec();
-            success = false;
 
             SPARQLQuery request;
             pthread_spin_lock(&recv_lock);
             if (msg_fast_path.size() > 0) {
+                set_recv_flag(has_msg);
                 request = msg_fast_path[0];
                 msg_fast_path.erase(msg_fast_path.begin());
-                success = true;
+
             }
             pthread_spin_unlock(&recv_lock);
 
-            if (success) {
+            if (has_msg) {
                 execute_sparql_query(request, engines[own_id]);
                 continue; // fast-path priority
             }
@@ -1395,39 +1409,51 @@ public:
             last_time = timer::get_usec();
 
             // own queue
-            bool idle = true;
             while (adaptor->tryrecv(bundle)) {
-                idle = false;
                 if (bundle.type == SPARQL_QUERY) {
                     SPARQLQuery req = bundle.get_sparql_query();
                     if (req.priority != 0) {
+                        set_recv_flag(has_msg);
                         execute_sparql_query(req, engines[own_id]);
                         break;
                     } else {
                         new_req_queue.push_back(req);
                     }
                 } else {
+                    set_recv_flag(has_msg);
                     execute(bundle, engines[own_id]);
                     break;
                 }
             }
-            if (idle && new_req_queue.size() > 0) {
+            if (!has_msg && new_req_queue.size() > 0) {
+                set_recv_flag(has_msg);
                 SPARQLQuery req = new_req_queue[0];
                 new_req_queue.erase(new_req_queue.begin());
                 execute_sparql_query(req, engines[own_id]);
             }
 
-            // work-oblige is disabled
-            if (!global_enable_workstealing) continue;
+            // work-oblige is enabled
+            // FIXME: the job should be stealed from new_req_queue
+            if (global_enable_workstealing)  {
+                // if neighboring worker is not self-sufficient, try to get job
+                last_time = timer::get_usec();
+                if ((last_time >= engines[nbr_id]->last_time + TIMEOUT_THRESHOLD) // neighbor is busy
+                        && engines[nbr_id]->adaptor->tryrecv(bundle)) {
+                    set_recv_flag(has_msg);
+                    execute(bundle, engines[nbr_id]);
+                }
+            }
 
-            // neighbor queue
-            last_time = timer::get_usec();
-            if (last_time < engines[nbr_id]->last_time + TIMEOUT_THRESHOLD)
-                continue; // neighboring worker is self-sufficient
+            if (has_msg) continue; // keep calm (no snooze)
 
-            if (engines[nbr_id]->adaptor->tryrecv(bundle))
-                execute(bundle, engines[nbr_id]);
+            // busy polling a little while (BUSY_POLLING_THRESHOLD) before snooze
+            if (snooze_time > MIN_SNOOZE_TIME // snooze again (no need polling again)
+                    || (timer::get_usec() - last_recv_time) > BUSY_POLLING_THRESHOLD) {
+                thread_delay(snooze_time); // release CPU (snooze)
+
+                // double snooze time till MAX_SNOOZE_TIME
+                snooze_time *= snooze_time < MAX_SNOOZE_TIME ? 2 : 1;
+            }
         }
     }
-
 };
