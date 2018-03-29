@@ -1429,8 +1429,8 @@ public:
             if (has_msg) continue; // keep calm (no snooze)
 
             // busy polling a little while (BUSY_POLLING_THRESHOLD) before snooze
-            if (snooze_time > MIN_SNOOZE_TIME // snooze again (no need polling again)
-                    || (timer::get_usec() - last_recv_time) > BUSY_POLLING_THRESHOLD) {
+            // snooze again (no need polling again) becauae last_recv_time doesnot change
+            if ((timer::get_usec() - last_recv_time) > BUSY_POLLING_THRESHOLD) {
                 thread_delay(snooze_time); // release CPU (snooze)
 
                 // double snooze time till MAX_SNOOZE_TIME
