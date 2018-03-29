@@ -1,3 +1,25 @@
+/*
+ * Copyright (c) 2016 Shanghai Jiao Tong University.
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://ipads.se.sjtu.edu.cn/projects/wukong
+ *
+ */
+
 #pragma once
 
 #include <pthread.h>
@@ -10,6 +32,7 @@
 
 #include <iostream>
 
+// if set, all log will contain their FILE LINE FUNCTION info
 //#define PRINTFILEINFO
 // If set, logs to screen will be printed in color
 #define COLOROUTPUT
@@ -75,7 +98,7 @@ void reset_color(FILE *handle) {
 
 const char *messages[] = {
     "DEBUG:    ", "DEBUG:    ", "INFO:     ", "INFO:     ",
-    "WARNING:  ", "ERROR:    ", "FATAL:    "};
+    "WARNING:  ", "ERROR:    ", "FATAL:    ", ""};
 
 #ifndef OUTPUTLEVEL
 #define OUTPUTLEVEL LOG_DEBUG
@@ -165,7 +188,7 @@ class file_logger {
   // operators
   template <typename T>
   file_logger &operator<<(T a) {
-    // get the stream buffer entry first
+    // get the stream buffer entry of specific thread first
     logger_impl::streambuf_entry *streambufentry =
         reinterpret_cast<logger_impl::streambuf_entry *>(
             pthread_getspecific(streambufkey));
@@ -192,21 +215,24 @@ class file_logger {
 #ifdef COLOROUTPUT
       pthread_mutex_lock(&mut);
 
+      // set color
       if (loglevel == LOG_FATAL) {
-        textcolor(stderr, BRIGHT, RED);
+        textcolor(stdout, BRIGHT, RED);
       } else if (loglevel == LOG_ERROR) {
-        textcolor(stderr, BRIGHT, RED);
+        textcolor(stdout, BRIGHT, RED);
       } else if (loglevel == LOG_WARNING) {
-        textcolor(stderr, BRIGHT, MAGENTA);
+        textcolor(stdout, BRIGHT, MAGENTA);
       } else if (loglevel == LOG_DEBUG) {
-        textcolor(stderr, BRIGHT, YELLOW);
+        textcolor(stdout, BRIGHT, YELLOW);
       } else if (loglevel == LOG_EMPH) {
-        textcolor(stderr, BRIGHT, GREEN);
+        textcolor(stdout, BRIGHT, GREEN);
       }
 #endif
-      std::cerr.write(buf, len);
+      // in case conflict with cout
+      // std::cerr.write(buf, len);
+      std::cout.write(buf, len);
 #ifdef COLOROUTPUT
-      reset_color(stderr);
+      reset_color(stdout);
       pthread_mutex_unlock(&mut);
 #endif
     }
@@ -289,6 +315,8 @@ class file_logger {
       if (streambuffer.str().length() == 0) {
 #ifndef PRINTFILEINFO
         streambuffer << messages[lineloglevel];
+        if (lineloglevel == LOG_DEBUG)
+          streambuffer << file << "(" << function << ":" << line << "):";
 #else
         streambuffer << messages[lineloglevel] << file << "(" << function << ":"
                      << line << "):";
@@ -326,7 +354,12 @@ class file_logger {
 
 #ifndef PRINTFILEINFO
       // print loglevel
-      byteswritten = snprintf(str, 1024, "%s", messages[loglevel]);
+      if (loglevel == LOG_DEBUG) {
+        byteswritten = snprintf(str, 1024, "%s%s(%s:%d): ", messages[loglevel],
+                                file, function, line);
+      } else {
+        byteswritten = snprintf(str, 1024, "%s", messages[loglevel]);
+      }
 #else
       // the actual header
       byteswritten = snprintf(str, 1024, "%s%s(%s:%d): ", messages[loglevel],
@@ -351,18 +384,20 @@ class file_logger {
 #ifdef COLOROUTPUT
         pthread_mutex_lock(&mut);
         if (loglevel == LOG_FATAL) {
-          textcolor(stderr, BRIGHT, RED);
+          textcolor(stdout, BRIGHT, RED);
         } else if (loglevel == LOG_ERROR) {
-          textcolor(stderr, BRIGHT, RED);
+          textcolor(stdout, BRIGHT, RED);
         } else if (loglevel == LOG_WARNING) {
-          textcolor(stderr, BRIGHT, MAGENTA);
+          textcolor(stdout, BRIGHT, MAGENTA);
         } else if (loglevel == LOG_EMPH) {
-          textcolor(stderr, BRIGHT, GREEN);
+          textcolor(stdout, BRIGHT, GREEN);
         }
 #endif
-        std::cerr << str;
+        // in case conflict with cout
+        // std::cerr << str;
+        std::cout << str;
 #ifdef COLOROUTPUT
-        reset_color(stderr);
+        reset_color(stdout);
         pthread_mutex_unlock(&mut);
 #endif
       }
@@ -443,9 +478,9 @@ struct log_stream_dispatch<false> {
                                             fmt, ##__VA_ARGS__))
 
 #define logstream(lvl)                                                      \
-  if (lvl >= global_logger().get_log_level())                               \
   (log_stream_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl, __FILE__, __func__, \
                                                    __LINE__))
 
 #endif
+// use LOG_endl just like std::endl
 #define LOG_endl "\n"
