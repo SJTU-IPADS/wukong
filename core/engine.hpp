@@ -137,7 +137,7 @@ private:
 
     pthread_spinlock_t recv_lock;
     std::vector<SPARQLQuery> msg_fast_path;
-    std::vector<SPARQLQuery> new_req_queue;
+    std::vector<SPARQLQuery> runqueue;
 
     Reply_Map rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
@@ -1356,11 +1356,12 @@ public:
 
     Coder coder;
 
+    bool at_work; // whether engine is at work or not
     uint64_t last_time; // busy or not (work-oblige)
 
     Engine(int sid, int tid, String_Server *str_server, DGraph *graph, Adaptor *adaptor)
         : sid(sid), tid(tid), str_server(str_server), graph(graph), adaptor(adaptor),
-          coder(sid, tid), last_time(0) {
+          coder(sid, tid), last_time(timer::get_usec()) {
         pthread_spin_init(&recv_lock, 0);
         pthread_spin_init(&rmap_lock, 0);
     }
@@ -1372,87 +1373,88 @@ public:
         // TODO: replace pair to ring
         int nbr_id = (global_num_engines - 1) - own_id;
 
-        uint64_t last_recv_time = timer::get_usec();
-        uint64_t snooze_time = MIN_SNOOZE_TIME;
+        uint64_t snooze_interval = MIN_SNOOZE_TIME;
 
-        auto set_recv_flag = [&last_recv_time, &snooze_time](bool &has_msg) {
-            has_msg = true; // keep calm (no snooze)
-            snooze_time = MIN_SNOOZE_TIME;
-            last_recv_time = timer::get_usec();
-        };
-        while (true) {
-            Bundle bundle;
-            bool has_msg = false;
-
-            // fast path
+        // reset snooze
+        auto reset_snooze = [&snooze_interval](bool & at_work, uint64_t &last_time) {
+            at_work = true; // keep calm (no snooze)
             last_time = timer::get_usec();
+            snooze_interval = MIN_SNOOZE_TIME;
+        };
 
-            SPARQLQuery request;
-            pthread_spin_lock(&recv_lock);
-            if (msg_fast_path.size() > 0) {
-                set_recv_flag(has_msg);
-                request = msg_fast_path[0];
-                msg_fast_path.erase(msg_fast_path.begin());
-
-            }
-            pthread_spin_unlock(&recv_lock);
-
-            if (has_msg) {
-                execute_sparql_query(request, engines[own_id]);
-                continue; // fast-path priority
-            }
+        while (true) {
+            at_work = false;
 
             // check and send pending messages
             sweep_msgs();
 
-            // normal path
-            last_time = timer::get_usec();
+            // fast path (priority)
+            SPARQLQuery request; // FIXME: only sparql query use fast-path now
+            pthread_spin_lock(&recv_lock);
+            if (msg_fast_path.size() > 0) {
+                request = msg_fast_path[0];
+                msg_fast_path.erase(msg_fast_path.begin());
+                at_work = true;
+            }
+            pthread_spin_unlock(&recv_lock);
 
-            // own queue
+            if (at_work) {
+                reset_snooze(at_work, last_time);
+                execute_sparql_query(request, engines[own_id]);
+                continue; // exhaust all queries
+            }
+
+            // normal path: own runqueue
+            Bundle bundle;
             while (adaptor->tryrecv(bundle)) {
                 if (bundle.type == SPARQL_QUERY) {
+                    // to be fair, engine will handle sub-queries priority
+                    // instead of processing a new query.
                     SPARQLQuery req = bundle.get_sparql_query();
                     if (req.priority != 0) {
-                        set_recv_flag(has_msg);
+                        reset_snooze(at_work, last_time);
                         execute_sparql_query(req, engines[own_id]);
                         break;
-                    } else {
-                        new_req_queue.push_back(req);
                     }
+
+                    runqueue.push_back(req);
                 } else {
-                    set_recv_flag(has_msg);
+                    // FIXME: Jump a queue!
+                    reset_snooze(at_work, last_time);
                     execute(bundle, engines[own_id]);
                     break;
                 }
             }
-            if (!has_msg && new_req_queue.size() > 0) {
-                set_recv_flag(has_msg);
-                SPARQLQuery req = new_req_queue[0];
-                new_req_queue.erase(new_req_queue.begin());
+
+            if (!at_work && runqueue.size() > 0) {
+                // get new task
+                SPARQLQuery req = runqueue[0];
+                runqueue.erase(runqueue.begin());
+
+                reset_snooze(at_work, last_time);
                 execute_sparql_query(req, engines[own_id]);
             }
 
-            // work-oblige is enabled
-            // FIXME: the job should be stealed from new_req_queue
-            if (global_enable_workstealing)  {
-                // if neighboring worker is not self-sufficient, try to get job
-                last_time = timer::get_usec();
-                if ((last_time >= engines[nbr_id]->last_time + TIMEOUT_THRESHOLD) // neighbor is busy
-                        && engines[nbr_id]->adaptor->tryrecv(bundle)) {
-                    set_recv_flag(has_msg);
+            // normal path: neighboring runqueue
+            if (global_enable_workstealing)  { // work-oblige is enabled
+                // if neighboring engine is not self-sufficient, try to steal a task
+                // FIXME: only steal a task from normal runqueue (not incl. runqueue)
+                if (engines[nbr_id]->at_work // not snooze
+                        && ((timer::get_usec() - engines[nbr_id]->last_time) >= TIMEOUT_THRESHOLD)
+                        && engines[nbr_id]->adaptor->tryrecv(bundle)) { // FIXME: reuse bundle
+                    reset_snooze(at_work, last_time);
                     execute(bundle, engines[nbr_id]);
                 }
             }
 
-            if (has_msg) continue; // keep calm (no snooze)
+            if (at_work) continue; // keep calm (no snooze)
 
             // busy polling a little while (BUSY_POLLING_THRESHOLD) before snooze
-            // snooze again (no need polling again) becauae last_recv_time doesnot change
-            if ((timer::get_usec() - last_recv_time) > BUSY_POLLING_THRESHOLD) {
-                thread_delay(snooze_time); // release CPU (snooze)
+            if ((timer::get_usec() - last_time) >= BUSY_POLLING_THRESHOLD) {
+                timer::cpu_relax(snooze_interval); // relax CPU (snooze)
 
                 // double snooze time till MAX_SNOOZE_TIME
-                snooze_time *= snooze_time < MAX_SNOOZE_TIME ? 2 : 1;
+                snooze_interval *= snooze_interval < MAX_SNOOZE_TIME ? 2 : 1;
             }
         }
     }

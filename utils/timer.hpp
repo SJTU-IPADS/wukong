@@ -38,22 +38,23 @@ public:
         return ((tp.tv_sec * 1000 * 1000) + (tp.tv_nsec / 1000));
     }
 
-    static void cpu_relax(int u) {
-        int t = 166 * u;
-        while ((t--) > 0)
-            _mm_pause(); // a busy-wait loop
+    /* use select to delay the thread
+       beacause sleep or usleep is no accurate */
+    static void cpu_relax(const long usec, const long sec = 0) {
+        timeval time_out;
+        time_out.tv_sec = sec;
+        time_out.tv_usec = usec;
+
+        if (select(0, NULL, NULL, NULL, &time_out) != 0)
+            cout << "[WARNING] something disrupt the thread to delay" << endl;
+
+        /*
+         * Give up using _mm_pause()
+         *
+         * int t = 166 * usec;
+         * while ((t--) > 0)
+         *   _mm_pause(); // a busy-wait loop
+         */
     }
 };
 
-/*
- * use select to delay the thread
- * beacause sleep or usleep is no accurate
- */
-void thread_delay(const long usec_time, const long sec_time = 0) {
-    timeval time_out;
-    time_out.tv_sec = sec_time;
-    time_out.tv_usec = usec_time;
-
-    if (select(0, NULL, NULL, NULL, &time_out) != 0)
-        cout << "[WARNING] something disrupt the thread to delay" << endl;
-}
