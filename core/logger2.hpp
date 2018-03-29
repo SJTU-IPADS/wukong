@@ -287,8 +287,12 @@ class file_logger {
 
       // print header to the streambuffer
       if (streambuffer.str().length() == 0) {
+#ifndef PRINTFILEINFO
+        streambuffer << messages[lineloglevel];
+#else
         streambuffer << messages[lineloglevel] << file << "(" << function << ":"
                      << line << "):";
+#endif
       }
       streamactive = true;
       streamloglevel = lineloglevel;
@@ -319,7 +323,11 @@ class file_logger {
 
       char str[1024];
       int byteswritten;
-#ifdef PRINTFILEINFO
+
+#ifndef PRINTFILEINFO
+      // print loglevel
+      byteswritten = snprintf(str, 1024, "%s", messages[loglevel]);
+#else
       // the actual header
       byteswritten = snprintf(str, 1024, "%s%s(%s:%d): ", messages[loglevel],
                               file, function, line);
