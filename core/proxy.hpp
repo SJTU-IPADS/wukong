@@ -88,8 +88,8 @@ private:
 
 			req_template.ptypes_grp[i] = candidates;
 
-			cout << "[INFO] " << type << " has "
-			     << req_template.ptypes_grp[i].size() << " candidates" << endl;
+			logstream(LOG_INFO) << type << " has "
+			     << req_template.ptypes_grp[i].size() << " candidates" << LOG_endl;
 		}
 	}
 
@@ -123,8 +123,8 @@ private:
 	inline void sweep_msgs() {
 		if (!pending_msgs.size()) return;
 
-		cout << "[INFO]#" << tid << " " << pending_msgs.size()
-		     << " pending msgs on proxy." << endl;
+		logstream(LOG_INFO) << "#" << tid << " " << pending_msgs.size()
+		     << " pending msgs on proxy." << LOG_endl;
 		for (vector<Message>::iterator it = pending_msgs.begin();
 		        it != pending_msgs.end();) {
 			if (adaptor->send(it->sid, it->tid, it->bundle))
@@ -192,8 +192,8 @@ public:
 		SPARQLQuery request;
 		uint64_t t_parse1 = timer::get_usec();
 		if (!parser.parse(is, request)) {
-			cout << "ERROR: Parsing failed! ("
-			     << parser.strerror << ")" << endl;
+			logstream(LOG_ERROR) << "Parsing failed! ("
+			     << parser.strerror << ")" << LOG_endl;
 			is.clear();
 			is.seekg(0);
 			return -2; // parsing failed
@@ -205,10 +205,10 @@ public:
 			uint64_t t_plan1 = timer::get_usec();
 			bool exec = planner.generate_plan(request, statistic);
 			uint64_t t_plan2 = timer::get_usec();
-			cout << "parsing time : " << t_parse2 - t_parse1 << " usec" << endl;
-			cout << "planning time : " << t_plan2 - t_plan1 << " usec" << endl;
+			logstream(LOG_INFO) << "parsing time : " << t_parse2 - t_parse1 << " usec" << LOG_endl;
+			logstream(LOG_INFO) << "planning time : " << t_plan2 - t_plan1 << " usec" << LOG_endl;
 			if (exec == false) { // for empty result
-				cout << "(last) result size: 0" << endl;
+				logstream(LOG_INFO) << "(last) result size: 0" << LOG_endl;
 				return -3; // planning failed
 			}
 		}
@@ -234,7 +234,7 @@ public:
 		int ntypes;
 		is >> ntypes;
 		if (ntypes <= 0) {
-			cout << "[ERROR] invalid #query_types! (" << ntypes << " < 0)" << endl;
+			logstream(LOG_ERROR) << "invalid #query_types! (" << ntypes << " < 0)" << LOG_endl;
 			return -2; // parsing failed
 		}
 
@@ -246,7 +246,7 @@ public:
 			is >> fname;
 			ifstream ifs(fname);
 			if (!ifs) {
-				cout << "[ERROR] Query file not found: " << fname << endl;
+				logstream(LOG_ERROR) << "Query file not found: " << fname << LOG_endl;
 				return -1; // file not found
 			}
 
@@ -257,7 +257,7 @@ public:
 
 			bool success = parser.parse_template(ifs, tpls[i]);
 			if (!success) {
-				cout << "[ERROR] Template parsing failed!" << endl;
+				logstream(LOG_ERROR) << "Template parsing failed!" << LOG_endl;
 				return -2; // parsing failed
 			}
 

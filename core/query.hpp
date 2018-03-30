@@ -122,12 +122,12 @@ public:
 
         void print() {
             // print info
-            cout << "---------------------filter---------------------------" << endl;
-            cout << "TYPE: " << this->type << endl;
+            logstream(LOG_INFO) << "---------------------filter---------------------------" << LOG_endl;
+            logstream(LOG_INFO) << "TYPE: " << this->type << LOG_endl;
             if (this->value != "") {
-                cout << "value: " << this->value << endl;
+                logstream(LOG_INFO) << "value: " << this->value << LOG_endl;
             }
-            cout << "valueArg: " << this->valueArg << endl;
+            logstream(LOG_INFO) << "valueArg: " << this->valueArg << LOG_endl;
 
             if (arg1 != NULL) {
                 arg1->print();
@@ -138,7 +138,7 @@ public:
             if (arg3 != NULL) {
                 arg3->print();
             }
-            cout << "------------------------------------------------------" << endl;
+            logstream(LOG_INFO) << "------------------------------------------------------" << LOG_endl;
         }
 
     private:
@@ -412,7 +412,7 @@ public:
         }
 
         void print_result(int row2print, String_Server *str_server) {
-            cout << "The first " << row2print << " rows of results: " << endl;
+            logstream(LOG_INFO) << "The first " << row2print << " rows of results: " << LOG_endl;
             output_result(cout, row2print, str_server);
         }
 
@@ -425,7 +425,7 @@ public:
             } else {
                 ofstream ofs(path);
                 if (!ofs.good()) {
-                    cout << "Can't open/create output file: " << path << endl;
+                    logstream(LOG_INFO) << "Can't open/create output file: " << path << LOG_endl;
                 } else {
                     output_result(ofs, row2print, str_server);
                     ofs.close();
@@ -519,24 +519,24 @@ public:
     }
 
     void print_group(SPARQLQuery::PatternGroup &group) {
-        cout << "patterns:" << endl;
+        logstream(LOG_INFO) << "patterns:" << LOG_endl;
         for (int i = 0; i < group.patterns.size(); i++) {
-            cout << group.patterns[i].subject << "\t"
+            logstream(LOG_INFO) << group.patterns[i].subject << "\t"
                  << group.patterns[i].predicate << "\t"
                  << group.patterns[i].direction << "\t"
-                 << group.patterns[i].object << endl;
+                 << group.patterns[i].object << LOG_endl;
         }
-        cout << "unions:" << endl;
+        logstream(LOG_INFO) << "unions:" << LOG_endl;
         for (int i = 0; i < group.unions.size(); i++) {
             print_group(group.unions[i]);
         }
     }
 
     void print_patterns() {
-        cout << "---- SPARQLQuery ----" << endl;
-        cout << "id: " << id << ", pid: " << pid << ", tid: " << tid << endl;
+        logstream(LOG_INFO) << "---- SPARQLQuery ----" << LOG_endl;
+        logstream(LOG_INFO) << "id: " << id << ", pid: " << pid << ", tid: " << tid << LOG_endl;
         print_group(pattern_group);
-        cout << "---------------------" << endl;
+        logstream(LOG_INFO) << "---------------------" << LOG_endl;
     }
 };
 

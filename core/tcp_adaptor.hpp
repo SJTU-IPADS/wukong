@@ -116,7 +116,7 @@ public:
     string recv(int tid) {
         zmq::message_t msg;
         if (receivers[tid]->recv(&msg) < 0) {
-            cout << "recv with error " << strerror(errno) << endl;
+            logstream(LOG_ERROR) << "recv with error " << strerror(errno) << LOG_endl;
             exit(-1);
         }
         return string((char *)msg.data(), msg.size());

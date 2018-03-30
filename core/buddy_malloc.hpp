@@ -107,7 +107,7 @@ private:
         if (level < level_low_bound)
             return level_low_bound;
         if (level > level_up_bound) { // should be less than level_up_bound
-            cout << "need level: " << level << " level_up_bound: " << level_up_bound << endl;
+            logstream(LOG_ERROR) << "need level: " << level << " level_up_bound: " << level_up_bound << LOG_endl;
             assert(false);
         }
         return level;
@@ -202,7 +202,7 @@ private:
         pthread_spin_lock(&sbrk_lock);
         ret_val = top_of_heap;
         if ((malloc_size + n) > heap_size) {
-            cout << "out of memory, can not sbrk any more" << endl;
+            logstream(LOG_ERROR) << "out of memory, can not sbrk any more" << LOG_endl;
             assert(false);
         }
         top_of_heap += n;
@@ -268,7 +268,7 @@ public:
 
         if (free_idx == -1) {
             // no block big enough
-            std::cout << "malloc_buddysystem: memory is full" << std::endl;
+            logstream(LOG_ERROR) << "malloc_buddysystem: memory is full" << LOG_endl;
             print_memory_usage();
             assert(false);
             //return -1;
@@ -337,18 +337,17 @@ public:
     }
 
     void print_memory_usage() {
-        cout << "graph_storage edge memory status:" << endl;
+        logstream(LOG_INFO) << "graph_storage edge memory status:" << LOG_endl;
         uint64_t size_count = 0;
 
         for (int i = level_low_bound; i <= level_up_bound; i++) {
-            cout << "level" << setw(2) << i << ": " << setw(10) << usage_counter[i] << "|\t";
-            if ((i - level_low_bound + 1) % 4 == 0) cout << endl;
+            logstream(LOG_INFO) << "level" << setw(2) << i << ": " << setw(10) << usage_counter[i] << "|\t";
+            if ((i - level_low_bound + 1) % 4 == 0) logstream(LOG_INFO) << LOG_endl;
 
             size_count += (1LL << i) * usage_counter[i];
         }
 
-        cout << "\nSize count: " << size_count << endl;
-        cout << endl;
+        logstream(LOG_INFO) << "Size count: " << size_count << LOG_endl << LOG_endl;
     }
 };
 

@@ -98,7 +98,7 @@ class DGraph {
 
 	bool check_sid(const sid_t id) {
 		if (!str_server->exist(id)) {
-			cout << "[WARNING] Unknown SID: " << id << endl;
+			logstream(LOG_WARNING) << "Unknown SID: " << id << LOG_endl;
 			return false;
 		}
 		return true;
@@ -108,8 +108,8 @@ class DGraph {
 		DIR *dir = opendir(dname.c_str());
 
 		if (dir == NULL) {
-			cout << "ERROR: failed to open the directory of ID-mapping files ("
-			     << dname << ")." << endl;
+			logstream(LOG_ERROR) << "failed to open the directory of ID-mapping files ("
+			     << dname << ")." << LOG_endl;
 			exit(-1);
 		}
 
@@ -120,7 +120,7 @@ class DGraph {
 			string fname(dname + ent->d_name);
 			if (boost::ends_with(fname, "/str_index")
 			        || boost::ends_with(fname, "/str_normal")) {
-				cout << "loading ID-mapping file: " << fname << endl;
+				logstream(LOG_INFO) << "loading ID-mapping file: " << fname << LOG_endl;
 				ifstream file(fname.c_str());
 				string str;
 				sid_t id;
@@ -173,11 +173,11 @@ class DGraph {
 		// serialize the RDMA WRITEs by multiple threads
 		uint64_t exist = __sync_fetch_and_add(&num_triples[dst_sid], n);
 		if ((exist * 3 + n * 3) * sizeof(sid_t) > kvs_sz) {
-			cout << "ERROR: no enough space to store input data!" << endl;
-			cout << " kvstore size = " << kvs_sz
+			logstream(LOG_ERROR) << "no enough space to store input data!" << LOG_endl;
+			logstream(LOG_ERROR) << " kvstore size = " << kvs_sz
 			     << " #exist-triples = " << exist
 			     << " #new-triples = " << n
-			     << endl;
+			     << LOG_endl;
 			assert(false);
 		}
 
@@ -290,7 +290,7 @@ class DGraph {
 
 		// timing
 		uint64_t t2 = timer::get_usec();
-		cout << (t2 - t1) / 1000 << " ms for loading RDF data files" << endl;
+		logstream(LOG_INFO) << (t2 - t1) / 1000 << " ms for loading RDF data files" << LOG_endl;
 
 		return global_num_servers;
 	}
@@ -344,7 +344,7 @@ class DGraph {
 
 		// timing
 		uint64_t t2 = timer::get_usec();
-		cout << (t2 - t1) / 1000 << " ms for loading RDF data files (w/o networking)" << endl;
+		logstream(LOG_INFO) << (t2 - t1) / 1000 << " ms for loading RDF data files (w/o networking)" << LOG_endl;
 
 		return global_num_engines;
 	}
@@ -384,7 +384,7 @@ class DGraph {
 						v = d;
 						break;
 					default:
-						cout << "[ERROR] Unsupported value type" << endl;
+						logstream(LOG_ERROR) << "Unsupported value type" << LOG_endl;
 						break;
 					}
 					if (sid == mymath::hash_mod(s, global_num_servers))
@@ -405,7 +405,7 @@ class DGraph {
 		}
 		// timing
 		uint64_t t2 = timer::get_usec();
-		cout << (t2 - t1) / 1000 << " ms for loading RDF data (attribute) files (w/o networking)" << endl;
+		logstream(LOG_INFO) << (t2 - t1) / 1000 << " ms for loading RDF data (attribute) files (w/o networking)" << LOG_endl;
 	}
 
 	void aggregate_data(int num_partitions) {
@@ -457,7 +457,7 @@ class DGraph {
 					if (++cnt >= total * 0.05) {
 						int now = __sync_add_and_fetch(&progress, 1);
 						if (now % global_num_engines == 0)
-							cout << "already aggregrate " << (now / global_num_engines) * 5 << "%" << endl;
+							logstream(LOG_INFO) << "already aggregrate " << (now / global_num_engines) * 5 << "%" << LOG_endl;
 						cnt = 0;
 					}
 				}
@@ -472,15 +472,15 @@ class DGraph {
 
 		// timing
 		uint64_t t2 = timer::get_usec();
-		cout << (t2 - t1) / 1000 << " ms for aggregrating triples" << endl;
+		logstream(LOG_INFO) << (t2 - t1) / 1000 << " ms for aggregrating triples" << LOG_endl;
 	}
 
 	inline vector<string> list_files(string dname, string prefix) {
 		if (boost::starts_with(dname, "hdfs:")) {
 			if (!wukong::hdfs::has_hadoop()) {
-				cout << "ERROR: attempting to load data files from HDFS "
+				logstream(LOG_ERROR) << "attempting to load data files from HDFS "
 				     << "but Wukong was built without HDFS."
-				     << endl;
+				     << LOG_endl;
 				exit(-1);
 			}
 
@@ -490,8 +490,8 @@ class DGraph {
 			// files located on a shared filesystem (e.g., NFS)
 			DIR *dir = opendir(dname.c_str());
 			if (dir == NULL) {
-				cout << "ERORR: failed to open directory (" << dname
-				     << ") at server " << sid << endl;
+				logstream(LOG_ERROR) << "failed to open directory (" << dname
+				     << ") at server " << sid << LOG_endl;
 				exit(-1);
 			}
 
@@ -539,12 +539,12 @@ public:
 		vector<string> afiles(list_files(dname, "attr_")); // ID-format attribute files
 
 		if (dfiles.size() == 0) {
-			cout << "[WARNING] no data files found in directory (" << dname
-			     << ") at server " << sid << endl;
+			logstream(LOG_WARNING) << "no data files found in directory (" << dname
+			     << ") at server " << sid << LOG_endl;
 		} else {
-			cout << "[INFO] " << dfiles.size() << " files and " << afiles.size()
+			logstream(LOG_INFO) << dfiles.size() << " files and " << afiles.size()
 			     << " attributed files found in directory (" << dname
-			     << ") at server " << sid << endl;
+			     << ") at server " << sid << LOG_endl;
 		}
 
 		// load_data: load partial input files by each server and exchanges triples
@@ -593,11 +593,11 @@ public:
 			vector<triple_attr_t>().swap(triple_sav[t]);
 		}
 		uint64_t t2 = timer::get_usec();
-		cout << "[INFO] #" << sid << ": "
-		     << (t2 - t1) / 1000 << "ms for inserting normal data into gstore" << endl;
+		logstream(LOG_INFO) << "#" << sid << ": "
+		     << (t2 - t1) / 1000 << "ms for inserting normal data into gstore" << LOG_endl;
 
 		gstore.insert_index();
-		cout << "[INFO] #" << sid << ": loading DGraph is finished." << endl;
+		logstream(LOG_INFO) << "#" << sid << ": loading DGraph is finished." << LOG_endl;
 
 		gstore.print_mem_usage();
 	}
@@ -611,13 +611,13 @@ public:
 		vector<string> afiles(list_files(dname, "attr_")); // ID-format attribute files
 
 		if (dfiles.size() == 0 && afiles.size() == 0) {
-			cout << "[WARNING] no files found in directory (" << dname
-			     << ") at server " << sid << endl;
+			logstream(LOG_WARNING) << "no files found in directory (" << dname
+			     << ") at server " << sid << LOG_endl;
 			return 0;
 		} else {
-			cout << "[INFO] " << dfiles.size() << " data files and " << afiles.size()
+			logstream(LOG_INFO) << dfiles.size() << " data files and " << afiles.size()
 			     << " attribute files found in directory (" << dname
-			     << ") at server " << sid << endl;
+			     << ") at server " << sid << LOG_endl;
 		}
 
 		sort(dfiles.begin(), dfiles.end());
@@ -647,8 +647,8 @@ public:
 			}
 			file.close();
 
-			cout << "[INFO] load " << cnt << " triples from file " << dfiles[i]
-			     << " at server " << sid << endl;
+			logstream(LOG_INFO) << "load " << cnt << " triples from file " << dfiles[i]
+			     << " at server " << sid << LOG_endl;
 		}
 
 		flush_convertmap(); //clean the id2id mapping
@@ -685,7 +685,7 @@ public:
 					v = d;
 					break;
 				default:
-					cout << "[ERROR] Unsupported value type" << endl;
+					logstream(LOG_ERROR) << "Unsupported value type" << LOG_endl;
 					break;
 				}
 
@@ -697,8 +697,8 @@ public:
 			}
 			file.close();
 
-			cout << "[INFO] load " << cnt << " attributes from file " << afiles[i]
-			     << " at server " << sid << endl;
+			logstream(LOG_INFO) << "load " << cnt << " attributes from file " << afiles[i]
+			     << " at server " << sid << LOG_endl;
 		}
 
 		return 0;

@@ -56,16 +56,16 @@ public:
         next_normal_id = 0;
         if (boost::starts_with(dname, "hdfs:")) {
             if (!wukong::hdfs::has_hadoop()) {
-                cout << "ERORR: attempting to load ID-mapping files from HDFS "
+                logstream(LOG_ERROR) << "attempting to load ID-mapping files from HDFS "
                      << "but Wukong was built without HDFS."
-                     << endl;
+                     << LOG_endl;
                 exit(-1);
             }
             load_from_hdfs(dname);
         } else
             load_from_posixfs(dname);
 
-        cout << "loading String Server is finished." << endl;
+        logstream(LOG_INFO) << "loading String Server is finished." << LOG_endl;
     }
 
     bool exist(sid_t sid) { return id2str.find(sid) != id2str.end(); }
@@ -77,8 +77,8 @@ private:
     void load_from_posixfs(string dname) {
         DIR *dir = opendir(dname.c_str());
         if (dir == NULL) {
-            cout << "ERROR: failed to open the directory of ID-mapping files ("
-                 << dname << ")." << endl;
+            logstream(LOG_ERROR) << "failed to open the directory of ID-mapping files ("
+                 << dname << ")." << LOG_endl;
             exit(-1);
         }
 
@@ -90,7 +90,7 @@ private:
             string fname(dname + ent->d_name);
             if (boost::ends_with(fname, "/str_index")
                     || boost::ends_with(fname, "/str_normal")) {
-                cout << "loading ID-mapping file: " << fname << endl;
+                logstream(LOG_INFO) << "loading ID-mapping file: " << fname << LOG_endl;
                 ifstream file(fname.c_str());
                 string str;
                 sid_t id;
@@ -110,7 +110,7 @@ private:
             /// FIXME: whether the predicates/attributes in str_attr_index should be
             ///        exclusive to the predicates/attributes in str_index or not?
             if (boost::ends_with(fname, "/str_attr_index")) {
-                cout << "loading ID-mapping (attribute) file: " << fname << endl;
+                logstream(LOG_INFO) << "loading ID-mapping (attribute) file: " << fname << LOG_endl;
                 ifstream file(fname.c_str());
                 string str;
                 sid_t id;
@@ -119,7 +119,7 @@ private:
                     str2id[str] = id;
                     id2str[id] = str;
                     pid2type[id] = type;
-                    cout << " attribute[" << id << "] = " << type << endl;
+                    logstream(LOG_INFO) << " attribute[" << id << "] = " << type << LOG_endl;
                 }
                 file.close();
             }
@@ -137,7 +137,7 @@ private:
             // e.g., hdfs:/xxx/xxx/
             if (boost::ends_with(fname, "/str_index")
                     || boost::ends_with(fname, "/str_normal")) {
-                cout << "loading ID-mapping file from HDFS: " << fname << endl;
+                logstream(LOG_INFO) << "loading ID-mapping file from HDFS: " << fname << LOG_endl;
                 wukong::hdfs::fstream file(hdfs, fname);
                 string str;
                 sid_t id;
@@ -157,7 +157,7 @@ private:
             /// FIXME: whether the predicates/attributes in str_attr_index should be
             ///        exclusive to the predicates/attributes in str_index or not?
             if (boost::ends_with(fname, "/str_attr_index")) {
-                cout << "loading ID-mapping (attribute) file: " << fname << endl;
+                logstream(LOG_INFO) << "loading ID-mapping (attribute) file: " << fname << LOG_endl;
                 wukong::hdfs::fstream file(hdfs, fname);
                 string str;
                 sid_t id;
@@ -166,7 +166,7 @@ private:
                     str2id[str] = id;
                     id2str[id] = str;
                     pid2type[id] = type;
-                    cout << " attribute[" << id << "] = " << type << endl;
+                    logstream(LOG_INFO) << " attribute[" << id << "] = " << type << LOG_endl;
                 }
                 file.close();
             }

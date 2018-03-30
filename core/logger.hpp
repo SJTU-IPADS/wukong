@@ -100,7 +100,7 @@ public:
 
     // for single query
     void print_latency(int round = 1) {
-        cout << "(average) latency: " << ((done_time - init_time) / round) << " usec" << endl;
+        logstream(LOG_INFO) << "(average) latency: " << ((done_time - init_time) / round) << " usec" << LOG_endl;
     }
 
     void set_interval(uint64_t update) { interval = update; }
@@ -114,14 +114,14 @@ public:
         // periodically print timely throughput
         if ((now - last_time) > interval) {
             float cur_thpt = 1000000.0 * (cur_cnt - last_cnt) / (now - last_time);
-            cout << "Throughput: " << cur_thpt / 1000.0 << "K queries/sec" << endl;
+            logstream(LOG_INFO) << "Throughput: " << cur_thpt / 1000.0 << "K queries/sec" << LOG_endl;
             last_time = now;
             last_cnt = cur_cnt;
         }
 
         // print separators per second
         if (now - last_separator > SEC(1)) {
-            cout << "[" << (now - init_time) / SEC(1) << "sec]" << endl;
+            logstream(LOG_INFO) << "[" << (now - init_time) / SEC(1) << "sec]" << LOG_endl;
             last_separator = now;
         }
     }
@@ -136,7 +136,7 @@ public:
     }
 
     void print_thpt() {
-        cout << "Throughput: " << thpt / 1000.0 << "K queries/sec" << endl;
+        logstream(LOG_INFO) << "Throughput: " << thpt / 1000.0 << "K queries/sec" << LOG_endl;
     }
 
     void start_record(int reqid, int type) {
@@ -175,11 +175,11 @@ public:
             thpts[i]++;
         }
 
-        cout << "Range Throughput (K queries/sec)" << endl;
+        logstream(LOG_INFO) << "Range Throughput (K queries/sec)" << LOG_endl;
         for (int i = 0; i < thpts.size(); i++)
-            cout << "[" << (print_interval * i) / 1000 << "ms ~ "
+            logstream(LOG_INFO) << "[" << (print_interval * i) / 1000 << "ms ~ "
                  << print_interval * (i + 1) / 1000 << "ms)\t"
-                 << (float)thpts[i] / (print_interval / 1000) << endl;
+                 << (float)thpts[i] / (print_interval / 1000) << LOG_endl;
 #endif
         assert(is_finish);
         assert(is_aggregated);
@@ -194,7 +194,7 @@ public:
         }
         assert(cdf_rates.size() == 25);
 
-        cout << "Per-query CDF graph" << endl;
+        logstream(LOG_INFO) << "Per-query CDF graph" << LOG_endl;
         int cnt, query_type;//, query_cnt = 0;
         map<int, vector<uint64_t>> cdf_res;
 
@@ -219,27 +219,27 @@ public:
             assert(cdf_res[query_type].size() == 25);
         }
 
-        cout << "CDF Res: " << endl;
-        cout << "P";
+        logstream(LOG_INFO) << "CDF Res: " << LOG_endl;
+        logstream(LOG_INFO) << "P";
         for (int i = 1; i <= nquery_types; ++i) {
-            cout << "\t" << "Q" << i;
+            logstream(LOG_INFO) << "\t" << "Q" << i;
         }
-        cout << endl;
+        logstream(LOG_INFO) << LOG_endl;
 
         // print cdf data
         int row, p;
         for (row = 1; row <= 25; ++row) {
             if (row == 1)
-                cout << row << "\t";
+                logstream(LOG_INFO) << row << "\t";
             else if (row <= 20)
-                cout << 5 * (row - 1) << "\t";
+                logstream(LOG_INFO) << 5 * (row - 1) << "\t";
             else
-                cout << 95 + (row - 20) << "\t";
+                logstream(LOG_INFO) << 95 + (row - 20) << "\t";
 
             for (int i = 0; i < nquery_types; ++i) {
-                cout << cdf_res[i][row - 1] << "\t";
+                logstream(LOG_INFO) << cdf_res[i][row - 1] << "\t";
             }
-            cout << endl;
+            logstream(LOG_INFO) << LOG_endl;
         }
     }
 

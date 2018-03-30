@@ -79,8 +79,8 @@ static bool set_immutable_config(string cfg_name, string value)
 
 		// make sure to check that the global_input_folder is non-empty.
 		if (global_input_folder.length() == 0) {
-			cout << "ERROR: the directory path of RDF data can not be empty!"
-			     << "You should set \"global_input_folder\" in config file." << endl;
+			logstream(LOG_ERROR) << "the directory path of RDF data can not be empty!"
+			     << "You should set \"global_input_folder\" in config file." << LOG_endl;
 			exit(-1);
 		}
 
@@ -114,8 +114,8 @@ static bool set_mutable_config(string cfg_name, string value)
 	if (cfg_name == "global_use_rdma") {
 		if (atoi(value.c_str())) {
 			if (!RDMA::get_rdma().has_rdma()) {
-				cout << "ERROR: can't enable RDMA due to building Wukong w/o RDMA support!\n"
-				     << "HINT: please disable global_use_rdma in config file." << endl;
+				logstream(LOG_ERROR) << "can't enable RDMA due to building Wukong w/o RDMA support!\n"
+				     << "HINT: please disable global_use_rdma in config file." << LOG_endl;
 				global_use_rdma = false; // disable RDMA if no RDMA device
 				return true;
 			}
@@ -158,7 +158,7 @@ static void file2items(string fname, map<string, string> &items)
 {
 	ifstream file(fname.c_str());
 	if (!file) {
-		cout << "ERROR: " << fname << " does not exist." << endl;
+		logstream(LOG_ERROR) << fname << " does not exist." << LOG_endl;
 		exit(0);
 	}
 
@@ -209,8 +209,8 @@ void load_config(string fname, int num_servers)
 	for (auto const &entry : items) {
 		if (!(set_immutable_config(entry.first, entry.second)
 		        || set_mutable_config(entry.first, entry.second))) {
-			cout << "WARNING: unsupported configuration item! ("
-			     << entry.first << ")" << endl;
+			logstream(LOG_WARNING) << "unsupported configuration item! ("
+			     << entry.first << ")" << LOG_endl;
 		}
 	}
 
@@ -228,29 +228,29 @@ void load_config(string fname, int num_servers)
  */
 void print_config(void)
 {
-	cout << "------ global configurations ------" << endl;
+	logstream(LOG_INFO) << "------ global configurations ------" << LOG_endl;
 
 	// setting by config file
-	cout << "the number of proxies: "		<< global_num_proxies			<< endl;
-	cout << "the number of engines: "		<< global_num_engines 			<< endl;
-	cout << "global_input_folder: " 		<< global_input_folder			<< endl;
-	cout << "global_data_port_base: " 		<< global_data_port_base		<< endl;
-	cout << "global_ctrl_port_base: " 		<< global_ctrl_port_base		<< endl;
-	cout << "global_memstore_size_gb: " 	<< global_memstore_size_gb		<< endl;
-	cout << "global_rdma_buf_size_mb: " 	<< global_rdma_buf_size_mb		<< endl;
-	cout << "global_rdma_rbf_size_mb: " 	<< global_rdma_rbf_size_mb   	<< endl;
-	cout << "global_use_rdma: " 			<< global_use_rdma				<< endl;
-	cout << "global_enable_caching: " 		<< global_enable_caching		<< endl;
-	cout << "global_enable_workstealing: " 	<< global_enable_workstealing	<< endl;
-	cout << "global_rdma_threshold: " 		<< global_rdma_threshold		<< endl;
-	cout << "global_mt_threshold: " 		<< global_mt_threshold  		<< endl;
-	cout << "global_silent: " 				<< global_silent				<< endl;
-	cout << "global_enable_planner: " 		<< global_enable_planner 		<< endl;
-	cout << "global_enable_vattr: " 		<< global_enable_vattr 			<< endl;
+	logstream(LOG_INFO) << "the number of proxies: "		<< global_num_proxies			<< LOG_endl;
+	logstream(LOG_INFO) << "the number of engines: "		<< global_num_engines 			<< LOG_endl;
+	logstream(LOG_INFO) << "global_input_folder: " 		<< global_input_folder			<< LOG_endl;
+	logstream(LOG_INFO) << "global_data_port_base: " 		<< global_data_port_base		<< LOG_endl;
+	logstream(LOG_INFO) << "global_ctrl_port_base: " 		<< global_ctrl_port_base		<< LOG_endl;
+	logstream(LOG_INFO) << "global_memstore_size_gb: " 	<< global_memstore_size_gb		<< LOG_endl;
+	logstream(LOG_INFO) << "global_rdma_buf_size_mb: " 	<< global_rdma_buf_size_mb		<< LOG_endl;
+	logstream(LOG_INFO) << "global_rdma_rbf_size_mb: " 	<< global_rdma_rbf_size_mb   	<< LOG_endl;
+	logstream(LOG_INFO) << "global_use_rdma: " 			<< global_use_rdma				<< LOG_endl;
+	logstream(LOG_INFO) << "global_enable_caching: " 		<< global_enable_caching		<< LOG_endl;
+	logstream(LOG_INFO) << "global_enable_workstealing: " 	<< global_enable_workstealing	<< LOG_endl;
+	logstream(LOG_INFO) << "global_rdma_threshold: " 		<< global_rdma_threshold		<< LOG_endl;
+	logstream(LOG_INFO) << "global_mt_threshold: " 		<< global_mt_threshold  		<< LOG_endl;
+	logstream(LOG_INFO) << "global_silent: " 				<< global_silent				<< LOG_endl;
+	logstream(LOG_INFO) << "global_enable_planner: " 		<< global_enable_planner 		<< LOG_endl;
+	logstream(LOG_INFO) << "global_enable_vattr: " 		<< global_enable_vattr 			<< LOG_endl;
 
-	cout << "--" << endl;
+	logstream(LOG_INFO) << "--" << LOG_endl;
 
 	// compute from other settings
-	cout << "the number of servers: " 		<< global_num_servers			<< endl;
-	cout << "the number of threads: " 		<< global_num_threads			<< endl;
+	logstream(LOG_INFO) << "the number of servers: " 		<< global_num_servers			<< LOG_endl;
+	logstream(LOG_INFO) << "the number of threads: " 		<< global_num_threads			<< LOG_endl;
 }
