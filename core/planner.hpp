@@ -45,7 +45,7 @@ private:
     int * _fakedeepcopy ;
 public:
     Minimum_maintenance() {
-        cout << "NOT SUPPORT" << endl;
+        logstream(LOG_ERROR) << "NOT SUPPORT" << LOG_endl;
         assert(0);
     }
     Minimum_maintenance(int s) {
@@ -128,7 +128,7 @@ class Planner {
                     && cost < COST_THRESHOLD
                     && (path[0] >= (1 << NBITS_IDX)) ) {
                 ctn = false;  // small query
-                cout << "small query and use heuristic.\n";
+                logstream(LOG_INFO) << "small query and use heuristic."<<LOG_endl;
             }
             if (cost < min_cost) {
                 min_cost = cost;
@@ -254,7 +254,7 @@ class Planner {
                     double prune_result;
                     select_record sr ;
                     if (!(*min_select)[o1]->top(sr))
-                        cout << "ERROR o1 on .top\n";
+                        logstream(LOG_ERROR) << "ERROR o1 on .top"<<LOG_endl;
                     int pre_p = sr.p;
                     int pre_d = sr.d;
                     // prune based on correlation and constant
@@ -293,7 +293,7 @@ class Planner {
                     double prune_result;
                     select_record sr ;
                     if (!(*min_select)[o2]->top(sr))
-                        cout << "ERROR o2 on .top\n";
+                        logstream(LOG_ERROR) << "ERROR o2 on .top\n";
                     int pre_p = sr.p;
                     int pre_d = sr.d;
                     // prune based on correlation and constant
@@ -519,13 +519,13 @@ public:
         //cout << "traverse time : " << t_traverse2 - t_traverse1 << " us" << endl;
 
         if (is_empty == true) {
-            cout << "identified empty result query." << endl;
-            cout << "query planning is finished." << endl;
+            logstream(LOG_INFO) << "identified empty result query." << LOG_endl;
+            logstream(LOG_INFO) << "query planning is finished." << LOG_endl;
             return false;
         }
 
-        cout << "query planning for one part is finished." << endl;
-        cout << "estimated cost: " << min_cost << endl;
+        logstream(LOG_INFO) << "query planning for one part is finished." << LOG_endl;
+        logstream(LOG_INFO) << "estimated cost: " << min_cost << LOG_endl;
 
         //transfer from min_path to patterns
         patterns.clear();

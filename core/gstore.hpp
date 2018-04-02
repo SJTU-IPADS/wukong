@@ -298,9 +298,9 @@ private:
                     if (check_dup) {
                         key.print_key();
                         vertices[slot_id].key.print_key();
-                        cout << "ERROR: conflict at slot["
+                        logstream(LOG_ERROR) << "ERROR: conflict at slot["
                              << slot_id << "] of bucket["
-                             << bucket_id << "]" << endl;
+                             << bucket_id << "]" << LOG_endl;
                         assert(false);
                     } else {
                         goto done;
@@ -324,7 +324,7 @@ private:
             // allocate and link a new indirect header
             pthread_spin_lock(&bucket_ext_lock);
             if (last_ext >= num_buckets_ext) {
-                cout << "ERROR: out of indirect-header region." << endl;
+                logstream(LOG_ERROR) << "out of indirect-header region." << LOG_endl;
                 assert(last_ext < num_buckets_ext);
             }
             vertices[slot_id].key.vid = num_buckets + (last_ext++);
@@ -423,7 +423,7 @@ done:
         orig = last_entry;
         last_entry += n;
         if (last_entry >= num_entries) {
-            cout << "ERROR: out of entry region." << endl;
+            logstream(LOG_ERROR) << "out of entry region." << LOG_endl;
             assert(last_entry < num_entries);
         }
         pthread_spin_unlock(&entry_lock);
@@ -703,7 +703,7 @@ done:
             r = *((double *)(&(edges[r_off])));
             break;
         default:
-            cout << "Not support value type" << endl;
+            logstream(LOG_ERROR) << "Not support value type" << LOG_endl;
             break;
         }
 
@@ -729,7 +729,7 @@ done:
             r = *((double *)(&(edges[off])));
             break;
         default:
-            cout << "Not support value type" << endl;
+            logstream(LOG_ERROR) << "Not support value type" << LOG_endl;
             break;
         }
 
@@ -799,10 +799,9 @@ public:
         pthread_spin_init(&entry_lock, 0);
 #endif
 
-        cout << "INFO: gstore = " << mem->kvstore_size() << " bytes " << std::endl
-             << "      header region: " << num_slots << " slots"
-             << " (main = " << num_buckets << ", indirect = " << num_buckets_ext << ")" << std::endl
-             << "      entry region: " << num_entries << " entries" << std::endl;
+        logstream(LOG_INFO) << "gstore = " << mem->kvstore_size() << " bytes " << LOG_endl;
+        logstream(LOG_INFO) << "      header region: " << num_slots << " slots"<< " (main = " << num_buckets << ", indirect = " << num_buckets_ext << ")" << LOG_endl;
+        logstream(LOG_INFO) << "      entry region: " << num_entries << " entries" << LOG_endl;
 
         vertices = (vertex_t *)(mem->kvstore());
         edges = (edge_t *)(mem->kvstore() + num_slots * sizeof(vertex_t));
@@ -948,7 +947,7 @@ public:
     void insert_index() {
         uint64_t t1 = timer::get_usec();
 
-        cout << " start (parallel) prepare index info " << endl;
+        logstream(LOG_INFO) << " start (parallel) prepare index info " << LOG_endl;
 
 #if DYNAMIC_GSTORE
         edge_allocator->merge_freelists();
@@ -1013,7 +1012,7 @@ public:
             }
         }
         uint64_t t2 = timer::get_usec();
-        cout << (t2 - t1) / 1000 << " ms for (parallel) prepare index info" << endl;
+        logstream(LOG_INFO) << (t2 - t1) / 1000 << " ms for (parallel) prepare index info" << LOG_endl;
 
         /// TODO: parallelize index insertion
 
@@ -1037,7 +1036,7 @@ public:
 #endif
 
         uint64_t t3 = timer::get_usec();
-        cout << (t3 - t2) / 1000 << " ms for insert index data into gstore" << endl;
+        logstream(LOG_INFO) << (t3 - t2) / 1000 << " ms for insert index data into gstore" << LOG_endl;
     }
 
 #if DYNAMIC_GSTORE
@@ -1135,16 +1134,16 @@ public:
                 if (tres[j].val == key.pid && !found)
                     found = true;
                 else if (tres[j].val == key.pid && found) {
-                    cout << "Error: " << "In the value part of normal key/value pair [ " << key.vid
-                         << " | TYPE_ID | OUT] there is duplicate type " << key.pid << endl;
+                    logstream(LOG_ERROR) << "In the value part of normal key/value pair [ " << key.vid
+                         << " | TYPE_ID | OUT] there is duplicate type " << key.pid << LOG_endl;
                 }
             }
             if (tsz != 0 && !found) {  //(1)[IN]
                 if (get_vertex_local(0, ikey_t(vres[i].val, key.pid, OUT)).key.is_empty()) {
-                    cout << "Error: if " << key.pid << " is type id, then there is no type "
-                         << key.pid << "in normal key/value pair [" << key.vid << " | TYPE_ID | OUT] 's value part" << endl;
-                    cout << "And if " << key.pid << " is predicate id, then there is no key called "
-                         << "[ " << vres[i].val << " | " << key.pid << " | " << "] exist" << endl;
+                    logstream(LOG_ERROR) << "if " << key.pid << " is type id, then there is no type "
+                         << key.pid << "in normal key/value pair [" << key.vid << " | TYPE_ID | OUT] 's value part" << LOG_endl;
+                    logstream(LOG_ERROR) << "And if " << key.pid << " is predicate id, then there is no key called "
+                         << "[ " << vres[i].val << " | " << key.pid << " | " << "] exist" << LOG_endl;
                 }
             }
         }
@@ -1158,8 +1157,8 @@ public:
         edge_t *vres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &vsz);//predicate index
         for (int i = 0; i < vsz; i++) {
             if (get_vertex_local(0, ikey_t(vres[i].val, key.pid, IN)).key.is_empty()) {
-                cout << "Error: key " << " [ " << vres[i].val << " | "
-                     << key.pid << " | " << " IN ] does not exist." << endl;
+                logstream(LOG_ERROR) << "key " << " [ " << vres[i].val << " | "
+                     << key.pid << " | " << " IN ] does not exist." << LOG_endl;
             }
         }
     }
@@ -1178,13 +1177,13 @@ public:
                 if (vres[j].val == key.vid && !found)
                     found = true;
                 else if (vres[j].val == key.vid && found) {
-                    cout << "Error: " << "In the value part of type index [ 0 | " << tres[i].val
-                         << " | IN ]" << " there is duplicate value " << key.vid << endl;
+                    logstream(LOG_ERROR) << "In the value part of type index [ 0 | " << tres[i].val
+                         << " | IN ]" << " there is duplicate value " << key.vid << LOG_endl;
                 }
             }
             if (!found) {
-                cout << "Error: " << "In the value part of type index [ 0 | " << tres[i].val
-                     << " | IN ]" << " there is no value " << key.vid << endl;
+                logstream(LOG_ERROR) << "In the value part of type index [ 0 | " << tres[i].val
+                     << " | IN ]" << " there is no value " << key.vid << LOG_endl;
             }
         }
     }
@@ -1200,14 +1199,14 @@ public:
             if (vres[i].val == key.vid && !found)
                 found = true;
             else if (vres[i].val == key.vid && found) {
-                cout << "Error: " << "In the value part of predicate index [ 0 | " << key.pid
-                     << " | " << dir << " ]" << " there is duplicate value " << key.vid << endl;
+                logstream(LOG_ERROR) << "In the value part of predicate index [ 0 | " << key.pid
+                     << " | " << dir << " ]" << " there is duplicate value " << key.vid << LOG_endl;
                 break;
             }
         }
         if (!found) {
-            cout << "Error: " << "In the value part of predicate index [ 0 | " << key.pid
-                 << " | " << dir << " ]" << " there is no value " << key.vid << endl;
+            logstream(LOG_ERROR) << "In the value part of predicate index [ 0 | " << key.pid
+                 << " | " << dir << " ]" << " there is no value " << key.vid << LOG_endl;
         }
     }
 
@@ -1222,8 +1221,8 @@ public:
             if (vres[i].val == key.pid && !found)
                 found = true;
             else if (vres[i].val == key.pid && found) {
-                cout << "Error: " << "In the value part of all local types [ 0 | TYPE_ID | OUT ]"
-                     << " there is duplicate value " << key.pid << endl;
+                logstream(LOG_ERROR) << "In the value part of all local types [ 0 | TYPE_ID | OUT ]"
+                     << " there is duplicate value " << key.pid << LOG_endl;
             }
         }
         if (!found) {
@@ -1234,22 +1233,22 @@ public:
                 if (pres[i].val == key.pid && !found)
                     found = true;
                 else if (pres[i].val == key.pid && found) {
-                    cout << "Error: " << "In the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
-                         << " there is duplicate value " << key.pid << endl;
+                    logstream(LOG_ERROR) << "In the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
+                         << " there is duplicate value " << key.pid << LOG_endl;
                     break;
                 }
             }
             if (!found) {
-                cout << "Error: " << "if " << key.pid << "is predicate, in the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
-                     << " there is no value " << key.pid << endl;
-                cout << "Error: " << "if " << key.pid << " is type, in the value part of all local types [ 0 | TYPE_ID | OUT ]"
-                     << " there is no value " << key.pid << endl;
+                logstream(LOG_ERROR) << "if " << key.pid << "is predicate, in the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
+                     << " there is no value " << key.pid << LOG_endl;
+                logstream(LOG_ERROR) << "if " << key.pid << " is type, in the value part of all local types [ 0 | TYPE_ID | OUT ]"
+                     << " there is no value " << key.pid << LOG_endl;
             }
             uint64_t vsz = 0;
             edge_t *vres = get_edges_local(0, 0, IN, key.pid, &vsz);
             if (vsz == 0) {
-                cout << "Error: " << "if " << key.pid << " is type, in the value part of all local types [ 0 | TYPE_ID | OUT ]"
-                     << " there is no value " << key.pid << endl;
+                logstream(LOG_ERROR) << "if " << key.pid << " is type, in the value part of all local types [ 0 | TYPE_ID | OUT ]"
+                     << " there is no value " << key.pid << LOG_endl;
                 return;
             }
             for (int i = 0; i < vsz; i++) {
@@ -1260,14 +1259,14 @@ public:
                     if (sores[j].val == vres[i].val && !found)
                         found = true;
                     else if (sores[j].val == vres[i].val && found) {
-                        cout << "Error: " << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
-                             << " there is duplicate value " << vres[i].val << endl;
+                        logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
+                             << " there is duplicate value " << vres[i].val << LOG_endl;
                         break;
                     }
                 }
                 if (!found) {
-                    cout << "Error: " << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
-                         << " there is no value " << vres[i].val << endl;
+                    logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
+                         << " there is no value " << vres[i].val << LOG_endl;
                 }
                 found = false;
                 uint64_t p2sz = 0;
@@ -1276,14 +1275,14 @@ public:
                     if (p2res[j].val == key.pid && !found)
                         found = true;
                     else if (p2res[j].val == key.pid && found) {
-                        cout << "Error: " << "In the value part of " << vres[i].val << "'s all predicates [ "
-                             << vres[i].val << " | PREDICATE_ID | OUT ], there is duplicate value " << key.pid << endl;
+                        logstream(LOG_ERROR) << "In the value part of " << vres[i].val << "'s all predicates [ "
+                             << vres[i].val << " | PREDICATE_ID | OUT ], there is duplicate value " << key.pid << LOG_endl;
                         break;
                     }
                 }
                 if (!found) {
-                    cout << "Error: " << "In the value part of " << vres[i].val << "'s all predicates [ "
-                         << vres[i].val << " | PREDICATE_ID | OUT ], there is no value " << key.pid << endl;
+                    logstream(LOG_ERROR) << "In the value part of " << vres[i].val << "'s all predicates [ "
+                         << vres[i].val << " | PREDICATE_ID | OUT ], there is no value " << key.pid << LOG_endl;
                 }
             }
         }
@@ -1299,14 +1298,14 @@ public:
             if (pres[i].val == key.pid && !found)
                 found = true;
             else if (pres[i].val == key.pid && found) {
-                cout << "Error: " << "In the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
-                     << " there is duplicate value " << key.pid << endl;
+                logstream(LOG_ERROR) << "In the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
+                     << " there is duplicate value " << key.pid << LOG_endl;
                 break;
             }
         }
         if (!found) {
-            cout << "Error: " << "In the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
-                 << " there is no value " << key.pid << endl;
+            logstream(LOG_ERROR) << "In the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
+                 << " there is no value " << key.pid << LOG_endl;
         }
         uint64_t vsz = 0;
         edge_t *vres = get_edges_local(0, 0, OUT, key.pid, &vsz);
@@ -1318,14 +1317,14 @@ public:
                 if (sores[j].val == vres[i].val && !found)
                     found = true;
                 else if (sores[j].val == vres[i].val && found) {
-                    cout << "Error: " << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
-                         << " there is duplicate value " << vres[i].val << endl;
+                    logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
+                         << " there is duplicate value " << vres[i].val << LOG_endl;
                     break;
                 }
             }
             if (!found) {
-                cout << "Error: " << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
-                     << " there is no value " << vres[i].val << endl;
+                logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
+                     << " there is no value " << vres[i].val << LOG_endl;
             }
             found = false;
             uint64_t psz = 0;
@@ -1334,14 +1333,14 @@ public:
                 if (pres[j].val == key.pid && !found)
                     found = true;
                 else if (pres[j].val == key.pid && found) {
-                    cout << "Error: " << "In the value part of " << vres[i].val << "'s all predicates [ "
-                         << vres[i].val << "PREDICATE_ID | IN ], there is duplicate value " << key.pid << endl;
+                    logstream(LOG_ERROR) << "In the value part of " << vres[i].val << "'s all predicates [ "
+                         << vres[i].val << "PREDICATE_ID | IN ], there is duplicate value " << key.pid << LOG_endl;
                     break;
                 }
             }
             if (!found) {
-                cout << "Error: " << "In the value part of " << vres[i].val << "'s all predicates [ "
-                     << vres[i].val << "PREDICATE_ID | IN ], there is no value " << key.pid << endl;
+                logstream(LOG_ERROR) << "In the value part of " << vres[i].val << "'s all predicates [ "
+                     << vres[i].val << "PREDICATE_ID | IN ], there is no value " << key.pid << LOG_endl;
             }
         }
     }
@@ -1356,14 +1355,14 @@ public:
             if (pres[i].val == key.pid && !found)
                 found = true;
             else if (pres[i].val == key.pid && found) {
-                cout << "Error: " << "In the value part of " << key.vid << "'s all predicates [ "
-                     << key.vid << "PREDICATE_ID | OUT ], there is duplicate value " << key.pid << endl;
+                logstream(LOG_ERROR) << "In the value part of " << key.vid << "'s all predicates [ "
+                     << key.vid << "PREDICATE_ID | OUT ], there is duplicate value " << key.pid << LOG_endl;
                 break;
             }
         }
         if (!found) {
-            cout << "Error: " << "In the value part of " << key.vid << "'s all predicates [ "
-                 << key.vid << "PREDICATE_ID | OUT ], there is no value " << key.pid << endl;
+            logstream(LOG_ERROR) << "In the value part of " << key.vid << "'s all predicates [ "
+                 << key.vid << "PREDICATE_ID | OUT ], there is no value " << key.pid << LOG_endl;
         }
         found = false;
         uint64_t ossz = 0;
@@ -1372,14 +1371,14 @@ public:
             if (osres[i].val == key.vid && !found)
                 found = true;
             else if (osres[i].val == key.vid && found) {
-                cout << "Error: " << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
-                     << " there is duplicate value " << key.vid << endl;
+                logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
+                     << " there is duplicate value " << key.vid << LOG_endl;
                 break;
             }
         }
         if (!found) {
-            cout << "Error: " << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
-                 << " there is no value " << key.vid << endl;
+            logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
+                 << " there is no value " << key.vid << LOG_endl;
         }
     }
 #endif // VERSATILE
@@ -1408,7 +1407,7 @@ public:
     }
 
     int gstore_check(bool index_check, bool normal_check) {
-        cout << "Graph storage intergity check has started on server " << sid << endl;
+        logstream(LOG_INFO) << "Graph storage intergity check has started on server " << sid << LOG_endl;
         ivertex_num = 0;
         nvertex_num = 0;
         for (uint64_t bucket_id = 0; bucket_id < num_buckets + num_buckets_ext; bucket_id++) {
@@ -1419,8 +1418,8 @@ public:
                 }
             }
         }
-        cout << "Server " << sid << " has checked " << ivertex_num << " index vertices"
-             << " and " << nvertex_num << " normal vertices." << endl;
+        logstream(LOG_INFO) << "Server " << sid << " has checked " << ivertex_num << " index vertices"
+             << " and " << nvertex_num << " normal vertices." << LOG_endl;
         return 0;
     }
 
@@ -1463,7 +1462,7 @@ public:
                 *(double *)(edges + off) = boost::get<double>(attr.v);
                 break;
             default:
-                cout << "Unsupported value type of attribute" << endl;
+                logstream(LOG_ERROR) << "Unsupported value type of attribute" << LOG_endl;
             }
         }
     }
@@ -1593,7 +1592,7 @@ public:
             }
         }
         //cout << "sizeof correlation = " << stat.correlation.size() << endl;
-        cout << "INFO#" << sid << ": generating stats is finished." << endl;
+        logstream(LOG_INFO) << "#" << sid << ": generating stats is finished." << LOG_endl;
     }
 
     // analysis and debuging
@@ -1608,12 +1607,12 @@ public:
             }
         }
 
-        cout << "main header: " << B2MiB(num_buckets * ASSOCIATIVITY * sizeof(vertex_t))
-             << " MB (" << num_buckets * ASSOCIATIVITY << " slots)" << endl;
-        cout << "\tused: " << 100.0 * used_slots / (num_buckets * ASSOCIATIVITY)
-             << " % (" << used_slots << " slots)" << endl;
-        cout << "\tchain: " << 100.0 * num_buckets / (num_buckets * ASSOCIATIVITY)
-             << " % (" << num_buckets << " slots)" << endl;
+        logstream(LOG_INFO) << "main header: " << B2MiB(num_buckets * ASSOCIATIVITY * sizeof(vertex_t))
+             << " MB (" << num_buckets * ASSOCIATIVITY << " slots)" << LOG_endl;
+        logstream(LOG_INFO) << "\tused: " << 100.0 * used_slots / (num_buckets * ASSOCIATIVITY)
+             << " % (" << used_slots << " slots)" << LOG_endl;
+        logstream(LOG_INFO) << "\tchain: " << 100.0 * num_buckets / (num_buckets * ASSOCIATIVITY)
+             << " % (" << num_buckets << " slots)" << LOG_endl;
 
         used_slots = 0;
         for (uint64_t x = num_buckets; x < num_buckets + last_ext; x++) {
@@ -1625,26 +1624,26 @@ public:
             }
         }
 
-        cout << "indirect header: " << B2MiB(num_buckets_ext * ASSOCIATIVITY * sizeof(vertex_t))
-             << " MB (" << num_buckets_ext * ASSOCIATIVITY << " slots)" << endl;
-        cout << "\talloced: " << 100.0 * last_ext / num_buckets_ext
-             << " % (" << last_ext << " buckets)" << endl;
-        cout << "\tused: " << 100.0 * used_slots / (num_buckets_ext * ASSOCIATIVITY)
-             << " % (" << used_slots << " slots)" << endl;
+        logstream(LOG_INFO) << "indirect header: " << B2MiB(num_buckets_ext * ASSOCIATIVITY * sizeof(vertex_t))
+             << " MB (" << num_buckets_ext * ASSOCIATIVITY << " slots)" << LOG_endl;
+        logstream(LOG_INFO) << "\talloced: " << 100.0 * last_ext / num_buckets_ext
+             << " % (" << last_ext << " buckets)" << LOG_endl;
+        logstream(LOG_INFO) << "\tused: " << 100.0 * used_slots / (num_buckets_ext * ASSOCIATIVITY)
+             << " % (" << used_slots << " slots)" << LOG_endl;
 
-        cout << "entry: " << B2MiB(num_entries * sizeof(edge_t))
-             << " MB (" << num_entries << " entries)" << endl;
+        logstream(LOG_INFO) << "entry: " << B2MiB(num_entries * sizeof(edge_t))
+             << " MB (" << num_entries << " entries)" << LOG_endl;
 #if DYNAMIC_GSTORE
         edge_allocator->print_memory_usage();
 #else
-        cout << "\tused: " << 100.0 * last_entry / num_entries
-             << " % (" << last_entry << " entries)" << endl;
+        logstream(LOG_INFO) << "\tused: " << 100.0 * last_entry / num_entries
+             << " % (" << last_entry << " entries)" << LOG_endl;
 #endif
 
         uint64_t sz = 0;
         get_edges_local(0, 0, IN, TYPE_ID, &sz);
-        cout << "#vertices: " << sz << endl;
+        logstream(LOG_INFO) << "#vertices: " << sz << LOG_endl;
         get_edges_local(0, 0, OUT, TYPE_ID, &sz);
-        cout << "#predicates: " << sz << endl;
+        logstream(LOG_INFO) << "#predicates: " << sz << LOG_endl;
     }
 };

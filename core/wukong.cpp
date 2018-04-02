@@ -19,7 +19,7 @@
  *      http://ipads.se.sjtu.edu.cn/projects/wukong
  *
  */
-
+#include "logger2.hpp"
 #include <map>
 #include <boost/mpi.hpp>
 #include <iostream>
@@ -91,7 +91,7 @@ main(int argc, char *argv[])
 
 	// load CPU topology by hwloc
 	load_node_topo();
-	cout << "INFO#" << sid << ": has " << num_cores << " cores." << endl;
+	logstream(LOG_INFO) << "#" << sid << ": has " << num_cores << " cores." << LOG_endl;
 
 	int c;
 	while ((c = getopt(argc - 2, argv + 2, "b:c:")) != -1) {
@@ -111,7 +111,7 @@ main(int argc, char *argv[])
 
 	// allocate memory
 	Mem *mem = new Mem(global_num_servers, global_num_threads);
-	cout << "INFO#" << sid << ": allocate " << B2GiB(mem->memory_size()) << "GB memory" << endl;
+	logstream(LOG_INFO)  << "#" << sid << ": allocate " << B2GiB(mem->memory_size()) << "GB memory" << LOG_endl;
 
 	// init RDMA devices and connections
 	RDMA_init(global_num_servers, global_num_threads,
@@ -165,7 +165,7 @@ main(int argc, char *argv[])
 	// wait to all threads termination
 	for (size_t t = 0; t < global_num_threads; t++) {
 		if (int rc = pthread_join(threads[t], NULL)) {
-			printf("ERROR: return code from pthread_join() is %d\n", rc);
+			logger(LOG_ERROR, "return code from pthread_join() is %d\n", rc);
 			exit(-1);
 		}
 	}

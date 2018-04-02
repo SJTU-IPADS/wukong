@@ -113,7 +113,7 @@ static void file2str(string fname, string &str)
 {
 	ifstream file(fname.c_str());
 	if (!file) {
-		cout << "ERROR: " << fname << " does not exist." << endl;
+		logstream(LOG_ERROR) << fname << " does not exist." << LOG_endl;
 		return;
 	}
 
@@ -153,12 +153,12 @@ next:
 			if (enable_oneshot) {
 				// one-shot command mode: run the command once
 				if (once) {
-					cout << "[INFO] Run one-shot command: " << oneshot_cmd << endl;
+					logstream(LOG_INFO) << "Run one-shot command: " << oneshot_cmd << LOG_endl;
 					cmd = oneshot_cmd;
 
 					once = false;
 				} else {
-					cout << "[INFO] Done" << endl;
+					logstream(LOG_INFO) << "Done" << LOG_endl;
 					cmd = "quit";
 				}
 			} else {
@@ -246,7 +246,7 @@ next:
 						reload_config(str);
 					} else {
 						if (IS_MASTER(proxy))
-							cout << "[ERROR] Failed to load config file: " << fname << endl;
+							logstream(LOG_ERROR) << "Failed to load config file: " << fname << LOG_endl;
 					}
 				} else {
 					goto failed;
@@ -290,18 +290,18 @@ next:
 					if (IS_MASTER(proxy)) {
 						ifstream ifs(fname);
 						if (!ifs.good()) {
-							cout << "[ERROR] Query file not found: " << fname << endl;
+							logstream(LOG_ERROR) << "Query file not found: " << fname << LOG_endl;
 							continue ;
 						}
 
 						if (global_silent) {
 							if (nlines > 0) {
-								cout << "[ERROR] Can't print results (-v) with global_silent." << endl;
+								logstream(LOG_ERROR) << "Can't print results (-v) with global_silent." << LOG_endl;
 								continue;
 							}
 
 							if (o_enable) {
-								cout << "[ERROR] Can't output results (-o) with global_silent." << endl;
+								logstream(LOG_ERROR) << "Can't output results (-o) with global_silent." << LOG_endl;
 								continue;
 							}
 						}
@@ -311,12 +311,12 @@ next:
 						Logger logger;
 						int ret = proxy->run_single_query(ifs, cnt, reply, logger);
 						if (ret != 0) {
-							cout << "[ERROR] Failed to run the query (ERRNO: " << ret << ")!" << endl;
+							logstream(LOG_ERROR) << "Failed to run the query (ERRNO: " << ret << ")!" << LOG_endl;
 							continue;
 						}
 
 						logger.print_latency(cnt);
-						cout << "(last) result size: " << result.row_num << endl;
+						logstream(LOG_INFO) << "(last) result size: " << result.row_num << LOG_endl;
 
 						// print or dump results
 						if (!global_silent && !result.blind && (nlines > 0 || o_enable)) {
@@ -337,21 +337,21 @@ next:
 					if (!f_enable || !IS_MASTER(proxy)) {
 						ifstream ifs(bfname);
 						if (!ifs.good()) {
-							cout << "Configure file not found: " << bfname << endl;
+							logstream(LOG_ERROR) << "Configure file not found: " << bfname << LOG_endl;
 							continue;
 						}
 
 						if (duration <= 0 || warmup < 0 || parallel_factor <= 0) {
-							cout << "[ERROR] invalid parameters for batch mode! "
+							logstream(LOG_ERROR) << "invalid parameters for batch mode! "
 							     << "(duration=" << duration << ", warmup=" << warmup
-							     << ", parallel_factor=" << parallel_factor << ")" << endl;
+							     << ", parallel_factor=" << parallel_factor << ")" << LOG_endl;
 							continue;
 						}
 
 						if (duration <= warmup) {
-							cout << "Duration time (" << duration
+							logstream(LOG_INFO) << "Duration time (" << duration
 							     << "sec) is less than warmup time ("
-							     << warmup << "sec)." << endl;
+							     << warmup << "sec)." << LOG_endl;
 							continue;
 						}
 
@@ -403,8 +403,8 @@ next:
 						RDFLoad reply;
 						int ret = proxy->dynamic_load_data(dname, reply, logger, c_enable);
 						if (ret != 0) {
-							cout << "[ERORR] Failed to load dynamic data from directory " << dname
-							     << " (ERRNO: " << ret << ")!" << endl;
+							logstream(LOG_ERROR) << "Failed to load dynamic data from directory " << dname
+							     << " (ERRNO: " << ret << ")!" << LOG_endl;
 							continue;
 						}
 						logger.print_latency();
@@ -413,8 +413,8 @@ next:
 					goto failed;
 #else
 				if (IS_MASTER(proxy)) {
-					cout << "[ERROR] Can't load linked data into static graph-store." << endl;
-					cout << "You can enable it by building Wukong with -DUSE_DYNAMIC_GSTORE=ON." << endl;
+					logstream(LOG_ERROR) << "Can't load linked data into static graph-store." << LOG_endl;
+					logstream(LOG_ERROR) << "You can enable it by building Wukong with -DUSE_DYNAMIC_GSTORE=ON." << LOG_endl;
 				}
 #endif
 			} else if (token == "gsck") {
@@ -439,8 +439,8 @@ next:
 					GStoreCheck reply;
 					int ret = proxy->gstore_check(reply, logger, i_enable, n_enable);
 					if (ret != 0) {
-						cout << "[ERORR] Some error found in gstore "
-						     << " (ERRNO: " << ret << ")!" << endl;
+						logstream(LOG_ERROR) << "Some error found in gstore "
+						     << " (ERRNO: " << ret << ")!" << LOG_endl;
 						continue;
 					}
 					logger.print_latency();
@@ -448,7 +448,7 @@ next:
 			} else {
 failed:
 				if (IS_MASTER(proxy)) {
-					cout << "[ERROR] Failed to run the command: " << cmd << endl;
+					logstream(LOG_ERROR) << "Failed to run the command: " << cmd << LOG_endl;
 					print_help();
 				}
 			}

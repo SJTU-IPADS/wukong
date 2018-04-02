@@ -144,11 +144,11 @@ public:
 
             }
 
-            cout << "global_ptcount size: " << global_ptcount.size() << std::endl;
-            cout << "global_pscount size: " << global_pscount.size() << std::endl;
-            cout << "global_pocount size: " << global_pocount.size() << std::endl;
-            cout << "global_ppcount size: " << global_ppcount.size() << std::endl;
-            cout << "global_tyscount size: " << global_tyscount.size() << std::endl;
+            logstream(LOG_INFO) << "global_ptcount size: " << global_ptcount.size() << LOG_endl;
+            logstream(LOG_INFO) << "global_pscount size: " << global_pscount.size() << LOG_endl;
+            logstream(LOG_INFO) << "global_pocount size: " << global_pocount.size() << LOG_endl;
+            logstream(LOG_INFO) << "global_ppcount size: " << global_ppcount.size() << LOG_endl;
+            logstream(LOG_INFO) << "global_tyscount size: " << global_tyscount.size() << LOG_endl;
 
             // for type predicate
             global_pocount[1] = global_tyscount.size();
@@ -187,7 +187,7 @@ public:
                >> global_tyscount;
         }
 
-        cout << "INFO#" << world->rank() << ": gathering stats of DGraph is finished." << endl;
+        logstream(LOG_INFO) << "#" << world->rank() << ": gathering stats of DGraph is finished." << LOG_endl;
 
     }
 

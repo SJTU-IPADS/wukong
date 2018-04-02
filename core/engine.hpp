@@ -147,7 +147,7 @@ private:
     inline void sweep_msgs() {
         if (!pending_msgs.size()) return;
 
-        cout << "[INFO]#" << tid << " " << pending_msgs.size() << " pending msgs on engine." << endl;
+        logstream(LOG_INFO) << "#" << tid << " " << pending_msgs.size() << " pending msgs on engine." << LOG_endl;
         for (vector<Message>::iterator it = pending_msgs.begin(); it != pending_msgs.end();)
             if (adaptor->send(it->sid, it->tid, it->bundle))
                 it = pending_msgs.erase(it);
@@ -673,10 +673,10 @@ private:
 
         // debug
         if (sid == 0 && tid == 0) {
-            cout << "prepare " << (t1 - t0) << " us" << endl;
-            cout << "execute sub-request " << (t2 - t1) << " us" << endl;
-            cout << "sort " << (t3 - t2) << " us" << endl;
-            cout << "lookup " << (t4 - t3) << " us" << endl;
+            logstream(LOG_INFO) << "prepare " << (t1 - t0) << " us" << LOG_endl;
+            logstream(LOG_INFO) << "execute sub-request " << (t2 - t1) << " us" << LOG_endl;
+            logstream(LOG_INFO) << "sort " << (t3 - t2) << " us" << LOG_endl;
+            logstream(LOG_INFO) << "lookup " << (t4 - t3) << " us" << LOG_endl;
         }
 
         req_result.result_table.swap(updated_result_table);
@@ -710,16 +710,15 @@ private:
                 known_unknown_unknown(req);
                 break;
             default:
-                cout << "ERROR: unsupported triple pattern with unknown predicate "
-                     << "(" << req.result.variable_type(start)
-                     << "|" << req.result.variable_type(end)
-                     << ")" << endl;
+                logstream(LOG_ERROR) << "unsupported triple pattern with unknown predicate "
+                     << "(" << req.result.variable_type(start) << "|" << req.result.variable_type(end) << ")"
+                     << LOG_endl;
                 assert(false);
             }
             return true;
 #else
-            cout << "ERROR: unsupported variable at predicate." << endl;
-            cout << "Please add definition VERSATILE in CMakeLists.txt." << endl;
+            logstream(LOG_ERROR) << "unsupported variable at predicate." << LOG_endl;
+            logstream(LOG_ERROR) << "Please add definition VERSATILE in CMakeLists.txt." << LOG_endl;
             assert(false);
 #endif
         }
@@ -735,10 +734,9 @@ private:
                 known_to_unknown_attr(req);
                 break;
             default:
-                cout << "ERROR: unsupported triple pattern with attribute "
-                     << "(" << req.result.variable_type(start)
-                     << "|" << req.result.variable_type(end)
-                     << ")" << endl;
+                logstream(LOG_ERROR) << "unsupported triple pattern with attribute "
+                     << "(" << req.result.variable_type(start) << "|" << req.result.variable_type(end) << ")"
+                     << LOG_endl;
                 assert(false);
             }
             return true;
@@ -750,10 +748,10 @@ private:
 
         // start from const
         case const_pair(const_var, const_var):
-            cout << "ERROR: unsupported triple pattern (from const to const)" << endl;
+            logstream(LOG_ERROR) << "ERROR: unsupported triple pattern (from const to const)" << LOG_endl;
             assert(false);
         case const_pair(const_var, known_var):
-            cout << "ERROR: unsupported triple pattern (from const to known)" << endl;
+            logstream(LOG_ERROR) << "ERROR: unsupported triple pattern (from const to known)" << LOG_endl;
             assert(false);
         case const_pair(const_var, unknown_var):
             const_to_unknown(req);
@@ -774,14 +772,14 @@ private:
         case const_pair(unknown_var, const_var):
         case const_pair(unknown_var, known_var):
         case const_pair(unknown_var, unknown_var):
-            cout << "ERROR: unsupported triple pattern (from unknown)" << endl;
+            logstream(LOG_ERROR) << "ERROR: unsupported triple pattern (from unknown)" << LOG_endl;
             assert(false);
 
         default:
-            cout << "ERROR: unsupported triple pattern with known predicate "
+            logstream(LOG_ERROR) << "ERROR: unsupported triple pattern with known predicate "
                  << "(" << req.result.variable_type(start)
                  << "|" << req.result.variable_type(end)
-                 << ")" << endl;
+                 << ")" << LOG_endl;
             assert(false);
         }
 
@@ -806,7 +804,7 @@ private:
             case SPARQLQuery::Filter::Type::Literal:
                 return "\"" + filter.value + "\"";
             default:
-                cout << "filter type not supported currently" << endl;
+                logstream(LOG_ERROR) << "filter type not supported currently" << LOG_endl;
                 assert(false);
             }
             return "";
@@ -943,7 +941,7 @@ private:
             int id = result.get_row_col(row, col);
             string str = str_server->exist(id) ? str_server->id2str[id] : "";
             if (str.front() != '\"' || str.back() != '\"')
-                cout << "the first parameter of function regex can only be string" << endl;
+                logstream(LOG_ERROR) << "the first parameter of function regex can only be string" << LOG_endl;
             else
                 str = str.substr(1, str.length() - 2);
 

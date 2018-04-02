@@ -158,7 +158,7 @@ void RDMA_init(int nnodes, int nthds, int nid,
     rdma.init_dev(nnodes, nthds, nid, mem, sz, ipfn);
 
     t = timer::get_usec() - t;
-    cout << "INFO: initializing RMDA done (" << t / 1000  << " ms)" << endl;
+    logstream(LOG_INFO) << "initializing RMDA done (" << t / 1000  << " ms)" << LOG_endl;
 }
 
 #else
@@ -167,30 +167,30 @@ class RDMA {
     class RDMA_Device {
     public:
         RDMA_Device(int nnodes, int nthds, int nid, char *mem, uint64_t sz, string fname) {
-            cout << "This system is compiled without RDMA support." << endl;
+            logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
             assert(false);
         }
 
         int RdmaRead(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
-            cout << "This system is compiled without RDMA support." << endl;
+            logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
             assert(false);
             return 0;
         }
 
         int RdmaWrite(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
-            cout << "This system is compiled without RDMA support." << endl;
+            logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
             assert(false);
             return 0;
         }
 
         int RdmaWriteNonSignal(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
-            cout << "This system is compiled without RDMA support." << endl;
+            logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
             assert(false);
             return 0;
         }
 
         int RdmaWriteSelective(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
-            cout << "This system is compiled without RDMA support." << endl;
+            logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
             assert(false);
             return 0;
         }
@@ -216,7 +216,7 @@ public:
 };
 
 void RDMA_init(int nnodes, int nthds, int nid, char *mem, uint64_t sz, string ipfn) {
-    std::cout << "This system is compiled without RDMA support." << std::endl;
+    logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
 }
 
 #endif
