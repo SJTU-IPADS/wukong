@@ -80,7 +80,7 @@ static bool set_immutable_config(string cfg_name, string value)
 		// make sure to check that the global_input_folder is non-empty.
 		if (global_input_folder.length() == 0) {
 			logstream(LOG_ERROR) << "the directory path of RDF data can not be empty!"
-			     << "You should set \"global_input_folder\" in config file." << LOG_endl;
+			                     << "You should set \"global_input_folder\" in config file." << LOG_endl;
 			exit(-1);
 		}
 
@@ -115,7 +115,7 @@ static bool set_mutable_config(string cfg_name, string value)
 		if (atoi(value.c_str())) {
 			if (!RDMA::get_rdma().has_rdma()) {
 				logstream(LOG_ERROR) << "can't enable RDMA due to building Wukong w/o RDMA support!\n"
-				     << "HINT: please disable global_use_rdma in config file." << LOG_endl;
+				                     << "HINT: please disable global_use_rdma in config file." << LOG_endl;
 				global_use_rdma = false; // disable RDMA if no RDMA device
 				return true;
 			}
@@ -210,7 +210,7 @@ void load_config(string fname, int num_servers)
 		if (!(set_immutable_config(entry.first, entry.second)
 		        || set_mutable_config(entry.first, entry.second))) {
 			logstream(LOG_WARNING) << "unsupported configuration item! ("
-			     << entry.first << ")" << LOG_endl;
+			                       << entry.first << ")" << LOG_endl;
 		}
 	}
 

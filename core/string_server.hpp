@@ -57,8 +57,8 @@ public:
         if (boost::starts_with(dname, "hdfs:")) {
             if (!wukong::hdfs::has_hadoop()) {
                 logstream(LOG_ERROR) << "attempting to load ID-mapping files from HDFS "
-                     << "but Wukong was built without HDFS."
-                     << LOG_endl;
+                                     << "but Wukong was built without HDFS."
+                                     << LOG_endl;
                 exit(-1);
             }
             load_from_hdfs(dname);
@@ -78,7 +78,7 @@ private:
         DIR *dir = opendir(dname.c_str());
         if (dir == NULL) {
             logstream(LOG_ERROR) << "failed to open the directory of ID-mapping files ("
-                 << dname << ")." << LOG_endl;
+                                 << dname << ")." << LOG_endl;
             exit(-1);
         }
 

@@ -298,9 +298,9 @@ private:
                     if (check_dup) {
                         key.print_key();
                         vertices[slot_id].key.print_key();
-                        logstream(LOG_ERROR) << "ERROR: conflict at slot["
-                             << slot_id << "] of bucket["
-                             << bucket_id << "]" << LOG_endl;
+                        logstream(LOG_ERROR) << "conflict at slot["
+                                             << slot_id << "] of bucket["
+                                             << bucket_id << "]" << LOG_endl;
                         assert(false);
                     } else {
                         goto done;
@@ -800,7 +800,7 @@ public:
 #endif
 
         logstream(LOG_INFO) << "gstore = " << mem->kvstore_size() << " bytes " << LOG_endl;
-        logstream(LOG_INFO) << "      header region: " << num_slots << " slots"<< " (main = " << num_buckets << ", indirect = " << num_buckets_ext << ")" << LOG_endl;
+        logstream(LOG_INFO) << "      header region: " << num_slots << " slots" << " (main = " << num_buckets << ", indirect = " << num_buckets_ext << ")" << LOG_endl;
         logstream(LOG_INFO) << "      entry region: " << num_entries << " entries" << LOG_endl;
 
         vertices = (vertex_t *)(mem->kvstore());
@@ -1061,7 +1061,7 @@ public:
                 if (insert_vertex_edge(key, triple.s, nodup)) { // <4> type-index (2) [if <1>'s result is not dup, this is not dup, too]
 #ifdef VERSATILE
                     key = ikey_t(0, TYPE_ID, OUT);
-                    insert_vertex_edge(key, triple.o, nodup);// <5> index to this type (*4) [dedup from <4>]
+                    insert_vertex_edge(key, triple.o, nodup); // <5> index to this type (*4) [dedup from <4>]
 #endif // VERSATILE
                 }
             }
@@ -1125,25 +1125,26 @@ public:
             return;
         ivertex_num ++;
         uint64_t vsz = 0;
-        edge_t *vres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &vsz); //(1)[IN]/(2)
+        edge_t *vres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &vsz); // (1)[IN]/(2)
         for (int i = 0; i < vsz; i++) {
             uint64_t tsz = 0;
             edge_t *tres = get_edges_local(0, vres[i].val, OUT, TYPE_ID, &tsz);
             bool found = false;
-            for (int j = 0; j < tsz; j++) {     //(2)
+            for (int j = 0; j < tsz; j++) {     // (2)
                 if (tres[j].val == key.pid && !found)
                     found = true;
                 else if (tres[j].val == key.pid && found) {
                     logstream(LOG_ERROR) << "In the value part of normal key/value pair [ " << key.vid
-                         << " | TYPE_ID | OUT] there is duplicate type " << key.pid << LOG_endl;
+                                         << " | TYPE_ID | OUT] there is DUPLICATE type " << key.pid << LOG_endl;
                 }
             }
             if (tsz != 0 && !found) {  //(1)[IN]
                 if (get_vertex_local(0, ikey_t(vres[i].val, key.pid, OUT)).key.is_empty()) {
-                    logstream(LOG_ERROR) << "if " << key.pid << " is type id, then there is no type "
-                         << key.pid << "in normal key/value pair [" << key.vid << " | TYPE_ID | OUT] 's value part" << LOG_endl;
-                    logstream(LOG_ERROR) << "And if " << key.pid << " is predicate id, then there is no key called "
-                         << "[ " << vres[i].val << " | " << key.pid << " | " << "] exist" << LOG_endl;
+                    logstream(LOG_ERROR) << "if " << key.pid << " is type id, then there is NO type "
+                                         << key.pid << "in normal key/value pair ["
+                                         << key.vid << " | TYPE_ID | OUT] 's value part" << LOG_endl;
+                    logstream(LOG_ERROR) << "And if " << key.pid << " is predicate id, then there is NO key called "
+                                         << "[ " << vres[i].val << " | " << key.pid << " | " << "] exist" << LOG_endl;
                 }
             }
         }
@@ -1154,11 +1155,11 @@ public:
             return;
         ivertex_num ++;
         uint64_t vsz = 0;
-        edge_t *vres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &vsz);//predicate index
+        edge_t *vres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &vsz); // predicate index
         for (int i = 0; i < vsz; i++) {
             if (get_vertex_local(0, ikey_t(vres[i].val, key.pid, IN)).key.is_empty()) {
                 logstream(LOG_ERROR) << "key " << " [ " << vres[i].val << " | "
-                     << key.pid << " | " << " IN ] does not exist." << LOG_endl;
+                                     << key.pid << " | " << " IN ] does not exist." << LOG_endl;
             }
         }
     }
@@ -1178,12 +1179,12 @@ public:
                     found = true;
                 else if (vres[j].val == key.vid && found) {
                     logstream(LOG_ERROR) << "In the value part of type index [ 0 | " << tres[i].val
-                         << " | IN ]" << " there is duplicate value " << key.vid << LOG_endl;
+                                         << " | IN ]" << " there is duplicate value " << key.vid << LOG_endl;
                 }
             }
             if (!found) {
                 logstream(LOG_ERROR) << "In the value part of type index [ 0 | " << tres[i].val
-                     << " | IN ]" << " there is no value " << key.vid << LOG_endl;
+                                     << " | IN ]" << " there is no value " << key.vid << LOG_endl;
             }
         }
     }
@@ -1200,13 +1201,13 @@ public:
                 found = true;
             else if (vres[i].val == key.vid && found) {
                 logstream(LOG_ERROR) << "In the value part of predicate index [ 0 | " << key.pid
-                     << " | " << dir << " ]" << " there is duplicate value " << key.vid << LOG_endl;
+                                     << " | " << dir << " ]" << " there is duplicate value " << key.vid << LOG_endl;
                 break;
             }
         }
         if (!found) {
             logstream(LOG_ERROR) << "In the value part of predicate index [ 0 | " << key.pid
-                 << " | " << dir << " ]" << " there is no value " << key.vid << LOG_endl;
+                                 << " | " << dir << " ]" << " there is no value " << key.vid << LOG_endl;
         }
     }
 
@@ -1215,14 +1216,14 @@ public:
         if (!check)
             return;
         uint64_t vsz = 0;
-        edge_t *vres = get_edges_local(0, 0, OUT, TYPE_ID, &vsz); //(1)[IN]/(2)
+        edge_t *vres = get_edges_local(0, 0, OUT, TYPE_ID, &vsz); // (1)[IN]/(2)
         bool found = false;
         for (int i = 0; i < vsz; i++) {
             if (vres[i].val == key.pid && !found)
                 found = true;
             else if (vres[i].val == key.pid && found) {
                 logstream(LOG_ERROR) << "In the value part of all local types [ 0 | TYPE_ID | OUT ]"
-                     << " there is duplicate value " << key.pid << LOG_endl;
+                                     << " there is duplicate value " << key.pid << LOG_endl;
             }
         }
         if (!found) {
@@ -1234,21 +1235,21 @@ public:
                     found = true;
                 else if (pres[i].val == key.pid && found) {
                     logstream(LOG_ERROR) << "In the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
-                         << " there is duplicate value " << key.pid << LOG_endl;
+                                         << " there is duplicate value " << key.pid << LOG_endl;
                     break;
                 }
             }
             if (!found) {
                 logstream(LOG_ERROR) << "if " << key.pid << "is predicate, in the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
-                     << " there is no value " << key.pid << LOG_endl;
+                                     << " there is NO value " << key.pid << LOG_endl;
                 logstream(LOG_ERROR) << "if " << key.pid << " is type, in the value part of all local types [ 0 | TYPE_ID | OUT ]"
-                     << " there is no value " << key.pid << LOG_endl;
+                                     << " there is NO value " << key.pid << LOG_endl;
             }
             uint64_t vsz = 0;
             edge_t *vres = get_edges_local(0, 0, IN, key.pid, &vsz);
             if (vsz == 0) {
                 logstream(LOG_ERROR) << "if " << key.pid << " is type, in the value part of all local types [ 0 | TYPE_ID | OUT ]"
-                     << " there is no value " << key.pid << LOG_endl;
+                                     << " there is NO value " << key.pid << LOG_endl;
                 return;
             }
             for (int i = 0; i < vsz; i++) {
@@ -1260,13 +1261,13 @@ public:
                         found = true;
                     else if (sores[j].val == vres[i].val && found) {
                         logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
-                             << " there is duplicate value " << vres[i].val << LOG_endl;
+                                             << " there is duplicate value " << vres[i].val << LOG_endl;
                         break;
                     }
                 }
                 if (!found) {
                     logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
-                         << " there is no value " << vres[i].val << LOG_endl;
+                                         << " there is no value " << vres[i].val << LOG_endl;
                 }
                 found = false;
                 uint64_t p2sz = 0;
@@ -1276,13 +1277,15 @@ public:
                         found = true;
                     else if (p2res[j].val == key.pid && found) {
                         logstream(LOG_ERROR) << "In the value part of " << vres[i].val << "'s all predicates [ "
-                             << vres[i].val << " | PREDICATE_ID | OUT ], there is duplicate value " << key.pid << LOG_endl;
+                                             << vres[i].val << " | PREDICATE_ID | OUT ], there is duplicate value "
+                                             << key.pid << LOG_endl;
                         break;
                     }
                 }
                 if (!found) {
                     logstream(LOG_ERROR) << "In the value part of " << vres[i].val << "'s all predicates [ "
-                         << vres[i].val << " | PREDICATE_ID | OUT ], there is no value " << key.pid << LOG_endl;
+                                         << vres[i].val << " | PREDICATE_ID | OUT ], there is no value "
+                                         << key.pid << LOG_endl;
                 }
             }
         }
@@ -1299,13 +1302,13 @@ public:
                 found = true;
             else if (pres[i].val == key.pid && found) {
                 logstream(LOG_ERROR) << "In the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
-                     << " there is duplicate value " << key.pid << LOG_endl;
+                                     << " there is duplicate value " << key.pid << LOG_endl;
                 break;
             }
         }
         if (!found) {
             logstream(LOG_ERROR) << "In the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
-                 << " there is no value " << key.pid << LOG_endl;
+                                 << " there is no value " << key.pid << LOG_endl;
         }
         uint64_t vsz = 0;
         edge_t *vres = get_edges_local(0, 0, OUT, key.pid, &vsz);
@@ -1318,13 +1321,13 @@ public:
                     found = true;
                 else if (sores[j].val == vres[i].val && found) {
                     logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
-                         << " there is duplicate value " << vres[i].val << LOG_endl;
+                                         << " there is duplicate value " << vres[i].val << LOG_endl;
                     break;
                 }
             }
             if (!found) {
                 logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
-                     << " there is no value " << vres[i].val << LOG_endl;
+                                     << " there is no value " << vres[i].val << LOG_endl;
             }
             found = false;
             uint64_t psz = 0;
@@ -1334,13 +1337,15 @@ public:
                     found = true;
                 else if (pres[j].val == key.pid && found) {
                     logstream(LOG_ERROR) << "In the value part of " << vres[i].val << "'s all predicates [ "
-                         << vres[i].val << "PREDICATE_ID | IN ], there is duplicate value " << key.pid << LOG_endl;
+                                         << vres[i].val << "PREDICATE_ID | IN ], there is duplicate value "
+                                         << key.pid << LOG_endl;
                     break;
                 }
             }
             if (!found) {
                 logstream(LOG_ERROR) << "In the value part of " << vres[i].val << "'s all predicates [ "
-                     << vres[i].val << "PREDICATE_ID | IN ], there is no value " << key.pid << LOG_endl;
+                                     << vres[i].val << "PREDICATE_ID | IN ], there is no value "
+                                     << key.pid << LOG_endl;
             }
         }
     }
@@ -1355,14 +1360,18 @@ public:
             if (pres[i].val == key.pid && !found)
                 found = true;
             else if (pres[i].val == key.pid && found) {
-                logstream(LOG_ERROR) << "In the value part of " << key.vid << "'s all predicates [ "
-                     << key.vid << "PREDICATE_ID | OUT ], there is duplicate value " << key.pid << LOG_endl;
+                logstream(LOG_ERROR) << "In the value part of "
+                                     << key.vid << "'s all predicates [ "
+                                     << key.vid << "PREDICATE_ID | OUT ], there is DUPLICATE value "
+                                     << key.pid << LOG_endl;
                 break;
             }
         }
         if (!found) {
-            logstream(LOG_ERROR) << "In the value part of " << key.vid << "'s all predicates [ "
-                 << key.vid << "PREDICATE_ID | OUT ], there is no value " << key.pid << LOG_endl;
+            logstream(LOG_ERROR) << "In the value part of "
+                                 << key.vid << "'s all predicates [ "
+                                 << key.vid << "PREDICATE_ID | OUT ], there is NO value "
+                                 << key.pid << LOG_endl;
         }
         found = false;
         uint64_t ossz = 0;
@@ -1372,13 +1381,13 @@ public:
                 found = true;
             else if (osres[i].val == key.vid && found) {
                 logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
-                     << " there is duplicate value " << key.vid << LOG_endl;
+                                     << " there is DUPLICATE value " << key.vid << LOG_endl;
                 break;
             }
         }
         if (!found) {
             logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
-                 << " there is no value " << key.vid << LOG_endl;
+                                 << " there is NO value " << key.vid << LOG_endl;
         }
     }
 #endif // VERSATILE
@@ -1418,8 +1427,9 @@ public:
                 }
             }
         }
-        logstream(LOG_INFO) << "Server " << sid << " has checked " << ivertex_num << " index vertices"
-             << " and " << nvertex_num << " normal vertices." << LOG_endl;
+        logstream(LOG_INFO) << "Server#" << sid << " has checked "
+                            << ivertex_num << " index vertices and "
+                            << nvertex_num << " normal vertices." << LOG_endl;
         return 0;
     }
 
@@ -1468,7 +1478,7 @@ public:
     }
 
     // get vertex attributes
-    bool get_vertex_attr_global(int tid, sid_t vid, dir_t d , sid_t pid, attr_t &r) {
+    bool get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &r) {
         if (sid == mymath::hash_mod(vid, global_num_servers))
             return get_vertex_attr_local(tid, vid, d, pid, r);
         else
@@ -1608,11 +1618,11 @@ public:
         }
 
         logstream(LOG_INFO) << "main header: " << B2MiB(num_buckets * ASSOCIATIVITY * sizeof(vertex_t))
-             << " MB (" << num_buckets * ASSOCIATIVITY << " slots)" << LOG_endl;
+                            << " MB (" << num_buckets * ASSOCIATIVITY << " slots)" << LOG_endl;
         logstream(LOG_INFO) << "\tused: " << 100.0 * used_slots / (num_buckets * ASSOCIATIVITY)
-             << " % (" << used_slots << " slots)" << LOG_endl;
+                            << " % (" << used_slots << " slots)" << LOG_endl;
         logstream(LOG_INFO) << "\tchain: " << 100.0 * num_buckets / (num_buckets * ASSOCIATIVITY)
-             << " % (" << num_buckets << " slots)" << LOG_endl;
+                            << " % (" << num_buckets << " slots)" << LOG_endl;
 
         used_slots = 0;
         for (uint64_t x = num_buckets; x < num_buckets + last_ext; x++) {
@@ -1625,19 +1635,19 @@ public:
         }
 
         logstream(LOG_INFO) << "indirect header: " << B2MiB(num_buckets_ext * ASSOCIATIVITY * sizeof(vertex_t))
-             << " MB (" << num_buckets_ext * ASSOCIATIVITY << " slots)" << LOG_endl;
+                            << " MB (" << num_buckets_ext * ASSOCIATIVITY << " slots)" << LOG_endl;
         logstream(LOG_INFO) << "\talloced: " << 100.0 * last_ext / num_buckets_ext
-             << " % (" << last_ext << " buckets)" << LOG_endl;
+                            << " % (" << last_ext << " buckets)" << LOG_endl;
         logstream(LOG_INFO) << "\tused: " << 100.0 * used_slots / (num_buckets_ext * ASSOCIATIVITY)
-             << " % (" << used_slots << " slots)" << LOG_endl;
+                            << " % (" << used_slots << " slots)" << LOG_endl;
 
         logstream(LOG_INFO) << "entry: " << B2MiB(num_entries * sizeof(edge_t))
-             << " MB (" << num_entries << " entries)" << LOG_endl;
+                            << " MB (" << num_entries << " entries)" << LOG_endl;
 #if DYNAMIC_GSTORE
         edge_allocator->print_memory_usage();
 #else
         logstream(LOG_INFO) << "\tused: " << 100.0 * last_entry / num_entries
-             << " % (" << last_entry << " entries)" << LOG_endl;
+                            << " % (" << last_entry << " entries)" << LOG_endl;
 #endif
 
         uint64_t sz = 0;

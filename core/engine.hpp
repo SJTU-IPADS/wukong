@@ -711,8 +711,9 @@ private:
                 break;
             default:
                 logstream(LOG_ERROR) << "unsupported triple pattern with unknown predicate "
-                     << "(" << req.result.variable_type(start) << "|" << req.result.variable_type(end) << ")"
-                     << LOG_endl;
+                                     << "(" << req.result.variable_type(start)
+                                     << "|" << req.result.variable_type(end)
+                                     << ")" << LOG_endl;
                 assert(false);
             }
             return true;
@@ -735,8 +736,9 @@ private:
                 break;
             default:
                 logstream(LOG_ERROR) << "unsupported triple pattern with attribute "
-                     << "(" << req.result.variable_type(start) << "|" << req.result.variable_type(end) << ")"
-                     << LOG_endl;
+                                     << "(" << req.result.variable_type(start)
+                                     << "|" << req.result.variable_type(end)
+                                     << ")" << LOG_endl;
                 assert(false);
             }
             return true;
@@ -748,10 +750,10 @@ private:
 
         // start from const
         case const_pair(const_var, const_var):
-            logstream(LOG_ERROR) << "ERROR: unsupported triple pattern (from const to const)" << LOG_endl;
+            logstream(LOG_ERROR) << "unsupported triple pattern (from const to const)" << LOG_endl;
             assert(false);
         case const_pair(const_var, known_var):
-            logstream(LOG_ERROR) << "ERROR: unsupported triple pattern (from const to known)" << LOG_endl;
+            logstream(LOG_ERROR) << "unsupported triple pattern (from const to known)" << LOG_endl;
             assert(false);
         case const_pair(const_var, unknown_var):
             const_to_unknown(req);
@@ -772,14 +774,14 @@ private:
         case const_pair(unknown_var, const_var):
         case const_pair(unknown_var, known_var):
         case const_pair(unknown_var, unknown_var):
-            logstream(LOG_ERROR) << "ERROR: unsupported triple pattern (from unknown)" << LOG_endl;
+            logstream(LOG_ERROR) << "unsupported triple pattern (from unknown)" << LOG_endl;
             assert(false);
 
         default:
-            logstream(LOG_ERROR) << "ERROR: unsupported triple pattern with known predicate "
-                 << "(" << req.result.variable_type(start)
-                 << "|" << req.result.variable_type(end)
-                 << ")" << LOG_endl;
+            logstream(LOG_ERROR) << "unsupported triple pattern with known predicate "
+                                 << "(" << req.result.variable_type(start)
+                                 << "|" << req.result.variable_type(end)
+                                 << ")" << LOG_endl;
             assert(false);
         }
 

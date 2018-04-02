@@ -514,9 +514,9 @@ public:
         logstream(LOG_INFO) << "patterns:" << LOG_endl;
         for (int i = 0; i < group.patterns.size(); i++) {
             logstream(LOG_INFO) << group.patterns[i].subject << "\t"
-                 << group.patterns[i].predicate << "\t"
-                 << group.patterns[i].direction << "\t"
-                 << group.patterns[i].object << LOG_endl;
+                                << group.patterns[i].predicate << "\t"
+                                << group.patterns[i].direction << "\t"
+                                << group.patterns[i].object << LOG_endl;
         }
         logstream(LOG_INFO) << "unions:" << LOG_endl;
         for (int i = 0; i < group.unions.size(); i++) {

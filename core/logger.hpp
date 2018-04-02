@@ -172,18 +172,18 @@ public:
         logstream(LOG_INFO) << "Range Throughput (K queries/sec)" << LOG_endl;
         for (int i = 0; i < thpts.size(); i++)
             logstream(LOG_INFO) << "[" << (print_interval * i) / 1000 << "ms ~ "
-                 << print_interval * (i + 1) / 1000 << "ms)\t"
-                 << (float)thpts[i] / (print_interval / 1000) << LOG_endl;
+                                << print_interval * (i + 1) / 1000 << "ms)\t"
+                                << (float)thpts[i] / (print_interval / 1000) << LOG_endl;
 #endif
         assert(is_aggregated);
         vector<double> cdf_rates = {0.01};
 
-        for (int i = 1; i < 20; ++i) {
+        for (int i = 1; i < 20; ++i)
             cdf_rates.push_back(0.05 * i);
-        }
-        for (int i = 1; i <= 5; ++i) {
+
+        for (int i = 1; i <= 5; ++i)
             cdf_rates.push_back(0.95 + i * 0.01);
-        }
+
         assert(cdf_rates.size() == 25);
 
         logstream(LOG_INFO) << "Per-query CDF graph" << LOG_endl;
@@ -214,14 +214,12 @@ public:
 
         logstream(LOG_INFO) << "CDF Res: " << LOG_endl;
         logstream(LOG_INFO) << "P";
-        for (int i = 1; i <= nquery_types; ++i) {
+        for (int i = 1; i <= nquery_types; ++i)
             logstream(LOG_INFO) << "\t" << "Q" << i;
-        }
         logstream(LOG_INFO) << LOG_endl;
 
         // print cdf data
-        int row, p;
-        for (row = 1; row <= 25; ++row) {
+        for (int row = 1; row <= 25; ++row) {
             if (row == 1)
                 logstream(LOG_INFO) << row << "\t";
             else if (row <= 20)
@@ -229,9 +227,8 @@ public:
             else
                 logstream(LOG_INFO) << 95 + (row - 20) << "\t";
 
-            for (int i = 0; i < nquery_types; ++i) {
+            for (int i = 0; i < nquery_types; ++i)
                 logstream(LOG_INFO) << cdf_res[i][row - 1] << "\t";
-            }
             logstream(LOG_INFO) << LOG_endl;
         }
     }

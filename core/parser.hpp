@@ -271,7 +271,7 @@ public:
 
         // check if using custom grammar when planner is on
         if (parser.isUsingCustomGrammar() && global_enable_planner) {
-             logstream(LOG_ERROR)  << "unsupported custom grammar in SPARQL planner!" << LOG_endl;
+            logstream(LOG_ERROR)  << "unsupported custom grammar in SPARQL planner!" << LOG_endl;
             return false;
         }
 

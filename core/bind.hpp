@@ -150,15 +150,15 @@ bool load_core_binding(string fname)
 
 	if (i < nnodes)
 		logstream(LOG_WARNING) << "#bindings (in \'core.bind\') deos not use all of the NUMANODEs!"
-		     << LOG_endl;
+		                       << LOG_endl;
 
 	if (i > nnodes)
 		logstream(LOG_WARNING) << "#bindings (in \'core.bind\') exceeds number of the NUMANODEs!"
-		     << LOG_endl;
+		                       << LOG_endl;
 
 	if (nbs < global_num_threads)
 		logstream(LOG_WARNING) << "#threads (in \'config\') exceeds #bindings (in \'bind\')!"
-		     << LOG_endl;
+		                       << LOG_endl;
 
 	return true;
 }

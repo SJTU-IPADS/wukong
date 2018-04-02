@@ -109,7 +109,7 @@ class DGraph {
 
 		if (dir == NULL) {
 			logstream(LOG_ERROR) << "failed to open the directory of ID-mapping files ("
-			     << dname << ")." << LOG_endl;
+			                     << dname << ")." << LOG_endl;
 			exit(-1);
 		}
 
@@ -175,9 +175,9 @@ class DGraph {
 		if ((exist * 3 + n * 3) * sizeof(sid_t) > kvs_sz) {
 			logstream(LOG_ERROR) << "no enough space to store input data!" << LOG_endl;
 			logstream(LOG_ERROR) << " kvstore size = " << kvs_sz
-			     << " #exist-triples = " << exist
-			     << " #new-triples = " << n
-			     << LOG_endl;
+			                     << " #exist-triples = " << exist
+			                     << " #new-triples = " << n
+			                     << LOG_endl;
 			assert(false);
 		}
 
@@ -479,8 +479,8 @@ class DGraph {
 		if (boost::starts_with(dname, "hdfs:")) {
 			if (!wukong::hdfs::has_hadoop()) {
 				logstream(LOG_ERROR) << "attempting to load data files from HDFS "
-				     << "but Wukong was built without HDFS."
-				     << LOG_endl;
+				                     << "but Wukong was built without HDFS."
+				                     << LOG_endl;
 				exit(-1);
 			}
 
@@ -491,7 +491,7 @@ class DGraph {
 			DIR *dir = opendir(dname.c_str());
 			if (dir == NULL) {
 				logstream(LOG_ERROR) << "failed to open directory (" << dname
-				     << ") at server " << sid << LOG_endl;
+				                     << ") at server " << sid << LOG_endl;
 				exit(-1);
 			}
 
@@ -540,11 +540,11 @@ public:
 
 		if (dfiles.size() == 0) {
 			logstream(LOG_WARNING) << "no data files found in directory (" << dname
-			     << ") at server " << sid << LOG_endl;
+			                       << ") at server " << sid << LOG_endl;
 		} else {
 			logstream(LOG_INFO) << dfiles.size() << " files and " << afiles.size()
-			     << " attributed files found in directory (" << dname
-			     << ") at server " << sid << LOG_endl;
+			                    << " attributed files found in directory (" << dname
+			                    << ") at server " << sid << LOG_endl;
 		}
 
 		// load_data: load partial input files by each server and exchanges triples
@@ -593,8 +593,8 @@ public:
 			vector<triple_attr_t>().swap(triple_sav[t]);
 		}
 		uint64_t t2 = timer::get_usec();
-		logstream(LOG_INFO) << "#" << sid << ": "
-		     << (t2 - t1) / 1000 << "ms for inserting normal data into gstore" << LOG_endl;
+		logstream(LOG_INFO) << "#" << sid << ": " << (t2 - t1) / 1000 << "ms "
+		                    << "for inserting normal data into gstore." << LOG_endl;
 
 		gstore.insert_index();
 		logstream(LOG_INFO) << "#" << sid << ": loading DGraph is finished." << LOG_endl;
@@ -612,12 +612,12 @@ public:
 
 		if (dfiles.size() == 0 && afiles.size() == 0) {
 			logstream(LOG_WARNING) << "no files found in directory (" << dname
-			     << ") at server " << sid << LOG_endl;
+			                       << ") at server " << sid << LOG_endl;
 			return 0;
 		} else {
 			logstream(LOG_INFO) << dfiles.size() << " data files and " << afiles.size()
-			     << " attribute files found in directory (" << dname
-			     << ") at server " << sid << LOG_endl;
+			                    << " attribute files found in directory (" << dname
+			                    << ") at server " << sid << LOG_endl;
 		}
 
 		sort(dfiles.begin(), dfiles.end());
@@ -648,7 +648,7 @@ public:
 			file.close();
 
 			logstream(LOG_INFO) << "load " << cnt << " triples from file " << dfiles[i]
-			     << " at server " << sid << LOG_endl;
+			                    << " at server " << sid << LOG_endl;
 		}
 
 		flush_convertmap(); //clean the id2id mapping
@@ -698,7 +698,7 @@ public:
 			file.close();
 
 			logstream(LOG_INFO) << "load " << cnt << " attributes from file " << afiles[i]
-			     << " at server " << sid << LOG_endl;
+			                    << " at server " << sid << LOG_endl;
 		}
 
 		return 0;

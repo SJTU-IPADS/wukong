@@ -89,7 +89,7 @@ private:
 			req_template.ptypes_grp[i] = candidates;
 
 			logstream(LOG_INFO) << type << " has "
-			     << req_template.ptypes_grp[i].size() << " candidates" << LOG_endl;
+			                    << req_template.ptypes_grp[i].size() << " candidates" << LOG_endl;
 		}
 	}
 
@@ -124,7 +124,7 @@ private:
 		if (!pending_msgs.size()) return;
 
 		logstream(LOG_INFO) << "#" << tid << " " << pending_msgs.size()
-		     << " pending msgs on proxy." << LOG_endl;
+		                    << " pending msgs on proxy." << LOG_endl;
 		for (vector<Message>::iterator it = pending_msgs.begin();
 		        it != pending_msgs.end();) {
 			if (adaptor->send(it->sid, it->tid, it->bundle))
@@ -193,7 +193,7 @@ public:
 		uint64_t t_parse1 = timer::get_usec();
 		if (!parser.parse(is, request)) {
 			logstream(LOG_ERROR) << "Parsing failed! ("
-			     << parser.strerror << ")" << LOG_endl;
+			                     << parser.strerror << ")" << LOG_endl;
 			is.clear();
 			is.seekg(0);
 			return -2; // parsing failed
@@ -239,7 +239,7 @@ public:
 
 		if (ntypes <= 0 || nlights < 0 || nheavies < 0) {
 			logstream(LOG_ERROR) << "[ERROR] invalid #lights (" << nlights << " < 0)"
-			     << " or #heavies (" << nheavies << " < 0)!" << LOG_endl;
+			                     << " or #heavies (" << nheavies << " < 0)!" << LOG_endl;
 			return -2; // parsing failed
 		}
 
