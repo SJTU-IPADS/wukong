@@ -353,7 +353,7 @@ private:
 
         uint64_t sz = 0;
         edge_t *res = graph->get_index_edges_local(tid, tpid, d, &sz);
-        int start = req.tid - 1 - global_num_proxies;
+        int start = req.tid % req.dispatch_factor;
         int length = sz / req.dispatch_factor;
 
         //every thread takes continuous data
@@ -361,7 +361,7 @@ private:
             updated_result_table.push_back(res[k].val);
         //handle corner case of the last thread 
         //because data cannot be divided into several completely equal parts 
-        if(req.tid - global_num_proxies == req.dispatch_factor){
+        if(start == req.dispatch_factor - 1){
             for (uint64_t k = (start + 1) * length; k < sz; k++)
                 updated_result_table.push_back(res[k].val);
         }
@@ -1195,7 +1195,7 @@ out:
                 for (int j = 0; j < dispatch_factor; j++) {
                     sub_query.id = -1;
                     sub_query.pid = r.id;
-                    sub_query.tid = j + 1 + global_num_proxies; // specified engine
+                    sub_query.tid = (tid + j + 1 - global_num_proxies) % global_num_engines + global_num_proxies;
                     sub_query.dispatch_factor = dispatch_factor;
 
                     Bundle bundle(sub_query);
