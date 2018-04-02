@@ -81,7 +81,7 @@ uint64_t vid : NBITS_VID; // vertex
 
     bool is_empty() { return ((vid == 0) && (pid == 0) && (dir == 0)); }
 
-    void print() { logstream(LOG_INFO) << "[" << vid << "|" << pid << "|" << dir << "]" << LOG_endl; }
+    void print_key() { cout << "[" << vid << "|" << pid << "|" << dir << "]" << endl; }
 
     uint64_t hash() {
         uint64_t r = 0;
@@ -296,9 +296,9 @@ private:
                 //assert(vertices[slot_id].key != key); // no duplicate key
                 if (vertices[slot_id].key == key) {
                     if (check_dup) {
-                        key.print();
-                        vertices[slot_id].key.print();
-                        logstream(LOG_ERROR) << "conflict at slot["
+                        key.print_key();
+                        vertices[slot_id].key.print_key();
+                        logstream(LOG_ERROR) << "ERROR: conflict at slot["
                              << slot_id << "] of bucket["
                              << bucket_id << "]" << LOG_endl;
                         assert(false);
@@ -541,15 +541,17 @@ done:
         uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
 
 #if DYNAMIC_GSTORE
-        uint64_t r_sz = blksz(v.ptr.size + 1) * sizeof(edge_t);  //get whole blk
+        uint64_t r_sz = blksz(v.ptr.size + 1) * sizeof(edge_t);  // the size of entire blk
 #else
-        uint64_t r_sz = v.ptr.size * sizeof(edge_t);
+        uint64_t r_sz = v.ptr.size * sizeof(edge_t); // the size of edges
 #endif
+
+        uint64_t buf_sz = mem->buffer_size();
+        assert(r_sz < buf_sz); // enough space to host the edges
 
         RDMA &rdma = RDMA::get_rdma();
         rdma.dev->RdmaRead(tid, dst_sid, buf, r_sz, r_off);
-        edge_t *result_ptr = (edge_t *)buf;
-        return result_ptr;
+        return (edge_t *)buf;
     }
 
     vertex_t get_vertex_remote(int tid, ikey_t key) {
@@ -565,9 +567,11 @@ done:
             return vert; // found
 
         char *buf = mem->buffer(tid);
+        uint64_t buf_sz = mem->buffer_size();
         while (true) {
             uint64_t off = bucket_id * ASSOCIATIVITY * sizeof(vertex_t);
             uint64_t sz = ASSOCIATIVITY * sizeof(vertex_t);
+            assert(sz < buf_sz); // enough space to host the vertices
 
             RDMA &rdma = RDMA::get_rdma();
             rdma.dev->RdmaRead(tid, dst_sid, buf, sz, off);

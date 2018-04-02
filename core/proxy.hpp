@@ -231,18 +231,28 @@ public:
 		int parallel_factor = p;
 		int try_rounds = 5;
 
-		int ntypes;
-		is >> ntypes;
-		if (ntypes <= 0) {
-			logstream(LOG_ERROR) << "invalid #query_types! (" << ntypes << " < 0)" << LOG_endl;
+		// parse the first line of batch config file
+		// [#lights] [#heavies]
+		int nlights, nheavies;
+		is >> nlights >> nheavies;
+		int ntypes = nlights + nheavies;
+
+		if (ntypes <= 0 || nlights < 0 || nheavies < 0) {
+			logstream(LOG_ERROR) << "[ERROR] invalid #lights (" << nlights << " < 0)"
+			     << " or #heavies (" << nheavies << " < 0)!" << LOG_endl;
 			return -2; // parsing failed
 		}
 
-		vector<request_template> tpls(ntypes);
-		vector<int> loads(ntypes);
+		vector<request_template> tpls(nlights);
+		vector<SPARQLQuery> heavy_reqs(nheavies);
 
+		vector<int> loads(ntypes);
 		for (int i = 0; i < ntypes; i++) {
+			// each line is a class of light or heavy query
+			// [fname] [#load]
 			string fname;
+			int load;
+
 			is >> fname;
 			ifstream ifs(fname);
 			if (!ifs) {
@@ -250,32 +260,40 @@ public:
 				return -1; // file not found
 			}
 
-			int load;
 			is >> load;
 			assert(load > 0);
 			loads[i] = load;
 
-			bool success = parser.parse_template(ifs, tpls[i]);
+			// parse the query
+			bool success = i < nlights ?
+			               parser.parse_template(ifs, tpls[i]) : // light query
+			               parser.parse(ifs, heavy_reqs[i - nlights]); // heavy query
+
 			if (!success) {
 				logstream(LOG_ERROR) << "Template parsing failed!" << LOG_endl;
 				return -2; // parsing failed
 			}
 
-			fill_template(tpls[i]);
+			// generate a template for each class of light query
+			if (i < nlights)
+				fill_template(tpls[i]);
 		}
 
 		logger.init(ntypes);
 
-		bool timing = false;
+		bool start = false;
 		uint64_t send_cnt = 0, recv_cnt = 0, flying_cnt = 0;
+
 		uint64_t init = timer::get_usec();
 		while ((timer::get_usec() - init) < duration) {
 			// send requests
-			for (int t = 0; t < parallel_factor - flying_cnt; t++) {
+			for (int i = 0; i < parallel_factor - flying_cnt; i++) {
 				sweep_msgs(); // sweep pending msgs first
 
 				int idx = mymath::get_distribution(coder.get_random(), loads);
-				SPARQLQuery request = tpls[idx].instantiate(coder.get_random());
+				SPARQLQuery request = idx < nlights ?
+				                      tpls[idx].instantiate(coder.get_random()) : // light query
+				                      heavy_reqs[idx - nlights]; // heavy query
 				if (global_enable_planner)
 					planner.generate_plan(request, statistic);
 				setpid(request);
@@ -299,9 +317,9 @@ public:
 			logger.print_timely_thpt(recv_cnt, sid, tid);
 
 			// skip warmup
-			if (!timing && (timer::get_usec() - init) > warmup) {
+			if (!start && (timer::get_usec() - init) > warmup) {
 				logger.start_thpt(recv_cnt);
-				timing = true;
+				start = true;
 			}
 
 			flying_cnt = send_cnt - recv_cnt;
