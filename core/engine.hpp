@@ -353,15 +353,15 @@ private:
 
         uint64_t sz = 0;
         edge_t *res = graph->get_index_edges_local(tid, tpid, d, &sz);
-        int start = req.tid % req.dispatch_factor;
-        int length = sz / req.dispatch_factor;
+        int start = req.tid % req.mt_factor;
+        int length = sz / req.mt_factor;
 
         //every thread takes continuous data
         for (uint64_t k = start * length; k < (start + 1) * length; k++)
             updated_result_table.push_back(res[k].val);
         //handle corner case of the last thread 
         //because data cannot be divided into several completely equal parts 
-        if(start == req.dispatch_factor - 1){
+        if(start == req.mt_factor - 1){
             for (uint64_t k = (start + 1) * length; k < sz; k++)
                 updated_result_table.push_back(res[k].val);
         }
@@ -1186,17 +1186,17 @@ out:
                     && global_mt_threshold * global_num_servers > 1)) {
             //if global_silent is on, merging result will take about half time of execution
             //so if it is on, current strategy will only send queries to other threads. 
-            int dispatch_factor = global_silent?global_mt_threshold:global_mt_threshold - 1;
-            int sub_reqs_size = global_num_servers * dispatch_factor;            
+            int mt_factor = global_silent?global_mt_threshold:global_mt_threshold - 1;
+            int sub_reqs_size = global_num_servers * mt_factor;            
             rmap.put_parent_request(r, sub_reqs_size);
             SPARQLQuery sub_query = r;
             sub_query.force_dispatch = false;
             for (int i = 0; i < global_num_servers; i++) {
-                for (int j = 0; j < dispatch_factor; j++) {
+                for (int j = 0; j < mt_factor; j++) {
                     sub_query.id = -1;
                     sub_query.pid = r.id;
                     sub_query.tid = (tid + j + 1 - global_num_proxies) % global_num_engines + global_num_proxies;
-                    sub_query.dispatch_factor = dispatch_factor;
+                    sub_query.mt_factor = mt_factor;
 
                     Bundle bundle(sub_query);
                     send_request(bundle, i, sub_query.tid);
