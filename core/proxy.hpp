@@ -161,6 +161,11 @@ public:
 	void send_request(SPARQLQuery &r) {
 		assert(r.pid != -1);
 
+		// set mt_factor
+		if(r.start_from_index()){
+			r.mt_factor = global_mt_threshold;
+		}
+
 		// submit the request to a certain server
 		ssid_t start = r.pattern_group.patterns.size() > 0 ?
 		               r.pattern_group.patterns[0].subject : r.pattern_group.unions[0].patterns[0].subject;

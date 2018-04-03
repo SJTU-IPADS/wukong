@@ -1182,21 +1182,21 @@ out:
         if (r.force_dispatch
                 || (r.step == 0
                     && coder.tid_of(r.pid) < global_num_proxies
-                    && r.start_from_index()
+                    && r.mt_factor > 1
                     && global_mt_threshold * global_num_servers > 1)) {
-            //if global_silent is on, merging result will take about half time of execution
-            //so if it is on, current strategy will only send queries to other threads. 
-            int mt_factor = global_silent?global_mt_threshold:global_mt_threshold - 1;
-            int sub_reqs_size = global_num_servers * mt_factor;            
+            //mt_factor can be set on proxy side before sending to engine
+            //default value: global_mt_threshold
+            //normally we will NOT let global_mt_threshold == number of all engines, which will cause HANG
+            int sub_reqs_size = global_num_servers * r.mt_factor;            
             rmap.put_parent_request(r, sub_reqs_size);
             SPARQLQuery sub_query = r;
             sub_query.force_dispatch = false;
             for (int i = 0; i < global_num_servers; i++) {
-                for (int j = 0; j < mt_factor; j++) {
+                for (int j = 0; j < r.mt_factor; j++) {
                     sub_query.id = -1;
                     sub_query.pid = r.id;
                     sub_query.tid = (tid + j + 1 - global_num_proxies) % global_num_engines + global_num_proxies;
-                    sub_query.mt_factor = mt_factor;
+                    sub_query.mt_factor = r.mt_factor;
 
                     Bundle bundle(sub_query);
                     send_request(bundle, i, sub_query.tid);
