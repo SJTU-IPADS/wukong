@@ -61,6 +61,9 @@ private:
 
 public:
     class Pattern {
+    private:
+        friend class boost::serialization::access;
+
     public:
         ssid_t subject;
         ssid_t predicate;
@@ -76,11 +79,22 @@ public:
         Pattern(ssid_t subject, ssid_t predicate, ssid_t direction, ssid_t object):
             subject(subject), predicate(predicate), object(object), direction((dir_t)direction) { }
 
-    private:
-        friend class boost::serialization::access;
+        void print_pattern() { }
     };
 
     class Filter {
+    private:
+        friend class boost::serialization::access;
+        template <typename Archive>
+        void serialize(Archive &ar, const unsigned int version) {
+            ar & type;
+            ar & arg1;
+            ar & arg2;
+            ar & arg3;
+            ar & value;
+            ar & valueArg;
+        }
+
     public:
         enum Type {Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,
                    GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,
@@ -131,33 +145,41 @@ public:
 
             logstream(LOG_INFO) << "------------------------------------------------------" << LOG_endl;
         }
-
-    private:
-        friend class boost::serialization::access;
-
-        template <typename Archive>
-        void serialize(Archive &ar, const unsigned int version) {
-            ar & type;
-            ar & arg1;
-            ar & arg2;
-            ar & arg3;
-            ar & value;
-            ar & valueArg;
-        }
     };
 
     class PatternGroup {
+    private:
+        friend class boost::serialization::access;
+
     public:
         vector<Pattern> patterns;
         vector<Filter> filters;
         vector<PatternGroup> optional;
         vector<PatternGroup> unions;
 
-    private:
-        friend class boost::serialization::access;
+        void print_group() {
+            logstream(LOG_INFO) << "patterns[" << patterns.size() << "]:" << LOG_endl;
+            for (auto &p : patterns)
+                logstream(LOG_INFO) << "\t" << p.subject
+                                    << "\t" << p.predicate
+                                    << "\t" << p.direction
+                                    << "\t" << p.object << LOG_endl;
+
+            logstream(LOG_INFO) << "unions[" << unions.size() << "]:" << LOG_endl;
+            for (auto &g : unions)
+                g.print_group();
+        }
     };
 
     class Order {
+    private:
+        friend class boost::serialization::access;
+        template <typename Archive>
+        void serialize(Archive &ar, const unsigned int version) {
+            ar & id;
+            ar & descending;
+        }
+
     public:
         ssid_t id;  /// variable id
         bool descending;    /// desending
@@ -166,19 +188,12 @@ public:
 
         Order(ssid_t _id, bool _descending)
             : id(_id), descending(_descending) { }
-
-    private:
-        friend class boost::serialization::access;
-
-        template <typename Archive>
-        void serialize(Archive &ar, const unsigned int version) {
-            ar & id;
-            ar & descending;
-        }
     };
 
     class Result {
     private:
+        friend class boost::serialization::access;
+
         void output_result(ostream &stream, int size, String_Server *str_server) {
             for (int i = 0; i < size; i++) {
                 stream << i + 1 << ": ";
@@ -199,7 +214,6 @@ public:
             }
         }
 
-        friend class boost::serialization::access;
     public:
         int col_num = 0;
         int row_num = 0;
@@ -320,30 +334,30 @@ public:
                 for (int j = 0; j < result.row_num; j++) {
                     // check if common_cols match
                     bool same_common = true;
-                    for (auto common_col : common_cols) {
+                    for (auto &common_col : common_cols) {
                         if (result.result_table[j * result.col_num + col_map[common_col]]
                                 != this->result_table[i * old_col_num + common_col]) {
                             same_common = false;
                             break;
                         }
                     }
+
                     if (same_common) {
                         printed = true;
                         new_table.insert(new_table.end(),
                                          this->result_table.begin() + (i * old_col_num),
                                          this->result_table.begin() + ((i + 1) * old_col_num));
-                        for (auto new_col : new_cols) {
+                        for (auto &new_col : new_cols)
                             new_table.push_back(result.result_table[j * result.col_num + col_map[new_col]]);
-                        }
                     }
                 }
+
                 if (!printed) {
                     new_table.insert(new_table.end(),
                                      this->result_table.begin() + (i * old_col_num),
                                      this->result_table.begin() + ((i + 1) * old_col_num));
-                    for (auto new_col : new_cols) {
+                    for (auto &new_col : new_cols)
                         new_table.push_back(BLANK_ID);
-                    }
                 }
             }
             this->result_table.swap(new_table);
@@ -376,11 +390,10 @@ public:
             this->result_table.reserve(new_size);
             for (int i = 0; i < result.row_num; i++) {
                 for (int j = 0; j < this->col_num; j++) {
-                    if (col_map[j] == -1) {
+                    if (col_map[j] == -1)
                         this->result_table.push_back(BLANK_ID);
-                    } else {
+                    else
                         this->result_table.push_back(result.result_table[i * result.col_num + col_map[j]]);
-                    }
                 }
             }
             new_size = this->attr_res_table.size() + result.attr_res_table.size();
@@ -510,25 +523,13 @@ public:
         return false;
     }
 
-    void print_group(SPARQLQuery::PatternGroup &group) {
-        logstream(LOG_INFO) << "patterns:" << LOG_endl;
-        for (int i = 0; i < group.patterns.size(); i++) {
-            logstream(LOG_INFO) << group.patterns[i].subject << "\t"
-                                << group.patterns[i].predicate << "\t"
-                                << group.patterns[i].direction << "\t"
-                                << group.patterns[i].object << LOG_endl;
-        }
-        logstream(LOG_INFO) << "unions:" << LOG_endl;
-        for (int i = 0; i < group.unions.size(); i++) {
-            print_group(group.unions[i]);
-        }
-    }
-
-    void print_patterns() {
-        logstream(LOG_INFO) << "---- SPARQLQuery ----" << LOG_endl;
-        logstream(LOG_INFO) << "id: " << id << ", pid: " << pid << ", tid: " << tid << LOG_endl;
-        print_group(pattern_group);
-        logstream(LOG_INFO) << "---------------------" << LOG_endl;
+    void print_sparql_query() {
+        logstream(LOG_INFO) << "SPARQL-Query"
+                            << "[ ID=" << id << " | PID=" << pid << " | TID=" << tid << " ]"
+                            << LOG_endl;
+        pattern_group.print_group();
+        /// TODO: print more fields
+        logstream(LOG_INFO) << LOG_endl;
     }
 };
 

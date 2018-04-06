@@ -1209,7 +1209,7 @@ out:
             return;
         }
 
-        while (true) {
+        do {
             uint64_t t1 = timer::get_usec();
             execute_one_step(r);
             t1 = timer::get_usec() - t1;
@@ -1219,7 +1219,7 @@ out:
                 do_corun(r);
 
             if (r.is_finished()) {
-                // union, when union or optional occurs, filters will be delayed till they are processed.
+                // Union, when Union or Optional occurs, Filters will be delayed till they are processed.
                 if (r.is_union()) {
                     vector<SPARQLQuery> union_reqs = generate_union_query(r);
                     rmap.put_parent_request(r, union_reqs.size());
@@ -1275,7 +1275,8 @@ out:
                 }
                 return;
             }
-        }
+        } while (true);
+
         return;
     }
 
@@ -1283,27 +1284,31 @@ out:
         pthread_spin_lock(&engine->rmap_lock);
         engine->rmap.put_reply(r);
 
-        if (engine->rmap.is_ready(r.pid)) {
-            SPARQLQuery reply = engine->rmap.get_merged_reply(r.pid);
+        if (!engine->rmap.is_ready(r.pid)) {
             pthread_spin_unlock(&engine->rmap_lock);
-
-            // optional will be processed after union , and filter follows.
-            if (reply.is_optional() || (!reply.is_optional() && reply.is_union()))
-                filter(reply);
-
-            // if all data has been merged and next will be sent back to proxy
-            if (coder.tid_of(reply.pid) < global_num_proxies) {
-                if (reply.is_optional() && !reply.optional_dispatched) {
-                    execute_optional(reply);
-                    return;
-                }
-                final_process(reply);
-            }
-            Bundle bundle(reply);
-            send_request(bundle, coder.sid_of(reply.pid), coder.tid_of(reply.pid));
-        } else {
-            pthread_spin_unlock(&engine->rmap_lock);
+            return; // not ready (waiting for the rest)
         }
+
+        // All sub-queries have done, prepare a reply message
+        SPARQLQuery reply = engine->rmap.get_merged_reply(r.pid);
+        pthread_spin_unlock(&engine->rmap_lock);
+
+        // Optional will be processed after Union, and Filter follows.
+        if (reply.is_optional()
+                || (!reply.is_optional() && reply.is_union()))
+            filter(reply);
+
+        // if all data has been merged and next will be sent back to proxy
+        if (coder.tid_of(reply.pid) < global_num_proxies) {
+            if (reply.is_optional() && !reply.optional_dispatched) {
+                execute_optional(reply);
+                return;
+            }
+            final_process(reply);
+        }
+
+        Bundle bundle(reply);
+        send_request(bundle, coder.sid_of(reply.pid), coder.tid_of(reply.pid));
     }
 
     void execute_sparql_query(SPARQLQuery &r, Engine *engine) {

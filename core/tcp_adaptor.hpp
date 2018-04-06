@@ -81,10 +81,10 @@ public:
     }
 
     ~TCP_Adaptor() {
-        for (auto r : receivers)
+        for (auto &r : receivers)
             if (r != NULL) delete r;
 
-        for (auto s : senders) {
+        for (auto &s : senders) {
             if (s.second != NULL) {
                 delete s.second;
                 s.second = NULL;
