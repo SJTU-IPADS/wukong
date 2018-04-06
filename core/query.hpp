@@ -551,6 +551,48 @@ public:
     }
 };
 
+
+/**
+ * SPARQL query template
+ */
+class request_template {
+private:
+    // no serialize
+
+public:
+    SPARQLQuery::PatternGroup pattern_group;
+
+    int nvars;  // the number of variable in triple patterns
+
+    vector<string> ptypes_str; // the Types of random-constants
+    vector<int> ptypes_pos; // the locations of random-constants
+
+    vector<vector<sid_t>> ptypes_grp; // the candidates for random-constants
+
+    SPARQLQuery instantiate(int seed) {
+        for (int i = 0; i < ptypes_pos.size(); i++) {
+            int pos = ptypes_pos[i];
+            switch (pos % 4) {
+            case 0:
+                pattern_group.patterns[pos / 4].subject =
+                    ptypes_grp[i][seed % ptypes_grp[i].size()];
+                break;
+            case 1:
+                pattern_group.patterns[pos / 4].predicate =
+                    ptypes_grp[i][seed % ptypes_grp[i].size()];
+                break;
+            case 3:
+                pattern_group.patterns[pos / 4].object =
+                    ptypes_grp[i][seed % ptypes_grp[i].size()];
+                break;
+            }
+        }
+
+        return SPARQLQuery(pattern_group, nvars);
+    }
+};
+
+
 /**
  * GStore consistency checker
  */
@@ -667,7 +709,7 @@ void load(Archive &ar, SPARQLQuery::PatternGroup &t, unsigned int version) {
 }
 
 template<class Archive>
-void save(Archive & ar, const SPARQLQuery::Result & t, unsigned int version) {
+void save(Archive &ar, const SPARQLQuery::Result &t, unsigned int version) {
     ar << t.col_num;
     ar << t.row_num;
     ar << t.attr_col_num;
@@ -686,7 +728,7 @@ void save(Archive & ar, const SPARQLQuery::Result & t, unsigned int version) {
 }
 
 template<class Archive>
-void load(Archive & ar, SPARQLQuery::Result & t, unsigned int version) {
+void load(Archive & ar, SPARQLQuery::Result &t, unsigned int version) {
     char temp = 2;
     ar >> t.col_num;
     ar >> t.row_num;
@@ -703,7 +745,7 @@ void load(Archive & ar, SPARQLQuery::Result & t, unsigned int version) {
 }
 
 template<class Archive>
-void save(Archive & ar, const SPARQLQuery & t, unsigned int version) {
+void save(Archive & ar, const SPARQLQuery &t, unsigned int version) {
     ar << t.id;
     ar << t.pid;
     ar << t.tid;
@@ -729,7 +771,7 @@ void save(Archive & ar, const SPARQLQuery & t, unsigned int version) {
 }
 
 template<class Archive>
-void load(Archive & ar, SPARQLQuery & t, unsigned int version) {
+void load(Archive & ar, SPARQLQuery &t, unsigned int version) {
     char temp = 2;
     ar >> t.id;
     ar >> t.pid;
@@ -874,42 +916,5 @@ public:
         GStoreCheck result;
         ia >> result;
         return result;
-    }
-};
-
-/**
- * SPARQL query template
- */
-class request_template {
-public:
-    SPARQLQuery::PatternGroup pattern_group;
-
-    int nvars;  // the number of variable in triple patterns
-
-    // no serialize
-    vector<int> ptypes_pos; // the locations of random-constants
-    vector<string> ptypes_str; // the Types of random-constants
-    vector<vector<sid_t>> ptypes_grp; // the candidates for random-constants
-
-    SPARQLQuery instantiate(int seed) {
-        for (int i = 0; i < ptypes_pos.size(); i++) {
-            int pos = ptypes_pos[i];
-            switch (pos % 4) {
-            case 0:
-                pattern_group.patterns[pos / 4].subject =
-                    ptypes_grp[i][seed % ptypes_grp[i].size()];
-                break;
-            case 1:
-                pattern_group.patterns[pos / 4].predicate =
-                    ptypes_grp[i][seed % ptypes_grp[i].size()];
-                break;
-            case 3:
-                pattern_group.patterns[pos / 4].object =
-                    ptypes_grp[i][seed % ptypes_grp[i].size()];
-                break;
-            }
-        }
-
-        return SPARQLQuery(pattern_group, nvars);
     }
 };

@@ -131,19 +131,23 @@ private:
     }
 
     /// SPARQLParser::PatternGroup to SPARQLQuery::PatternGroup
-    void transfer_patterns(SPARQLParser::PatternGroup &src, SPARQLQuery::PatternGroup &dest) {
+    void transfer_patterns(SPARQLParser::PatternGroup &src,
+                           SPARQLQuery::PatternGroup &dest) {
         // Patterns
-        for (auto const &src_p : src.patterns) {
-            SPARQLQuery::Pattern pattern(transfer_element(src_p.subject),
-                                         transfer_element(src_p.predicate),
-                                         src_p.direction,
-                                         transfer_element(src_p.object));
-            int type =  str_server->pid2type[transfer_element(src_p.predicate)];
-            if (type > 0 && (!global_enable_vattr)) {
+        for (auto const &p : src.patterns) {
+            ssid_t subject = transfer_element(p.subject);
+            ssid_t predicate = transfer_element(p.predicate);
+            dir_t direction = (dir_t)p.direction;
+            ssid_t object = transfer_element(p.object);
+            SPARQLQuery::Pattern pattern(subject, predicate, direction, object);
+
+            pattern.pred_type = str_server->pid2type[predicate];
+            if (pattern.pred_type > 0
+                    && !global_enable_vattr) {
                 logstream(LOG_ERROR) << "Need to change config to enable vertex_attr " << LOG_endl;
                 assert(false);
             }
-            pattern.pred_type = str_server->pid2type[transfer_element(src_p.predicate)];
+
             dest.patterns.push_back(pattern);
         }
 
@@ -177,13 +181,14 @@ private:
     }
 
     void transfer(const SPARQLParser &parser, SPARQLQuery &r) {
+        // patterns
         SPARQLParser::PatternGroup group = parser.getPatterns();
         transfer_patterns(group, r.pattern_group);
 
-        // init the var_map
+        // nvars in GP
         r.result.nvars = parser.getVariableCount();
 
-        // required vars
+        // vars in RD
         for (SPARQLParser::projection_iterator iter = parser.projectionBegin();
                 iter != parser.projectionEnd();
                 iter ++)
@@ -221,37 +226,39 @@ private:
         }
     }
 
-    ssid_t _H_push(const SPARQLParser::Element &element, request_template &r, int pos) {
-        ssid_t id = transfer_element(element);
-        if (id == PTYPE_PH) {
-            string strIRI = "<" + element.value + ">";
-            r.ptypes_str.push_back(strIRI);
-            r.ptypes_pos.push_back(pos);
-        }
-        return id;
-    }
-
-    void template_transfer(const SPARQLParser &parser, request_template &r) {
+    void transfer_template(const SPARQLParser &parser, request_template &r) {
         SPARQLParser::PatternGroup group = parser.getPatterns();
         int pos = 0;
-        for (std::vector<SPARQLParser::Pattern>::const_iterator iter = group.patterns.begin(),
-                limit = group.patterns.end(); iter != limit; ++iter) {
-            ssid_t subject = _H_push(iter->subject, r, pos++);
-            ssid_t predicate = transfer_element(iter->predicate); pos++;
-            ssid_t direction = (dir_t)OUT; pos++;
-            ssid_t object = _H_push(iter->object, r, pos++);
+        for (auto &p : group.patterns) {
+            ssid_t subject = transfer_element(p.subject);
+            ssid_t predicate = transfer_element(p.predicate);
+            dir_t direction = (dir_t)OUT;  /// FIXME: different to transfer_pattern()
+            ssid_t object = transfer_element(p.object);
             SPARQLQuery::Pattern pattern(subject, predicate, direction, object);
 
-            int type =  str_server->pid2type[predicate];
-            if (type > 0 && (!global_enable_vattr)) {
+            // template pattern
+            if (subject == PTYPE_PH) {
+                r.ptypes_str.push_back("<" + p.subject.value + ">"); // IRI
+                r.ptypes_pos.push_back(pos + 0); // subject
+            }
+
+            if (object == PTYPE_PH) {
+                r.ptypes_str.push_back("<" + p.object.value + ">"); // IRI
+                r.ptypes_pos.push_back(pos + 3); // object
+            }
+
+            pattern.pred_type = str_server->pid2type[predicate];
+            if (pattern.pred_type > 0
+                    && !global_enable_vattr) {
                 logstream(LOG_ERROR) << "Need to change config to enable vertex_attr " << LOG_endl;
                 assert(false);
             }
-            pattern.pred_type = type;
+
             r.pattern_group.patterns.push_back(pattern);
+            pos += 4;
         }
 
-        // set the number of variables in triple patterns
+        // nvars in GP
         r.nvars = parser.getVariableCount();
     }
 
@@ -261,12 +268,13 @@ public:
 
     Parser(String_Server *_ss): str_server(_ss) {}
 
-    /* Used in single-mode */
+    /// a single query
     bool parse(istream &is, SPARQLQuery &r) {
         // clear intermediate states of parser
         string query = read_input(is);
         SPARQLLexer lexer(query);
         SPARQLParser parser(lexer);
+
         try {
             parser.parse(); //e.g., sparql -f query/lubm_q1
             transfer(parser, r);
@@ -285,14 +293,15 @@ public:
         return true;
     }
 
-    /* Used in batch-mode */
+    /// a class of queries
     bool parse_template(istream &is, request_template &r) {
         string query = read_input(is);
         SPARQLLexer lexer(query);
         SPARQLParser parser(lexer);
+
         try {
             parser.parse();
-            template_transfer(parser, r);
+            transfer_template(parser, r);
         } catch (const SPARQLParser::ParserException &e) {
             logstream(LOG_ERROR) << "failed to parse a SPARQL query: " << e.message << LOG_endl;
             return false;
