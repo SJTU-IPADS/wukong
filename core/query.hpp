@@ -459,8 +459,9 @@ public:
 
     // SPARQL query
     int step = 0;
-    int corun_step = -1;
-    int fetch_step = -1;
+    bool corun_enabled = false;
+    int corun_step = 0;
+    int fetch_step = 0;
     int limit = -1;
     unsigned offset = 0;
     bool distinct = false;

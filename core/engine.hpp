@@ -1215,7 +1215,8 @@ out:
             t1 = timer::get_usec() - t1;
 
             // co-run optimization
-            if (!r.is_finished() && (r.step == r.corun_step))
+            if (!r.is_finished()  /// FIXME: need to check it?
+                    && (r.corun_enabled && (r.step == r.corun_step)))
                 do_corun(r);
 
             if (r.is_finished()) {

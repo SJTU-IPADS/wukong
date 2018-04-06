@@ -73,10 +73,11 @@ private:
     const static ssid_t DUMMY_ID = std::numeric_limits<ssid_t>::min();
     const static ssid_t PREDICATE_ID = 0;
 
-    // str2ID mapping for pattern constants (e.g., <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> 1)
+    // str2id mapping for pattern constants
+    // (e.g., <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> 1)
     String_Server *str_server;
 
-    // translate SPARQLParser::Element to ssid
+    /// SPARQLParser::Element to ssid
     ssid_t transfer_element(const SPARQLParser::Element &element) {
         switch (element.type) {
         case SPARQLParser::Element::Variable:
@@ -110,6 +111,7 @@ private:
         return DUMMY_ID;
     }
 
+    /// SPARQLParser::Filter to SPARQLQuery::Filter
     void transfer_filter(SPARQLParser::Filter &src, SPARQLQuery::Filter &dest) {
         dest.type = (SPARQLQuery::Filter::Type)src.type;
         dest.value = src.value;
@@ -128,8 +130,9 @@ private:
         }
     }
 
+    /// SPARQLParser::PatternGroup to SPARQLQuery::PatternGroup
     void transfer_patterns(SPARQLParser::PatternGroup &src, SPARQLQuery::PatternGroup &dest) {
-        // patterns
+        // Patterns
         for (auto const &src_p : src.patterns) {
             SPARQLQuery::Pattern pattern(transfer_element(src_p.subject),
                                          transfer_element(src_p.predicate),
@@ -144,36 +147,33 @@ private:
             dest.patterns.push_back(pattern);
         }
 
-        // filters
-        if (src.filters.size() > 0) {
-            for (int i = 0; i < src.filters.size(); i++) {
-                dest.filters.push_back(SPARQLQuery::Filter());
-                transfer_filter(src.filters[i], dest.filters.back());
-            }
+        // Filters
+        for (auto &f : src.filters) {
+            dest.filters.push_back(SPARQLQuery::Filter());
+            transfer_filter(f, dest.filters.back());
         }
 
-        // unions
-        if (src.unions.size() > 0) {
-            int i = 0;
-            for (auto &union_group : src.unions) {
-                dest.unions.push_back(SPARQLQuery::PatternGroup());
-                transfer_patterns(union_group, dest.unions.back());
-                dest.unions[i].patterns.insert(dest.unions[i].patterns.end(),
-                                               dest.patterns.begin(), dest.patterns.end());
-                i++;
-            }
-            dest.patterns.clear();
+        // Unions
+        int i = 0;
+        for (auto &u : src.unions) {
+            dest.unions.push_back(SPARQLQuery::PatternGroup());
+            transfer_patterns(u, dest.unions.back());
+            dest.unions[i].patterns.insert(dest.unions[i].patterns.end(),
+                                           dest.patterns.begin(),
+                                           dest.patterns.end());
+            i++;
+        }
+        /// FIXME: uncomment the following code will result in segmentation fault
+        ///        > sparql -f query/lubm_q1
+        // dest.patterns.clear();
+
+        // Optional
+        for (auto &o : src.optional) {
+            dest.optional.push_back(SPARQLQuery::PatternGroup());
+            transfer_patterns(o, dest.optional.back());
         }
 
-        // optional
-        if (src.optional.size() > 0) {
-            for (auto &optional_group : src.optional) {
-                dest.optional.push_back(SPARQLQuery::PatternGroup());
-                transfer_patterns(optional_group, dest.optional.back());
-            }
-        }
-
-        // other parts in PatternGroup
+        /// TODO: support other Grammars in PatternGroup
     }
 
     void transfer(const SPARQLParser &parser, SPARQLQuery &r) {
@@ -209,12 +209,15 @@ private:
             r.distinct = true;
 
         // corun
-        if (!global_use_rdma) {
-            // TODO: corun optimization is not supported w/o RDMA
-            logstream(LOG_WARNING) << "RDMA is not enabled, skip corun optimization!" << LOG_endl;
-        } else {
+        if (r.corun_enabled = parser.isCorunEnabled()) {
             r.corun_step = parser.getCorunStep();
             r.fetch_step = parser.getFetchStep();
+
+            if (!global_use_rdma) {
+                // TODO: corun optimization is not supported w/o RDMA
+                logstream(LOG_WARNING) << "RDMA is not enabled, skip corun optimization!" << LOG_endl;
+                r.corun_enabled = false; // skip
+            }
         }
     }
 

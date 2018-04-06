@@ -219,6 +219,7 @@ private:
     unsigned offset;
     // indicate if custom grammar is in use
     bool usingCustomGrammar;
+    bool corun_enabled;
     int corun_step;
     int fetch_step;
 
@@ -947,6 +948,8 @@ private:
                     throw ParserException("Integer(fetch step) expected");
                 string fetch_step_str = lexer.getTokenValue();
                 fetch_step = stoi(fetch_step_str);
+                corun_enabled = true;
+                /// FIXME: more than one CORUN/FETCH
             } else {
                 lexer.unget(token);
                 return;
@@ -1094,6 +1097,7 @@ public:
         : lexer(lexer), variableCount(0), namedVariableCount(0),
           projectionModifier(Modifier_None), limit(-1), offset(0u) {
         usingCustomGrammar = false;
+        corun_enabled = false;
         corun_step = 0;
         fetch_step = 0;
     }
@@ -1173,6 +1177,8 @@ public:
     unsigned getVariableCount() const { return variableCount; }
     // indicate if custom grammar is in use
     bool isUsingCustomGrammar() const { return usingCustomGrammar; }
+    // indicate if corun optimization is in use
+    bool isCorunEnabled() const { return corun_enabled; }
     // get the corun step
     int getCorunStep() const { return corun_step; }
     // get the fetch step
