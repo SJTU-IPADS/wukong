@@ -555,7 +555,7 @@ public:
 /**
  * SPARQL query template
  */
-class request_template {
+class SPARQLQuery_Template {
 private:
     // no serialize
 

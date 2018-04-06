@@ -78,13 +78,13 @@ private:
     String_Server *str_server;
 
     /// SPARQLParser::Element to ssid
-    ssid_t transfer_element(const SPARQLParser::Element &element) {
-        switch (element.type) {
+    ssid_t transfer_element(const SPARQLParser::Element &e) {
+        switch (e.type) {
         case SPARQLParser::Element::Variable:
-            return element.id;
+            return e.id;
         case SPARQLParser::Element::Literal:
         {
-            string str = "\"" + element.value + "\"";
+            string str = "\"" + e.value + "\"";
             if (!str_server->exist(str)) {
                 logstream(LOG_ERROR) << "Unknown Literal: " + str << LOG_endl;
                 return DUMMY_ID;
@@ -93,12 +93,12 @@ private:
         }
         case SPARQLParser::Element::IRI:
         {
-            string strIRI = "<" + element.value + ">" ;
-            if (!str_server->exist(strIRI)) {
-                logstream(LOG_ERROR) << "Unknown IRI: " + strIRI << LOG_endl;
+            string str = "<" + e.value + ">"; // IRI
+            if (!str_server->exist(str)) {
+                logstream(LOG_ERROR) << "Unknown IRI: " + str << LOG_endl;
                 return DUMMY_ID;
             }
-            return str_server->str2id[strIRI];
+            return str_server->str2id[str];
         }
         case SPARQLParser::Element::Template:
             return PTYPE_PH;
@@ -112,27 +112,26 @@ private:
     }
 
     /// SPARQLParser::Filter to SPARQLQuery::Filter
-    void transfer_filter(SPARQLParser::Filter &src, SPARQLQuery::Filter &dest) {
-        dest.type = (SPARQLQuery::Filter::Type)src.type;
-        dest.value = src.value;
-        dest.valueArg = src.valueArg;
+    void transfer_filter(SPARQLParser::Filter &src, SPARQLQuery::Filter &dst) {
+        dst.type = (SPARQLQuery::Filter::Type)src.type;
+        dst.value = src.value;
+        dst.valueArg = src.valueArg;
         if (src.arg1 != NULL) {
-            dest.arg1 = new SPARQLQuery::Filter();
-            transfer_filter(*src.arg1, *dest.arg1);
+            dst.arg1 = new SPARQLQuery::Filter();
+            transfer_filter(*src.arg1, *dst.arg1);
         }
         if (src.arg2 != NULL) {
-            dest.arg2 = new SPARQLQuery::Filter();
-            transfer_filter(*src.arg2, *dest.arg2);
+            dst.arg2 = new SPARQLQuery::Filter();
+            transfer_filter(*src.arg2, *dst.arg2);
         }
         if (src.arg3 != NULL) {
-            dest.arg3 = new SPARQLQuery::Filter();
-            transfer_filter(*src.arg3, *dest.arg3);
+            dst.arg3 = new SPARQLQuery::Filter();
+            transfer_filter(*src.arg3, *dst.arg3);
         }
     }
 
     /// SPARQLParser::PatternGroup to SPARQLQuery::PatternGroup
-    void transfer_patterns(SPARQLParser::PatternGroup &src,
-                           SPARQLQuery::PatternGroup &dest) {
+    void transfer_patterns(SPARQLParser::PatternGroup &src, SPARQLQuery::PatternGroup &dst) {
         // Patterns
         for (auto const &p : src.patterns) {
             ssid_t subject = transfer_element(p.subject);
@@ -148,86 +147,86 @@ private:
                 assert(false);
             }
 
-            dest.patterns.push_back(pattern);
+            dst.patterns.push_back(pattern);
         }
 
         // Filters
         for (auto &f : src.filters) {
-            dest.filters.push_back(SPARQLQuery::Filter());
-            transfer_filter(f, dest.filters.back());
+            dst.filters.push_back(SPARQLQuery::Filter());
+            transfer_filter(f, dst.filters.back());
         }
 
         // Unions
         int i = 0;
         for (auto &u : src.unions) {
-            dest.unions.push_back(SPARQLQuery::PatternGroup());
-            transfer_patterns(u, dest.unions.back());
-            dest.unions[i].patterns.insert(dest.unions[i].patterns.end(),
-                                           dest.patterns.begin(),
-                                           dest.patterns.end());
+            dst.unions.push_back(SPARQLQuery::PatternGroup());
+            transfer_patterns(u, dst.unions.back());
+            dst.unions[i].patterns.insert(dst.unions[i].patterns.end(),
+                                          dst.patterns.begin(),
+                                          dst.patterns.end());
             i++;
         }
         /// FIXME: uncomment the following code will result in segmentation fault
         ///        > sparql -f query/lubm_q1
-        // dest.patterns.clear();
+        // dst.patterns.clear();
 
         // Optional
         for (auto &o : src.optional) {
-            dest.optional.push_back(SPARQLQuery::PatternGroup());
-            transfer_patterns(o, dest.optional.back());
+            dst.optional.push_back(SPARQLQuery::PatternGroup());
+            transfer_patterns(o, dst.optional.back());
         }
 
         /// TODO: support other Grammars in PatternGroup
     }
 
-    void transfer(const SPARQLParser &parser, SPARQLQuery &r) {
+    void transfer(const SPARQLParser &sp, SPARQLQuery &sq) {
         // patterns
-        SPARQLParser::PatternGroup group = parser.getPatterns();
-        transfer_patterns(group, r.pattern_group);
+        SPARQLParser::PatternGroup group = sp.getPatterns();
+        transfer_patterns(group, sq.pattern_group);
 
         // nvars in GP
-        r.result.nvars = parser.getVariableCount();
+        sq.result.nvars = sp.getVariableCount();
 
         // vars in RD
-        for (SPARQLParser::projection_iterator iter = parser.projectionBegin();
-                iter != parser.projectionEnd();
+        for (SPARQLParser::projection_iterator iter = sp.projectionBegin();
+                iter != sp.projectionEnd();
                 iter ++)
-            r.result.required_vars.push_back(*iter);
+            sq.result.required_vars.push_back(*iter);
 
         // optional
-        if (r.pattern_group.optional.size() > 0)
-            r.optional_dispatched = false;
+        if (sq.pattern_group.optional.size() > 0)
+            sq.optional_dispatched = false;
 
         // orders
-        for (SPARQLParser::order_iterator iter = parser.orderBegin();
-                iter != parser.orderEnd();
+        for (SPARQLParser::order_iterator iter = sp.orderBegin();
+                iter != sp.orderEnd();
                 iter ++)
-            r.orders.push_back(SPARQLQuery::Order((*iter).id, (*iter).descending));
+            sq.orders.push_back(SPARQLQuery::Order((*iter).id, (*iter).descending));
 
         // limit and offset
-        r.limit = parser.getLimit();
-        r.offset = parser.getOffset();
+        sq.limit = sp.getLimit();
+        sq.offset = sp.getOffset();
 
         // distinct
-        if ((parser.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Distinct)
-                || (parser.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Reduced))
-            r.distinct = true;
+        if ((sp.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Distinct)
+                || (sp.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Reduced))
+            sq.distinct = true;
 
         // corun
-        if (r.corun_enabled = parser.isCorunEnabled()) {
-            r.corun_step = parser.getCorunStep();
-            r.fetch_step = parser.getFetchStep();
+        if (sq.corun_enabled = sp.isCorunEnabled()) {
+            sq.corun_step = sp.getCorunStep();
+            sq.fetch_step = sp.getFetchStep();
 
             if (!global_use_rdma) {
                 // TODO: corun optimization is not supported w/o RDMA
                 logstream(LOG_WARNING) << "RDMA is not enabled, skip corun optimization!" << LOG_endl;
-                r.corun_enabled = false; // skip
+                sq.corun_enabled = false; // skip
             }
         }
     }
 
-    void transfer_template(const SPARQLParser &parser, request_template &r) {
-        SPARQLParser::PatternGroup group = parser.getPatterns();
+    void transfer_template(const SPARQLParser &sp, SPARQLQuery_Template &sqt) {
+        SPARQLParser::PatternGroup group = sp.getPatterns();
         int pos = 0;
         for (auto &p : group.patterns) {
             ssid_t subject = transfer_element(p.subject);
@@ -238,13 +237,13 @@ private:
 
             // template pattern
             if (subject == PTYPE_PH) {
-                r.ptypes_str.push_back("<" + p.subject.value + ">"); // IRI
-                r.ptypes_pos.push_back(pos + 0); // subject
+                sqt.ptypes_str.push_back("<" + p.subject.value + ">"); // IRI
+                sqt.ptypes_pos.push_back(pos + 0); // subject
             }
 
             if (object == PTYPE_PH) {
-                r.ptypes_str.push_back("<" + p.object.value + ">"); // IRI
-                r.ptypes_pos.push_back(pos + 3); // object
+                sqt.ptypes_str.push_back("<" + p.object.value + ">"); // IRI
+                sqt.ptypes_pos.push_back(pos + 3); // object
             }
 
             pattern.pred_type = str_server->pid2type[predicate];
@@ -254,12 +253,12 @@ private:
                 assert(false);
             }
 
-            r.pattern_group.patterns.push_back(pattern);
+            sqt.pattern_group.patterns.push_back(pattern);
             pos += 4;
         }
 
         // nvars in GP
-        r.nvars = parser.getVariableCount();
+        sqt.nvars = sp.getVariableCount();
     }
 
 public:
@@ -269,7 +268,7 @@ public:
     Parser(String_Server *_ss): str_server(_ss) {}
 
     /// a single query
-    bool parse(istream &is, SPARQLQuery &r) {
+    bool parse(istream &is, SPARQLQuery &sq) {
         // clear intermediate states of parser
         string query = read_input(is);
         SPARQLLexer lexer(query);
@@ -277,7 +276,7 @@ public:
 
         try {
             parser.parse(); //e.g., sparql -f query/lubm_q1
-            transfer(parser, r);
+            transfer(parser, sq);
         } catch (const SPARQLParser::ParserException &e) {
             logstream(LOG_ERROR) << "failed to parse a SPARQL query: " << e.message << LOG_endl;
             return false;
@@ -294,14 +293,14 @@ public:
     }
 
     /// a class of queries
-    bool parse_template(istream &is, request_template &r) {
+    bool parse_template(istream &is, SPARQLQuery_Template &sqt) {
         string query = read_input(is);
         SPARQLLexer lexer(query);
         SPARQLParser parser(lexer);
 
         try {
             parser.parse();
-            transfer_template(parser, r);
+            transfer_template(parser, sqt);
         } catch (const SPARQLParser::ParserException &e) {
             logstream(LOG_ERROR) << "failed to parse a SPARQL query: " << e.message << LOG_endl;
             return false;

@@ -61,10 +61,10 @@ private:
 
 	vector<Message> pending_msgs;
 
-	void fill_template(request_template &req_template) {
-		req_template.ptypes_grp.resize(req_template.ptypes_str.size());
-		for (int i = 0; i < req_template.ptypes_str.size(); i++) {
-			string type = req_template.ptypes_str[i]; // the Types of random-constant
+	void fill_template(SPARQLQuery_Template &sqt) {
+		sqt.ptypes_grp.resize(sqt.ptypes_str.size());
+		for (int i = 0; i < sqt.ptypes_str.size(); i++) {
+			string type = sqt.ptypes_str[i]; // the Types of random-constant
 
 			// create a TYPE query to collect constants with the certain type
 			SPARQLQuery type_request = SPARQLQuery();
@@ -86,10 +86,10 @@ private:
 			// TODO: it should report empty for all queries of the template
 			assert(candidates.size() > 0);
 
-			req_template.ptypes_grp[i] = candidates;
+			sqt.ptypes_grp[i] = candidates;
 
 			logstream(LOG_INFO) << type << " has "
-			                    << req_template.ptypes_grp[i].size() << " candidates" << LOG_endl;
+			                    << sqt.ptypes_grp[i].size() << " candidates" << LOG_endl;
 		}
 	}
 
@@ -162,7 +162,7 @@ public:
 		assert(r.pid != -1);
 
 		// set mt_factor
-		if(r.start_from_index()){
+		if (r.start_from_index()) {
 			r.mt_factor = global_mt_threshold;
 		}
 
@@ -248,7 +248,7 @@ public:
 			return -2; // parsing failed
 		}
 
-		vector<request_template> tpls(nlights);
+		vector<SPARQLQuery_Template> tpls(nlights);
 		vector<SPARQLQuery> heavy_reqs(nheavies);
 
 		vector<int> loads(ntypes);
