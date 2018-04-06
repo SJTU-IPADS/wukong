@@ -76,7 +76,8 @@ private:
     // str2ID mapping for pattern constants (e.g., <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> 1)
     String_Server *str_server;
 
-    ssid_t encode(const SPARQLParser::Element& element) {//const
+    // translate SPARQLParser::Element to ssid
+    ssid_t transfer_element(const SPARQLParser::Element &element) {
         switch (element.type) {
         case SPARQLParser::Element::Variable:
             return element.id;
@@ -105,6 +106,7 @@ private:
         default:
             return DUMMY_ID;
         }
+
         return DUMMY_ID;
     }
 
@@ -129,18 +131,19 @@ private:
     void transfer_patterns(SPARQLParser::PatternGroup &src, SPARQLQuery::PatternGroup &dest) {
         // patterns
         for (auto const &src_p : src.patterns) {
-            SPARQLQuery::Pattern pattern(encode(src_p.subject),
-                                         encode(src_p.predicate),
+            SPARQLQuery::Pattern pattern(transfer_element(src_p.subject),
+                                         transfer_element(src_p.predicate),
                                          src_p.direction,
-                                         encode(src_p.object));
-            int type =  str_server->pid2type[encode(src_p.predicate)];
+                                         transfer_element(src_p.object));
+            int type =  str_server->pid2type[transfer_element(src_p.predicate)];
             if (type > 0 && (!global_enable_vattr)) {
                 logstream(LOG_ERROR) << "Need to change config to enable vertex_attr " << LOG_endl;
                 assert(false);
             }
-            pattern.pred_type = str_server->pid2type[encode(src_p.predicate)];
+            pattern.pred_type = str_server->pid2type[transfer_element(src_p.predicate)];
             dest.patterns.push_back(pattern);
         }
+
         // filters
         if (src.filters.size() > 0) {
             for (int i = 0; i < src.filters.size(); i++) {
@@ -148,6 +151,7 @@ private:
                 transfer_filter(src.filters[i], dest.filters.back());
             }
         }
+
         // unions
         if (src.unions.size() > 0) {
             int i = 0;
@@ -160,6 +164,7 @@ private:
             }
             dest.patterns.clear();
         }
+
         // optional
         if (src.optional.size() > 0) {
             for (auto &optional_group : src.optional) {
@@ -167,6 +172,7 @@ private:
                 transfer_patterns(optional_group, dest.optional.back());
             }
         }
+
         // other parts in PatternGroup
     }
 
@@ -213,7 +219,7 @@ private:
     }
 
     ssid_t _H_push(const SPARQLParser::Element &element, request_template &r, int pos) {
-        ssid_t id = encode(element);
+        ssid_t id = transfer_element(element);
         if (id == PTYPE_PH) {
             string strIRI = "<" + element.value + ">";
             r.ptypes_str.push_back(strIRI);
@@ -222,18 +228,18 @@ private:
         return id;
     }
 
-
     void template_transfer(const SPARQLParser &parser, request_template &r) {
         SPARQLParser::PatternGroup group = parser.getPatterns();
         int pos = 0;
         for (std::vector<SPARQLParser::Pattern>::const_iterator iter = group.patterns.begin(),
                 limit = group.patterns.end(); iter != limit; ++iter) {
             ssid_t subject = _H_push(iter->subject, r, pos++);
-            ssid_t predicate = encode(iter->predicate); pos++;
+            ssid_t predicate = transfer_element(iter->predicate); pos++;
             ssid_t direction = (dir_t)OUT; pos++;
             ssid_t object = _H_push(iter->object, r, pos++);
             SPARQLQuery::Pattern pattern(subject, predicate, direction, object);
-            int type =  str_server->pid2type[encode(iter->predicate)];
+
+            int type =  str_server->pid2type[predicate];
             if (type > 0 && (!global_enable_vattr)) {
                 logstream(LOG_ERROR) << "Need to change config to enable vertex_attr " << LOG_endl;
                 assert(false);

@@ -359,9 +359,9 @@ private:
         //every thread takes continuous data
         for (uint64_t k = start * length; k < (start + 1) * length; k++)
             updated_result_table.push_back(res[k].val);
-        //handle corner case of the last thread 
-        //because data cannot be divided into several completely equal parts 
-        if(start == req.mt_factor - 1){
+        //handle corner case of the last thread
+        //because data cannot be divided into several completely equal parts
+        if (start == req.mt_factor - 1) {
             for (uint64_t k = (start + 1) * length; k < sz; k++)
                 updated_result_table.push_back(res[k].val);
         }
@@ -1178,16 +1178,20 @@ out:
     void execute_sparql_request(SPARQLQuery &r) {
         SPARQLQuery::Result &result = r.result;
         r.id = coder.get_and_inc_qid();
+
+        /// FIXME: split the condition for multi-threads and multi-servers
+        ///   multi-threads: large query (exploit more CPU resources)
+        ///   multi-servers: start from index vertex
         // if r starts from index and is from proxy, dispatch it to every engine except itself
         if (r.force_dispatch
                 || (r.step == 0
                     && coder.tid_of(r.pid) < global_num_proxies
                     && r.mt_factor > 1
                     && global_mt_threshold * global_num_servers > 1)) {
-            //mt_factor can be set on proxy side before sending to engine
-            //default value: global_mt_threshold
-            //normally we will NOT let global_mt_threshold == number of all engines, which will cause HANG
-            int sub_reqs_size = global_num_servers * r.mt_factor;            
+            // The mt_factor can be set on proxy side before sending to engine
+            // (Default: mt_factor == global_mt_threshold)
+            // Normally, we will NOT let global_mt_threshold == #engines, which will cause HANG
+            int sub_reqs_size = global_num_servers * r.mt_factor;
             rmap.put_parent_request(r, sub_reqs_size);
             SPARQLQuery sub_query = r;
             sub_query.force_dispatch = false;

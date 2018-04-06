@@ -225,7 +225,11 @@ public:
         vector<sid_t> result_table; // result table for string IDs
         vector<attr_t> attr_res_table; // result table for others
 
-        void clear_data() { result_table.clear(); attr_res_table.clear(); required_vars.clear(); }
+        void clear_data() {
+            result_table.clear();
+            attr_res_table.clear();
+            required_vars.clear();
+        }
 
         var_type variable_type(ssid_t vid) {
             if (vid >= 0)
@@ -398,7 +402,9 @@ public:
             }
             new_size = this->attr_res_table.size() + result.attr_res_table.size();
             this->attr_res_table.reserve(new_size);
-            this->attr_res_table.insert(this->attr_res_table.end(), result.attr_res_table.begin(), result.attr_res_table.end());
+            this->attr_res_table.insert(this->attr_res_table.end(),
+                                        result.attr_res_table.begin(),
+                                        result.attr_res_table.end());
         }
 
         void append_result(SPARQLQuery::Result &result) {
@@ -408,13 +414,19 @@ public:
             this->attr_col_num = result.attr_col_num;
             this->v2c_map = result.v2c_map;
 
-            if(!this->blind){
-                int new_size = this->result_table.size() + result.result_table.size();
+            if (!this->blind) {
+                int new_size = this->result_table.size()
+                               + result.result_table.size();
                 this->result_table.reserve(new_size);
-                this->result_table.insert(this->result_table.end(), result.result_table.begin(), result.result_table.end());
-                new_size = this->attr_res_table.size() + result.attr_res_table.size();
+                this->result_table.insert(this->result_table.end(),
+                                          result.result_table.begin(),
+                                          result.result_table.end());
+                new_size = this->attr_res_table.size()
+                           + result.attr_res_table.size();
                 this->attr_res_table.reserve(new_size);
-                this->attr_res_table.insert(this->attr_res_table.end(), result.attr_res_table.begin(), result.attr_res_table.end());
+                this->attr_res_table.insert(this->attr_res_table.end(),
+                                            result.attr_res_table.begin(),
+                                            result.attr_res_table.end());
             }
         }
 
@@ -487,7 +499,8 @@ public:
     void clear_data() {
         orders.clear();
         // the first pattern indicating if this query is starting from index. It can't be removed.
-        pattern_group.patterns.erase(pattern_group.patterns.begin() + 1, pattern_group.patterns.end());
+        pattern_group.patterns.erase(pattern_group.patterns.begin() + 1,
+                                     pattern_group.patterns.end());
         pattern_group.filters.clear();
         pattern_group.optional.clear();
         pattern_group.unions.clear();
@@ -882,13 +895,16 @@ public:
             int pos = ptypes_pos[i];
             switch (pos % 4) {
             case 0:
-                pattern_group.patterns[pos / 4].subject = ptypes_grp[i][seed % ptypes_grp[i].size()];
+                pattern_group.patterns[pos / 4].subject =
+                    ptypes_grp[i][seed % ptypes_grp[i].size()];
                 break;
             case 1:
-                pattern_group.patterns[pos / 4].predicate = ptypes_grp[i][seed % ptypes_grp[i].size()];
+                pattern_group.patterns[pos / 4].predicate =
+                    ptypes_grp[i][seed % ptypes_grp[i].size()];
                 break;
             case 3:
-                pattern_group.patterns[pos / 4].object = ptypes_grp[i][seed % ptypes_grp[i].size()];
+                pattern_group.patterns[pos / 4].object =
+                    ptypes_grp[i][seed % ptypes_grp[i].size()];
                 break;
             }
         }
