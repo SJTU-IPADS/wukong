@@ -40,7 +40,7 @@
 using namespace std;
 
 // Read a stream into a string
-static string read_input(istream& in) {
+static string read_input(istream &in) {
     string result;
     while (true) {
         string s;
@@ -128,7 +128,7 @@ private:
 
     void transfer_patterns(SPARQLParser::PatternGroup &src, SPARQLQuery::PatternGroup &dest) {
         // patterns
-        for (auto &src_p : src.patterns) {
+        for (auto const &src_p : src.patterns) {
             SPARQLQuery::Pattern pattern(encode(src_p.subject),
                                          encode(src_p.predicate),
                                          src_p.direction,
@@ -176,6 +176,7 @@ private:
 
         // init the var_map
         r.result.nvars = parser.getVariableCount();
+
         // required vars
         for (SPARQLParser::projection_iterator iter = parser.projectionBegin();
                 iter != parser.projectionEnd();
@@ -183,9 +184,8 @@ private:
             r.result.required_vars.push_back(*iter);
 
         // optional
-        if (r.pattern_group.optional.size() > 0) {
+        if (r.pattern_group.optional.size() > 0)
             r.optional_dispatched = false;
-        }
 
         // orders
         for (SPARQLParser::order_iterator iter = parser.orderBegin();
@@ -198,10 +198,9 @@ private:
         r.offset = parser.getOffset();
 
         // distinct
-        if (parser.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Distinct
-                || parser.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Reduced) {
+        if ((parser.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Distinct)
+                || (parser.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Reduced))
             r.distinct = true;
-        }
 
         // corun
         if (!global_use_rdma) {
@@ -211,7 +210,6 @@ private:
             r.corun_step = parser.getCorunStep();
             r.fetch_step = parser.getFetchStep();
         }
-
     }
 
     ssid_t _H_push(const SPARQLParser::Element &element, request_template &r, int pos) {
@@ -246,7 +244,6 @@ private:
 
         // set the number of variables in triple patterns
         r.nvars = parser.getVariableCount();
-
     }
 
 public:

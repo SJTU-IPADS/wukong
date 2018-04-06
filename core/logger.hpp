@@ -144,7 +144,7 @@ public:
 
     // calculate each query's cdf, then sort respectively
     void aggregate() {
-        for (auto &s : stats_map)
+        for (auto const &s : stats_map)
             total_latency_map[s.second.query_type].push_back(s.second.end_time - s.second.start_time);
 
         // sort
@@ -162,7 +162,7 @@ public:
         vector<int> thpts;
         int print_interval = 200 * 1000; // 200ms
 
-        for (auto &s : stats_map) {
+        for (auto const &s : stats_map) {
             int i = s.second.start_time / print_interval;
             if (thpts.size() <= i)
                 thpts.resize(i + 1);
@@ -203,7 +203,7 @@ public:
             // result of CDF figure
             cdf_res[query_type] = std::vector<uint64_t>();
             // select points from lats corresponding to cdf_rates
-            for (auto &rate : cdf_rates) {
+            for (auto const &rate : cdf_rates) {
                 int idx = lats.size() * rate;
                 if (idx >= lats.size()) idx = lats.size() - 1;
                 cdf_res[query_type].push_back(lats[idx]);
@@ -235,7 +235,7 @@ public:
 
     void merge(Logger & other) {
         if (nquery_types < other.nquery_types) nquery_types = other.nquery_types;
-        for (auto &s : other.stats_map)
+        for (auto const &s : other.stats_map)
             stats_map[s.first] = s.second;
         thpt += other.thpt;
     }

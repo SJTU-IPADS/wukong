@@ -157,16 +157,16 @@ public:
         vector<PatternGroup> optional;
         vector<PatternGroup> unions;
 
-        void print_group() {
+        void print_group() const {
             logstream(LOG_INFO) << "patterns[" << patterns.size() << "]:" << LOG_endl;
-            for (auto &p : patterns)
+            for (auto const &p : patterns)
                 logstream(LOG_INFO) << "\t" << p.subject
                                     << "\t" << p.predicate
                                     << "\t" << p.direction
                                     << "\t" << p.object << LOG_endl;
 
             logstream(LOG_INFO) << "unions[" << unions.size() << "]:" << LOG_endl;
-            for (auto &g : unions)
+            for (auto const &g : unions)
                 g.print_group();
         }
     };
