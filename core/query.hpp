@@ -407,12 +407,15 @@ public:
             this->row_num += result.row_num;
             this->attr_col_num = result.attr_col_num;
             this->v2c_map = result.v2c_map;
-            int new_size = this->result_table.size() + result.result_table.size();
-            this->result_table.reserve(new_size);
-            this->result_table.insert(this->result_table.end(), result.result_table.begin(), result.result_table.end());
-            new_size = this->attr_res_table.size() + result.attr_res_table.size();
-            this->attr_res_table.reserve(new_size);
-            this->attr_res_table.insert(this->attr_res_table.end(), result.attr_res_table.begin(), result.attr_res_table.end());
+
+            if(!this->blind){
+                int new_size = this->result_table.size() + result.result_table.size();
+                this->result_table.reserve(new_size);
+                this->result_table.insert(this->result_table.end(), result.result_table.begin(), result.result_table.end());
+                new_size = this->attr_res_table.size() + result.attr_res_table.size();
+                this->attr_res_table.reserve(new_size);
+                this->attr_res_table.insert(this->attr_res_table.end(), result.attr_res_table.begin(), result.attr_res_table.end());
+            }
         }
 
         void print_result(int row2print, String_Server *str_server) {
@@ -454,6 +457,7 @@ public:
     ssid_t local_var = 0;   // the local variable
 
     bool force_dispatch = false;
+    int mt_factor = 0;
     int priority = 0;
 
     // ID-format triple patterns (Subject, Predicat, Direction, Object)
@@ -698,6 +702,7 @@ void save(Archive & ar, const SPARQLQuery & t, unsigned int version) {
     ar << t.fetch_step;
     ar << t.local_var;
     ar << t.force_dispatch;
+    ar << t.mt_factor;
     ar << t.priority;
     ar << t.pattern_group;
     if (t.orders.size() > 0) {
@@ -724,6 +729,7 @@ void load(Archive & ar, SPARQLQuery & t, unsigned int version) {
     ar >> t.fetch_step;
     ar >> t.local_var;
     ar >> t.force_dispatch;
+    ar >> t.mt_factor;
     ar >> t.priority;
     ar >> t.pattern_group;
     ar >> temp;

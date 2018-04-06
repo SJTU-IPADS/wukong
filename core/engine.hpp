@@ -353,13 +353,16 @@ private:
 
         uint64_t sz = 0;
         edge_t *res = graph->get_index_edges_local(tid, tpid, d, &sz);
-        int start = req.tid;
-        if (start < 0) {
-            start = - start - 1;    // request from the same server
-            for (uint64_t k = start; k < sz; k += global_mt_threshold - 1)
-                updated_result_table.push_back(res[k].val);
-        } else {
-            for (uint64_t k = start; k < sz; k += global_mt_threshold)
+        int start = req.tid % req.mt_factor;
+        int length = sz / req.mt_factor;
+
+        //every thread takes continuous data
+        for (uint64_t k = start * length; k < (start + 1) * length; k++)
+            updated_result_table.push_back(res[k].val);
+        //handle corner case of the last thread 
+        //because data cannot be divided into several completely equal parts 
+        if(start == req.mt_factor - 1){
+            for (uint64_t k = (start + 1) * length; k < sz; k++)
                 updated_result_table.push_back(res[k].val);
         }
 
@@ -1179,31 +1182,24 @@ out:
         if (r.force_dispatch
                 || (r.step == 0
                     && coder.tid_of(r.pid) < global_num_proxies
-                    && r.start_from_index()
+                    && r.mt_factor > 1
                     && global_mt_threshold * global_num_servers > 1)) {
-            int sub_reqs_size = global_num_servers * global_mt_threshold - 1;
-
+            //mt_factor can be set on proxy side before sending to engine
+            //default value: global_mt_threshold
+            //normally we will NOT let global_mt_threshold == number of all engines, which will cause HANG
+            int sub_reqs_size = global_num_servers * r.mt_factor;            
             rmap.put_parent_request(r, sub_reqs_size);
             SPARQLQuery sub_query = r;
             sub_query.force_dispatch = false;
             for (int i = 0; i < global_num_servers; i++) {
-                for (int j = 0; j < global_mt_threshold; j++) {
+                for (int j = 0; j < r.mt_factor; j++) {
                     sub_query.id = -1;
                     sub_query.pid = r.id;
-                    sub_query.tid = j; // specified engine
-
-                    if (i == sid && j + global_num_proxies == tid) {
-                        //dispatching engine thread shall do nothing
-                        continue;
-                    } else if (i == sid && j + global_num_proxies > tid) {
-                        sub_query.tid -- ;  // [0, infinity)
-                        sub_query.tid = - sub_query.tid - 1; // means send to the same server
-                    } else if (i == sid) {
-                        sub_query.tid = - sub_query.tid - 1; // means send to the same server
-                    }
+                    sub_query.tid = (tid + j + 1 - global_num_proxies) % global_num_engines + global_num_proxies;
+                    sub_query.mt_factor = r.mt_factor;
 
                     Bundle bundle(sub_query);
-                    send_request(bundle, i, global_num_proxies + j);
+                    send_request(bundle, i, sub_query.tid);
                 }
             }
             return;
