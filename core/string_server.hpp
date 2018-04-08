@@ -28,7 +28,8 @@
 #include <stdio.h>
 #include <dirent.h>
 #include <algorithm>
-#include <assert.h>
+// #include <assert.h>
+#include "assertion.hpp"
 #include <boost/mpi.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/algorithm/string/predicate.hpp>
