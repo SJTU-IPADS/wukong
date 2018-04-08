@@ -64,7 +64,7 @@ class RDMA {
                     // 0: always choose the 1st (RDMA) device
                     // 1: always choose the 1st (RDMA) port
                     Qp *qp = ctrl->create_rc_qp(j, i, 0, 1);
-                    assert(qp != NULL);
+                    ASSERT(qp != NULL);
                 }
             }
 
@@ -168,30 +168,30 @@ class RDMA {
     public:
         RDMA_Device(int nnodes, int nthds, int nid, char *mem, uint64_t sz, string fname) {
             logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
-            assert(false);
+            ASSERT(false);
         }
 
         int RdmaRead(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
             logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
-            assert(false);
+            ASSERT(false);
             return 0;
         }
 
         int RdmaWrite(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
             logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
-            assert(false);
+            ASSERT(false);
             return 0;
         }
 
         int RdmaWriteNonSignal(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
             logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
-            assert(false);
+            ASSERT(false);
             return 0;
         }
 
         int RdmaWriteSelective(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
             logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
-            assert(false);
+            ASSERT(false);
             return 0;
         }
     };

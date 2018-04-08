@@ -242,25 +242,25 @@ public:
 
         // get column id from vid (pattern variable)
         int var2col(ssid_t vid) {
-            assert(vid < 0);
+            ASSERT(vid < 0);
             if (v2c_map.size() == 0) // init
                 v2c_map.resize(nvars, NO_RESULT);
 
             int idx = - (vid + 1);
-            assert(idx < nvars);
+            ASSERT(idx < nvars);
 
             return ext2col(v2c_map[idx]);
         }
 
         // add column id to vid (pattern variable)
         void add_var2col(ssid_t vid, int col, int t = SID_t) {
-            assert(vid < 0 && col >= 0);
+            ASSERT(vid < 0 && col >= 0);
             if (v2c_map.size() == 0) // init
                 v2c_map.resize(nvars, NO_RESULT);
             int idx = - (vid + 1);
-            assert(idx < nvars);
+            ASSERT(idx < nvars);
 
-            assert(v2c_map[idx] == NO_RESULT);
+            ASSERT(v2c_map[idx] == NO_RESULT);
             v2c_map[idx] = col2ext(col, t);
         }
 
@@ -276,7 +276,7 @@ public:
         }
 
         sid_t get_row_col(int r, int c) {
-            assert(r >= 0 && c >= 0);
+            ASSERT(r >= 0 && c >= 0);
             return result_table[col_num * r + c];
         }
 
@@ -487,12 +487,12 @@ public:
     }
 
     Pattern & get_current_pattern() {
-        assert(this->step < pattern_group.patterns.size());
+        ASSERT(this->step < pattern_group.patterns.size());
         return pattern_group.patterns[this->step];
     }
 
     Pattern & get_pattern(int step) {
-        assert(step < pattern_group.patterns.size());
+        ASSERT(step < pattern_group.patterns.size());
         return pattern_group.patterns[step];
     }
 
@@ -534,7 +534,7 @@ public:
          */
         if (pattern_group.patterns.size() == 0) return false;
         else if (is_tpid(pattern_group.patterns[0].subject)) {
-            assert(pattern_group.patterns[0].predicate == PREDICATE_ID
+            ASSERT(pattern_group.patterns[0].predicate == PREDICATE_ID
                    || pattern_group.patterns[0].predicate == TYPE_ID);
             return true;
         }
@@ -883,7 +883,7 @@ public:
     }
 
     SPARQLQuery get_sparql_query() {
-        assert(type == SPARQL_QUERY);
+        ASSERT(type == SPARQL_QUERY);
 
         std::stringstream ss;
         ss << data;
@@ -895,7 +895,7 @@ public:
     }
 
     RDFLoad get_rdf_load() {
-        assert(type == DYNAMIC_LOAD);
+        ASSERT(type == DYNAMIC_LOAD);
 
         std::stringstream ss;
         ss << data;
@@ -907,7 +907,7 @@ public:
     }
 
     GStoreCheck get_gstore_check() {
-        assert(type == GSTORE_CHECK);
+        ASSERT(type == GSTORE_CHECK);
 
         std::stringstream ss;
         ss << data;

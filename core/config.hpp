@@ -22,7 +22,8 @@
 
 #pragma once
 
-#include <assert.h>
+// #include <assert.h>
+#include "assertion.hpp"
 #include <map>
 #include <string>
 #include <fstream>
@@ -70,10 +71,10 @@ static bool set_immutable_config(string cfg_name, string value)
 
 	if (cfg_name == "global_num_proxies") {
 		global_num_proxies = atoi(value.c_str());
-		assert(global_num_proxies > 0);
+		ASSERT(global_num_proxies > 0);
 	} else if (cfg_name == "global_num_engines") {
 		global_num_engines = atoi(value.c_str());
-		assert(global_num_engines > 0);
+		ASSERT(global_num_engines > 0);
 	} else if (cfg_name == "global_input_folder") {
 		global_input_folder = value;
 
@@ -89,19 +90,19 @@ static bool set_immutable_config(string cfg_name, string value)
 			global_input_folder = global_input_folder + "/";
 	} else if (cfg_name == "global_data_port_base") {
 		global_data_port_base = atoi(value.c_str());
-		assert(global_data_port_base > 0);
+		ASSERT(global_data_port_base > 0);
 	} else if (cfg_name == "global_ctrl_port_base") {
 		global_ctrl_port_base = atoi(value.c_str());
-		assert(global_ctrl_port_base > 0);
+		ASSERT(global_ctrl_port_base > 0);
 	} else if (cfg_name == "global_memstore_size_gb") {
 		global_memstore_size_gb = atoi(value.c_str());
-		assert(global_memstore_size_gb > 0);
+		ASSERT(global_memstore_size_gb > 0);
 	} else if (cfg_name == "global_rdma_buf_size_mb") {
 		global_rdma_buf_size_mb = atoi(value.c_str());
-		assert(global_rdma_buf_size_mb > 0);
+		ASSERT(global_rdma_buf_size_mb > 0);
 	} else if (cfg_name == "global_rdma_rbf_size_mb") {
 		global_rdma_rbf_size_mb = atoi(value.c_str());
-		assert(global_rdma_rbf_size_mb > 0);
+		ASSERT(global_rdma_rbf_size_mb > 0);
 	} else {
 		return false;
 	}
@@ -128,7 +129,7 @@ static bool set_mutable_config(string cfg_name, string value)
 		global_rdma_threshold = atoi(value.c_str());
 	} else if (cfg_name == "global_mt_threshold") {
 		global_mt_threshold = atoi(value.c_str());
-		assert(global_mt_threshold > 0);
+		ASSERT(global_mt_threshold > 0);
 	} else if (cfg_name == "global_enable_caching") {
 		global_enable_caching = atoi(value.c_str());
 	} else if (cfg_name == "global_enable_workstealing") {
@@ -200,7 +201,7 @@ void reload_config(string str)
 void load_config(string fname, int num_servers)
 {
 	global_num_servers = num_servers;
-	assert(num_servers > 0);
+	ASSERT(num_servers > 0);
 
 	// load config file
 	map<string, string> items;

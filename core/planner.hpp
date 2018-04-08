@@ -46,7 +46,7 @@ private:
 public:
     Minimum_maintenance() {
         logstream(LOG_ERROR) << "NOT SUPPORT" << LOG_endl;
-        assert(0);
+        ASSERT(0);
     }
     Minimum_maintenance(int s) {
         if (s < 1) //protect
@@ -437,7 +437,7 @@ class Planner {
         if (lastpos == 0)
             return ;
         int lastnum = min_select_record[lastpos];
-        assert(lastpos > lastnum);
+        ASSERT(lastpos > lastnum);
         int i;
         for (i = 1 ; i <= lastnum ; i++) {
             (*min_select)[min_select_record[lastpos - i]]->pop();
@@ -480,7 +480,7 @@ public:
         is_empty = false;
         double cost = 0;
         min_cost = std::numeric_limits<double>::max();
-        if (min_cost != std::numeric_limits<double>::max()) assert(false);
+        if (min_cost != std::numeric_limits<double>::max()) ASSERT(false);
 
         uint64_t t_prepare1 = timer::get_usec();
         // prepare for heuristic

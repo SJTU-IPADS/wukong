@@ -68,7 +68,7 @@ uint64_t vid : NBITS_VID; // vertex
     ikey_t(): vid(0), pid(0), dir(0) { }
 
     ikey_t(sid_t v, sid_t p, dir_t d): vid(v), pid(p), dir(d) {
-        assert((vid == v) && (dir == d) && (pid == p)); // no key truncate
+        ASSERT((vid == v) && (dir == d) && (pid == p)); // no key truncate
     }
 
     bool operator == (const ikey_t &key) {
@@ -111,7 +111,7 @@ uint64_t type: NBITS_TYPE;
 
     iptr_t(uint64_t s, uint64_t o, uint64_t t = 0): size(s), off(o), type(t) {
         // no truncated
-        assert ((size == s) && (off == o) && (type == t));
+        ASSERT ((size == s) && (off == o) && (type == t));
     }
 
     bool operator == (const iptr_t &ptr) {
@@ -257,7 +257,7 @@ private:
             /// TODO: key.vid is reused to store the bucket_id of indirect header rather than ptr.off,
             ///       since the is_empty() is not robust.
             for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
-                //assert(vertices[slot_id].key != key); // no duplicate key
+                //ASSERT(vertices[slot_id].key != key); // no duplicate key
                 if (vertices[slot_id].key == key) {
                     pthread_spin_unlock(&bucket_locks[lock_id]);
                     return true;
@@ -293,7 +293,7 @@ private:
             /// TODO: key.vid is reused to store the bucket_id of indirect header rather than ptr.off,
             ///       since the is_empty() is not robust.
             for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
-                //assert(vertices[slot_id].key != key); // no duplicate key
+                //ASSERT(vertices[slot_id].key != key); // no duplicate key
                 if (vertices[slot_id].key == key) {
                     if (check_dup) {
                         key.print_key();
@@ -301,7 +301,7 @@ private:
                         logstream(LOG_ERROR) << "conflict at slot["
                                              << slot_id << "] of bucket["
                                              << bucket_id << "]" << LOG_endl;
-                        assert(false);
+                        ASSERT(false);
                     } else {
                         goto done;
                     }
@@ -325,7 +325,7 @@ private:
             pthread_spin_lock(&bucket_ext_lock);
             if (last_ext >= num_buckets_ext) {
                 logstream(LOG_ERROR) << "out of indirect-header region." << LOG_endl;
-                assert(last_ext < num_buckets_ext);
+                ASSERT(last_ext < num_buckets_ext);
             }
             vertices[slot_id].key.vid = num_buckets + (last_ext++);
             pthread_spin_unlock(&bucket_ext_lock);
@@ -336,8 +336,8 @@ private:
         }
 done:
         pthread_spin_unlock(&bucket_locks[lock_id]);
-        assert(slot_id < num_slots);
-        assert(vertices[slot_id].key == key);
+        ASSERT(slot_id < num_slots);
+        ASSERT(vertices[slot_id].key == key);
         return slot_id;
     }
 
@@ -424,7 +424,7 @@ done:
         last_entry += n;
         if (last_entry >= num_entries) {
             logstream(LOG_ERROR) << "out of entry region." << LOG_endl;
-            assert(last_entry < num_entries);
+            ASSERT(last_entry < num_entries);
         }
         pthread_spin_unlock(&entry_lock);
         return orig;
@@ -535,7 +535,7 @@ done:
     RDMA_Cache rdma_cache;
 
     inline edge_t *rdma_get_edges(int tid, int dst_sid, vertex_t &v) {
-        assert(global_use_rdma);
+        ASSERT(global_use_rdma);
 
         char *buf = mem->buffer(tid);
         uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
@@ -547,7 +547,7 @@ done:
 #endif
 
         uint64_t buf_sz = mem->buffer_size();
-        assert(r_sz < buf_sz); // enough space to host the edges
+        ASSERT(r_sz < buf_sz); // enough space to host the edges
 
         RDMA &rdma = RDMA::get_rdma();
         rdma.dev->RdmaRead(tid, dst_sid, buf, r_sz, r_off);
@@ -561,7 +561,7 @@ done:
 
         // Currently, we don't support to directly get remote vertex/edge without RDMA
         // TODO: implement it w/o RDMA
-        assert(global_use_rdma);
+        ASSERT(global_use_rdma);
 
         if (rdma_cache.lookup(key, vert))
             return vert; // found
@@ -571,7 +571,7 @@ done:
         while (true) {
             uint64_t off = bucket_id * ASSOCIATIVITY * sizeof(vertex_t);
             uint64_t sz = ASSOCIATIVITY * sizeof(vertex_t);
-            assert(sz < buf_sz); // enough space to host the vertices
+            ASSERT(sz < buf_sz); // enough space to host the vertices
 
             RDMA &rdma = RDMA::get_rdma();
             rdma.dev->RdmaRead(tid, dst_sid, buf, sz, off);
@@ -975,7 +975,7 @@ public:
                             p_set.insert(edges[off + e].val); // collect all local predicates
 #endif
                     } else if (pid == TYPE_ID) {
-                        assert(false); // (IN) type triples should be skipped
+                        ASSERT(false); // (IN) type triples should be skipped
                     } else { // predicate-index (OUT) vid
                         tbb_hash_map::accessor a;
                         pidx_out_map.insert(a, pid);

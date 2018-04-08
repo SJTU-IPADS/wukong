@@ -138,7 +138,7 @@ main(int argc, char *argv[])
 	con_adaptor = new TCP_Adaptor(sid, host_fname, global_num_proxies, global_ctrl_port_base);
 
 	// create proxies and engines
-	assert(global_num_threads == global_num_proxies + global_num_engines);
+	ASSERT(global_num_threads == global_num_proxies + global_num_engines);
 	for (int tid = 0; tid < global_num_threads; tid++) {
 		Adaptor *adaptor = new Adaptor(tid, tcp_adaptor, rdma_adaptor);
 

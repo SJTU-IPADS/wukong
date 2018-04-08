@@ -165,7 +165,7 @@ private:
     }
 
 
-    void const_to_known(SPARQLQuery &req) { assert(false); } /// TODO
+    void const_to_known(SPARQLQuery &req) { ASSERT(false); } /// TODO
 
     void const_to_unknown(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_current_pattern();
@@ -177,7 +177,7 @@ private:
         SPARQLQuery::Result &result = req.result;
 
         // the query plan is wrong
-        assert(result.get_col_num() == 0);
+        ASSERT(result.get_col_num() == 0);
 
         uint64_t sz = 0;
         edge_t *res = graph->get_edges_global(tid, start, d, pid, &sz);
@@ -200,7 +200,7 @@ private:
         std::vector<attr_t> updated_result_table;
         SPARQLQuery::Result &result = req.result;
 
-        assert(d == OUT); // attribute always uses OUT
+        ASSERT(d == OUT); // attribute always uses OUT
         int type = SID_t;
 
         attr_t v;
@@ -224,7 +224,7 @@ private:
         SPARQLQuery::Result &result = req.result;
 
         // the query plan is wrong
-        //assert(req.get_col_num() == req.var2col(end));
+        //ASSERT(req.get_col_num() == req.var2col(end));
 
         updated_result_table.reserve(result.result_table.size());
         for (int i = 0; i < result.get_row_num(); i++) {
@@ -254,7 +254,7 @@ private:
         SPARQLQuery::Result &result = req.result;
 
         // attribute always uses OUT
-        assert(d == OUT);
+        ASSERT(d == OUT);
         int type = SID_t;
 
         updated_attr_result_table.reserve(result.attr_res_table.size());
@@ -347,9 +347,9 @@ private:
         vector<sid_t> updated_result_table;
         SPARQLQuery::Result &result = req.result;
 
-        assert(id01 == PREDICATE_ID || id01 == TYPE_ID); // predicate or type index
+        ASSERT(id01 == PREDICATE_ID || id01 == TYPE_ID); // predicate or type index
 
-        assert(result.get_col_num() == 0); // the query plan is wrong
+        ASSERT(result.get_col_num() == 0); // the query plan is wrong
 
         uint64_t sz = 0;
         edge_t *res = graph->get_index_edges_local(tid, tpid, d, &sz);
@@ -384,7 +384,7 @@ private:
         SPARQLQuery::Result &result = req.result;
 
         // the query plan is wrong
-        assert(result.get_col_num() == 0);
+        ASSERT(result.get_col_num() == 0);
 
         uint64_t npids = 0;
         edge_t *pids = graph->get_edges_global(tid, start, d, PREDICATE_ID, &npids);
@@ -573,7 +573,7 @@ private:
 
         boost::unordered_set<sid_t> unique_set;
         ssid_t vid = req.get_pattern(corun_step).subject;
-        assert(vid < 0);
+        ASSERT(vid < 0);
         int col_idx = req_result.var2col(vid);
         for (int i = 0; i < req_result.get_row_num(); i++)
             unique_set.insert(req_result.get_row_col(i, col_idx));
@@ -717,13 +717,13 @@ private:
                                      << "(" << req.result.variable_type(start)
                                      << "|" << req.result.variable_type(end)
                                      << ")" << LOG_endl;
-                assert(false);
+                ASSERT(false);
             }
             return true;
 #else
             logstream(LOG_ERROR) << "unsupported variable at predicate." << LOG_endl;
             logstream(LOG_ERROR) << "Please add definition VERSATILE in CMakeLists.txt." << LOG_endl;
-            assert(false);
+            ASSERT(false);
 #endif
         }
 
@@ -742,7 +742,7 @@ private:
                                      << "(" << req.result.variable_type(start)
                                      << "|" << req.result.variable_type(end)
                                      << ")" << LOG_endl;
-                assert(false);
+                ASSERT(false);
             }
             return true;
         }
@@ -754,10 +754,10 @@ private:
         // start from const
         case const_pair(const_var, const_var):
             logstream(LOG_ERROR) << "unsupported triple pattern (from const to const)" << LOG_endl;
-            assert(false);
+            ASSERT(false);
         case const_pair(const_var, known_var):
             logstream(LOG_ERROR) << "unsupported triple pattern (from const to known)" << LOG_endl;
-            assert(false);
+            ASSERT(false);
         case const_pair(const_var, unknown_var):
             const_to_unknown(req);
             break;
@@ -778,14 +778,14 @@ private:
         case const_pair(unknown_var, known_var):
         case const_pair(unknown_var, unknown_var):
             logstream(LOG_ERROR) << "unsupported triple pattern (from unknown)" << LOG_endl;
-            assert(false);
+            ASSERT(false);
 
         default:
             logstream(LOG_ERROR) << "unsupported triple pattern with known predicate "
                                  << "(" << req.result.variable_type(start)
                                  << "|" << req.result.variable_type(end)
                                  << ")" << LOG_endl;
-            assert(false);
+            ASSERT(false);
         }
 
         return true;
@@ -810,7 +810,7 @@ private:
                 return "\"" + filter.value + "\"";
             default:
                 logstream(LOG_ERROR) << "filter type not supported currently" << LOG_endl;
-                assert(false);
+                ASSERT(false);
             }
             return "";
         };

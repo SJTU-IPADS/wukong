@@ -108,7 +108,7 @@ private:
             return level_low_bound;
         if (level > level_up_bound) { // should be less than level_up_bound
             logstream(LOG_ERROR) << "need level: " << level << " level_up_bound: " << level_up_bound << LOG_endl;
-            assert(false);
+            ASSERT(false);
         }
         return level;
     }
@@ -203,7 +203,7 @@ private:
         ret_val = top_of_heap;
         if ((malloc_size + n) > heap_size) {
             logstream(LOG_ERROR) << "out of memory, can not sbrk any more" << LOG_endl;
-            assert(false);
+            ASSERT(false);
         }
         top_of_heap += n;
         malloc_size += n;
@@ -214,9 +214,9 @@ private:
 public:
 
     void init(void *start, uint64_t size, uint64_t n) {
-        //assert(level_low_bound >= 4);
-        //assert(level_up_bound <= 26);
-        assert(size / (n + 1) >= 1LL << level_up_bound);
+        //ASSERT(level_low_bound >= 4);
+        //ASSERT(level_up_bound <= 26);
+        ASSERT(size / (n + 1) >= 1LL << level_up_bound);
 
         malloc_size = 0;
         heap_size = size;
@@ -270,7 +270,7 @@ public:
             // no block big enough
             logstream(LOG_ERROR) << "malloc_buddysystem: memory is full" << LOG_endl;
             print_memory_usage();
-            assert(false);
+            ASSERT(false);
             //return -1;
         }
         // split larger block

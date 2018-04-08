@@ -84,7 +84,7 @@ private:
 
 			// There is no candidate with the Type for a random-constant in the template
 			// TODO: it should report empty for all queries of the template
-			assert(candidates.size() > 0);
+			ASSERT(candidates.size() > 0);
 
 			sqt.ptypes_grp[i] = candidates;
 
@@ -105,7 +105,7 @@ private:
 		// NOTE: the partitioned mapping has better tail latency in batch mode
 		int range = global_num_engines / global_num_proxies;
 		// FIXME: BUG if global_num_engines < global_num_proxies
-		assert(range > 0);
+		ASSERT(range > 0);
 
 		int base = global_num_proxies + (range * tid);
 		// randomly choose engine without preferred one
@@ -159,7 +159,7 @@ public:
 	void setpid(GStoreCheck &r) { r.pid = coder.get_and_inc_qid(); }
 
 	void send_request(SPARQLQuery &r) {
-		assert(r.pid != -1);
+		ASSERT(r.pid != -1);
 
 		// set mt_factor
 		if (r.start_from_index()) {
@@ -176,7 +176,7 @@ public:
 
 	SPARQLQuery recv_reply(void) {
 		Bundle bundle = adaptor->recv();
-		assert(bundle.type == SPARQL_QUERY);
+		ASSERT(bundle.type == SPARQL_QUERY);
 		SPARQLQuery r = bundle.get_sparql_query();
 		return r;
 	}
@@ -185,7 +185,7 @@ public:
 		Bundle bundle;
 		bool success = adaptor->tryrecv(bundle);
 		if (success) {
-			assert(bundle.type == SPARQL_QUERY);
+			ASSERT(bundle.type == SPARQL_QUERY);
 			r = bundle.get_sparql_query();
 		}
 
@@ -266,7 +266,7 @@ public:
 			}
 
 			is >> load;
-			assert(load > 0);
+			ASSERT(load > 0);
 			loads[i] = load;
 
 			// parse the query
@@ -363,7 +363,7 @@ public:
 		int ret = 0;
 		for (int i = 0; i < global_num_servers; i++) {
 			Bundle bundle = adaptor->recv();
-			assert(bundle.type == DYNAMIC_LOAD);
+			ASSERT(bundle.type == DYNAMIC_LOAD);
 
 			reply = bundle.get_rdf_load();
 			if (reply.load_ret < 0)
@@ -389,7 +389,7 @@ public:
 		int ret = 0;
 		for (int i = 0; i < global_num_servers; i++) {
 			Bundle bundle = adaptor->recv();
-			assert(bundle.type == GSTORE_CHECK);
+			ASSERT(bundle.type == GSTORE_CHECK);
 
 			reply = bundle.get_gstore_check();
 			if (reply.check_ret < 0)

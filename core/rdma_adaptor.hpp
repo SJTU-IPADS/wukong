@@ -72,12 +72,12 @@ private:
     scheduler_t *schedulers;
 
     uint64_t inline floor(uint64_t original, uint64_t n) {
-        assert(n != 0);
+        ASSERT(n != 0);
         return original - original % n;
     }
 
     uint64_t inline ceil(uint64_t original, uint64_t n) {
-        assert(n != 0);
+        ASSERT(n != 0);
         if (original % n == 0)
             return original;
         return original - original % n + n;
@@ -106,7 +106,7 @@ private:
         volatile uint64_t * footer = (volatile uint64_t *)(rbf + (lmeta->head + to_footer) % rbf_sz); // footer
         while (*footer != data_sz) { // spin-wait RDMA-WRITE done
             _mm_pause();
-            assert(*footer == 0 || *footer == data_sz);
+            ASSERT(*footer == 0 || *footer == data_sz);
         }
         *footer = 0;  // clean footer
 
@@ -190,7 +190,7 @@ public:
     ~RDMA_Adaptor() { }  //TODO
 
     bool send(int tid, int dst_sid, int dst_tid, string str) {
-        assert(init);
+        ASSERT(init);
 
         rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
         uint64_t rbf_sz = mem->ring_size();
@@ -201,7 +201,7 @@ public:
         // msg: header + data + footer (use data_sz as header and footer)
         uint64_t msg_sz = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
 
-        assert(msg_sz < rbf_sz);
+        ASSERT(msg_sz < rbf_sz);
 
         pthread_spin_lock(&rmeta->lock);
         if (rbf_full(tid, dst_sid, dst_tid, msg_sz)) {
@@ -235,7 +235,7 @@ public:
             // prepare RDMA buffer for RDMA-WRITE
             char *rdma_buf = mem->buffer(tid);
             uint64_t buf_sz = mem->buffer_size();
-            assert(msg_sz < buf_sz); // enough space to buffer the msg
+            ASSERT(msg_sz < buf_sz); // enough space to buffer the msg
 
             *((uint64_t *)rdma_buf) = data_sz;  // header
             rdma_buf += sizeof(uint64_t);
@@ -259,7 +259,7 @@ public:
     }
 
     std::string recv(int tid) {
-        assert(init);
+        ASSERT(init);
 
         while (true) {
             // each thread has a logical-queue (#servers physical-queues)
@@ -270,7 +270,7 @@ public:
     }
 
     bool tryrecv(int tid, std::string &str) {
-        assert(init);
+        ASSERT(init);
 
         // check all physical-queues once
         for (int dst_sid = 0; dst_sid < num_servers; dst_sid++) {
