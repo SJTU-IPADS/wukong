@@ -60,12 +60,12 @@ int num_cores = 0;
 
 void dump_node_topo(vector<vector<int>> topo)
 {
-	logstream(LOG_INFO) << "TOPO: " << topo.size() << "nodes" << LOG_endl;
+	cout << "TOPO: " << topo.size() << "nodes" << endl;
 	for (int nid = 0; nid < topo.size(); nid++) {
-		logstream(LOG_INFO) << "node " << nid << " cores: ";
+		cout << "  node " << nid << " cores: ";
 		for (int cid = 0; cid < topo[nid].size(); cid++)
-			logstream(LOG_INFO) << topo[nid][cid] << " ";
-		logstream(LOG_INFO) << LOG_endl;
+			cout << topo[nid][cid] << " ";
+		cout << endl;
 	}
 }
 
@@ -127,7 +127,7 @@ bool load_core_binding(string fname)
 	//load file of core binding
 	ifstream file(fname.c_str());
 	if (!file) {
-		logstream(LOG_ERROR) << fname << " does not exist." << LOG_endl;
+		cout << "ERROR: " << fname << " does not exist." << endl;
 		return false;
 	}
 
@@ -149,26 +149,87 @@ bool load_core_binding(string fname)
 	}
 
 	if (i < nnodes)
-		logstream(LOG_WARNING) << "#bindings (in \'core.bind\') deos not use all of the NUMANODEs!"
-		                       << LOG_endl;
+		cout << "WARNING: #bindings (in \'core.bind\') deos not use all of the NUMANODEs!"
+		     << endl;
 
 	if (i > nnodes)
-		logstream(LOG_WARNING) << "#bindings (in \'core.bind\') exceeds number of the NUMANODEs!"
-		                       << LOG_endl;
+		cout << "WARNING: #bindings (in \'core.bind\') exceeds number of the NUMANODEs!"
+		     << endl;
 
 	if (nbs < global_num_threads)
-		logstream(LOG_WARNING) << "#threads (in \'config\') exceeds #bindings (in \'bind\')!"
-		                       << LOG_endl;
+		cout << "WARNING: #threads (in \'config\') exceeds #bindings (in \'bind\')!"
+		     << endl;
 
 	return true;
 }
 
+/*
+ * bind to core with the core number
+ */
 void bind_to_core(size_t core)
 {
 	cpu_set_t mask;
 	CPU_ZERO(&mask);
 	CPU_SET(core, &mask);
 	if (sched_setaffinity(0, sizeof(mask), &mask) != 0)
-		logstream(LOG_ERROR) << "Failed to set affinity (core: " << core << ")" << LOG_endl;
+		cout << "Failed to set affinity (core: " << core << ")" << endl;
 }
 
+
+/*
+ * bind to mutilcore with mask
+ */
+void bind_to_core(cpu_set_t mask) {
+	if (sched_setaffinity(0, sizeof(mask), &mask) != 0) {
+		cout <<"Fail to set affinity" << endl;
+	}
+}
+
+/*
+ * bind the thread to all core
+ * like unbind to core without return previous binding core
+ */
+void bind_to_all() {
+    //binding the all core
+	cpu_set_t mask;
+	CPU_ZERO(&mask);
+	for (int i = 0; i < default_bindings.size(); i++) {
+		CPU_SET(default_bindings[i], &mask); 
+	}
+
+	if (sched_setaffinity(0, sizeof(mask), &mask) != 0) {
+		cout <<"Fail to set affinity" << endl;
+	}
+}
+
+/*
+ * get the mask of binding core
+ */
+cpu_set_t get_binding_core() {
+	//get the bind core 
+	cpu_set_t mask;
+	CPU_ZERO(&mask);
+	if (sched_getaffinity(0, sizeof(mask), &mask) != 0) {
+		cout <<"Fail to get affinity" << endl;
+	}
+	// return the binding core mask
+	return mask;
+}
+
+
+/*
+ * unbind to core:
+ * combine get_binding_core and bind_to_all
+ * the return value is the mask of binding core
+ */
+cpu_set_t unbind_to_core() {
+	//get previous binding core
+	cpu_set_t pre_mask;
+	pre_mask = get_binding_core();
+
+	//binding the all core
+	bind_to_all();
+
+	// return the pre core
+	return pre_mask;
+}
