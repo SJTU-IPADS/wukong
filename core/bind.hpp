@@ -55,8 +55,12 @@ using namespace std;
  */
 
 vector<vector<int>> cpu_topo;
-vector<int> default_bindings;
 int num_cores = 0;
+
+bool enable_binding = false;
+vector<int> default_bindings; // bind to core one-by-one
+map<int, int> core_bindings; // user-defined core binding
+
 
 void dump_node_topo(vector<vector<int>> topo)
 {
@@ -117,9 +121,6 @@ void load_node_topo(void)
 	dump_node_topo(cpu_topo);
 }
 
-bool enable_binding = false;
-map<int, int> core_bindings;
-
 bool load_core_binding(string fname)
 {
 	int nbs = 0;
@@ -140,7 +141,6 @@ bool load_core_binding(string fname)
 		istringstream iss(line); // one node per line
 		int ncores = cpu_topo[i].size(), j = 0, tid;
 		while (iss >> tid) {
-			//cout << tid << " " << cpu_topo[i % nnodes][j % ncores] << endl;
 			core_bindings[tid] = cpu_topo[i % nnodes][j++ % ncores];
 			nbs++;
 		}
@@ -165,7 +165,7 @@ bool load_core_binding(string fname)
 
 
 /*
- * bind to core with the core number
+ * Bind the current thread to a special core (core number)
  */
 void bind_to_core(size_t core)
 {
@@ -176,61 +176,52 @@ void bind_to_core(size_t core)
 		logstream(LOG_ERROR) << "Failed to set affinity (core: " << core << ")" << LOG_endl;
 }
 
-
 /*
- * bind to mutilcore with mask
+ * Bind the current thread to special cores (mask)
  */
-void bind_to_core(cpu_set_t mask) {
-	if (sched_setaffinity(0, sizeof(mask), &mask) != 0) {
-		logstream(LOG_ERROR) <<"Fail to set affinity" << LOG_endl;
-	}
+void bind_to_core(cpu_set_t mask)
+{
+	if (sched_setaffinity(0, sizeof(mask), &mask) != 0)
+		logstream(LOG_ERROR) << "Fail to set affinity!" << LOG_endl;
 }
 
 /*
- * bind the thread to all core
- * like unbind to core without return previous binding core
+ * Bind the current thread to all of cores
+ * It would like unbind to special cores
+ * and not return the previous core binding
  */
-void bind_to_all() {
-    //binding the all core
+void bind_to_all()
+{
 	cpu_set_t mask;
 	CPU_ZERO(&mask);
-	for (int i = 0; i < default_bindings.size(); i++) {
-		CPU_SET(default_bindings[i], &mask); 
-	}
+	for (int i = 0; i < default_bindings.size(); i++)
+		CPU_SET(default_bindings[i], &mask);
 
-	if (sched_setaffinity(0, sizeof(mask), &mask) != 0) {
-		logstream(LOG_ERROR) <<"Fail to set affinity" << LOG_endl;
-	}
+	if (sched_setaffinity(0, sizeof(mask), &mask) != 0)
+		logstream(LOG_ERROR) << "Fail to set affinity" << LOG_endl;
 }
 
 /*
- * get the mask of binding core
+ * Return the mask of the current core binding
  */
-cpu_set_t get_binding_core() {
-	//get the bind core 
+cpu_set_t get_core_binding()
+{
 	cpu_set_t mask;
 	CPU_ZERO(&mask);
-	if (sched_getaffinity(0, sizeof(mask), &mask) != 0) {
-		logstream(LOG_ERROR) <<"Fail to get affinity" << LOG_endl;
-	}
-	// return the binding core mask
+	if (sched_getaffinity(0, sizeof(mask), &mask) != 0)
+		logstream(LOG_ERROR) << "Fail to get affinity" << LOG_endl;
 	return mask;
 }
 
-
 /*
- * unbind to core:
- * combine get_binding_core and bind_to_all
- * the return value is the mask of binding core
+ * Unbind the current thread to special cores
+ * and return the preivous core binding
  */
-cpu_set_t unbind_to_core() {
-	//get previous binding core
-	cpu_set_t pre_mask;
-	pre_mask = get_binding_core();
+cpu_set_t unbind_to_core()
+{
+	cpu_set_t mask;
+	mask = get_core_binding(); // record the current core binding
 
-	//binding the all core
 	bind_to_all();
-
-	// return the pre core
-	return pre_mask;
+	return mask;
 }
