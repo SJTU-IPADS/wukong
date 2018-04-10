@@ -163,6 +163,10 @@ bool load_core_binding(string fname)
 	return true;
 }
 
+
+/*
+ * bind to core with the core number
+ */
 void bind_to_core(size_t core)
 {
 	cpu_set_t mask;
@@ -172,3 +176,61 @@ void bind_to_core(size_t core)
 		logstream(LOG_ERROR) << "Failed to set affinity (core: " << core << ")" << LOG_endl;
 }
 
+
+/*
+ * bind to mutilcore with mask
+ */
+void bind_to_core(cpu_set_t mask) {
+	if (sched_setaffinity(0, sizeof(mask), &mask) != 0) {
+		logstream(LOG_ERROR) <<"Fail to set affinity" << LOG_endl;
+	}
+}
+
+/*
+ * bind the thread to all core
+ * like unbind to core without return previous binding core
+ */
+void bind_to_all() {
+    //binding the all core
+	cpu_set_t mask;
+	CPU_ZERO(&mask);
+	for (int i = 0; i < default_bindings.size(); i++) {
+		CPU_SET(default_bindings[i], &mask); 
+	}
+
+	if (sched_setaffinity(0, sizeof(mask), &mask) != 0) {
+		logstream(LOG_ERROR) <<"Fail to set affinity" << LOG_endl;
+	}
+}
+
+/*
+ * get the mask of binding core
+ */
+cpu_set_t get_binding_core() {
+	//get the bind core 
+	cpu_set_t mask;
+	CPU_ZERO(&mask);
+	if (sched_getaffinity(0, sizeof(mask), &mask) != 0) {
+		logstream(LOG_ERROR) <<"Fail to get affinity" << LOG_endl;
+	}
+	// return the binding core mask
+	return mask;
+}
+
+
+/*
+ * unbind to core:
+ * combine get_binding_core and bind_to_all
+ * the return value is the mask of binding core
+ */
+cpu_set_t unbind_to_core() {
+	//get previous binding core
+	cpu_set_t pre_mask;
+	pre_mask = get_binding_core();
+
+	//binding the all core
+	bind_to_all();
+
+	// return the pre core
+	return pre_mask;
+}
