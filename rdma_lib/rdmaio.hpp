@@ -61,7 +61,8 @@ namespace rdmaio {
         //key: _QP_ENCODE_ID(dlid, dev_id)
         SimpleMap<struct ibv_ah*> ahs;
 
-        RdmaDevice():ahs(NULL){}
+        RdmaDevice():ctx(NULL), pd(NULL), conn_buf_mr(NULL),
+                     dgram_buf_mr(NULL), port_attrs(NULL), ahs(NULL){ }
     };
 
     struct RdmaQpAttr {
