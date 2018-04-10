@@ -47,8 +47,11 @@ class RDMA {
             vector<string> ipset;
             ifstream ipfile(ipfn);
             string ip;
-            while (ipfile >> ip)
+            // get first nnodes IPs
+            for (int i = 0; i < nnodes; i++) {
+                ipfile >> ip;
                 ipset.push_back(ip);
+            }
 
             // init device and create QPs
             ctrl = new RdmaCtrl(nid, ipset, RDMA_CTRL_PORT, true); // enable single context
