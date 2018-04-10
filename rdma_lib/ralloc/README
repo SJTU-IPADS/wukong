@@ -1,0 +1,42 @@
+This is a malloc for memory allocation in RDMA register area.
+It is extended from ssmalloc, thus it is as efficient as ssmalloc.
+Notice that using this lib will also overlap the malloc implementation.
+We will fix this later but strongly recommand u to use this malloc since it is more efficient in multi-thread programming.
+
+Current limitation:
+If the allocation size is large than 128K, then this malloc will use huge malloc. The memory alloced by huge malloc will
+never be reclaimed, thus the user must mange this him/herself.
+Usually we found that if the memory allocation is very large, it is never freed through the application lifecycle, so maye
+this is not a problem.
+
+Install:
+make;make install;
+And linked the libraries generated in ../lib directory. 
+
+Following is the original README from ssmalloc. 
+
+SSMalloc
+========
+
+ SSMalloc is a low-latency, locality-conscious memory 
+ allocator with stable performance scalability. 
+
+
+Compilation & Install
+=====================
+
+ SSMalloc requires libtool for compilation.
+ In the SSMalloc directory, type:
+
+ $ make
+ $ make install
+
+
+Usage
+=====
+ Use libssmalloc.a for static linking. If you want to 
+ dynamically link SSMalloc into your program. Please 
+ set the LD_PRELOAD environment variable as below.
+
+ $export LD_PRELOAD=(path)/libssmalloc.so
+
