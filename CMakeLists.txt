@@ -22,12 +22,11 @@ set(BOOST_LIB "${ROOT}/deps/boost_1_58_0-install/lib")
 include_directories(deps/boost_1_58_0-install/include)
 include_directories(core)
 include_directories(utils)
-include_directories(rdma_lib/core)
-include_directories(rdma_lib/utils)
+include_directories(rdma_lib)
 
 
 ## Source code
-file(GLOB SOURCES "core/*.hpp" "utils/*.hpp" "rdma_lib/core/*.hpp" "rdma_lib/utils/*.hpp")
+file(GLOB SOURCES "core/*.hpp" "utils/*.hpp" "rdma_lib/*.hpp")
 add_executable(wukong ${SOURCES} "core/wukong.cpp")
 
 

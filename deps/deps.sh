@@ -6,7 +6,6 @@ boost="boost_1_58_0"
 tbb="tbb44_20151115oss"
 zeromq="zeromq-4.0.5"
 hwloc="hwloc-1.11.7"
-librdma="librdma-1.0.0"
 
 write_log(){
     divider='-----------------------------'
@@ -157,37 +156,6 @@ install_hwloc(){
     fi
 }
 
-install_librdma(){
-    trap "return" ERR
-    echo "Installing ${librdma}..."
-    write_log "${librdma}"
-    cd "$WUKONG_ROOT/deps"
-    if [ ! -d "${librdma}-install" ]; then
-        mkdir "${librdma}-install"
-        if [ ! -d "${librdma}" ]; then
-            if [ ! -f "${librdma}.tar.gz" ]; then
-                wget "http://ipads.se.sjtu.edu.cn/wukong/${librdma}.tar.gz"
-            fi
-            tar zxf "${librdma}.tar.gz"
-        fi
-        cd "$WUKONG_ROOT/deps/${librdma}"
-        trap - ERR
-        ./configure --prefix="$WUKONG_ROOT/deps/${librdma}-install/" 2>>install_deps.log
-        make 2>>install_deps.log
-        make install 2>>install_deps.log
-    else
-        trap - ERR
-        echo "found librdma."
-    fi
-    if [ $( echo "${CPATH}" | grep "${librdma}-install" | wc -l ) -eq 0 ]; then
-        echo '# librdma configuration' >> ~/.bashrc
-        echo "export CPATH=\$WUKONG_ROOT/deps/${librdma}-install/include:\$CPATH" >> ~/.bashrc
-        echo "export LIBRARY_PATH=\$WUKONG_ROOT/deps/${librdma}-install/lib:\$LIBRARY_PATH" >> ~/.bashrc
-        echo "export LD_LIBRARY_PATH=\$WUKONG_ROOT/deps/${librdma}-install/lib:\$LD_LIBRARY_PATH" >> ~/.bashrc
-        source ~/.bashrc
-    fi
-}
-
 del_mpi(){
 	echo 'removing mpi...'
 	rm -rf "$WUKONG_ROOT/deps/${openmpi}-install" "$WUKONG_ROOT/deps/${openmpi}"
@@ -235,20 +203,6 @@ del_hwloc(){
 	export LD_LIBRARY_PATH=$NEW_LD_LIBRARY_PATH
 }
 
-del_librdma(){
-	echo 'removing librdma...'
-	rm -rf "$WUKONG_ROOT/deps/${librdma}-install" "$WUKONG_ROOT/deps/${librdma}"
-	sed -i '/\(librdma configuration\)\|\(CPATH.*librdma\)\|\(LIBRARY_PATH.*librdma\)\|\(LD_LIBRARY_PATH.*librdma\)/d' ~/.bashrc
-
-	pattern=":$WUKONG_ROOT/deps/librdma[^:]*"
-	NEW_CPATH=`echo $CPATH | sed 's%'"$pattern"'%%g'`
-	NEW_LIBRARY_PATH=`echo $LIBRARY_PATH | sed 's%'"$pattern"'%%g'`
-	NEW_LD_LIBRARY_PATH=`echo $LD_LIBRARY_PATH | sed 's%'"$pattern"'%%g'`
-	export CPATH=$NEW_CPATH
-	export LIBRARY_PATH=$NEW_LIBRARY_PATH
-	export LD_LIBRARY_PATH=$NEW_LD_LIBRARY_PATH
-}
-
 clean_deps(){
     echo 'compressed packages will not be removed.'
 	if [[ "$#" == "1" || "$2" == "all" ]]; then
@@ -258,7 +212,6 @@ clean_deps(){
 		del_tbb
 		del_zeromq
 		del_hwloc
-		del_librdma
 	else
 		for ((i=2;i<=$#;i++)); do
 			item=${!i}
@@ -268,7 +221,6 @@ clean_deps(){
 				"tbb") del_tbb ;;
 				"zeromq") del_zeromq ;;
 				"hwloc") del_hwloc ;;
-				"librdma") del_librdma ;;
 				*) echo "cannot clean $item" ;;
 			esac
 		done
@@ -285,11 +237,6 @@ if [ $WUKONG_ROOT ]; then
         install_tbb
         install_zeromq
         install_hwloc
-        if [ "$1" == "no-rdma" ]; then
-            echo 'librdma will not be installed.'
-        else
-            install_librdma
-        fi
     fi
     cd "$WUKONG_ROOT/deps"
     source ~/.bashrc

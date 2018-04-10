@@ -18,7 +18,7 @@
 
 #include "rdma_header.hpp"
 #include "simple_map.hpp"
-#include "../utils/utils.hpp"
+#include "utils.hpp"
 #include "helper_func.hpp"
 
 // #define PER_QP_PD
