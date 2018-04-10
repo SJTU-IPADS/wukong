@@ -191,7 +191,6 @@ namespace rdmaio {
             }
 
             // initilization method
-            //void init_rc(RdmaDevice *rdma_device, int port_id);
             void init_rc(RdmaDevice *rdma_device, int port_id){
 
                 assert(rdma_device != NULL && rdma_device->ctx != NULL);
@@ -232,8 +231,6 @@ namespace rdmaio {
 
                 rc_ready2init(qp, port_id);
             }
-            //void init_uc(RdmaDevice *rdma_device, int port_id);
-            //void init_ud(RdmaDevice *rdma_device, int port_id);
             void init_uc(RdmaDevice *rdma_device, int port_id){
 
                 dev_ = rdma_device;
@@ -294,8 +291,8 @@ namespace rdmaio {
                 ahs_.clear();
                 ud_attrs_.clear();
             }
+
             //return true if the connection is succesfull
-            //bool connect_rc();
             bool connect_rc() {
 
                 if(inited_) {
@@ -347,7 +344,7 @@ namespace rdmaio {
                 inited_ = true;
                 return true;
             }
-            // bool connect_uc();	
+
             bool connect_uc() {
 
                 if(inited_) {
@@ -398,7 +395,6 @@ namespace rdmaio {
                 return true;
             }
 
-
             // return true if the connection is succesfull,
             // unlike rc, a ud qp can be used to connnect many destinations, so this method can be called many times
             bool get_ud_connect_info(int remote_id,int idx);
@@ -406,7 +402,6 @@ namespace rdmaio {
             bool get_ud_connect_info_specific(int remote_id,int thread_id,int idx);
 
             // change rc,uc QP's states to ready
-            //void change_qp_states(RdmaQpAttr *remote_qp_attr, int dev_port_id);
             void change_qp_states(RdmaQpAttr *remote_qp_attr, int dev_port_id) {
 
                 assert(remote_qp_attr != NULL);
@@ -425,7 +420,6 @@ namespace rdmaio {
 
             }
             // post and poll wrapper
-            //IOStatus rc_post_send(ibv_wr_opcode op,char *local_buf,int len,uint64_t off,int flags,int wr_id = 0);
             IOStatus rc_post_send(ibv_wr_opcode op,char *local_buf,int len,uint64_t off,int flags,int wr_id = 0) {
 
                 IOStatus rc = IO_SUCC;
@@ -462,7 +456,6 @@ namespace rdmaio {
                 return rc;
             }
 
-            //IOStatus rc_post_doorbell(RdmaReq *reqs, int batch_size);
             IOStatus rc_post_doorbell(RdmaReq *reqs, int batch_size) {
 
                 IOStatus rc = IO_SUCC;
@@ -534,9 +527,6 @@ namespace rdmaio {
                 return rc;
             }
 
-            //    IOStatus rc_post_fetch_and_add(char *local_buf,uint64_t off,
-            //                    uint64_t add_value, int flags,int wr_id= 0);
-
             IOStatus rc_post_fetch_and_add(char *local_buf,uint64_t off,
                     uint64_t add_value, int flags,int wr_id = 0) {
 
@@ -568,9 +558,6 @@ namespace rdmaio {
                 return rc;
             }
 
-
-            // IOStatus rc_post_pending(ibv_wr_opcode op,char *local_buf,int len,uint64_t off,int flags,int wr_id = 0);
-
             IOStatus rc_post_pending(ibv_wr_opcode op,char *local_buf,int len,uint64_t off,int flags,int wr_id = 0) {
                 int i = current_idx++;
                 sr[i].opcode  = op;
@@ -596,7 +583,6 @@ namespace rdmaio {
                 return IO_SUCC;
             }
 
-            //bool     rc_flush_pending();
             bool rc_flush_pending() {
 
                 if(current_idx > 0) {
@@ -608,8 +594,6 @@ namespace rdmaio {
                 }
                 return false;
             }
-
-            //    IOStatus uc_post_send(ibv_wr_opcode op,char *local_buf,int len,uint64_t off,int flags);
 
             IOStatus uc_post_send(ibv_wr_opcode op,char *local_buf,int len,uint64_t off,int flags) {
 
@@ -636,9 +620,6 @@ namespace rdmaio {
                 CE(rc, "ibv_post_send error\n");
                 return rc;
             }
-
-
-            //    IOStatus uc_post_doorbell(RdmaReq *reqs, int batch_size);
 
             IOStatus uc_post_doorbell(RdmaReq *reqs, int batch_size) {
 
@@ -679,10 +660,6 @@ namespace rdmaio {
                 return rc;
             }
 
-
-
-            //IOStatus poll_completion(uint64_t *rid = NULL);
-            //IOStatus poll_completions(int cq_num, uint64_t *rid = NULL);
             // poll complection of a cq
             IOStatus poll_completion(uint64_t *rid = NULL) {
 
@@ -782,8 +759,6 @@ namespace rdmaio {
                 return rc;
             }
 
-
-            //int      try_poll(); // return: -1 on NULL, otherwise req wr_id
             int try_poll() {  // return: -1 on NULL, otherwise req wr_id
                 struct ibv_wc wc;
                 auto poll_result = ibv_poll_cq(this->send_cq, 1, &wc);
@@ -796,6 +771,7 @@ namespace rdmaio {
                 }
                 return -1;
             }
+
             inline bool first_send(){
                 return pendings == 0;
             }
@@ -824,9 +800,6 @@ namespace rdmaio {
     // A simple rdma connection manager
     class RdmaCtrl {
         public:
-            //    RdmaCtrl(int node_id, const std::vector<std::string> network,
-            //             int tcp_base_port, bool enable_single_thread_mr = false);
-
             RdmaCtrl(int id, const std::vector<std::string> net,
                     int port, bool enable_single_thread_mr = false):
                 node_id_(id),network_(net.begin(),net.end()),tcp_base_port_(port),
@@ -857,9 +830,6 @@ namespace rdmaio {
             running = true;
         }
 
-
-            //      ~RdmaCtrl();
-
             ~RdmaCtrl() {
                 // free some resources, may be we does need to do this,
                 // since when RDMA device is closed, the app shall close
@@ -870,11 +840,7 @@ namespace rdmaio {
                 running = false; // close listening threads
             }
 
-
             // XD: why volatile?
-            //    void set_dgram_mr(volatile void *dgram_buf, int dgram_buf_size);
-            //    void set_connect_mr(volatile void *conn_buf, uint64_t conn_buf_size);//huge page?
-
             void set_connect_mr(volatile void *conn_buf, uint64_t conn_buf_size){
                 if(conn_buf == NULL) {
                     conn_buf = (volatile uint8_t *) memalign(4096, conn_buf_size);
@@ -897,9 +863,7 @@ namespace rdmaio {
                 dgram_buf_size_ = dgram_buf_size;
             }
 
-
             // query methods
-            // void query_devinfo();
             void query_devinfo() {
 
                 int rc;
@@ -946,10 +910,6 @@ namespace rdmaio {
                 // printf("[librdma] : Total %d Ports!\n", num_ports_);
             }
 
-
-            // int get_active_dev(int port_index);
-            // int get_active_port(int port_index);
-
             int get_active_dev(int port_index){
                 assert(port_index >= 0 && port_index < num_ports_);
                 for(int device_id = 0; device_id < num_devices_; device_id++){
@@ -975,7 +935,6 @@ namespace rdmaio {
                 return -1;
             }
 
-
             // simple wrapper over ibv_query_device
             int query_specific_dev(int dev_id,struct ibv_device_attr *device_attr) {
                 auto dev = rdma_devices_[dev_id]; // FIXME: no checks here
@@ -985,7 +944,6 @@ namespace rdmaio {
             //-----------------------------------------------
             // thread local methods, which means the behavior will change depends on the execution threads
             // thread specific initilization
-            //    void thread_local_init();
             void thread_local_init() {
                 //single memory region
                 if(enable_single_thread_mr_) return;
@@ -995,9 +953,7 @@ namespace rdmaio {
                     rdma_devices_[i] = NULL;
             }
 
-
             // open devices for process
-            //    void open_device(int dev_id = 0);
             void open_device(int dev_id = 0) {
 
                 int rc;
@@ -1041,10 +997,7 @@ namespace rdmaio {
                 // CE_1(!rdma_device_->pd, "[librdma]: ibv_alloc prodection doman failed at dev %d\n",dev_id);
             }
 
-
             // register memory buffer to a device, shall be called after the set_connect_mr and open_device
-            //    void register_connect_mr(int dev_id = 0);
-            //    void register_dgram_mr(int dev_id = 0);
 
             void register_connect_mr(int dev_id = 0) {
                 RdmaDevice *rdma_device = get_rdma_device(dev_id);
@@ -1067,12 +1020,9 @@ namespace rdmaio {
                         ,"[librdma]: Datagram Memory Region failed at dev %d, err %s\n",dev_id,strerror(errno));
             }
 
-
             //-----------------------------------------------
 
             // background threads to handle QP exchange information
-            //static void* recv_thread(void *arg);
-
             static void* recv_thread(void *arg){
 
                 pthread_detach(pthread_self());
@@ -1139,9 +1089,7 @@ namespace rdmaio {
                 printf("[librdma] : recv thread exit!\n");
             }
 
-
             // start the background listening thread
-            //void start_server();
             void start_server() {
 
                 pthread_t tid;
@@ -1162,9 +1110,6 @@ namespace rdmaio {
             // Input:  remote server id defined in the network, local thread id, the port which QP is created on.
             // Output: a connected ready to use QP.
             // DZY:assume that one thread only has one corresponding QP
-            //    Qp  *create_rc_qp(int tid, int remote_id,int dev_id,int port_idx, int idx = 0);
-            //    Qp  *create_uc_qp(int tid, int remote_id,int dev_id,int port_idx, int idx = 0);
-
             Qp *create_rc_qp(int tid, int remote_id,int dev_id,int port_idx, int idx = 0) {
 
                 // TODO: check device
@@ -1229,7 +1174,6 @@ namespace rdmaio {
 
             //  unlike rc qp, a thread may create multiple ud qp, so an idx will identify which ud qp to use
             //Qp  *create_ud_qp(int tid, int remote_id,int dev_id,int port_idx,int idx);
-            //    Qp  *create_ud_qp(int tid,int dev_id,int port_idx,int idx);
 
             Qp *create_ud_qp(int tid,int dev_id,int port_idx,int idx) {
 
@@ -1262,8 +1206,6 @@ namespace rdmaio {
                 return res;
             }
 
-
-            //  void link_connect_qps(int tid, int dev_id, int port_idx,int idx, ibv_qp_type qp_type);
             void link_connect_qps(int tid, int dev_id, int port_idx, int idx, ibv_qp_type qp_type){
 
                 Qp* (RdmaCtrl::* create_qp_func)(int,int,int,int,int);
@@ -1315,12 +1257,10 @@ namespace rdmaio {
                 }
             }
 
-
             //rdma device query
             inline RdmaDevice* get_rdma_device(int dev_id = 0){
                 return enable_single_thread_mr_ ? rdma_single_device_ : rdma_devices_[dev_id];
             }
-
 
             // qp query
             inline Qp *get_rc_qp(int tid,int remote_id, int idx = 0) {
@@ -1365,8 +1305,6 @@ namespace rdmaio {
 
             //-----------------------------------------------
 
-            //    static ibv_ah* create_ah(int dlid,int port_index, RdmaDevice* rdma_device);
-
             static ibv_ah* create_ah(int dlid, int port_index, RdmaDevice* rdma_device){
                 struct ibv_ah_attr ah_attr;
                 ah_attr.is_global = 0;
@@ -1380,10 +1318,6 @@ namespace rdmaio {
                 assert(ah != NULL);
                 return ah;
             }
-
-
-            //    void init_conn_recv_qp(int qid);
-            //    void init_dgram_recv_qp(int qid);
 
             void init_conn_recv_qp(int qid){
                 RdmaRecvHelper *recv_helper = new RdmaRecvHelper;
@@ -1448,8 +1382,6 @@ namespace rdmaio {
                 post_ud_recvs(qid, max_recv_num);
             }
 
-
-            //RdmaQpAttr get_local_qp_attr(int qid);
             RdmaQpAttr get_local_qp_attr(int qid){
 
                 RdmaQpAttr qp_attr;
@@ -1483,8 +1415,6 @@ namespace rdmaio {
                 return qp_attr;
             }
 
-
-            //RdmaQpAttr get_remote_qp_attr(int nid, uint64_t qid);
             RdmaQpAttr get_remote_qp_attr(int nid, uint64_t qid) {
                 assert(false);
                 int retry_count = 0;
@@ -1535,7 +1465,6 @@ retry:
                 return qp_attr;
             }
 
-            //int post_ud(int qid, RdmaReq* req);
             int post_ud(int qid, RdmaReq* reqs){
                 int rc = 0;
                 struct ibv_send_wr sr, *bad_sr;
@@ -1562,9 +1491,6 @@ retry:
                 CE(rc, "ibv_post_send error");
                 return rc;
             }
-
-
-            //int post_ud_doorbell(int qid, int batch_size, RdmaReq* reqs);
 
             int post_ud_doorbell(int qid, int batch_size, RdmaReq* reqs){
 
@@ -1609,8 +1535,6 @@ retry:
                 return rc;
             }
 
-
-            //  int post_conn_recvs(int qid, int recv_num);
             int post_conn_recvs(int qid, int recv_num) {
                 struct ibv_recv_wr *head_rr, *tail_rr, *temp_rr, *bad_rr = NULL;
                 RdmaRecvHelper *recv_helper = recv_helpers_[qid];
@@ -1636,9 +1560,6 @@ retry:
                 MOD_ADD(recv_helper->recv_head, recv_helper->max_recv_num); /* 1 step */
                 return rc;
             }
-
-            //int post_ud_recv(struct ibv_qp *qp, void *buf_addr, int len, int lkey);
-            //int post_ud_recvs(int qid, int recv_num);
 
             int post_ud_recv(struct ibv_qp *qp, void *buf_addr, int len, int lkey) {
                 int rc = 0;
@@ -1690,11 +1611,6 @@ retry:
                 return rc;
             }
 
-
-            //    int poll_recv_cq(int qid);
-            //    int poll_recv_cq(Qp* qp);
-            //    int poll_cqs(int qid, int cq_num);
-            // int poll_conn_recv_cqs(int qid);
             int poll_recv_cq(int qid){
                 Qp *qp = qps_[qid];
                 struct ibv_wc wc;
@@ -1715,7 +1631,6 @@ retry:
                 //       (*(uint32_t*)(wc.wr_id+GRH_SIZE)));
                 return rc;
             }
-
 
             int poll_recv_cq(Qp* qp){
                 struct ibv_wc wc;
@@ -1758,7 +1673,6 @@ retry:
                 return rc;
             }
 
-
             int poll_conn_recv_cqs(int qid){
                 Qp *qp = qps_[qid];
                 RdmaRecvHelper *recv_helper = recv_helpers_[qid];
@@ -1784,9 +1698,6 @@ retry:
                 }
                 return rc;
             }
-
-
-            //int poll_dgram_recv_cqs(int qid);
 
             int poll_dgram_recv_cqs(int qid){
                 Qp *qp = qps_[qid];
@@ -1814,8 +1725,6 @@ retry:
                 return rc;
             }
 
-
-
         private:
             // global mtx to protect qp_vector
             std::mutex *mtx_;
@@ -1825,13 +1734,11 @@ retry:
             // current node id
             int node_id_;
 
-
             // TCP listening port
             int tcp_base_port_;
 
             const bool enable_single_thread_mr_;
         public:
-
             // global network topology
             const std::vector<std::string> network_;
 
