@@ -32,7 +32,7 @@ using namespace std;
 
 #ifdef HAS_RDMA
 
-#include "rdmaio.h"
+#include "rdmaio.hpp"
 using namespace rdmaio;
 
 class RDMA {

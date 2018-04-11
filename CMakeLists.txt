@@ -22,10 +22,11 @@ set(BOOST_LIB "${ROOT}/deps/boost_1_58_0-install/lib")
 include_directories(deps/boost_1_58_0-install/include)
 include_directories(core)
 include_directories(utils)
+include_directories(rdma_lib)
 
 
 ## Source code
-file(GLOB SOURCES "core/*.hpp" "utils/*.hpp")
+file(GLOB SOURCES "core/*.hpp" "utils/*.hpp" "rdma_lib/*.hpp")
 add_executable(wukong ${SOURCES} "core/wukong.cpp")
 
 
@@ -36,7 +37,7 @@ add_executable(wukong ${SOURCES} "core/wukong.cpp")
 option (USE_RDMA "enable RDMA support" ON)
 if(USE_RDMA)
   add_definitions(-DHAS_RDMA)
-  target_link_libraries(wukong rdma)
+##  target_link_libraries(wukong rdma)
 endif(USE_RDMA)
 
 #### HDFS
