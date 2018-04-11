@@ -1,5 +1,5 @@
 #!/bin/bash
-trap "trap - ERR; return" ERR
+trap - ERR
 # vars
 openmpi="openmpi-1.6.5"
 boost="boost_1_58_0"
@@ -49,7 +49,7 @@ install_boost(){
         mkdir "${boost}-install"
         if [ ! -d "${boost}" ]; then
             if [ ! -f "${boost}.tar.gz" ]; then
-                wget "http://sourceforge.net/projects/boost/files/boost/1.58.0/${boost}.tar.gz"
+                wget "https://cecas.clemson.edu/dealii/mirror/${boost}.tar.gz"
             fi
             tar zxf "${boost}.tar.gz"
         fi
@@ -100,7 +100,7 @@ install_zeromq(){
         mkdir "${zeromq}-install"
         if [ ! -d "${zeromq}" ]; then
             if [ ! -f "${zeromq}.tar.gz" ]; then
-                wget "https://archive.org/download/zeromq_4.0.5/${zeromq}.tar.gz"
+                wget "https://github.com/zeromq/zeromq4-x/releases/download/v4.0.5/${zeromq}.tar.gz"
             fi
             tar zxf "${zeromq}.tar.gz"
         fi
@@ -288,7 +288,7 @@ if [ $WUKONG_ROOT ]; then
         if [ "$1" == "no-rdma" ]; then
             echo 'librdma will not be installed.'
         else
-            install_librdma
+            # install_librdma
         fi
     fi
     cd "$WUKONG_ROOT/deps"
