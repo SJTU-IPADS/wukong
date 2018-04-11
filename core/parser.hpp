@@ -27,7 +27,8 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
-#include <assert.h>
+// #include <assert.h>
+#include "assertion.hpp"
 #include <boost/unordered_map.hpp>
 #include <boost/algorithm/string.hpp>
 
@@ -144,7 +145,7 @@ private:
             if (pattern.pred_type > 0
                     && !global_enable_vattr) {
                 logstream(LOG_ERROR) << "Need to change config to enable vertex_attr " << LOG_endl;
-                assert(false);
+                ASSERT(false);
             }
 
             dst.patterns.push_back(pattern);
@@ -250,7 +251,7 @@ private:
             if (pattern.pred_type > 0
                     && !global_enable_vattr) {
                 logstream(LOG_ERROR) << "Need to change config to enable vertex_attr " << LOG_endl;
-                assert(false);
+                ASSERT(false);
             }
 
             sqt.pattern_group.patterns.push_back(pattern);

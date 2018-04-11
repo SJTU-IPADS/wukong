@@ -175,7 +175,7 @@ public:
                                 << print_interval * (i + 1) / 1000 << "ms)\t"
                                 << (float)thpts[i] / (print_interval / 1000) << LOG_endl;
 #endif
-        assert(is_aggregated);
+        ASSERT(is_aggregated);
         vector<double> cdf_rates = {0.01};
 
         for (int i = 1; i < 20; ++i)
@@ -184,7 +184,7 @@ public:
         for (int i = 1; i <= 5; ++i)
             cdf_rates.push_back(0.95 + i * 0.01);
 
-        assert(cdf_rates.size() == 25);
+        ASSERT(cdf_rates.size() == 25);
 
         logstream(LOG_INFO) << "Per-query CDF graph" << LOG_endl;
         int cnt, query_type;//, query_cnt = 0;
@@ -195,7 +195,7 @@ public:
             query_type = e.first;
             vector<uint64_t> &lats = e.second;
 
-            // assert(lats.size() > cdf_rates.size());
+            // ASSERT(lats.size() > cdf_rates.size());
             if (lats.empty())
                 continue;
 
@@ -209,7 +209,7 @@ public:
                 cdf_res[query_type].push_back(lats[idx]);
                 cnt++;
             }
-            assert(cdf_res[query_type].size() == 25);
+            ASSERT(cdf_res[query_type].size() == 25);
         }
 
         logstream(LOG_INFO) << "CDF Res: " << LOG_endl;

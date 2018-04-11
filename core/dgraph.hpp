@@ -30,7 +30,8 @@
 #include <unordered_set>
 #include <vector>
 #include <algorithm>
-#include <assert.h>
+// #include <assert.h>
+#include "assertion.hpp"
 #include <boost/mpi.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/algorithm/string/predicate.hpp>
@@ -178,7 +179,7 @@ class DGraph {
 			                     << " #exist-triples = " << exist
 			                     << " #new-triples = " << n
 			                     << LOG_endl;
-			assert(false);
+			ASSERT(false);
 		}
 
 		// send triples and clear the buffer
@@ -214,7 +215,7 @@ class DGraph {
 		if ((n * 3 + 3) * sizeof(sid_t) > buf_sz) {
 			flush_triples(tid, dst_sid);
 			n = *pn; // reset, it should be 0
-			assert(n == 0);
+			ASSERT(n == 0);
 		}
 
 		// buffer the triple and update the counter
@@ -318,7 +319,7 @@ class DGraph {
 					int s_sid = mymath::hash_mod(s, global_num_servers);
 					int o_sid = mymath::hash_mod(o, global_num_servers);
 					if ((s_sid == sid) || (o_sid == sid)) {
-						assert((n * 3 + 3) * sizeof(sid_t) <= kvs_sz);
+						ASSERT((n * 3 + 3) * sizeof(sid_t) <= kvs_sz);
 						// buffer the triple and update the counter
 						kvs[n * 3 + 0] = s;
 						kvs[n * 3 + 1] = p;
@@ -512,12 +513,12 @@ class DGraph {
 	}
 
 	uint64_t inline floor(uint64_t original, uint64_t n) {
-		assert(n != 0);
+		ASSERT(n != 0);
 		return original - original % n;
 	}
 
 	uint64_t inline ceil(uint64_t original, uint64_t n) {
-		assert(n != 0);
+		ASSERT(n != 0);
 		if (original % n == 0)
 			return original;
 		return original - original % n + n;
