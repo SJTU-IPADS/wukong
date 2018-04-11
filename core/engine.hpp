@@ -1321,7 +1321,14 @@ out:
 
 #if DYNAMIC_GSTORE
     void execute_load_data(RDFLoad &r) {
+        // unbind the core from the thread in order to use openmpi to run multithreads
+        cpu_set_t mask = unbind_to_core();
+
         r.load_ret = graph->dynamic_load_data(r.load_dname, r.check_dup);
+
+        //rebind the thread with the core
+        bind_to_core(mask);  
+        
         Bundle bundle(r);
         send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
     }
