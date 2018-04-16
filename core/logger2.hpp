@@ -227,6 +227,29 @@ public:
         return *this;
     }
 
+    // if input a std::endl then flush the message to console and/or fout
+  file_logger &operator<<(std::ostream &(*f)(std::ostream &)) {
+    // get the stream buffer entry first
+    logger_impl::streambuf_entry *streambufentry =
+        reinterpret_cast<logger_impl::streambuf_entry *>(
+            pthread_getspecific(streambufkey));
+
+    if (streambufentry != NULL) {
+      std::stringstream &sstream = streambufentry->streambuffer;
+      bool &streamactive = streambufentry->streamactive;
+
+      // check whether the input is std::endl;
+      typedef std::ostream &(*endltype)(std::ostream &);
+      if (streamactive) {
+        if (endltype(f) == endltype(std::endl)) {
+          sstream << "\n";
+          stream_flush();
+        }
+      }
+    }
+    return *this;
+  }
+
     // F-file, C-console
     void _print2FC(int loglevel, const char *buf, int len) {
         if (fout.good()) {
@@ -412,6 +435,8 @@ public:
                     textcolor(stdout, BRIGHT, RED);
                 } else if (loglevel == LOG_WARNING) {
                     textcolor(stdout, BRIGHT, MAGENTA);
+                } else if (loglevel == LOG_DEBUG) {
+                    textcolor(stdout, BRIGHT, YELLOW);
                 } else if (loglevel == LOG_EMPH) {
                     textcolor(stdout, BRIGHT, GREEN);
                 }
