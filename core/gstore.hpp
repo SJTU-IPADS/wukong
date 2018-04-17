@@ -591,7 +591,7 @@ done:
         return (edge_t *)buf;
     }
 
-    // Get remote vertex of given key. This func will fail if RDMA is not disabled.
+    // Get remote vertex of given key. This func will fail if RDMA is disabled.
     vertex_t get_vertex_remote(int tid, ikey_t key) {
         int dst_sid = mymath::hash_mod(key.vid, global_num_servers);
         uint64_t bucket_id = key.hash() % num_buckets;
@@ -677,7 +677,7 @@ done:
             v = get_vertex_remote(tid, key);
             edge_ptr = rdma_get_edges(tid, dst_sid, v);
         }
-#endif // DYNAMIC_GSTORE
+#endif
         
         *sz = v.ptr.size;
         return edge_ptr;
