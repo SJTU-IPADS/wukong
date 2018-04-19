@@ -81,7 +81,7 @@ private:
 
     // Align given value up to given alignment
     uint64_t inline ceil(uint64_t val, uint64_t alignment) {
-        ASSERT(aligment != 0);
+        ASSERT(alignment != 0);
         if (val % alignment == 0)
             return val;
         return val - val % alignment + alignment;
