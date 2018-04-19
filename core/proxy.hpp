@@ -247,7 +247,7 @@ public:
 		return 0; // success
 	} // end of run_single_query
 
-        // Run batch query for @d seconds.
+        // Run batch query for @d seconds. Command is "-b"
         // Warm up for @w firstly, then measure throughput.
         // Latency is evaluated for @d seconds.
         // Proxy keeps @p queries in flight.
