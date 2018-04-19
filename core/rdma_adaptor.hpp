@@ -135,7 +135,7 @@ private:
 
         // update heads of ring buffer to writer to help it detect overflow
         char *head = mem->local_ring_head(tid, dst_sid);
-        if (lmeta->head - * (uint64_t *)head > 8 * 1024) {
+        if (lmeta->head - * (uint64_t *)head > 1024 * 1024) {
             *(uint64_t *)head = lmeta->head;
             if (sid != dst_sid) {  // update to remote server
                 RDMA &rdma = RDMA::get_rdma();

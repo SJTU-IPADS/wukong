@@ -156,6 +156,9 @@ private:
     }
 
     bool send_request(Bundle &bundle, int dst_sid, int dst_tid) {
+        // check and send pending messages first
+        sweep_msg();
+
         if (adaptor->send(dst_sid, dst_tid, bundle))
             return true;
 
@@ -1397,9 +1400,6 @@ public:
 
         while (true) {
             at_work = false;
-
-            // check and send pending messages
-            sweep_msgs();
 
             // fast path (priority)
             SPARQLQuery request; // FIXME: only sparql query use fast-path now

@@ -59,8 +59,10 @@ private:
 			: sid(sid), tid(tid), bundle(bundle) { }
 	};
 
-	vector<Message> pending_msgs;
+	vector<Message> pending_msgs; // pending msgs to send
 
+        // Collect candidate constants of all template types in given template query.
+        // Result is in ptypes_grp of given template query.
 	void fill_template(SPARQLQuery_Template &sqt) {
 		sqt.ptypes_grp.resize(sqt.ptypes_str.size());
 		for (int i = 0; i < sqt.ptypes_str.size(); i++) {
@@ -93,6 +95,8 @@ private:
 		}
 	}
 
+        // Send given bundle to given thread(@dst_tid) in given server(@dst_sid).
+        // Return false if it fails. Bundle is pending in pending_msgs.
 	inline bool send(Bundle &bundle, int dst_sid, int dst_tid) {
 		if (adaptor->send(dst_sid, dst_tid, bundle))
 			return true;
@@ -101,6 +105,8 @@ private:
 		return false;
 	}
 
+        // Send given bundle to certain engine in given server(@dst_sid).
+        // Return false if it fails. Bundle is pending in pending_msgs.
 	inline bool send(Bundle &bundle, int dst_sid) {
 		// NOTE: the partitioned mapping has better tail latency in batch mode
 		int range = global_num_engines / global_num_proxies;
@@ -120,6 +126,7 @@ private:
 		return false;
 	}
 
+        // Try send all msgs in pending_msgs.
 	inline void sweep_msgs() {
 		if (!pending_msgs.size()) return;
 
@@ -144,7 +151,7 @@ public:
 	Coder coder;
 	Parser parser;
 	Planner planner;
-	data_statistic *statistic;
+	data_statistic *statistic; // for planner
 
 
 	Proxy(int sid, int tid, String_Server *str_server,
@@ -158,6 +165,7 @@ public:
 
 	void setpid(GStoreCheck &r) { r.pid = coder.get_and_inc_qid(); }
 
+        // Send request to certain engine.
 	void send_request(SPARQLQuery &r) {
 		ASSERT(r.pid != -1);
 
@@ -174,6 +182,7 @@ public:
 		send(bundle, start_sid);
 	}
 
+        // Recv reply from engines.
 	SPARQLQuery recv_reply(void) {
 		Bundle bundle = adaptor->recv();
 		ASSERT(bundle.type == SPARQL_QUERY);
@@ -181,6 +190,7 @@ public:
 		return r;
 	}
 
+        // Try recv reply from engines.
 	bool tryrecv_reply(SPARQLQuery &r) {
 		Bundle bundle;
 		bool success = adaptor->tryrecv(bundle);
@@ -192,9 +202,13 @@ public:
 		return success;
 	}
 
+        // Run a single query for @cnt times. Command is "-f"
+        // @is: input
+        // @reply: result
 	int run_single_query(istream &is, int cnt,
 	                     SPARQLQuery &reply, Logger &logger) {
 		SPARQLQuery request;
+                // parse query
 		uint64_t t_parse1 = timer::get_usec();
 		if (!parser.parse(is, request)) {
 			logstream(LOG_ERROR) << "Parsing failed! ("
@@ -205,6 +219,8 @@ public:
 		}
 		uint64_t t_parse2 = timer::get_usec();
 
+                // If planner is enabled, generate plans for query.
+                // Only works for standard SPARQL query.
 		if (global_enable_planner) {
 			// planner
 			uint64_t t_plan1 = timer::get_usec();
@@ -218,6 +234,7 @@ public:
 			}
 		}
 
+                // Start execute query
 		logger.init();
 		for (int i = 0; i < cnt; i++) {
 			setpid(request);
@@ -228,13 +245,17 @@ public:
 		}
 		logger.finish();
 		return 0; // success
-	}
+	} // end of run_single_query
 
+        // Run batch query for @d seconds.
+        // Warm up for @w firstly, then measure throughput.
+        // Latency is evaluated for @d seconds.
+        // Proxy keeps @p queries in flight.
 	int run_batch_query(istream &is, int d, int w, int p, Logger &logger) {
 		uint64_t duration = SEC(d);
 		uint64_t warmup = SEC(w);
 		int parallel_factor = p;
-		int try_rounds = 5;
+		int try_rounds = 5; // rounds to try recv reply
 
 		// parse the first line of batch config file
 		// [#lights] [#heavies]
@@ -251,6 +272,7 @@ public:
 		vector<SPARQLQuery_Template> tpls(nlights);
 		vector<SPARQLQuery> heavy_reqs(nheavies);
 
+                // parse template queries
 		vector<int> loads(ntypes);
 		for (int i = 0; i < ntypes; i++) {
 			// each line is a class of light or heavy query
@@ -286,11 +308,12 @@ public:
 
 		logger.init(ntypes);
 
-		bool start = false;
+		bool start = false; // start to measure throughput
 		uint64_t send_cnt = 0, recv_cnt = 0, flying_cnt = 0;
 
+                // start
 		uint64_t init = timer::get_usec();
-		while ((timer::get_usec() - init) < duration) {
+		while ((timer::get_usec() - init) < duration) { // send requeries for duration seconds
 			// send requests
 			for (int i = 0; i < parallel_factor - flying_cnt; i++) {
 				sweep_msgs(); // sweep pending msgs first
@@ -319,17 +342,17 @@ public:
 				}
 			}
 
-			logger.print_timely_thpt(recv_cnt, sid, tid);
+			logger.print_timely_thpt(recv_cnt, sid, tid); // print throughput
 
-			// skip warmup
+			// start to measure throughput after first warmup seconds
 			if (!start && (timer::get_usec() - init) > warmup) {
-				logger.start_thpt(recv_cnt);
+				logger.start_thpt(recv_cnt); 
 				start = true;
 			}
 
 			flying_cnt = send_cnt - recv_cnt;
 		}
-		logger.end_thpt(recv_cnt);
+		logger.end_thpt(recv_cnt); // finish to measure throughput
 
 		// recieve all replies to calculate the tail latency
 		while (recv_cnt < send_cnt) {
@@ -347,7 +370,7 @@ public:
 		logger.finish();
 
 		return 0; // success
-	}
+	} // end of run_batch_query
 
 #if DYNAMIC_GSTORE
 	int dynamic_load_data(string &dname, RDFLoad &reply, Logger &logger, bool &check_dup) {
