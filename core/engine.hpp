@@ -156,13 +156,10 @@ private:
     }
 
     bool send_request(Bundle &bundle, int dst_sid, int dst_tid) {
-        // check and send pending messages first
-        sweep_msgs();
-
         if (adaptor->send(dst_sid, dst_tid, bundle))
             return true;
 
-        // failed to send, then stash the msg to void deadlock
+        // failed to send, then stash the msg to avoid deadlock
         pending_msgs.push_back(Message(dst_sid, dst_tid, bundle));
         return false;
     }
