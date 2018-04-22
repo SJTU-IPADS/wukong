@@ -1401,6 +1401,9 @@ public:
         while (true) {
             at_work = false;
 
+            // check and send pending messages first
+            sweep_msgs();
+
             // fast path (priority)
             SPARQLQuery request; // FIXME: only sparql query use fast-path now
             pthread_spin_lock(&recv_lock);
