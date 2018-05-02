@@ -46,9 +46,13 @@ enum var_type {
 };
 
 // EXT = [ TYPE:16 | COL:16 ]
+// EXT combine message about the col of attr_res_table and the col of result_table
+// TYPE = 0 means  result_table, 1 means  attr_res_table
 #define NBITS_COL  16
+// Init COL value with NO_RESULT
 #define NO_RESULT  ((1 << NBITS_COL) - 1)
 
+// conversion between col and ext
 int col2ext(int col, int t) { return ((t << NBITS_COL) | col); }
 int ext2col(int ext) { return (ext & ((1 << NBITS_COL) - 1)); }
 
@@ -225,6 +229,13 @@ public:
         vector<sid_t> result_table; // result table for string IDs
         vector<attr_t> attr_res_table; // result table for others
 
+        /*
+         * mapping from Variable ID(var) to column ID
+         * var <=> idx <=> ext <=> col
+         * var <=> idx: var is set like -1,-2 e.g. idx is the index number of v2c_map; idx = -(vid + 1)
+         * idx <=> ext: ext store the col and result tabe type(attr_res_table or result_table); ext = v2c_map[idx]
+         * ext <=> col: ext2col and col2ext
+         */
         void clear_data() {
             result_table.clear();
             attr_res_table.clear();
@@ -246,9 +257,11 @@ public:
             if (v2c_map.size() == 0) // init
                 v2c_map.resize(nvars, NO_RESULT);
 
+            //get idx
             int idx = - (vid + 1);
             ASSERT(idx < nvars);
 
+            // get col
             return ext2col(v2c_map[idx]);
         }
 
@@ -257,10 +270,12 @@ public:
             ASSERT(vid < 0 && col >= 0);
             if (v2c_map.size() == 0) // init
                 v2c_map.resize(nvars, NO_RESULT);
+            // get index
             int idx = - (vid + 1);
             ASSERT(idx < nvars);
-
+            // col should no be set
             ASSERT(v2c_map[idx] == NO_RESULT);
+            //set ext
             v2c_map[idx] = col2ext(col, t);
         }
 
