@@ -557,6 +557,9 @@ private:
         // always need fork-join mode w/o RDMA
         if (!global_use_rdma) return true;
 
+        // always need NOT fork-join when executing on single machine
+        if (global_num_servers == 1) return false;
+
         SPARQLQuery::Pattern &pattern = req.get_current_pattern();
         ssid_t start = pattern.subject;
         return ((req.local_var != start)
