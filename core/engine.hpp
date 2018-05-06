@@ -191,7 +191,10 @@ private:
     }
 
     // all of these means const attribute
+    // query the attribute starts from const
+    // like <Course3> <id> ?X
     void const_to_unknown_attr(SPARQLQuery & req ) {
+        // prepare for query
         SPARQLQuery::Pattern &pattern = req.get_current_pattern();
         ssid_t start = pattern.subject;
         ssid_t aid   = pattern.predicate;
@@ -203,13 +206,15 @@ private:
         ASSERT(d == OUT); // attribute always uses OUT
         int type = SID_t;
 
+        // get the reusult
         attr_t v;
         graph->get_vertex_attr_global(tid, start, d, aid, v);
         updated_result_table.push_back(v);
         type = boost::apply_visitor(get_type, v);
 
+        // update the result table and metadata
         result.attr_res_table.swap(updated_result_table);
-        result.add_var2col(end, 0, type);
+        result.add_var2col(end, 0, type);   //update the unknown_attr to known
         result.set_attr_col_num(1);
         req.step++;
     }
@@ -243,7 +248,10 @@ private:
         req.step++;
     }
 
+    // query the attribute starts from known to attribute value
     void known_to_unknown_attr(SPARQLQuery &req) {
+        // prepare for query
+        // the attr_res_table and result_table should be update
         SPARQLQuery::Pattern &pattern = req.get_current_pattern();
         ssid_t start = pattern.subject;
         ssid_t pid   = pattern.predicate;
@@ -257,6 +265,9 @@ private:
         ASSERT(d == OUT);
         int type = SID_t;
 
+        // get the reusult
+        // like known_to_unknown 
+        // append the attribute value to attr_res_table and update result_table
         updated_attr_result_table.reserve(result.attr_res_table.size());
         for (int i = 0; i < result.get_row_num(); i++) {
             sid_t prev_id = result.get_row_col(i, result.var2col(start));
@@ -270,9 +281,10 @@ private:
             }
         }
 
+        // update the result table, attr_res_table and metadata
         result.attr_res_table.swap(updated_attr_result_table);
         result.result_table.swap(updated_result_table);
-        result.add_var2col(end, result.get_attr_col_num(), type);
+        result.add_var2col(end, result.get_attr_col_num(), type);   // update the unknown_attr to known
         result.set_attr_col_num(result.get_attr_col_num() + 1);
         req.step++;
     }
@@ -731,9 +743,10 @@ private:
         }
 
         // triple pattern with attribute
-        if (global_enable_vattr && req.get_pattern(req.step).pred_type > 0) {
+        if (global_enable_vattr && req.get_pattern(req.step).pred_type > 0) {   //judge by predicate type
             switch (const_pair(req.result.variable_type(start),
                                req.result.variable_type(end))) {
+            // now support const_to_unknown_attr and known_to_unknown_attr
             case const_pair(const_var, unknown_var):
                 const_to_unknown_attr(req);
                 break;

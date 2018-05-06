@@ -359,11 +359,12 @@ class DGraph {
 
 		sort(fnames.begin(), fnames.end());
 
+		//parallel load from all files
 		int num_files = fnames.size();
 		#pragma omp parallel for num_threads(global_num_engines)
 		for (int i = 0; i < num_files; i++) {
 			int localtid = omp_get_thread_num();
-			auto lambda = [&](istream & file) {
+			auto load_attr = [&](istream & file) {
 				sid_t s, a;
 				attr_t v;
 				int type;
@@ -392,15 +393,17 @@ class DGraph {
 						triple_sav[localtid].push_back(triple_attr_t(s, a, v));
 				}
 			};
+
+			//load from hdfs or posix file
 			if (boost::starts_with(fnames[i], "hdfs:")) {
 				// files located on HDFS
 				wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
 				wukong::hdfs::fstream file(hdfs, fnames[i]);
-				lambda(file);
+				load_attr(file);
 				file.close();
 			} else {
 				ifstream file(fnames[i].c_str());
-				lambda(file);
+				load_attr(file);
 				file.close();
 			}
 		}

@@ -97,7 +97,7 @@ uint64_t vid : NBITS_VID; // vertex
 // 64-bit internal pointer
 //   NBITS_SIZE: the max number of edges (edge_t) for a single vertex (256M)
 //   NBITS_PTR: the max number of edges (edge_t) for the entire gstore (16GB)
-//   NBITS_TYPE: sid(0), int(1), float(2), double(4)
+//   NBITS_TYPE: the type of edge, used for attribute triple, sid(0), int(1), float(2), double(4)
 enum { NBITS_SIZE = 28 };
 enum { NBITS_PTR  = 34 };
 enum { NBITS_TYPE =  2 };
@@ -108,7 +108,7 @@ uint64_t off: NBITS_PTR;
 uint64_t type: NBITS_TYPE;
 
     iptr_t(): size(0), off(0), type(0) { }
-
+    // the default type is sid(type = 0)
     iptr_t(uint64_t s, uint64_t o, uint64_t t = 0): size(s), off(o), type(t) {
         // no truncated
         ASSERT ((size == s) && (off == o) && (type == t));
@@ -698,12 +698,17 @@ done:
         return &(edges[v.ptr.off]);
     }
 
+    // get the attribute value from local
+    // the attribute value was set in argument r
+    // and return sucess or false
     bool get_vertex_attr_remote(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &r) {
+        //struct the key
         int dst_sid = mymath::hash_mod(vid, global_num_servers);
         ikey_t key = ikey_t(vid, pid, d);
         edge_t *edge_ptr;
         vertex_t v;
 
+        //get the vertex from DYNAMIC_GSTORE or normal
 #if DYNAMIC_GSTORE
         v = get_vertex_remote(tid, key);
         if (v.key.is_empty()) {
@@ -726,7 +731,9 @@ done:
         edge_ptr = rdma_get_edges(tid, dst_sid, v);
 #endif // DYNAMIC_GSTORE
 
+        // get the edge
         uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
+        // get the attribute value from its type
         switch (v.ptr.type) {
         case INT_t:
             r = *((int *)(&(edges[r_off])));
@@ -745,14 +752,21 @@ done:
         return true;
     }
 
+    // get the attribute value from local
+    // the attribute value was set in argument r
+    // and return sucess or false
     bool get_vertex_attr_local(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &r) {
+        // struct the key
         ikey_t key = ikey_t(vid, pid, d);
+        // get the vertex
         vertex_t v = get_vertex_local(tid, key);
 
         if (v.key.is_empty())
             return false; // not found
 
+        // get the edge
         uint64_t off = v.ptr.off;
+        // get the attribute with its type
         switch (v.ptr.type) {
         case INT_t:
             r = *((int *)(&(edges[off])));
@@ -1512,7 +1526,9 @@ public:
         }
     }
 
-    // get vertex attributes
+    // get vertex attributes global
+    // the attribute value was set in argument r
+    // and return sucess or false
     bool get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &r) {
         if (sid == mymath::hash_mod(vid, global_num_servers))
             return get_vertex_attr_local(tid, vid, d, pid, r);

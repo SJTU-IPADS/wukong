@@ -28,8 +28,10 @@ using namespace std;
 
 enum data_type { SID_t = 0, INT_t, FLOAT_t, DOUBLE_t };
 
+//attr_t unions int, double, float
 typedef boost::variant<int, double, float> attr_t;
 
+// get the variant type
 class variant_type : public boost::static_visitor<int> {
 public:
 	int operator ()(int i) const { return INT_t; }
@@ -39,6 +41,7 @@ public:
 
 variant_type get_type;
 
+// get the size of variant type
 size_t get_sizeof(int type) {
 	switch (type) {
 	case INT_t: return sizeof(int);
