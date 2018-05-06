@@ -147,13 +147,20 @@ struct edge_t {
 class GStore {
 private:
     /// TODO: use more clever cache structure with lock-free implementation
+    /* Cache remote vertex(location) of the given key, eleminating one RDMA read.
+     * This only works when RDMA enabled.
+     */
     class RDMA_Cache {
         struct Item {
             pthread_spinlock_t lock;
             vertex_t v;
 
 #if DYNAMIC_GSTORE
-            uint64_t expire_time;  // expiring time for dynamic cache
+            /* time of cache item to expire
+             * A cache item is valid
+             * only when expire_time is greater than the time to lookup.
+             */
+            uint64_t expire_time;
 #endif
 
             Item() {
@@ -163,11 +170,13 @@ private:
 
         static const int NUM_ITEMS = 100000;
         Item items[NUM_ITEMS];
-        uint64_t lease;   // lease for dynamic cache
+        uint64_t lease;   // term of cache item. Only work for cache coherence.
 
     public:
         RDMA_Cache() { }
         RDMA_Cache(uint64_t lease): lease(lease) { }
+
+        /* Lookup a vertex in cache according to the given key.*/
         bool lookup(ikey_t key, vertex_t &ret) {
             if (!global_enable_caching)
                 return false;
@@ -178,6 +187,7 @@ private:
             if (items[idx].v.key == key) {
 
 #if DYNAMIC_GSTORE
+                // check if timeout
                 if (timer::get_usec() < items[idx].expire_time) {
                     ret = items[idx].v;
                     found = true;
@@ -191,6 +201,7 @@ private:
             return found;
         }
 
+        /* Insert a vertex into cache. */
         void insert(vertex_t &v) {
             if (!global_enable_caching)
                 return;
@@ -198,12 +209,16 @@ private:
             pthread_spin_lock(&items[idx].lock);
 
 #if DYNAMIC_GSTORE
+            // set expire time of cache item
             items[idx].expire_time = timer::get_usec() + lease;
 #endif
             items[idx].v = v;
             pthread_spin_unlock(&items[idx].lock);
         }
 
+        /* Invalidate cache item of the given key.
+         * Only work when the corresponding vertex exists.
+         */
         void invalidate(ikey_t key) {
             if (!global_enable_caching)
                 return;
@@ -352,30 +367,44 @@ done:
     /// A size flag is put into the tail of edges (in the entry region) for dynamic cache.
     /// NOTE: the (remote) edges accessed by (local) RDMA cache are valid
     ///       if and only if the size flag of edges is consistent with the size within the pointer.
-    static const uint64_t INVALID_EDGES = 1 << NBITS_SIZE;
 
-    inline uint64_t b2e(uint64_t sz) { return sz / sizeof(edge_t); } //byte_to_edge
-    inline uint64_t e2b(uint64_t sz) { return sz * sizeof(edge_t); } //edge_to_byte
-    inline uint64_t blksz(uint64_t sz) { return b2e(edge_allocator->sz_to_blksz(e2b(sz))); } //unit: edge
+    static const uint64_t INVALID_EDGES = 1 << NBITS_SIZE; // flag indicates invalidate edges
 
-    inline void insert_sz(uint64_t n, uint64_t sz, uint64_t off) {
-        uint64_t blk_sz = blksz(sz + 1);   // reserve one space for sz
-        edges[off + blk_sz - 1].val = n;  // store num of edges in array's tail
+    // Convert given byte units to edge units.
+    inline uint64_t b2e(uint64_t sz) { return sz / sizeof(edge_t); }
+    // Convert given edge uints to byte units.
+    inline uint64_t e2b(uint64_t sz) { return sz * sizeof(edge_t); }
+    // Return exact block size of given size in edge unit.
+    inline uint64_t blksz(uint64_t sz) { return b2e(edge_allocator->sz_to_blksz(e2b(sz))); }
+
+    /* Insert size flag size flag in edges.
+     * @flag: size flag to insert
+     * @sz: actual size of edges
+     * @off: offset of edges
+    */ 
+    inline void insert_sz(uint64_t flag, uint64_t sz, uint64_t off) {
+        uint64_t blk_sz = blksz(sz + 1);   // reserve one space for flag
+        edges[off + blk_sz - 1].val = flag;
     }
 
+    /* Check the validation of given edge according to given vertex.
+     * The edge is valid only when the size flag of edge is consistent with the size within the vertex.
+     */
     inline bool edge_is_valid(vertex_t &v, edge_t *edge_ptr) {
         if (!global_enable_caching)
             return true;
 
-        uint64_t blk_sz = blksz(v.ptr.size + 1);  // reserve one space for the size of edges
-        return (edge_ptr[blk_sz - 1].val == v.ptr.size);   // check whether the sizes are consistent
+        uint64_t blk_sz = blksz(v.ptr.size + 1);  // reserve one space for flag
+        return (edge_ptr[blk_sz - 1].val == v.ptr.size);
     }
 
     /// Defer blk's free operation for dynamic cache.
-    /// Pending the free operation when blk is to be collected by add_pending_free()
+    /// Pend the free operation when blk is to be collected by add_pending_free()
     /// When allocating a new blk by alloc_edges(), check if pending free's lease expires
     /// and collect free space by sweep_free().
     uint64_t lease;
+
+    // block deferred to be freed
     struct free_blk {
         uint64_t off;
         uint64_t expire_time;
@@ -384,6 +413,7 @@ done:
     queue<free_blk> free_queue;
     pthread_spinlock_t free_queue_lock;
 
+    // Pend the free operation of given block.
     inline void add_pending_free(iptr_t ptr) {
         uint64_t expire_time = timer::get_usec() + lease;
         free_blk blk(ptr.off, expire_time);
@@ -393,6 +423,7 @@ done:
         pthread_spin_unlock(&free_queue_lock);
     }
 
+    // Execute all expired pending free operations in queue.
     inline void sweep_free() {
         pthread_spin_lock(&free_queue_lock);
         while (!free_queue.empty()) {
@@ -405,18 +436,23 @@ done:
         pthread_spin_unlock(&free_queue_lock);
     }
 
+    // Allocate space to store edges of given size.
+    // Return offset of allocated space.
     inline uint64_t alloc_edges(uint64_t n, int64_t tid = -1) {
         if (global_enable_caching)
-            sweep_free();
+            sweep_free(); // collect free space before allocate
         uint64_t sz = e2b(n + 1); // reserve one space for sz
         uint64_t off = b2e(edge_allocator->malloc(sz, tid));
         insert_sz(n, n, off);
         return off;
     }
+
 #else // NOT DYNAMIC_GSTORE
     uint64_t last_entry;
     pthread_spinlock_t entry_lock;
 
+    // Allocate space to store edges of given size.
+    // Return offset of allocated space.
     uint64_t alloc_edges(uint64_t n, int64_t tid = -1) {
         uint64_t orig;
         pthread_spin_lock(&entry_lock);
@@ -463,13 +499,13 @@ done:
             dedup_or_isdup = false;
 
             uint64_t need_size = v->ptr.size + 1;
-            if (blksz(v->ptr.size) - 1 < need_size) { // need to realloc new blk
+            if (blksz(v->ptr.size) - 1 < need_size) { // a new block is needed
                 iptr_t old_ptr = v->ptr;
 
                 uint64_t off = alloc_edges(need_size);
                 memcpy(&edges[off], &edges[old_ptr.off], e2b(old_ptr.size));
                 edges[off + old_ptr.size].val = value;
-                insert_sz(INVALID_EDGES, old_ptr.size, old_ptr.off);  // invalidate old blk
+                insert_sz(INVALID_EDGES, old_ptr.size, old_ptr.off);  // invalidate the old block
                 v->ptr = iptr_t(need_size, off);
 
                 if (global_enable_caching)
@@ -477,7 +513,7 @@ done:
                 else
                     edge_allocator->free(e2b(old_ptr.off));
             } else {
-                insert_sz(need_size, need_size, v->ptr.off);
+                insert_sz(need_size, need_size, v->ptr.off);  // update size flag
                 edges[v->ptr.off + v->ptr.size].val = value;
                 v->ptr.size = need_size;
             }
@@ -534,6 +570,7 @@ done:
 
     RDMA_Cache rdma_cache;
 
+    // Get edges of given vertex from dst_sid by RDMA read.
     inline edge_t *rdma_get_edges(int tid, int dst_sid, vertex_t &v) {
         ASSERT(global_use_rdma);
 
@@ -554,6 +591,7 @@ done:
         return (edge_t *)buf;
     }
 
+    // Get remote vertex of given key. This func will fail if RDMA is disabled.
     vertex_t get_vertex_remote(int tid, ikey_t key) {
         int dst_sid = mymath::hash_mod(key.vid, global_num_servers);
         uint64_t bucket_id = key.hash() % num_buckets;
@@ -563,9 +601,11 @@ done:
         // TODO: implement it w/o RDMA
         ASSERT(global_use_rdma);
 
+        // check cache
         if (rdma_cache.lookup(key, vert))
-            return vert; // found
+            return vert;
 
+        // get vertex by RDMA
         char *buf = mem->buffer(tid);
         uint64_t buf_sz = mem->buffer_size();
         while (true) {
@@ -591,8 +631,9 @@ done:
                 }
             }
         }
-    }
+    } // end of get_vertex_remote
 
+    // Get local vertex of given key.
     vertex_t get_vertex_local(int tid, ikey_t key) {
         uint64_t bucket_id = key.hash() % num_buckets;
         while (true) {
@@ -615,40 +656,35 @@ done:
         }
     }
 
+    // Get remote edges according to given vid, dir, pid.
+    // @sz: size of return edges
     edge_t *get_edges_remote(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
         int dst_sid = mymath::hash_mod(vid, global_num_servers);
         ikey_t key = ikey_t(vid, pid, d);
         edge_t *edge_ptr;
-        vertex_t v;
-
-#if DYNAMIC_GSTORE
-        v = get_vertex_remote(tid, key);
+        vertex_t v = get_vertex_remote(tid, key);
         if (v.key.is_empty()) {
             *sz = 0;
             return NULL; // not found
         }
 
         edge_ptr = rdma_get_edges(tid, dst_sid, v);
-
-        while (!edge_is_valid(v, edge_ptr)) { // edge is not valid
+#if DYNAMIC_GSTORE
+        // check the validation of edges
+        // if not, invalidate the cache and try again
+        while (!edge_is_valid(v, edge_ptr)) {
             rdma_cache.invalidate(key);
             v = get_vertex_remote(tid, key);
             edge_ptr = rdma_get_edges(tid, dst_sid, v);
         }
-#else // NOT DYNAMIC_GSTORE
-        v = get_vertex_remote(tid, key);
-        if (v.key.is_empty()) {
-            *sz = 0;
-            return NULL; // not found
-        }
-
-        edge_ptr = rdma_get_edges(tid, dst_sid, v);
-#endif // DYNAMIC_GSTORE
-
+#endif
+        
         *sz = v.ptr.size;
         return edge_ptr;
     }
 
+    // Get local edges according to given vid, dir, pid.
+    // @sz: size of return edges
     edge_t *get_edges_local(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
         ikey_t key = ikey_t(vid, pid, d);
         vertex_t v = get_vertex_local(tid, key);
@@ -659,8 +695,7 @@ done:
         }
 
         *sz = v.ptr.size;
-        uint64_t off = v.ptr.off;
-        return &(edges[off]);
+        return &(edges[v.ptr.off]);
     }
 
     bool get_vertex_attr_remote(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &r) {

@@ -159,7 +159,7 @@ private:
         if (adaptor->send(dst_sid, dst_tid, bundle))
             return true;
 
-        // failed to send, then stash the msg to void deadlock
+        // failed to send, then stash the msg to avoid deadlock
         pending_msgs.push_back(Message(dst_sid, dst_tid, bundle));
         return false;
     }
@@ -1401,7 +1401,7 @@ public:
         while (true) {
             at_work = false;
 
-            // check and send pending messages
+            // check and send pending messages first
             sweep_msgs();
 
             // fast path (priority)

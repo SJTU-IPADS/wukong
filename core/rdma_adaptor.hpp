@@ -45,19 +45,21 @@ private:
     int num_servers;
     int num_threads;
 
-    // the ring-buffer space contains #threads logical-queues.
-    // each logical-queue contains #servers physical queues (ring-buffer).
-    // the X physical-queue (ring-buffer) is written by the responding threads
-    // (proxies and engine with the same "tid") on the X server.
-    //
-    // access mode of physical queue is N writers (from the same server) and 1 reader.
+    /// The ring-buffer space contains #threads logical-queues.
+    /// Each logical-queue contains #servers physical queues (ring-buffer).
+    /// The X physical-queue (ring-buffer) of thread(tid) is written by the responding threads
+    /// (proxies and engine with the same "tid") on the X server.
+    /// Access mode of physical queue is N writers (from the same server) and 1 reader.
+
+    // track tail of ring buffer for writer
     struct rbf_rmeta_t {
-        uint64_t tail; // write from here
+        uint64_t tail;
         pthread_spinlock_t lock;
     } __attribute__ ((aligned (WK_CLINE)));
 
+    // track head of ring buffer for reader
     struct rbf_lmeta_t {
-        uint64_t head; // read from here
+        uint64_t head;
         pthread_spinlock_t lock;
     } __attribute__ ((aligned (WK_CLINE)));
 
@@ -71,56 +73,59 @@ private:
 
     scheduler_t *schedulers;
 
-    uint64_t inline floor(uint64_t original, uint64_t n) {
-        ASSERT(n != 0);
-        return original - original % n;
+    // Align given value down to given alignment
+    uint64_t inline floor(uint64_t val, uint64_t alignment) {
+        ASSERT(alignment != 0);
+        return val - val % alignment;
     }
 
-    uint64_t inline ceil(uint64_t original, uint64_t n) {
-        ASSERT(n != 0);
-        if (original % n == 0)
-            return original;
-        return original - original % n + n;
+    // Align given value up to given alignment
+    uint64_t inline ceil(uint64_t val, uint64_t alignment) {
+        ASSERT(alignment != 0);
+        if (val % alignment == 0)
+            return val;
+        return val - val % alignment + alignment;
     }
 
+    // Check if there is data from threads in dst_sid to tid
     bool check(int tid, int dst_sid) {
         rbf_lmeta_t *lmeta = &lmetas[tid * num_servers + dst_sid];
-        char *rbf = mem->ring(tid, dst_sid);
+        char *rbf = mem->ring(tid, dst_sid); // ring buffer for tid to recv data from threads in dst_sid
         uint64_t rbf_sz = mem->ring_size();
         volatile uint64_t data_sz = *(volatile uint64_t *)(rbf + lmeta->head % rbf_sz);  // header
 
         return (data_sz != 0);
     }
 
+    // Fetch data from threads in dst_sid to tid
     std::string fetch(int tid, int dst_sid) {
         rbf_lmeta_t *lmeta = &lmetas[tid * num_servers + dst_sid];
         char * rbf = mem->ring(tid, dst_sid);
         uint64_t rbf_sz = mem->ring_size();
+        // struct of data: [size | data | size]
         volatile uint64_t data_sz = *(volatile uint64_t *)(rbf + lmeta->head % rbf_sz);  // header
-
-        uint64_t t1 = timer::get_usec();
-
         *(uint64_t *)(rbf + lmeta->head % rbf_sz) = 0;  // clean header
 
         uint64_t to_footer = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t));
         volatile uint64_t * footer = (volatile uint64_t *)(rbf + (lmeta->head + to_footer) % rbf_sz); // footer
         while (*footer != data_sz) { // spin-wait RDMA-WRITE done
             _mm_pause();
+            /* If RDMA-WRITE is done, footer == header == size
+             * Otherwise, footer == 0
+             */
             ASSERT(*footer == 0 || *footer == data_sz);
         }
         *footer = 0;  // clean footer
 
-        uint64_t t2 = timer::get_usec();
-
-        // read data
+        // actually read data
         std::string result;
         result.reserve(data_sz);
-        uint64_t start = (lmeta->head + sizeof(uint64_t)) % rbf_sz;
-        uint64_t end = (lmeta->head + sizeof(uint64_t) + data_sz) % rbf_sz;
+        uint64_t start = (lmeta->head + sizeof(uint64_t)) % rbf_sz; // start of data
+        uint64_t end = (lmeta->head + sizeof(uint64_t) + data_sz) % rbf_sz;  // end of data
         if (start < end) {
             result.append(rbf + start, data_sz);
             memset(rbf + start, 0, ceil(data_sz, sizeof(uint64_t)));  // clean data
-        } else {
+        } else { // overwrite from the start
             result.append(rbf + start, data_sz - end);
             result.append(rbf, end);
             memset(rbf + start, 0, data_sz - end);                    // clean data
@@ -128,13 +133,12 @@ private:
         }
         lmeta->head += 2 * sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t));
 
-        // update heads
+        // update heads of ring buffer to writer to help it detect overflow
         char *head = mem->local_ring_head(tid, dst_sid);
-        if (lmeta->head - * (uint64_t *)head > 8 * 1024) {
+        const uint64_t threshold = rbf_sz / 8;
+        if (lmeta->head - * (uint64_t *)head > threshold) {
             *(uint64_t *)head = lmeta->head;
-
-            // update to remote
-            if (sid != dst_sid) {
+            if (sid != dst_sid) {  // update to remote server
                 RDMA &rdma = RDMA::get_rdma();
                 uint64_t remote_head = mem->remote_ring_head_offset(tid, sid);
                 rdma.dev->RdmaWrite(tid, dst_sid, head, mem->remote_ring_head_size(), remote_head);
@@ -143,10 +147,14 @@ private:
             }
         }
 
-        uint64_t t3 = timer::get_usec();
         return result;
-    }
+    } // end of fetch
 
+    /* Check whether overflow occurs if given msg is sent
+     * @tid tid of writer
+     * @dst_sid, @dst_tid sid and tid of reader
+     * @msg_sz size of msg to send
+    */
     inline bool rbf_full(int tid, int dst_sid, int dst_tid, uint64_t msg_sz) {
         uint64_t rbf_sz = mem->ring_size();
         uint64_t tail = rmetas[dst_sid * num_threads + dst_tid].tail;
@@ -157,6 +165,7 @@ private:
 
 public:
     bool init = false;
+
 
     RDMA_Adaptor(int sid, Mem *mem, int num_servers, int num_threads)
         : sid(sid), mem(mem), num_servers(num_servers), num_threads(num_threads) {
@@ -189,6 +198,8 @@ public:
 
     ~RDMA_Adaptor() { }  //TODO
 
+    // Send given string to (dst_sid, dst_tid) by thread(tid)
+    // Return false if failed . Otherwise, return true.
     bool send(int tid, int dst_sid, int dst_tid, string str) {
         ASSERT(init);
 
@@ -198,13 +209,13 @@ public:
         const char *data = str.c_str();
         uint64_t data_sz = str.length();
 
-        // msg: header + data + footer (use data_sz as header and footer)
+        // struct of data: [size | data | size] (use size of data as header and footer)
         uint64_t msg_sz = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
 
         ASSERT(msg_sz < rbf_sz);
 
         pthread_spin_lock(&rmeta->lock);
-        if (rbf_full(tid, dst_sid, dst_tid, msg_sz)) {
+        if (rbf_full(tid, dst_sid, dst_tid, msg_sz)) { // detect overflow
             pthread_spin_unlock(&rmeta->lock);
             return false;
         }
@@ -227,7 +238,7 @@ public:
             }
             off += ceil(data_sz, sizeof(uint64_t));
             *((uint64_t *)(ptr + off % rbf_sz)) = data_sz;       // footer
-        } else { // local physical-queue
+        } else { // remote physical-queue
             uint64_t off = rmeta->tail;
             rmeta->tail += msg_sz;
             pthread_spin_unlock(&rmeta->lock);
@@ -256,7 +267,7 @@ public:
         }
 
         return true;
-    }
+    } // end of send
 
     std::string recv(int tid) {
         ASSERT(init);
@@ -269,10 +280,11 @@ public:
         }
     }
 
+    // Try to recv data of given thread
     bool tryrecv(int tid, std::string &str) {
         ASSERT(init);
 
-        // check all physical-queues once
+        // check all physical-queues of tid once
         for (int dst_sid = 0; dst_sid < num_servers; dst_sid++) {
             if (check(tid, dst_sid)) {
                 str = fetch(tid, dst_sid);
