@@ -266,7 +266,7 @@ private:
         int type = SID_t;
 
         // get the reusult
-        // like known_to_unknown 
+        // like known_to_unknown
         // append the attribute value to attr_res_table and update result_table
         updated_attr_result_table.reserve(result.attr_res_table.size());
         for (int i = 0; i < result.get_row_num(); i++) {
@@ -1343,8 +1343,8 @@ out:
         r.load_ret = graph->dynamic_load_data(r.load_dname, r.check_dup);
 
         //rebind the thread with the core
-        bind_to_core(mask);  
-        
+        bind_to_core(mask);
+
         Bundle bundle(r);
         send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
     }

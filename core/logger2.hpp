@@ -228,27 +228,27 @@ public:
     }
 
     // if input a std::endl then flush the message to console and/or fout
-  file_logger &operator<<(std::ostream &(*f)(std::ostream &)) {
-    // get the stream buffer entry first
-    logger_impl::streambuf_entry *streambufentry =
-        reinterpret_cast<logger_impl::streambuf_entry *>(
-            pthread_getspecific(streambufkey));
+    file_logger &operator<<(std::ostream & (*f)(std::ostream &)) {
+        // get the stream buffer entry first
+        logger_impl::streambuf_entry *streambufentry =
+            reinterpret_cast<logger_impl::streambuf_entry *>(
+                pthread_getspecific(streambufkey));
 
-    if (streambufentry != NULL) {
-      std::stringstream &sstream = streambufentry->streambuffer;
-      bool &streamactive = streambufentry->streamactive;
+        if (streambufentry != NULL) {
+            std::stringstream &sstream = streambufentry->streambuffer;
+            bool &streamactive = streambufentry->streamactive;
 
-      // check whether the input is std::endl;
-      typedef std::ostream &(*endltype)(std::ostream &);
-      if (streamactive) {
-        if (endltype(f) == endltype(std::endl)) {
-          sstream << "\n";
-          stream_flush();
+            // check whether the input is std::endl;
+            typedef std::ostream &(*endltype)(std::ostream &);
+            if (streamactive) {
+                if (endltype(f) == endltype(std::endl)) {
+                    sstream << "\n";
+                    stream_flush();
+                }
+            }
         }
-      }
+        return *this;
     }
-    return *this;
-  }
 
     // F-file, C-console
     void _print2FC(int loglevel, const char *buf, int len) {

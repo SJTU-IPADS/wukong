@@ -343,15 +343,15 @@ next:
 
 						if (duration <= 0 || warmup < 0 || parallel_factor <= 0) {
 							logstream(LOG_ERROR) << "invalid parameters for batch mode! "
-							     << "(duration=" << duration << ", warmup=" << warmup
-							     << ", parallel_factor=" << parallel_factor << ")" << LOG_endl;
+							                     << "(duration=" << duration << ", warmup=" << warmup
+							                     << ", parallel_factor=" << parallel_factor << ")" << LOG_endl;
 							continue;
 						}
 
 						if (duration <= warmup) {
 							logstream(LOG_INFO) << "Duration time (" << duration
-							     << "sec) is less than warmup time ("
-							     << warmup << "sec)." << LOG_endl;
+							                    << "sec) is less than warmup time ("
+							                    << warmup << "sec)." << LOG_endl;
 							continue;
 						}
 
@@ -404,7 +404,7 @@ next:
 						int ret = proxy->dynamic_load_data(dname, reply, logger, c_enable);
 						if (ret != 0) {
 							logstream(LOG_ERROR) << "Failed to load dynamic data from directory " << dname
-							     << " (ERRNO: " << ret << ")!" << LOG_endl;
+							                     << " (ERRNO: " << ret << ")!" << LOG_endl;
 							continue;
 						}
 						logger.print_latency();
@@ -440,7 +440,7 @@ next:
 					int ret = proxy->gstore_check(reply, logger, i_enable, n_enable);
 					if (ret != 0) {
 						logstream(LOG_ERROR) << "Some error found in gstore "
-						     << " (ERRNO: " << ret << ")!" << LOG_endl;
+						                     << " (ERRNO: " << ret << ")!" << LOG_endl;
 						continue;
 					}
 					logger.print_latency();

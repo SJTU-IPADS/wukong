@@ -110,7 +110,7 @@ private:
 
             // load the attr index from the str_attr_index file
             // it contains by (string index, id index, predicate type)
-            // predicate type indicates the type of its object 
+            // predicate type indicates the type of its object
             // the predicates/attributes in str_attr_index should be exclusive to the predicates/attributes in str_index
             if (boost::ends_with(fname, "/str_attr_index")) {
                 logstream(LOG_INFO) << "loading ID-mapping (attribute) file: " << fname << LOG_endl;
