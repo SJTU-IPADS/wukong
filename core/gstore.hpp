@@ -381,7 +381,7 @@ done:
      * @flag: size flag to insert
      * @sz: actual size of edges
      * @off: offset of edges
-    */ 
+    */
     inline void insert_sz(uint64_t flag, uint64_t sz, uint64_t off) {
         uint64_t blk_sz = blksz(sz + 1);   // reserve one space for flag
         edges[off + blk_sz - 1].val = flag;
@@ -678,7 +678,7 @@ done:
             edge_ptr = rdma_get_edges(tid, dst_sid, v);
         }
 #endif
-        
+
         *sz = v.ptr.size;
         return edge_ptr;
     }
@@ -1085,7 +1085,7 @@ public:
 #endif
 
         uint64_t t3 = timer::get_usec();
-        logstream(LOG_INFO) << (t3 - t2) / 1000 << " ms for insert index data into gstore" << LOG_endl;
+        logstream(LOG_INFO) << (t3 - t2) / 1000 << " ms for inserting index data into gstore" << LOG_endl;
     }
 
 #if DYNAMIC_GSTORE

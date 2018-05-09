@@ -94,9 +94,9 @@ void print_help(void)
 	cout << "           -v <num>            print at most <num> lines of results" << endl;
 	cout << "           -o <file>           output results into <file>" << endl;
 	cout << "        -b <file> [<args>]  run queries configured by <file> (batch-mode)" << endl;
-	cout << "           -d <sec>            eval <sec> seconds" << endl;
-	cout << "           -w <sec>            warmup <sec> seconds" << endl;
-	cout << "           -p <num>            send <num> queries in parallel" << endl;
+	cout << "           -d <sec>            eval <sec> seconds (default: 10)" << endl;
+	cout << "           -w <sec>            warmup <sec> seconds (default: 5)" << endl;
+	cout << "           -p <num>            send <num> queries in parallel (default: 20)" << endl;
 	cout << "    load <args>         load linked data into dynamic (in-memmory) graph-store" << endl;
 	cout << "        -d <dname>          load data from directory <dname>" << endl;
 	cout << "    gsck <args>         check the graph storage integrity" << endl;
