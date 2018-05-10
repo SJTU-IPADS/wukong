@@ -53,8 +53,11 @@ public:
     uint64_t next_normal_id;
 
     String_Server(string dname) {
+        uint64_t start = timer::get_usec();
+
         next_index_id = 0;
         next_normal_id = 0;
+
         if (boost::starts_with(dname, "hdfs:")) {
             if (!wukong::hdfs::has_hadoop()) {
                 logstream(LOG_ERROR) << "attempting to load ID-mapping files from HDFS "
@@ -66,7 +69,9 @@ public:
         } else
             load_from_posixfs(dname);
 
-        logstream(LOG_INFO) << "loading String Server is finished." << LOG_endl;
+        uint64_t end = timer::get_usec();
+        logstream(LOG_INFO) << "loading string server is finished ("
+                            << (end - start) / 1000 << " ms)" << LOG_endl;
     }
 
     bool exist(sid_t sid) { return id2str.find(sid) != id2str.end(); }

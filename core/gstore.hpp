@@ -1061,7 +1061,7 @@ public:
             }
         }
         uint64_t t2 = timer::get_usec();
-        logstream(LOG_INFO) << (t2 - t1) / 1000 << " ms for (parallel) prepare index info" << LOG_endl;
+        logstream(LOG_DEBUG) << (t2 - t1) / 1000 << " ms for (parallel) prepare index info" << LOG_endl;
 
         /// TODO: parallelize index insertion
 
@@ -1085,7 +1085,7 @@ public:
 #endif
 
         uint64_t t3 = timer::get_usec();
-        logstream(LOG_INFO) << (t3 - t2) / 1000 << " ms for inserting index data into gstore" << LOG_endl;
+        logstream(LOG_DEBUG) << (t3 - t2) / 1000 << " ms for inserting index data into gstore" << LOG_endl;
     }
 
 #if DYNAMIC_GSTORE

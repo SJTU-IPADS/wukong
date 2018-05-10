@@ -616,11 +616,11 @@ public:
 			logstream(LOG_WARNING) << "no files found in directory (" << dname
 			                       << ") at server " << sid << LOG_endl;
 			return 0;
-		} else {
-			logstream(LOG_INFO) << dfiles.size() << " data files and " << afiles.size()
-			                    << " attribute files found in directory (" << dname
-			                    << ") at server " << sid << LOG_endl;
 		}
+
+		logstream(LOG_INFO) << dfiles.size() << " data files and " << afiles.size()
+		                    << " attribute files found in directory (" << dname
+		                    << ") at server " << sid << LOG_endl;
 
 		sort(dfiles.begin(), dfiles.end());
 
