@@ -1258,7 +1258,7 @@ public:
             if (connected == get_num_nodes())
                 break;
             else
-                usleep(200000);
+                usleep(10000);
         }
     }
 
