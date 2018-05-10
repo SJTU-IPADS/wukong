@@ -128,7 +128,7 @@ class Planner {
                     && cost < COST_THRESHOLD
                     && (path[0] >= (1 << NBITS_IDX)) ) {
                 ctn = false;  // small query
-                logstream(LOG_INFO) << "small query and use heuristic." << LOG_endl;
+                logstream(LOG_DEBUG) << "small query and use heuristic." << LOG_endl;
             }
             if (cost < min_cost) {
                 min_cost = cost;
@@ -254,7 +254,7 @@ class Planner {
                     double prune_result;
                     select_record sr ;
                     if (!(*min_select)[o1]->top(sr))
-                        logstream(LOG_ERROR) << "ERROR o1 on .top" << LOG_endl;
+                        logstream(LOG_ERROR) << "[ERROR]: o1 on top" << LOG_endl;
                     int pre_p = sr.p;
                     int pre_d = sr.d;
                     // prune based on correlation and constant
@@ -293,7 +293,7 @@ class Planner {
                     double prune_result;
                     select_record sr ;
                     if (!(*min_select)[o2]->top(sr))
-                        logstream(LOG_ERROR) << "ERROR o2 on .top\n";
+                        logstream(LOG_ERROR) << "[ERROR]: o2 on top\n";
                     int pre_p = sr.p;
                     int pre_d = sr.d;
                     // prune based on correlation and constant
@@ -524,8 +524,8 @@ public:
             return false;
         }
 
-        logstream(LOG_INFO) << "query planning for one part is finished." << LOG_endl;
-        logstream(LOG_INFO) << "estimated cost: " << min_cost << LOG_endl;
+        logstream(LOG_DEBUG) << "query planning for one part is finished." << LOG_endl;
+        logstream(LOG_DEBUG) << "estimated cost: " << min_cost << LOG_endl;
 
         //transfer from min_path to patterns
         patterns.clear();

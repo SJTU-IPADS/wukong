@@ -133,6 +133,7 @@ static void args2str(string &str)
 	}
 }
 
+
 // usage: sparql -f <file> [<args>]
 // args_ss:
 //   -n <num>
@@ -200,6 +201,73 @@ bool run_sparql_cmd(Proxy *proxy, std::stringstream &args_ss, string &fname)
 	}
 
 	return true;
+}
+
+
+// usage: sparql-emu -f <file> [<args>]
+// args_ss:
+//   -d <sec>
+//   -w <sec>
+//   -p <num>
+bool run_sparql_emu(Proxy *proxy, std::stringstream &args_ss, string &fname)
+{
+	std::string token;
+	int duration = 10, warmup = 5, parallel_factor = 20;
+
+	// parse parameters
+	while (args_ss >> token) {
+		if (token == "-d") {
+			args_ss >> duration;
+		} else if (token == "-w") {
+			args_ss >> warmup;
+		} else if (token == "-p") {
+			args_ss >> parallel_factor;
+		} else {
+			return false;
+		}
+	}
+
+	// read config file of a SPARQL emulator
+	ifstream ifs(fname);
+	if (!ifs.good()) {
+		logstream(LOG_ERROR) << "Configure file not found: " << fname << LOG_endl;
+		return false;
+	}
+
+	if (duration <= 0 || warmup < 0 || parallel_factor <= 0) {
+		logstream(LOG_ERROR) << "invalid parameters for SPARQL emulator! "
+		                     << "(duration=" << duration << ", warmup=" << warmup
+		                     << ", parallel_factor=" << parallel_factor << ")" << LOG_endl;
+		return false;
+	}
+
+	if (duration <= warmup) {
+		logstream(LOG_INFO) << "Duration time (" << duration
+		                    << "sec) is less than warmup time ("
+		                    << warmup << "sec)." << LOG_endl;
+		return false;
+	}
+
+	Logger logger;
+	proxy->run_batch_query(ifs, duration, warmup, parallel_factor, logger);
+
+	// FIXME: maybe hang in here if the input file misses in some machines
+	//        or inconsistent global variables (e.g., global_enable_planner)
+	console_barrier(proxy->tid);
+
+	// print a performance statistic for running emulator on all servers
+	if (IS_MASTER(proxy)) {
+		for (int i = 0; i < global_num_servers * global_num_proxies - 1; i++) {
+			Logger other = console_recv<Logger>(proxy->tid);
+			logger.merge(other);
+		}
+		logger.aggregate();
+		logger.print_cdf();
+		logger.print_thpt();
+	} else {
+		// send logs to the master proxy
+		console_send<Logger>(0, 0, logger);
+	}
 }
 
 /**
@@ -326,6 +394,7 @@ next:
 				// use the main proxy thread to run a single query
 				if (!IS_MASTER(proxy)) continue;
 
+				// parse command
 				string fname;
 				bool f_enable = false, b_enable = false;
 				while (cmd_ss >> token) {
@@ -341,6 +410,8 @@ next:
 						goto failed;
 					}
 				}
+
+				if (!(f_enable ^ b_enable)) goto failed; // invalid cmd
 
 				// [single mode]
 				//  usage: sparql -f <file> [<args>]
@@ -362,102 +433,22 @@ next:
 				if (b_enable) {
 					logstream(LOG_ERROR) << "[ERROR] Unsupported command now!" << LOG_endl;
 				}
-#if 0
-				string fname, bfname, ofname;
-				int cnt = 1, nlines = 0;
-				bool f_enable = false, b_enable = false, o_enable = false;
-
-				// parse parameters
-				while (cmd_ss >> token) {
-					if (token == "-f") {
-						cmd_ss >> fname;
-						f_enable = true;
-					} else if (token == "-b") {
-						cmd_ss >> bfname;
-						b_enable = true;
-					}  else if (token == "-n") { // only used by single mode
-						cmd_ss >> cnt;
-					} else if (token == "-v") {
-						cmd_ss >> nlines;
-					} else if (token == "-o") {
-						cmd_ss >> ofname;
-						o_enable = true;
-					} else {
-						goto failed;
-					}
-				}
-
-				// exclusively enable single mode or batch mode
-				if (!(f_enable ^ b_enable)) goto failed;
-
-				// single mode usage: sparql -f <file> -n <num> -v <num> -o <file>
-				if (f_enable) {
-					// use the main proxy thread to run a single query
-					if (!IS_MASTER(proxy)) continue;
-
-					// read a SPARQL query from a file
-					ifstream ifs(fname);
-					if (!ifs.good()) {
-						logstream(LOG_ERROR) << "Query file not found: " << fname << LOG_endl;
-						continue ;
-					}
-
-					if (global_silent) { // not retrieve the query results
-						if (nlines > 0) {
-							logstream(LOG_ERROR) << "Can't print results (-v) with global_silent." << LOG_endl;
-							continue;
-						}
-
-						if (o_enable) {
-							logstream(LOG_ERROR) << "Can't output results (-o) with global_silent." << LOG_endl;
-							continue;
-						}
-					}
-
-					SPARQLQuery reply;
-					SPARQLQuery::Result &result = reply.result;
-					Logger logger;
-					int ret = proxy->run_single_query(ifs, cnt, reply, logger);
-					if (ret != 0) {
-						logstream(LOG_ERROR) << "Failed to run the query (ERRNO: " << ret << ")!" << LOG_endl;
-						continue;
-					}
-
-					logger.print_latency(cnt);
-					logstream(LOG_INFO) << "(last) result size: " << result.row_num << LOG_endl;
-
-					// print or dump results
-					if (!global_silent && !result.blind && (nlines > 0 || o_enable)) {
-						if (nlines > 0)
-							result.print_result(min(result.row_num, nlines), proxy->str_server);
-
-						if (o_enable)
-							result.dump_result(ofname, result.row_num, proxy->str_server);
-					}
-				}
-#endif
 			} else if (token == "sparql-emu") { // run a SPARQL emulator on each proxy
+
+				// parse command
 				string fname;
 				bool f_enable = false;
-				int duration = 10, warmup = 5, parallel_factor = 20;
-
-				// parse parameters
 				while (cmd_ss >> token) {
 					if (token == "-f") {
 						cmd_ss >> fname;
 						f_enable = true;
-					} else if (token == "-d") {
-						cmd_ss >> duration;
-					} else if (token == "-w") {
-						cmd_ss >> warmup;
-					} else if (token == "-p") {
-						cmd_ss >> parallel_factor;
+						break;
 					} else {
 						goto failed;
 					}
 				}
 
-				if (!f_enable) goto failed; // empty cmd for SPARQL emulator
+				if (!f_enable) goto failed; // invalid cmd
 
 				// [emulator]
 				//  usage: sparql-emu -f <file> [<args>]
@@ -465,47 +456,12 @@ next:
 				//    -d <sec>
 				//    -w <sec>
 				//    -p <num>
-				ifstream ifs(fname);
-				if (!ifs.good()) {
-					logstream(LOG_ERROR) << "Configure file not found: " << fname << LOG_endl;
-					continue;
-				}
-
-				if (duration <= 0 || warmup < 0 || parallel_factor <= 0) {
-					logstream(LOG_ERROR) << "invalid parameters for SPARQL emulator! "
-					                     << "(duration=" << duration << ", warmup=" << warmup
-					                     << ", parallel_factor=" << parallel_factor << ")" << LOG_endl;
-					continue;
-				}
-
-				if (duration <= warmup) {
-					logstream(LOG_INFO) << "Duration time (" << duration
-					                    << "sec) is less than warmup time ("
-					                    << warmup << "sec)." << LOG_endl;
-					continue;
-				}
-
-				Logger logger;
-				proxy->run_batch_query(ifs, duration, warmup, parallel_factor, logger);
-
-				// FIXME: maybe hang in here if the input file misses in some machines
-				//        or inconsistent global variables (e.g., global_enable_planner)
-				console_barrier(proxy->tid);
-
-				// print a performance statistic for running emulator on all servers
-				if (IS_MASTER(proxy)) {
-					for (int i = 0; i < global_num_servers * global_num_proxies - 1; i++) {
-						Logger other = console_recv<Logger>(proxy->tid);
-						logger.merge(other);
-					}
-					logger.aggregate();
-					logger.print_cdf();
-					logger.print_thpt();
-				} else {
-					// send logs to the master proxy
-					console_send<Logger>(0, 0, logger);
-				}
+				if (!run_sparql_emu(proxy, cmd_ss, fname))
+					goto failed;
 			} else if (token == "load") {
+				// use the main proxy thread to run gstore checker
+				if (!IS_MASTER(proxy)) continue;
+
 #if DYNAMIC_GSTORE
 				string dname;
 				bool d_enable = false;
@@ -522,31 +478,29 @@ next:
 					}
 				}
 
-				if (d_enable) { // -d <directory>
-					// force a "/" at the end of dname.
-					if (dname[dname.length() - 1] != '/')
-						dname = dname + "/";
+				if (!d_enable) goto failed;  // invalid cmd
 
-					if (IS_MASTER(proxy)) {
-						Logger logger;
-						RDFLoad reply;
-						int ret = proxy->dynamic_load_data(dname, reply, logger, c_enable);
-						if (ret != 0) {
-							logstream(LOG_ERROR) << "Failed to load dynamic data from directory " << dname
-							                     << " (ERRNO: " << ret << ")!" << LOG_endl;
-							continue;
-						}
-						logger.print_latency();
-					}
-				} else
-					goto failed;
-#else
-				if (IS_MASTER(proxy)) {
-					logstream(LOG_ERROR) << "Can't load linked data into static graph-store." << LOG_endl;
-					logstream(LOG_ERROR) << "You can enable it by building Wukong with -DUSE_DYNAMIC_GSTORE=ON." << LOG_endl;
+				// force a "/" at the end of dname.
+				if (dname[dname.length() - 1] != '/')
+					dname = dname + "/";
+
+				Logger logger;
+				RDFLoad reply;
+				int ret = proxy->dynamic_load_data(dname, reply, logger, c_enable);
+				if (ret != 0) {
+					logstream(LOG_ERROR) << "Failed to load dynamic data from directory " << dname
+					                     << " (ERRNO: " << ret << ")!" << LOG_endl;
+					continue;
 				}
+				logger.print_latency();
+#else
+				logstream(LOG_ERROR) << "Can't load linked data into static graph-store." << LOG_endl;
+				logstream(LOG_ERROR) << "You can enable it by building Wukong with -DUSE_DYNAMIC_GSTORE=ON." << LOG_endl;
 #endif
 			} else if (token == "gsck") {
+				// use the main proxy thread to run gstore checker
+				if (!IS_MASTER(proxy)) continue;
+
 				bool i_enable = false;
 				bool n_enable = false;
 
@@ -563,17 +517,15 @@ next:
 					}
 				}
 
-				if (IS_MASTER(proxy)) {
-					Logger logger;
-					GStoreCheck reply;
-					int ret = proxy->gstore_check(reply, logger, i_enable, n_enable);
-					if (ret != 0) {
-						logstream(LOG_ERROR) << "Some error found in gstore "
-						                     << " (ERRNO: " << ret << ")!" << LOG_endl;
-						continue;
-					}
-					logger.print_latency();
+				Logger logger;
+				GStoreCheck reply;
+				int ret = proxy->gstore_check(reply, logger, i_enable, n_enable);
+				if (ret != 0) {
+					logstream(LOG_ERROR) << "Some error found in gstore "
+					                     << " (ERRNO: " << ret << ")!" << LOG_endl;
+					continue;
 				}
+				logger.print_latency();
 			} else {
 failed:
 				if (IS_MASTER(proxy)) {
