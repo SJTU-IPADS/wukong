@@ -1247,7 +1247,7 @@ out:
                                                        global_num_servers);
                         if (dst_sid != sid) {
                             Bundle bundle(union_reqs[i]);
-                            send_request(bundle, i, tid);
+                            send_request(bundle, dst_sid, tid);
                         } else {
                             pthread_spin_lock(&recv_lock);
                             msg_fast_path.push_back(union_reqs[i]);
