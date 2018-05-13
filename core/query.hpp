@@ -172,6 +172,9 @@ public:
             logstream(LOG_INFO) << "unions[" << unions.size() << "]:" << LOG_endl;
             for (auto const &g : unions)
                 g.print_group();
+            logstream(LOG_INFO) << "optionals[" << optional.size() << "]:" << LOG_endl;
+            for (auto const &g : optional)
+                g.print_group();
         }
     };
 
