@@ -354,28 +354,26 @@ public:
             int merged_lines = 0;   // how many lines in result have been merged
             for (int i = 0; i < this->row_num; i++) {
                 bool printed = false;
-                bool in_common_rows = false;    // true during j is in common rows, once not in common, break
-                for (int j = merged_lines; j < result.row_num; j++) {
-                    // check if common_cols match
-                    bool same_common = true;
-                    for (auto &common_col : common_cols) {
-                        if (result.result_table[j * result.col_num + col_map[common_col]]
-                                != this->result_table[i * old_col_num + common_col]) {
-                            same_common = false;
-                            break;
+                if (merged_lines < result.row_num) {
+                    for (int j = 0; j < result.row_num; j++) {
+                        // check if common_cols match
+                        bool same_common = true;
+                        for (auto &common_col : common_cols) {
+                            if (result.result_table[j * result.col_num + col_map[common_col]]
+                                    != this->result_table[i * old_col_num + common_col]) {
+                                same_common = false;
+                                break;
+                            }
                         }
-                    }
-                    if (same_common) {
-                        printed = true;
-                        in_common_rows = true;
-                        merged_lines += 1;
-                        new_table.insert(new_table.end(),
-                                        this->result_table.begin() + (i * old_col_num),
-                                        this->result_table.begin() + ((i + 1) * old_col_num));
-                        for (auto &new_col : new_cols)
-                            new_table.push_back(result.result_table[j * result.col_num + col_map[new_col]]);
-                    } else if (in_common_rows) {
-                        break;
+                        if (same_common) {
+                            printed = true;
+                            merged_lines += 1;
+                            new_table.insert(new_table.end(),
+                                            this->result_table.begin() + (i * old_col_num),
+                                            this->result_table.begin() + ((i + 1) * old_col_num));
+                            for (auto &new_col : new_cols)
+                                new_table.push_back(result.result_table[j * result.col_num + col_map[new_col]]);
+                        }
                     }
                 }
                 if (!printed) {
