@@ -523,8 +523,10 @@ private:
             union_reqs[i].pid = req.id;
             union_reqs[i].pattern_group = req.pattern_group.unions[i];
             if (union_reqs[i].start_from_index()
-                    && (global_mt_threshold * global_num_servers > 1))
+                    && (global_mt_threshold * global_num_servers > 1)) {
                 union_reqs[i].force_dispatch = true;
+                union_reqs[i].mt_factor = global_mt_threshold;
+            }
 
             union_reqs[i].step = 0;
             union_reqs[i].result = req.result;
