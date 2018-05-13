@@ -226,8 +226,6 @@ class DGraph {
 	}
 
 	int load_data(vector<string> &fnames) {
-		uint64_t t1 = timer::get_usec();
-
 		// ensure the file name list has the same order on all servers
 		sort(fnames.begin(), fnames.end());
 
@@ -289,17 +287,11 @@ class DGraph {
 		}
 		MPI_Barrier(MPI_COMM_WORLD);
 
-		// timing
-		uint64_t t2 = timer::get_usec();
-		logstream(LOG_INFO) << (t2 - t1) / 1000 << " ms for loading RDF data files" << LOG_endl;
-
 		return global_num_servers;
 	}
 
 	// selectively load own partitioned data from all files
 	int load_data_from_allfiles(vector<string> &fnames) {
-		uint64_t t1 = timer::get_usec();
-
 		sort(fnames.begin(), fnames.end());
 
 		int num_files = fnames.size();
@@ -343,17 +335,11 @@ class DGraph {
 			*pn = n;
 		}
 
-		// timing
-		uint64_t t2 = timer::get_usec();
-		logstream(LOG_INFO) << (t2 - t1) / 1000 << " ms for loading RDF data files (w/o networking)" << LOG_endl;
-
 		return global_num_engines;
 	}
 
 	// selectively load own partitioned data (attributes) from all files
 	void load_attr_from_allfiles(vector<string> &fnames) {
-		uint64_t t1 = timer::get_usec();
-
 		if (fnames.size() == 0)
 			return; // no attributed files
 
@@ -407,14 +393,9 @@ class DGraph {
 				file.close();
 			}
 		}
-		// timing
-		uint64_t t2 = timer::get_usec();
-		logstream(LOG_INFO) << (t2 - t1) / 1000 << " ms for loading RDF data (attribute) files (w/o networking)" << LOG_endl;
 	}
 
 	void aggregate_data(int num_partitions) {
-		uint64_t t1 = timer::get_usec();
-
 		// calculate #triples on the kvstore from all servers
 		uint64_t total = 0;
 		uint64_t kvs_sz = floor(mem->kvstore_size() / num_partitions - sizeof(uint64_t), sizeof(sid_t));
@@ -473,10 +454,6 @@ class DGraph {
 			sort(triple_ops[tid].begin(), triple_ops[tid].end(), triple_sort_by_ops());
 			dedup_triples(triple_spo[tid]);
 		}
-
-		// timing
-		uint64_t t2 = timer::get_usec();
-		logstream(LOG_INFO) << (t2 - t1) / 1000 << " ms for aggregrating triples" << LOG_endl;
 	}
 
 	inline vector<string> list_files(string dname, string prefix) {
@@ -532,6 +509,7 @@ public:
 
 	DGraph(int sid, Mem *mem, String_Server *str_server, string dname)
 		: sid(sid), str_server(str_server), mem(mem), gstore(sid, mem) {
+		uint64_t start, end;
 
 		num_triples.resize(global_num_servers);
 
@@ -561,26 +539,38 @@ public:
 		//
 		// Wukong adopts load_data_from_allfiles for slow network (w/o RDMA) and
 		//        adopts load_data for fast network (w/ RDMA).
+		start = timer::get_usec();
 		int num_partitons = 0;
-
 		if (global_use_rdma)
 			num_partitons = load_data(dfiles);
 		else
 			num_partitons = load_data_from_allfiles(dfiles);
+		end = timer::get_usec();
+		logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << " ms "
+		                    << "for loading data files" << LOG_endl;
 
 		// all triples are partitioned and temporarily stored in the kvstore on each server.
 		// the kvstore is split into num_partitions partitions, each contains #triples and triples
 		//
 		// Wukong aggregates, sorts and dedups all triples before finally inserting them to gstore (kvstore)
+		start = timer::get_usec();
 		aggregate_data(num_partitons);
+		end = timer::get_usec();
+		logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << " ms "
+		                    << "for aggregrating triples" << LOG_endl;
 
 		// load attribute files
+		start = timer::get_usec();
 		load_attr_from_allfiles(afiles);
+		end = timer::get_usec();
+		logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << " ms "
+		                    << "for loading attribute files" << LOG_endl;
 
 		// initiate gstore (kvstore) after loading and exchanging triples (memory reused)
 		gstore.refresh();
 
-		uint64_t t1 = timer::get_usec();
+
+		start = timer::get_usec();
 		#pragma omp parallel for num_threads(global_num_engines)
 		for (int t = 0; t < global_num_engines; t++) {
 			gstore.insert_normal(triple_spo[t], triple_ops[t], t);
@@ -589,20 +579,28 @@ public:
 			vector<triple_t>().swap(triple_spo[t]);
 			vector<triple_t>().swap(triple_ops[t]);
 		}
+		end = timer::get_usec();
+		logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+		                    << "for inserting normal data into gstore" << LOG_endl;
 
+		start = timer::get_usec();
 		#pragma omp parallel for num_threads(global_num_engines)
 		for (int t = 0; t < global_num_engines; t++) {
 			gstore.insert_vertex_attr(triple_sav[t], t);
 			// release memory
 			vector<triple_attr_t>().swap(triple_sav[t]);
 		}
-		uint64_t t2 = timer::get_usec();
-		logstream(LOG_INFO) << "#" << sid << ": " << (t2 - t1) / 1000 << "ms "
-		                    << "for inserting normal data into gstore." << LOG_endl;
+		end = timer::get_usec();
+		logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+		                    << "for inserting attributes into gstore" << LOG_endl;
 
+		start = timer::get_usec();
 		gstore.insert_index();
-		logstream(LOG_INFO) << "#" << sid << ": loading DGraph is finished." << LOG_endl;
+		end = timer::get_usec();
+		logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+		                    << "for inserting index data into gstore" << LOG_endl;
 
+		logstream(LOG_INFO) << "#" << sid << ": loading DGraph is finished" << LOG_endl;
 		gstore.print_mem_usage();
 	}
 
@@ -618,11 +616,11 @@ public:
 			logstream(LOG_WARNING) << "no files found in directory (" << dname
 			                       << ") at server " << sid << LOG_endl;
 			return 0;
-		} else {
-			logstream(LOG_INFO) << dfiles.size() << " data files and " << afiles.size()
-			                    << " attribute files found in directory (" << dname
-			                    << ") at server " << sid << LOG_endl;
 		}
+
+		logstream(LOG_INFO) << dfiles.size() << " data files and " << afiles.size()
+		                    << " attribute files found in directory (" << dname
+		                    << ") at server " << sid << LOG_endl;
 
 		sort(dfiles.begin(), dfiles.end());
 

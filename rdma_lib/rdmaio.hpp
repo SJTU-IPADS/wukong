@@ -1258,7 +1258,7 @@ public:
             if (connected == get_num_nodes())
                 break;
             else
-                usleep(200000);
+                usleep(10000);
         }
     }
 
@@ -1509,7 +1509,7 @@ retry:
         for (int i = 0; i < batch_size; i++) {
             RdmaQpAttr* qp_attr = remote_ud_qp_attrs_[reqs[i].wr.ud.remote_qid];
             if (qp_attr == NULL) {
-                fprintf(stdout, "qid %lu\n", reqs[i].wr.ud.remote_qid);
+                fprintf(stdout, "qid %u\n", reqs[i].wr.ud.remote_qid);
                 assert(false);
             }
             sr[i].wr.ud.ah = qp->dev_->ahs[_QP_ENCODE_ID(qp_attr->lid, qp->port_id_)];
