@@ -349,20 +349,32 @@ private:
         //if edges of the same id are requeted
         edge_t *res = NULL;
         uint64_t sz = 0;
+        bool existing = false;
         for (int i = 0; i < result.get_row_num(); i++) {
+            existing = false;
             sid_t prev_id = result.get_row_col(i, result.var2col(start));
             if(prev_id != cached_id){
                 res = graph->get_edges_global(tid, prev_id, d, pid, &sz);
+                for (uint64_t k = 0; k < sz; k++) {
+                    if (res[k].val == end) {
+                        existing = true;
+                        result.append_row_to(i, updated_result_table);
+                        if (global_enable_vattr)
+                            result.append_attr_row_to(i, updated_attr_res_table);
+                        break;
+                    }
+                }
             }
-            cached_id = prev_id;
-            for (uint64_t k = 0; k < sz; k++) {
-                if (res[k].val == end) {
+            else{
+                // if current_id is the same as the previous one,
+                // we already know whether the current row should be reserved.
+                if(existing){
                     result.append_row_to(i, updated_result_table);
                     if (global_enable_vattr)
                         result.append_attr_row_to(i, updated_attr_res_table);
-                    break;
                 }
             }
+            cached_id = prev_id;
         }
 
         result.result_table.swap(updated_result_table);
