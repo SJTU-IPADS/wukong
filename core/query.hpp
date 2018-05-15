@@ -172,6 +172,9 @@ public:
             logstream(LOG_INFO) << "unions[" << unions.size() << "]:" << LOG_endl;
             for (auto const &g : unions)
                 g.print_group();
+            logstream(LOG_INFO) << "optionals[" << optional.size() << "]:" << LOG_endl;
+            for (auto const &g : optional)
+                g.print_group();
         }
     };
 
@@ -348,29 +351,31 @@ public:
             }
 
             vector<sid_t> new_table;
+            int merged_lines = 0;   // how many lines in result have been merged
             for (int i = 0; i < this->row_num; i++) {
                 bool printed = false;
-                for (int j = 0; j < result.row_num; j++) {
-                    // check if common_cols match
-                    bool same_common = true;
-                    for (auto &common_col : common_cols) {
-                        if (result.result_table[j * result.col_num + col_map[common_col]]
-                                != this->result_table[i * old_col_num + common_col]) {
-                            same_common = false;
-                            break;
+                if (merged_lines < result.row_num) {
+                    for (int j = 0; j < result.row_num; j++) {
+                        // check if common_cols match
+                        bool same_common = true;
+                        for (auto &common_col : common_cols) {
+                            if (result.result_table[j * result.col_num + col_map[common_col]]
+                                    != this->result_table[i * old_col_num + common_col]) {
+                                same_common = false;
+                                break;
+                            }
+                        }
+                        if (same_common) {
+                            printed = true;
+                            merged_lines += 1;
+                            new_table.insert(new_table.end(),
+                                            this->result_table.begin() + (i * old_col_num),
+                                            this->result_table.begin() + ((i + 1) * old_col_num));
+                            for (auto &new_col : new_cols)
+                                new_table.push_back(result.result_table[j * result.col_num + col_map[new_col]]);
                         }
                     }
-
-                    if (same_common) {
-                        printed = true;
-                        new_table.insert(new_table.end(),
-                                         this->result_table.begin() + (i * old_col_num),
-                                         this->result_table.begin() + ((i + 1) * old_col_num));
-                        for (auto &new_col : new_cols)
-                            new_table.push_back(result.result_table[j * result.col_num + col_map[new_col]]);
-                    }
                 }
-
                 if (!printed) {
                     new_table.insert(new_table.end(),
                                      this->result_table.begin() + (i * old_col_num),

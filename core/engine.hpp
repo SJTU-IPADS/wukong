@@ -523,8 +523,10 @@ private:
             union_reqs[i].pid = req.id;
             union_reqs[i].pattern_group = req.pattern_group.unions[i];
             if (union_reqs[i].start_from_index()
-                    && (global_mt_threshold * global_num_servers > 1))
+                    && (global_mt_threshold * global_num_servers > 1)) {
                 union_reqs[i].force_dispatch = true;
+                union_reqs[i].mt_factor = global_mt_threshold;
+            }
 
             union_reqs[i].step = 0;
             union_reqs[i].result = req.result;
@@ -1086,7 +1088,7 @@ private:
                 int dst_sid = mymath::hash_mod(optional_reqs[i].pattern_group.patterns[0].subject, global_num_servers);
                 if (dst_sid != sid) {
                     Bundle bundle(optional_reqs[i]);
-                    send_request(bundle, i, tid);
+                    send_request(bundle, dst_sid, tid);
                 } else {
                     pthread_spin_lock(&recv_lock);
                     msg_fast_path.push_back(optional_reqs[i]);
@@ -1245,7 +1247,7 @@ out:
                                                        global_num_servers);
                         if (dst_sid != sid) {
                             Bundle bundle(union_reqs[i]);
-                            send_request(bundle, i, tid);
+                            send_request(bundle, dst_sid, tid);
                         } else {
                             pthread_spin_lock(&recv_lock);
                             msg_fast_path.push_back(union_reqs[i]);
