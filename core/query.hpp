@@ -530,9 +530,9 @@ public:
             result.clear_data(); // avoid take back all the results
     }
 
-    bool is_union() { return pattern_group.unions.size() > 0; }
+    bool has_union() { return pattern_group.unions.size() > 0; }
 
-    bool is_optional() { return pattern_group.optional.size() > 0; }
+    bool has_optional() { return pattern_group.optional.size() > 0; }
 
     bool is_finished() { return (step >= pattern_group.patterns.size()); } // FIXME: it's trick
 

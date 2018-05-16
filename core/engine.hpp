@@ -60,7 +60,7 @@ public:
         Item data;
         data.count = cnt;
         data.parent_request = r;
-        if (r.is_optional() && r.optional_dispatched)
+        if (r.has_optional() && r.optional_dispatched)
             data.merged_reply.result = r.result;
 
         internal_item_map[r.id] = data;
@@ -74,9 +74,9 @@ public:
         SPARQLQuery::Result &r_result = r.result;
         data.count--;
 
-        if (data.parent_request.is_union())
+        if (data.parent_request.has_union())
             data_result.merge_union(r_result);
-        else if (data.parent_request.is_optional()
+        else if (data.parent_request.has_optional()
                  && data.parent_request.optional_dispatched)
             data_result.merge_optional(r_result);
         else
@@ -1239,7 +1239,7 @@ out:
 
             if (r.is_finished()) {
                 // Union, when Union or Optional occurs, Filters will be delayed till they are processed.
-                if (r.is_union()) {
+                if (r.has_union()) {
                     vector<SPARQLQuery> union_reqs = generate_union_query(r);
                     rmap.put_parent_request(r, union_reqs.size());
                     for (int i = 0; i < union_reqs.size(); i++) {
@@ -1257,7 +1257,7 @@ out:
                     return;
                 }
 
-                if (!r.is_union() && !r.is_optional()) {
+                if (!r.has_union() && !r.has_optional()) {
                     // result should be filtered at the end of every distributed query
                     // because FILTER could be nested in every PatternGroup
                     filter(r);
@@ -1265,7 +1265,7 @@ out:
 
                 // if all data has been merged and next will be sent back to proxy
                 if (coder.tid_of(r.pid) < global_num_proxies) {
-                    if (r.is_optional() && !r.optional_dispatched) {
+                    if (r.has_optional() && !r.optional_dispatched) {
                         execute_optional(r);
                         return;
                     }
@@ -1313,13 +1313,13 @@ out:
         pthread_spin_unlock(&engine->rmap_lock);
 
         // Optional will be processed after Union, and Filter follows.
-        if (reply.is_optional()
-                || (!reply.is_optional() && reply.is_union()))
+        if (reply.has_optional()
+                || (!reply.has_optional() && reply.has_union()))
             filter(reply);
 
         // if all data has been merged and next will be sent back to proxy
         if (coder.tid_of(reply.pid) < global_num_proxies) {
-            if (reply.is_optional() && !reply.optional_dispatched) {
+            if (reply.has_optional() && !reply.optional_dispatched) {
                 execute_optional(reply);
                 return;
             }
