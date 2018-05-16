@@ -481,6 +481,7 @@ public:
 
     // SPARQL query
     int step = 0;
+    int optional_step = 0;  // record the step in patterngroup.optional
     bool corun_enabled = false;
     int corun_step = 0;
     int fetch_step = 0;
@@ -540,6 +541,8 @@ public:
     bool has_optional() { return pattern_group.optional.size() > 0; }
 
     bool is_finished() { return (step >= pattern_group.patterns.size()); } // FIXME: it's trick
+
+    bool is_optional_finished() { return (optional_step >= pattern_group.optional.size()); }
 
     bool is_request() { return (id == -1); } // FIXME: it's trick
 
@@ -780,6 +783,7 @@ void save(Archive & ar, const SPARQLQuery &t, unsigned int version) {
     ar << t.optional_dispatched;
     ar << t.query_type;
     ar << t.step;
+    ar << t.optional_step;
     ar << t.corun_step;
     ar << t.fetch_step;
     ar << t.local_var;
@@ -808,6 +812,7 @@ void load(Archive & ar, SPARQLQuery &t, unsigned int version) {
     ar >> t.optional_dispatched;
     ar >> t.query_type;
     ar >> t.step;
+    ar >> t.optional_step;
     ar >> t.corun_step;
     ar >> t.fetch_step;
     ar >> t.local_var;
