@@ -351,9 +351,9 @@ private:
         uint64_t sz = 0;
         bool existing = false;
         for (int i = 0; i < result.get_row_num(); i++) {
-            existing = false;
             sid_t prev_id = result.get_row_col(i, result.var2col(start));
             if(prev_id != cached_id){
+                existing = false;                
                 res = graph->get_edges_global(tid, prev_id, d, pid, &sz);
                 for (uint64_t k = 0; k < sz; k++) {
                     if (res[k].val == end) {
