@@ -508,6 +508,7 @@ private:
         vector<SPARQLQuery> optional_reqs(size);
         for (int i = 0; i < size; i++) {
             optional_reqs[i].pid = req.id;
+            optional_reqs[i].set_query_type(OPTIONAL);
             optional_reqs[i].pattern_group = req.pattern_group.optional[i];
             optional_reqs[i].step = 0;
             optional_reqs[i].result = req.result;
@@ -521,6 +522,7 @@ private:
         vector<SPARQLQuery> union_reqs(size);
         for (int i = 0; i < size; i++) {
             union_reqs[i].pid = req.id;
+            union_reqs[i].set_query_type(UNION);
             union_reqs[i].pattern_group = req.pattern_group.unions[i];
             if (union_reqs[i].start_from_index()
                     && (global_mt_threshold * global_num_servers > 1)) {
@@ -543,6 +545,7 @@ private:
         vector<SPARQLQuery> sub_reqs(global_num_servers);
         for (int i = 0; i < global_num_servers; i++) {
             sub_reqs[i].pid = req.id;
+            sub_reqs[i].set_query_type(req.query_type);
             sub_reqs[i].pattern_group = req.pattern_group;
             sub_reqs[i].step = req.step;
             sub_reqs[i].corun_step = req.corun_step;

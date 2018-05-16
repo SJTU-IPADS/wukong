@@ -38,6 +38,8 @@ using namespace boost::archive;
 
 enum req_type { SPARQL_QUERY, DYNAMIC_LOAD, GSTORE_CHECK };
 
+// indicating which type is this query. forked sub-queries should inherit this value
+enum query_type {BASIC, UNION, OPTIONAL};
 
 enum var_type {
     known_var,
@@ -486,6 +488,7 @@ public:
     unsigned offset = 0;
     bool distinct = false;
     bool optional_dispatched = true;
+    query_type query_type = BASIC;
 
     ssid_t local_var = 0;   // the local variable
 
@@ -529,6 +532,8 @@ public:
         if (result.blind)
             result.clear_data(); // avoid take back all the results
     }
+
+    void set_query_type(query_type t) { this->query_type = t; }
 
     bool has_union() { return pattern_group.unions.size() > 0; }
 
@@ -773,6 +778,7 @@ void save(Archive & ar, const SPARQLQuery &t, unsigned int version) {
     ar << t.offset;
     ar << t.distinct;
     ar << t.optional_dispatched;
+    ar << t.query_type;
     ar << t.step;
     ar << t.corun_step;
     ar << t.fetch_step;
@@ -800,6 +806,7 @@ void load(Archive & ar, SPARQLQuery &t, unsigned int version) {
     ar >> t.offset;
     ar >> t.distinct;
     ar >> t.optional_dispatched;
+    ar >> t.query_type;
     ar >> t.step;
     ar >> t.corun_step;
     ar >> t.fetch_step;
