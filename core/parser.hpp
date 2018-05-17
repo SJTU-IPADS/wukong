@@ -194,10 +194,6 @@ private:
                 iter ++)
             sq.result.required_vars.push_back(*iter);
 
-        // optional
-        if (sq.pattern_group.optional.size() > 0)
-            sq.optional_dispatched = false;
-
         // orders
         for (SPARQLParser::order_iterator iter = sp.orderBegin();
                 iter != sp.orderEnd();
