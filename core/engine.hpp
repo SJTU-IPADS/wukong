@@ -62,10 +62,6 @@ public:
         data.parent_request = r;
         // for has_optional and start to execute optional queries
         if (r.has_optional() && r.get_query_status() == SPARQLQuery::QueryStatus::OPTIONAL_UNMERGED) {
-            // data.merged_reply.pattern_group = r.pattern_group;
-            // data.merged_reply.step = r.step;
-            // data.merged_reply.optional_step = r.optional_step;
-            // data.merged_reply.query_status = r.query_status;
             data.parent_request.optional_ref = r.result;
         }
 
