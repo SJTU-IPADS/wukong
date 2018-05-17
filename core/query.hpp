@@ -38,9 +38,6 @@ using namespace boost::archive;
 
 enum req_type { SPARQL_QUERY, DYNAMIC_LOAD, GSTORE_CHECK };
 
-// indicating which type is this query. forked sub-queries should inherit this value
-enum query_type {BASIC, UNION, OPTIONAL};
-
 enum var_type {
     known_var,
     unknown_var,
@@ -66,6 +63,12 @@ private:
     friend class boost::serialization::access;
 
 public:
+    // indicating which type is this query. forked sub-queries should inherit this value
+    // e.g. if this query is generated from a query that has_optional, then this query is OPTIONAL
+    enum QueryType { BASIC, UNION, OPTIONAL, OPTIONAL_MERGE };
+
+    enum QueryStatus { BASIC_ONGOING, BASIC_DONE, OPTIONAL_ONGOING, OPTIONAL_UNMERGED, OPTIONAL_DONE };
+
     class Pattern {
     private:
         friend class boost::serialization::access;
@@ -334,19 +337,21 @@ public:
             this->result_table.swap(new_table);
         }
 
-        void merge_optional(SPARQLQuery::Result &result) {
+        // optional_ref: new result, result: part of old result
+        void merge_optional(Result &optional_ref) {
+            this->row_num = get_row_num();
             vector<int> col_map(this->nvars, -1);  // idx: my_col, value: your_col
             vector<int> common_cols;    // value: the #col of my vids that you also have
             vector<int> new_cols;   // value: my #col of new vids
             int old_col_num = this->col_num;
-            for (int i = 0; i < result.v2c_map.size(); i++) {
+            for (int i = 0; i < optional_ref.v2c_map.size(); i++) {
                 ssid_t vid = -1 - i;
-                if (this->v2c_map[i] != NO_RESULT && result.v2c_map[i] != NO_RESULT) {
-                    col_map[this->var2col(vid)] = result.var2col(vid);
+                if (this->v2c_map[i] != NO_RESULT && optional_ref.v2c_map[i] != NO_RESULT) {
+                    col_map[this->var2col(vid)] = optional_ref.var2col(vid);
                     common_cols.push_back(this->var2col(vid));
-                } else if (this->v2c_map[i] == NO_RESULT && result.v2c_map[i] != NO_RESULT) {
+                } else if (this->v2c_map[i] == NO_RESULT && optional_ref.v2c_map[i] != NO_RESULT) {
                     this->add_var2col(vid, this->col_num);
-                    col_map[this->col_num] = result.var2col(vid);
+                    col_map[this->col_num] = optional_ref.var2col(vid);
                     new_cols.push_back(this->col_num);
                     this->col_num++;
                 }
@@ -356,12 +361,12 @@ public:
             int merged_lines = 0;   // how many lines in result have been merged
             for (int i = 0; i < this->row_num; i++) {
                 bool printed = false;
-                if (merged_lines < result.row_num) {
-                    for (int j = 0; j < result.row_num; j++) {
+                if (merged_lines < optional_ref.row_num) {
+                    for (int j = 0; j < optional_ref.row_num; j++) {
                         // check if common_cols match
                         bool same_common = true;
                         for (auto &common_col : common_cols) {
-                            if (result.result_table[j * result.col_num + col_map[common_col]]
+                            if (optional_ref.result_table[j * optional_ref.col_num + col_map[common_col]]
                                     != this->result_table[i * old_col_num + common_col]) {
                                 same_common = false;
                                 break;
@@ -374,7 +379,7 @@ public:
                                             this->result_table.begin() + (i * old_col_num),
                                             this->result_table.begin() + ((i + 1) * old_col_num));
                             for (auto &new_col : new_cols)
-                                new_table.push_back(result.result_table[j * result.col_num + col_map[new_col]]);
+                                new_table.push_back(optional_ref.result_table[j * optional_ref.col_num + col_map[new_col]]);
                         }
                     }
                 }
@@ -488,8 +493,8 @@ public:
     int limit = -1;
     unsigned offset = 0;
     bool distinct = false;
-    bool optional_dispatched = true;
-    query_type query_type = BASIC;
+    QueryType query_type = BASIC;
+    QueryStatus query_status = BASIC_ONGOING;
 
     ssid_t local_var = 0;   // the local variable
 
@@ -501,6 +506,7 @@ public:
     PatternGroup pattern_group;
     vector<Order> orders;
     Result result;
+    Result optional_ref;    // temporaily store the original table for later merge, used by query who has_optional
 
     SPARQLQuery() { }
 
@@ -534,7 +540,7 @@ public:
             result.clear_data(); // avoid take back all the results
     }
 
-    void set_query_type(query_type t) { this->query_type = t; }
+    void set_query_type(QueryType t) { this->query_type = t; }
 
     bool has_union() { return pattern_group.unions.size() > 0; }
 
@@ -577,6 +583,19 @@ public:
         /// TODO: print more fields
         logstream(LOG_INFO) << LOG_endl;
     }
+
+    void get_next_optional_query(SPARQLQuery &r) {
+        r.pid = id;
+        r.set_query_type(OPTIONAL);
+        r.pattern_group = pattern_group.optional[optional_step];
+        r.step = 0;
+        r.result = result;
+        r.result.blind = false;
+    }
+
+    void set_query_status(QueryStatus s) { this->query_status = s; }
+
+    QueryStatus get_query_status() { return this->query_status; }
 };
 
 
@@ -780,8 +799,9 @@ void save(Archive & ar, const SPARQLQuery &t, unsigned int version) {
     ar << t.limit;
     ar << t.offset;
     ar << t.distinct;
-    ar << t.optional_dispatched;
     ar << t.query_type;
+    ar << t.query_status;
+    ar << t.optional_ref;
     ar << t.step;
     ar << t.optional_step;
     ar << t.corun_step;
@@ -809,8 +829,9 @@ void load(Archive & ar, SPARQLQuery &t, unsigned int version) {
     ar >> t.limit;
     ar >> t.offset;
     ar >> t.distinct;
-    ar >> t.optional_dispatched;
     ar >> t.query_type;
+    ar >> t.query_status;
+    ar >> t.optional_ref;
     ar >> t.step;
     ar >> t.optional_step;
     ar >> t.corun_step;
