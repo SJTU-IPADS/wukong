@@ -267,6 +267,9 @@ private:
         // get the reusult
         // like known_to_unknown
         // append the attribute value to attr_res_table and update result_table
+
+        // In most time, the size of attr_res_table table is equal to the size of result_table
+        // reserve size of updated_result_table to the size of result_table
         updated_attr_result_table.reserve(result.result_table.size());
         for (int i = 0; i < result.get_row_num(); i++) {
             sid_t prev_id = result.get_row_col(i, result.var2col(start));
