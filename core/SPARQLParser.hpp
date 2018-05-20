@@ -882,7 +882,8 @@ private:
             } else if ((token == SPARQLLexer::IRI) || (token == SPARQLLexer::Variable)
                        || (token == SPARQLLexer::Identifier) || (token == SPARQLLexer::String)
                        || (token == SPARQLLexer::Underscore) || (token == SPARQLLexer::Colon)
-                       || (token == SPARQLLexer::LBracket) || (token == SPARQLLexer::Anon)) {
+                       || (token == SPARQLLexer::LBracket) || (token == SPARQLLexer::Anon)
+                       || (token == SPARQLLexer::Percent)) {
                 // Distinguish filter conditions
                 if ((token == SPARQLLexer::Identifier) && (lexer.isKeyword("filter"))) {
                     map<string, unsigned> localVars;
