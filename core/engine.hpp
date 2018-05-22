@@ -1239,11 +1239,11 @@ out:
         // if r starts from index and is from proxy, dispatch it to every engine except itself
         if (r.force_dispatch
                 || (r.step == 0
-                    && coder.tid_of(r.pid) < global_num_proxies
-                    && r.mt_factor > 1
+                    && coder.tid_of(r.pid) < global_num_proxies // from a proxy
+                    && r.mt_factor > 1  // enable multi-threading
                     && global_mt_threshold * global_num_servers > 1)) {
-            // The mt_factor can be set on proxy side before sending to engine
-            // (Default: mt_factor == global_mt_threshold)
+            // The mt_factor can be set on proxy side before sending to engine,
+            // but must smaller than global_mt_threshold (Default: mt_factor == 1)
             // Normally, we will NOT let global_mt_threshold == #engines, which will cause HANG
             int sub_reqs_size = global_num_servers * r.mt_factor;
             rmap.put_parent_request(r, sub_reqs_size);

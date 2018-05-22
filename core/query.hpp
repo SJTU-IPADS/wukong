@@ -376,8 +376,8 @@ public:
                             printed = true;
                             merged_lines += 1;
                             new_table.insert(new_table.end(),
-                                            this->result_table.begin() + (i * old_col_num),
-                                            this->result_table.begin() + ((i + 1) * old_col_num));
+                                             this->result_table.begin() + (i * old_col_num),
+                                             this->result_table.begin() + ((i + 1) * old_col_num));
                             for (auto &new_col : new_cols)
                                 new_table.push_back(optional_ref.result_table[j * optional_ref.col_num + col_map[new_col]]);
                         }
@@ -481,26 +481,27 @@ public:
     };
 
     int id = -1;     // query id
+
     int pid = -1;    // parqnt query id
     int tid = 0;     // engine thread id (MT)
 
     // SPARQL query
     int step = 0;
-    int optional_step = 0;  // record the step in patterngroup.optional
+    ssid_t local_var = 0;   // the local variable
+    int mt_factor = 1;  // use a single engine by default
+    int priority = 0;
+
     bool corun_enabled = false;
     int corun_step = 0;
     int fetch_step = 0;
+
+    int optional_step = 0;  // record the step in patterngroup.optional
+    bool force_dispatch = false;
     int limit = -1;
     unsigned offset = 0;
     bool distinct = false;
     QueryType query_type = BASIC;
     QueryStatus query_status = BASIC_ONGOING;
-
-    ssid_t local_var = 0;   // the local variable
-
-    bool force_dispatch = false;
-    int mt_factor = 0;
-    int priority = 0;
 
     // ID-format triple patterns (Subject, Predicat, Direction, Object)
     PatternGroup pattern_group;

@@ -8,7 +8,7 @@ global_rdma_buf_size_mb		128
 global_rdma_rbf_size_mb		32
 global_use_rdma				1
 global_rdma_threshold		300
-global_mt_threshold			16
+global_mt_threshold			8
 global_enable_caching		0
 global_enable_workstealing	0
 global_silent 				1

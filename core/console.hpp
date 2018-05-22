@@ -90,6 +90,7 @@ void print_help(void)
 	cout << "        -s <string>         set config items by <str> (format: item1=val1&item2=...)" << endl;
 	cout << "    sparql <args>       run a single SPARQL query" << endl;
 	cout << "        -f <file> [<args>]  run a single query from <file>" << endl;
+	cout << "           -m <factor>         set multi-threading factor <factor> for heavy queries" << endl;
 	cout << "           -n <num>            run <num> times" << endl;
 	cout << "           -v <num>            print at most <num> lines of results" << endl;
 	cout << "           -o <file>           output results into <file>" << endl;
@@ -143,12 +144,14 @@ bool run_sparql_cmd(Proxy *proxy, std::stringstream &args_ss, string &fname)
 {
 	std::string token;
 	string ofname;
-	int cnt = 1, nlines = 0;
+	int cnt = 1, nlines = 0, mt_factor = 1;
 	bool o_enable = false;
 
 	// parse parameters
 	while (args_ss >> token) {
-		if (token == "-n") {
+		if (token == "-m") {
+			args_ss >> mt_factor;
+		} else if (token == "-n") {
 			args_ss >> cnt;
 		} else if (token == "-v") {
 			args_ss >> nlines;
@@ -182,7 +185,7 @@ bool run_sparql_cmd(Proxy *proxy, std::stringstream &args_ss, string &fname)
 	SPARQLQuery reply;
 	SPARQLQuery::Result &result = reply.result;
 	Logger logger;
-	int ret = proxy->run_single_query(ifs, cnt, reply, logger);
+	int ret = proxy->run_single_query(ifs, mt_factor, cnt, reply, logger);
 	if (ret != 0) {
 		logstream(LOG_ERROR) << "Failed to run the query (ERRNO: " << ret << ")!" << LOG_endl;
 		return false;
@@ -249,7 +252,7 @@ bool run_sparql_emu(Proxy *proxy, std::stringstream &args_ss, string &fname)
 	}
 
 	Logger logger;
-	proxy->run_batch_query(ifs, duration, warmup, parallel_factor, logger);
+	proxy->run_query_emu(ifs, duration, warmup, parallel_factor, logger);
 
 	// FIXME: maybe hang in here if the input file misses in some machines
 	//        or inconsistent global variables (e.g., global_enable_planner)

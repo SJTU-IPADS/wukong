@@ -169,11 +169,6 @@ public:
 	void send_request(SPARQLQuery &r) {
 		ASSERT(r.pid != -1);
 
-		// set mt_factor
-		if (r.start_from_index()) {
-			r.mt_factor = global_mt_threshold;
-		}
-
 		// submit the request to a certain server
 		ssid_t start = r.pattern_group.patterns.size() > 0 ?
 		               r.pattern_group.patterns[0].subject : r.pattern_group.unions[0].patterns[0].subject;
@@ -205,11 +200,13 @@ public:
 	// Run a single query for @cnt times. Command is "-f"
 	// @is: input
 	// @reply: result
-	int run_single_query(istream &is, int cnt,
+	int run_single_query(istream &is, int mt_factor, int cnt,
 	                     SPARQLQuery &reply, Logger &logger) {
+		uint64_t start, end;
 		SPARQLQuery request;
-		// parse query
-		uint64_t t_parse1 = timer::get_usec();
+
+		// Parse the SPARQL query
+		start = timer::get_usec();
 		if (!parser.parse(is, request)) {
 			logstream(LOG_ERROR) << "Parsing failed! ("
 			                     << parser.strerror << ")" << LOG_endl;
@@ -217,27 +214,32 @@ public:
 			is.seekg(0);
 			return -2; // parsing failed
 		}
-		uint64_t t_parse2 = timer::get_usec();
+		end = timer::get_usec();
+		logstream(LOG_INFO) << "[INFO] Parsing time: " << (end - start) << " usec" << LOG_endl;
 
-		// If planner is enabled, generate plans for query.
-		// Only works for standard SPARQL query.
+		// Generate plans for the query if our SPARQL planner is enabled.
+		// NOTE: it only works for standard SPARQL query.
 		if (global_enable_planner) {
-			// planner
-			uint64_t t_plan1 = timer::get_usec();
+			start = timer::get_usec();
 			bool exec = planner.generate_plan(request, statistic);
-			uint64_t t_plan2 = timer::get_usec();
-			logstream(LOG_INFO) << "parsing time : " << t_parse2 - t_parse1 << " usec" << LOG_endl;
-			logstream(LOG_INFO) << "planning time : " << t_plan2 - t_plan1 << " usec" << LOG_endl;
-			if (exec == false) { // for empty result
-				logstream(LOG_INFO) << "(last) result size: 0" << LOG_endl;
-				return -3; // planning failed
-			}
+			end = timer::get_usec();
+			logstream(LOG_INFO) << "[INFO] Planning time: " << (end - start) << " usec" << LOG_endl;
+
+			// A shortcut for contradictory queries (e.g., empty result)
+			if (exec == false)
+				return 0; // skip the real execution
 		}
 
-		// Start execute query
+		// Execute the SPARQL query
 		logger.init();
 		for (int i = 0; i < cnt; i++) {
 			setpid(request);
+
+			// set the multi-threading factor for queries start from index
+			if (request.start_from_index()) {
+				request.mt_factor = min(mt_factor, global_mt_threshold);
+			}
+
 			// only take back results of the last request if not silent
 			request.result.blind = i < (cnt - 1) ? true : global_silent;
 			send_request(request);
@@ -247,11 +249,11 @@ public:
 		return 0; // success
 	} // end of run_single_query
 
-	// Run batch query for @d seconds. Command is "-b"
+	// Run a query emulator for @d seconds. Command is "-b"
 	// Warm up for @w firstly, then measure throughput.
 	// Latency is evaluated for @d seconds.
 	// Proxy keeps @p queries in flight.
-	int run_batch_query(istream &is, int d, int w, int p, Logger &logger) {
+	int run_query_emu(istream &is, int d, int w, int p, Logger &logger) {
 		uint64_t duration = SEC(d);
 		uint64_t warmup = SEC(w);
 		int parallel_factor = p;
@@ -370,7 +372,7 @@ public:
 		logger.finish();
 
 		return 0; // success
-	} // end of run_batch_query
+	} // end of run_query_emu
 
 #if DYNAMIC_GSTORE
 	int dynamic_load_data(string &dname, RDFLoad &reply, Logger &logger, bool &check_dup) {
