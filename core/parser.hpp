@@ -168,9 +168,9 @@ private:
                                           dst.patterns.end());
             i++;
         }
-        /// FIXME: uncomment the following code will result in segmentation fault
-        ///        $ sparql -f query/lubm_q1
-        // dst.patterns.clear();
+
+        if (src.unions.size() > 0)
+            dst.patterns.clear();
 
         // Optional
         for (auto &o : src.optional) {
@@ -194,10 +194,6 @@ private:
                 iter != sp.projectionEnd();
                 iter ++)
             sq.result.required_vars.push_back(*iter);
-
-        // optional
-        if (sq.pattern_group.optional.size() > 0)
-            sq.optional_dispatched = false;
 
         // orders
         for (SPARQLParser::order_iterator iter = sp.orderBegin();
