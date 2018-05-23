@@ -62,7 +62,8 @@ public:
         data.count = cnt;
         data.parent_request = r;
         // for has_optional and start to execute optional queries
-        if (r.has_optional() && r.get_query_status() == SPARQLQuery::QueryStatus::OPTIONAL_UNMERGED) {
+        if (r.has_optional()
+                && (r.get_query_status() == SPARQLQuery::QueryStatus::OPTIONAL_UNMERGED)) {
             data.parent_request.optional_ref = r.result;
         }
 
@@ -147,7 +148,8 @@ private:
     inline void sweep_msgs() {
         if (!pending_msgs.size()) return;
 
-        logstream(LOG_INFO) << "#" << tid << " " << pending_msgs.size() << " pending msgs on engine." << LOG_endl;
+        logstream(LOG_INFO) << "#" << tid << " "
+                            << pending_msgs.size() << " pending msgs on engine." << LOG_endl;
         for (vector<Message>::iterator it = pending_msgs.begin(); it != pending_msgs.end();)
             if (adaptor->send(it->sid, it->tid, it->bundle))
                 it = pending_msgs.erase(it);
@@ -286,7 +288,7 @@ private:
         // update the result table, attr_res_table and metadata
         res.result_table.swap(updated_result_table);
         res.attr_res_table.swap(updated_attr_table);
-        res.add_var2col(end, res.get_attr_col_num(), type);   // update the unknown_attr to known
+        res.add_var2col(end, res.get_attr_col_num(), type); // update the unknown_attr to known
         res.set_attr_col_num(res.get_attr_col_num() + 1);
         req.step++;
     }
@@ -717,12 +719,11 @@ private:
             t4 = timer::get_usec();
         }
 
-        // debug
         if (sid == 0 && tid == 0) {
-            logstream(LOG_INFO) << "prepare " << (t1 - t0) << " us" << LOG_endl;
-            logstream(LOG_INFO) << "execute sub-request " << (t2 - t1) << " us" << LOG_endl;
-            logstream(LOG_INFO) << "sort " << (t3 - t2) << " us" << LOG_endl;
-            logstream(LOG_INFO) << "lookup " << (t4 - t3) << " us" << LOG_endl;
+            logstream(LOG_DEBUG) << "Prepare " << (t1 - t0) << " us" << LOG_endl;
+            logstream(LOG_DEBUG) << "Execute sub-request " << (t2 - t1) << " us" << LOG_endl;
+            logstream(LOG_DEBUG) << "Sort " << (t3 - t2) << " us" << LOG_endl;
+            logstream(LOG_DEBUG) << "Lookup " << (t4 - t3) << " us" << LOG_endl;
         }
 
         req_result.result_table.swap(updated_result_table);
@@ -756,11 +757,11 @@ private:
                 break;
             case const_pair(const_var, const_var):
                 // FIXME: possible or not?
-                logstream(LOG_ERROR) << "[ERROR]: Unsupported triple pattern [CONST|UNKNOWN|CONST]." << LOG_endl;
+                logstream(LOG_ERROR) << "Unsupported triple pattern [CONST|UNKNOWN|CONST]." << LOG_endl;
                 ASSERT(false);
             case const_pair(const_var, known_var):
                 // FIXME: possible or not?
-                logstream(LOG_ERROR) << "[ERROR]: Unsupported triple pattern [CONST|UNKNOWN|KNOWN]." << LOG_endl;
+                logstream(LOG_ERROR) << "Unsupported triple pattern [CONST|UNKNOWN|KNOWN]." << LOG_endl;
                 ASSERT(false);
 
             // start from KNOWN
@@ -772,18 +773,18 @@ private:
                 break;
             case const_pair(known_var, known_var):
                 // FIXME: possible or not?
-                logstream(LOG_ERROR) << "[ERROR]: Unsupported triple pattern [KNOWN|UNKNOWN|KNOWN]." << LOG_endl;
+                logstream(LOG_ERROR) << "Unsupported triple pattern [KNOWN|UNKNOWN|KNOWN]." << LOG_endl;
                 ASSERT(false);
 
             // start from UNKNOWN (incorrect query plan)
             case const_pair(unknown_var, const_var):
             case const_pair(unknown_var, known_var):
             case const_pair(unknown_var, unknown_var):
-                logstream(LOG_ERROR) << "[ERROR]: Unsupported triple pattern [UNKNOWN|UNKNOWN|??]" << LOG_endl;
+                logstream(LOG_ERROR) << "Unsupported triple pattern [UNKNOWN|UNKNOWN|??]" << LOG_endl;
                 ASSERT(false);
 
             default:
-                logstream(LOG_ERROR) << "[ERROR]: Unsupported triple pattern (UNKNOWN predicate) "
+                logstream(LOG_ERROR) << "Unsupported triple pattern (UNKNOWN predicate) "
                                      << "(" << req.result.variable_type(start)
                                      << "|" << req.result.variable_type(end)
                                      << ")." << LOG_endl;
@@ -792,8 +793,8 @@ private:
 
             return true;
 #else
-            logstream(LOG_ERROR) << "[ERROR]: Unsupported variable at predicate." << LOG_endl;
-            logstream(LOG_ERROR) << "[ERROR]: Please add definition VERSATILE in CMakeLists.txt." << LOG_endl;
+            logstream(LOG_ERROR) << "Unsupported variable at predicate." << LOG_endl;
+            logstream(LOG_ERROR) << "Please add definition VERSATILE in CMakeLists.txt." << LOG_endl;
             ASSERT(false);
 #endif
         }
@@ -810,7 +811,7 @@ private:
                 known_to_unknown_attr(req);
                 break;
             default:
-                logstream(LOG_ERROR) << "[ERROR]: Unsupported triple pattern with attribute "
+                logstream(LOG_ERROR) << "Unsupported triple pattern with attribute "
                                      << "(" << req.result.variable_type(start)
                                      << "|" << req.result.variable_type(end)
                                      << ")" << LOG_endl;
@@ -825,10 +826,10 @@ private:
 
         // start from CONST
         case const_pair(const_var, const_var):
-            logstream(LOG_ERROR) << "[ERROR]: Unsupported triple pattern [CONST|KNOWN|CONST]" << LOG_endl;
+            logstream(LOG_ERROR) << "Unsupported triple pattern [CONST|KNOWN|CONST]" << LOG_endl;
             ASSERT(false);
         case const_pair(const_var, known_var):
-            logstream(LOG_ERROR) << "[ERROR]: Unsupported triple pattern [CONST|KNOWN|KNOWN]" << LOG_endl;
+            logstream(LOG_ERROR) << "Unsupported triple pattern [CONST|KNOWN|KNOWN]" << LOG_endl;
             ASSERT(false);
         case const_pair(const_var, unknown_var):
             const_to_unknown(req);
@@ -849,11 +850,11 @@ private:
         case const_pair(unknown_var, const_var):
         case const_pair(unknown_var, known_var):
         case const_pair(unknown_var, unknown_var):
-            logstream(LOG_ERROR) << "[ERROR]: Unsupported triple pattern [UNKNOWN|KNOWN|??]" << LOG_endl;
+            logstream(LOG_ERROR) << "Unsupported triple pattern [UNKNOWN|KNOWN|??]" << LOG_endl;
             ASSERT(false);
 
         default:
-            logstream(LOG_ERROR) << "[ERROR]: Unsupported triple pattern with known predicate "
+            logstream(LOG_ERROR) << "Unsupported triple pattern with known predicate "
                                  << "(" << req.result.variable_type(start)
                                  << "|" << req.result.variable_type(end)
                                  << ")" << LOG_endl;
@@ -881,7 +882,7 @@ private:
             case SPARQLQuery::Filter::Type::Literal:
                 return "\"" + filter.value + "\"";
             default:
-                logstream(LOG_ERROR) << "filter type not supported currently" << LOG_endl;
+                logstream(LOG_ERROR) << "Unsupported FILTER type" << LOG_endl;
                 ASSERT(false);
             }
             return "";
@@ -1018,7 +1019,8 @@ private:
             int id = result.get_row_col(row, col);
             string str = str_server->exist(id) ? str_server->id2str[id] : "";
             if (str.front() != '\"' || str.back() != '\"')
-                logstream(LOG_ERROR) << "the first parameter of function regex can only be string" << LOG_endl;
+                logstream(LOG_ERROR) << "The first parameter of function regex must be string"
+                                     << LOG_endl;
             else
                 str = str.substr(1, str.length() - 2);
 
@@ -1127,7 +1129,8 @@ private:
             for (int j = 0; j < global_mt_threshold; j++) {
                 int idx = i * global_mt_threshold + j;
                 sub_reqs[idx].pid = req.id;
-                sub_reqs[idx].tid = (tid + j + 1 - global_num_proxies) % global_num_engines + global_num_proxies;
+                sub_reqs[idx].tid = (tid + j + 1 - global_num_proxies) % global_num_engines
+                                    + global_num_proxies;
                 sub_reqs[idx].set_query_type(SPARQLQuery::QueryType::OPTIONAL_MERGE);
                 sub_reqs[idx].optional_ref = req.result;
                 sub_reqs[idx].result.col_num = req.optional_ref.col_num;
@@ -1153,7 +1156,9 @@ private:
     void execute_optional(SPARQLQuery &r) {
         if (r.get_query_status() == SPARQLQuery::QueryStatus::OPTIONAL_UNMERGED) {
             vector<SPARQLQuery> merge_reqs = generate_optional_merge_reqs(r);
-            r.set_query_status(r.is_optional_finished() ? SPARQLQuery::QueryStatus::OPTIONAL_DONE : SPARQLQuery::QueryStatus::OPTIONAL_ONGOING);
+            r.set_query_status(r.is_optional_finished()
+                               ? SPARQLQuery::QueryStatus::OPTIONAL_DONE
+                               : SPARQLQuery::QueryStatus::OPTIONAL_ONGOING);
             rmap.put_parent_request(r, global_num_servers * global_mt_threshold);
             for (int i = 0; i < global_num_servers; i++) {
                 for (int j = 0; j < global_mt_threshold; j++) {
@@ -1184,7 +1189,8 @@ private:
                     }
                 }
             } else {
-                int dst_sid = mymath::hash_mod(optional_query.pattern_group.patterns[0].subject, global_num_servers);
+                int dst_sid = mymath::hash_mod(optional_query.pattern_group.patterns[0].subject,
+                                               global_num_servers);
                 if (dst_sid != sid) {
                     Bundle bundle(optional_query);
                     send_request(bundle, dst_sid, tid);
@@ -1316,7 +1322,8 @@ out:
                 for (int j = 0; j < r.mt_factor; j++) {
                     sub_query.id = -1;
                     sub_query.pid = r.id;
-                    sub_query.tid = (tid + j + 1 - global_num_proxies) % global_num_engines + global_num_proxies;
+                    sub_query.tid = (tid + j + 1 - global_num_proxies) % global_num_engines
+                                    + global_num_proxies;
                     sub_query.mt_factor = r.mt_factor;
 
                     Bundle bundle(sub_query);
@@ -1364,7 +1371,8 @@ out:
 
                 // if all data has been merged and next will be sent back to proxy
                 if (coder.tid_of(r.pid) < global_num_proxies) {
-                    if (r.has_optional() && r.get_query_status() != SPARQLQuery::QueryStatus::OPTIONAL_DONE) {
+                    if (r.has_optional()
+                            && (r.get_query_status() != SPARQLQuery::QueryStatus::OPTIONAL_DONE)) {
                         execute_optional(r);
                         return;
                     }
@@ -1417,7 +1425,8 @@ out:
 
         // if all data has been merged and next will be sent back to proxy
         if (coder.tid_of(reply.pid) < global_num_proxies) {
-            if (reply.has_optional() && reply.get_query_status() != SPARQLQuery::QueryStatus::OPTIONAL_DONE) {
+            if (reply.has_optional()
+                    && (reply.get_query_status() != SPARQLQuery::QueryStatus::OPTIONAL_DONE)) {
                 execute_optional(reply);
                 return;
             }
