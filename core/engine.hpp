@@ -422,6 +422,7 @@ private:
 
     // e.g., "<http://www.Department0.University0.edu> ?P ?X"
     void const_unknown_unknown(SPARQLQuery &req) {
+        cout << "execute const_unknown_unknown" << endl;
         SPARQLQuery::Pattern &pattern = req.get_current_pattern();
         ssid_t start = pattern.subject;
         ssid_t pid   = pattern.predicate;
@@ -461,6 +462,7 @@ private:
     // e.g., "<http://www.University0.edu> ub:subOrganizationOf ?D"
     //       "?D ?P ?X"
     void known_unknown_unknown(SPARQLQuery &req) {
+        cout << "execute known_unknown_unknown" << endl;
         SPARQLQuery::Pattern &pattern = req.get_current_pattern();
         ssid_t start = pattern.subject;
         ssid_t pid   = pattern.predicate;
@@ -492,14 +494,16 @@ private:
         }
 
         result.result_table.swap(updated_result_table);
-        result.set_col_num(result.get_col_num() + 2);
         result.add_var2col(pid, result.get_col_num());
         result.add_var2col(end, result.get_col_num() + 1);
+        result.set_col_num(result.get_col_num() + 2);
         req.step++;
     }
 
-    // FIXME: deadcode
+    // e.g., "<http://www.University0.edu> ub:subOrganizationOf ?D"
+    //       "?D ?P <http://www.Department4.University0.edu>"
     void known_unknown_const(SPARQLQuery &req) {
+        cout << "execute known_unknown_const" << endl;
         SPARQLQuery::Pattern &pattern = req.get_current_pattern();
         ssid_t start = pattern.subject;
         ssid_t pid   = pattern.predicate;
@@ -531,10 +535,48 @@ private:
 
             free(tpids);
         }
-
+        result.result_table.swap(updated_result_table);
         result.add_var2col(pid, result.get_col_num());
         result.set_col_num(result.get_col_num() + 1);
+        req.step++;
+    }
+
+    void const_unknown_const(SPARQLQuery &req) {
+        cout << "execute const_unknown_const" << endl;
+        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        ssid_t start = pattern.subject;
+        ssid_t pid   = pattern.predicate;
+        dir_t d      = pattern.direction;
+        ssid_t end   = pattern.object;
+        vector<sid_t> updated_result_table;
+        SPARQLQuery::Result &result = req.result;
+
+        // the query plan is wrong
+        ASSERT(result.get_col_num() == 0);
+
+        uint64_t npids = 0;
+        edge_t *pids = graph->get_edges_global(tid, start, d, PREDICATE_ID, &npids);
+
+        // use a local buffer to store "known" predicates
+        edge_t *tpids = (edge_t *)malloc(npids * sizeof(edge_t));
+        memcpy((char *)tpids, (char *)pids, npids * sizeof(edge_t));
+
+        for (uint64_t p = 0; p < npids; p++) {
+            uint64_t sz = 0;
+            edge_t *res = graph->get_edges_global(tid, start, d, tpids[p].val, &sz);
+            for (uint64_t k = 0; k < sz; k++) {
+                if (res[k].val == end) {
+                    updated_result_table.push_back(tpids[p].val);
+                    break;
+                }
+            }
+        }
+
+        free(tpids);
+
         result.result_table.swap(updated_result_table);
+        result.set_col_num(1);
+        result.add_var2col(pid, 0);
         req.step++;
     }
 
@@ -752,6 +794,12 @@ private:
                 break;
             case const_pair(known_var, unknown_var):
                 known_unknown_unknown(req);
+                break;
+            case const_pair(known_var, const_var):
+                known_unknown_const(req);
+                break;
+            case const_pair(const_var, const_var):
+                const_unknown_const(req);
                 break;
             default:
                 logstream(LOG_ERROR) << "unsupported triple pattern with unknown predicate "
@@ -1257,7 +1305,6 @@ out:
                 new_result_table[i * new_col_num + j] = r.result.get_row_col(i, col);
             }
         }
-
         r.result.result_table.swap(new_result_table);
         r.result.col_num = new_col_num;
     }
