@@ -722,7 +722,7 @@ public:
 	}
 
 	// FIXME: rename the function by the term of attribute graph model (e.g., value)
-	bool get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &result) {
-		return gstore.get_vertex_attr_global(tid, vid, d, pid, result);
+	bool get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &res) {
+		return gstore.get_vertex_attr_global(tid, vid, d, pid, res);
 	}
 };
