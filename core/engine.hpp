@@ -44,63 +44,68 @@ using namespace std;
 #define MIN_SNOOZE_TIME 10 // MIX snooze time
 #define MAX_SNOOZE_TIME 80 // MAX snooze time
 
+#define QUERY_FROM_PROXY(tid) ((tid) < global_num_proxies)
+
 // The map is used to colloect the replies of sub-queries in fork-join execution
 class Reply_Map {
 private:
 
     struct Item {
-        int count;
-        SPARQLQuery parent_request;
-        SPARQLQuery merged_reply;
+        int cnt; // #sub-queries
+        SPARQLQuery parent;
+        SPARQLQuery reply;
     };
 
-    boost::unordered_map<int, Item> internal_item_map;
+    boost::unordered_map<int, Item> internal_map;
 
 public:
     void put_parent_request(SPARQLQuery &r, int cnt) {
         Item data;
-        data.count = cnt;
-        data.parent_request = r;
+        data.cnt = cnt;
+        data.parent = r;
         // for has_optional and start to execute optional queries
         if (r.has_optional()
                 && (r.get_query_status() == SPARQLQuery::QueryStatus::OPTIONAL_UNMERGED)) {
-            data.parent_request.optional_ref = r.result;
+            data.parent.optional_ref = r.result;
         }
 
-        internal_item_map[r.id] = data;
+        internal_map[r.id] = data;
     }
 
     void put_reply(SPARQLQuery &r) {
-        int pid = r.pid;
-        Item &data = internal_item_map[pid];
+        // exist
+        ASSERT(internal_map.find(r.pid) != internal_map.end());
 
-        SPARQLQuery::Result &data_result = data.merged_reply.result;
-        SPARQLQuery::Result &r_result = r.result;
-        data.count--;
+        Item &d = internal_map[r.pid];
+        SPARQLQuery::Result &whole = d.reply.result;
+        SPARQLQuery::Result &part = r.result;
+        d.cnt--;
 
-        if (data.parent_request.has_union())
-            data_result.merge_union(r_result);
+        if (d.parent.has_union())
+            whole.merge_union(part);
         else
-            data_result.append_result(r_result);
+            whole.append_result(part);
     }
 
     bool is_ready(int pid) {
-        return internal_item_map[pid].count == 0;
+        return internal_map[pid].cnt == 0;
     }
 
     SPARQLQuery get_merged_reply(int pid) {
-        SPARQLQuery r = internal_item_map[pid].parent_request;
-        SPARQLQuery &merged_reply = internal_item_map[pid].merged_reply;
+        SPARQLQuery r = internal_map[pid].parent;
+        SPARQLQuery &reply = internal_map[pid].reply;
 
-        r.result.col_num = merged_reply.result.col_num;
-        r.result.blind = merged_reply.result.blind;
-        r.result.row_num = merged_reply.result.row_num;
-        r.result.attr_col_num = merged_reply.result.attr_col_num;
-        r.result.v2c_map = merged_reply.result.v2c_map;
+        // copy the result
+        // FIXME: implement copy construct of SPARQLQuery::Result
+        r.result.col_num = reply.result.col_num;
+        r.result.blind = reply.result.blind;
+        r.result.row_num = reply.result.row_num;
+        r.result.attr_col_num = reply.result.attr_col_num;
+        r.result.v2c_map = reply.result.v2c_map;
+        r.result.result_table.swap(reply.result.result_table);
+        r.result.attr_res_table.swap(reply.result.attr_res_table);
 
-        r.result.result_table.swap(merged_reply.result.result_table);
-        r.result.attr_res_table.swap(r.result.attr_res_table);
-        internal_item_map.erase(pid);
+        internal_map.erase(pid);
         return r;
     }
 };
@@ -596,11 +601,11 @@ private:
 
     // fork-join or in-place execution
     bool need_fork_join(SPARQLQuery &req) {
-        // always need fork-join mode w/o RDMA
-        if (!global_use_rdma) return true;
-
         // always need NOT fork-join when executing on single machine
         if (global_num_servers == 1) return false;
+
+        // always need fork-join mode w/o RDMA
+        if (!global_use_rdma) return true;
 
         SPARQLQuery::Pattern &pattern = req.get_current_pattern();
         ssid_t start = pattern.subject;
@@ -800,7 +805,7 @@ private:
         }
 
         // triple pattern with attribute
-        if (global_enable_vattr && req.get_pattern(req.step).pred_type > 0) {   //judge by predicate type
+        if (global_enable_vattr && req.get_pattern(req.step).pred_type > 0) {
             switch (const_pair(req.result.variable_type(start),
                                req.result.variable_type(end))) {
             // now support const_to_unknown_attr and known_to_unknown_attr
@@ -1234,11 +1239,13 @@ private:
                     }
                     return true;
                 };
+
                 auto swap = [](int *&a, int *&b) {
                     int *temp = a;
                     a = b;
                     b = temp;
                 };
+
                 while (q < size) {
                     while (equal(table[p], table[q])) {
                         q++;
@@ -1255,6 +1262,7 @@ out:
             if (r.orders.size() > 0) {
                 sort(table, table + new_size, Compare(r, str_server));
             }
+
             //write back data and delete **table
             for (int i = 0; i < new_size; i ++)
                 for (int j = 0; j < r.result.col_num; j ++)
@@ -1299,16 +1307,17 @@ out:
     }
 
     void execute_sparql_request(SPARQLQuery &r) {
-        SPARQLQuery::Result &result = r.result;
+        // encode the lineage of the query (server & thread)
         r.id = coder.get_and_inc_qid();
 
+        // Step 1. dispatching
         /// FIXME: split the condition for multi-threads and multi-servers
         ///   multi-threads: large query (exploit more CPU resources)
         ///   multi-servers: start from index vertex
         // if r starts from index and is from proxy, dispatch it to every engine except itself
         if (r.force_dispatch
                 || (r.step == 0
-                    && coder.tid_of(r.pid) < global_num_proxies // from a proxy
+                    && QUERY_FROM_PROXY(coder.tid_of(r.pid))
                     && r.mt_factor > 1  // enable multi-threading
                     && global_mt_threshold * global_num_servers > 1)) {
             // The mt_factor can be set on proxy side before sending to engine,
@@ -1370,7 +1379,7 @@ out:
                 }
 
                 // if all data has been merged and next will be sent back to proxy
-                if (coder.tid_of(r.pid) < global_num_proxies) {
+                if (QUERY_FROM_PROXY(coder.tid_of(r.pid))) {
                     if (r.has_optional()
                             && (r.get_query_status() != SPARQLQuery::QueryStatus::OPTIONAL_DONE)) {
                         execute_optional(r);
@@ -1378,10 +1387,12 @@ out:
                     }
                     final_process(r);
                 }
-                result.row_num = result.get_row_num();
+
+                r.result.row_num = r.result.get_row_num();
                 r.clear_data();
                 Bundle bundle(r);
                 send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
+
                 return;
             }
 
@@ -1424,7 +1435,7 @@ out:
             filter(reply);
 
         // if all data has been merged and next will be sent back to proxy
-        if (coder.tid_of(reply.pid) < global_num_proxies) {
+        if (QUERY_FROM_PROXY(coder.tid_of(reply.pid))) {
             if (reply.has_optional()
                     && (reply.get_query_status() != SPARQLQuery::QueryStatus::OPTIONAL_DONE)) {
                 execute_optional(reply);
@@ -1444,11 +1455,12 @@ out:
     }
 
     void execute_sparql_query(SPARQLQuery &r, Engine *engine) {
-        if (r.is_request() && r.query_type != SPARQLQuery::QueryType::OPTIONAL_MERGE)
-            execute_sparql_request(r);
-        else if (r.is_request() && r.query_type == SPARQLQuery::QueryType::OPTIONAL_MERGE)
-            execute_optional_merge(r);
-        else
+        if (r.is_request()) {
+            if (r.query_type != SPARQLQuery::QueryType::OPTIONAL_MERGE)
+                execute_sparql_request(r);
+            else
+                execute_optional_merge(r);
+        } else
             execute_sparql_reply(r, engine);
     }
 
