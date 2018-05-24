@@ -503,7 +503,6 @@ private:
     // e.g., "<http://www.University0.edu> ub:subOrganizationOf ?D"
     //       "?D ?P <http://www.Department4.University0.edu>"
     void known_unknown_const(SPARQLQuery &req) {
-        cout << "execute known_unknown_const" << endl;
         SPARQLQuery::Pattern &pattern = req.get_current_pattern();
         ssid_t start = pattern.subject;
         ssid_t pid   = pattern.predicate;
@@ -541,8 +540,8 @@ private:
         req.step++;
     }
 
+    //e.g., "<http://www.Department7.University0.edu/UndergraduateStudent201>   ?X    <http://www.Department7.University0.edu>"
     void const_unknown_const(SPARQLQuery &req) {
-        cout << "execute const_unknown_const" << endl;
         SPARQLQuery::Pattern &pattern = req.get_current_pattern();
         ssid_t start = pattern.subject;
         ssid_t pid   = pattern.predicate;
