@@ -197,7 +197,7 @@ private:
     // all of these means const attribute
     // query the attribute starts from const
     // like <Course3> <id> ?X
-    void const_to_unknown_attr(SPARQLQuery & req ) {
+    void const_to_unknown_attr(SPARQLQuery &req) {
         // prepare for query
         SPARQLQuery::Pattern &pattern = req.get_current_pattern();
         ssid_t start = pattern.subject;
@@ -557,7 +557,7 @@ private:
             if (union_reqs[i].start_from_index()
                     && (global_mt_threshold * global_num_servers > 1)) {
                 union_reqs[i].force_dispatch = true;
-                union_reqs[i].mt_factor = global_mt_threshold;
+                union_reqs[i].mt_factor = req.mt_factor;
             }
 
             union_reqs[i].step = 0;
@@ -1310,7 +1310,8 @@ out:
         // encode the lineage of the query (server & thread)
         r.id = coder.get_and_inc_qid();
 
-        // Step 1. dispatching
+        // Step 1. Pattern
+
         /// FIXME: split the condition for multi-threads and multi-servers
         ///   multi-threads: large query (exploit more CPU resources)
         ///   multi-servers: start from index vertex
@@ -1318,7 +1319,7 @@ out:
         if (r.force_dispatch
                 || (r.step == 0
                     && QUERY_FROM_PROXY(coder.tid_of(r.pid))
-                    && r.mt_factor > 1  // enable multi-threading
+                    && (r.start_from_index() || r.mt_factor > 1)
                     && global_mt_threshold * global_num_servers > 1)) {
             // The mt_factor can be set on proxy side before sending to engine,
             // but must smaller than global_mt_threshold (Default: mt_factor == 1)
@@ -1331,6 +1332,7 @@ out:
                 for (int j = 0; j < r.mt_factor; j++) {
                     sub_query.id = -1;
                     sub_query.pid = r.id;
+                    // start from the next engine thread
                     sub_query.tid = (tid + j + 1 - global_num_proxies) % global_num_engines
                                     + global_num_proxies;
                     sub_query.mt_factor = r.mt_factor;
@@ -1352,49 +1354,7 @@ out:
                     && (r.corun_enabled && (r.step == r.corun_step)))
                 do_corun(r);
 
-            if (r.is_finished()) {
-                // Union, when Union or Optional occurs, Filters will be delayed till they are processed.
-                if (r.has_union()) {
-                    vector<SPARQLQuery> union_reqs = generate_union_query(r);
-                    rmap.put_parent_request(r, union_reqs.size());
-                    for (int i = 0; i < union_reqs.size(); i++) {
-                        int dst_sid = mymath::hash_mod(union_reqs[i].pattern_group.patterns[0].subject,
-                                                       global_num_servers);
-                        if (dst_sid != sid) {
-                            Bundle bundle(union_reqs[i]);
-                            send_request(bundle, dst_sid, tid);
-                        } else {
-                            pthread_spin_lock(&recv_lock);
-                            msg_fast_path.push_back(union_reqs[i]);
-                            pthread_spin_unlock(&recv_lock);
-                        }
-                    }
-                    return;
-                }
-
-                if (!r.has_union() && !r.has_optional()) {
-                    // result should be filtered at the end of every distributed query
-                    // because FILTER could be nested in every PatternGroup
-                    filter(r);
-                }
-
-                // if all data has been merged and next will be sent back to proxy
-                if (QUERY_FROM_PROXY(coder.tid_of(r.pid))) {
-                    if (r.has_optional()
-                            && (r.get_query_status() != SPARQLQuery::QueryStatus::OPTIONAL_DONE)) {
-                        execute_optional(r);
-                        return;
-                    }
-                    final_process(r);
-                }
-
-                r.result.row_num = r.result.get_row_num();
-                r.clear_data();
-                Bundle bundle(r);
-                send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
-
-                return;
-            }
+            if (r.is_finished()) break;
 
             if (need_fork_join(r)) {
                 vector<SPARQLQuery> sub_reqs = generate_sub_query(r);
@@ -1412,6 +1372,48 @@ out:
                 return;
             }
         } while (true);
+
+
+        // Step 2. Union
+        if (r.has_union()) {
+            vector<SPARQLQuery> union_reqs = generate_union_query(r);
+            rmap.put_parent_request(r, union_reqs.size());
+            for (int i = 0; i < union_reqs.size(); i++) {
+                int dst_sid = mymath::hash_mod(union_reqs[i].pattern_group.patterns[0].subject,
+                                               global_num_servers);
+                if (dst_sid != sid) {
+                    Bundle bundle(union_reqs[i]);
+                    send_request(bundle, dst_sid, tid);
+                } else {
+                    pthread_spin_lock(&recv_lock);
+                    msg_fast_path.push_back(union_reqs[i]);
+                    pthread_spin_unlock(&recv_lock);
+                }
+            }
+            return;
+        }
+
+        // Step 2. Union
+        if (!r.has_union() && !r.has_optional()) {
+            // result should be filtered at the end of every distributed query
+            // because FILTER could be nested in every PatternGroup
+            filter(r);
+        }
+
+        // if all data has been merged and next will be sent back to proxy
+        if (QUERY_FROM_PROXY(coder.tid_of(r.pid))) {
+            if (r.has_optional()
+                    && (r.get_query_status() != SPARQLQuery::QueryStatus::OPTIONAL_DONE)) {
+                execute_optional(r);
+                return;
+            }
+            final_process(r);
+        }
+
+        r.result.row_num = r.result.get_row_num();
+        r.clear_data();
+        Bundle bundle(r);
+        send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
 
         return;
     }
