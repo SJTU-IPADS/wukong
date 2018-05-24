@@ -63,6 +63,8 @@ private:
     friend class boost::serialization::access;
 
 public:
+    enum SQState { SQ_PATTERN = 0, SQ_UNION, SQ_FILTER, SQ_OPTIONAL, SQ_FINAL, SQ_REPLY };
+
     // indicating which type is this query. forked sub-queries should inherit this value
     // e.g. if this query is generated from a query that has_optional, then this query is OPTIONAL
     enum QueryType { BASIC, UNION, OPTIONAL, OPTIONAL_MERGE };
@@ -161,10 +163,11 @@ public:
         friend class boost::serialization::access;
 
     public:
+        bool parallel = false;
         vector<Pattern> patterns;
+        vector<PatternGroup> unions;
         vector<Filter> filters;
         vector<PatternGroup> optional;
-        vector<PatternGroup> unions;
 
         void print_group() const {
             logstream(LOG_INFO) << "patterns[" << patterns.size() << "]:" << LOG_endl;
@@ -177,9 +180,12 @@ public:
             logstream(LOG_INFO) << "unions[" << unions.size() << "]:" << LOG_endl;
             for (auto const &g : unions)
                 g.print_group();
+
             logstream(LOG_INFO) << "optionals[" << optional.size() << "]:" << LOG_endl;
             for (auto const &g : optional)
                 g.print_group();
+
+            // FIXME: filiter
         }
     };
 
@@ -281,9 +287,9 @@ public:
             // get index
             int idx = - (vid + 1);
             ASSERT(idx < nvars);
-            // col should no be set
+            // col should not be set
             ASSERT(v2c_map[idx] == NO_RESULT);
-            //set ext
+            // set ext
             v2c_map[idx] = col2ext(col, t);
         }
 
@@ -485,21 +491,24 @@ public:
     int pid = -1;    // parqnt query id
     int tid = 0;     // engine thread id (MT)
 
-    // SPARQL query
-    int step = 0;
-    ssid_t local_var = 0;   // the local variable
+    SQState state = SQ_PATTERN;
     int mt_factor = 1;  // use a single engine by default
     int priority = 0;
 
+    // Pattern
+    int pattern_step = 0;
+    ssid_t local_var = 0;   // the local variable
     bool corun_enabled = false;
     int corun_step = 0;
     int fetch_step = 0;
 
-    int optional_step = 0;  // record the step in patterngroup.optional
-    bool force_dispatch = false;
+    // Optional
+    int optional_step = 0;
+
     int limit = -1;
     unsigned offset = 0;
     bool distinct = false;
+
     QueryType query_type = BASIC;
     QueryStatus query_status = BASIC_ONGOING;
 
@@ -518,8 +527,8 @@ public:
     }
 
     Pattern & get_current_pattern() {
-        ASSERT(this->step < pattern_group.patterns.size());
-        return pattern_group.patterns[this->step];
+        ASSERT(pattern_step < pattern_group.patterns.size());
+        return pattern_group.patterns[pattern_step];
     }
 
     Pattern & get_pattern(int step) {
@@ -528,7 +537,7 @@ public:
     }
 
     // clear query when send back result to achieve better performance
-    void clear_data() {
+    void clear_query() {
         orders.clear();
         // the first pattern indicating if this query is starting from index. It can't be removed.
         pattern_group.patterns.erase(pattern_group.patterns.begin() + 1,
@@ -538,20 +547,45 @@ public:
         pattern_group.unions.clear();
 
         if (result.blind)
-            result.clear_data(); // avoid take back all the results
+            result.clear_data(); // avoid take back the results except the total number (row_num)
     }
 
     void set_query_type(QueryType t) { this->query_type = t; }
+
+    bool has_pattern() { return pattern_group.patterns.size() > 0; }
 
     bool has_union() { return pattern_group.unions.size() > 0; }
 
     bool has_optional() { return pattern_group.optional.size() > 0; }
 
-    bool is_finished() { return (step >= pattern_group.patterns.size()); } // FIXME: it's trick
+    bool has_filter() { return pattern_group.filters.size() > 0; }
+
+    bool done(SQState state) {
+        switch (state) {
+        case SQ_PATTERN:
+            return (pattern_step >= pattern_group.patterns.size());
+        case SQ_UNION:
+            // FIXME:
+            ASSERT(false);
+        case SQ_FILTER:
+            // FIXME:
+            ASSERT(false);
+        case SQ_OPTIONAL:
+            return (optional_step >= pattern_group.optional.size());
+        case SQ_FINAL:
+            // FIXME:
+            ASSERT(false);
+        case SQ_REPLY:
+            // FIXME:
+            ASSERT(false);
+        }
+    }
+
+    bool is_pattern_finished() { return (pattern_step >= pattern_group.patterns.size()); }
 
     bool is_optional_finished() { return (optional_step >= pattern_group.optional.size()); }
 
-    bool is_request() { return (id == -1); } // FIXME: it's trick
+    //bool is_request() { return (id == -1); } // FIXME: it's trick
 
     bool start_from_index() {
         /*
@@ -589,7 +623,7 @@ public:
         r.pid = id;
         r.set_query_type(OPTIONAL);
         r.pattern_group = pattern_group.optional[optional_step];
-        r.step = 0;
+        r.pattern_step = 0;
         r.result = result;
         r.result.blind = false;
     }
@@ -718,6 +752,7 @@ void load(Archive &ar, SPARQLQuery::Pattern &t, unsigned int version) {
 
 template<class Archive>
 void save(Archive &ar, const SPARQLQuery::PatternGroup &t, unsigned int version) {
+    ar << t.parallel;
     ar << t.patterns;
     if (t.filters.size() > 0) {
         ar << occupied;
@@ -738,6 +773,7 @@ void save(Archive &ar, const SPARQLQuery::PatternGroup &t, unsigned int version)
 template<class Archive>
 void load(Archive &ar, SPARQLQuery::PatternGroup &t, unsigned int version) {
     char temp = 2;
+    ar >> t.parallel;
     ar >> t.patterns;
     ar >> temp;
     if (temp == occupied) {
@@ -803,14 +839,14 @@ void save(Archive & ar, const SPARQLQuery &t, unsigned int version) {
     ar << t.query_type;
     ar << t.query_status;
     ar << t.optional_ref;
-    ar << t.step;
+    ar << t.pattern_step;
     ar << t.optional_step;
     ar << t.corun_step;
     ar << t.fetch_step;
     ar << t.local_var;
-    ar << t.force_dispatch;
     ar << t.mt_factor;
     ar << t.priority;
+    ar << t.state;
     ar << t.pattern_group;
     if (t.orders.size() > 0) {
         ar << occupied;
@@ -833,14 +869,14 @@ void load(Archive & ar, SPARQLQuery &t, unsigned int version) {
     ar >> t.query_type;
     ar >> t.query_status;
     ar >> t.optional_ref;
-    ar >> t.step;
+    ar >> t.pattern_step;
     ar >> t.optional_step;
     ar >> t.corun_step;
     ar >> t.fetch_step;
     ar >> t.local_var;
-    ar >> t.force_dispatch;
     ar >> t.mt_factor;
     ar >> t.priority;
+    ar >> t.state;
     ar >> t.pattern_group;
     ar >> temp;
     if (temp == occupied) ar >> t.orders;

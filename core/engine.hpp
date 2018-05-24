@@ -60,16 +60,25 @@ private:
 
 public:
     void put_parent_request(SPARQLQuery &r, int cnt) {
-        Item data;
-        data.cnt = cnt;
-        data.parent = r;
+        logstream(LOG_DEBUG) << "add pid=" << r.id << " and cnt=" << cnt << LOG_endl;
+
+        // not exist
+        ASSERT(internal_map.find(r.id) == internal_map.end());
+
+        // FIXME: only support fork-join mode in Pattern
+        ASSERT(r.state == SPARQLQuery::SQState::SQ_PATTERN);
+
+        Item d;
+        d.cnt = cnt;
+        d.parent = r;
+
         // for has_optional and start to execute optional queries
         if (r.has_optional()
                 && (r.get_query_status() == SPARQLQuery::QueryStatus::OPTIONAL_UNMERGED)) {
-            data.parent.optional_ref = r.result;
+            d.parent.optional_ref = r.result;
         }
 
-        internal_map[r.id] = data;
+        internal_map[r.id] = d;
     }
 
     void put_reply(SPARQLQuery &r) {
@@ -85,6 +94,10 @@ public:
             whole.merge_union(part);
         else
             whole.append_result(part);
+
+        // keep inprogress
+        if (d.parent.state == SPARQLQuery::SQState::SQ_PATTERN)
+            d.reply.pattern_step = r.pattern_step;
     }
 
     bool is_ready(int pid) {
@@ -105,7 +118,12 @@ public:
         r.result.result_table.swap(reply.result.result_table);
         r.result.attr_res_table.swap(reply.result.attr_res_table);
 
+        // FIXME: need sync other fields or not
+        if (r.state == SPARQLQuery::SQState::SQ_PATTERN)
+            r.pattern_step = reply.pattern_step;
+
         internal_map.erase(pid);
+        logstream(LOG_DEBUG) << "erase pid=" << pid << LOG_endl;
         return r;
     }
 };
@@ -191,7 +209,7 @@ private:
         res.result_table.swap(updated_result_table);
         res.add_var2col(end, 0);
         res.set_col_num(1);
-        req.step++;
+        req.pattern_step++;
     }
 
     // all of these means const attribute
@@ -220,7 +238,7 @@ private:
         res.attr_res_table.swap(updated_attr_table);
         res.add_var2col(end, 0, type);   //update the unknown_attr to known
         res.set_attr_col_num(1);
-        req.step++;
+        req.pattern_step++;
     }
 
     void known_to_unknown(SPARQLQuery &req) {
@@ -255,7 +273,7 @@ private:
         res.result_table.swap(updated_result_table);
         res.add_var2col(end, res.get_col_num());
         res.set_col_num(res.get_col_num() + 1);
-        req.step++;
+        req.pattern_step++;
     }
 
     // query the attribute starts from known to attribute value
@@ -295,7 +313,7 @@ private:
         res.attr_res_table.swap(updated_attr_table);
         res.add_var2col(end, res.get_attr_col_num(), type); // update the unknown_attr to known
         res.set_attr_col_num(res.get_attr_col_num() + 1);
-        req.step++;
+        req.pattern_step++;
     }
 
     /// ?Y P1 ?X . (Both ?Y and ?X are KNOWN)
@@ -339,7 +357,7 @@ private:
         res.result_table.swap(updated_result_table);
         if (global_enable_vattr)
             res.attr_res_table.swap(updated_attr_table);
-        req.step++;
+        req.pattern_step++;
     }
 
     /// ?X P1 E1 . (?X is KNOWN)
@@ -393,7 +411,7 @@ private:
         res.result_table.swap(updated_result_table);
         if (global_enable_vattr)
             res.attr_res_table.swap(updated_attr_table);
-        req.step++;
+        req.pattern_step++;
     }
 
     void index_to_unknown(SPARQLQuery &req) {
@@ -425,7 +443,7 @@ private:
         res.result_table.swap(updated_result_table);
         res.set_col_num(1);
         res.add_var2col(var, 0);
-        req.step++;
+        req.pattern_step++;
         req.local_var = -1;
     }
 
@@ -462,7 +480,7 @@ private:
         res.set_col_num(2);
         res.add_var2col(pid, 0);
         res.add_var2col(end, 1);
-        req.step++;
+        req.pattern_step++;
     }
 
     // e.g., "<http://www.University0.edu> ub:subOrganizationOf ?D"
@@ -503,7 +521,7 @@ private:
         res.set_col_num(res.get_col_num() + 2);
         res.add_var2col(pid, res.get_col_num());
         res.add_var2col(end, res.get_col_num() + 1);
-        req.step++;
+        req.pattern_step++;
     }
 
     // FIXME: deadcode
@@ -544,7 +562,7 @@ private:
         result.add_var2col(pid, result.get_col_num());
         result.set_col_num(result.get_col_num() + 1);
         result.result_table.swap(updated_result_table);
-        req.step++;
+        req.pattern_step++;
     }
 
     vector<SPARQLQuery> generate_union_query(SPARQLQuery &req) {
@@ -556,11 +574,11 @@ private:
             union_reqs[i].pattern_group = req.pattern_group.unions[i];
             if (union_reqs[i].start_from_index()
                     && (global_mt_threshold * global_num_servers > 1)) {
-                union_reqs[i].force_dispatch = true;
+                //union_reqs[i].force_dispatch = true;
                 union_reqs[i].mt_factor = req.mt_factor;
             }
 
-            union_reqs[i].step = 0;
+            union_reqs[i].pattern_step = 0;
             union_reqs[i].result = req.result;
             union_reqs[i].result.blind = false;
         }
@@ -577,7 +595,7 @@ private:
             sub_reqs[i].pid = req.id;
             sub_reqs[i].set_query_type(req.query_type);
             sub_reqs[i].pattern_group = req.pattern_group;
-            sub_reqs[i].step = req.step;
+            sub_reqs[i].pattern_step = req.pattern_step;
             sub_reqs[i].corun_step = req.corun_step;
             sub_reqs[i].fetch_step = req.fetch_step;
             sub_reqs[i].local_var = start;
@@ -608,9 +626,11 @@ private:
         if (!global_use_rdma) return true;
 
         SPARQLQuery::Pattern &pattern = req.get_current_pattern();
-        ssid_t start = pattern.subject;
-        return ((req.local_var != start)
-                && (req.result.get_row_num() >= global_rdma_threshold));
+        ASSERT(req.result.variable_type(pattern.subject) == known_var);
+        //ssid_t start = pattern.subject;
+        //return ((req.local_var != start)
+        //        && (req.result.get_row_num() >= global_rdma_threshold));
+        return (req.result.get_row_num() >= global_rdma_threshold); // FIXME: not consider dedup
     }
 
     void do_corun(SPARQLQuery &req) {
@@ -680,8 +700,8 @@ private:
 
         // step.4 execute sub-req
         while (true) {
-            execute_one_step(sub_req);
-            if (sub_req.is_finished())
+            execute_one_pattern(sub_req);
+            if (sub_req.is_pattern_finished())
                 break;
         }
         uint64_t t2 = timer::get_usec(); // time to run the sub-request
@@ -732,14 +752,16 @@ private:
         }
 
         req_result.result_table.swap(updated_result_table);
-        req.step = fetch_step;
+        req.pattern_step = fetch_step;
     }
 
-    bool execute_one_step(SPARQLQuery &req) {
-        if (req.is_finished())
-            return false;
+    bool execute_one_pattern(SPARQLQuery &req) {
+        ASSERT(!req.is_pattern_finished());
 
-        if (req.step == 0 && req.start_from_index()) {
+        logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "]"
+                             << " step=" << req.pattern_step << LOG_endl;
+
+        if (req.pattern_step == 0 && req.start_from_index()) {
             index_to_unknown(req);
             return true;
         }
@@ -805,7 +827,7 @@ private:
         }
 
         // triple pattern with attribute
-        if (global_enable_vattr && req.get_pattern(req.step).pred_type > 0) {
+        if (global_enable_vattr && req.get_pattern(req.pattern_step).pred_type > 0) {
             switch (const_pair(req.result.variable_type(start),
                                req.result.variable_type(end))) {
             // now support const_to_unknown_attr and known_to_unknown_attr
@@ -1066,7 +1088,7 @@ private:
     }
 
     void filter(SPARQLQuery &r) {
-        if (r.pattern_group.filters.size() == 0) return;
+        ASSERT(r.has_filter());
 
         // during filtering, flag of unsatified row will be set to false one by one
         vector<bool> is_satisfy(r.result.get_row_num(), true);
@@ -1306,55 +1328,66 @@ out:
         r.result.col_num = new_col_num;
     }
 
-    void execute_sparql_request(SPARQLQuery &r) {
+    bool execute_patterns(SPARQLQuery &r) {
         // encode the lineage of the query (server & thread)
         r.id = coder.get_and_inc_qid();
+        logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "]"
+                             << " id=" << r.id << " pid=" << r.pid << LOG_endl;
 
-        // Step 1. Pattern
-
-        /// FIXME: split the condition for multi-threads and multi-servers
-        ///   multi-threads: large query (exploit more CPU resources)
-        ///   multi-servers: start from index vertex
-        // if r starts from index and is from proxy, dispatch it to every engine except itself
-        if (r.force_dispatch
-                || (r.step == 0
-                    && QUERY_FROM_PROXY(coder.tid_of(r.pid))
-                    && (r.start_from_index() || r.mt_factor > 1)
-                    && global_mt_threshold * global_num_servers > 1)) {
+        if (r.pattern_step == 0
+                && r.pattern_group.parallel == false
+                && r.start_from_index()
+                && (global_num_servers * r.mt_factor > 1)) {
             // The mt_factor can be set on proxy side before sending to engine,
             // but must smaller than global_mt_threshold (Default: mt_factor == 1)
             // Normally, we will NOT let global_mt_threshold == #engines, which will cause HANG
             int sub_reqs_size = global_num_servers * r.mt_factor;
             rmap.put_parent_request(r, sub_reqs_size);
             SPARQLQuery sub_query = r;
-            sub_query.force_dispatch = false;
             for (int i = 0; i < global_num_servers; i++) {
                 for (int j = 0; j < r.mt_factor; j++) {
+                    //SPARQLQuery sub_query;
                     sub_query.id = -1;
                     sub_query.pid = r.id;
                     // start from the next engine thread
                     sub_query.tid = (tid + j + 1 - global_num_proxies) % global_num_engines
                                     + global_num_proxies;
                     sub_query.mt_factor = r.mt_factor;
+                    sub_query.pattern_group.parallel = true;
 
+#if 0
+                    sub_query.set_query_type(r.query_type);
+                    sub_query.pattern_step = r.pattern_step;
+                    sub_query.corun_step = r.corun_step;
+                    sub_query.fetch_step = r.fetch_step;
+                    sub_query.priority = r.priority + 1;
+                    sub_query.pattern_group.parallel = true;
+                    sub_query.pattern_group.patterns = r.pattern_group.patterns;
+                    sub_query.result.col_num = r.result.col_num;
+                    sub_query.result.blind = r.result.blind;
+                    sub_query.result.v2c_map  = r.result.v2c_map;
+                    sub_query.result.nvars  = r.result.nvars;
+#endif
                     Bundle bundle(sub_query);
                     send_request(bundle, i, sub_query.tid);
                 }
             }
-            return;
+
+            return false;
         }
 
         do {
-            uint64_t t1 = timer::get_usec();
-            execute_one_step(r);
-            t1 = timer::get_usec() - t1;
+            execute_one_pattern(r);
 
             // co-run optimization
-            if (!r.is_finished()  /// FIXME: need to check it?
-                    && (r.corun_enabled && (r.step == r.corun_step)))
+            if (r.corun_enabled && (r.pattern_step == r.corun_step))
                 do_corun(r);
 
-            if (r.is_finished()) break;
+            if (r.is_pattern_finished()) {
+                // only send back row_num in blind mode
+                r.result.row_num = r.result.get_row_num();
+                return true;
+            }
 
             if (need_fork_join(r)) {
                 vector<SPARQLQuery> sub_reqs = generate_sub_query(r);
@@ -1369,15 +1402,44 @@ out:
                         pthread_spin_unlock(&recv_lock);
                     }
                 }
-                return;
+                return false;
             }
         } while (true);
+    }
 
+    void execute_optional_merge(SPARQLQuery &r) {
+        r.id = coder.get_and_inc_qid();
+        r.result.merge_optional(r.optional_ref);
+        Bundle bundle(r);
+        send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
+    }
 
-        // Step 2. Union
-        if (r.has_union()) {
+    void execute_sparql_query(SPARQLQuery &r, Engine *engine) {
+        if (r.state == SPARQLQuery::SQState::SQ_REPLY) {
+            pthread_spin_lock(&engine->rmap_lock);
+            engine->rmap.put_reply(r);
+
+            if (!engine->rmap.is_ready(r.pid)) {
+                pthread_spin_unlock(&engine->rmap_lock);
+                return; // not ready (waiting for the rest)
+            }
+
+            // all sub-queries have done, continue to execute
+            r = engine->rmap.get_merged_reply(r.pid);
+            pthread_spin_unlock(&engine->rmap_lock);
+        }
+
+        // 1. Pattern
+        if (r.has_pattern() && !r.done(SPARQLQuery::SQState::SQ_PATTERN)) {
+            r.state = SPARQLQuery::SQState::SQ_PATTERN;
+            if (!execute_patterns(r)) return;
+        }
+
+        // 2. Union
+        if (r.has_union() && !r.done(SPARQLQuery::SQState::SQ_UNION)) {
+            r.state = SPARQLQuery::SQState::SQ_UNION;
             vector<SPARQLQuery> union_reqs = generate_union_query(r);
-            rmap.put_parent_request(r, union_reqs.size());
+            engine->rmap.put_parent_request(r, union_reqs.size());
             for (int i = 0; i < union_reqs.size(); i++) {
                 int dst_sid = mymath::hash_mod(union_reqs[i].pattern_group.patterns[0].subject,
                                                global_num_servers);
@@ -1393,81 +1455,34 @@ out:
             return;
         }
 
-        // Step 2. Union
-        if (!r.has_union() && !r.has_optional()) {
-            // result should be filtered at the end of every distributed query
-            // because FILTER could be nested in every PatternGroup
+        // 3. Filter
+        if (r.has_filter() && !r.done(SPARQLQuery::SQState::SQ_FILTER)) {
+            r.state = SPARQLQuery::SQState::SQ_FILTER;
             filter(r);
         }
 
-        // if all data has been merged and next will be sent back to proxy
+        // 4. Optional
+        if (r.has_optional() && !r.done(SPARQLQuery::SQState::SQ_OPTIONAL)) {
+            r.state = SPARQLQuery::SQState::SQ_OPTIONAL;
+            execute_optional(r);
+            execute_optional_merge(r);
+            return;
+        }
+
+        // 5. Final
         if (QUERY_FROM_PROXY(coder.tid_of(r.pid))) {
-            if (r.has_optional()
-                    && (r.get_query_status() != SPARQLQuery::QueryStatus::OPTIONAL_DONE)) {
-                execute_optional(r);
-                return;
-            }
             final_process(r);
         }
 
-        r.result.row_num = r.result.get_row_num();
-        r.clear_data();
+        // 6. Reply
+        r.clear_query();
+        r.state = SPARQLQuery::SQState::SQ_REPLY;
         Bundle bundle(r);
         send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
-
-        return;
-    }
-
-    void execute_sparql_reply(SPARQLQuery &r, Engine *engine) {
-        pthread_spin_lock(&engine->rmap_lock);
-        engine->rmap.put_reply(r);
-
-        if (!engine->rmap.is_ready(r.pid)) {
-            pthread_spin_unlock(&engine->rmap_lock);
-            return; // not ready (waiting for the rest)
-        }
-
-        // All sub-queries have done, prepare a reply message
-        SPARQLQuery reply = engine->rmap.get_merged_reply(r.pid);
-        pthread_spin_unlock(&engine->rmap_lock);
-
-        // Optional will be processed after Union, and Filter follows.
-        if (reply.has_optional()
-                || (!reply.has_optional() && reply.has_union()))
-            filter(reply);
-
-        // if all data has been merged and next will be sent back to proxy
-        if (QUERY_FROM_PROXY(coder.tid_of(reply.pid))) {
-            if (reply.has_optional()
-                    && (reply.get_query_status() != SPARQLQuery::QueryStatus::OPTIONAL_DONE)) {
-                execute_optional(reply);
-                return;
-            }
-            final_process(reply);
-        }
-        Bundle bundle(reply);
-        send_request(bundle, coder.sid_of(reply.pid), coder.tid_of(reply.pid));
-    }
-
-    void execute_optional_merge(SPARQLQuery &r) {
-        r.id = coder.get_and_inc_qid();
-        r.result.merge_optional(r.optional_ref);
-        Bundle bundle(r);
-        send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
-    }
-
-    void execute_sparql_query(SPARQLQuery &r, Engine *engine) {
-        if (r.is_request()) {
-            if (r.query_type != SPARQLQuery::QueryType::OPTIONAL_MERGE)
-                execute_sparql_request(r);
-            else
-                execute_optional_merge(r);
-        } else
-            execute_sparql_reply(r, engine);
     }
 
 #if DYNAMIC_GSTORE
-    void execute_load_data(RDFLoad &r) {
+    void execute_load_data(RDFLoad & r) {
         // unbind the core from the thread in order to use openmpi to run multithreads
         cpu_set_t mask = unbind_to_core();
 
@@ -1481,7 +1496,7 @@ out:
     }
 #endif
 
-    void execute_gstore_check(GStoreCheck& r) {
+    void execute_gstore_check(GStoreCheck &r) {
         r.check_ret = graph->gstore_check(r.index_check, r.normal_check);
         Bundle bundle(r);
         send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
@@ -1519,7 +1534,7 @@ public:
     bool at_work; // whether engine is at work or not
     uint64_t last_time; // busy or not (work-oblige)
 
-    Engine(int sid, int tid, String_Server *str_server, DGraph *graph, Adaptor *adaptor)
+    Engine(int sid, int tid, String_Server * str_server, DGraph * graph, Adaptor * adaptor)
         : sid(sid), tid(tid), str_server(str_server), graph(graph), adaptor(adaptor),
           coder(sid, tid), last_time(timer::get_usec()) {
         pthread_spin_init(&recv_lock, 0);
