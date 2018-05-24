@@ -254,7 +254,7 @@ class Planner {
                     double prune_result;
                     select_record sr ;
                     if (!(*min_select)[o1]->top(sr))
-                        logstream(LOG_ERROR) << "[ERROR]: o1 on top" << LOG_endl;
+                        logstream(LOG_ERROR) << "o1 on top" << LOG_endl;
                     int pre_p = sr.p;
                     int pre_d = sr.d;
                     // prune based on correlation and constant
@@ -293,7 +293,7 @@ class Planner {
                     double prune_result;
                     select_record sr ;
                     if (!(*min_select)[o2]->top(sr))
-                        logstream(LOG_ERROR) << "[ERROR]: o2 on top\n";
+                        logstream(LOG_ERROR) << "o2 on top\n";
                     int pre_p = sr.p;
                     int pre_d = sr.d;
                     // prune based on correlation and constant
@@ -519,13 +519,13 @@ public:
         //cout << "traverse time : " << t_traverse2 - t_traverse1 << " us" << endl;
 
         if (is_empty == true) {
-            logstream(LOG_INFO) << "identified empty result query." << LOG_endl;
-            logstream(LOG_INFO) << "query planning is finished." << LOG_endl;
+            logstream(LOG_INFO) << "Identified empty result query." << LOG_endl;
+            logstream(LOG_INFO) << "Query planning is finished." << LOG_endl;
             return false;
         }
 
-        logstream(LOG_DEBUG) << "query planning for one part is finished." << LOG_endl;
-        logstream(LOG_DEBUG) << "estimated cost: " << min_cost << LOG_endl;
+        logstream(LOG_DEBUG) << "Query planning for one part is finished." << LOG_endl;
+        logstream(LOG_DEBUG) << "Estimated cost: " << min_cost << LOG_endl;
 
         //transfer from min_path to patterns
         patterns.clear();

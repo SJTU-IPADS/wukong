@@ -215,7 +215,7 @@ public:
 			return -2; // parsing failed
 		}
 		end = timer::get_usec();
-		logstream(LOG_INFO) << "[INFO] Parsing time: " << (end - start) << " usec" << LOG_endl;
+		logstream(LOG_INFO) << "Parsing time: " << (end - start) << " usec" << LOG_endl;
 
 		// Generate plans for the query if our SPARQL planner is enabled.
 		// NOTE: it only works for standard SPARQL query.
@@ -223,7 +223,7 @@ public:
 			start = timer::get_usec();
 			bool exec = planner.generate_plan(request, statistic);
 			end = timer::get_usec();
-			logstream(LOG_INFO) << "[INFO] Planning time: " << (end - start) << " usec" << LOG_endl;
+			logstream(LOG_INFO) << "Planning time: " << (end - start) << " usec" << LOG_endl;
 
 			// A shortcut for contradictory queries (e.g., empty result)
 			if (exec == false)
@@ -266,7 +266,7 @@ public:
 		int ntypes = nlights + nheavies;
 
 		if (ntypes <= 0 || nlights < 0 || nheavies < 0) {
-			logstream(LOG_ERROR) << "[ERROR] invalid #lights (" << nlights << " < 0)"
+			logstream(LOG_ERROR) << "Invalid #lights (" << nlights << " < 0)"
 			                     << " or #heavies (" << nheavies << " < 0)!" << LOG_endl;
 			return -2; // parsing failed
 		}

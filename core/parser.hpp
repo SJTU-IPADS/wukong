@@ -87,7 +87,7 @@ private:
         {
             string str = "\"" + e.value + "\"";
             if (!str_server->exist(str)) {
-                logstream(LOG_ERROR) << "[ERROR]: unknown Literal: " + str << LOG_endl;
+                logstream(LOG_ERROR) << "Unknown Literal: " + str << LOG_endl;
                 return DUMMY_ID;
             }
             return str_server->str2id[str];
@@ -96,7 +96,7 @@ private:
         {
             string str = "<" + e.value + ">"; // IRI
             if (!str_server->exist(str)) {
-                logstream(LOG_ERROR) << "[ERROR]: unknown IRI: " + str << LOG_endl;
+                logstream(LOG_ERROR) << "Unknown IRI: " + str << LOG_endl;
                 return DUMMY_ID;
             }
             return str_server->str2id[str];
@@ -144,7 +144,7 @@ private:
             pattern.pred_type = str_server->pid2type[predicate];
             if (pattern.pred_type > 0
                     && !global_enable_vattr) {
-                logstream(LOG_ERROR) << "[ERROR]: must change config to enable vertex_attr"
+                logstream(LOG_ERROR) << "Must change config to enable vertex_attr"
                                      << LOG_endl;
                 ASSERT(false);
             }
@@ -217,8 +217,7 @@ private:
 
             if (!global_use_rdma) {
                 // TODO: corun optimization is not supported w/o RDMA
-                logstream(LOG_WARNING) << "[WARNING]: RDMA is not enabled, skip corun optimization!"
-                                       << LOG_endl;
+                logstream(LOG_WARNING) << "RDMA is not enabled, skip corun optimization!" << LOG_endl;
                 sq.corun_enabled = false; // skip
             }
         }
@@ -248,7 +247,7 @@ private:
             pattern.pred_type = str_server->pid2type[predicate];
             if (pattern.pred_type > 0
                     && !global_enable_vattr) {
-                logstream(LOG_ERROR) << "[ERROR]: must change config to enable vertex_attr" << LOG_endl;
+                logstream(LOG_ERROR) << "Must change config to enable vertex_attr" << LOG_endl;
                 ASSERT(false);
             }
 
@@ -276,19 +275,19 @@ public:
             parser.parse(); //e.g., sparql -f query/lubm_q1
             transfer(parser, sq);
         } catch (const SPARQLParser::ParserException &e) {
-            logstream(LOG_ERROR) << "[ERROR]: failed to parse a SPARQL query: "
+            logstream(LOG_ERROR) << "Failed to parse a SPARQL query: "
                                  << e.message << LOG_endl;
             return false;
         }
 
         // check if using custom grammar when planner is on
         if (parser.isUsingCustomGrammar() && global_enable_planner) {
-            logstream(LOG_ERROR) << "[ERROR]: unsupported custom grammar in SPARQL planner!"
+            logstream(LOG_ERROR) << "Unsupported custom grammar in SPARQL planner!"
                                  << LOG_endl;
             return false;
         }
 
-        logstream(LOG_INFO) << "parsing a SPARQL query is done." << LOG_endl;
+        logstream(LOG_INFO) << "Parsing a SPARQL query is done." << LOG_endl;
         return true;
     }
 
@@ -302,12 +301,12 @@ public:
             parser.parse();
             transfer_template(parser, sqt);
         } catch (const SPARQLParser::ParserException &e) {
-            logstream(LOG_ERROR) << "[ERROR]: failed to parse a SPARQL template: "
+            logstream(LOG_ERROR) << "Failed to parse a SPARQL template: "
                                  << e.message << LOG_endl;
             return false;
         }
 
-        logstream(LOG_INFO) << "parsing a SPARQL template is done." << LOG_endl;
+        logstream(LOG_INFO) << "Parsing a SPARQL template is done." << LOG_endl;
         return true;
     }
 };

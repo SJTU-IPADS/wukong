@@ -434,7 +434,7 @@ next:
 				//    sparql -f <fname> [<args>]
 				//    ...
 				if (b_enable) {
-					logstream(LOG_ERROR) << "[ERROR] Unsupported command now!" << LOG_endl;
+					logstream(LOG_ERROR) << "Unsupported command now!" << LOG_endl;
 				}
 			} else if (token == "sparql-emu") { // run a SPARQL emulator on each proxy
 
