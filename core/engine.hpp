@@ -1455,18 +1455,18 @@ out:
             return;
         }
 
-        // 3. Filter
-        if (r.has_filter() && !r.done(SPARQLQuery::SQState::SQ_FILTER)) {
-            r.state = SPARQLQuery::SQState::SQ_FILTER;
-            filter(r);
-        }
-
-        // 4. Optional
+        // 3. Optional
         if (r.has_optional() && !r.done(SPARQLQuery::SQState::SQ_OPTIONAL)) {
             r.state = SPARQLQuery::SQState::SQ_OPTIONAL;
             execute_optional(r);
             execute_optional_merge(r);
             return;
+        }
+
+        // 4. Filter
+        if (r.has_filter() && !r.done(SPARQLQuery::SQState::SQ_FILTER)) {
+            r.state = SPARQLQuery::SQState::SQ_FILTER;
+            filter(r);
         }
 
         // 5. Final
