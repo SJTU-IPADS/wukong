@@ -72,12 +72,6 @@ public:
         d.cnt = cnt;
         d.parent = r;
 
-        // for has_optional and start to execute optional queries
-        if (r.has_optional()
-                && (r.get_query_status() == SPARQLQuery::QueryStatus::OPTIONAL_UNMERGED)) {
-            d.parent.optional_ref = r.result;
-        }
-
         internal_map[r.id] = d;
     }
 
@@ -570,7 +564,7 @@ private:
         vector<SPARQLQuery> union_reqs(size);
         for (int i = 0; i < size; i++) {
             union_reqs[i].pid = req.id;
-            union_reqs[i].set_query_type(SPARQLQuery::QueryType::UNION);
+            union_reqs[i].pg_type(SPARQLQuery::PGType::UNION);
             union_reqs[i].pattern_group = req.pattern_group.unions[i];
             if (union_reqs[i].start_from_index()
                     && (global_mt_threshold * global_num_servers > 1)) {
@@ -593,7 +587,8 @@ private:
         vector<SPARQLQuery> sub_reqs(global_num_servers);
         for (int i = 0; i < global_num_servers; i++) {
             sub_reqs[i].pid = req.id;
-            sub_reqs[i].set_query_type(req.query_type);
+            sub_reqs[i].pg_type = req.pg_type == SPARQLQuery::PGType::UNION ?
+                SPARQLQuery::PGType::BASIC : req.pg_type;
             sub_reqs[i].pattern_group = req.pattern_group;
             sub_reqs[i].pattern_step = req.pattern_step;
             sub_reqs[i].corun_step = req.corun_step;
@@ -1148,88 +1143,6 @@ private:
         }
     };
 
-    vector<SPARQLQuery> generate_optional_merge_reqs(SPARQLQuery &req) {
-        // generate sub requests for all servers
-        int size = global_num_servers * global_mt_threshold;
-        vector<SPARQLQuery> sub_reqs(size);
-        for (int i = 0; i < global_num_servers; i++) {
-            for (int j = 0; j < global_mt_threshold; j++) {
-                int idx = i * global_mt_threshold + j;
-                sub_reqs[idx].pid = req.id;
-                sub_reqs[idx].tid = (tid + j + 1 - global_num_proxies) % global_num_engines
-                                    + global_num_proxies;
-                sub_reqs[idx].set_query_type(SPARQLQuery::QueryType::OPTIONAL_MERGE);
-                sub_reqs[idx].optional_ref = req.result;
-                sub_reqs[idx].result.col_num = req.optional_ref.col_num;
-                sub_reqs[idx].result.blind = false;
-                sub_reqs[idx].result.v2c_map  = req.optional_ref.v2c_map;
-                sub_reqs[idx].result.nvars  = req.optional_ref.nvars;
-            }
-        }
-
-        // group intermediate results to servers
-        for (int i = 0; i < req.optional_ref.get_row_num(); i++) {
-            int idx = mymath::hash_mod(i, size);
-            req.optional_ref.append_row_to(i, sub_reqs[idx].result.result_table);
-        }
-        return sub_reqs;
-    }
-
-    /* This function may be called under 3 situations:
-     * 1. r just finished BASIC patterns
-     * 2. r just finished an unmerged OPTIONAL query
-     * 3. r just finished an merge operation
-     */
-    void execute_optional(SPARQLQuery &r) {
-        if (r.get_query_status() == SPARQLQuery::QueryStatus::OPTIONAL_UNMERGED) {
-            vector<SPARQLQuery> merge_reqs = generate_optional_merge_reqs(r);
-            r.set_query_status(r.is_optional_finished()
-                               ? SPARQLQuery::QueryStatus::OPTIONAL_DONE
-                               : SPARQLQuery::QueryStatus::OPTIONAL_ONGOING);
-            rmap.put_parent_request(r, global_num_servers * global_mt_threshold);
-            for (int i = 0; i < global_num_servers; i++) {
-                for (int j = 0; j < global_mt_threshold; j++) {
-                    int idx = i * global_mt_threshold + j;
-                    Bundle bundle(merge_reqs[idx]);
-                    send_request(bundle, i, merge_reqs[idx].tid);
-                }
-            }
-        } else {
-            SPARQLQuery optional_query;
-            r.get_next_optional_query(optional_query);
-            r.optional_step++;
-            r.set_query_status(SPARQLQuery::QueryStatus::OPTIONAL_UNMERGED);
-            rmap.put_parent_request(r, 1);
-
-            if (need_fork_join(optional_query)) {
-                optional_query.id = coder.get_and_inc_qid();
-                vector<SPARQLQuery> sub_reqs = generate_sub_query(optional_query);
-                rmap.put_parent_request(optional_query, sub_reqs.size());
-                for (int j = 0; j < sub_reqs.size(); j++) {
-                    if (j != sid) {
-                        Bundle bundle(sub_reqs[j]);
-                        send_request(bundle, j, tid);
-                    } else {
-                        pthread_spin_lock(&recv_lock);
-                        msg_fast_path.push_back(sub_reqs[j]);
-                        pthread_spin_unlock(&recv_lock);
-                    }
-                }
-            } else {
-                int dst_sid = mymath::hash_mod(optional_query.pattern_group.patterns[0].subject,
-                                               global_num_servers);
-                if (dst_sid != sid) {
-                    Bundle bundle(optional_query);
-                    send_request(bundle, dst_sid, tid);
-                } else {
-                    pthread_spin_lock(&recv_lock);
-                    msg_fast_path.push_back(optional_query);
-                    pthread_spin_unlock(&recv_lock);
-                }
-            }
-        }
-    }
-
     void final_process(SPARQLQuery &r) {
         if (r.result.blind || r.result.result_table.size() == 0)
             return;
@@ -1356,7 +1269,6 @@ out:
                     sub_query.pattern_group.parallel = true;
 
 #if 0
-                    sub_query.set_query_type(r.query_type);
                     sub_query.pattern_step = r.pattern_step;
                     sub_query.corun_step = r.corun_step;
                     sub_query.fetch_step = r.fetch_step;
@@ -1458,8 +1370,7 @@ out:
         // 3. Optional
         if (r.has_optional() && !r.done(SPARQLQuery::SQState::SQ_OPTIONAL)) {
             r.state = SPARQLQuery::SQState::SQ_OPTIONAL;
-            execute_optional(r);
-            execute_optional_merge(r);
+            // TODO: implement optional
             return;
         }
 
