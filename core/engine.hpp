@@ -205,11 +205,14 @@ private:
 
         std::vector<attr_t> updated_attr_table;
 
+        int type = INT_t;
         // get the reusult
-        attr_t v;
-        graph->get_vertex_attr_global(tid, start, d, aid, v);
-        updated_attr_table.push_back(v);
-        int type = boost::apply_visitor(get_type, v);
+        bool has_value;
+        attr_t v = graph->get_vertex_attr_global(tid, start, d, aid, has_value);
+        if (has_value) {
+            updated_attr_table.push_back(v);
+            type = boost::apply_visitor(get_type, v);
+        }
 
         // update the result table and metadata
         res.attr_res_table.swap(updated_attr_table);
@@ -228,6 +231,8 @@ private:
 
         std::vector<sid_t> updated_result_table;
         updated_result_table.reserve(res.result_table.size());
+        std::vector<attr_t> updated_attr_table;
+        updated_attr_table.reserve(res.result_table.size());
 
         // simple dedup for consecutive same vertices
         sid_t cached = BLANK_ID;
@@ -243,11 +248,15 @@ private:
             // append a new intermediate result (row)
             for (uint64_t k = 0; k < sz; k++) {
                 res.append_row_to(i, updated_result_table);
+                // update attr table to map the result table
+                if (global_enable_vattr)
+                    res.append_attr_row_to(i, updated_attr_table);
                 updated_result_table.push_back(edges[k].val);
             }
         }
-
         res.result_table.swap(updated_result_table);
+        if (global_enable_vattr)
+            res.attr_res_table.swap(updated_attr_table);
         res.add_var2col(end, res.get_col_num());
         res.set_col_num(res.get_col_num() + 1);
         req.step++;
@@ -272,12 +281,12 @@ private:
         // In most time, the size of attr_res_table table is equal to the size of result_table
         // reserve size of updated_result_table to the size of result_table
         updated_attr_table.reserve(res.result_table.size());
-        int type = SID_t;
+        int type = req.get_pattern(req.step).pred_type ;
         for (int i = 0; i < res.get_row_num(); i++) {
             sid_t prev_id = res.get_row_col(i, res.var2col(start));
-            attr_t v;
-            bool has_value = graph->get_vertex_attr_global(tid, prev_id, d, pid, v);
-            if (has_value) {
+            bool has_value;
+            attr_t v = graph->get_vertex_attr_global(tid, prev_id, d, pid, has_value);
+            if (has_value ) {
                 res.append_row_to(i, updated_result_table);
                 res.append_attr_row_to(i, updated_attr_table);
                 updated_attr_table.push_back(v);
@@ -748,6 +757,14 @@ private:
         // triple pattern with UNKNOWN predicate/attribute
         if (req.result.variable_type(predicate) != const_var) {
 #ifdef VERSATILE
+            /// Now unsupported UNKNOWN predicate with vertex attribute enabling.
+            /// When doing the query, we judge request of vertex attribute by its predicate.
+            /// Therefore we should known the predicate.
+            if(global_enable_vattr) {
+                logstream(LOG_ERROR) << "Unsupported UNKNOWN predicate with vertex attribute enabling." << LOG_endl;
+                logstream(LOG_ERROR) << "Please turn off the vertex attribute enabling." << LOG_endl;
+                ASSERT(false);
+            }
             switch (const_pair(req.result.variable_type(start),
                                req.result.variable_type(end))) {
 
@@ -1284,18 +1301,45 @@ out:
                                         r.result.result_table.end() );
 
         // remove unrequested variables
-        int new_col_num = r.result.required_vars.size();
+        // need to consider the attribute result table
+
+        //separate var to normal and attribute 
+        vector<ssid_t> normal_var;
+        vector<ssid_t> attr_var;
+        for (int i = 0; i < r.result.required_vars.size(); i++) {
+            ssid_t vid = r.result.required_vars[i];
+            if(r.result.is_attr_col(vid)) {
+                attr_var.push_back(vid);
+            } else {
+                normal_var.push_back(vid);
+            }
+        }
         int new_row_num = r.result.get_row_num();
+        int new_col_num = normal_var.size();
+        int new_attr_col_num = attr_var.size();
+
+        //update result table
         vector<sid_t> new_result_table(new_row_num * new_col_num);
         for (int i = 0; i < new_row_num; i ++) {
-            for (int j = 0; j < new_col_num; j ++) {
-                int col = r.result.var2col(r.result.required_vars[j]);
+            for (int j = 0; j < new_col_num; j++) {
+                int col = r.result.var2col(normal_var[j]);
                 new_result_table[i * new_col_num + j] = r.result.get_row_col(i, col);
             }
         }
-
         r.result.result_table.swap(new_result_table);
         r.result.col_num = new_col_num;
+
+        //update attribute result table
+        vector<attr_t> new_attr_result_table(new_row_num * new_attr_col_num);
+        for (int i = 0; i < new_row_num; i ++) {
+            for (int j = 0; j < new_attr_col_num; j++) {
+                int col = r.result.var2col(attr_var[j]);
+                new_attr_result_table[i * new_attr_col_num + j] = r.result.get_attr_row_col(i, col);
+            }
+        }
+        r.result.attr_res_table.swap(new_attr_result_table);
+        r.result.attr_col_num = new_attr_col_num;
+
     }
 
     void execute_sparql_request(SPARQLQuery &r) {
@@ -1379,7 +1423,9 @@ out:
                     final_process(r);
                 }
                 result.row_num = result.get_row_num();
-                r.clear_data();
+                if(global_silent)
+                    r.clear_data();
+
                 Bundle bundle(r);
                 send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
                 return;
@@ -1413,7 +1459,6 @@ out:
             pthread_spin_unlock(&engine->rmap_lock);
             return; // not ready (waiting for the rest)
         }
-
         // All sub-queries have done, prepare a reply message
         SPARQLQuery reply = engine->rmap.get_merged_reply(r.pid);
         pthread_spin_unlock(&engine->rmap_lock);

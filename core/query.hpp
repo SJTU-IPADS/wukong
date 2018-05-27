@@ -54,6 +54,7 @@ enum var_type {
 // conversion between col and ext
 int col2ext(int col, int t) { return ((t << NBITS_COL) | col); }
 int ext2col(int ext) { return (ext & ((1 << NBITS_COL) - 1)); }
+int ext2type(int ext) { return ((ext >> NBITS_COL) & ((1 << NBITS_COL) - 1)); }
 
 /**
  * SPARQL Query
@@ -287,6 +288,24 @@ public:
             v2c_map[idx] = col2ext(col, t);
         }
 
+        // judge the column id belong to attribute result table or not
+
+        bool is_attr_col(ssid_t vid) {
+            ASSERT(vid < 0);
+            if (v2c_map.size() == 0) // init
+                v2c_map.resize(nvars, NO_RESULT);
+
+            //get idx
+            int idx = - (vid + 1);
+            ASSERT(idx < nvars);
+
+            // get type 
+            int type = ext2type(v2c_map[idx]);
+            if (type == 0)
+                return false;
+            else 
+                return true;
+        }
         // TODO unused set get
         // result table for string IDs
         void set_col_num(int n) { col_num = n; }
@@ -294,7 +313,14 @@ public:
         int get_col_num() { return col_num; }
 
         int get_row_num() {
-            if (col_num == 0) return 0;
+            if (col_num == 0) {
+                // if it has attribute reslut, but has not id result
+                if (attr_col_num != 0) {
+                    return attr_res_table.size() / attr_col_num;
+                } else {
+                    return 0;
+                }
+            }
             return result_table.size() / col_num;
         }
 
@@ -766,7 +792,7 @@ void save(Archive &ar, const SPARQLQuery::Result &t, unsigned int version) {
     ar << t.v2c_map;
     if (!t.blind) ar << t.required_vars;
     // attr_res_table must be empty if result_table is empty
-    if (t.result_table.size() > 0) {
+    if (t.row_num > 0) {
         ar << occupied;
         ar << t.result_table;
         ar << t.attr_res_table;
