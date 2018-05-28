@@ -65,9 +65,6 @@ public:
         // not exist
         ASSERT(internal_map.find(r.id) == internal_map.end());
 
-        // FIXME: only support fork-join mode in Pattern
-        ASSERT(r.state == SPARQLQuery::SQState::SQ_PATTERN);
-
         Item d;
         d.cnt = cnt;
         d.parent = r;
@@ -443,8 +440,9 @@ private:
         dir_t d     = pattern.direction;
         ssid_t var  = pattern.object;
         SPARQLQuery::Result &res = req.result;
+        int col = res.var2col(var);
 
-        ASSERT(res.var2col(var) != NO_RESULT);
+        ASSERT(col != NO_RESULT);
         ASSERT(id01 == PREDICATE_ID || id01 == TYPE_ID); // predicate or type index
 
         vector<sid_t> updated_result_table;
@@ -918,8 +916,8 @@ private:
             logstream(LOG_ERROR) << "Unsupported triple pattern [CONST|KNOWN|CONST]" << LOG_endl;
             ASSERT(false);
         case const_pair(const_var, known_var):
-            logstream(LOG_ERROR) << "Unsupported triple pattern [CONST|KNOWN|KNOWN]" << LOG_endl;
-            ASSERT(false);
+            const_to_known(req);
+            break;
         case const_pair(const_var, unknown_var):
             const_to_unknown(req);
             break;
