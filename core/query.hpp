@@ -147,7 +147,7 @@ public:
 
         void print_filter() {
             // print info
-            logstream(LOG_INFO) << "---------------------filter---------------------------" << LOG_endl;
+            logstream(LOG_INFO) << "[filter]" << LOG_endl;
             logstream(LOG_INFO) << "TYPE: " << this->type << LOG_endl;
             if (this->value != "")
                 logstream(LOG_INFO) << "value: " << this->value << LOG_endl;
@@ -157,7 +157,7 @@ public:
             if (arg2 != NULL) arg2->print_filter();
             if (arg3 != NULL) arg3->print_filter();
 
-            logstream(LOG_INFO) << "------------------------------------------------------" << LOG_endl;
+            logstream(LOG_INFO) << "[filter end]" << LOG_endl;
         }
     };
 
@@ -486,7 +486,8 @@ public:
     void clear_query() {
         orders.clear();
         // the first pattern indicating if this query is starting from index. It can't be removed.
-        pattern_group.patterns.erase(pattern_group.patterns.begin() + 1,
+        if (pattern_group.patterns.size() > 0)
+            pattern_group.patterns.erase(pattern_group.patterns.begin() + 1,
                                      pattern_group.patterns.end());
         pattern_group.filters.clear();
         pattern_group.optional.clear();
@@ -554,12 +555,26 @@ public:
     }
 
     void print_sparql_query() {
-        logstream(LOG_INFO) << "SPARQL-Query"
+        logstream(LOG_INFO) << "SPARQLQuery"
                             << "[ ID=" << id << " | PID=" << pid << " | TID=" << tid << " ]"
                             << LOG_endl;
         pattern_group.print_group();
         /// TODO: print more fields
         logstream(LOG_INFO) << LOG_endl;
+    }
+
+    void print_SQState() {
+        logstream(LOG_INFO) << "SPARQLQuery"
+                            << "[ ID=" << id << " | PID=" << pid << " | TID=" << tid << " ]";
+        switch (state) {
+            case SQState::SQ_PATTERN: logstream(LOG_INFO) << "\tSQ_PATTERN" << LOG_endl; break;
+            case SQState::SQ_REPLY: logstream(LOG_INFO) << "\tSQ_REPLY" << LOG_endl; break;
+            case SQState::SQ_UNION: logstream(LOG_INFO) << "\tSQ_UNION" << LOG_endl; break;
+            case SQState::SQ_OPTIONAL: logstream(LOG_INFO) << "\tSQ_OPTIONAL" << LOG_endl; break;
+            case SQState::SQ_FILTER: logstream(LOG_INFO) << "\tSQ_FILTER" << LOG_endl; break;
+            case SQState::SQ_FINAL: logstream(LOG_INFO) << "\tSQ_FINAL" << LOG_endl; break;
+            default: logstream(LOG_INFO) << "\tUNKNOWN_STATE" << LOG_endl;
+        }
     }
 
 };

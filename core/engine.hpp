@@ -1307,8 +1307,6 @@ out:
     }
 
     bool execute_patterns(SPARQLQuery &r) {
-        // encode the lineage of the query (server & thread)
-        r.id = coder.get_and_inc_qid();
         logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "]"
                              << " id=" << r.id << " pid=" << r.pid << LOG_endl;
 
@@ -1385,6 +1383,8 @@ out:
     }
 
     void execute_sparql_query(SPARQLQuery &r, Engine *engine) {
+        // encode the lineage of the query (server & thread)
+        if (r.id == -1) r.id = coder.get_and_inc_qid();
         if (r.state == SPARQLQuery::SQState::SQ_REPLY) {
             pthread_spin_lock(&engine->rmap_lock);
             engine->rmap.put_reply(r);
@@ -1409,6 +1409,7 @@ out:
         if (r.has_union() && !r.done(SPARQLQuery::SQState::SQ_UNION)) {
             r.state = SPARQLQuery::SQState::SQ_UNION;
             vector<SPARQLQuery> union_reqs = generate_union_query(r);
+            r.union_done = true;
             engine->rmap.put_parent_request(r, union_reqs.size());
             for (int i = 0; i < union_reqs.size(); i++) {
                 int dst_sid = mymath::hash_mod(union_reqs[i].pattern_group.patterns[0].subject,
