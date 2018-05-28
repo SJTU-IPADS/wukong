@@ -659,6 +659,7 @@ public:
         int size = this->pattern_group.patterns.size();
         vector<Pattern> updated_patterns();
         vector<Pattern> new_var_patterns();
+        vector<Pattern> unknown_patterns();
         for (int i = 0; i < size; i++) {
             Pattern &pattern = this->pattern_group.patterns[i];
             ssid_t start = pattern.subject;
@@ -683,24 +684,13 @@ public:
                     // const_to_unknown, known_to_unknown
                     new_var_patterns.push_back(pattern);
                     break;
-                case const_pair(const_var, const_var):
-                    logstream(LOG_ERROR) << "Unsupported triple pattern [CONST|KNOWN|CONST]" << LOG_endl;
-                    ASSERT(false);
-                case const_pair(unknown_var, const_var):
-                case const_pair(unknown_var, known_var):
-                case const_pair(unknown_var, unknown_var):
-                    logstream(LOG_ERROR) << "Unsupported triple pattern [UNKNOWN|KNOWN|??]" << LOG_endl;
-                    ASSERT(false);
                 default:
-                    logstream(LOG_ERROR) << "Unsupported triple pattern with known predicate "
-                                        << "(" << res.variable_type(start)
-                                        << "|" << res.variable_type(end)
-                                        << ")" << LOG_endl;
-                    ASSERT(false);
+                    unknown_patterns.push_back(pattern);
                 }
             }
         }
         updated_patterns.insert(updated_patterns.end(), new_var_patterns.begin(), new_var_patterns.end());
+        updated_patterns.insert(updated_patterns.end(), unknown_patterns.begin(), unknown_patterns.end());
         this->pattern_group.patterns.swap(updated_patterns);
     }
 
