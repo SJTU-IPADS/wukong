@@ -200,10 +200,13 @@ private:
         for (uint64_t k = 0; k < sz; k++)
             unique_set.insert(edges[k].val);
 
-        for (uint64_t i = 0; i < res.get_row_num(); i++) {
-            // matched
-            if (unique_set.find(res.get_row_col(i, col)) != unique_set.end()) {
-                res.append_row_to(i, updated_result_table);
+        if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
+
+        } else {
+            for (uint64_t i = 0; i < res.get_row_num(); i++) {
+                // matched
+                if (unique_set.find(res.get_row_col(i, col)) != unique_set.end())
+                    res.append_row_to(i, updated_result_table);
             }
         }
         res.result_table.swap(updated_result_table);
