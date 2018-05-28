@@ -623,24 +623,6 @@ private:
         req.pattern_step++;
     }
 
-    vector<SPARQLQuery> generate_union_query(SPARQLQuery &req) {
-        int size = req.pattern_group.unions.size();
-        vector<SPARQLQuery> union_reqs(size);
-        for (int i = 0; i < size; i++) {
-            union_reqs[i].pid = req.id;
-            union_reqs[i].pg_type = SPARQLQuery::PGType::UNION;
-            union_reqs[i].pattern_group = req.pattern_group.unions[i];
-            if (union_reqs[i].start_from_index()
-                    && (global_mt_threshold * global_num_servers > 1)) {
-                //union_reqs[i].force_dispatch = true;
-                union_reqs[i].mt_factor = req.mt_factor;
-            }
-            union_reqs[i].result = req.result;
-            union_reqs[i].result.blind = false;
-        }
-        return union_reqs;
-    }
-
     vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_current_pattern();
         ssid_t start = pattern.subject;
@@ -1292,8 +1274,8 @@ out:
                                         r.result.result_table.end() );
 
         // remove unrequested variables
-        //separate var to normal and attribute 
-        // need to think about attribute result table 
+        //separate var to normal and attribute
+        // need to think about attribute result table
         vector<ssid_t> normal_var;
         vector<ssid_t> attr_var;
         for (int i = 0; i < r.result.required_vars.size(); i++) {
@@ -1433,7 +1415,8 @@ out:
         // 2. Union
         if (r.has_union() && !r.done(SPARQLQuery::SQState::SQ_UNION)) {
             r.state = SPARQLQuery::SQState::SQ_UNION;
-            vector<SPARQLQuery> union_reqs = generate_union_query(r);
+            vector<SPARQLQuery> union_reqs(r.pattern_group.unions.size());
+            r.generate_union_reqs(union_reqs);
             r.union_done = true;
             engine->rmap.put_parent_request(r, union_reqs.size());
             for (int i = 0; i < union_reqs.size(); i++) {

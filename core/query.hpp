@@ -308,11 +308,11 @@ public:
             int idx = - (vid + 1);
             ASSERT(idx < nvars);
 
-            // get type 
+            // get type
             int type = ext2type(v2c_map[idx]);
             if (type == 0)
                 return false;
-            else 
+            else
                 return true;
         }
         // TODO unused set get
@@ -600,6 +600,22 @@ public:
             case SQState::SQ_FILTER: logstream(LOG_INFO) << "\tSQ_FILTER" << LOG_endl; break;
             case SQState::SQ_FINAL: logstream(LOG_INFO) << "\tSQ_FINAL" << LOG_endl; break;
             default: logstream(LOG_INFO) << "\tUNKNOWN_STATE" << LOG_endl;
+        }
+    }
+
+    // UNION
+    void generate_union_reqs(vector<SPARQLQuery> &union_reqs) {
+        int size = this->pattern_group.unions.size();
+        for (int i = 0; i < size; i++) {
+            union_reqs[i].pid = this->id;
+            union_reqs[i].pg_type = SPARQLQuery::PGType::UNION;
+            union_reqs[i].pattern_group = this->pattern_group.unions[i];
+            if (union_reqs[i].start_from_index()
+                    && (global_mt_threshold * global_num_servers > 1)) {
+                union_reqs[i].mt_factor = this->mt_factor;
+            }
+            union_reqs[i].result = this->result;
+            union_reqs[i].result.blind = false;
         }
     }
 
