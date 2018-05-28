@@ -1386,13 +1386,6 @@ out:
         } while (true);
     }
 
-    void execute_optional_merge(SPARQLQuery &r) {
-        r.id = coder.get_and_inc_qid();
-        r.result.merge_optional(r.optional_ref);
-        Bundle bundle(r);
-        send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
-    }
-
     void execute_sparql_query(SPARQLQuery &r, Engine *engine) {
         if (r.state == SPARQLQuery::SQState::SQ_REPLY) {
             pthread_spin_lock(&engine->rmap_lock);
