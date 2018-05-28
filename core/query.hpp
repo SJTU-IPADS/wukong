@@ -448,6 +448,9 @@ public:
     int corun_step = 0;
     int fetch_step = 0;
 
+    // Union
+    bool union_done = false;
+
     // Optional
     int optional_step = 0;
 
@@ -506,8 +509,7 @@ public:
         case SQ_PATTERN:
             return (pattern_step >= pattern_group.patterns.size());
         case SQ_UNION:
-            // FIXME:
-            ASSERT(false);
+            return union_done;
         case SQ_FILTER:
             // FIXME:
             ASSERT(false);
@@ -767,6 +769,7 @@ void save(Archive & ar, const SPARQLQuery &t, unsigned int version) {
     ar << t.distinct;
     ar << t.pg_type;
     ar << t.pattern_step;
+    ar << t.union_done;
     ar << t.optional_step;
     ar << t.corun_step;
     ar << t.fetch_step;
@@ -795,6 +798,7 @@ void load(Archive & ar, SPARQLQuery &t, unsigned int version) {
     ar >> t.distinct;
     ar >> t.pg_type;
     ar >> t.pattern_step;
+    ar >> t.union_done;
     ar >> t.optional_step;
     ar >> t.corun_step;
     ar >> t.fetch_step;

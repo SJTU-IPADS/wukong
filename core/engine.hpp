@@ -184,7 +184,34 @@ private:
     }
 
 
-    void const_to_known(SPARQLQuery &req) { ASSERT(false); } /// TODO
+    void const_to_known(SPARQLQuery &req) {
+        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        ssid_t start = pattern.subject;
+        ssid_t pid   = pattern.predicate;
+        dir_t d      = pattern.direction;
+        ssid_t end   = pattern.object;
+        std::vector<sid_t> updated_result_table;
+        SPARQLQuery::Result &res = req.result;
+        int col = res.var2col(end);
+
+        ASSERT(col != NO_RESULT);
+
+        uint64_t sz = 0;
+        edge_t *edges = graph->get_edges_global(tid, start, d, pid, &sz);
+
+        boost::unordered_set<sid_t> unique_set;
+        for (uint64_t k = 0; k < sz; k++)
+            unique_set.insert(edges[k].val);
+
+        for (uint64_t i = 0; i < res.get_row_num(); i++) {
+            // matched
+            if (unique_set.find(res.get_row_col(i, col)) != unique_set.end()) {
+                res.append_row_to(i, updated_result_table);
+            }
+        }
+        res.result_table.swap(updated_result_table);
+        req.pattern_step++;
+    }
 
     void const_to_unknown(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_current_pattern();
@@ -408,6 +435,9 @@ private:
         req.pattern_step++;
     }
 
+    /* Queries in index_to_unknown may contain results.
+     * e.g. A query whose parent's PGType is UNION may come here
+     */
     void index_to_unknown(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_current_pattern();
         ssid_t tpid = pattern.subject;
@@ -564,15 +594,13 @@ private:
         vector<SPARQLQuery> union_reqs(size);
         for (int i = 0; i < size; i++) {
             union_reqs[i].pid = req.id;
-            union_reqs[i].pg_type(SPARQLQuery::PGType::UNION);
+            union_reqs[i].pg_type = SPARQLQuery::PGType::UNION;
             union_reqs[i].pattern_group = req.pattern_group.unions[i];
             if (union_reqs[i].start_from_index()
                     && (global_mt_threshold * global_num_servers > 1)) {
                 //union_reqs[i].force_dispatch = true;
                 union_reqs[i].mt_factor = req.mt_factor;
             }
-
-            union_reqs[i].pattern_step = 0;
             union_reqs[i].result = req.result;
             union_reqs[i].result.blind = false;
         }
