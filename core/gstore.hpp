@@ -698,21 +698,21 @@ done:
         return &(edges[v.ptr.off]);
     }
 
-    // get the attribute value from local
-    // the attribute value was set in argument r
-    // and return sucess or false
-    bool get_vertex_attr_remote(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &r) {
+    // get the attribute value from remote
+    attr_t get_vertex_attr_remote(int tid, sid_t vid, dir_t d, sid_t pid, bool &has_value) {
         //struct the key
         int dst_sid = mymath::hash_mod(vid, global_num_servers);
         ikey_t key = ikey_t(vid, pid, d);
         edge_t *edge_ptr;
         vertex_t v;
+        attr_t r;
 
         //get the vertex from DYNAMIC_GSTORE or normal
 #if DYNAMIC_GSTORE
         v = get_vertex_remote(tid, key);
         if (v.key.is_empty()) {
-            return false; // not found
+            has_value = false; // not found
+            return r;
         }
 
         edge_ptr = rdma_get_edges(tid, dst_sid, v);
@@ -725,12 +725,13 @@ done:
 #else // NOT DYNAMIC_GSTORE
         v = get_vertex_remote(tid, key);
         if (v.key.is_empty()) {
-            return false; // not found
+            has_value = false; // not found
+            return r;
         }
 
         edge_ptr = rdma_get_edges(tid, dst_sid, v);
 #endif // DYNAMIC_GSTORE
-
+        
         // get the edge
         uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
         // get the attribute value from its type
@@ -749,21 +750,22 @@ done:
             break;
         }
 
-        return true;
+        has_value = true;
+        return r;
     }
 
     // get the attribute value from local
-    // the attribute value was set in argument r
-    // and return sucess or false
-    bool get_vertex_attr_local(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &r) {
+    attr_t get_vertex_attr_local(int tid, sid_t vid, dir_t d, sid_t pid, bool &has_value) {
         // struct the key
         ikey_t key = ikey_t(vid, pid, d);
         // get the vertex
         vertex_t v = get_vertex_local(tid, key);
 
-        if (v.key.is_empty())
-            return false; // not found
-
+        attr_t r;
+        if (v.key.is_empty()) {
+            has_value = false; // not found
+            return r;
+        }
         // get the edge
         uint64_t off = v.ptr.off;
         // get the attribute with its type
@@ -781,8 +783,8 @@ done:
             logstream(LOG_ERROR) << "Not support value type" << LOG_endl;
             break;
         }
-
-        return true;
+        has_value = true;
+        return r;
     }
 
 public:
@@ -1527,13 +1529,13 @@ public:
     }
 
     // get vertex attributes global
-    // the attribute value was set in argument r
-    // and return sucess or false
-    bool get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &r) {
+    // return the attr result 
+    // if not found has_value will be set to false
+    attr_t get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, bool &has_value) {
         if (sid == mymath::hash_mod(vid, global_num_servers))
-            return get_vertex_attr_local(tid, vid, d, pid, r);
+            return get_vertex_attr_local(tid, vid, d, pid, has_value);
         else
-            return get_vertex_attr_remote(tid, vid, d, pid, r);
+            return get_vertex_attr_remote(tid, vid, d, pid, has_value);
     }
 
     // prepare data for planner
