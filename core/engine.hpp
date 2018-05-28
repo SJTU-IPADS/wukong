@@ -1420,8 +1420,7 @@ out:
             r.union_done = true;
             engine->rmap.put_parent_request(r, union_reqs.size());
             for (int i = 0; i < union_reqs.size(); i++) {
-                int dst_sid = mymath::hash_mod(union_reqs[i].pattern_group.patterns[0].subject,
-                                               global_num_servers);
+                int dst_sid = mymath::hash_mod(union_reqs[i].pattern_group.get_start(), global_num_servers);
                 if (dst_sid != sid) {
                     Bundle bundle(union_reqs[i]);
                     send_request(bundle, dst_sid, tid);
@@ -1437,7 +1436,19 @@ out:
         // 3. Optional
         if (r.has_optional() && !r.done(SPARQLQuery::SQState::SQ_OPTIONAL)) {
             r.state = SPARQLQuery::SQState::SQ_OPTIONAL;
-            // TODO: implement optional
+            SPARQLQuery optional_req;
+            r.generate_optional_req(optional_req);
+            r.optional_step++;
+            engine->rmap.put_parent_request(r, 1);
+            int dst_sid = mymath::hash_mod(optional_req.pattern_group.get_start(), global_num_servers);
+            if (dst_sid != sid) {
+                Bundle bundle(optional_req);
+                send_request(bundle, dst_sid, tid);
+            } else {
+                pthread_spin_lock(&recv_lock);
+                msg_fast_path.push_back(optional_req);
+                pthread_spin_unlock(&recv_lock);
+            }
             return;
         }
 

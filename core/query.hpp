@@ -189,7 +189,20 @@ public:
             for (auto const &g : optional)
                 g.print_group();
 
-            // FIXME: filiter
+            // FIXME: filter
+        }
+
+        // used to calculate dst_sid
+        ssid_t get_start() {
+            if (this->patterns.size() > 0)
+                return this->patterns[0].subject;
+            else if (this->unions.size() > 0)
+                return this->unions[0].get_start();
+            else if (this->optional.size() > 0)
+                return this->optional[0].get_start();
+            else
+                ASSERT(false);
+                return BLANK_ID;
         }
     };
 
@@ -617,6 +630,19 @@ public:
             union_reqs[i].result = this->result;
             union_reqs[i].result.blind = false;
         }
+    }
+
+    // OPTIONAL
+    void generate_optional_req(SPARQLQuery &r) {
+        r.pid = this->id;
+        r.pg_type = SPARQLQuery::PGType::OPTIONAL;
+        r.pattern_group = this->pattern_group.optional[this->optional_step];
+        if (r.start_from_index()
+                && (global_mt_threshold * global_num_servers > 1)) {
+            r.mt_factor = this->mt_factor;
+        }
+        r.result = this->result;
+        r.result.blind = false;
     }
 
 };
