@@ -159,18 +159,10 @@ private:
         }
 
         // Unions
-        int i = 0;
         for (auto &u : src.unions) {
             dst.unions.push_back(SPARQLQuery::PatternGroup());
             transfer_patterns(u, dst.unions.back());
-            dst.unions[i].patterns.insert(dst.unions[i].patterns.end(),
-                                          dst.patterns.begin(),
-                                          dst.patterns.end());
-            i++;
         }
-
-        if (src.unions.size() > 0)
-            dst.patterns.clear();
 
         // Optional
         for (auto &o : src.optional) {
