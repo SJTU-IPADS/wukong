@@ -1314,18 +1314,43 @@ out:
                                         r.result.result_table.end() );
 
         // remove unrequested variables
-        int new_col_num = r.result.required_vars.size();
+        //separate var to normal and attribute 
+        // need to think about attribute result table 
+        vector<ssid_t> normal_var;
+        vector<ssid_t> attr_var;
+        for (int i = 0; i < r.result.required_vars.size(); i++) {
+            ssid_t vid = r.result.required_vars[i];
+            if(r.result.is_attr_col(vid)) {
+                attr_var.push_back(vid);
+            } else {
+                normal_var.push_back(vid);
+            }
+        }
         int new_row_num = r.result.get_row_num();
+        int new_col_num = normal_var.size();
+        int new_attr_col_num = attr_var.size();
+
+        //update result table
         vector<sid_t> new_result_table(new_row_num * new_col_num);
         for (int i = 0; i < new_row_num; i ++) {
-            for (int j = 0; j < new_col_num; j ++) {
-                int col = r.result.var2col(r.result.required_vars[j]);
+            for (int j = 0; j < new_col_num; j++) {
+                int col = r.result.var2col(normal_var[j]);
                 new_result_table[i * new_col_num + j] = r.result.get_row_col(i, col);
             }
         }
-
         r.result.result_table.swap(new_result_table);
         r.result.col_num = new_col_num;
+
+        //update attribute result table
+        vector<attr_t> new_attr_result_table(new_row_num * new_attr_col_num);
+        for (int i = 0; i < new_row_num; i ++) {
+            for (int j = 0; j < new_attr_col_num; j++) {
+                int col = r.result.var2col(attr_var[j]);
+                new_attr_result_table[i * new_attr_col_num + j] = r.result.get_attr_row_col(i, col);
+            }
+        }
+        r.result.attr_res_table.swap(new_attr_result_table);
+        r.result.attr_col_num = new_attr_col_num;
     }
 
     bool execute_patterns(SPARQLQuery &r) {
