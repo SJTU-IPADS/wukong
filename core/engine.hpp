@@ -611,6 +611,7 @@ private:
             sub_reqs[i].priority = req.priority + 1;
 
             sub_reqs[i].result.col_num = req.result.col_num;
+            sub_reqs[i].result.attr_col_num = req.result.attr_col_num;
             sub_reqs[i].result.blind = req.result.blind;
             sub_reqs[i].result.v2c_map  = req.result.v2c_map;
             sub_reqs[i].result.nvars  = req.result.nvars;
@@ -621,6 +622,7 @@ private:
             int dst_sid = mymath::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
                                            global_num_servers);
             req.result.append_row_to(i, sub_reqs[dst_sid].result.result_table);
+            req.result.append_attr_row_to(i, sub_reqs[dst_sid].result.attr_res_table);
         }
 
         return sub_reqs;
