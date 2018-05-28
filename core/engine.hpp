@@ -654,6 +654,8 @@ private:
             int dst_sid = mymath::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
                                            global_num_servers);
             req.result.append_row_to(i, sub_reqs[dst_sid].result.result_table);
+            if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
+                sub_reqs[dst_sid].result.optional_matched_rows.push_back(req.result.optional_matched_rows[i]);
         }
 
         return sub_reqs;
