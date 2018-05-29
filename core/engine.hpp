@@ -1531,15 +1531,31 @@ out:
             SPARQLQuery optional_req;
             r.generate_optional_req(optional_req);
             r.optional_step++;
-            engine->rmap.put_parent_request(r, 1);
-            int dst_sid = mymath::hash_mod(optional_req.pattern_group.get_start(), global_num_servers);
-            if (dst_sid != sid) {
-                Bundle bundle(optional_req);
-                send_request(bundle, dst_sid, tid);
+            if (need_fork_join(optional_req)) {
+                optional_req.id = r.id;
+                vector<SPARQLQuery> sub_reqs = generate_sub_query(optional_req);
+                rmap.put_parent_request(r, sub_reqs.size());
+                for (int i = 0; i < sub_reqs.size(); i++) {
+                    if (i != sid) {
+                        Bundle bundle(sub_reqs[i]);
+                        send_request(bundle, i, tid);
+                    } else {
+                        pthread_spin_lock(&recv_lock);
+                        msg_fast_path.push_back(sub_reqs[i]);
+                        pthread_spin_unlock(&recv_lock);
+                    }
+                }
             } else {
-                pthread_spin_lock(&recv_lock);
-                msg_fast_path.push_back(optional_req);
-                pthread_spin_unlock(&recv_lock);
+                engine->rmap.put_parent_request(r, 1);
+                int dst_sid = mymath::hash_mod(optional_req.pattern_group.get_start(), global_num_servers);
+                if (dst_sid != sid) {
+                    Bundle bundle(optional_req);
+                    send_request(bundle, dst_sid, tid);
+                } else {
+                    pthread_spin_lock(&recv_lock);
+                    msg_fast_path.push_back(optional_req);
+                    pthread_spin_unlock(&recv_lock);
+                }
             }
             return;
         }
