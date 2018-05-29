@@ -29,7 +29,9 @@ private:
     // block size >= 2^level_low_bound units
     static const uint64_t level_low_bound = 4;
     // block size <= 2^level_up_bound units
-    static const uint64_t level_up_bound = 26;
+    static const uint64_t level_dividing_line = 22;
+
+    static const uint64_t level_up_bound = 32;
 
     static const uint64_t sbrk_size = 1LL << level_up_bound;
 
@@ -41,6 +43,8 @@ private:
     pthread_spinlock_t sbrk_lock;
 
     pthread_spinlock_t malloc_free_lock;
+
+    pthread_spinlock_t malloc_free_lock_small;
 
     // prev_free_idx and next_free_idx are for bidirection link-list
     struct header {
@@ -63,11 +67,28 @@ private:
     uint64_t tmp_free_list_idx;
 
     // free_list[i]->next points to the first free block with size 2^i bytes
-    header *free_list[level_up_bound + 1];
+    header *large_free_list[level_up_bound - level_dividing_line + 1];
+
+    header *small_free_list[level_dividing_line - level_low_bound +1];
     // freelists for multithread insert_normal, every thread has a freelist
-    header **tmp_free_list;
+    header **tmp_small_free_list;
     //for print_memory_usage()
     uint64_t usage_counter[level_up_bound + 1];
+
+    inline uint64_t level_to_index_large(uint64_t level) {
+        assert(level >= level_dividing_line && level <= level_up_bound);
+        return level - level_dividing_line;
+    }
+
+    inline uint64_t level_to_index_small(uint64_t level, int64_t tid = -1) {
+        assert(level <= level_dividing_line && level >= level_low_bound);
+        if (tid < 0) {
+            return level - level_low_bound;
+        } else {
+            return (level - level_low_bound) + (level_dividing_line - level_low_bound + 1) * tid; 
+        }
+    }
+
 
     inline void *idx_to_ptr(uint64_t idx) {
         return start_ptr + idx;
@@ -86,20 +107,21 @@ private:
     }
 
     // return whether there exit free block for need level or not
-    inline bool is_empty(uint64_t level, int64_t tid) {
-        if (tid < 0)
-            return free_list[level]->next_free_idx == ptr_to_idx((char*) free_list[level]);
-        else
-            return tmp_free_list[level + tid * (level_up_bound + 1)]->next_free_idx == ptr_to_idx((char*) tmp_free_list[level + tid * (level_up_bound + 1)]);
+   inline bool is_empty_large(uint64_t level) {
+        return large_free_list[level_to_index_large(level)]->next_free_idx == ptr_to_idx((char*) large_free_list[level_to_index_large(level)]);
     }
+
+    inline bool is_empty_small(uint64_t level, int64_t tid) {
+        if(tid < 0)
+            return small_free_list[level_to_index_small(level)]->next_free_idx == ptr_to_idx((char*)small_free_list[level_to_index_small(level, tid)]);
+        else 
+            return tmp_small_free_list[level_to_index_small(level, tid)]->next_free_idx == ptr_to_idx((char*) tmp_small_free_list[level_to_index_small(level, tid)]);
+    }
+
 
     inline uint64_t block_size(uint64_t idx) {
         header *h = (header*)idx_to_ptr(get_header_idx(idx));
         return (1 << (h->level)) - size_per_header;
-    }
-
-    inline void copy(uint64_t dst_idx, uint64_t src_idx, uint64_t size) {
-        memcpy(idx_to_ptr(dst_idx), idx_to_ptr(src_idx), size);
     }
 
     // convert a size into level. useful for malloc
@@ -119,25 +141,24 @@ private:
         while (true) {
             tmp <<= 1;
             level++;
-            if (tmp >= size) break;
+            if (tmp >= size) 
+                break;
         }
         return truncate_level(level);
     }
 
     // methods useful for malloc and free
-    inline void mark_free(header *start, uint64_t level , int64_t tid) {
+// methods useful for malloc and free
+    inline void mark_free_large(header *start, uint64_t level) {
         start->in_use = 0;
         start->level = level;
-        header *free_header;
-        if (tid < 0)
-            free_header = free_list[level];
-        else
-            free_header = tmp_free_list[level + tid * (level_up_bound + 1)];
+        header *free_header = large_free_list[level_to_index_large(level)];
 
         // add to free list
         // free_list[level] <--> start <--> free_list[level]->next_free_idx
         header *prev = free_header;
         header *next = (header*)idx_to_ptr(free_header->next_free_idx);
+
         uint64_t prev_idx = ptr_to_idx((char*)free_header);
         uint64_t this_idx = ptr_to_idx((char*) start);
         uint64_t next_idx = free_header->next_free_idx;
@@ -148,6 +169,34 @@ private:
         start->next_free_idx = next_idx;
     }
 
+    inline void mark_free_small(header *start, uint64_t level, int64_t tid) {
+        start->in_use = 0;
+        start->level = level;
+
+        header *free_header;
+        if (tid < 0) 
+            free_header = small_free_list[level_to_index_small(level, tid)];
+        else
+            free_header = tmp_small_free_list[level_to_index_small(level, tid)];
+        
+
+        // add to free list
+        // free_list[level] <--> start <--> free_list[level]->next_free_idx
+        header *prev = free_header;
+        header *next = (header*)idx_to_ptr(free_header->next_free_idx);
+
+        uint64_t prev_idx = ptr_to_idx((char*)free_header);
+        uint64_t this_idx = ptr_to_idx((char*) start);
+        uint64_t next_idx = free_header->next_free_idx;
+        // maintain bi-direction link list
+        prev->next_free_idx = this_idx;
+        next->prev_free_idx = this_idx;
+        start->prev_free_idx = prev_idx;
+        start->next_free_idx = next_idx;
+    }
+
+
+
     inline void mark_used(header *start, uint64_t level) {
         start->in_use = 1;
         start->level = level;
@@ -155,7 +204,18 @@ private:
         // remove from free list
         // start->prev_free_idx <--> start <--> start->next_free_idx
         header *prev = (header*)idx_to_ptr(start->prev_free_idx);
+         if(start->prev_free_idx > heap_size ||start->prev_free_idx==0 ) {
+            cout << "mark used:start->prev_free_idx: ";
+            cout << start->prev_free_idx << endl;
+            assert(false);
+        }
         header *next = (header*)idx_to_ptr(start->next_free_idx);
+         if(start->next_free_idx > heap_size||start->next_free_idx == 0) {
+            cout << "mark used:start->next_free_idx: ";
+            cout << start->next_free_idx << endl;
+            assert(false);
+        }
+
 
         // maintain bi-direction link list
         prev->next_free_idx = start->next_free_idx;
@@ -173,26 +233,70 @@ private:
         if ((buddy_ptr->level == level) && (!buddy_ptr->in_use))
             return buddy_idx;
         else
-            return 0;
+            return UINT64_MAX;;
     }
 
-    int64_t get_free_idx(uint64_t need_level, uint64_t& free_level, int64_t tid) {
-        int64_t free_idx = -1;
+    uint64_t get_free_idx_large(uint64_t need_level, uint64_t& free_level) {
+        uint64_t free_idx = UINT64_MAX;
+        assert(need_level >= level_dividing_line);
         for (free_level = need_level; free_level <= level_up_bound; free_level++) {
-            if (is_empty(free_level, tid) && free_level != level_up_bound)
+            if (is_empty_large(free_level) && free_level != level_up_bound)
                 continue;
-            if (is_empty(free_level, tid) && free_level == level_up_bound) {
-                header *new_heap = (header*)sbrk(sbrk_size);
+            if (is_empty_large(free_level) && free_level == level_up_bound) {
+                header *new_heap = (header*)large_sbrk();
                 if (!new_heap)
                     return free_idx;
-                mark_free(new_heap, free_level, tid);
+                mark_free_large(new_heap, free_level);
             }
-            if (tid < 0)
-                free_idx = free_list[free_level]->next_free_idx;
-            else
-                free_idx = tmp_free_list[free_level + (level_up_bound + 1) * tid]->next_free_idx;
+            free_idx = large_free_list[level_to_index_large(free_level)]->next_free_idx;
             return free_idx;
         }
+    }
+
+    uint64_t get_free_idx_small(uint64_t need_level, uint64_t& free_level, int64_t tid) {
+        uint64_t free_idx = UINT64_MAX;
+        assert(need_level < level_dividing_line);
+        for (free_level = need_level; free_level <= level_dividing_line; free_level++) {
+            if (is_empty_small(free_level, tid) && free_level != level_dividing_line)
+                continue;
+            if (is_empty_small(free_level, tid) && free_level == level_dividing_line) {
+                header *new_heap = (header*)small_sbrk();
+                if (!new_heap)
+                    return free_idx;
+                mark_free_small(new_heap, free_level, tid);
+            }
+            if (tid < 0)
+                free_idx = small_free_list[level_to_index_small(free_level, tid)]->next_free_idx;
+            else 
+                free_idx = tmp_small_free_list[level_to_index_small(free_level, tid)]->next_free_idx;
+            if((free_idx) % (1LL << free_level) != 0){
+                cout << "address not mapped on get_free_idx_small " << "free_idx: "<<free_idx << "free_level: "<<free_level << "tid: " << tid <<endl;
+                assert(false);
+            }
+            return free_idx;
+        }
+    }
+
+    char *large_sbrk() {
+        char *ret_val;
+        uint64_t sbrk_size = 1LL << level_up_bound;
+        if (top_of_heap == NULL)
+            return NULL;
+        pthread_spin_lock(&sbrk_lock);
+        ret_val = top_of_heap;
+        if ((malloc_size + sbrk_size) > heap_size) {
+            logstream(LOG_ERROR) << "out of memory, can not sbrk any more" << LOG_endl;
+            ASSERT(false);
+        }
+        top_of_heap += sbrk_size;
+        malloc_size += sbrk_size;
+        pthread_spin_unlock(&sbrk_lock);
+        return ret_val;
+    }
+
+    char *small_sbrk() {
+        uint64_t new_heap = large_malloc(level_dividing_line);
+        return (char*)idx_to_ptr(new_heap) - size_per_header;
     }
 
     char *sbrk(uint64_t n) {
@@ -213,10 +317,10 @@ private:
 
 public:
 
-    void init(void *start, uint64_t size, uint64_t n) {
+     void init(void *start, uint64_t size, uint64_t n) {
         //ASSERT(level_low_bound >= 4);
         //ASSERT(level_up_bound <= 26);
-        ASSERT(size / (n + 1) >= 1LL << level_up_bound);
+        ASSERT(size >= 1LL << level_up_bound);
 
         malloc_size = 0;
         heap_size = size;
@@ -228,25 +332,35 @@ public:
         top_of_heap = (char*) start;
         pthread_spin_init(&sbrk_lock, 0);
         pthread_spin_init(&malloc_free_lock, 0);
+        pthread_spin_init(&malloc_free_lock_small, 0);
 
-        for (int i = level_low_bound; i <= level_up_bound; i++) {
+        for (uint64_t i = level_low_bound; i <= level_dividing_line; i++) {
             uint64_t idx = (i - level_low_bound + 1) * size_per_header;
 
-            free_list[i] = (header*) idx_to_ptr(idx);
-            free_list[i]->prev_free_idx = free_list[i]->next_free_idx = idx;
+            small_free_list[level_to_index_small(i)] = (header*) idx_to_ptr(idx);
+            small_free_list[level_to_index_small(i)]->prev_free_idx = small_free_list[level_to_index_small(i)]->next_free_idx = idx;
         }
-        // malloc memory for freelist
-        uint64_t free_list_idx = malloc((level_up_bound - level_low_bound + 1) * size_per_header);
 
-        // new the tmp_freelists for every thread and malloc memory for them
-        tmp_free_list = new header*[nthread_parallel_load * (level_up_bound + 2)];
-        tmp_free_list_idx = malloc ((level_up_bound - level_low_bound + 1) * size_per_header * nthread_parallel_load);
+        //the freelist for large_malloc, all the threads share one freelist
+        for (uint64_t i = level_dividing_line; i <= level_up_bound; i++) {
+            uint64_t idx = (i - level_low_bound + 2) * size_per_header;
 
-        uint64_t idx_cnt = tmp_free_list_idx;
-        for (int i = level_low_bound; i <= level_up_bound; i++) {
-            for (int j = 0; j < nthread_parallel_load ; j++) {
-                tmp_free_list[i + (level_up_bound + 1) * j] = (header*) idx_to_ptr(idx_cnt);
-                tmp_free_list[i + (level_up_bound + 1) * j]->prev_free_idx = tmp_free_list[i + (level_up_bound + 1) * j]->next_free_idx = idx_cnt;
+            large_free_list[level_to_index_large(i)] = (header*) idx_to_ptr(idx);
+            large_free_list[level_to_index_large(i)]->prev_free_idx = large_free_list[level_to_index_large(i)]->next_free_idx = idx;
+        }
+
+        //uint64_t large_malloc_align_size = (1 << level_dividing_line) - size_per_header;
+        // malloc memory for large_malloc freelist
+        uint64_t small_free_list_idx = large_malloc(level_dividing_line);
+        // the freelist for small malloc, every thread has one
+        tmp_small_free_list = new header*[nthread_parallel_load * (level_dividing_line - level_low_bound + 1)];
+        //small_free_list is behind large_free_list
+
+        uint64_t idx_cnt = (level_up_bound - level_low_bound + 10) * size_per_header;
+        for (uint64_t j = 0; j < nthread_parallel_load ; j++) {
+            for (uint64_t i = level_low_bound; i <= level_dividing_line; i++) {
+                tmp_small_free_list[level_to_index_small(i, j)] = (header*) idx_to_ptr(idx_cnt);
+                tmp_small_free_list[level_to_index_small(i, j)]->prev_free_idx = tmp_small_free_list[level_to_index_small(i, j)]->next_free_idx = idx_cnt;
                 idx_cnt += size_per_header;
             }
         }
@@ -256,44 +370,76 @@ public:
         return ((1 << size_to_level(size)) - size_per_header);
     }
     // return value: an index of starting unit
-    uint64_t malloc(uint64_t size, int64_t tid = -1) {
-        //pthread_spin_lock(&debug_lock);
-        uint64_t need_level = size_to_level(size);
+     uint64_t large_malloc(uint64_t need_level) {
         uint64_t free_level;
-        int64_t free_idx = -1;
-        if (tid < 0)
-            pthread_spin_lock(&malloc_free_lock);
+        uint64_t free_idx = UINT64_MAX;
+        pthread_spin_lock(&malloc_free_lock);
         // find the smallest available block
-        free_idx = get_free_idx(need_level, free_level, tid);
-
-        if (free_idx == -1) {
+        free_idx = get_free_idx_large(need_level, free_level);
+        if (free_idx == UINT64_MAX) {
             // no block big enough
             logstream(LOG_ERROR) << "malloc_buddysystem: memory is full" << LOG_endl;
             print_memory_usage();
             ASSERT(false);
             //return -1;
         }
-        // split larger block
+          // split larger block
         for (uint64_t i = free_level - 1; i >= need_level; i--)
-            mark_free((header*)idx_to_ptr(free_idx + (1LL << i)), i, tid);
+            mark_free_large((header*)idx_to_ptr(free_idx + (1LL << i)), i);
 
         mark_used((header*)idx_to_ptr(free_idx), need_level);
-        if (tid < 0)
-            pthread_spin_unlock(&malloc_free_lock);
-
-        usage_counter[need_level]++;
+        pthread_spin_unlock(&malloc_free_lock);
+        //usage_counter[need_level]++;
         return get_value_idx(free_idx);
     }
 
-    void free(uint64_t free_idx) {
-        uint64_t free_header_idx = get_header_idx(free_idx);
-        header *free_header_ptr = (header*) idx_to_ptr(free_header_idx);
-        uint64_t cur_level = free_header_ptr->level;
+    uint64_t small_malloc(uint64_t need_level, int64_t tid) {
+        uint64_t free_level;
+        uint64_t free_idx = UINT64_MAX;
+        // find the smallest available block
+        //pthread_spin_lock(&debug_lock_malloc);
+        if(tid < 0)
+            pthread_spin_lock(&malloc_free_lock_small);
+
+        free_idx = get_free_idx_small(need_level, free_level, tid);
+        if (free_idx == UINT64_MAX) {
+            // no block big enough
+            logstream(LOG_ERROR) << "malloc_buddysystem: memory is full" << LOG_endl;
+            print_memory_usage();
+            ASSERT(false);
+        }
+          // split larger block
+        for (uint64_t i = free_level - 1; i >= need_level; i--)
+            mark_free_small((header*)idx_to_ptr(free_idx + (1LL << i)), i, tid);
+
+        mark_used((header*)idx_to_ptr(free_idx), need_level);
+        //pthread_spin_unlock(&debug_lock_malloc);
+        if(tid < 0)
+            pthread_spin_unlock(&malloc_free_lock_small);
+        //usage_counter[need_level]++;
+        return get_value_idx(free_idx);
+
+    }
+
+    // return value: an index of starting unit
+    uint64_t malloc(uint64_t size, int64_t tid = -1) {
+        uint64_t need_level = size_to_level(size);
+        if (need_level >= level_dividing_line) {
+            return large_malloc(need_level);
+        } else {
+            return small_malloc(need_level, tid);
+        }
+    }
+
+    void large_free(uint64_t free_header_idx) {
         uint64_t buddy_header_idx = 0;
         header *buddy_header_ptr = NULL;
+        header *free_header_ptr = (header*) idx_to_ptr(free_header_idx);
+        uint64_t cur_level = free_header_ptr->level;
+        assert(cur_level >= level_dividing_line);
         pthread_spin_lock(&malloc_free_lock);
         //find the buddy and merge it to be larger blocks
-        while (cur_level < level_up_bound && (buddy_header_idx = get_free_buddy(free_header_idx, cur_level)) > 0) {
+        while (cur_level < level_up_bound && ((buddy_header_idx = get_free_buddy(free_header_idx, cur_level)) != UINT64_MAX)) {
             buddy_header_ptr = (header*)idx_to_ptr(buddy_header_idx);
             mark_used(buddy_header_ptr, cur_level);
             if (buddy_header_idx < free_header_idx) {
@@ -302,38 +448,111 @@ public:
             }
             cur_level++; //we should also check whether the larger block has a buddy
         }
-        mark_free(free_header_ptr, cur_level, -1);
+        mark_free_large(free_header_ptr, cur_level);
         pthread_spin_unlock(&malloc_free_lock);
     }
 
+    void small_free(uint64_t free_header_idx) {
+        uint64_t buddy_header_idx = 0;
+        uint64_t tmp_idx = free_header_idx;
+        header *buddy_header_ptr = NULL;
+        header *free_header_ptr = (header*) idx_to_ptr(free_header_idx);
+        uint64_t cur_level = free_header_ptr->level;
+        pthread_spin_lock(&malloc_free_lock_small);
+        //pthread_spin_lock(&debug_lock_free);
+        //find the buddy and merge it to be larger blocks
+        while (cur_level < level_dividing_line && (buddy_header_idx = get_free_buddy(free_header_idx, cur_level)) != UINT64_MAX) {
+            buddy_header_ptr = (header*)idx_to_ptr(buddy_header_idx);
+            mark_used(buddy_header_ptr, cur_level);
+            if (buddy_header_idx < free_header_idx) {
+                free_header_idx = buddy_header_idx;
+                free_header_ptr = buddy_header_ptr;
+            }
+            cur_level++; //we should also check whether the larger block has a buddy
+            free_header_ptr->level = cur_level;
+        }
+        if (cur_level == level_dividing_line) 
+            //mark_free_small(free_header_ptr, cur_level, tid);
+            //mark_used(free_header_ptr, cur_level);
+            large_free(free_header_idx);
+        else
+            mark_free_small(free_header_ptr, cur_level, -1);
+        pthread_spin_unlock(&malloc_free_lock_small);
+    }
+
+    void free(uint64_t free_idx) {
+        uint64_t free_header_idx = get_header_idx(free_idx);
+        header *free_header_ptr = (header*) idx_to_ptr(free_header_idx);
+        if (free_header_ptr->level >= level_dividing_line) {
+            return large_free(free_header_idx);
+        } else {
+            return small_free(free_header_idx);
+        }
+    }
+
+    void iter_tmp_small_freelist(uint64_t level, int64_t tid) {
+        header* free_header = tmp_small_free_list[level_to_index_small(level, tid)];
+        header* current_header = free_header;
+        while (current_header->next_free_idx != ptr_to_idx((char*) tmp_small_free_list[level_to_index_small(level, tid)])) {
+            uint64_t current_idx = current_header->next_free_idx;
+            if((current_idx) % (1LL << level) != 0){
+                cout << "address not mapped on iter_small " << "current_idx: "<<current_idx << "level: "<<level << "tid: "<<tid<<endl;
+                assert(false);
+            }
+            current_header = (header*)idx_to_ptr(current_idx);
+        }
+    }
+
+    void iter_small_freelist(uint64_t level, int64_t tid) {
+        header* free_header = small_free_list[level_to_index_small(level, tid)];
+        header* current_header = free_header;
+        while (current_header->next_free_idx != ptr_to_idx((char*) small_free_list[level_to_index_small(level, tid)])) {
+            uint64_t current_idx = current_header->next_free_idx;
+            if((current_idx) % (1LL << level) != 0){
+                cout << "address not mapped on iter_small " << "current_idx: "<<current_idx << "level: "<<level << "tid: "<<tid<<endl;
+                assert(false);
+            }
+            current_header = (header*)idx_to_ptr(current_idx);
+        }
+    }
+
+
     //merge all threads' freelists into one
     void merge_freelists() {
-        for (int i = level_low_bound; i <= level_up_bound; i++) {
-            header *this_ptr = free_list[i];
-            //get to the end of free list
-            while (this_ptr->next_free_idx != ptr_to_idx((char*) free_list[i]))
+        for (int i = level_low_bound; i <= level_dividing_line; i++) {
+             for (int j = 0; j < nthread_parallel_load; j++) {
+                iter_tmp_small_freelist(i, j);
+             }
+        }
+        for (int i = level_low_bound; i <= level_dividing_line; i++) {
+            header *this_ptr = small_free_list[level_to_index_small(i)];
+            while (this_ptr->next_free_idx != ptr_to_idx((char*) small_free_list[level_to_index_small(i)]))
                 this_ptr = (header*)idx_to_ptr(this_ptr->next_free_idx);
+            //get to the end of free list
             uint64_t this_idx = ptr_to_idx((char*)this_ptr);
             for (int j = 0; j < nthread_parallel_load; j++) {
-                if (is_empty(i, j))
+                if (is_empty_small(i, j))
                     continue;
                 //merge the end of this freelist with the start of next free list
-                uint64_t next_idx = tmp_free_list[i + (level_up_bound + 1) * j]->next_free_idx;
+                uint64_t next_idx = tmp_small_free_list[level_to_index_small(i, j)]->next_free_idx;
                 header *next_ptr = (header*)idx_to_ptr(next_idx);
                 this_ptr->next_free_idx = next_idx;
                 next_ptr->prev_free_idx = this_idx;
                 this_ptr = next_ptr;
                 //get to the end of free list
-                while (this_ptr->next_free_idx != ptr_to_idx((char*)tmp_free_list[i + (level_up_bound + 1) * j]))
+                while (this_ptr->next_free_idx != ptr_to_idx((char*)tmp_small_free_list[level_to_index_small(i, j)]))
                     this_ptr = (header*)idx_to_ptr(this_ptr->next_free_idx);
                 //anyway, the end's next_free_idx should be free_list[i]
-                this_ptr->next_free_idx = ptr_to_idx((char*) free_list[i]);
+                this_ptr->next_free_idx = ptr_to_idx((char*) small_free_list[level_to_index_small(i)]);
                 this_idx = ptr_to_idx((char*)this_ptr);
             }
         }
         //free all that concerned with tmp_free_list
-        free(tmp_free_list_idx);
-        delete[]tmp_free_list;
+        delete[]tmp_small_free_list;
+        for (int i = level_low_bound; i <= level_dividing_line; i++) {
+           iter_small_freelist(i,-1);
+        }
+
     }
 
     void print_memory_usage() {

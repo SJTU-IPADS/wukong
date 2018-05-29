@@ -499,7 +499,7 @@ done:
             dedup_or_isdup = false;
 
             uint64_t need_size = v->ptr.size + 1;
-            if (blksz(v->ptr.size) - 1 < need_size) { // a new block is needed
+            if (blksz(v->ptr.size + 1) - 1 < need_size) { // a new block is needed
                 iptr_t old_ptr = v->ptr;
 
                 uint64_t off = alloc_edges(need_size);
