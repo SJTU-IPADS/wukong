@@ -478,6 +478,7 @@ private:
                     if (global_enable_vattr)
                         res.append_attr_row_to(i, updated_attr_table);
                 } else if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
+                    if (res.optional_matched_rows[i] && (!exist)) req.correct_optional_result(i);
                     res.optional_matched_rows[i] = (exist && res.optional_matched_rows[i]);
                 }
             }
