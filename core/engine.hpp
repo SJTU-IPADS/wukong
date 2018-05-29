@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include <unordered_set>
+#include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
 #include <algorithm>//sort
 #include <regex>
@@ -129,10 +129,6 @@ int64_t hash_pair(const int64_pair &x) {
     return hash<int64_t>()(r);
 }
 
-// defined as constexpr due to switch-case
-constexpr int const_pair(int t1, int t2) { return ((t1 << 4) | t2); }
-
-
 // a vector of pointers of all local engines
 class Engine;
 std::vector<Engine *> engines;
@@ -196,7 +192,7 @@ private:
         uint64_t sz = 0;
         edge_t *edges = graph->get_edges_global(tid, start, d, pid, &sz);
 
-        unordered_set<sid_t> unique_set;
+        boost::unordered_set<sid_t> unique_set;
         for (uint64_t k = 0; k < sz; k++)
             unique_set.insert(edges[k].val);
 
@@ -515,7 +511,7 @@ private:
         int start = req.tid % req.mt_factor;
         int length = sz / req.mt_factor;
 
-        unordered_set<sid_t> unique_set;
+        boost::unordered_set<sid_t> unique_set;
         // every thread takes a part of consecutive edges
         for (uint64_t k = start * length; k < (start + 1) * length; k++)
             unique_set.insert(edges[k].val);
@@ -756,7 +752,7 @@ private:
         // step.1 remove dup;
         uint64_t t0 = timer::get_usec();
 
-        unordered_set<sid_t> unique_set;
+        boost::unordered_set<sid_t> unique_set;
         ssid_t vid = req.get_pattern(corun_step).subject;
         ASSERT(vid < 0);
         int col_idx = req_result.var2col(vid);
@@ -802,7 +798,7 @@ private:
         sub_result.nvars = pvars_map.size();
 
         // result
-        unordered_set<sid_t>::iterator iter;
+        boost::unordered_set<sid_t>::iterator iter;
         for (iter = unique_set.begin(); iter != unique_set.end(); iter++)
             sub_result.result_table.push_back(*iter);
         sub_result.col_num = 1;
@@ -840,7 +836,7 @@ private:
             }
             t4 = timer::get_usec();
         } else { // hash join
-            unordered_set<int64_pair> remote_set;
+            boost::unordered_set<int64_pair> remote_set;
             for (int i = 0; i < sub_result.get_row_num(); i++)
                 remote_set.insert(int64_pair(sub_result.get_row_col(i, 0),
                                              sub_result.get_row_col(i, 1)));
