@@ -28,7 +28,7 @@
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/variant.hpp>
 #include <boost/serialization/split_free.hpp>
-#include <boost/unordered_set.hpp>
+#include <unordered_set>
 #include <vector>
 
 #include "type.hpp"
@@ -175,7 +175,7 @@ public:
         vector<PatternGroup> optional;
 
         // new vars appeared in this OPTIONAL PG. This PG is from the vector optional
-        boost::unordered_set<ssid_t> optional_new_vars;
+        unordered_set<ssid_t> optional_new_vars;
 
         void print_group() const {
             logstream(LOG_INFO) << "patterns[" << patterns.size() << "]:" << LOG_endl;
@@ -392,6 +392,7 @@ public:
             this->result_table.swap(new_table);
         }
 
+        // UNION
         void merge_union(SPARQLQuery::Result &result) {
             this->nvars = result.nvars;
             this->v2c_map.resize(this->nvars, NO_RESULT);
@@ -707,6 +708,14 @@ public:
         r.result = this->result;
         r.result.optional_matched_rows = vector<bool>(this->result.get_row_num(), true);
         r.result.blind = false;
+    }
+
+    void correct_optional_result(int row) {
+        for (const ssid_t &var : this->pattern_group.optional_new_vars) {
+            int col = this->result.var2col(var);
+            if (col != NO_RESULT)
+                this->result.result_table[row * this->result.col_num + col] = BLANK_ID;
+        }
     }
 
 };

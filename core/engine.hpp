@@ -208,6 +208,7 @@ private:
                 if (unique_set.find(res.get_row_col(i, col)) != unique_set.end()) {
                     res.optional_matched_rows[i] = (true && res.optional_matched_rows[i]);
                 } else {
+                    if (res.optional_matched_rows[i]) req.correct_optional_result(i);
                     res.optional_matched_rows[i] = false;
                 }
             }
@@ -381,6 +382,7 @@ private:
                         break;
                     }
                 }
+                if (res.optional_matched_rows[i] && (!matched)) req.correct_optional_result(i);
                 res.optional_matched_rows[i] = (matched && res.optional_matched_rows[i]);
             } else {
                 for (uint64_t k = 0; k < sz; k++) {
@@ -441,8 +443,10 @@ private:
                         break;
                     }
                 }
-                if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
+                if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
+                    if (res.optional_matched_rows[i] && (!exist)) req.correct_optional_result(i);
                     res.optional_matched_rows[i] = (exist && res.optional_matched_rows[i]);
+                }
             } else {
                 // the matching result can also be reused
                 if (exist && req.pg_type != SPARQLQuery::PGType::OPTIONAL) {
@@ -497,8 +501,10 @@ private:
                 // matched
                 if (unique_set.find(res.get_row_col(i, col)) != unique_set.end())
                     res.optional_matched_rows[i] = (true && res.optional_matched_rows[i]);
-                else
+                else {
+                    if (res.optional_matched_rows[i]) req.correct_optional_result(i);
                     res.optional_matched_rows[i] = false;
+                }
             } else {
                 // matched
                 if (unique_set.find(res.get_row_col(i, col)) != unique_set.end()) {
