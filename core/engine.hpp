@@ -554,6 +554,7 @@ private:
         SPARQLQuery::Result &res = req.result;
 
         ASSERT(id01 == PREDICATE_ID || id01 == TYPE_ID); // predicate or type index
+        ASSERT(res.get_col_num() == 0);
 
         vector<sid_t> updated_result_table;
 
