@@ -26,9 +26,10 @@
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/vector.hpp>
+#include <boost/serialization/set.hpp>
 #include <boost/serialization/variant.hpp>
 #include <boost/serialization/split_free.hpp>
-#include <boost/unordered_set.hpp>
+#include <set>
 #include <vector>
 
 #include "type.hpp"
@@ -177,7 +178,7 @@ public:
         vector<PatternGroup> optional;
 
         // new vars appeared in this OPTIONAL PG. This PG is from the vector optional
-        boost::unordered_set<ssid_t> optional_new_vars;
+        set<ssid_t> optional_new_vars;
 
         void print_group() const {
             logstream(LOG_INFO) << "patterns[" << patterns.size() << "]:" << LOG_endl;
@@ -719,7 +720,7 @@ public:
     }
 
     void correct_optional_result(int row) {
-        boost::unordered_set<ssid_t>::iterator iter;
+        set<ssid_t>::iterator iter;
         for (iter = this->pattern_group.optional_new_vars.begin();
             iter != this->pattern_group.optional_new_vars.end(); iter++) {
             int col = this->result.var2col(*iter);

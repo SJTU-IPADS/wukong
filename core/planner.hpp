@@ -559,8 +559,8 @@ public:
             success = generate_for_patterns(group.patterns);
         for (auto &g : group.unions)
             success = generate_for_group(g);
-        for (auto &g : group.optional)
-            success = generate_for_group(g);
+        // for (auto &g : group.optional)
+        //     success = generate_for_group(g);
         return success;
     }
 
