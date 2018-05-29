@@ -129,10 +129,6 @@ int64_t hash_pair(const int64_pair &x) {
     return hash<int64_t>()(r);
 }
 
-// defined as constexpr due to switch-case
-constexpr int const_pair(int t1, int t2) { return ((t1 << 4) | t2); }
-
-
 // a vector of pointers of all local engines
 class Engine;
 std::vector<Engine *> engines;
@@ -200,13 +196,26 @@ private:
         for (uint64_t k = 0; k < sz; k++)
             unique_set.insert(edges[k].val);
 
-        for (uint64_t i = 0; i < res.get_row_num(); i++) {
-            // matched
-            if (unique_set.find(res.get_row_col(i, col)) != unique_set.end()) {
-                res.append_row_to(i, updated_result_table);
+        if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
+            int row_num = res.get_row_num();
+            ASSERT(row_num == res.optional_matched_rows.size());
+            for (uint64_t i = 0; i < row_num; i++) {
+                // matched
+                if (unique_set.find(res.get_row_col(i, col)) != unique_set.end()) {
+                    res.optional_matched_rows[i] = (true && res.optional_matched_rows[i]);
+                } else {
+                    if (res.optional_matched_rows[i]) req.correct_optional_result(i);
+                    res.optional_matched_rows[i] = false;
+                }
             }
+        } else {
+            for (uint64_t i = 0; i < res.get_row_num(); i++) {
+                // matched
+                if (unique_set.find(res.get_row_col(i, col)) != unique_set.end())
+                    res.append_row_to(i, updated_result_table);
+            }
+            res.result_table.swap(updated_result_table);
         }
-        res.result_table.swap(updated_result_table);
         req.pattern_step++;
     }
 
@@ -219,14 +228,15 @@ private:
         std::vector<sid_t> updated_result_table;
         SPARQLQuery::Result &res = req.result;
 
+        ASSERT(res.get_col_num() == 0);
         uint64_t sz = 0;
         edge_t *edges = graph->get_edges_global(tid, start, d, pid, &sz);
         for (uint64_t k = 0; k < sz; k++)
             updated_result_table.push_back(edges[k].val);
 
         res.result_table.swap(updated_result_table);
-        res.add_var2col(end, 0);
-        res.set_col_num(1);
+        res.add_var2col(end, res.get_col_num());
+        res.set_col_num(res.get_col_num() + 1);
         req.pattern_step++;
     }
 
@@ -272,6 +282,10 @@ private:
 
         std::vector<sid_t> updated_result_table;
         updated_result_table.reserve(res.result_table.size());
+        vector<bool> updated_optional_matched_rows;
+        if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
+            updated_optional_matched_rows.reserve(res.optional_matched_rows.size());
+        }
         std::vector<attr_t> updated_attr_table;
         updated_attr_table.reserve(res.result_table.size());
 
@@ -281,21 +295,44 @@ private:
         uint64_t sz = 0;
         for (int i = 0; i < res.get_row_num(); i++) {
             sid_t cur = res.get_row_col(i, res.var2col(start));
+            if (req.pg_type == SPARQLQuery::PGType::OPTIONAL &&
+                (!res.optional_matched_rows[i] || cur == BLANK_ID)) {
+                res.append_row_to(i, updated_result_table);
+                updated_result_table.push_back(BLANK_ID);
+                updated_optional_matched_rows.push_back(res.optional_matched_rows[i]);
+                continue;
+            }
             if (cur != cached) {  // a new vertex
                 cached = cur;
                 edges = graph->get_edges_global(tid, cur, d, pid, &sz);
             }
 
             // append a new intermediate result (row)
-            for (uint64_t k = 0; k < sz; k++) {
-                res.append_row_to(i, updated_result_table);
-                // update attr table to map the result table
-                if (global_enable_vattr)
-                    res.append_attr_row_to(i, updated_attr_table);
-                updated_result_table.push_back(edges[k].val);
+            if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
+                if (sz > 0) {
+                    for (uint64_t k = 0; k < sz; k++) {
+                        res.append_row_to(i, updated_result_table);
+                        updated_result_table.push_back(edges[k].val);
+                        updated_optional_matched_rows.push_back(true);
+                    }
+                } else {
+                    res.append_row_to(i, updated_result_table);
+                    updated_result_table.push_back(BLANK_ID);
+                    updated_optional_matched_rows.push_back(true);
+                }
+            } else {
+                for (uint64_t k = 0; k < sz; k++) {
+                    res.append_row_to(i, updated_result_table);
+                    // update attr table to map the result table
+                    if (global_enable_vattr)
+                        res.append_attr_row_to(i, updated_attr_table);
+                    updated_result_table.push_back(edges[k].val);
+                }
             }
         }
         res.result_table.swap(updated_result_table);
+        if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
+            res.optional_matched_rows.swap(updated_optional_matched_rows);
         if (global_enable_vattr)
             res.attr_res_table.swap(updated_attr_table);
         res.add_var2col(end, res.get_col_num());
@@ -370,20 +407,33 @@ private:
             }
 
             sid_t known = res.get_row_col(i, res.var2col(end));
-            for (uint64_t k = 0; k < sz; k++) {
-                if (edges[k].val == known) {
-                    // append a matched intermediate result
-                    res.append_row_to(i, updated_result_table);
-                    if (global_enable_vattr)
-                        res.append_attr_row_to(i, updated_attr_table);
-                    break;
+            if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
+                bool matched = false;
+                for (uint64_t k = 0; k < sz; k++) {
+                    if (edges[k].val == known) {
+                        matched = true;
+                        break;
+                    }
+                }
+                if (res.optional_matched_rows[i] && (!matched)) req.correct_optional_result(i);
+                res.optional_matched_rows[i] = (matched && res.optional_matched_rows[i]);
+            } else {
+                for (uint64_t k = 0; k < sz; k++) {
+                    if (edges[k].val == known) {
+                        // append a matched intermediate result
+                        res.append_row_to(i, updated_result_table);
+                        if (global_enable_vattr)
+                            res.append_attr_row_to(i, updated_attr_table);
+                        break;
+                    }
                 }
             }
         }
-
-        res.result_table.swap(updated_result_table);
-        if (global_enable_vattr)
-            res.attr_res_table.swap(updated_attr_table);
+        if (req.pg_type != SPARQLQuery::PGType::OPTIONAL) {
+            res.result_table.swap(updated_result_table);
+            if (global_enable_vattr)
+                res.attr_res_table.swap(updated_attr_table);
+        }
         req.pattern_step++;
     }
 
@@ -418,26 +468,36 @@ private:
                     if (edges[k].val == end) {
                         // append a matched intermediate result
                         exist = true;
-                        res.append_row_to(i, updated_result_table);
-                        if (global_enable_vattr)
-                            res.append_attr_row_to(i, updated_attr_table);
+                        if (req.pg_type != SPARQLQuery::PGType::OPTIONAL) {
+                            res.append_row_to(i, updated_result_table);
+                            if (global_enable_vattr)
+                                res.append_attr_row_to(i, updated_attr_table);
+                        }
                         break;
                     }
                 }
+                if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
+                    if (res.optional_matched_rows[i] && (!exist)) req.correct_optional_result(i);
+                    res.optional_matched_rows[i] = (exist && res.optional_matched_rows[i]);
+                }
             } else {
                 // the matching result can also be reused
-                if (exist) {
+                if (exist && req.pg_type != SPARQLQuery::PGType::OPTIONAL) {
                     res.append_row_to(i, updated_result_table);
                     if (global_enable_vattr)
                         res.append_attr_row_to(i, updated_attr_table);
+                } else if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
+                    if (res.optional_matched_rows[i] && (!exist)) req.correct_optional_result(i);
+                    res.optional_matched_rows[i] = (exist && res.optional_matched_rows[i]);
                 }
             }
 
         }
-
-        res.result_table.swap(updated_result_table);
-        if (global_enable_vattr)
-            res.attr_res_table.swap(updated_attr_table);
+        if (req.pg_type != SPARQLQuery::PGType::OPTIONAL) {
+            res.result_table.swap(updated_result_table);
+            if (global_enable_vattr)
+                res.attr_res_table.swap(updated_attr_table);
+        }
         req.pattern_step++;
     }
 
@@ -471,13 +531,23 @@ private:
                 unique_set.insert(edges[k].val);
 
         for (uint64_t i = 0; i < res.get_row_num(); i++) {
-            // matched
-            if (unique_set.find(res.get_row_col(i, col)) != unique_set.end()) {
-                res.append_row_to(i, updated_result_table);
+            if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
+                // matched
+                if (unique_set.find(res.get_row_col(i, col)) != unique_set.end())
+                    res.optional_matched_rows[i] = (true && res.optional_matched_rows[i]);
+                else {
+                    if (res.optional_matched_rows[i]) req.correct_optional_result(i);
+                    res.optional_matched_rows[i] = false;
+                }
+            } else {
+                // matched
+                if (unique_set.find(res.get_row_col(i, col)) != unique_set.end()) {
+                    res.append_row_to(i, updated_result_table);
+                }
             }
         }
-
-        res.result_table.swap(updated_result_table);
+        if (req.pg_type != SPARQLQuery::PGType::OPTIONAL)
+            res.result_table.swap(updated_result_table);
         req.pattern_step++;
     }
 
@@ -490,6 +560,7 @@ private:
         SPARQLQuery::Result &res = req.result;
 
         ASSERT(id01 == PREDICATE_ID || id01 == TYPE_ID); // predicate or type index
+        ASSERT(res.get_col_num() == 0);
 
         vector<sid_t> updated_result_table;
 
@@ -632,24 +703,6 @@ private:
         req.pattern_step++;
     }
 
-    vector<SPARQLQuery> generate_union_query(SPARQLQuery &req) {
-        int size = req.pattern_group.unions.size();
-        vector<SPARQLQuery> union_reqs(size);
-        for (int i = 0; i < size; i++) {
-            union_reqs[i].pid = req.id;
-            union_reqs[i].pg_type = SPARQLQuery::PGType::UNION;
-            union_reqs[i].pattern_group = req.pattern_group.unions[i];
-            if (union_reqs[i].start_from_index()
-                    && (global_mt_threshold * global_num_servers > 1)) {
-                //union_reqs[i].force_dispatch = true;
-                union_reqs[i].mt_factor = req.mt_factor;
-            }
-            union_reqs[i].result = req.result;
-            union_reqs[i].result.blind = false;
-        }
-        return union_reqs;
-    }
-
     vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_current_pattern();
         ssid_t start = pattern.subject;
@@ -679,6 +732,8 @@ private:
             int dst_sid = mymath::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
                                            global_num_servers);
             req.result.append_row_to(i, sub_reqs[dst_sid].result.result_table);
+            if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
+                sub_reqs[dst_sid].result.optional_matched_rows.push_back(req.result.optional_matched_rows[i]);
             req.result.append_attr_row_to(i, sub_reqs[dst_sid].result.attr_res_table);
         }
 
@@ -1311,8 +1366,8 @@ out:
                                         r.result.result_table.end() );
 
         // remove unrequested variables
-        //separate var to normal and attribute 
-        // need to think about attribute result table 
+        //separate var to normal and attribute
+        // need to think about attribute result table
         vector<ssid_t> normal_var;
         vector<ssid_t> attr_var;
         for (int i = 0; i < r.result.required_vars.size(); i++) {
@@ -1452,12 +1507,12 @@ out:
         // 2. Union
         if (r.has_union() && !r.done(SPARQLQuery::SQState::SQ_UNION)) {
             r.state = SPARQLQuery::SQState::SQ_UNION;
-            vector<SPARQLQuery> union_reqs = generate_union_query(r);
+            vector<SPARQLQuery> union_reqs(r.pattern_group.unions.size());
+            r.generate_union_reqs(union_reqs);
             r.union_done = true;
             engine->rmap.put_parent_request(r, union_reqs.size());
             for (int i = 0; i < union_reqs.size(); i++) {
-                int dst_sid = mymath::hash_mod(union_reqs[i].pattern_group.patterns[0].subject,
-                                               global_num_servers);
+                int dst_sid = mymath::hash_mod(union_reqs[i].pattern_group.get_start(), global_num_servers);
                 if (dst_sid != sid) {
                     Bundle bundle(union_reqs[i]);
                     send_request(bundle, dst_sid, tid);
@@ -1473,7 +1528,19 @@ out:
         // 3. Optional
         if (r.has_optional() && !r.done(SPARQLQuery::SQState::SQ_OPTIONAL)) {
             r.state = SPARQLQuery::SQState::SQ_OPTIONAL;
-            // TODO: implement optional
+            SPARQLQuery optional_req;
+            r.generate_optional_req(optional_req);
+            r.optional_step++;
+            engine->rmap.put_parent_request(r, 1);
+            int dst_sid = mymath::hash_mod(optional_req.pattern_group.get_start(), global_num_servers);
+            if (dst_sid != sid) {
+                Bundle bundle(optional_req);
+                send_request(bundle, dst_sid, tid);
+            } else {
+                pthread_spin_lock(&recv_lock);
+                msg_fast_path.push_back(optional_req);
+                pthread_spin_unlock(&recv_lock);
+            }
             return;
         }
 
