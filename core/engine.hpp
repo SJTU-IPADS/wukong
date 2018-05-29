@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include <boost/unordered_set.hpp>
+#include <unordered_set>
 #include <boost/unordered_map.hpp>
 #include <algorithm>//sort
 #include <regex>
@@ -196,7 +196,7 @@ private:
         uint64_t sz = 0;
         edge_t *edges = graph->get_edges_global(tid, start, d, pid, &sz);
 
-        boost::unordered_set<sid_t> unique_set;
+        unordered_set<sid_t> unique_set;
         for (uint64_t k = 0; k < sz; k++)
             unique_set.insert(edges[k].val);
 
@@ -232,14 +232,15 @@ private:
         std::vector<sid_t> updated_result_table;
         SPARQLQuery::Result &res = req.result;
 
+        ASSERT(res.get_col_num() == 0);
         uint64_t sz = 0;
         edge_t *edges = graph->get_edges_global(tid, start, d, pid, &sz);
         for (uint64_t k = 0; k < sz; k++)
             updated_result_table.push_back(edges[k].val);
 
         res.result_table.swap(updated_result_table);
-        res.add_var2col(end, 0);
-        res.set_col_num(1);
+        res.add_var2col(end, res.get_col_num());
+        res.set_col_num(res.get_col_num() + 1);
         req.pattern_step++;
     }
 
@@ -282,6 +283,10 @@ private:
 
         std::vector<sid_t> updated_result_table;
         updated_result_table.reserve(res.result_table.size());
+        vector<bool> updated_optional_matched_rows;
+        if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
+            updated_optional_matched_rows.reserve(res.optional_matched_rows.size());
+        }
 
         // simple dedup for consecutive same vertices
         sid_t cached = BLANK_ID;
@@ -289,19 +294,42 @@ private:
         uint64_t sz = 0;
         for (int i = 0; i < res.get_row_num(); i++) {
             sid_t cur = res.get_row_col(i, res.var2col(start));
+            if (req.pg_type == SPARQLQuery::PGType::OPTIONAL &&
+                (!res.optional_matched_rows[i] || cur == BLANK_ID)) {
+                res.append_row_to(i, updated_result_table);
+                updated_result_table.push_back(BLANK_ID);
+                updated_optional_matched_rows.push_back(res.optional_matched_rows[i]);
+                continue;
+            }
             if (cur != cached) {  // a new vertex
                 cached = cur;
                 edges = graph->get_edges_global(tid, cur, d, pid, &sz);
             }
 
             // append a new intermediate result (row)
-            for (uint64_t k = 0; k < sz; k++) {
-                res.append_row_to(i, updated_result_table);
-                updated_result_table.push_back(edges[k].val);
+            if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
+                if (sz > 0) {
+                    for (uint64_t k = 0; k < sz; k++) {
+                        res.append_row_to(i, updated_result_table);
+                        updated_result_table.push_back(edges[k].val);
+                        updated_optional_matched_rows.push_back(true);
+                    }
+                } else {
+                    res.append_row_to(i, updated_result_table);
+                    updated_result_table.push_back(BLANK_ID);
+                    updated_optional_matched_rows.push_back(true);
+                }
+            } else {
+                for (uint64_t k = 0; k < sz; k++) {
+                    res.append_row_to(i, updated_result_table);
+                    updated_result_table.push_back(edges[k].val);
+                }
             }
         }
 
         res.result_table.swap(updated_result_table);
+        if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
+            res.optional_matched_rows.swap(updated_optional_matched_rows);
         res.add_var2col(end, res.get_col_num());
         res.set_col_num(res.get_col_num() + 1);
         req.pattern_step++;
@@ -487,7 +515,7 @@ private:
         int start = req.tid % req.mt_factor;
         int length = sz / req.mt_factor;
 
-        boost::unordered_set<sid_t> unique_set;
+        unordered_set<sid_t> unique_set;
         // every thread takes a part of consecutive edges
         for (uint64_t k = start * length; k < (start + 1) * length; k++)
             unique_set.insert(edges[k].val);
@@ -727,7 +755,7 @@ private:
         // step.1 remove dup;
         uint64_t t0 = timer::get_usec();
 
-        boost::unordered_set<sid_t> unique_set;
+        unordered_set<sid_t> unique_set;
         ssid_t vid = req.get_pattern(corun_step).subject;
         ASSERT(vid < 0);
         int col_idx = req_result.var2col(vid);
@@ -773,7 +801,7 @@ private:
         sub_result.nvars = pvars_map.size();
 
         // result
-        boost::unordered_set<sid_t>::iterator iter;
+        unordered_set<sid_t>::iterator iter;
         for (iter = unique_set.begin(); iter != unique_set.end(); iter++)
             sub_result.result_table.push_back(*iter);
         sub_result.col_num = 1;
@@ -811,7 +839,7 @@ private:
             }
             t4 = timer::get_usec();
         } else { // hash join
-            boost::unordered_set<int64_pair> remote_set;
+            unordered_set<int64_pair> remote_set;
             for (int i = 0; i < sub_result.get_row_num(); i++)
                 remote_set.insert(int64_pair(sub_result.get_row_col(i, 0),
                                              sub_result.get_row_col(i, 1)));

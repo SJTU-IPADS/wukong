@@ -659,7 +659,8 @@ public:
     void reorder_optional_patterns(const Result &res) {
         int size = this->pattern_group.patterns.size();
         vector<Pattern> updated_patterns();
-        vector<Pattern> new_var_patterns();
+        vector<Pattern> known_to_unknown_patterns();
+        vector<Pattern> const_to_unknown_patterns();
         vector<Pattern> unknown_patterns();
         for (int i = 0; i < size; i++) {
             Pattern &pattern = this->pattern_group.patterns[i];
@@ -671,7 +672,7 @@ public:
                 if (res.var2col(end) != NO_RESULT) // index_to_known
                     updated_patterns.push_back(pattern);
                 else    // index_to_unknown
-                    new_var_patterns.push_back(pattern);
+                    const_to_unknown_patterns.push_back(pattern);
             } else {
                 switch (const_pair(res.variable_type(start), res.variable_type(end))) {
                 case const_pair(const_var, known_var):
@@ -681,17 +682,22 @@ public:
                     updated_patterns.push_back(pattern);
                     break;
                 case const_pair(const_var, unknown_var):
+                    const_to_unknown_patterns.push_back(pattern);
+                    break;
                 case const_pair(known_var, unknown_var):
-                    // const_to_unknown, known_to_unknown
-                    new_var_patterns.push_back(pattern);
+                    known_to_unknown_patterns.push_back(pattern);
                     break;
                 default:
                     unknown_patterns.push_back(pattern);
                 }
             }
         }
-        updated_patterns.insert(updated_patterns.end(), new_var_patterns.begin(), new_var_patterns.end());
-        updated_patterns.insert(updated_patterns.end(), unknown_patterns.begin(), unknown_patterns.end());
+        updated_patterns.insert(updated_patterns.end(),
+            known_to_unknown_patterns.begin(), known_to_unknown_patterns.end());
+        updated_patterns.insert(updated_patterns.end(),
+            const_to_unknown_patterns.begin(), const_to_unknown_patterns.end());
+        updated_patterns.insert(updated_patterns.end(),
+            unknown_patterns.begin(), unknown_patterns.end());
         this->pattern_group.patterns.swap(updated_patterns);
     }
 
