@@ -256,11 +256,14 @@ private:
 
         std::vector<attr_t> updated_attr_table;
 
+        int type = INT_t;
         // get the reusult
-        attr_t v;
-        graph->get_vertex_attr_global(tid, start, d, aid, v);
-        updated_attr_table.push_back(v);
-        int type = boost::apply_visitor(get_type, v);
+        bool has_value;
+        attr_t v = graph->get_vertex_attr_global(tid, start, d, aid, has_value);
+        if (has_value) {
+            updated_attr_table.push_back(v);
+            type = boost::apply_visitor(get_type, v);
+        }
 
         // update the result table and metadata
         res.attr_res_table.swap(updated_attr_table);
@@ -283,6 +286,8 @@ private:
         if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
             updated_optional_matched_rows.reserve(res.optional_matched_rows.size());
         }
+        std::vector<attr_t> updated_attr_table;
+        updated_attr_table.reserve(res.result_table.size());
 
         // simple dedup for consecutive same vertices
         sid_t cached = BLANK_ID;
@@ -318,14 +323,18 @@ private:
             } else {
                 for (uint64_t k = 0; k < sz; k++) {
                     res.append_row_to(i, updated_result_table);
+                    // update attr table to map the result table
+                    if (global_enable_vattr)
+                        res.append_attr_row_to(i, updated_attr_table);
                     updated_result_table.push_back(edges[k].val);
                 }
             }
         }
-
         res.result_table.swap(updated_result_table);
         if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
             res.optional_matched_rows.swap(updated_optional_matched_rows);
+        if (global_enable_vattr)
+            res.attr_res_table.swap(updated_attr_table);
         res.add_var2col(end, res.get_col_num());
         res.set_col_num(res.get_col_num() + 1);
         req.pattern_step++;
@@ -350,12 +359,12 @@ private:
         // In most time, the size of attr_res_table table is equal to the size of result_table
         // reserve size of updated_result_table to the size of result_table
         updated_attr_table.reserve(res.result_table.size());
-        int type = SID_t;
+        int type = req.get_pattern(req.pattern_step).pred_type ;
         for (int i = 0; i < res.get_row_num(); i++) {
             sid_t prev_id = res.get_row_col(i, res.var2col(start));
-            attr_t v;
-            bool has_value = graph->get_vertex_attr_global(tid, prev_id, d, pid, v);
-            if (has_value) {
+            bool has_value;
+            attr_t v = graph->get_vertex_attr_global(tid, prev_id, d, pid, has_value);
+            if (has_value ) {
                 res.append_row_to(i, updated_result_table);
                 res.append_attr_row_to(i, updated_attr_table);
                 updated_attr_table.push_back(v);
@@ -712,6 +721,7 @@ private:
             sub_reqs[i].priority = req.priority + 1;
 
             sub_reqs[i].result.col_num = req.result.col_num;
+            sub_reqs[i].result.attr_col_num = req.result.attr_col_num;
             sub_reqs[i].result.blind = req.result.blind;
             sub_reqs[i].result.v2c_map  = req.result.v2c_map;
             sub_reqs[i].result.nvars  = req.result.nvars;
@@ -724,6 +734,7 @@ private:
             req.result.append_row_to(i, sub_reqs[dst_sid].result.result_table);
             if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
                 sub_reqs[dst_sid].result.optional_matched_rows.push_back(req.result.optional_matched_rows[i]);
+            req.result.append_attr_row_to(i, sub_reqs[dst_sid].result.attr_res_table);
         }
 
         return sub_reqs;
@@ -890,6 +901,14 @@ private:
         // triple pattern with UNKNOWN predicate/attribute
         if (req.result.variable_type(predicate) != const_var) {
 #ifdef VERSATILE
+            /// Now unsupported UNKNOWN predicate with vertex attribute enabling.
+            /// When doing the query, we judge request of vertex attribute by its predicate.
+            /// Therefore we should known the predicate.
+            if(global_enable_vattr) {
+                logstream(LOG_ERROR) << "Unsupported UNKNOWN predicate with vertex attribute enabling." << LOG_endl;
+                logstream(LOG_ERROR) << "Please turn off the vertex attribute enabling." << LOG_endl;
+                ASSERT(false);
+            }
             switch (const_pair(req.result.variable_type(start),
                                req.result.variable_type(end))) {
 

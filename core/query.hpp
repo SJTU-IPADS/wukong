@@ -903,7 +903,7 @@ void save(Archive &ar, const SPARQLQuery::Result &t, unsigned int version) {
     ar << t.optional_matched_rows;
     if (!t.blind) ar << t.required_vars;
     // attr_res_table may not be empty if result_table is empty
-    if (t.result_table.size() > 0 || t.attr_col_num > 0) {
+    if (t.result_table.size() > 0 || t.attr_res_table.size() > 0) {
         ar << occupied;
         ar << t.result_table;
         ar << t.attr_res_table;
