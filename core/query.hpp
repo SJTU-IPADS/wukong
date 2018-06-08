@@ -209,7 +209,7 @@ public:
                 return this->optional[0].get_start();
             else
                 ASSERT(false);
-                return BLANK_ID;
+            return BLANK_ID;
         }
     };
 
@@ -538,7 +538,7 @@ public:
         // the first pattern indicating if this query is starting from index. It can't be removed.
         if (pattern_group.patterns.size() > 0)
             pattern_group.patterns.erase(pattern_group.patterns.begin() + 1,
-                                     pattern_group.patterns.end());
+                                         pattern_group.patterns.end());
         pattern_group.filters.clear();
         pattern_group.optional.clear();
         pattern_group.unions.clear();
@@ -617,13 +617,13 @@ public:
         logstream(LOG_INFO) << "SPARQLQuery"
                             << "[ ID=" << id << " | PID=" << pid << " | TID=" << tid << " ]";
         switch (state) {
-            case SQState::SQ_PATTERN: logstream(LOG_INFO) << "\tSQ_PATTERN" << LOG_endl; break;
-            case SQState::SQ_REPLY: logstream(LOG_INFO) << "\tSQ_REPLY" << LOG_endl; break;
-            case SQState::SQ_UNION: logstream(LOG_INFO) << "\tSQ_UNION" << LOG_endl; break;
-            case SQState::SQ_OPTIONAL: logstream(LOG_INFO) << "\tSQ_OPTIONAL" << LOG_endl; break;
-            case SQState::SQ_FILTER: logstream(LOG_INFO) << "\tSQ_FILTER" << LOG_endl; break;
-            case SQState::SQ_FINAL: logstream(LOG_INFO) << "\tSQ_FINAL" << LOG_endl; break;
-            default: logstream(LOG_INFO) << "\tUNKNOWN_STATE" << LOG_endl;
+        case SQState::SQ_PATTERN: logstream(LOG_INFO) << "\tSQ_PATTERN" << LOG_endl; break;
+        case SQState::SQ_REPLY: logstream(LOG_INFO) << "\tSQ_REPLY" << LOG_endl; break;
+        case SQState::SQ_UNION: logstream(LOG_INFO) << "\tSQ_UNION" << LOG_endl; break;
+        case SQState::SQ_OPTIONAL: logstream(LOG_INFO) << "\tSQ_OPTIONAL" << LOG_endl; break;
+        case SQState::SQ_FILTER: logstream(LOG_INFO) << "\tSQ_FILTER" << LOG_endl; break;
+        case SQState::SQ_FINAL: logstream(LOG_INFO) << "\tSQ_FINAL" << LOG_endl; break;
+        default: logstream(LOG_INFO) << "\tUNKNOWN_STATE" << LOG_endl;
         }
     }
 
@@ -696,11 +696,11 @@ public:
             }
         }
         updated_patterns.insert(updated_patterns.end(),
-            known_to_unknown_patterns.begin(), known_to_unknown_patterns.end());
+                                known_to_unknown_patterns.begin(), known_to_unknown_patterns.end());
         updated_patterns.insert(updated_patterns.end(),
-            const_to_unknown_patterns.begin(), const_to_unknown_patterns.end());
+                                const_to_unknown_patterns.begin(), const_to_unknown_patterns.end());
         updated_patterns.insert(updated_patterns.end(),
-            unknown_patterns.begin(), unknown_patterns.end());
+                                unknown_patterns.begin(), unknown_patterns.end());
         this->pattern_group.patterns.swap(updated_patterns);
     }
 
@@ -722,7 +722,7 @@ public:
     void correct_optional_result(int row) {
         set<ssid_t>::iterator iter;
         for (iter = this->pattern_group.optional_new_vars.begin();
-            iter != this->pattern_group.optional_new_vars.end(); iter++) {
+                iter != this->pattern_group.optional_new_vars.end(); iter++) {
             int col = this->result.var2col(*iter);
             if (col != NO_RESULT)
                 this->result.result_table[row * this->result.col_num + col] = BLANK_ID;
