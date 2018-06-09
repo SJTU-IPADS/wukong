@@ -562,15 +562,15 @@ public:
         case SQ_UNION:
             return union_done;
         case SQ_FILTER:
-            // FIXME:
+            // FIXME: DEAD CODE currently
             ASSERT(false);
         case SQ_OPTIONAL:
             return (optional_step >= pattern_group.optional.size());
         case SQ_FINAL:
-            // FIXME:
+            // FIXME: DEAD CODE currently
             ASSERT(false);
         case SQ_REPLY:
-            // FIXME:
+            // FIXME: DEAD CODE currently
             ASSERT(false);
         }
     }

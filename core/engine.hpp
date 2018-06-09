@@ -1601,13 +1601,14 @@ out:
         }
 
         // 4. Filter
-        if (r.has_filter() && !r.done(SPARQLQuery::SQState::SQ_FILTER)) {
+        if (r.has_filter()) {
             r.state = SPARQLQuery::SQState::SQ_FILTER;
             filter(r);
         }
 
         // 5. Final
         if (QUERY_FROM_PROXY(coder.tid_of(r.pid))) {
+            r.state = SPARQLQuery::SQState::SQ_FINAL;
             final_process(r);
         }
 
