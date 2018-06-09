@@ -130,8 +130,14 @@ main(int argc, char *argv[])
 	// prepare data for planner
 	data_statistic stat(tcp_adaptor, &world);
 	if (global_enable_planner) {
-		dgraph.gstore.generate_statistic(stat);
-		stat.gather_data();
+		if(global_use_statistics_cache){
+			stat.gather_data_from_file();
+		}
+		else{
+			dgraph.gstore.generate_statistic(stat);
+			stat.gather_data();
+			stat.write_data_to_file();
+		}
 	}
 
 	// init control communicaiton

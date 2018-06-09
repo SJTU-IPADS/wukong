@@ -2,6 +2,7 @@
 
 #include <boost/mpi.hpp>
 #include <boost/functional/hash.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
@@ -188,6 +189,60 @@ public:
         }
 
         logstream(LOG_INFO) << "#" << world->rank() << ": gathering stats of DGraph is finished." << LOG_endl;
+
+    }
+
+    void gather_data_from_file() {
+        // data only cached on master server
+        if (world->rank() != 0) return;
+
+        vector<string> strs;
+        boost::split(strs,global_input_folder,boost::is_any_of("/"));
+        string filename = strs[strs.size() - 2] + ".statfile";
+
+        // exit if file does not exist
+        ifstream file(filename.c_str());
+        if(!file.good()){
+	        logstream(LOG_FATAL) << "statistics file "  << filename << " is missing, pleanse set global_use_statistics_cache = 0"  << LOG_endl;
+			exit(EXIT_FAILURE);
+        }
+
+        ifstream ifs(filename);
+        boost::archive::binary_iarchive ia(ifs);
+        ia >> global_ptcount;
+        ia >> global_pscount;
+        ia >> global_pocount;
+        ia >> global_tyscount;
+        ia >> global_ppcount;
+        ifs.close();
+	    logstream(LOG_INFO) << "loading statistics from file "  << filename << " is finished."  << LOG_endl;
+
+    }
+
+    void write_data_to_file(){
+        // data only cached on master server        
+        if (world->rank() != 0) return;
+
+        vector<string> strs;
+        boost::split(strs,global_input_folder,boost::is_any_of("/"));
+        string filename = strs[strs.size() - 2] + ".statfile";
+
+        // avoid saving when it already exsits
+        ifstream file(filename.c_str());
+        if(!file.good()){
+            ofstream ofs(filename);
+            boost::archive::binary_oarchive oa(ofs);
+            oa << global_ptcount;
+            oa << global_pscount;
+            oa << global_pocount;
+            oa << global_tyscount;
+            oa << global_ppcount;
+            ofs.close();
+            logstream(LOG_INFO) << "saving statistics data to file "    << filename	<< " is finished."  << LOG_endl;
+        }
+
+        if(!global_use_statistics_cache)
+	        logstream(LOG_INFO) << "if you want to use the cached statistics data with dataset unchanged, set global_use_statistics_cache = 1 "	<< LOG_endl;        
 
     }
 
