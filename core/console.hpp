@@ -100,6 +100,9 @@ void print_help(void)
 	cout << "           -d <sec>            eval <sec> seconds (default: 10)" << endl;
 	cout << "           -w <sec>            warmup <sec> seconds (default: 5)" << endl;
 	cout << "           -p <num>            send <num> queries in parallel (default: 20)" << endl;
+	cout << "    load-stat           load statistics info" << endl;
+	cout << "        -f <file>           load statistics info from <file>, relative path" << endl;
+	cout << "    save-stat           save statistics info to project default folder" << endl;	
 	cout << "    load <args>         load linked data into dynamic (in-memmory) graph-store" << endl;
 	cout << "        -d <dname>          load data from directory <dname>" << endl;
 	cout << "    gsck <args>         check the graph storage integrity" << endl;
@@ -500,7 +503,30 @@ next:
 				logstream(LOG_ERROR) << "Can't load linked data into static graph-store." << LOG_endl;
 				logstream(LOG_ERROR) << "You can enable it by building Wukong with -DUSE_DYNAMIC_GSTORE=ON." << LOG_endl;
 #endif
-			} else if (token == "gsck") {
+			} else if (token == "load-stat"){
+				// use the main proxy thread to load statistics
+				if (!IS_MASTER(proxy)) continue;
+
+				string fname = "";
+				
+				while (cmd_ss >> token) {
+					if (token == "-f") {
+						cmd_ss >> fname;
+					} else {
+						goto failed;
+					}
+				}
+
+				proxy->statistic->gather_data_from_file(fname);
+
+			} else if (token == "save-stat"){
+				// use the main proxy thread to save statistics
+				if (!IS_MASTER(proxy)) continue;
+
+				proxy->statistic->write_data_to_file();
+			}
+			
+			else if (token == "gsck") {
 				// use the main proxy thread to run gstore checker
 				if (!IS_MASTER(proxy)) continue;
 
