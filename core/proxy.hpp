@@ -235,6 +235,9 @@ public:
 
 			// set the multi-threading factor for queries start from index
 			if (request.start_from_index()) {
+				if(mt_factor == 1 && global_mt_threshold > 1){
+					logstream(LOG_EMPH) << "This query starts from index, consider using option -m to accelerate it" << LOG_endl;
+				}
 				request.mt_factor = min(mt_factor, global_mt_threshold);
 			}
 

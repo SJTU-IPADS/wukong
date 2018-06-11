@@ -192,15 +192,15 @@ bool run_sparql_cmd(Proxy *proxy, std::stringstream &args_ss, string &fname)
 	}
 
 	logger.print_latency(cnt);
-	logstream(LOG_INFO) << "(last) result size: " << result.row_num << LOG_endl;
+	logstream(LOG_INFO) << "(last) result size: " << result.get_row_num() << LOG_endl;
 
 	// print or dump results
 	if (!global_silent && !result.blind && (nlines > 0 || o_enable)) {
 		if (nlines > 0)
-			result.print_result(min(result.row_num, nlines), proxy->str_server);
+			result.print_result(min(result.get_row_num(), nlines), proxy->str_server);
 
 		if (o_enable)
-			result.dump_result(ofname, result.row_num, proxy->str_server);
+			result.dump_result(ofname, result.get_row_num(), proxy->str_server);
 	}
 
 	return true;
