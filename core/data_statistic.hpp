@@ -2,6 +2,7 @@
 
 #include <boost/mpi.hpp>
 #include <boost/functional/hash.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
@@ -188,6 +189,61 @@ public:
         }
 
         logstream(LOG_INFO) << "#" << world->rank() << ": gathering stats of DGraph is finished." << LOG_endl;
+
+    }
+
+    void gather_data_from_file(string fname = "") {
+        // data only cached on master server
+        if (world->rank() != 0) return;
+
+        // if fname is not given, guess it using the dataset name
+        if(fname == ""){
+            vector<string> strs;
+            boost::split(strs,global_input_folder,boost::is_any_of("/"));
+            fname = strs[strs.size() - 2] + ".statfile";
+        }
+
+        // exit if file does not exist
+        ifstream file(fname.c_str());
+        if(!file.good()){
+	        logstream(LOG_WARNING) << "statistics file "  << fname 
+                << " does not exsit, pleanse check the fname and use load-stat to mannually set it"  << LOG_endl;
+            return;
+        }
+
+        ifstream ifs(fname);
+        boost::archive::binary_iarchive ia(ifs);
+        ia >> global_ptcount;
+        ia >> global_pscount;
+        ia >> global_pocount;
+        ia >> global_tyscount;
+        ia >> global_ppcount;
+        ifs.close();
+	    logstream(LOG_INFO) << "loading statistics from file "  << fname << " is finished."  << LOG_endl;
+
+    }
+
+    void write_data_to_file(){
+        // data only cached on master server        
+        if (world->rank() != 0) return;
+
+        vector<string> strs;
+        boost::split(strs,global_input_folder,boost::is_any_of("/"));
+        string fname = strs[strs.size() - 2] + ".statfile";
+
+        // avoid saving when it already exsits
+        ifstream file(fname.c_str());
+        if(!file.good()){
+            ofstream ofs(fname);
+            boost::archive::binary_oarchive oa(ofs);
+            oa << global_ptcount;
+            oa << global_pscount;
+            oa << global_pocount;
+            oa << global_tyscount;
+            oa << global_ppcount;
+            ofs.close();
+            logstream(LOG_INFO) << "saving statistics data to file "    << fname	<< " is finished."  << LOG_endl;
+        }
 
     }
 
