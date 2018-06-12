@@ -54,6 +54,7 @@ int global_rdma_buf_size_mb = 64;
 int global_rdma_rbf_size_mb = 16;
 
 bool global_use_rdma = true;
+bool global_generate_statistics = true;
 bool global_enable_caching = true;
 bool global_enable_workstealing = false;
 
@@ -103,7 +104,10 @@ static bool set_immutable_config(string cfg_name, string value)
 	} else if (cfg_name == "global_rdma_rbf_size_mb") {
 		global_rdma_rbf_size_mb = atoi(value.c_str());
 		ASSERT(global_rdma_rbf_size_mb > 0);
-	} else {
+	} else if (cfg_name == "global_generate_statistics") {
+		global_generate_statistics = atoi(value.c_str());
+	}
+	else {
 		return false;
 	}
 
@@ -241,6 +245,7 @@ void print_config(void)
 	logstream(LOG_INFO) << "global_rdma_buf_size_mb: " 	<< global_rdma_buf_size_mb		<< LOG_endl;
 	logstream(LOG_INFO) << "global_rdma_rbf_size_mb: " 	<< global_rdma_rbf_size_mb   	<< LOG_endl;
 	logstream(LOG_INFO) << "global_use_rdma: " 			<< global_use_rdma				<< LOG_endl;
+	logstream(LOG_INFO) << "global_generate_statistics: " 	<< global_generate_statistics	<< LOG_endl;
 	logstream(LOG_INFO) << "global_enable_caching: " 		<< global_enable_caching		<< LOG_endl;
 	logstream(LOG_INFO) << "global_enable_workstealing: " 	<< global_enable_workstealing	<< LOG_endl;
 	logstream(LOG_INFO) << "global_rdma_threshold: " 		<< global_rdma_threshold		<< LOG_endl;
