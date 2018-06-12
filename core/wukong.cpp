@@ -117,7 +117,7 @@ main(int argc, char *argv[])
 	RDMA_init(global_num_servers, global_num_threads,
 	          sid, mem->memory(), mem->memory_size(), host_fname);
 
-	// init data communication
+	// init communication
 	RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mem, global_num_servers, global_num_threads);
 	TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_num_threads, global_data_port_base);
 
@@ -127,15 +127,19 @@ main(int argc, char *argv[])
 	// load RDF graph (shared by all engines)
 	DGraph dgraph(sid, mem, &str_server, global_input_folder);
 
-	// prepare data for planner
+	// prepare statistics for SPARQL optimizer
 	data_statistic stat(tcp_adaptor, &world);
 	if (global_enable_planner) {
-		if(global_generate_statistics){
+		if (global_generate_statistics) {
 			dgraph.gstore.generate_statistic(stat);
-			stat.gather_data();
-		}
-		else{
-			stat.gather_data_from_file();
+			stat.gather_stat();
+		} else {
+			// use the dataset name by default
+			vector<string> strs;
+			boost::split(strs, global_input_folder, boost::is_any_of("/"));
+			string fname = strs[strs.size() - 2] + ".statfile";
+
+			stat.load_stat_from_file(fname);
 		}
 	}
 

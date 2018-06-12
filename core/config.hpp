@@ -189,9 +189,8 @@ void reload_config(string str)
 	map<string, string> items;
 	str2items(str, items);
 
-	for (auto const &entry : items) {
+	for (auto const &entry : items)
 		set_mutable_config(entry.first, entry.second);
-	}
 
 	// limited the number of engines
 	global_mt_threshold = max(1, min(global_mt_threshold, global_num_engines));
@@ -245,13 +244,13 @@ void print_config(void)
 	logstream(LOG_INFO) << "global_rdma_buf_size_mb: " 	<< global_rdma_buf_size_mb		<< LOG_endl;
 	logstream(LOG_INFO) << "global_rdma_rbf_size_mb: " 	<< global_rdma_rbf_size_mb   	<< LOG_endl;
 	logstream(LOG_INFO) << "global_use_rdma: " 			<< global_use_rdma				<< LOG_endl;
-	logstream(LOG_INFO) << "global_generate_statistics: " 	<< global_generate_statistics	<< LOG_endl;
 	logstream(LOG_INFO) << "global_enable_caching: " 		<< global_enable_caching		<< LOG_endl;
 	logstream(LOG_INFO) << "global_enable_workstealing: " 	<< global_enable_workstealing	<< LOG_endl;
 	logstream(LOG_INFO) << "global_rdma_threshold: " 		<< global_rdma_threshold		<< LOG_endl;
 	logstream(LOG_INFO) << "global_mt_threshold: " 		<< global_mt_threshold  		<< LOG_endl;
 	logstream(LOG_INFO) << "global_silent: " 				<< global_silent				<< LOG_endl;
 	logstream(LOG_INFO) << "global_enable_planner: " 		<< global_enable_planner 		<< LOG_endl;
+	logstream(LOG_INFO) << "global_generate_statistics: " 	<< global_generate_statistics	<< LOG_endl;
 	logstream(LOG_INFO) << "global_enable_vattr: " 		<< global_enable_vattr 			<< LOG_endl;
 
 	logstream(LOG_INFO) << "--" << LOG_endl;

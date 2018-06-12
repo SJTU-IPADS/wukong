@@ -100,10 +100,11 @@ void print_help(void)
 	cout << "           -d <sec>            eval <sec> seconds (default: 10)" << endl;
 	cout << "           -w <sec>            warmup <sec> seconds (default: 5)" << endl;
 	cout << "           -p <num>            send <num> queries in parallel (default: 20)" << endl;
-	cout << "    load-stat           load statistics info" << endl;
-	cout << "        -f <file>           load statistics info from <file>, relative path" << endl;
-	cout << "    save-stat           save statistics info to project default folder" << endl;	
-	cout << "    load <args>         load linked data into dynamic (in-memmory) graph-store" << endl;
+	cout << "    load-stat           load statistics from a file" << endl;
+	cout << "        -f <file>           load statistics from <file> located at data folder" << endl;
+	cout << "    store-stat           store statistics to a file" << endl;
+	cout << "        -f <file>           store statistics to <file> located at data folder" << endl;
+	cout << "    load <args>         load linked data into dynamic (in-memmory) graph store" << endl;
 	cout << "        -d <dname>          load data from directory <dname>" << endl;
 	cout << "    gsck <args>         check the graph storage integrity" << endl;
 	cout << "        -i                  check from index key/value pair to normal key/value pair" << endl;
@@ -503,30 +504,55 @@ next:
 				logstream(LOG_ERROR) << "Can't load linked data into static graph-store." << LOG_endl;
 				logstream(LOG_ERROR) << "You can enable it by building Wukong with -DUSE_DYNAMIC_GSTORE=ON." << LOG_endl;
 #endif
-			} else if (token == "load-stat"){
+			} else if (token == "load-stat") {
 				// use the main proxy thread to load statistics
 				if (!IS_MASTER(proxy)) continue;
 
-				string fname = "";
-				
+				// parse command
+				string fname;
+				bool f_enable = false;
 				while (cmd_ss >> token) {
 					if (token == "-f") {
 						cmd_ss >> fname;
+						f_enable = true;
 					} else {
 						goto failed;
 					}
 				}
 
-				proxy->statistic->gather_data_from_file(fname);
+				// if fname is not given, try the dataset name by default
+				if (!f_enable) {
+					vector<string> strs;
+					boost::split(strs, global_input_folder, boost::is_any_of("/"));
+					fname = strs[strs.size() - 2] + ".statfile";
+				}
 
-			} else if (token == "save-stat"){
+				proxy->statistic->load_stat_from_file(fname);
+			} else if (token == "store-stat") {
 				// use the main proxy thread to save statistics
 				if (!IS_MASTER(proxy)) continue;
 
-				proxy->statistic->write_data_to_file();
-			}
-			
-			else if (token == "gsck") {
+				// parse command
+				string fname;
+				bool f_enable = false;
+				while (cmd_ss >> token) {
+					if (token == "-f") {
+						cmd_ss >> fname;
+						f_enable = true;
+					} else {
+						goto failed;
+					}
+				}
+
+				// if fname is not given, use the dataset name by default
+				if (!f_enable) {
+					vector<string> strs;
+					boost::split(strs, global_input_folder, boost::is_any_of("/"));
+					fname = strs[strs.size() - 2] + ".statfile";
+				}
+
+				proxy->statistic->store_stat_to_file(fname);
+			} else if (token == "gsck") {
 				// use the main proxy thread to run gstore checker
 				if (!IS_MASTER(proxy)) continue;
 

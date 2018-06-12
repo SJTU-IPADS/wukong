@@ -178,7 +178,7 @@ private:
 
     /// A query whose parent's PGType is UNION may call this pattern
     void index_to_known(SPARQLQuery &req) {
-        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t tpid = pattern.subject;
         ssid_t id01 = pattern.predicate;
         dir_t d     = pattern.direction;
@@ -227,7 +227,7 @@ private:
     }
 
     void index_to_unknown(SPARQLQuery &req) {
-        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t tpid = pattern.subject;
         ssid_t id01 = pattern.predicate;
         dir_t d     = pattern.direction;
@@ -262,7 +262,7 @@ private:
 
     /// A query whose parent's PGType is UNION may call this pattern
     void const_to_known(SPARQLQuery &req) {
-        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
         ssid_t pid   = pattern.predicate;
         dir_t d      = pattern.direction;
@@ -304,7 +304,7 @@ private:
     }
 
     void const_to_unknown(SPARQLQuery &req) {
-        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
         ssid_t pid   = pattern.predicate;
         dir_t d      = pattern.direction;
@@ -329,7 +329,7 @@ private:
     // like <Course3> <id> ?X
     void const_to_unknown_attr(SPARQLQuery &req) {
         // prepare for query
-        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
         ssid_t aid   = pattern.predicate;
         dir_t d      = pattern.direction;
@@ -357,7 +357,7 @@ private:
     }
 
     void known_to_unknown(SPARQLQuery &req) {
-        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
         ssid_t pid   = pattern.predicate;
         dir_t d      = pattern.direction;
@@ -428,7 +428,7 @@ private:
     void known_to_unknown_attr(SPARQLQuery &req) {
         // prepare for query
         // the attr_res_table and result_table should be update
-        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
         ssid_t pid   = pattern.predicate;
         dir_t d      = pattern.direction;
@@ -470,7 +470,7 @@ private:
     /// 1) Use [?Y]+P1 to retrieve all of neighbors
     /// 2) Match [?Y]'s X within above neighbors
     void known_to_known(SPARQLQuery &req) {
-        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
         ssid_t pid   = pattern.predicate;
         dir_t d      = pattern.direction;
@@ -528,7 +528,7 @@ private:
     /// 1) Use [?X]+P1 to retrieve all of neighbors
     /// 2) Match E1 within above neighbors
     void known_to_const(SPARQLQuery &req) {
-        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
         ssid_t pid   = pattern.predicate;
         dir_t d      = pattern.direction;
@@ -591,7 +591,7 @@ private:
     /// e.g.,
     ///
     void const_unknown_unknown(SPARQLQuery &req) {
-        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
         ssid_t pid   = pattern.predicate;
         dir_t d      = pattern.direction;
@@ -629,7 +629,7 @@ private:
     /// e.g.,
     ///
     void known_unknown_unknown(SPARQLQuery &req) {
-        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
         ssid_t pid   = pattern.predicate;
         dir_t d      = pattern.direction;
@@ -672,7 +672,7 @@ private:
     ///       "?D ?P <http://www.Department4.University0.edu>"
     ///
     void known_unknown_const(SPARQLQuery &req) {
-        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
         ssid_t pid   = pattern.predicate;
         dir_t d      = pattern.direction;
@@ -715,7 +715,7 @@ private:
     /// e.g.,
     ///
     void const_unknown_const(SPARQLQuery &req) {
-        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
         ssid_t pid   = pattern.predicate;
         dir_t d      = pattern.direction;
@@ -754,7 +754,7 @@ private:
 
 
     vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req) {
-        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
 
         // generate sub requests for all servers
@@ -798,7 +798,7 @@ private:
         // always need fork-join mode w/o RDMA
         if (!global_use_rdma) return true;
 
-        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
         ASSERT(req.result.variable_type(pattern.subject) == known_var);
         //ssid_t start = pattern.subject;
         //return ((req.local_var != start)
@@ -874,7 +874,7 @@ private:
         // step.4 execute sub-req
         while (true) {
             execute_one_pattern(sub_req);
-            if (sub_req.is_pattern_finished())
+            if (sub_req.done(SPARQLQuery::SQState::SQ_PATTERN))
                 break;
         }
         uint64_t t2 = timer::get_usec(); // time to run the sub-request
@@ -929,12 +929,12 @@ private:
     }
 
     bool execute_one_pattern(SPARQLQuery &req) {
-        ASSERT(!req.is_pattern_finished());
+        ASSERT(!req.done(SPARQLQuery::SQState::SQ_PATTERN));
 
         logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "]"
                              << " step=" << req.pattern_step << LOG_endl;
 
-        SPARQLQuery::Pattern &pattern = req.get_current_pattern();
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start     = pattern.subject;
         ssid_t predicate = pattern.predicate;
         dir_t direction  = pattern.direction;
@@ -1495,7 +1495,7 @@ out:
             if (r.corun_enabled && (r.pattern_step == r.corun_step))
                 do_corun(r);
 
-            if (r.is_pattern_finished()) {
+            if (r.done(SPARQLQuery::SQState::SQ_PATTERN)) {
                 // only send back row_num in blind mode
                 r.result.row_num = r.result.get_row_num();
                 return true;
