@@ -259,31 +259,31 @@ public:
 
     public:
         int col_num = 0;
-        int row_num = 0;
-        int attr_col_num = 0;
+        int row_num = 0;  // FIXME: vs. get_row_num()
+        int attr_col_num = 0; // FIXME: why not no attr_row_num
+
         bool blind = false;
         int nvars = 0; // the number of variables
         vector<int> v2c_map; // from variable ID (vid) to column ID, index: vid, value: col
         vector<ssid_t> required_vars; // variables selected to return
+
         vector<sid_t> result_table; // result table for string IDs
         vector<attr_t> attr_res_table; // result table for others
 
         // OPTIONAL
         vector<bool> optional_matched_rows; // mark which rows are matched in optional block
 
-        /*
-         * mapping from Variable ID(var) to column ID
-         * var <=> idx <=> ext <=> col
-         * var <=> idx: var is set like -1,-2 e.g. idx is the index number of v2c_map; idx = -(vid + 1)
-         * idx <=> ext: ext store the col and result tabe type(attr_res_table or result_table); ext = v2c_map[idx]
-         * ext <=> col: ext2col and col2ext
-         */
-        void clear_data() {
+        void clear() {
             result_table.clear();
             attr_res_table.clear();
             required_vars.clear();
         }
 
+        /// mapping from Variable ID(var) to column ID
+        /// var <=> idx <=> ext <=> col
+        /// var <=> idx: var is set like -1,-2 e.g. idx is the index number of v2c_map; idx = -(vid + 1)
+        /// idx <=> ext: ext store the col and result tabe type(attr_res_table or result_table); ext = v2c_map[idx]
+        /// ext <=> col: ext2col and col2ext
         var_type variable_type(ssid_t vid) {
             if (vid >= 0)
                 return const_var;
@@ -339,6 +339,7 @@ public:
             else
                 return true;
         }
+
         // TODO unused set get
         // result table for string IDs
         void set_col_num(int n) { col_num = n; }
@@ -347,12 +348,12 @@ public:
 
         int get_row_num() {
             if (col_num == 0) {
-                // if it has attribute reslut, but has not id result
-                if (attr_col_num != 0) {
+                // FIXME: impl get_attr_row_num()
+                // it only has attribute resluts
+                if (attr_col_num != 0)
                     return attr_res_table.size() / attr_col_num;
-                } else {
+                else
                     return 0;
-                }
             }
             return result_table.size() / col_num;
         }
@@ -535,8 +536,8 @@ public:
         return pattern_group.patterns[step];
     }
 
-    // clear query when send back result to achieve better performance
-    void clear_query() {
+    // shrink the query to reduce communication cost (before sending)
+    void shrink_query() {
         orders.clear();
         // the first pattern indicating if this query is starting from index. It can't be removed.
         if (pattern_group.patterns.size() > 0)
@@ -546,8 +547,9 @@ public:
         pattern_group.optional.clear();
         pattern_group.unions.clear();
 
+        // discard results if does not care
         if (result.blind)
-            result.clear_data(); // avoid take back the results except the total number (row_num)
+            result.clear(); // clear data but reserve metadata (e.g., #rows, #cols)
     }
 
     bool has_pattern() { return pattern_group.patterns.size() > 0; }
@@ -709,10 +711,11 @@ public:
         pid = r.id;
         pg_type = SPARQLQuery::PGType::OPTIONAL;
         pattern_group = r.pattern_group.optional[r.optional_step];
+
         if (start_from_index()
-                && (global_mt_threshold * global_num_servers > 1)) {
+                && (global_mt_threshold * global_num_servers > 1))
             mt_factor = r.mt_factor;
-        }
+
         count_optional_new_vars(r.result);
         reorder_optional_patterns(r.result);
         result = r.result;

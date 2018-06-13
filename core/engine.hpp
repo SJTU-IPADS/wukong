@@ -1615,7 +1615,7 @@ out:
         }
 
         // 6. Reply
-        r.clear_query();
+        r.shrink_query();
         r.state = SPARQLQuery::SQState::SQ_REPLY;
         Bundle bundle(r);
         send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
