@@ -1546,19 +1546,20 @@ out:
         // 2. Union
         if (r.has_union() && !r.done(SPARQLQuery::SQState::SQ_UNION)) {
             r.state = SPARQLQuery::SQState::SQ_UNION;
-            vector<SPARQLQuery> union_reqs(r.pattern_group.unions.size());
-            r.generate_union_reqs(union_reqs);
+            int size = r.pattern_group.unions.size();
             r.union_done = true;
-            engine->rmap.put_parent_request(r, union_reqs.size());
-            for (int i = 0; i < union_reqs.size(); i++) {
-                int dst_sid = mymath::hash_mod(union_reqs[i].pattern_group.get_start(),
+            engine->rmap.put_parent_request(r, size);
+            for (int i = 0; i < size; i++) {
+                SPARQLQuery union_req;
+                union_req.inherit_union(r, i);
+                int dst_sid = mymath::hash_mod(union_req.pattern_group.get_start(),
                                                global_num_servers);
                 if (dst_sid != sid) {
-                    Bundle bundle(union_reqs[i]);
+                    Bundle bundle(union_req);
                     send_request(bundle, dst_sid, tid);
                 } else {
                     pthread_spin_lock(&recv_lock);
-                    msg_fast_path.push_back(union_reqs[i]);
+                    msg_fast_path.push_back(union_req);
                     pthread_spin_unlock(&recv_lock);
                 }
             }
@@ -1569,7 +1570,7 @@ out:
         if (r.has_optional() && !r.done(SPARQLQuery::SQState::SQ_OPTIONAL)) {
             r.state = SPARQLQuery::SQState::SQ_OPTIONAL;
             SPARQLQuery optional_req;
-            r.generate_optional_req(optional_req);
+            optional_req.inherit_optional(r);
             r.optional_step++;
             if (need_fork_join(optional_req)) {
                 optional_req.id = r.id;
