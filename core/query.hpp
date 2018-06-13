@@ -625,25 +625,22 @@ public:
     }
 
     // UNION
-    void generate_union_reqs(vector<SPARQLQuery> &union_reqs) {
-        int size = this->pattern_group.unions.size();
-        for (int i = 0; i < size; i++) {
-            union_reqs[i].pid = this->id;
-            union_reqs[i].pg_type = SPARQLQuery::PGType::UNION;
-            union_reqs[i].pattern_group = this->pattern_group.unions[i];
-            if (union_reqs[i].start_from_index()
-                    && (global_mt_threshold * global_num_servers > 1)) {
-                union_reqs[i].mt_factor = this->mt_factor;
-            }
-            union_reqs[i].result = this->result;
-            union_reqs[i].result.blind = false;
+    void inherit_union(SPARQLQuery &r, int idx) {
+        pid = r.id;
+        pg_type = SPARQLQuery::PGType::UNION;
+        pattern_group = r.pattern_group.unions[idx];
+        if (start_from_index()
+                && (global_mt_threshold * global_num_servers > 1)) {
+            mt_factor = r.mt_factor;
         }
+        result = r.result;
+        result.blind = false;
     }
 
     // OPTIONAL
 
     // currently only count BGPs in OPTIONAL
-    // [invoke] generate_optional_req()
+    // [invoke] inherit_optional()
     void count_optional_new_vars(Result &r) {
         for (Pattern &p : this->pattern_group.patterns) {
             if (p.subject < 0 && r.var2col(p.subject) == NO_RESULT)
@@ -657,7 +654,7 @@ public:
 
     // restrict patterns first
     // restrict patterns: index_to_known, known_to_known, known_to_const, const_to_known
-    // [invoke] generate_optional_req()
+    // [invoke] inherit_optional()
     void reorder_optional_patterns(Result &r) {
         int size = this->pattern_group.patterns.size();
         vector<Pattern> updated_patterns;
@@ -708,19 +705,19 @@ public:
         this->pattern_group.patterns.swap(updated_patterns);
     }
 
-    void generate_optional_req(SPARQLQuery &r) {
-        r.pid = this->id;
-        r.pg_type = SPARQLQuery::PGType::OPTIONAL;
-        r.pattern_group = this->pattern_group.optional[this->optional_step];
-        if (r.start_from_index()
+    void inherit_optional(SPARQLQuery &r) {
+        pid = r.id;
+        pg_type = SPARQLQuery::PGType::OPTIONAL;
+        pattern_group = r.pattern_group.optional[r.optional_step];
+        if (start_from_index()
                 && (global_mt_threshold * global_num_servers > 1)) {
-            r.mt_factor = this->mt_factor;
+            mt_factor = r.mt_factor;
         }
-        r.count_optional_new_vars(this->result);
-        r.reorder_optional_patterns(this->result);
-        r.result = this->result;
-        r.result.optional_matched_rows = vector<bool>(this->result.get_row_num(), true);
-        r.result.blind = false;
+        count_optional_new_vars(r.result);
+        reorder_optional_patterns(r.result);
+        result = r.result;
+        result.optional_matched_rows = vector<bool>(r.result.get_row_num(), true);
+        result.blind = false;
     }
 
     void correct_optional_result(int row) {
