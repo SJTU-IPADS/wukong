@@ -1,0 +1,4 @@
+sparql -f query/lubm_q1 -v 5
+sparql -f query/lubm_q2 -v 5
+sparql -f query/lubm_q3 -v 5
+sparql -f query/lubm_q4 -v 5

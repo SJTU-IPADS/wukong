@@ -432,27 +432,23 @@ next:
 				//    ...
 				if (b_enable) {
 					ifstream ifs(fname);
-					if (!ifs.good())
-					{
+					if (!ifs.good()){
 						logstream(LOG_ERROR) << "Query file not found: " << fname << LOG_endl;
-						return false;
+						goto failed;
 					}
 
 					string query;
 					cout<<"Batch Execution Begin";
-					while(getline(ifs,query))
-					{
+					while(getline(ifs,query)){
 						//format print
 						cout<<endl;
 						stringstream query_cmd(query);
 						//token
 						string tk;
 						query_cmd>>tk;
-						if(tk=="sparql")
-						{
+						if(tk=="sparql"){
 							query_cmd>>tk;
-							if(tk=="-f")
-							{
+							if(tk=="-f"){
 								//filename
 								string fn;
 								query_cmd>>fn;
