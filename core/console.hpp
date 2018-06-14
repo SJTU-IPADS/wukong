@@ -44,7 +44,7 @@ string oneshot_cmd = "";
 
 template<typename T>
 static void console_send(int sid, int tid, T &r) {
-    std::stringstream ss;
+    stringstream ss;
     boost::archive::binary_oarchive oa(ss);
     oa << r;
     con_adaptor->send(sid, tid, ss.str());
@@ -53,10 +53,10 @@ static void console_send(int sid, int tid, T &r) {
 template<typename T>
 static T console_recv(int tid)
 {
-    std::string str;
+    string str;
     str = con_adaptor->recv(tid);
 
-    std::stringstream ss;
+    stringstream ss;
     ss << str;
 
     boost::archive::binary_iarchive ia(ss);
@@ -127,7 +127,7 @@ static void file2str(string fname, string &str)
     }
 
     string line;
-    while (std::getline(file, line))
+    while (getline(file, line))
         str += line + " ";
 }
 
@@ -146,9 +146,9 @@ static void args2str(string &str)
 //   -n <num>
 //   -v <num>
 //   -o <fname>
-bool run_sparql_cmd(Proxy *proxy, std::stringstream &args_ss, string &fname)
+static bool run_sparql_cmd(Proxy *proxy, stringstream &args_ss, string &fname)
 {
-    std::string token;
+    string token;
     string ofname;
     int cnt = 1, nlines = 0, mt_factor = 1;
     bool o_enable = false;
@@ -218,9 +218,9 @@ bool run_sparql_cmd(Proxy *proxy, std::stringstream &args_ss, string &fname)
 //   -d <sec>
 //   -w <sec>
 //   -p <num>
-bool run_sparql_emu(Proxy *proxy, std::stringstream &args_ss, string &fname)
+bool run_sparql_emu(Proxy *proxy, stringstream &args_ss, string &fname)
 {
-    std::string token;
+    string token;
     int duration = 10, warmup = 5, parallel_factor = 20;
 
     // parse parameters
@@ -312,7 +312,7 @@ next:
             } else {
                 // interactive mode: print a prompt and retrieve the command
                 cout << "wukong> ";
-                std::getline(std::cin, cmd);
+                getline(cin, cmd);
             }
 
             // trim input
@@ -346,8 +346,8 @@ next:
             if (proxy->tid == 0)
                 exit(0); // each server exits once by the 1st console
         } else {
-            std::stringstream cmd_ss(cmd);
-            std::string token;
+            stringstream cmd_ss(cmd);
+            string token;
 
             // get keyword of command
             cmd_ss >> token;
@@ -423,7 +423,7 @@ next:
                 if (!(f_enable ^ b_enable)) goto failed; // invalid cmd
 
                 // [single mode]
-                //  usage: sparql -f <file> [<args>]
+                //  usage: sparql -f <fname> [<args>]
                 //  args:
                 //    -n <num>
                 //    -v <num>
@@ -435,45 +435,42 @@ next:
 
                 // [batch mode]
                 //  usage: sparql -b <fname>
-                //  file-format:
+                //
+                //  batch-file format:
                 //    sparql -f <fname> [<args>]
                 //    sparql -f <fname> [<args>]
                 //    ...
+                //
                 if (b_enable) {
                     ifstream ifs(fname);
-					if (!ifs.good()){
-						logstream(LOG_ERROR) << "Query file not found: " << fname << LOG_endl;
-						goto failed;
-					}
+                    if (!ifs.good()) {
+                        logstream(LOG_ERROR) << "Query file not found: " << fname << LOG_endl;
+                        goto failed;
+                    }
 
-					string query;
-					logstream(LOG_INFO) << "Batch Execution Begin" << LOG_endl;
-					while(getline(ifs,query)){
-						//format print
-						cout<<endl;
-						stringstream query_cmd(query);
-						//token
-						string tk;
-						query_cmd>>tk;
-						if(tk=="sparql"){
-							query_cmd>>tk;
-							if(tk=="-f"){
-								//filename
-								string fn;
-								query_cmd>>fn;
-								cout<<query<<endl;
-								run_sparql_cmd(proxy,query_cmd,fn);
-							}
-							else{
-								logstream(LOG_ERROR) << "Failed to run the command: " << query << LOG_endl;
-							}
-						}
-						//when failed, we will skip and go on
-						else{
-							logstream(LOG_ERROR) << "Failed to run the command: " << query << LOG_endl;
-						}
-					}
-					logstream(LOG_INFO) << "Batch Execution End" << LOG_endl;
+                    logstream(LOG_INFO) << "Batch-mode starting ..." << LOG_endl;
+
+                    string sg_cmd; // a single command line
+                    while (getline(ifs, sg_cmd)) {
+                        stringstream sg_cmd_ss(sg_cmd);
+
+                        string tk1, tk2;
+                        sg_cmd_ss >> tk1;
+                        sg_cmd_ss >> tk2;
+                        if (tk1 == "sparql" && tk2 == "-f") {
+                            sg_cmd_ss >> fname;
+                            cout << "Run the command: " << sg_cmd << endl;
+                            run_sparql_cmd(proxy, sg_cmd_ss, fname);
+                            cout << endl;
+                        } else {
+                            // skip and go on
+                            logstream(LOG_ERROR) << "Failed to run the command: " << sg_cmd << LOG_endl;
+                            logstream(LOG_ERROR) << "only support single sparql query in batch mode "
+                                                 << "(e.g., sparql -f ...)" << LOG_endl;
+                        }
+                    }
+
+                    logstream(LOG_INFO) << "Batch-mode end." << LOG_endl;
                 }
             } else if (token == "sparql-emu") { // run a SPARQL emulator on each proxy
 
