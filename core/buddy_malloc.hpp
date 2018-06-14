@@ -319,7 +319,7 @@ private:
             // no block big enough
             logstream(LOG_ERROR) << "malloc_buddysystem: memory is full" << LOG_endl;
             print_memory_usage();
-            ASSERT(false);
+            assert(false);
         }
         // split larger block
         for (uint64_t i = free_level - 1; i >= need_level; i--)
@@ -343,7 +343,7 @@ private:
             // no block big enough
             logstream(LOG_ERROR) << "malloc_buddysystem: memory is full" << LOG_endl;
             print_memory_usage();
-            ASSERT(false);
+            assert(false);
         }
         // split larger block
         for (uint64_t i = free_level - 1; i >= need_level; i--)

@@ -23,6 +23,7 @@
 #pragma once
 
 #include <vector>
+#include <assert.h>
 
 /* NOTE: math will conflict with other lib; so it's named mymath */
 class mymath {

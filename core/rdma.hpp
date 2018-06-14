@@ -29,6 +29,7 @@
 using namespace std;
 
 #include "timer.hpp"
+#include "assertion.hpp"
 
 #ifdef HAS_RDMA
 
