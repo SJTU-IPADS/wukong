@@ -440,7 +440,40 @@ next:
                 //    sparql -f <fname> [<args>]
                 //    ...
                 if (b_enable) {
-                    logstream(LOG_ERROR) << "Unsupported command now!" << LOG_endl;
+                    ifstream ifs(fname);
+					if (!ifs.good()){
+						logstream(LOG_ERROR) << "Query file not found: " << fname << LOG_endl;
+						goto failed;
+					}
+
+					string query;
+					logstream(LOG_INFO) << "Batch Execution Begin" << LOG_endl;
+					while(getline(ifs,query)){
+						//format print
+						cout<<endl;
+						stringstream query_cmd(query);
+						//token
+						string tk;
+						query_cmd>>tk;
+						if(tk=="sparql"){
+							query_cmd>>tk;
+							if(tk=="-f"){
+								//filename
+								string fn;
+								query_cmd>>fn;
+								cout<<query<<endl;
+								run_sparql_cmd(proxy,query_cmd,fn);
+							}
+							else{
+								logstream(LOG_ERROR) << "Failed to run the command: " << query << LOG_endl;
+							}
+						}
+						//when failed, we will skip and go on
+						else{
+							logstream(LOG_ERROR) << "Failed to run the command: " << query << LOG_endl;
+						}
+					}
+					logstream(LOG_INFO) << "Batch Execution End" << LOG_endl;
                 }
             } else if (token == "sparql-emu") { // run a SPARQL emulator on each proxy
 
