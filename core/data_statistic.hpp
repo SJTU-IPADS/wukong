@@ -3,7 +3,6 @@
 #include <boost/mpi.hpp>
 #include <boost/functional/hash.hpp>
 #include <boost/algorithm/string.hpp>
-
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
@@ -56,13 +55,9 @@ public:
     boost::mpi::communicator* world;
 
     data_statistic(TCP_Adaptor* _tcp_adaptor, boost::mpi::communicator* _world)
-        : tcp_adaptor(_tcp_adaptor), world(_world) {
+        : tcp_adaptor(_tcp_adaptor), world(_world) { }
 
-    }
-
-    data_statistic() {
-
-    }
+    data_statistic() { }
 
     void gather_stat() {
         std::stringstream ss;

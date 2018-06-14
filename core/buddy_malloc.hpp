@@ -76,13 +76,13 @@ private:
     header *large_free_list[level_up_bound - level_dividing_line + 1];
 
     // the freelist for block size < 2^level_dividing_line
-    header *small_free_list[level_dividing_line - level_low_bound +1];
+    header *small_free_list[level_dividing_line - level_low_bound + 1];
 
-    // small freelists for multithread insert_normal, every thread has one freelist, 
-    // merge when insert normal finished 
+    // small freelists for multithread insert_normal, every thread has one freelist,
+    // merge when insert normal finished
     header **tmp_small_free_list;
 
-    //for print_memory_usage()
+    // a statistic for print_memory_usage()
     uint64_t usage_counter[level_up_bound + 1];
 
     //get the certain index of large freelist
@@ -94,11 +94,11 @@ private:
     //get the certain index of small freelist
     inline uint64_t level_to_index_small(uint64_t level, int64_t tid = -1) {
         assert(level <= level_dividing_line && level >= level_low_bound);
-        if (tid < 0) 
+        if (tid < 0)
             return level - level_low_bound;
-        else 
-            return (level - level_low_bound) + (level_dividing_line - level_low_bound + 1) * tid; 
-        
+        else
+            return (level - level_low_bound) + (level_dividing_line - level_low_bound + 1) * tid;
+
     }
 
     //return ptr from index
@@ -119,15 +119,15 @@ private:
     }
 
     // return whether there exit free block for need level or not
-   inline bool is_empty_large(uint64_t level) {
+    inline bool is_empty_large(uint64_t level) {
         return large_free_list[level_to_index_large(level)]->next_free_idx == ptr_to_idx((char*) large_free_list[level_to_index_large(level)]);
     }
 
     // return whether there exit free block for need level or not
     inline bool is_empty_small(uint64_t level, int64_t tid) {
-        if(tid < 0)
+        if (tid < 0)
             return small_free_list[level_to_index_small(level)]->next_free_idx == ptr_to_idx((char*)small_free_list[level_to_index_small(level, tid)]);
-        else 
+        else
             return tmp_small_free_list[level_to_index_small(level, tid)]->next_free_idx == ptr_to_idx((char*) tmp_small_free_list[level_to_index_small(level, tid)]);
     }
 
@@ -156,7 +156,7 @@ private:
         while (true) {
             tmp <<= 1;
             level++;
-            if (tmp >= size) 
+            if (tmp >= size)
                 break;
         }
         return truncate_level(level);
@@ -190,11 +190,11 @@ private:
 
         header *free_header;
         // system initialization stage or not
-        if (tid < 0) 
+        if (tid < 0)
             free_header = small_free_list[level_to_index_small(level, tid)];
         else
             free_header = tmp_small_free_list[level_to_index_small(level, tid)];
-        
+
 
         // add to free list
         // free_list[level] <--> start <--> free_list[level]->next_free_idx
@@ -279,7 +279,7 @@ private:
             }
             if (tid < 0)
                 free_idx = small_free_list[level_to_index_small(free_level, tid)]->next_free_idx;
-            else 
+            else
                 free_idx = tmp_small_free_list[level_to_index_small(free_level, tid)]->next_free_idx;
             return free_idx;
         }
@@ -309,7 +309,7 @@ private:
     }
 
     // return value: an index of starting unit
-     uint64_t large_malloc(uint64_t need_level) {
+    uint64_t large_malloc(uint64_t need_level) {
         uint64_t free_level;
         uint64_t free_idx = UINT64_MAX;
         pthread_spin_lock(&malloc_free_lock_large);
@@ -319,9 +319,9 @@ private:
             // no block big enough
             logstream(LOG_ERROR) << "malloc_buddysystem: memory is full" << LOG_endl;
             print_memory_usage();
-            ASSERT(false);
+            assert(false);
         }
-          // split larger block
+        // split larger block
         for (uint64_t i = free_level - 1; i >= need_level; i--)
             mark_free_large((header*)idx_to_ptr(free_idx + (1LL << i)), i);
 
@@ -335,7 +335,7 @@ private:
         uint64_t free_level;
         uint64_t free_idx = UINT64_MAX;
         // find the smallest available block
-        if(tid < 0)
+        if (tid < 0)
             pthread_spin_lock(&malloc_free_lock_small);
 
         free_idx = get_free_idx_small(need_level, free_level, tid);
@@ -343,15 +343,15 @@ private:
             // no block big enough
             logstream(LOG_ERROR) << "malloc_buddysystem: memory is full" << LOG_endl;
             print_memory_usage();
-            ASSERT(false);
+            assert(false);
         }
-          // split larger block
+        // split larger block
         for (uint64_t i = free_level - 1; i >= need_level; i--)
             mark_free_small((header*)idx_to_ptr(free_idx + (1LL << i)), i, tid);
 
         mark_used((header*)idx_to_ptr(free_idx), need_level);
 
-        if(tid < 0)
+        if (tid < 0)
             pthread_spin_unlock(&malloc_free_lock_small);
 
         return get_value_idx(free_idx);
@@ -376,7 +376,7 @@ private:
                 free_header_ptr = buddy_header_ptr;
             }
             //we also need to check whether the larger block has a buddy
-            cur_level++; 
+            cur_level++;
             free_header_ptr->level = cur_level;
         }
         mark_free_large(free_header_ptr, cur_level);
@@ -404,8 +404,8 @@ private:
             cur_level++;
             free_header_ptr->level = cur_level;
         }
-        if (cur_level == level_dividing_line) 
-            // merge into a 1 << level_dividing_line size block, give it to large_free 
+        if (cur_level == level_dividing_line)
+            // merge into a 1 << level_dividing_line size block, give it to large_free
             large_free(free_header_idx);
         else
             mark_free_small(free_header_ptr, cur_level, -1);
@@ -414,7 +414,7 @@ private:
 
 public:
 
-     void init(void *start, uint64_t size, uint64_t n) {
+    void init(void *start, uint64_t size, uint64_t n) {
         // the smallest memory size to use this memory management system
         ASSERT(size >= 1LL << level_up_bound);
 
@@ -521,7 +521,7 @@ public:
         delete[]tmp_small_free_list;
     }
 
-     uint64_t sz_to_blksz (uint64_t size) {
+    uint64_t sz_to_blksz (uint64_t size) {
         return ((1 << size_to_level(size)) - size_per_header);
     }
 

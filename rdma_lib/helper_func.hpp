@@ -31,7 +31,8 @@
 
 #define MAGIC_NUM 73
 
-inline uint64_t ip_checksum(void* vdata, size_t length) {
+inline uint64_t ip_checksum(void* vdata, size_t length)
+{
     // Cast the data pointer to one that can be indexed.
     char* data = (char*)vdata;
 

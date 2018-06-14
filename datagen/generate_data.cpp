@@ -51,15 +51,17 @@ using namespace std;
 enum { NBITS_IDX = 17 };
 
 int find_type (string str) {
-    if (str.find("^^xsd:int") != string::npos || str.find("^^<http://www.w3.org/2001/XMLSchema#int>") != string::npos) {
+    if (str.find("^^xsd:int") != string::npos
+            || str.find("^^<http://www.w3.org/2001/XMLSchema#int>") != string::npos)
         return 1;
-    } else if (str.find("^^xsd:float") != string::npos || str.find("^^<http://www.w3.org/2001/XMLSchema#float>") != string::npos) {
+    else if (str.find("^^xsd:float") != string::npos
+             || str.find("^^<http://www.w3.org/2001/XMLSchema#float>") != string::npos)
         return 2;
-    } else if (str.find("^^xsd:double") != string::npos || str.find("^^<http://www.w3.org/2001/XMLSchema#double>") != string::npos) {
+    else if (str.find("^^xsd:double") != string::npos
+             || str.find("^^<http://www.w3.org/2001/XMLSchema#double>") != string::npos)
         return 3;
-    } else {
+    else
         return 0;
-    }
 }
 
 string find_value(string str) {
@@ -151,7 +153,9 @@ main(int argc, char** argv)
                 }
                 string obj = find_value(object);
 
-                attr_file << str_to_id[subject] << "\t" << str_to_id[predicate] << "\t" << type << "\t" << obj << endl;
+                attr_file << str_to_id[subject] << "\t"
+                          << str_to_id[predicate] << "\t"
+                          << type << "\t" << obj << endl;
 
                 //the normal triple
             } else {
@@ -214,7 +218,9 @@ main(int argc, char** argv)
     {
         ofstream f_attr((string(ddir_name) + "/str_attr_index").c_str());
         for (int64_t i = 0; i < attr_index_str.size(); i++)
-            f_attr << attr_index_str[i] << "\t" << str_to_id[attr_index_str[i]] << "\t" << index_to_type[attr_index_str[i]] << endl;
+            f_attr << attr_index_str[i] << "\t"
+                   << str_to_id[attr_index_str[i]] << "\t"
+                   << index_to_type[attr_index_str[i]] << endl;
     }
 
     cout << "#total_vertex = " << str_to_id.size() << endl;
