@@ -446,7 +446,6 @@ next:
 
 					string query;
 					logstream(LOG_INFO) << "Batch Execution Begin" << LOG_endl;
-					cout<<"Batch Execution Begin";
 					while(getline(ifs,query)){
 						//format print
 						cout<<endl;
@@ -464,15 +463,15 @@ next:
 								run_sparql_cmd(proxy,query_cmd,fn);
 							}
 							else{
-								cout<<"Failed to run the command: "<<query<<endl;
+								logstream(LOG_ERROR) << "Failed to run the command: " << query << LOG_endl;
 							}
 						}
 						//when failed, we will skip and go on
 						else{
-							cout<<"Failed to run the command: "<<query<<endl;
+							logstream(LOG_ERROR) << "Failed to run the command: " << query << LOG_endl;
 						}
 					}
-					cout<<"Batch Execution End"<<endl;
+					logstream(LOG_INFO) << "Batch Execution End" << LOG_endl;
 
 				}
 			} else if (token == "sparql-emu") { // run a SPARQL emulator on each proxy
