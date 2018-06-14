@@ -46,7 +46,7 @@ public:
         time_out.tv_usec = usec;
 
         if (select(0, NULL, NULL, NULL, &time_out) != 0)
-            cout << "[WARNING] something disrupt the thread to delay" << endl;
+            logstream(LOG_WARNING) << "Something disrupt the thread to delay" << endl;
 
         /*
          * Give up using _mm_pause()

@@ -625,6 +625,8 @@ public:
 		sort(dfiles.begin(), dfiles.end());
 
 		int num_dfiles = dfiles.size();
+
+		uint64_t start = timer::get_usec();
 		#pragma omp parallel for num_threads(global_num_engines)
 		for (int i = 0; i < num_dfiles; i++) {
 			int64_t cnt = 0;
@@ -652,6 +654,9 @@ public:
 			logstream(LOG_INFO) << "load " << cnt << " triples from file " << dfiles[i]
 			                    << " at server " << sid << LOG_endl;
 		}
+		uint64_t end = timer::get_usec();
+		logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+		                    << "for inserting into gstore" << LOG_endl;
 
 		flush_convertmap(); //clean the id2id mapping
 
@@ -722,7 +727,9 @@ public:
 	}
 
 	// FIXME: rename the function by the term of attribute graph model (e.g., value)
-	bool get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, attr_t &result) {
-		return gstore.get_vertex_attr_global(tid, vid, d, pid, result);
+	// return value is the  attr value
+	// if there are not result ,has_value  will be set to false
+	attr_t  get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, bool& has_value) {
+		return gstore.get_vertex_attr_global(tid, vid, d, pid, has_value);
 	}
 };

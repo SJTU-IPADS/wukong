@@ -2,6 +2,7 @@
 
 #include <boost/mpi.hpp>
 #include <boost/functional/hash.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
@@ -63,7 +64,7 @@ public:
 
     }
 
-    void gather_data() {
+    void gather_stat() {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
         oa << (*this);
@@ -116,7 +117,7 @@ public:
                     }
                 }
 
-                for (unordered_map<pair<ssid_t, ssid_t>, four_num, boost::hash<pair<int, int> > >::iterator it = all_gather[i].correlation.begin();
+                for (unordered_map<pair<ssid_t, ssid_t>, four_num, boost::hash<pair<int, int>>>::iterator it = all_gather[i].correlation.begin();
                         it != all_gather[i].correlation.end(); it++ ) {
                     pair<ssid_t, ssid_t> key = it->first;
                     four_num value = it->second;
@@ -187,8 +188,55 @@ public:
                >> global_tyscount;
         }
 
-        logstream(LOG_INFO) << "#" << world->rank() << ": gathering stats of DGraph is finished." << LOG_endl;
+        logstream(LOG_INFO) << "#" << world->rank() << ": load stats of DGraph is finished." << LOG_endl;
 
+    }
+
+    void load_stat_from_file(string fname) {
+        // data only cached on master server
+        if (world->rank() != 0) return;
+
+        // exit if file does not exist
+        ifstream file(fname.c_str());
+        if (!file.good()) {
+            logstream(LOG_WARNING) << "statistics file "  << fname
+                                   << " does not exsit, pleanse check the fname"
+                                   << " and use load-stat to mannually set it"  << LOG_endl;
+            return;
+        }
+
+        ifstream ifs(fname);
+        boost::archive::binary_iarchive ia(ifs);
+        ia >> global_ptcount;
+        ia >> global_pscount;
+        ia >> global_pocount;
+        ia >> global_tyscount;
+        ia >> global_ppcount;
+        ifs.close();
+
+        logstream(LOG_INFO) << "load statistics from file "  << fname
+                            << " is finished."  << LOG_endl;
+    }
+
+    void store_stat_to_file(string fname) {
+        // data only cached on master server
+        if (world->rank() != 0) return;
+
+        // avoid saving when it already exsits
+        ifstream file(fname.c_str());
+        if (!file.good()) {
+            ofstream ofs(fname);
+            boost::archive::binary_oarchive oa(ofs);
+            oa << global_ptcount;
+            oa << global_pscount;
+            oa << global_pocount;
+            oa << global_tyscount;
+            oa << global_ppcount;
+            ofs.close();
+
+            logstream(LOG_INFO) << "store statistics to file "
+                                << fname << " is finished." << LOG_endl;
+        }
     }
 
     template <typename Archive>

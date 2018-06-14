@@ -54,6 +54,7 @@ int global_rdma_buf_size_mb = 64;
 int global_rdma_rbf_size_mb = 16;
 
 bool global_use_rdma = true;
+bool global_generate_statistics = true;
 bool global_enable_caching = true;
 bool global_enable_workstealing = false;
 
@@ -103,7 +104,10 @@ static bool set_immutable_config(string cfg_name, string value)
 	} else if (cfg_name == "global_rdma_rbf_size_mb") {
 		global_rdma_rbf_size_mb = atoi(value.c_str());
 		ASSERT(global_rdma_rbf_size_mb > 0);
-	} else {
+	} else if (cfg_name == "global_generate_statistics") {
+		global_generate_statistics = atoi(value.c_str());
+	}
+	else {
 		return false;
 	}
 
@@ -185,9 +189,8 @@ void reload_config(string str)
 	map<string, string> items;
 	str2items(str, items);
 
-	for (auto const &entry : items) {
+	for (auto const &entry : items)
 		set_mutable_config(entry.first, entry.second);
-	}
 
 	// limited the number of engines
 	global_mt_threshold = max(1, min(global_mt_threshold, global_num_engines));
@@ -247,6 +250,7 @@ void print_config(void)
 	logstream(LOG_INFO) << "global_mt_threshold: " 		<< global_mt_threshold  		<< LOG_endl;
 	logstream(LOG_INFO) << "global_silent: " 				<< global_silent				<< LOG_endl;
 	logstream(LOG_INFO) << "global_enable_planner: " 		<< global_enable_planner 		<< LOG_endl;
+	logstream(LOG_INFO) << "global_generate_statistics: " 	<< global_generate_statistics	<< LOG_endl;
 	logstream(LOG_INFO) << "global_enable_vattr: " 		<< global_enable_vattr 			<< LOG_endl;
 
 	logstream(LOG_INFO) << "--" << LOG_endl;

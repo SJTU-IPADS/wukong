@@ -144,7 +144,8 @@ private:
             pattern.pred_type = str_server->pid2type[predicate];
             if (pattern.pred_type > 0
                     && !global_enable_vattr) {
-                logstream(LOG_ERROR) << "Need to change config to enable vertex_attr " << LOG_endl;
+                logstream(LOG_ERROR) << "Must change config to enable vertex_attr"
+                                     << LOG_endl;
                 ASSERT(false);
             }
 
@@ -158,18 +159,10 @@ private:
         }
 
         // Unions
-        int i = 0;
         for (auto &u : src.unions) {
             dst.unions.push_back(SPARQLQuery::PatternGroup());
             transfer_patterns(u, dst.unions.back());
-            dst.unions[i].patterns.insert(dst.unions[i].patterns.end(),
-                                          dst.patterns.begin(),
-                                          dst.patterns.end());
-            i++;
         }
-        /// FIXME: uncomment the following code will result in segmentation fault
-        ///        > sparql -f query/lubm_q1
-        if (src.unions.size() > 0) dst.patterns.clear();
 
         // Optional
         for (auto &o : src.optional) {
@@ -193,10 +186,6 @@ private:
                 iter != sp.projectionEnd();
                 iter ++)
             sq.result.required_vars.push_back(*iter);
-
-        // optional
-        if (sq.pattern_group.optional.size() > 0)
-            sq.optional_dispatched = false;
 
         // orders
         for (SPARQLParser::order_iterator iter = sp.orderBegin();
@@ -250,7 +239,7 @@ private:
             pattern.pred_type = str_server->pid2type[predicate];
             if (pattern.pred_type > 0
                     && !global_enable_vattr) {
-                logstream(LOG_ERROR) << "Need to change config to enable vertex_attr " << LOG_endl;
+                logstream(LOG_ERROR) << "Must change config to enable vertex_attr" << LOG_endl;
                 ASSERT(false);
             }
 
@@ -266,11 +255,10 @@ public:
     // the stat of query parsing
     std::string strerror;
 
-    Parser(String_Server *_ss): str_server(_ss) {}
+    Parser(String_Server *_ss): str_server(_ss) { }
 
     /// a single query
     bool parse(istream &is, SPARQLQuery &sq) {
-        // clear intermediate states of parser
         string query = read_input(is);
         SPARQLLexer lexer(query);
         SPARQLParser parser(lexer);
@@ -279,17 +267,19 @@ public:
             parser.parse(); //e.g., sparql -f query/lubm_q1
             transfer(parser, sq);
         } catch (const SPARQLParser::ParserException &e) {
-            logstream(LOG_ERROR) << "failed to parse a SPARQL query: " << e.message << LOG_endl;
+            logstream(LOG_ERROR) << "Failed to parse a SPARQL query: "
+                                 << e.message << LOG_endl;
             return false;
         }
 
         // check if using custom grammar when planner is on
         if (parser.isUsingCustomGrammar() && global_enable_planner) {
-            logstream(LOG_ERROR)  << "unsupported custom grammar in SPARQL planner!" << LOG_endl;
+            logstream(LOG_ERROR) << "Unsupported custom grammar in SPARQL planner!"
+                                 << LOG_endl;
             return false;
         }
 
-        logstream(LOG_INFO) << "parsing a query is done." << LOG_endl;
+        logstream(LOG_INFO) << "Parsing a SPARQL query is done." << LOG_endl;
         return true;
     }
 
@@ -303,9 +293,12 @@ public:
             parser.parse();
             transfer_template(parser, sqt);
         } catch (const SPARQLParser::ParserException &e) {
-            logstream(LOG_ERROR) << "failed to parse a SPARQL query: " << e.message << LOG_endl;
+            logstream(LOG_ERROR) << "Failed to parse a SPARQL template: "
+                                 << e.message << LOG_endl;
             return false;
         }
+
+        logstream(LOG_INFO) << "Parsing a SPARQL template is done." << LOG_endl;
         return true;
     }
 };

@@ -90,6 +90,7 @@ void print_help(void)
 	cout << "        -s <string>         set config items by <str> (format: item1=val1&item2=...)" << endl;
 	cout << "    sparql <args>       run a single SPARQL query" << endl;
 	cout << "        -f <file> [<args>]  run a single query from <file>" << endl;
+	cout << "           -m <factor>         set multi-threading factor <factor> for heavy queries" << endl;
 	cout << "           -n <num>            run <num> times" << endl;
 	cout << "           -v <num>            print at most <num> lines of results" << endl;
 	cout << "           -o <file>           output results into <file>" << endl;
@@ -99,7 +100,11 @@ void print_help(void)
 	cout << "           -d <sec>            eval <sec> seconds (default: 10)" << endl;
 	cout << "           -w <sec>            warmup <sec> seconds (default: 5)" << endl;
 	cout << "           -p <num>            send <num> queries in parallel (default: 20)" << endl;
-	cout << "    load <args>         load linked data into dynamic (in-memmory) graph-store" << endl;
+	cout << "    load-stat           load statistics from a file" << endl;
+	cout << "        -f <file>           load statistics from <file> located at data folder" << endl;
+	cout << "    store-stat           store statistics to a file" << endl;
+	cout << "        -f <file>           store statistics to <file> located at data folder" << endl;
+	cout << "    load <args>         load linked data into dynamic (in-memmory) graph store" << endl;
 	cout << "        -d <dname>          load data from directory <dname>" << endl;
 	cout << "    gsck <args>         check the graph storage integrity" << endl;
 	cout << "        -i                  check from index key/value pair to normal key/value pair" << endl;
@@ -143,12 +148,14 @@ bool run_sparql_cmd(Proxy *proxy, std::stringstream &args_ss, string &fname)
 {
 	std::string token;
 	string ofname;
-	int cnt = 1, nlines = 0;
+	int cnt = 1, nlines = 0, mt_factor = 1;
 	bool o_enable = false;
 
 	// parse parameters
 	while (args_ss >> token) {
-		if (token == "-n") {
+		if (token == "-m") {
+			args_ss >> mt_factor;
+		} else if (token == "-n") {
 			args_ss >> cnt;
 		} else if (token == "-v") {
 			args_ss >> nlines;
@@ -182,7 +189,7 @@ bool run_sparql_cmd(Proxy *proxy, std::stringstream &args_ss, string &fname)
 	SPARQLQuery reply;
 	SPARQLQuery::Result &result = reply.result;
 	Logger logger;
-	int ret = proxy->run_single_query(ifs, cnt, reply, logger);
+	int ret = proxy->run_single_query(ifs, mt_factor, cnt, reply, logger);
 	if (ret != 0) {
 		logstream(LOG_ERROR) << "Failed to run the query (ERRNO: " << ret << ")!" << LOG_endl;
 		return false;
@@ -194,10 +201,10 @@ bool run_sparql_cmd(Proxy *proxy, std::stringstream &args_ss, string &fname)
 	// print or dump results
 	if (!global_silent && !result.blind && (nlines > 0 || o_enable)) {
 		if (nlines > 0)
-			result.print_result(min(result.row_num, nlines), proxy->str_server);
+			result.print_result(min(result.get_row_num(), nlines), proxy->str_server);
 
 		if (o_enable)
-			result.dump_result(ofname, result.row_num, proxy->str_server);
+			result.dump_result(ofname, result.get_row_num(), proxy->str_server);
 	}
 
 	return true;
@@ -249,7 +256,7 @@ bool run_sparql_emu(Proxy *proxy, std::stringstream &args_ss, string &fname)
 	}
 
 	Logger logger;
-	proxy->run_batch_query(ifs, duration, warmup, parallel_factor, logger);
+	proxy->run_query_emu(ifs, duration, warmup, parallel_factor, logger);
 
 	// FIXME: maybe hang in here if the input file misses in some machines
 	//        or inconsistent global variables (e.g., global_enable_planner)
@@ -438,6 +445,7 @@ next:
 					}
 
 					string query;
+					logstream(LOG_INFO) << "Batch Execution Begin" << LOG_endl;
 					cout<<"Batch Execution Begin";
 					while(getline(ifs,query)){
 						//format print
@@ -531,6 +539,54 @@ next:
 				logstream(LOG_ERROR) << "Can't load linked data into static graph-store." << LOG_endl;
 				logstream(LOG_ERROR) << "You can enable it by building Wukong with -DUSE_DYNAMIC_GSTORE=ON." << LOG_endl;
 #endif
+			} else if (token == "load-stat") {
+				// use the main proxy thread to load statistics
+				if (!IS_MASTER(proxy)) continue;
+
+				// parse command
+				string fname;
+				bool f_enable = false;
+				while (cmd_ss >> token) {
+					if (token == "-f") {
+						cmd_ss >> fname;
+						f_enable = true;
+					} else {
+						goto failed;
+					}
+				}
+
+				// if fname is not given, try the dataset name by default
+				if (!f_enable) {
+					vector<string> strs;
+					boost::split(strs, global_input_folder, boost::is_any_of("/"));
+					fname = strs[strs.size() - 2] + ".statfile";
+				}
+
+				proxy->statistic->load_stat_from_file(fname);
+			} else if (token == "store-stat") {
+				// use the main proxy thread to save statistics
+				if (!IS_MASTER(proxy)) continue;
+
+				// parse command
+				string fname;
+				bool f_enable = false;
+				while (cmd_ss >> token) {
+					if (token == "-f") {
+						cmd_ss >> fname;
+						f_enable = true;
+					} else {
+						goto failed;
+					}
+				}
+
+				// if fname is not given, use the dataset name by default
+				if (!f_enable) {
+					vector<string> strs;
+					boost::split(strs, global_input_folder, boost::is_any_of("/"));
+					fname = strs[strs.size() - 2] + ".statfile";
+				}
+
+				proxy->statistic->store_stat_to_file(fname);
 			} else if (token == "gsck") {
 				// use the main proxy thread to run gstore checker
 				if (!IS_MASTER(proxy)) continue;
