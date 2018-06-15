@@ -3,7 +3,7 @@
 ### Table of Contents
 
 * [OpenMPI v1.6.5](#openmpi)
-* [Boost v1.58](#boost)
+* [Boost v1.67.0](#boost)
 * [Intel TBB v4.4.2](#tbb)
 * [ZeroMQ v4.0.5](#0MQ)
 * [HWLOC v1.11.7](#hwloc)
@@ -25,14 +25,14 @@ $make install
 
 
 <a name="boost"></a>
-### Boost v1.58
+### Boost v1.67.0
 
 ```bash
 $cd  $WUKONG_ROOT/deps/
-$tar jxvf boost_1_58_0.tar.bz2
-$mkdir boost_1_58_0-install
-$cd boost_1_58_0/
-$./bootstrap.sh --prefix=../boost_1_58_0-install  
+$tar jxvf boost_1_67_0.tar.gz
+$mkdir boost_1_67_0-install
+$cd boost_1_67_0/
+$./bootstrap.sh --prefix=../boost_1_67_0-install
 ```
 
 Add the following MPI configuration to `project-config.jam`
@@ -43,7 +43,7 @@ using mpi : $WUKONG_ROOT/deps/openmpi-1.6.5-install/bin/mpicc ;
 ```
 
 ```bash
-$./b2 install  
+$./b2 install
 ```
 
 
@@ -51,8 +51,8 @@ $./b2 install
 ### Intel Threading Building Blocks (TBB) v4.4.2
 
 ```bash
-$cd $WUKONG_ROOT/deps/  
-$tar zxvf tbb44_20151115oss_src.tgz  
+$cd $WUKONG_ROOT/deps/
+$tar zxvf tbb44_20151115oss_src.tgz
 $cd tbb44_20151115oss/
 $make
 ```
@@ -83,8 +83,8 @@ $cp zmq.hpp  zeromq-4.0.5-install/include/
 $cp zhelpers.hpp  zeromq-4.0.5-install/include/
 ```
 
-> zmq.hpp is download from [C++ binding for 0MQ](https://github.com/zeromq/cppzmq/blob/master/zmq.hpp)  
-> zhelpers.hpp is download from [ØMQ - The Guide](https://github.com/booksbyus/zguide/blob/master/examples/C%2B%2B/zhelpers.hpp)  
+> zmq.hpp is download from [C++ binding for 0MQ](https://github.com/zeromq/cppzmq/blob/master/zmq.hpp)
+> zhelpers.hpp is download from [ØMQ - The Guide](https://github.com/booksbyus/zguide/blob/master/examples/C%2B%2B/zhelpers.hpp)
 
 Add below settings to bash script (i.e., `~/.bashrc`).
 
