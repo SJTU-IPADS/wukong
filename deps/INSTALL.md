@@ -83,8 +83,8 @@ $cp zmq.hpp  zeromq-4.0.5-install/include/
 $cp zhelpers.hpp  zeromq-4.0.5-install/include/
 ```
 
-> zmq.hpp is download from [C++ binding for 0MQ](https://github.com/zeromq/cppzmq)  
-> zhelpers.hpp is download from [ØMQ - The Guide](https://github.com/booksbyus/zguide/tree/master/examples/C%2B%2B)  
+> zmq.hpp is download from [C++ binding for 0MQ](https://github.com/zeromq/cppzmq/blob/master/zmq.hpp)  
+> zhelpers.hpp is download from [ØMQ - The Guide](https://github.com/booksbyus/zguide/blob/master/examples/C%2B%2B/zhelpers.hpp)  
 
 Add below settings to bash script (i.e., `~/.bashrc`).
 
