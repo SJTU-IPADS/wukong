@@ -157,6 +157,14 @@ public:
 
         }
 
+        send_stat_to_all_machines();
+
+        logstream(LOG_INFO) << "#" << world->rank() << ": load stats of DGraph is finished." << LOG_endl;
+
+    }
+
+    // after the master server get whole statistics, this method is used to send it to all machines.
+    void send_stat_to_all_machines(){
         if (world->rank() == 0) {
             std::stringstream my_ss;
             boost::archive::binary_oarchive my_oa(my_ss);
@@ -182,9 +190,6 @@ public:
                >> global_ppcount
                >> global_tyscount;
         }
-
-        logstream(LOG_INFO) << "#" << world->rank() << ": load stats of DGraph is finished." << LOG_endl;
-
     }
 
     void load_stat_from_file(string fname) {
@@ -208,6 +213,8 @@ public:
         ia >> global_tyscount;
         ia >> global_ppcount;
         ifs.close();
+
+        send_stat_to_all_machines();
 
         logstream(LOG_INFO) << "load statistics from file "  << fname
                             << " is finished."  << LOG_endl;
