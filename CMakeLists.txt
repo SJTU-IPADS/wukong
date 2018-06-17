@@ -48,7 +48,7 @@ if(USE_HADOOP)
 endif(USE_HADOOP)
 
 #### Dynamic GStore
-option (USE_DYNAMIC_GSTORE "enable dynamic gstore" ON)
+option (USE_DYNAMIC_GSTORE "enable dynamic gstore" OFF)
 if(USE_DYNAMIC_GSTORE)
   add_definitions(-DDYNAMIC_GSTORE)
 endif(USE_DYNAMIC_GSTORE)

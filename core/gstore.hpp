@@ -260,39 +260,7 @@ private:
     uint64_t last_ext;
     pthread_spinlock_t bucket_ext_lock;
 
-    bool check_key_exist(ikey_t key) {
-        uint64_t bucket_id = key.hash() % num_buckets;
-        uint64_t slot_id = bucket_id * ASSOCIATIVITY;
-        uint64_t lock_id = bucket_id % NUM_LOCKS;
-
-        pthread_spin_lock(&bucket_locks[lock_id]);
-        while (slot_id < num_slots) {
-            // the last slot of each bucket is always reserved for pointer to indirect header
-            /// TODO: add type info to slot and reuse the last slot to store key
-            /// TODO: key.vid is reused to store the bucket_id of indirect header rather than ptr.off,
-            ///       since the is_empty() is not robust.
-            for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
-                //ASSERT(vertices[slot_id].key != key); // no duplicate key
-                if (vertices[slot_id].key == key) {
-                    pthread_spin_unlock(&bucket_locks[lock_id]);
-                    return true;
-                }
-
-                // insert to an empty slot
-                if (vertices[slot_id].key.is_empty()) {
-                    pthread_spin_unlock(&bucket_locks[lock_id]);
-                    return false;
-                }
-            }
-            // whether the bucket_ext (indirect-header region) is used
-            if (!vertices[slot_id].key.is_empty()) {
-                slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY;
-                continue; // continue and jump to next bucket
-            }
-            pthread_spin_unlock(&bucket_locks[lock_id]);
-            return false;
-        }
-    }
+    
 
     // cluster chaining hash-table (see paper: DrTM SOSP'15)
     uint64_t insert_key(ikey_t key, bool check_dup = true) {
@@ -436,45 +404,46 @@ done:
         pthread_spin_unlock(&free_queue_lock);
     }
 
-    // Allocate space to store edges of given size.
-    // Return offset of allocated space.
-    inline uint64_t alloc_edges(uint64_t n, int64_t tid = -1) {
-        if (global_enable_caching)
-            sweep_free(); // collect free space before allocate
-        uint64_t sz = e2b(n + 1); // reserve one space for sz
-        uint64_t off = b2e(edge_allocator->malloc(sz, tid));
-        insert_sz(n, n, off);
-        return off;
-    }
-
-#else // NOT DYNAMIC_GSTORE
-    uint64_t last_entry;
-    pthread_spinlock_t entry_lock;
-
-    // Allocate space to store edges of given size.
-    // Return offset of allocated space.
-    uint64_t alloc_edges(uint64_t n, int64_t tid = -1) {
-        uint64_t orig;
-        pthread_spin_lock(&entry_lock);
-        orig = last_entry;
-        last_entry += n;
-        if (last_entry >= num_entries) {
-            logstream(LOG_ERROR) << "out of entry region." << LOG_endl;
-            ASSERT(last_entry < num_entries);
-        }
-        pthread_spin_unlock(&entry_lock);
-        return orig;
-    }
-#endif // DYNAMIC_GSTORE
-
-
-#if DYNAMIC_GSTORE
-    bool is_dup(vertex_t *v, uint64_t value) {
+        bool is_dup(vertex_t *v, uint64_t value) {
         int size = v->ptr.size;
         for (int i = 0; i < size; i++)
             if (edges[v->ptr.off + i].val == value)
                 return true;
         return false;
+    }
+
+    bool check_key_exist(ikey_t key) {
+        uint64_t bucket_id = key.hash() % num_buckets;
+        uint64_t slot_id = bucket_id * ASSOCIATIVITY;
+        uint64_t lock_id = bucket_id % NUM_LOCKS;
+
+        pthread_spin_lock(&bucket_locks[lock_id]);
+        while (slot_id < num_slots) {
+            // the last slot of each bucket is always reserved for pointer to indirect header
+            /// TODO: add type info to slot and reuse the last slot to store key
+            /// TODO: key.vid is reused to store the bucket_id of indirect header rather than ptr.off,
+            ///       since the is_empty() is not robust.
+            for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
+                //ASSERT(vertices[slot_id].key != key); // no duplicate key
+                if (vertices[slot_id].key == key) {
+                    pthread_spin_unlock(&bucket_locks[lock_id]);
+                    return true;
+                }
+
+                // insert to an empty slot
+                if (vertices[slot_id].key.is_empty()) {
+                    pthread_spin_unlock(&bucket_locks[lock_id]);
+                    return false;
+                }
+            }
+            // whether the bucket_ext (indirect-header region) is used
+            if (!vertices[slot_id].key.is_empty()) {
+                slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY;
+                continue; // continue and jump to next bucket
+            }
+            pthread_spin_unlock(&bucket_locks[lock_id]);
+            return false;
+        }
     }
 
     bool insert_vertex_edge(ikey_t key, uint64_t value, bool &dedup_or_isdup) {
@@ -521,6 +490,36 @@ done:
             pthread_spin_unlock(&bucket_locks[lock_id]);
             return false;
         }
+    }
+
+    // Allocate space to store edges of given size.
+    // Return offset of allocated space.
+    inline uint64_t alloc_edges(uint64_t n, int64_t tid = -1) {
+        if (global_enable_caching)
+            sweep_free(); // collect free space before allocate
+        uint64_t sz = e2b(n + 1); // reserve one space for sz
+        uint64_t off = b2e(edge_allocator->malloc(sz, tid));
+        insert_sz(n, n, off);
+        return off;
+    }
+
+#else // NOT DYNAMIC_GSTORE
+    uint64_t last_entry;
+    pthread_spinlock_t entry_lock;
+
+    // Allocate space to store edges of given size.
+    // Return offset of allocated space.
+    uint64_t alloc_edges(uint64_t n, int64_t tid = -1) {
+        uint64_t orig;
+        pthread_spin_lock(&entry_lock);
+        orig = last_entry;
+        last_entry += n;
+        if (last_entry >= num_entries) {
+            logstream(LOG_ERROR) << "out of entry region." << LOG_endl;
+            ASSERT(last_entry < num_entries);
+        }
+        pthread_spin_unlock(&entry_lock);
+        return orig;
     }
 #endif // DYNAMIC_GSTORE
 
