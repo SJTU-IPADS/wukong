@@ -1442,6 +1442,7 @@ out:
 
         r.result.result_table.swap(new_result_table);
         r.result.col_num = new_col_num;
+        r.result.row_num = r.result.get_row_num();
 
         //update attribute result table
         vector<attr_t> new_attr_result_table(new_row_num * new_attr_col_num);
