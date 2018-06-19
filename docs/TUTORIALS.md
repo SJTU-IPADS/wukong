@@ -239,7 +239,7 @@ INFO:     (average) latency: 36454664 usec
 3) Check both of them
 
 ```bash
-wukong> gsck -a
+wukong> gsck -i -n
 INFO:     Graph storage intergity check has started on server 0
 INFO:     Graph storage intergity check has started on server 1
 INFO:     Server#0 has checked 47 index vertices and 110115 normal vertices.

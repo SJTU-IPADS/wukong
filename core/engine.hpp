@@ -1622,7 +1622,7 @@ out:
         send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
     }
 
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
     void execute_load_data(RDFLoad & r) {
         // unbind the core from the thread in order to use openmpi to run multithreads
         cpu_set_t mask = unbind_to_core();
@@ -1648,7 +1648,7 @@ out:
             SPARQLQuery r = bundle.get_sparql_query();
             execute_sparql_query(r, engine);
         }
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
         else if (bundle.type == DYNAMIC_LOAD) {
             RDFLoad r = bundle.get_rdf_load();
             execute_load_data(r);
