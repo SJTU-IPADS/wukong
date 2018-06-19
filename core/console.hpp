@@ -159,7 +159,6 @@ void init_options_desc()
     gsck_desc.add_options()
     (",i", "check from index key/value pair to normal key/value pair")
     (",n", "check from normal key/value pair to index key/value pair")
-    (",a", "check all above")
     ("help,h", "help message about gsck")
     ;
     all_desc.add(gsck_desc);
@@ -645,12 +644,11 @@ static void run_gsck(Proxy * proxy, int argc, char **argv)
     if (gsck_vm.count("-n"))
         n_enable = true;
 
-    if (gsck_vm.count("-a")) {
-        i_enable = true;
-        n_enable = true;
+    if (gsck_vm.count("-i") || gsck_vm.count("-n")) {
+        logstream(LOG_ERROR) << "Cann't run the gsck without -n and -i" <<LOG_endl;
+        return; 
     }
 
-    /// FIXME: how to deal with command without any options?
 
     /// do gsck
     Logger logger;
