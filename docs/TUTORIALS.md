@@ -6,6 +6,8 @@
 * [Downloading LUBM sample dataset](#data)
 * [Configuring and running Wukong](#run)
 * [Processing SPARQL queries on Wukong](#query)
+* [Dynamic data loading on Wukong](#load)
+* [Graph storage integrity check on Wukong](#check)
 
 
 <a name="cluster"></a>
@@ -165,3 +167,82 @@ wukong> sparql -f query/lubm_q4 -n 1000
 (last) result size: 10
 ```
 
+<a name="load"></a>
+## Dynamic data loading on Wukong
+
+Make sure that you have enable dynamic data loading support with parameter `-USE_DYNAMIC_GSTORE=ON`.
+
+1) Load new dataset from directory, the structure of directory is just the same as which used to initialize.
+
+```bash
+wukong> load -d /home/datanfs/nfs0/rdfdata/id_lubm_2/
+INFO:     loading ID-mapping file: /home/datanfs/nfs0/rdfdata/id_lubm_2/str_index
+INFO:     loading ID-mapping file: /home/datanfs/nfs0/rdfdata/id_lubm_2/str_normal
+INFO:     loading ID-mapping file: /home/datanfs/nfs0/rdfdata/id_lubm_2/str_index
+INFO:     loading ID-mapping file: /home/datanfs/nfs0/rdfdata/id_lubm_2/str_normal
+INFO:     2 data files and 0 attribute files found in directory (/home/datanfs/nfs0/rdfdata/id_lubm_2/) at server 0
+INFO:     2 data files and 0 attribute files found in directory (/home/datanfs/nfs0/rdfdata/id_lubm_2/) at server 1
+INFO:     load 94802 triples from file /home/datanfs/nfs0/rdfdata/id_lubm_2/id_uni0.nt at server 0
+INFO:     load 122091 triples from file /home/datanfs/nfs0/rdfdata/id_lubm_2/id_uni1.nt at server 0
+INFO:     #0: 227ms for inserting into gstore
+INFO:     load 110672 triples from file /home/datanfs/nfs0/rdfdata/id_lubm_2/id_uni0.nt at server 1
+INFO:     load 145107 triples from file /home/datanfs/nfs0/rdfdata/id_lubm_2/id_uni1.nt at server 1
+INFO:     #1: 316ms for inserting into gstore
+INFO:     (average) latency: 660366 usec
+```
+
+2) Add -c option to check and skip duplicate triples in the dataset.
+
+```bash
+wukong> load -c -d /home/datanfs/nfs0/rdfdata/id_lubm_2/
+INFO:     loading ID-mapping file: /home/datanfs/nfs0/rdfdata/id_lubm_2/str_index
+INFO:     loading ID-mapping file: /home/datanfs/nfs0/rdfdata/id_lubm_2/str_normal
+INFO:     loading ID-mapping file: /home/datanfs/nfs0/rdfdata/id_lubm_2/str_index
+INFO:     loading ID-mapping file: /home/datanfs/nfs0/rdfdata/id_lubm_2/str_normal
+INFO:     2 data files and 0 attribute files found in directory (/home/datanfs/nfs0/rdfdata/id_lubm_2/) at server 0
+INFO:     2 data files and 0 attribute files found in directory (/home/datanfs/nfs0/rdfdata/id_lubm_2/) at server 1
+INFO:     load 94802 triples from file /home/datanfs/nfs0/rdfdata/id_lubm_2/id_uni0.nt at server 0
+INFO:     load 122091 triples from file /home/datanfs/nfs0/rdfdata/id_lubm_2/id_uni1.nt at server 0
+INFO:     #0: 222ms for inserting into gstore
+INFO:     load 110672 triples from file /home/datanfs/nfs0/rdfdata/id_lubm_2/id_uni0.nt at server 1
+INFO:     load 145107 triples from file /home/datanfs/nfs0/rdfdata/id_lubm_2/id_uni1.nt at server 1
+INFO:     #1: 784ms for inserting into gstore
+INFO:     (average) latency: 1072962 usec
+```
+
+<a name="check"></a>
+## Graph storage integrity check on Wukong
+This command can help you make sure the correctness of current graph storage.
+
+1) Check the storage integrity related with index vertex.
+
+```bash
+wukong> gsck -i
+INFO:     Graph storage intergity check has started on server 0
+INFO:     Graph storage intergity check has started on server 1
+INFO:     Server#0 has checked 47 index vertices and 0 normal vertices.
+INFO:     Server#1 has checked 49 index vertices and 0 normal vertices.
+INFO:     (average) latency: 18493196 usec
+```
+
+2) Check the storage integrity related with normal vertex.
+
+```bash
+wukong> gsck -n
+INFO:     Graph storage intergity check has started on server 0
+INFO:     Graph storage intergity check has started on server 1
+INFO:     Server#0 has checked 0 index vertices and 110115 normal vertices.
+INFO:     Server#1 has checked 0 index vertices and 110013 normal vertices.
+INFO:     (average) latency: 36454664 usec
+```
+
+3) Check both of them
+
+```bash
+wukong> gsck -a
+INFO:     Graph storage intergity check has started on server 0
+INFO:     Graph storage intergity check has started on server 1
+INFO:     Server#0 has checked 47 index vertices and 110115 normal vertices.
+INFO:     Server#1 has checked 49 index vertices and 110013 normal vertices.
+INFO:     (average) latency: 49943499 usec
+```
