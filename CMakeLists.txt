@@ -17,7 +17,6 @@ set(CMAKE_CXX_COMPILER ${ROOT}/deps/openmpi-1.6.5-install/bin/mpic++)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -fopenmp")
 set(BOOST_LIB "${ROOT}/deps/boost_1_67_0-install/lib")
 
-
 ## Set include paths
 include_directories(deps/boost_1_67_0-install/include)
 include_directories(core)
@@ -65,6 +64,7 @@ if(USE_DTYPE_64BIT)
   add_definitions(-DDTYPE_64BIT)
 endif(USE_DTYPE_64BIT)
 
+## Build Wukong 
+target_link_libraries(wukong zmq rt ibverbs tbb hwloc ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a ${BOOST_LIB}/libboost_program_options.a)
 
-## Build Wukong
-target_link_libraries(wukong zmq rt ibverbs tbb hwloc ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a)
+
