@@ -643,12 +643,12 @@ static void run_gsck(Proxy * proxy, int argc, char **argv)
     bool n_enable = false;
     if (gsck_vm.count("-n"))
         n_enable = true;
-
-    if (gsck_vm.count("-i") || gsck_vm.count("-n")) {
+    // gsck must run with option -i or -n
+    if (!(gsck_vm.count("-i") && gsck_vm.count("-n"))) {
         logstream(LOG_ERROR) << "Cann't run the gsck without -n and -i" <<LOG_endl;
+        logstream(LOG_ERROR) << "You can run with option -i or -n" << LOG_endl;
         return; 
     }
-
 
     /// do gsck
     Logger logger;
