@@ -52,10 +52,11 @@ public:
     unordered_map<pair<ssid_t, ssid_t>, four_num, boost::hash<pair<int, int>>> global_ppcount;
 
     TCP_Adaptor* tcp_adaptor;
-    boost::mpi::communicator* world;
+    int sid;
+    int num_servers;
 
-    data_statistic(TCP_Adaptor* _tcp_adaptor, boost::mpi::communicator* _world)
-        : tcp_adaptor(_tcp_adaptor), world(_world) { }
+    data_statistic(TCP_Adaptor* _tcp_adaptor, int _sid, int _num_servers)
+        : tcp_adaptor(_tcp_adaptor), sid(_sid), num_servers(_num_servers) { }
 
     data_statistic() { }
 
@@ -65,9 +66,9 @@ public:
         oa << (*this);
         tcp_adaptor->send(0, 0, ss.str());
 
-        if (world->rank() == 0) {
+        if (sid == 0) {
             vector<data_statistic> all_gather;
-            for (int i = 0; i < world->size(); i++) {
+            for (int i = 0; i < num_servers; i++) {
                 std::string str;
                 str = tcp_adaptor->recv(0);
                 data_statistic tmp_data;
@@ -159,13 +160,13 @@ public:
 
         send_stat_to_all_machines();
 
-        logstream(LOG_INFO) << "#" << world->rank() << ": load stats of DGraph is finished." << LOG_endl;
+        logstream(LOG_INFO) << "#" << sid << ": load stats of DGraph is finished." << LOG_endl;
 
     }
 
     // after the master server get whole statistics, this method is used to send it to all machines.
     void send_stat_to_all_machines() {
-        if (world->rank() == 0) {
+        if (sid == 0) {
             std::stringstream my_ss;
             boost::archive::binary_oarchive my_oa(my_ss);
             my_oa << global_ptcount
@@ -173,12 +174,12 @@ public:
                   << global_pocount
                   << global_ppcount
                   << global_tyscount;
-            for (int i = 1; i < world->size(); i++) {
+            for (int i = 1; i < num_servers; i++) {
                 tcp_adaptor->send(i, 0, my_ss.str());
             }
         }
 
-        if (world->rank() != 0) {
+        if (sid != 0) {
             std::string str;
             str = tcp_adaptor->recv(0);
             std::stringstream s;
@@ -193,26 +194,27 @@ public:
     }
 
     void load_stat_from_file(string fname) {
-        // data only cached on master server
-        if (world->rank() != 0) return;
 
-        // exit if file does not exist
-        ifstream file(fname.c_str());
-        if (!file.good()) {
-            logstream(LOG_WARNING) << "statistics file "  << fname
-                                   << " does not exsit, pleanse check the fname"
-                                   << " and use load-stat to mannually set it"  << LOG_endl;
-            return;
+        // load data by the master server on local file
+        if (sid == 0){
+            // exit if file does not exist
+            ifstream file(fname.c_str());
+            if (!file.good()) {
+                logstream(LOG_WARNING) << "statistics file "  << fname
+                                    << " does not exsit, pleanse check the fname"
+                                    << " and use load-stat to mannually set it"  << LOG_endl;
+                return;
+            }
+
+            ifstream ifs(fname);
+            boost::archive::binary_iarchive ia(ifs);
+            ia >> global_ptcount;
+            ia >> global_pscount;
+            ia >> global_pocount;
+            ia >> global_tyscount;
+            ia >> global_ppcount;
+            ifs.close();
         }
-
-        ifstream ifs(fname);
-        boost::archive::binary_iarchive ia(ifs);
-        ia >> global_ptcount;
-        ia >> global_pscount;
-        ia >> global_pocount;
-        ia >> global_tyscount;
-        ia >> global_ppcount;
-        ifs.close();
 
         send_stat_to_all_machines();
 
@@ -222,7 +224,7 @@ public:
 
     void store_stat_to_file(string fname) {
         // data only cached on master server
-        if (world->rank() != 0) return;
+        if (sid != 0) return;
 
         // avoid saving when it already exsits
         ifstream file(fname.c_str());

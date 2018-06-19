@@ -128,7 +128,7 @@ main(int argc, char *argv[])
     DGraph dgraph(sid, mem, &str_server, global_input_folder);
 
     // prepare statistics for SPARQL optimizer
-    data_statistic stat(tcp_adaptor, &world);
+    data_statistic stat(tcp_adaptor, sid, world.size());
     if (global_enable_planner) {
         if (global_generate_statistics) {
             dgraph.gstore.generate_statistic(stat);

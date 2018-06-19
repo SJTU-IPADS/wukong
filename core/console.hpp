@@ -675,8 +675,8 @@ void run_gsck(Proxy * proxy, int argc, char **argv)
  */
 void run_load_stat(Proxy * proxy, int argc, char **argv)
 {
-    // use the master proxy thread to load statistics
-    if (!IS_MASTER(proxy))
+    // use every main thread to load statistics on every machine
+    if (proxy->tid != 0)
         return;
 
     // parse command
