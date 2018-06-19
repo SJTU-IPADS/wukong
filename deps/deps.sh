@@ -2,7 +2,7 @@
 trap - ERR
 # vars
 openmpi="openmpi-1.6.5"
-boost="boost_1_58_0"
+boost="boost_1_67_0"
 tbb="tbb44_20151115oss"
 zeromq="zeromq-4.0.5"
 hwloc="hwloc-1.11.7"
@@ -48,13 +48,13 @@ install_boost(){
         mkdir "${boost}-install"
         if [ ! -d "${boost}" ]; then
             if [ ! -f "${boost}.tar.gz" ]; then
-                wget "https://cecas.clemson.edu/dealii/mirror/${boost}.tar.gz"
+                wget "https://dl.bintray.com/boostorg/release/1.67.0/source/boost_1_67_0.tar.gz"
             fi
             tar zxf "${boost}.tar.gz"
         fi
         cd "$WUKONG_ROOT/deps/${boost}"
         trap - ERR
-        ./bootstrap.sh --prefix="$WUKONG_ROOT/deps/${boost}-install/" 2>>install_deps.log
+        ./bootstrap.sh --prefix="$WUKONG_ROOT/deps/${boost}-install" 2>>install_deps.log
         echo "using mpi : \$WUKONG_ROOT/deps/${openmpi}-install/bin/mpicc ;" >> project-config.jam
         ./b2 install 2>>install_deps.log
     else

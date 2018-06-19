@@ -15,10 +15,10 @@ add_definitions(-std=c++11)
 ## Set dependencies
 set(CMAKE_CXX_COMPILER ${ROOT}/deps/openmpi-1.6.5-install/bin/mpic++)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -fopenmp")
-set(BOOST_LIB "${ROOT}/deps/boost_1_58_0-install/lib")
+set(BOOST_LIB "${ROOT}/deps/boost_1_67_0-install/lib")
 
 ## Set include paths
-include_directories(deps/boost_1_58_0-install/include)
+include_directories(deps/boost_1_67_0-install/include)
 include_directories(core)
 include_directories(utils)
 include_directories(rdma_lib)
@@ -47,7 +47,7 @@ if(USE_HADOOP)
 endif(USE_HADOOP)
 
 #### Dynamic GStore
-option (USE_DYNAMIC_GSTORE "enable dynamic gstore" ON)
+option (USE_DYNAMIC_GSTORE "enable dynamic gstore" OFF)
 if(USE_DYNAMIC_GSTORE)
   add_definitions(-DDYNAMIC_GSTORE)
 endif(USE_DYNAMIC_GSTORE)
@@ -66,4 +66,5 @@ endif(USE_DTYPE_64BIT)
 
 ## Build Wukong 
 target_link_libraries(wukong zmq rt ibverbs tbb hwloc ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a ${BOOST_LIB}/libboost_program_options.a)
+
 

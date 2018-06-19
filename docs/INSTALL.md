@@ -36,12 +36,12 @@ Add the root path of Wukong (e.g., `/home/rchen/wukong`) to the bash script (i.e
 
 ```bash
 # Wukong configuration
-export WUKONG_ROOT=[/path/to/wukong]   
+export WUKONG_ROOT=[/path/to/wukong]
 ```
 
 We provide a shell script (i.e., `$WUKONG_ROOT/deps/deps.sh`) to download and install most of required dependencies automatically within the local sub-directory (i.e., `$WUKONG_ROOT/deps/`).
 
-> Currently, we requires OpenMPI v1.6.5, Boost v1.58, Intel TBB v4.4.2, ZeroMQ v4.0.5, HWLOC v1.11.7, and LibRDMA v1.0.0 (optional).
+> Currently, we requires OpenMPI v1.6.5, Boost v1.67.0, Intel TBB v4.4.2, ZeroMQ v4.0.5, HWLOC v1.11.7, and LibRDMA v1.0.0 (optional).
 
 ```bash
 $cd deps
@@ -49,7 +49,7 @@ $cd deps
 $source deps.sh
 ```
 
-> If you run Wukong on non-RDMA networks, you could skip LibRDMA by running `source deps.sh no-rdma` 
+> If you run Wukong on non-RDMA networks, you could skip LibRDMA by running `source deps.sh no-rdma`
 
 You can also use the same shell script to uninstall dependencies.
 
@@ -113,7 +113,9 @@ $./build.sh
 
 + **Enable/disable versatile queries support** (default: OFF): To support versatile queries (e.g., ?S ?P ?O), you need to add a parameter `-DUSE_VERSATILE=ON` for cmake (i.e., `cmake .. -DUSE_VERSATILE=ON` or `./build.sh -DUSE_VERSATILE=ON`). Noted that this feature will use more main memory to store RDF graph.
 
-+ **Enable/disable 64-bit ID** (default: OFF): The 32-bit ID is enough to support the dataset with more than 2 billion unified strings. If you want to support more large dataset (like LUBM-102400), yyou need to add a parameter `-DUSE_DTYPE_64BIT=ON` for cmake (i.e., `cmake .. -DUSE_DTYPE_64BIT=ON` or `./build.sh -DUSE_DTYPE_64BIT=ON`). Note that it will consume more memory and slightly increase the query latency.
++ **Enable/disable 64-bit ID** (default: OFF): The 32-bit ID is enough to support the dataset with more than 2 billion unified strings. If you want to support more large dataset (like LUBM-102400), you need to add a parameter `-DUSE_DTYPE_64BIT=ON` for cmake (i.e., `cmake .. -DUSE_DTYPE_64BIT=ON` or `./build.sh -DUSE_DTYPE_64BIT=ON`). Note that it will consume more memory and slightly increase the query latency.
+
++ **Enable/disable dynamic data loading support** (default: OFF): To support data loading after Wukong has been initialized, you need to add a parameter `-USE_DYNAMIC_GSTORE=ON` for cmake (i.e., `cmake .. -USE_DYNAMIC_GSTORE=ON` or `./build.sh -USE_DYNAMIC_GSTORE=ON`). Noted that this feature will cost a bit more time on initialization.
 
 > CMake will automatically cache the latest parameters.
 
@@ -142,7 +144,7 @@ global_silent               1
 global_enable_planner       0
 ```
 
-The main configuration items:  
+The main configuration items:
 
 * `global_num_proxies` and `global_num_engines`: set the number of proxy/engine threads
 * `global_input_folder`: set the path to folder for input files
