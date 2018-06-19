@@ -46,14 +46,15 @@ bool enable_oneshot = false;
 string oneshot_cmd = "";
 
 template<typename T>
-static void console_send(int sid, int tid, T &r) {
+static void console_send(int sid, int tid, T &r)
+{
     stringstream ss;
     boost::archive::binary_oarchive oa(ss);
     oa << r;
     con_adaptor->send(sid, tid, ss.str());
 }
 
-    template<typename T>
+template<typename T>
 static T console_recv(int tid)
 {
     string str;
@@ -88,6 +89,135 @@ static void console_barrier(int tid)
 #define IS_MASTER(_p) ((_p)->sid == 0 && (_p)->tid == 0)
 #define PRINT_ID(_p) (cout << "[" << (_p)->sid << "-" << (_p)->tid << "]$ ")
 
+
+// options
+options_description all_desc("These are common Wukong commands: ");
+options_description       help_desc("help                display help infomation");
+options_description       quit_desc("quit                quit from the console");
+options_description     config_desc("config <args>       run commands for configueration");
+options_description     sparql_desc("sparql <args>       run SPARQL queries in single or batch mode");
+options_description sparql_emu_desc("sparql-emu <args>   emulate clients to continuously send SPARQL queries");
+options_description       load_desc("load <args>         load RDF data into dynamic (in-memmory) graph store");
+options_description       gsck_desc("gsck <args>         check the integrity of (in-memmory) graph storage");
+options_description  load_stat_desc("load-stat           load statistics of SPARQL query optimizer");
+options_description store_stat_desc("store-stat          store statistics of SPARQL query optimizer");
+
+
+/*
+ * init the options_description
+ * it should add the option to different options_description
+ * all should be added to all_desc
+ */
+void init_options_desc()
+{
+    // e.g., wukong> help
+    all_desc.add(help_desc);
+
+    // e.g., wukong> quit
+    all_desc.add(quit_desc);
+
+    // e.g., wukong> config <args>
+    config_desc.add_options()
+    (",v", "print current config")
+    (",l", value<string>()->value_name("<fname>"), "load config items from <fname>")
+    (",s", value<string>()->value_name("<string>"), "set config items by <str> (format: item1=val1&item2=...)")
+    ("help,h", "help message about config")
+    ;
+    all_desc.add(config_desc);
+
+    // e.g., wukong> sparql <args>
+    sparql_desc.add_options()
+    (",f", value<string>()->value_name("<fname>"), "run a single query from <fname>")
+    (",m", value<int>()->default_value(1)->value_name("<factor>"), "set multi-threading <factor> for heavy query")
+    (",n", value<int>()->default_value(1)->value_name("<num>"), "run <num> times")
+    (",v", value<int>()->default_value(0)->value_name("<lines>"), "print at most <lines> of results")
+    (",o", value<string>()->value_name("<fname>"), "output results into <fname>")
+    ("batch,b", value<string>()->value_name("<fname>"), "run a batch of queries configured by <fname>")
+    ("help,h", "help message about sparql")
+    ;
+    all_desc.add(sparql_desc);
+
+    // e.g., wukong> sparql-emu <args>
+    sparql_emu_desc.add_options()
+    (",f", value<string>()->value_name("<fname>"), "run queries generated from temples configured by <fname>")
+    (",d", value<int>()->default_value(10)->value_name("<sec>"), "eval <sec> seconds (default: 10)")
+    (",w", value<int>()->default_value(5)->value_name("<sec>"), "warmup <sec> seconds (default: 5)")
+    (",p", value<int>()->default_value(20)->value_name("<num>"), "send <num> queries in parallel (default: 20)")
+    ("help,h", "help message about sparql-emu")
+    ;
+    all_desc.add(sparql_emu_desc);
+
+    // e.g., wukong> load <args>
+    load_desc.add_options()
+    ("directory,d", value<string>()->value_name("<dname>"), "load data from directory <dname>")
+    ("check,c",  "check and skip duplicate rdf triple")
+    ("help,h", "help message about load")
+    ;
+    all_desc.add(load_desc);
+
+    // e.g., wukong> gsck <args>
+    gsck_desc.add_options()
+    ("index,i", "check from index key/value pair to normal key/value pair")
+    ("normal,n", "check from normal key/value pair to index key/value pair")
+    ("all,a", "check all above")
+    ("help,h", "help message about gsck")
+    ;
+    all_desc.add(gsck_desc);
+
+    // e.g., wukong> load-stat
+    load_stat_desc.add_options()
+    (",f", value<string>()->value_name("<fname>"), "load statistics from <fname> located at data folder")
+    ("help,h", "help message about load-stat")
+    ;
+    all_desc.add(load_stat_desc);
+
+    // e.g., wukong> store-stat
+    store_stat_desc.add_options()
+    (",f", value<string>()->value_name("<fname>"), "store statistics to <fname> located at data folder")
+    ("help,h", "help message about store-stat")
+    ;
+    all_desc.add(store_stat_desc);
+}
+
+
+/**
+ * fail to parse the command
+ */
+static void fail_to_parse(Proxy *proxy, int argc, char** argv)
+{
+    if (IS_MASTER(proxy)) {
+        string cmd;
+        for (int i = 0; i < argc; i++)
+            cmd = cmd + argv[i] + " ";
+
+        logstream(LOG_ERROR) << "Failed to run the command: " << cmd << LOG_endl;
+        cout << endl
+             << "Input \'help\' command to get more information." << endl;
+    }
+}
+
+/**
+ * split the string into char** by the space
+ * the argc is the name of char*
+ * the return value argv is the type of char**
+ */
+static char ** cmd2args(string str, int &argc)
+{
+    vector<string> fields;
+
+    split(fields, str, is_any_of(" "));
+
+    argc = fields.size(); // set the argc as number of arguments
+    char** argv = new char*[argc + 1];
+    for (int i = 0; i < argc; i++) {
+        argv[i] = new char[fields[i].length() + 1];
+        strcpy(argv[i], fields[i].c_str());
+    }
+    argv[argc] = NULL;
+
+    return argv;
+}
+
 static void file2str(string fname, string &str)
 {
     ifstream file(fname.c_str());
@@ -111,255 +241,130 @@ static void args2str(string &str)
 }
 
 
-
-// options define
-// the all commmand 
-options_description combine_desc("These are common Wukong commands: ");
-// define the commmand
-options_description help_desc("help                display help infomation");
-options_description quit_desc("quit                quit from console");
-options_description config_desc("config <args>       run commands on config");
-options_description sparql_desc("sparql <args>       run a single SPARQL query");
-options_description sparql_emu_desc("sparql-emu <args>   emulate clients to continuously send SPARQL queries");
-options_description load_desc("load <args>         load linked data into dynamic (in-memmory) graph store");
-options_description gsck_desc("gsck <args>         check the graph storage integrity");
-options_description load_stat_desc("load-stat           load statistics from a file");
-options_description store_stat_desc("store-stat           store statistics to a file");
-
-
-
-/*
- * init the options_description
- * it should add the option to different options_description
- * all should be added to combine_desc
- */
-void init_options_desc() {
-    combine_desc.add(help_desc); // add it to combine_desc 
-    combine_desc.add(quit_desc); // add it to combine_desc 
-
-    // add the options that should be parsed
-    config_desc.add_options() 
-        ("help,h", "help message about config")
-        (",v", "print current config")
-        (",l", value<string>()->value_name("<file>"), "load config items from <file>")
-        (",s", value<string>()->value_name("<string>"), "set config items by <str> (format: item1=val1&item2=...)")
-        ;
-    combine_desc.add(config_desc); // add it to combine_desc 
-
-    sparql_desc.add_options() 
-        ("help,h", "help message about sparql")
-        (",f", value<string>()->value_name("<file>"), "run a single query from <file>")
-        (",m", value<int>()->default_value(1)->value_name("<factor>"), "set multi-threading factor <factor> for heavy queries")
-        (",n", value<int>()->default_value(1)->value_name("<num>"), "run <num> times")
-        (",v", value<int>()->default_value(0)->value_name("<num>"), "print at most <num> lines of results")
-        (",o", value<string>()->value_name("<file>"), "output results into <file>")
-        ("batch,b", value<string>()->value_name("<file>"), "run a batch of queries configured by <file>")
-        ;
-    combine_desc.add(sparql_desc); // add it to combine_desc 
-
-    sparql_emu_desc.add_options() 
-        ("help,h", "help message about sparql-emu")
-        (",f", value<string>()->value_name("<file>"), "run queries generated from temples configured by <file>")
-        (",d", value<int>()->default_value(10)->value_name("<sec>"), "eval <sec> seconds (default: 10)")
-        (",w", value<int>()->default_value(5)->value_name("<sec>"), "warmup <sec> seconds (default: 5)")
-        (",p", value<int>()->default_value(20)->value_name("<num>"), "send <num> queries in parallel (default: 20)")
-        ;
-    combine_desc.add(sparql_emu_desc); // add it to combine_desc 
-
-    load_desc.add_options() 
-        ("help,h", "help message about load")
-        ("directory,d", value<string>()->value_name("<dname>"), "load data from directory <dname>")
-        ("check,c",  "check and skip duplicate rdf triple")
-        ;
-    combine_desc.add(load_desc); // add it to combine_desc 
-
-    gsck_desc.add_options() 
-        ("help,h", "help message about gsck")
-        ("index,i", "check from index key/value pair to normal key/value pair")
-        ("normal,n","check from normal key/value pair to index key/value pair")
-        ("all,a", "check all above")
-        ;
-    combine_desc.add(gsck_desc); // add it to combine_desc 
-
-    load_stat_desc.add_options() 
-        ("help,h", "help message about load-stat")
-        (",f", value<string>()->value_name("<file>"), "load statistics from <file> located at data folder")
-        ;
-    combine_desc.add(load_stat_desc); // add it to combine_desc 
-
-    store_stat_desc.add_options() 
-        ("help,h", "help message about store-stat")
-        (",f", value<string>()->value_name("<file>"), "store statistics to <file> located at data folder")
-        ;
-    combine_desc.add(store_stat_desc); // add it to combine_desc 
-
-}
-
-/*
- * print help of all command
+/**
+ * print help of all commands
  */
 void print_help(void)
 {
-    cout << combine_desc <<endl;
-}
-
-/*
- * fail to parse the command
- */
-void fail_to_parse(Proxy *proxy, int argc, char** argv){
-    if (IS_MASTER(proxy)) {
-        string cmd;
-        for(int i=0; i<argc; i++) {
-            cmd = cmd + argv[i] + " ";
-        }
-        logstream(LOG_ERROR) << "Failed to run the command: " << cmd << LOG_endl;
-        print_help();
-    }
+    cout << all_desc << endl;
 }
 
 /**
- * split the string into  char** by the space
- * the argc is the name of char*
- * the return value argv is  char** 
+ * run the 'config' command
+ * usage:
+ * config [options]
+ *   -v          print current config
+ *   -l <fname>  load config items from <file>
+ *   -s <str>    set config items by <str> (format: item1=val1&item2=...)
  */
-char**  str2command_args(string str, int& argc){
-    vector<string> fields;
-
-    split( fields, str,  is_any_of( " " ) );
-    // set the argc as number of argument 
-    argc = fields.size();
-    char** argv = new char*[argc + 1];
-    for(int i=0; i< argc; i++) {
-        argv[i] = new char[fields[i].length() + 1];
-        strcpy(argv[i],fields[i].c_str());
-    }
-    argv[argc] = NULL;
-    return argv;
-}
-
-/*
- * execute the config command
- */
-void run_config(Proxy *proxy, int argc, char** argv) {
-    // only the main proxy do it 
-    if (proxy->tid != 0) 
+static void run_config(Proxy *proxy, int argc, char **argv)
+{
+    // use the main proxy thread on each server to configure system
+    if (proxy->tid != 0)
         return;
 
-    string fname, str;
-
-    // variables map that store the mapping of options and its value
+    // parse command
     variables_map config_vm;
-    // begin to parse
     try {
         store(parse_command_line(argc, argv, config_desc), config_vm);
-    }
-    catch (...){ // something go wrong
+    } catch (...) {
         fail_to_parse(proxy, argc, argv);
         return;
     }
-    // check and refine the variables_map
     notify(config_vm);
 
-    // different flag
+    // parse options
     if (config_vm.count("help")) {
-        if (IS_MASTER(proxy)) 
+        if (IS_MASTER(proxy))
             cout << config_desc;
         return;
     }
 
-    if(config_vm.count("-f"))
-        fname = config_vm["-f"].as<string>();
-
-    if(config_vm.count("-s"))
-        str = config_vm["-s"].as<string>();
-
-    if (config_vm.count("-v")) { // -v
+    if (config_vm.count("-v")) {
         if (IS_MASTER(proxy))
             print_config();
-    } else if (config_vm.count("-l") || config_vm.count("-s")) { // -l <file> or -s <str>
-        if (IS_MASTER(proxy)) {
-            if (config_vm.count("-l")) // -l
-                file2str(fname, str);
-            else if (config_vm.count("-s")) // -s
-                args2str(str);
-
-            // send <str> to all consoles
-            for (int i = 1; i < global_num_servers; i++)
-                console_send<string>(i, 0, str);
-        } else {
-            // recieve <str>
-            str = console_recv<string>(proxy->tid);
-        }
-
-        if (!str.empty()) {
-            reload_config(str);
-        } else {
-            if (IS_MASTER(proxy))
-                logstream(LOG_ERROR) << "Failed to load config file: " << fname << LOG_endl;
-        }
+        return;
     }
 
+    // exclusive
+    if (!(config_vm.count("-l") ^ config_vm.count("-s"))) {
+        fail_to_parse(proxy, argc, argv); // invalid cmd
+        return;
+    }
+
+    string fname, str;
+    if (IS_MASTER(proxy)) {
+        if (config_vm.count("-l")) {
+            fname = config_vm["-l"].as<string>();
+            file2str(fname, str);
+        }
+
+        if (config_vm.count("-s")) {
+            str = config_vm["-s"].as<string>();
+            args2str(str);
+        }
+
+        // send <str> to all consoles
+        for (int i = 1; i < global_num_servers; i++)
+            console_send<string>(i, 0, str);
+    } else {
+        // recieve <str>
+        str = console_recv<string>(proxy->tid);
+    }
+
+    /// do config
+    if (!str.empty()) {
+        reload_config(str);
+    } else {
+        if (IS_MASTER(proxy))
+            logstream(LOG_ERROR) << "Failed to load config file: " << fname << LOG_endl;
+    }
 }
 
-/*
- * run the sparql command
- * usage: sparql -f <file> [<args>]
- *               -n <num>
- *               -v <num>
- *               -o <fname>
- *               -m <factor>
- *               -b <file>
+
+/**
+ * run the 'sparql' command
+ * usage:
+ * sparql -f <fname> [options]
+ *   -m <factor>  set multi-threading factor <factor> for heavy queries
+ *   -n <num>     run <num> times
+ *   -v <lines>   print at most <lines> of results
+ *   -o <fname>   output results into <fname>
+ *
+ * sparql -b <fname>
  */
-void run_sparql_cmd(Proxy *proxy, int argc, char** argv) {
-    // use the main proxy thread to run a single query
-    if (!IS_MASTER(proxy)) 
+void run_sparql(Proxy * proxy, int argc, char **argv)
+{
+    // use the master proxy thread to run SPARQL queries in single mode or batch mode
+    if (!IS_MASTER(proxy))
         return;
 
-    // file name of query
-    string fname;
-    int cnt = 1, nlines = 0, mt_factor = 1;
-    // the variables_map 
-    variables_map sparql_vm;
     // parse command
+    variables_map sparql_vm;
     try {
         store(parse_command_line(argc, argv, sparql_desc), sparql_vm);
-    }
-    catch (...){// something go wrong
+    } catch (...) { // something go wrong
         fail_to_parse(proxy, argc, argv);
         return;
     }
-
     notify(sparql_vm);
 
-    // different flag
+    // parse options
     if (sparql_vm.count("help")) {
-        if (IS_MASTER(proxy)) 
+        if (IS_MASTER(proxy))
             cout << sparql_desc;
         return;
     }
 
-    if (!(sparql_vm.count("-f") ^ sparql_vm.count("batch"))){ 
+    // exclusive
+    if (!(sparql_vm.count("-f") ^ sparql_vm.count("-b"))) {
         fail_to_parse(proxy, argc, argv); // invalid cmd
         return;
     }
-    if (sparql_vm.count("-m")) {
-        mt_factor = sparql_vm["-m"].as<int>();
-    }
-    if (sparql_vm.count("-n")) {
-        cnt = sparql_vm["-n"].as<int>();
-    }
-    if (sparql_vm.count("-v")) {
-        nlines = sparql_vm["-v"].as<int>();
-    }
-    // [single mode]
-    //  usage: sparql -f <file> [<args>]
-    //  args:
-    //    -n <num>
-    //    -v <num>
-    //    -o <fname>
+
+    /// [single mode]
     if (sparql_vm.count("-f")) {
-        fname = sparql_vm["-f"].as<string>();
-        // read a SPARQL query from a file
+        string fname = sparql_vm["-f"].as<string>();
         ifstream ifs(fname);
         if (!ifs.good()) {
             logstream(LOG_ERROR) << "Query file not found: " << fname << LOG_endl;
@@ -367,20 +372,28 @@ void run_sparql_cmd(Proxy *proxy, int argc, char** argv) {
             return;
         }
 
-        if (global_silent) { // not retrieve the query results
-            if (nlines > 0) {
-                logstream(LOG_ERROR) << "Can't print results (-v) with global_silent." << LOG_endl;
-                fail_to_parse(proxy, argc, argv); // invalid cmd
-                return;
-            }
+        int cnt = 1, nlines = 0, mt_factor = 1;
+        string ofname;
 
-            if (sparql_vm.count("-o")) {
-                logstream(LOG_ERROR) << "Can't output results (-o) with global_silent." << LOG_endl;
+        if (sparql_vm.count("-m"))
+            mt_factor = sparql_vm["-m"].as<int>();
+        if (sparql_vm.count("-n"))
+            cnt = sparql_vm["-n"].as<int>();
+        if (sparql_vm.count("-v"))
+            nlines = sparql_vm["-v"].as<int>();
+        if (sparql_vm.count("-o"))
+            ofname = sparql_vm["-o"].as<string>();
+
+        if (global_silent) { // not retrieve the query results
+            if (nlines > 0 || sparql_vm.count("-o")) {
+                logstream(LOG_ERROR) << "Can't print/output results (-v/-o) with global_silent."
+                                     << LOG_endl;
                 fail_to_parse(proxy, argc, argv); // invalid cmd
                 return;
             }
         }
 
+        /// do sparql
         SPARQLQuery reply;
         SPARQLQuery::Result &result = reply.result;
         Logger logger;
@@ -390,27 +403,22 @@ void run_sparql_cmd(Proxy *proxy, int argc, char** argv) {
             fail_to_parse(proxy, argc, argv); // invalid cmd
             return;
         }
-
         logger.print_latency(cnt);
         logstream(LOG_INFO) << "(last) result size: " << result.row_num << LOG_endl;
 
         // print or dump results
-        if (!global_silent && !result.blind && (nlines > 0 || sparql_vm.count("output"))) {
+        if (!global_silent && !result.blind) {
             if (nlines > 0)
-                result.print_result(min(result.get_row_num(), nlines), proxy->str_server);
+                result.print_result(min(nlines, result.get_row_num()), proxy->str_server);
 
             if (sparql_vm.count("-o"))
-                result.dump_result(sparql_vm["-o"].as<string>(), result.get_row_num(), proxy->str_server);
+                result.dump_result(ofname, result.get_row_num(), proxy->str_server);
         }
     }
 
-    // [batch mode]
-    //  usage: sparql -b <fname>
-    //  file-format:
-    //    sparql -f <fname> [<args>]
-    //    sparql -f <fname> [<args>]
-    if (sparql_vm.count("batch")) {
-        fname = sparql_vm["batch"].as<string>();
+    /// [batch mode]
+    if (sparql_vm.count("-b")) {
+        string fname = sparql_vm["-b"].as<string>();
         ifstream ifs(fname);
         if (!ifs.good()) {
             logstream(LOG_ERROR) << "Query file not found: " << fname << LOG_endl;
@@ -418,79 +426,71 @@ void run_sparql_cmd(Proxy *proxy, int argc, char** argv) {
             return;
         }
 
+        /// do sparql
         logstream(LOG_INFO) << "Batch-mode starting ..." << LOG_endl;
 
         string sg_cmd; // a single command line
         while (getline(ifs, sg_cmd)) {
             int sg_argc = 0;
-            char** sg_argv = str2command_args(sg_cmd, sg_argc);
+            char** sg_argv = cmd2args(sg_cmd, sg_argc);
 
             string tk1, tk2;
             tk1 = string(sg_argv[0]);
             tk2 = string(sg_argv[1]);
             if (tk1 == "sparql" && tk2 == "-f") {
                 cout << "Run the command: " << sg_cmd << endl;
-                run_sparql_cmd(proxy, sg_argc, sg_argv);
+                run_sparql(proxy, sg_argc, sg_argv);
                 cout << endl;
             } else {
                 // skip and go on
                 logstream(LOG_ERROR) << "Failed to run the command: " << sg_cmd << LOG_endl;
                 logstream(LOG_ERROR) << "only support single sparql query in batch mode "
-                    << "(e.g., sparql -f ...)" << LOG_endl;
+                                     << "(e.g., sparql -f ...)" << LOG_endl;
             }
         }
 
         logstream(LOG_INFO) << "Batch-mode end." << LOG_endl;
     }
-
 }
 
-// usage: sparql-emu -f <file> [<args>]
-//   -d <sec>
-//   -w <sec>
-//   -p <num>
-void run_sparql_emu(Proxy *proxy, int argc, char** argv) {
-    /// file name of query
-    string fname;
-    int duration = 10, warmup = 5, parallel_factor = 20;
-    // the variables_map 
-    variables_map sparql_emu_vm;
+/**
+ * run the 'sparql-emu' command
+ * usage:
+ * sparql-emu -f <fname> [options]
+ *   -d <sec>   eval <sec> seconds (default: 10)
+ *   -w <sec>   warmup <sec> seconds (default: 5)
+ *   -p <num>   send <num> queries in parallel (default: 20)
+ */
+void run_sparql_emu(Proxy * proxy, int argc, char **argv)
+{
+    // use all proxy threads to run SPARQL emulators
+
     // parse command
+    variables_map sparql_emu_vm;
     try {
         store(parse_command_line(argc, argv, sparql_emu_desc), sparql_emu_vm);
-    }
-    catch (...){// something go wrong
+    } catch (...) { // something go wrong
         fail_to_parse(proxy, argc, argv);
         return;
     }
-
     notify(sparql_emu_vm);
 
-    // different flag
+    // parse options
     if (sparql_emu_vm.count("help")) {
-        if (IS_MASTER(proxy)) 
+        if (IS_MASTER(proxy))
             cout << sparql_emu_desc;
         return;
     }
 
-    if (!sparql_emu_vm.count("-f")) { 
+    string fname;
+    if (!sparql_emu_vm.count("-f")) {
         fail_to_parse(proxy, argc, argv); // invalid cmd
         return;
     } else {
         fname = sparql_emu_vm["-f"].as<string>();
     }
-    if (!sparql_emu_vm.count("-d")) { 
-        duration = sparql_emu_vm["-d"].as<int>();
-    }
-    if (!sparql_emu_vm.count("-w")) { 
-        warmup = sparql_emu_vm["-w"].as<int>();
-    }
-    if (!sparql_emu_vm.count("-p")) { 
-        parallel_factor = sparql_emu_vm["-p"].as<int>();
-    }
 
-
-    // read config file of a SPARQL emulator
+    // config file for the SPARQL emulator
     ifstream ifs(fname);
     if (!ifs.good()) {
         logstream(LOG_ERROR) << "Configure file not found: " << fname << LOG_endl;
@@ -498,22 +498,34 @@ void run_sparql_emu(Proxy *proxy, int argc, char** argv) {
         return;
     }
 
+    int duration = 10, warmup = 5, parallel_factor = 20;
+    if (!sparql_emu_vm.count("-d"))
+        duration = sparql_emu_vm["-d"].as<int>();
+
+    if (!sparql_emu_vm.count("-w"))
+        warmup = sparql_emu_vm["-w"].as<int>();
+
+    if (!sparql_emu_vm.count("-p"))
+        parallel_factor = sparql_emu_vm["-p"].as<int>();
+
     if (duration <= 0 || warmup < 0 || parallel_factor <= 0) {
         logstream(LOG_ERROR) << "invalid parameters for SPARQL emulator! "
-            << "(duration=" << duration << ", warmup=" << warmup
-            << ", parallel_factor=" << parallel_factor << ")" << LOG_endl;
+                             << "(duration=" << duration << ", warmup=" << warmup
+                             << ", parallel_factor=" << parallel_factor << ")" << LOG_endl;
         fail_to_parse(proxy, argc, argv); // invalid cmd
         return;
     }
 
     if (duration <= warmup) {
         logstream(LOG_INFO) << "Duration time (" << duration
-            << "sec) is less than warmup time ("
-            << warmup << "sec)." << LOG_endl;
+                            << "sec) is less than warmup time ("
+                            << warmup << "sec)." << LOG_endl;
         fail_to_parse(proxy, argc, argv); // invalid cmd
         return;
     }
 
+
+    /// do sparql-emu
     Logger logger;
     proxy->run_query_emu(ifs, duration, warmup, parallel_factor, logger);
 
@@ -536,214 +548,227 @@ void run_sparql_emu(Proxy *proxy, int argc, char** argv) {
     }
 }
 
-
-
-void run_load(Proxy *proxy, int argc, char**argv) {
-    // use the main proxy thread to run gstore checker
-    if (!IS_MASTER(proxy)) 
+/**
+ * run the 'load' command
+ * usage:
+ * load -d <dname> [options]
+ *   -c    check duplication or not
+ */
+void run_load(Proxy * proxy, int argc, char **argv)
+{
+    // use the master proxy thread to dyanmically load RDF data
+    if (!IS_MASTER(proxy))
         return;
 
 #if DYNAMIC_GSTORE
-    string dname;
-    // the variables_map 
-    variables_map load_vm;
     // parse command
+    variables_map load_vm;
     try {
         store(parse_command_line(argc, argv, load_desc), load_vm);
-    }
-    catch (...){// something go wrong
+    } catch (...) {
         fail_to_parse(proxy, argc, argv);
         return;
     }
-
     notify(load_vm);
 
-    // different flag
+    // parse options
     if (load_vm.count("help")) {
-        if (IS_MASTER(proxy)) 
+        if (IS_MASTER(proxy))
             cout << load_desc;
         return;
     }
 
-    if (!load_vm.cout("directory"))
-    {
-        // invalid cmd
+    string dname;
+    if (!load_vm.cout("-d")) {
         fail_to_parse(proxy, argc, argv);
-        return ;
+        return ; // invalid cmd
     } else {
-        dname = load_vm["directory"].ad<string>();
+        dname = load_vm["-d"].ad<string>();
     }
 
-    // force a "/" at the end of dname.
-    if (dname[dname.length() - 1] != '/')
-        dname = dname + "/";
-
-    bool c_enable =false;
-    if(load_vm.count("check")) {
+    bool c_enable = false;
+    if (load_vm.count("-c"))
         c_enable = true;
-    }
+
+
+    /// do load
+    if (dname[dname.length() - 1] != '/')
+        dname = dname + "/"; // force a "/" at the end of dname.
+
     Logger logger;
     RDFLoad reply;
     int ret = proxy->dynamic_load_data(dname, reply, logger, c_enable);
     if (ret != 0) {
         logstream(LOG_ERROR) << "Failed to load dynamic data from directory " << dname
-            << " (ERRNO: " << ret << ")!" << LOG_endl;
+                             << " (ERRNO: " << ret << ")!" << LOG_endl;
         return;
     }
     logger.print_latency();
 #else
-    logstream(LOG_ERROR) << "Can't load linked data into static graph-store." << LOG_endl;
+    logstream(LOG_ERROR) << "Can't load data into static graph store." << LOG_endl;
     logstream(LOG_ERROR) << "You can enable it by building Wukong with -DUSE_DYNAMIC_GSTORE=ON." << LOG_endl;
 #endif
-
 }
 
-void run_gsck(Proxy *proxy, int argc, char**argv) {
-    // use the main proxy thread to run gstore checker
-    if (!IS_MASTER(proxy)) 
+/**
+ * run the 'gsck' command
+ * usage:
+ * gsck [options]
+ *   -i   check from index key/value pair to normal key/value pair
+ *   -n   check from normal key/value pair to index key/value pair
+ *   -a   check all above
+ */
+void run_gsck(Proxy * proxy, int argc, char **argv)
+{
+    // use the master proxy thread to run gstore checker
+    if (!IS_MASTER(proxy))
         return;
 
-    bool i_enable = false;
-    bool n_enable = false;
-
-    // the variables_map 
-    variables_map gsck_vm;
     // parse command
+    variables_map gsck_vm;
     try {
         store(parse_command_line(argc, argv, gsck_desc), gsck_vm);
-    }
-    catch (...){
+    } catch (...) {
         fail_to_parse(proxy, argc, argv);
         return;
     }
-
     notify(gsck_vm);
 
-    // different flag
+    // parse options
     if (gsck_vm.count("help")) {
-        if (IS_MASTER(proxy)) 
-            cout << gsck_desc;
+        cout << gsck_desc;
         return;
     }
-    if (gsck_vm.count("index")) {
+
+    bool i_enable = false;
+    if (gsck_vm.count("-i"))
         i_enable = true;
-    }
-    if (gsck_vm.count("normal")) {
+
+    bool n_enable = false;
+    if (gsck_vm.count("-n"))
         n_enable = true;
-    }
-    if (gsck_vm.count("all")) {
+
+    if (gsck_vm.count("-a")) {
         i_enable = true;
         n_enable = true;
     }
 
+    /// FIXME: how to deal with command without any options?
+
+    /// do gsck
     Logger logger;
     GStoreCheck reply;
     int ret = proxy->gstore_check(reply, logger, i_enable, n_enable);
     if (ret != 0) {
-        logstream(LOG_ERROR) << "Some error found in gstore "
-            << " (ERRNO: " << ret << ")!" << LOG_endl;
+        logstream(LOG_ERROR) << "Some error found in gstore!"
+                             << " (ERRNO: " << ret << ")" << LOG_endl;
         return;
     }
     logger.print_latency();
-
 }
 
-void run_load_stat(Proxy *proxy, int argc, char**argv) {
-    // use the main proxy thread to load statistics
-    if (!IS_MASTER(proxy)) 
+/**
+ * run the 'load-stat' command
+ * usage:
+ * load-stat [options]
+ *   -f <fname>    load statistics from <fname> located at data folder
+ */
+void run_load_stat(Proxy * proxy, int argc, char **argv)
+{
+    // use the master proxy thread to load statistics
+    if (!IS_MASTER(proxy))
         return;
 
-    string fname;
-    // the variables_map 
-    variables_map load_stat_vm;
     // parse command
+    variables_map load_stat_vm;
     try {
         store(parse_command_line(argc, argv, load_stat_desc), load_stat_vm);
-    }
-    catch (...){
+    } catch (...) {
         fail_to_parse(proxy, argc, argv);
         return;
     }
-
     notify(load_stat_vm);
 
-    // different flag
+    // parse options
     if (load_stat_vm.count("help")) {
-        if (IS_MASTER(proxy)) 
+        if (IS_MASTER(proxy))
             cout << load_stat_desc;
         return;
     }
 
-    // if fname is not given, try the dataset name by default
+    /// do load-stat
+    string fname;
     if (!load_stat_vm.count("-f")) {
         vector<string> strs;
         boost::split(strs, global_input_folder, boost::is_any_of("/"));
+        // if fname is not given, try the dataset name by default
         fname = strs[strs.size() - 2] + ".statfile";
     } else {
         fname = load_stat_vm["-f"].as<string>();
     }
 
     proxy->statistic->load_stat_from_file(fname);
-
 }
 
-void run_store_stat(Proxy *proxy, int argc, char**argv) {
-    // use the main proxy thread to save statistics
-    if (!IS_MASTER(proxy)) 
+/**
+ * run the 'store-stat' command
+ * usage:
+ * load-stat [options]
+ *   -f <fname>    store statistics to <fname> located at data folder
+ */
+void run_store_stat(Proxy * proxy, int argc, char **argv)
+{
+    // use the master proxy thread to store statistics
+    if (!IS_MASTER(proxy))
         return;
 
-    string fname;
-    // the variables_map 
-    variables_map store_stat_vm;
     // parse command
+    variables_map store_stat_vm;
     try {
         store(parse_command_line(argc, argv, store_stat_desc), store_stat_vm);
-    }
-    catch (...){
+    } catch (...) {
         fail_to_parse(proxy, argc, argv);
         return;
     }
-
     notify(store_stat_vm);
 
-    // different flag
+    // parse options
     if (store_stat_vm.count("help")) {
-        if (IS_MASTER(proxy)) 
+        if (IS_MASTER(proxy))
             cout << store_stat_desc;
         return;
     }
 
-    // if fname is not given, use the dataset name by default
+    /// do store-stat
+    string fname;
     if (!store_stat_vm.count("-f")) {
         vector<string> strs;
         boost::split(strs, global_input_folder, boost::is_any_of("/"));
+        // if fname is not given, use the dataset name by default
         fname = strs[strs.size() - 2] + ".statfile";
     } else {
         fname = store_stat_vm["-f"].as<string>();
     }
 
     proxy->statistic->store_stat_to_file(fname);
-
 }
-
 
 /**
  * The Wukong's console is co-located with the main proxy (the 1st proxy thread on the 1st server)
  * and provide a simple interactive cmdline to tester
  */
-void run_console(Proxy *proxy)
+void run_console(Proxy * proxy)
 {
-    // init the option desc, 
-    // only need to init by the master proxy
-    if (IS_MASTER(proxy))
+    // init option descriptions
+    if (IS_MASTER(proxy))   // only master proxy
         init_options_desc();
 
     console_barrier(proxy->tid);
     if (IS_MASTER(proxy))
         cout << endl
-            << "Input \'help\' command to get more information"
-            << endl
-            << endl;
+             << "Input \'help\' command to get more information"
+             << endl
+             << endl;
 
     bool once = true;
     while (true) {
@@ -752,7 +777,7 @@ next:
         string cmd;
         if (IS_MASTER(proxy)) {
             if (enable_oneshot) {
-                // one-shot command mode: run the command once
+                // one-shot command mode: run the command once and then quit
                 if (once) {
                     logstream(LOG_INFO) << "Run one-shot command: " << oneshot_cmd << LOG_endl;
                     cmd = oneshot_cmd;
@@ -789,62 +814,35 @@ next:
             cmd = console_recv<string>(proxy->tid);
         }
 
-        // transform the string to argv and argc format
+        // transform the comnmand to (argc, argv)
         int argc = 0;
-        char** argv = str2command_args(cmd, argc);
+        char **argv = cmd2args(cmd, argc);
+
+
+        // run commmand on all consoles according to the keyword
         string cmd_type = argv[0];
-
-        // get keyword of command and run with different way
-
-        // only run <cmd> on the master console
-        if (cmd_type == "help") {
-            if( IS_MASTER(proxy)) {
+        if (cmd_type == "help" || cmd_type == "h") {
+            if (IS_MASTER(proxy)) // FIXME: no need to run help on all consoles
                 print_help();
-            }
-            continue;
-        }
-
-        if (cmd_type == "quit" || cmd_type == "q") {
+        } else if (cmd_type == "quit" || cmd_type == "q") {
             if (proxy->tid == 0)
                 exit(0); // each server exits once by the 1st console
-        }
-
-        if (cmd_type == "config") {
+        } else if (cmd_type == "config") {
             run_config(proxy, argc, argv);
-            continue;
-        }
-
-        if (cmd_type == "sparql") { // handle SPARQL queries
-            run_sparql_cmd(proxy, argc, argv);
-            continue;
-        }
-
-        if (cmd_type == "sparql-emu") { // run a SPARQL emulator on each proxy
+        } else if (cmd_type == "sparql") { // handle SPARQL queries
+            run_sparql(proxy, argc, argv);
+        } else if (cmd_type == "sparql-emu") { // run a SPARQL emulator on each proxy
             run_sparql_emu(proxy, argc, argv);
-            continue;
-        }
-
-        if (cmd_type == "load") {
+        } else if (cmd_type == "load") {
             run_load(proxy, argc, argv);
-            continue;
-        }
-
-        if (cmd_type == "gsck") {
+        } else if (cmd_type == "gsck") {
             run_gsck(proxy, argc, argv);
-            continue;
-        }
-
-        if (cmd_type == "load-stat") {
+        } else if (cmd_type == "load-stat") {
             run_load_stat(proxy, argc, argv);
-            continue;
-        }
-
-        if (cmd_type == "store-stat") {
+        } else if (cmd_type == "store-stat") {
             run_store_stat(proxy, argc, argv);
-            continue;
+        } else {
+            fail_to_parse(proxy, argc, argv);
         }
-
-        // fail to parse the command
-        fail_to_parse(proxy, argc, argv); 
     }
 }

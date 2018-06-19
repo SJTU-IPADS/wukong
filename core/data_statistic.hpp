@@ -164,7 +164,7 @@ public:
     }
 
     // after the master server get whole statistics, this method is used to send it to all machines.
-    void send_stat_to_all_machines(){
+    void send_stat_to_all_machines() {
         if (world->rank() == 0) {
             std::stringstream my_ss;
             boost::archive::binary_oarchive my_oa(my_ss);

@@ -157,74 +157,74 @@ install_hwloc(){
 }
 
 del_mpi(){
-	echo 'removing mpi...'
-	rm -rf "$WUKONG_ROOT/deps/${openmpi}-install" "$WUKONG_ROOT/deps/${openmpi}"
+    echo 'removing mpi...'
+    rm -rf "$WUKONG_ROOT/deps/${openmpi}-install" "$WUKONG_ROOT/deps/${openmpi}"
 }
 
 del_boost(){
-	echo 'removing boost...'
-	rm -rf "$WUKONG_ROOT/deps/${boost}-install" "$WUKONG_ROOT/deps/${boost}"
+    echo 'removing boost...'
+    rm -rf "$WUKONG_ROOT/deps/${boost}-install" "$WUKONG_ROOT/deps/${boost}"
 }
 
 del_tbb(){
-	echo 'removing tbb...'
-	rm -rf "$WUKONG_ROOT/deps/${tbb}"
-	sed -i '/\(Intel TBB configuration\)\|\(tbbvars\.sh\)/d' ~/.bashrc
-	unset TBBROOT
+    echo 'removing tbb...'
+    rm -rf "$WUKONG_ROOT/deps/${tbb}"
+    sed -i '/\(Intel TBB configuration\)\|\(tbbvars\.sh\)/d' ~/.bashrc
+    unset TBBROOT
 }
 
 del_zeromq(){
-	echo 'removing zeromq...'
-	rm -rf "$WUKONG_ROOT/deps/${zeromq}-install" "$WUKONG_ROOT/deps/${zeromq}"
-	sed -i '/\(ZeroMQ configuration\)\|\(CPATH.*zeromq\)\|\(LIBRARY_PATH.*zeromq\)\|\(LD_LIBRARY_PATH.*zeromq\)/d' ~/.bashrc
+    echo 'removing zeromq...'
+    rm -rf "$WUKONG_ROOT/deps/${zeromq}-install" "$WUKONG_ROOT/deps/${zeromq}"
+    sed -i '/\(ZeroMQ configuration\)\|\(CPATH.*zeromq\)\|\(LIBRARY_PATH.*zeromq\)\|\(LD_LIBRARY_PATH.*zeromq\)/d' ~/.bashrc
 
-	pattern=":$WUKONG_ROOT/deps/zeromq[^:]*"
-	NEW_CPATH=`echo $CPATH | sed 's%'"$pattern"'%%g'`
-	NEW_LIBRARY_PATH=`echo $LIBRARY_PATH | sed 's%'"$pattern"'%%g'`
-	NEW_LD_LIBRARY_PATH=`echo $LD_LIBRARY_PATH | sed 's%'"$pattern"'%%g'`
-	export CPATH=$NEW_CPATH
-	export LIBRARY_PATH=$NEW_LIBRARY_PATH
-	export LD_LIBRARY_PATH=$NEW_LD_LIBRARY_PATH
+    pattern=":$WUKONG_ROOT/deps/zeromq[^:]*"
+    NEW_CPATH=`echo $CPATH | sed 's%'"$pattern"'%%g'`
+    NEW_LIBRARY_PATH=`echo $LIBRARY_PATH | sed 's%'"$pattern"'%%g'`
+    NEW_LD_LIBRARY_PATH=`echo $LD_LIBRARY_PATH | sed 's%'"$pattern"'%%g'`
+    export CPATH=$NEW_CPATH
+    export LIBRARY_PATH=$NEW_LIBRARY_PATH
+    export LD_LIBRARY_PATH=$NEW_LD_LIBRARY_PATH
 }
 
 del_hwloc(){
-	echo 'removing hwloc...'
-	rm -rf "$WUKONG_ROOT/deps/${hwloc}-install" "$WUKONG_ROOT/deps/${hwloc}"
-	sed -i '/\(hwloc configuration\)\|\(PATH.*hwloc\)\|\(CPATH.*hwloc\)\|\(LIBRARY_PATH.*hwloc\)\|\(LD_LIBRARY_PATH.*hwloc\)/d' ~/.bashrc
+    echo 'removing hwloc...'
+    rm -rf "$WUKONG_ROOT/deps/${hwloc}-install" "$WUKONG_ROOT/deps/${hwloc}"
+    sed -i '/\(hwloc configuration\)\|\(PATH.*hwloc\)\|\(CPATH.*hwloc\)\|\(LIBRARY_PATH.*hwloc\)\|\(LD_LIBRARY_PATH.*hwloc\)/d' ~/.bashrc
 
-	pattern=":$WUKONG_ROOT/deps/hwloc[^:]*"
-	NEW_PATH=`echo $PATH | sed 's%'"$pattern"'%%g'`
-	NEW_CPATH=`echo $CPATH | sed 's%'"$pattern"'%%g'`
-	NEW_LIBRARY_PATH=`echo $LIBRARY_PATH | sed 's%'"$pattern"'%%g'`
-	NEW_LD_LIBRARY_PATH=`echo $LD_LIBRARY_PATH | sed 's%'"$pattern"'%%g'`
-	export PATH=$NEW_PATH
-	export CPATH=$NEW_CPATH
-	export LIBRARY_PATH=$NEW_LIBRARY_PATH
-	export LD_LIBRARY_PATH=$NEW_LD_LIBRARY_PATH
+    pattern=":$WUKONG_ROOT/deps/hwloc[^:]*"
+    NEW_PATH=`echo $PATH | sed 's%'"$pattern"'%%g'`
+    NEW_CPATH=`echo $CPATH | sed 's%'"$pattern"'%%g'`
+    NEW_LIBRARY_PATH=`echo $LIBRARY_PATH | sed 's%'"$pattern"'%%g'`
+    NEW_LD_LIBRARY_PATH=`echo $LD_LIBRARY_PATH | sed 's%'"$pattern"'%%g'`
+    export PATH=$NEW_PATH
+    export CPATH=$NEW_CPATH
+    export LIBRARY_PATH=$NEW_LIBRARY_PATH
+    export LD_LIBRARY_PATH=$NEW_LD_LIBRARY_PATH
 }
 
 clean_deps(){
     echo 'compressed packages will not be removed.'
-	if [[ "$#" == "1" || "$2" == "all" ]]; then
-		echo 'cleaning all dependencies...'
-		del_mpi
-		del_boost
-		del_tbb
-		del_zeromq
-		del_hwloc
-	else
-		for ((i=2;i<=$#;i++)); do
-			item=${!i}
-			case "$item" in
-				"mpi") del_mpi ;;
-				"boost") del_boost ;;
-				"tbb") del_tbb ;;
-				"zeromq") del_zeromq ;;
-				"hwloc") del_hwloc ;;
-				*) echo "cannot clean $item" ;;
-			esac
-		done
-	fi
+    if [[ "$#" == "1" || "$2" == "all" ]]; then
+        echo 'cleaning all dependencies...'
+        del_mpi
+        del_boost
+        del_tbb
+        del_zeromq
+        del_hwloc
+    else
+        for ((i=2;i<=$#;i++)); do
+            item=${!i}
+            case "$item" in
+                "mpi") del_mpi ;;
+                "boost") del_boost ;;
+                "tbb") del_tbb ;;
+                "zeromq") del_zeromq ;;
+                "hwloc") del_hwloc ;;
+                *) echo "cannot clean $item" ;;
+            esac
+        done
+    fi
 }
 
 # handle options

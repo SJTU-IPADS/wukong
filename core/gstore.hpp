@@ -260,7 +260,7 @@ private:
     uint64_t last_ext;
     pthread_spinlock_t bucket_ext_lock;
 
-    
+
 
     // cluster chaining hash-table (see paper: DrTM SOSP'15)
     uint64_t insert_key(ikey_t key, bool check_dup = true) {
@@ -404,7 +404,7 @@ done:
         pthread_spin_unlock(&free_queue_lock);
     }
 
-        bool is_dup(vertex_t *v, uint64_t value) {
+    bool is_dup(vertex_t *v, uint64_t value) {
         int size = v->ptr.size;
         for (int i = 0; i < size; i++)
             if (edges[v->ptr.off + i].val == value)

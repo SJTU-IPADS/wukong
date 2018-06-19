@@ -36,7 +36,6 @@ add_executable(wukong ${SOURCES} "core/wukong.cpp")
 option (USE_RDMA "enable RDMA support" ON)
 if(USE_RDMA)
   add_definitions(-DHAS_RDMA)
-##  target_link_libraries(wukong rdma)
 endif(USE_RDMA)
 
 #### HDFS
