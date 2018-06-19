@@ -579,11 +579,11 @@ void run_load(Proxy * proxy, int argc, char **argv)
     }
 
     string dname;
-    if (!load_vm.cout("-d")) {
+    if (!load_vm.count("-d")) {
         fail_to_parse(proxy, argc, argv);
         return ; // invalid cmd
     } else {
-        dname = load_vm["-d"].ad<string>();
+        dname = load_vm["-d"].as<string>();
     }
 
     bool c_enable = false;
