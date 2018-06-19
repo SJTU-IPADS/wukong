@@ -132,7 +132,7 @@ void init_options_desc()
     (",n", value<int>()->default_value(1)->value_name("<num>"), "run <num> times")
     (",v", value<int>()->default_value(0)->value_name("<lines>"), "print at most <lines> of results")
     (",o", value<string>()->value_name("<fname>"), "output results into <fname>")
-    ("batch,b", value<string>()->value_name("<fname>"), "run a batch of queries configured by <fname>")
+    (",b", value<string>()->value_name("<fname>"), "run a batch of queries configured by <fname>")
     ("help,h", "help message about sparql")
     ;
     all_desc.add(sparql_desc);
@@ -149,17 +149,17 @@ void init_options_desc()
 
     // e.g., wukong> load <args>
     load_desc.add_options()
-    ("directory,d", value<string>()->value_name("<dname>"), "load data from directory <dname>")
-    ("check,c",  "check and skip duplicate rdf triple")
+    (",d", value<string>()->value_name("<dname>"), "load data from directory <dname>")
+    (",c",  "check and skip duplicate rdf triple")
     ("help,h", "help message about load")
     ;
     all_desc.add(load_desc);
 
     // e.g., wukong> gsck <args>
     gsck_desc.add_options()
-    ("index,i", "check from index key/value pair to normal key/value pair")
-    ("normal,n", "check from normal key/value pair to index key/value pair")
-    ("all,a", "check all above")
+    (",i", "check from index key/value pair to normal key/value pair")
+    (",n", "check from normal key/value pair to index key/value pair")
+    (",a", "check all above")
     ("help,h", "help message about gsck")
     ;
     all_desc.add(gsck_desc);
@@ -244,7 +244,7 @@ static void args2str(string &str)
 /**
  * print help of all commands
  */
-void print_help(void)
+static void print_help(void)
 {
     cout << all_desc << endl;
 }
@@ -333,7 +333,7 @@ static void run_config(Proxy *proxy, int argc, char **argv)
  *
  * sparql -b <fname>
  */
-void run_sparql(Proxy * proxy, int argc, char **argv)
+static void run_sparql(Proxy * proxy, int argc, char **argv)
 {
     // use the master proxy thread to run SPARQL queries in single mode or batch mode
     if (!IS_MASTER(proxy))
@@ -372,15 +372,13 @@ void run_sparql(Proxy * proxy, int argc, char **argv)
             return;
         }
 
-        int cnt = 1, nlines = 0, mt_factor = 1;
-        string ofname;
+        //  such options have been set as default value
+        //  mt_factor = 1, cnt = 1, nlines = 0
+        int mt_factor = sparql_vm["-m"].as<int>();
+        int cnt = sparql_vm["-n"].as<int>();
+        int nlines = sparql_vm["-v"].as<int>();
 
-        if (sparql_vm.count("-m"))
-            mt_factor = sparql_vm["-m"].as<int>();
-        if (sparql_vm.count("-n"))
-            cnt = sparql_vm["-n"].as<int>();
-        if (sparql_vm.count("-v"))
-            nlines = sparql_vm["-v"].as<int>();
+        string ofname;
         if (sparql_vm.count("-o"))
             ofname = sparql_vm["-o"].as<string>();
 
@@ -435,8 +433,10 @@ void run_sparql(Proxy * proxy, int argc, char **argv)
             char** sg_argv = cmd2args(sg_cmd, sg_argc);
 
             string tk1, tk2;
-            tk1 = string(sg_argv[0]);
-            tk2 = string(sg_argv[1]);
+            if(sg_argc >= 2 ) {
+                tk1 = string(sg_argv[0]);
+                tk2 = string(sg_argv[1]);
+            }
             if (tk1 == "sparql" && tk2 == "-f") {
                 cout << "Run the command: " << sg_cmd << endl;
                 run_sparql(proxy, sg_argc, sg_argv);
@@ -461,7 +461,7 @@ void run_sparql(Proxy * proxy, int argc, char **argv)
  *   -w <sec>   warmup <sec> seconds (default: 5)
  *   -p <num>   send <num> queries in parallel (default: 20)
  */
-void run_sparql_emu(Proxy * proxy, int argc, char **argv)
+static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
 {
     // use all proxy threads to run SPARQL emulators
 
@@ -498,15 +498,11 @@ void run_sparql_emu(Proxy * proxy, int argc, char **argv)
         return;
     }
 
-    int duration = 10, warmup = 5, parallel_factor = 20;
-    if (!sparql_emu_vm.count("-d"))
-        duration = sparql_emu_vm["-d"].as<int>();
-
-    if (!sparql_emu_vm.count("-w"))
-        warmup = sparql_emu_vm["-w"].as<int>();
-
-    if (!sparql_emu_vm.count("-p"))
-        parallel_factor = sparql_emu_vm["-p"].as<int>();
+    //  such options have been set as default value
+    //  duration = 10, warmup = 5, parallel_factor = 20
+    int duration = sparql_emu_vm["-d"].as<int>();
+    int warmup = sparql_emu_vm["-w"].as<int>();
+    int parallel_factor = sparql_emu_vm["-p"].as<int>();
 
     if (duration <= 0 || warmup < 0 || parallel_factor <= 0) {
         logstream(LOG_ERROR) << "invalid parameters for SPARQL emulator! "
@@ -554,7 +550,7 @@ void run_sparql_emu(Proxy * proxy, int argc, char **argv)
  * load -d <dname> [options]
  *   -c    check duplication or not
  */
-void run_load(Proxy * proxy, int argc, char **argv)
+static void run_load(Proxy * proxy, int argc, char **argv)
 {
     // use the master proxy thread to dyanmically load RDF data
     if (!IS_MASTER(proxy))
@@ -597,6 +593,7 @@ void run_load(Proxy * proxy, int argc, char **argv)
 
     Logger logger;
     RDFLoad reply;
+    //FIXME: the dynamic_load_data will exit if the directory is not exist
     int ret = proxy->dynamic_load_data(dname, reply, logger, c_enable);
     if (ret != 0) {
         logstream(LOG_ERROR) << "Failed to load dynamic data from directory " << dname
@@ -618,7 +615,7 @@ void run_load(Proxy * proxy, int argc, char **argv)
  *   -n   check from normal key/value pair to index key/value pair
  *   -a   check all above
  */
-void run_gsck(Proxy * proxy, int argc, char **argv)
+static void run_gsck(Proxy * proxy, int argc, char **argv)
 {
     // use the master proxy thread to run gstore checker
     if (!IS_MASTER(proxy))
@@ -673,7 +670,7 @@ void run_gsck(Proxy * proxy, int argc, char **argv)
  * load-stat [options]
  *   -f <fname>    load statistics from <fname> located at data folder
  */
-void run_load_stat(Proxy * proxy, int argc, char **argv)
+static void run_load_stat(Proxy * proxy, int argc, char **argv)
 {
     // use the master proxy thread to load statistics
     if (!IS_MASTER(proxy))
@@ -716,7 +713,7 @@ void run_load_stat(Proxy * proxy, int argc, char **argv)
  * load-stat [options]
  *   -f <fname>    store statistics to <fname> located at data folder
  */
-void run_store_stat(Proxy * proxy, int argc, char **argv)
+static void run_store_stat(Proxy * proxy, int argc, char **argv)
 {
     // use the master proxy thread to store statistics
     if (!IS_MASTER(proxy))
@@ -773,7 +770,6 @@ void run_console(Proxy * proxy)
     bool once = true;
     while (true) {
         console_barrier(proxy->tid);
-next:
         string cmd;
         if (IS_MASTER(proxy)) {
             if (enable_oneshot) {
@@ -789,15 +785,20 @@ next:
                 }
             } else {
                 // interactive mode: print a prompt and retrieve the command
-                cout << "wukong> ";
-                getline(cin, cmd);
+                // skip input with blank
+                while (true) {
+                    cout << "wukong> ";
+                    getline(cin, cmd);
+                    // only break when input is not blanks
+                    size_t pos = cmd.find_first_not_of(" \t");
+                    if (pos != string::npos)
+                        break;
+                }
             }
 
             // trim input
             size_t pos = cmd.find_first_not_of(" \t"); // trim blanks from head
-            if (pos == string::npos) goto next;
             cmd.erase(0, pos);
-
             pos = cmd.find_last_not_of(" \t");  // trim blanks from tail
             cmd.erase(pos + 1, cmd.length() - (pos + 1));
 
