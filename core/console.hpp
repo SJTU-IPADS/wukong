@@ -47,7 +47,7 @@ string oneshot_cmd = "";
 
 template<typename T>
 static void console_send(int sid, int tid, T &r) {
-    std::stringstream ss;
+    stringstream ss;
     boost::archive::binary_oarchive oa(ss);
     oa << r;
     con_adaptor->send(sid, tid, ss.str());
@@ -56,10 +56,10 @@ static void console_send(int sid, int tid, T &r) {
     template<typename T>
 static T console_recv(int tid)
 {
-    std::string str;
+    string str;
     str = con_adaptor->recv(tid);
 
-    std::stringstream ss;
+    stringstream ss;
     ss << str;
 
     boost::archive::binary_iarchive ia(ss);
@@ -97,7 +97,7 @@ static void file2str(string fname, string &str)
     }
 
     string line;
-    while (std::getline(file, line))
+    while (getline(file, line))
         str += line + " ";
 }
 
@@ -186,7 +186,7 @@ void init_options_desc() {
         (",f", value<string>()->value_name("<file>"), "load statistics from <file> located at data folder")
         ;
     combine_desc.add(load_stat_desc); // add it to combine_desc 
-    
+
     store_stat_desc.add_options() 
         ("help,h", "help message about store-stat")
         (",f", value<string>()->value_name("<file>"), "store statistics to <file> located at data folder")
@@ -272,7 +272,7 @@ void run_config(Proxy *proxy, int argc, char** argv) {
 
     if(config_vm.count("-s"))
         str = config_vm["-s"].as<string>();
-    
+
     if (config_vm.count("-v")) { // -v
         if (IS_MASTER(proxy))
             print_config();
@@ -409,9 +409,38 @@ void run_sparql_cmd(Proxy *proxy, int argc, char** argv) {
     //  file-format:
     //    sparql -f <fname> [<args>]
     //    sparql -f <fname> [<args>]
-    //    ...
     if (sparql_vm.count("batch")) {
-        logstream(LOG_ERROR) << "Unsupported command now!" << LOG_endl;
+        fname = sparql_vm["batch"].as<string>();
+        ifstream ifs(fname);
+        if (!ifs.good()) {
+            logstream(LOG_ERROR) << "Query file not found: " << fname << LOG_endl;
+            fail_to_parse(proxy, argc, argv); // invalid cmd
+            return;
+        }
+
+        logstream(LOG_INFO) << "Batch-mode starting ..." << LOG_endl;
+
+        string sg_cmd; // a single command line
+        while (getline(ifs, sg_cmd)) {
+            int sg_argc = 0;
+            char** sg_argv = str2command_args(sg_cmd, sg_argc);
+
+            string tk1, tk2;
+            tk1 = string(sg_argv[0]);
+            tk2 = string(sg_argv[1]);
+            if (tk1 == "sparql" && tk2 == "-f") {
+                cout << "Run the command: " << sg_cmd << endl;
+                run_sparql_cmd(proxy, sg_argc, sg_argv);
+                cout << endl;
+            } else {
+                // skip and go on
+                logstream(LOG_ERROR) << "Failed to run the command: " << sg_cmd << LOG_endl;
+                logstream(LOG_ERROR) << "only support single sparql query in batch mode "
+                    << "(e.g., sparql -f ...)" << LOG_endl;
+            }
+        }
+
+        logstream(LOG_INFO) << "Batch-mode end." << LOG_endl;
     }
 
 }
@@ -424,7 +453,7 @@ void run_sparql_emu(Proxy *proxy, int argc, char** argv) {
     /// file name of query
     string fname;
     int duration = 10, warmup = 5, parallel_factor = 20;
-     // the variables_map 
+    // the variables_map 
     variables_map sparql_emu_vm;
     // parse command
     try {
@@ -516,7 +545,7 @@ void run_load(Proxy *proxy, int argc, char**argv) {
 
 #if DYNAMIC_GSTORE
     string dname;
-     // the variables_map 
+    // the variables_map 
     variables_map load_vm;
     // parse command
     try {
@@ -577,7 +606,7 @@ void run_gsck(Proxy *proxy, int argc, char**argv) {
     bool i_enable = false;
     bool n_enable = false;
 
-     // the variables_map 
+    // the variables_map 
     variables_map gsck_vm;
     // parse command
     try {
@@ -625,7 +654,7 @@ void run_load_stat(Proxy *proxy, int argc, char**argv) {
         return;
 
     string fname;
-   // the variables_map 
+    // the variables_map 
     variables_map load_stat_vm;
     // parse command
     try {
@@ -736,7 +765,7 @@ next:
             } else {
                 // interactive mode: print a prompt and retrieve the command
                 cout << "wukong> ";
-                std::getline(std::cin, cmd);
+                getline(cin, cmd);
             }
 
             // trim input
@@ -764,7 +793,6 @@ next:
         int argc = 0;
         char** argv = str2command_args(cmd, argc);
         string cmd_type = argv[0];
-
 
         // get keyword of command and run with different way
 
