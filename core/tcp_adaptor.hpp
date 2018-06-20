@@ -48,8 +48,8 @@ private:
     int port_base;
     zmq::context_t context;
 
-    vector<zmq::socket_t *> receivers;  // exclusive
-    tbb_unordered_map senders;          // shared
+    vector<zmq::socket_t *> receivers;  // static allocation
+    tbb_unordered_map senders;          // dynamic allocation
 
     pthread_spinlock_t *locks;
 
@@ -67,8 +67,8 @@ public:
         while (hostfile >> ip)
             ipset.push_back(ip);
 
-        receivers.resize(global_num_threads);
-        for (int tid = 0; tid < global_num_threads; tid++) {
+        receivers.resize(num_threads);
+        for (int tid = 0; tid < num_threads; tid++) {
             receivers[tid] = new zmq::socket_t(context, ZMQ_PULL);
             char address[32] = "";
             snprintf(address, 32, "tcp://*:%d", port_base + port_code(sid, tid));
@@ -97,6 +97,9 @@ public:
     bool send(int sid, int tid, string str) {
         int pid = port_code(sid, tid);
 
+        zmq::message_t msg(str.length());
+        memcpy((void *)msg.data(), str.c_str(), str.length());
+
         // new socket if needed
         pthread_spin_lock(&locks[tid]);
         if (senders.find(pid) == senders.end()) {
@@ -106,10 +109,9 @@ public:
             senders[pid]->connect(address);
         }
 
-        zmq::message_t msg(str.length());
-        memcpy((void *)msg.data(), str.c_str(), str.length());
         bool result = senders[pid]->send(msg, ZMQ_DONTWAIT);
         pthread_spin_unlock(&locks[tid]);
+
         return result;
     }
 
