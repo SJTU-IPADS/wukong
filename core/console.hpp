@@ -560,7 +560,7 @@ void run_load(Proxy * proxy, int argc, char **argv)
     if (!IS_MASTER(proxy))
         return;
 
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
     // parse command
     variables_map load_vm;
     try {

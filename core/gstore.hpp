@@ -155,7 +155,7 @@ private:
             pthread_spinlock_t lock;
             vertex_t v;
 
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
             /* time of cache item to expire
              * A cache item is valid
              * only when expire_time is greater than the time to lookup.
@@ -186,7 +186,7 @@ private:
             pthread_spin_lock(&(items[idx].lock));
             if (items[idx].v.key == key) {
 
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
                 // check if timeout
                 if (timer::get_usec() < items[idx].expire_time) {
                     ret = items[idx].v;
@@ -208,7 +208,7 @@ private:
             int idx = v.key.hash() % NUM_ITEMS;
             pthread_spin_lock(&items[idx].lock);
 
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
             // set expire time of cache item
             items[idx].expire_time = timer::get_usec() + lease;
 #endif
@@ -328,7 +328,7 @@ done:
     edge_t *edges;
     uint64_t num_entries;     // entry region (dynamical)
 
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
     // manage the memory of edges(val)
     Malloc_Interface *edge_allocator;
 
@@ -466,15 +466,17 @@ done:
                 return false;
             }
             dedup_or_isdup = false;
-
             uint64_t need_size = v->ptr.size + 1;
-            if (blksz(v->ptr.size + 1) - 1 < need_size) { // a new block is needed
+
+            // a new block is needed
+            if (blksz(v->ptr.size + 1) - 1 < need_size) {
                 iptr_t old_ptr = v->ptr;
 
                 uint64_t off = alloc_edges(need_size);
                 memcpy(&edges[off], &edges[old_ptr.off], e2b(old_ptr.size));
                 edges[off + old_ptr.size].val = value;
-                insert_sz(INVALID_EDGES, old_ptr.size, old_ptr.off);  // invalidate the old block
+                // invalidate the old block
+                insert_sz(INVALID_EDGES, old_ptr.size, old_ptr.off);
                 v->ptr = iptr_t(need_size, off);
 
                 if (global_enable_caching)
@@ -482,7 +484,8 @@ done:
                 else
                     edge_allocator->free(e2b(old_ptr.off));
             } else {
-                insert_sz(need_size, need_size, v->ptr.off);  // update size flag
+                // update size flag
+                insert_sz(need_size, need_size, v->ptr.off);
                 edges[v->ptr.off + v->ptr.size].val = value;
                 v->ptr.size = need_size;
             }
@@ -576,10 +579,12 @@ done:
         char *buf = mem->buffer(tid);
         uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
 
-#if DYNAMIC_GSTORE
-        uint64_t r_sz = blksz(v.ptr.size + 1) * sizeof(edge_t);  // the size of entire blk
+#ifdef DYNAMIC_GSTORE
+        // the size of entire blk
+        uint64_t r_sz = blksz(v.ptr.size + 1) * sizeof(edge_t);
 #else
-        uint64_t r_sz = v.ptr.size * sizeof(edge_t); // the size of edges
+        // the size of edges
+        uint64_t r_sz = v.ptr.size * sizeof(edge_t);
 #endif
 
         uint64_t buf_sz = mem->buffer_size();
@@ -668,7 +673,7 @@ done:
         }
 
         edge_ptr = rdma_get_edges(tid, dst_sid, v);
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
         // check the validation of edges
         // if not, invalidate the cache and try again
         while (!edge_is_valid(v, edge_ptr)) {
@@ -707,7 +712,7 @@ done:
         attr_t r;
 
         //get the vertex from DYNAMIC_GSTORE or normal
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
         v = get_vertex_remote(tid, key);
         if (v.key.is_empty()) {
             has_value = false; // not found
@@ -840,7 +845,7 @@ public:
 
         // entry region
         num_entries = entry_region / sizeof(edge_t);
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
         edge_allocator = new Buddy_Malloc();
         pthread_spin_init(&free_queue_lock, 0);
         lease = SEC(120);
@@ -870,7 +875,7 @@ public:
 
         last_ext = 0;
 
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
         edge_allocator->init((void *)edges, num_entries * sizeof(edge_t), global_num_engines);
 #else
         last_entry = 0;
@@ -999,7 +1004,7 @@ public:
 
         logstream(LOG_INFO) << " start (parallel) prepare index info " << LOG_endl;
 
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
         edge_allocator->merge_freelists();
 #endif
         // scan raw data to generate index data in parallel
@@ -1089,49 +1094,67 @@ public:
         logstream(LOG_DEBUG) << (t3 - t2) / 1000 << " ms for inserting index data into gstore" << LOG_endl;
     }
 
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
     void insert_triple_out(const triple_t &triple, bool check_dup) {
         bool dedup_or_isdup = check_dup;
         bool nodup = false;
         if (triple.p == TYPE_ID) {
-            dedup_or_isdup = true;  // for TYPE_ID condition, dedup is always needed for LUBM benchmark, maybe for others,too.
+            // for TYPE_ID condition, dedup is always needed
+            // for LUBM benchmark, maybe for others,too.
+            dedup_or_isdup = true;
             ikey_t key = ikey_t(triple.s, triple.p, OUT);
-            if (insert_vertex_edge(key, triple.o, dedup_or_isdup)) { // <1> vid's type (7) [need dedup]
+            // <1> vid's type (7) [need dedup]
+            if (insert_vertex_edge(key, triple.o, dedup_or_isdup)) {
 #ifdef VERSATILE
                 key = ikey_t(triple.s, PREDICATE_ID, OUT);
-                ikey_t buddy_key = ikey_t(triple.s, PREDICATE_ID, IN); // key and its buddy_key should be used to identify the exist of corresponding index
-                if (insert_vertex_edge(key, triple.p, nodup) && !check_key_exist(buddy_key)) { // <2> vid's predicate, value is TYPE_ID (*8) [dedup from <1>]
+                // key and its buddy_key should be used to
+                // identify the exist of corresponding index
+                ikey_t buddy_key = ikey_t(triple.s, PREDICATE_ID, IN);
+                // <2> vid's predicate, value is TYPE_ID (*8) [dedup from <1>]
+                if (insert_vertex_edge(key, triple.p, nodup) && !check_key_exist(buddy_key)) {
                     key = ikey_t(0, TYPE_ID, IN);
-                    insert_vertex_edge(key, triple.s, nodup); // <3> the index to vid (*3) [dedup from <2>]
+                    // <3> the index to vid (*3) [dedup from <2>]
+                    insert_vertex_edge(key, triple.s, nodup);
                 }
 #endif // VERSATILE
             }
             if (!dedup_or_isdup) {
                 key = ikey_t(0, triple.o, IN);
-                if (insert_vertex_edge(key, triple.s, nodup)) { // <4> type-index (2) [if <1>'s result is not dup, this is not dup, too]
+                // <4> type-index (2) [if <1>'s result is not dup, this is not dup, too]
+                if (insert_vertex_edge(key, triple.s, nodup)) {
 #ifdef VERSATILE
                     key = ikey_t(0, TYPE_ID, OUT);
-                    insert_vertex_edge(key, triple.o, nodup); // <5> index to this type (*4) [dedup from <4>]
+                    // <5> index to this type (*4) [dedup from <4>]
+                    insert_vertex_edge(key, triple.o, nodup);
 #endif // VERSATILE
                 }
             }
         } else {
             ikey_t key = ikey_t(triple.s, triple.p, OUT);
-            if (insert_vertex_edge(key, triple.o, dedup_or_isdup)) {  // <6> vid's ngbrs w/ predicate (6) [need dedup]
+            // <6> vid's ngbrs w/ predicate (6) [need dedup]
+            if (insert_vertex_edge(key, triple.o, dedup_or_isdup)) {
                 key = ikey_t(0, triple.p, IN);
-                ikey_t buddy_key = ikey_t(0, triple.p, OUT); // key and its buddy_key should be used to identify the exist of corresponding index
-                if (insert_vertex_edge(key, triple.s, nodup) && !check_key_exist(buddy_key)) { // <7> predicate-index (1) [dedup from <6>]
+                // key and its buddy_key should be used to
+                // identify the exist of corresponding index
+                ikey_t buddy_key = ikey_t(0, triple.p, OUT);
+                // <7> predicate-index (1) [dedup from <6>]
+                if (insert_vertex_edge(key, triple.s, nodup) && !check_key_exist(buddy_key)) {
 #ifdef VERSATILE
                     key = ikey_t(0, PREDICATE_ID, OUT);
-                    insert_vertex_edge(key, triple.p, nodup); // <8> the index to predicate (*5) [dedup from <7>]
+                    // <8> the index to predicate (*5) [dedup from <7>]
+                    insert_vertex_edge(key, triple.p, nodup);
 #endif // VERSATILE
                 }
 #ifdef VERSATILE
                 key = ikey_t(triple.s, PREDICATE_ID, OUT);
-                buddy_key = ikey_t(triple.s, PREDICATE_ID, IN); // key and its buddy_key should be used to identify the exist of corresponding index
-                if (insert_vertex_edge(key, triple.p, nodup) && !check_key_exist(buddy_key)) { // <9> vid's predicate (*8) [dedup from <6>]
+                // key and its buddy_key should be used to
+                // identify the exist of corresponding index
+                buddy_key = ikey_t(triple.s, PREDICATE_ID, IN);
+                // <9> vid's predicate (*8) [dedup from <6>]
+                if (insert_vertex_edge(key, triple.p, nodup) && !check_key_exist(buddy_key)) {
                     key = ikey_t(0, TYPE_ID, IN);
-                    insert_vertex_edge(key, triple.s, nodup); // <10> the index to vid (*3) [dedup from <9>]
+                    // <10> the index to vid (*3) [dedup from <9>]
+                    insert_vertex_edge(key, triple.s, nodup);
                 }
 #endif // VERSATILE
             }
@@ -1144,22 +1167,31 @@ public:
         if (triple.p == TYPE_ID) // skipped
             return;
         ikey_t key = ikey_t(triple.o, triple.p, IN);
-        if (insert_vertex_edge(key, triple.s, dedup_or_isdup)) {  // <1> vid's ngbrs w/ predicate (6) [need dedup]
+         // <1> vid's ngbrs w/ predicate (6) [need dedup]
+        if (insert_vertex_edge(key, triple.s, dedup_or_isdup)) {
             // key doesn't exist before
             key = ikey_t(0, triple.p, OUT);
-            ikey_t buddy_key = ikey_t(0, triple.p, IN); // key and its buddy_key should be used to identify the exist of corresponding index
-            if (insert_vertex_edge(key, triple.o, nodup) && !check_key_exist(buddy_key)) { // <2> predicate-index (1) [dedup from <1>]
+            // key and its buddy_key should be used
+            // to identify the exist of corresponding index
+            ikey_t buddy_key = ikey_t(0, triple.p, IN);
+            // <2> predicate-index (1) [dedup from <1>]
+            if (insert_vertex_edge(key, triple.o, nodup) && !check_key_exist(buddy_key)) {
 #ifdef VERSATILE
                 key = ikey_t(0, PREDICATE_ID, OUT);
-                insert_vertex_edge(key, triple.p, nodup); // <3> the index to predicate (*5) [dedup from <2>]
+                // <3> the index to predicate (*5) [dedup from <2>]
+                insert_vertex_edge(key, triple.p, nodup);
 #endif // VERSATILE
             }
 #ifdef VERSATILE
             key = ikey_t(triple.o, PREDICATE_ID, IN);
-            buddy_key = ikey_t(triple.o, PREDICATE_ID, OUT); // key and its buddy_key should be used to identify the exist of corresponding index
-            if (insert_vertex_edge(key, triple.p, nodup) && !check_key_exist(buddy_key)) { // <4> vid's predicate (*8) [dedup from <1>]
+            // key and its buddy_key should be used to
+            // identify the exist of corresponding index
+            buddy_key = ikey_t(triple.o, PREDICATE_ID, OUT);
+            // <4> vid's predicate (*8) [dedup from <1>]
+            if (insert_vertex_edge(key, triple.p, nodup) && !check_key_exist(buddy_key)) {
                 key = ikey_t(0, TYPE_ID, IN);
-                insert_vertex_edge(key, triple.o, nodup); // <5> the index to vid (*3) [dedup from <4>]
+                // <5> the index to vid (*3) [dedup from <4>]
+                insert_vertex_edge(key, triple.o, nodup);
             }
 #endif // VERSATILE
         }
@@ -1170,15 +1202,18 @@ public:
     uint64_t ivertex_num = 0;
     uint64_t nvertex_num = 0;
 
-    void idx_check_indir(ikey_t key, bool check) { //check on in-dir predicate-index or type-index
+    //check on in-dir predicate-index or type-index
+    void idx_check_indir(ikey_t key, bool check) {
         if (!check)
             return;
         ivertex_num ++;
         uint64_t vsz = 0;
-        edge_t *vres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &vsz); // get the vids which refered by index
+        // get the vids which refered by index
+        edge_t *vres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &vsz);
         for (int i = 0; i < vsz; i++) {
             uint64_t tsz = 0;
-            edge_t *tres = get_edges_local(0, vres[i].val, OUT, TYPE_ID, &tsz); // get the vids's type
+            // get the vids's type
+            edge_t *tres = get_edges_local(0, vres[i].val, OUT, TYPE_ID, &tsz);
             bool found = false;
             for (int j = 0; j < tsz; j++) {
                 if (tres[j].val == key.pid && !found)
@@ -1188,8 +1223,10 @@ public:
                                          << " | TYPE_ID | OUT] there is DUPLICATE type " << key.pid << LOG_endl;
                 }
             }
-            if (tsz != 0 && !found) {  // may be it is a predicate_index
-                if (get_vertex_local(0, ikey_t(vres[i].val, key.pid, OUT)).key.is_empty()) { // check if the key generated by vid and pid exists
+            // may be it is a predicate_index
+            if (tsz != 0 && !found) {
+                 // check if the key generated by vid and pid exists
+                if (get_vertex_local(0, ikey_t(vres[i].val, key.pid, OUT)).key.is_empty()) {
                     logstream(LOG_ERROR) << "if " << key.pid << " is type id, then there is NO type "
                                          << key.pid << "in normal key/value pair ["
                                          << key.vid << " | TYPE_ID | OUT] 's value part" << LOG_endl;
@@ -1200,29 +1237,35 @@ public:
         }
     }
 
-    void idx_check_outdir(ikey_t key, bool check) { //check on out-dir predicate-index
+    //check on out-dir predicate-index
+    void idx_check_outdir(ikey_t key, bool check) {
         if (!check)
             return;
         ivertex_num ++;
         uint64_t vsz = 0;
-        edge_t *vres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &vsz); // get the vids which refered by predicate index
+        // get the vids which refered by predicate index
+        edge_t *vres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &vsz);
         for (int i = 0; i < vsz; i++) {
-            if (get_vertex_local(0, ikey_t(vres[i].val, key.pid, IN)).key.is_empty()) { // check if the key generated by vid and pid exists
+            // check if the key generated by vid and pid exists
+            if (get_vertex_local(0, ikey_t(vres[i].val, key.pid, IN)).key.is_empty()) {
                 logstream(LOG_ERROR) << "key " << " [ " << vres[i].val << " | "
                                      << key.pid << " | " << " IN ] does not exist." << LOG_endl;
             }
         }
     }
 
-    void nt_check(ikey_t key, bool check) { //check on normal types (7)
+    //check on normal types (7)
+    void nt_check(ikey_t key, bool check) {
         if (!check)
             return;
         nvertex_num ++;
         uint64_t tsz = 0;
-        edge_t *tres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &tsz); // get the vid's all type
+        // get the vid's all type
+        edge_t *tres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &tsz);
         for (int i = 0; i < tsz; i++) {
             uint64_t vsz = 0;
-            edge_t *vres = get_edges_local(0, 0, IN, tres[i].val, &vsz); // get the vids which refered by the type
+            // get the vids which refered by the type
+            edge_t *vres = get_edges_local(0, 0, IN, tres[i].val, &vsz);
             bool found = false;
             for (int j = 0; j < vsz; j++) {
                 if (vres[j].val == key.vid && !found)
@@ -1239,12 +1282,14 @@ public:
         }
     }
 
-    void np_check(ikey_t key, dir_t dir, bool check) { //check vid's ngbrs w/ predicate
+    // check vid's ngbrs w/ predicate
+    void np_check(ikey_t key, dir_t dir, bool check) {
         if (!check)
             return;
         nvertex_num ++;
         uint64_t vsz = 0;
-        edge_t *vres = get_edges_local(0, 0, dir, key.pid, &vsz); // get the vids which refered by the predicated
+        // get the vids which refered by the predicated
+        edge_t *vres = get_edges_local(0, 0, dir, key.pid, &vsz);
         bool found = false;
         for (int i = 0; i < vsz; i++) {
             if (vres[i].val == key.vid && !found)
@@ -1262,13 +1307,17 @@ public:
     }
 
 #ifdef VERSATILE
-    void ver_idx_check_indir(ikey_t key, bool check) { // check on in-dir predicate-index or type-index
+
+    // check on in-dir predicate-index or type-index
+    void ver_idx_check_indir(ikey_t key, bool check) {
         if (!check)
             return;
         uint64_t vsz = 0;
-        edge_t *vres = get_edges_local(0, 0, OUT, TYPE_ID, &vsz); // get all local types
+        // get all local types
+        edge_t *vres = get_edges_local(0, 0, OUT, TYPE_ID, &vsz);
         bool found = false;
-        for (int i = 0; i < vsz; i++) { // check whether the pid exists or duplicate
+        // check whether the pid exists or duplicate
+        for (int i = 0; i < vsz; i++) {
             if (vres[i].val == key.pid && !found)
                 found = true;
             else if (vres[i].val == key.pid && found) {
@@ -1276,11 +1325,14 @@ public:
                                      << " there is duplicate value " << key.pid << LOG_endl;
             }
         }
-        if (!found) { // pid does not exist in local types, maybe it is predicate
+        // pid does not exist in local types, maybe it is predicate
+        if (!found) {
             uint64_t psz = 0;
-            edge_t *pres = get_edges_local(0, 0, OUT, PREDICATE_ID, &psz); // get all local predicates
+            // get all local predicates
+            edge_t *pres = get_edges_local(0, 0, OUT, PREDICATE_ID, &psz);
             bool found = false;
-            for (int i = 0; i < psz; i++) {  // check whether the pid exists or duplicate
+            // check whether the pid exists or duplicate
+            for (int i = 0; i < psz; i++) {
                 if (pres[i].val == key.pid && !found)
                     found = true;
                 else if (pres[i].val == key.pid && found) {
@@ -1296,7 +1348,8 @@ public:
                                      << " there is NO value " << key.pid << LOG_endl;
             }
             uint64_t vsz = 0;
-            edge_t *vres = get_edges_local(0, 0, IN, key.pid, &vsz); // get the vid refered which refered by the type/predicate
+            // get the vid refered which refered by the type/predicate
+            edge_t *vres = get_edges_local(0, 0, IN, key.pid, &vsz);
             if (vsz == 0) {
                 logstream(LOG_ERROR) << "if " << key.pid << " is type, in the value part of all local types [ 0 | TYPE_ID | OUT ]"
                                      << " there is NO value " << key.pid << LOG_endl;
@@ -1305,7 +1358,8 @@ public:
             for (int i = 0; i < vsz; i++) {
                 found = false;
                 uint64_t sosz = 0;
-                edge_t *sores = get_edges_local(0, 0, IN, TYPE_ID, &sosz); //get all local objects/subjects
+                // get all local objects/subjects
+                edge_t *sores = get_edges_local(0, 0, IN, TYPE_ID, &sosz);
                 for (int j = 0; j < sosz; j++) {
                     if (sores[j].val == vres[i].val && !found)
                         found = true;
@@ -1321,7 +1375,8 @@ public:
                 }
                 found = false;
                 uint64_t p2sz = 0;
-                edge_t *p2res = get_edges_local(0, vres[i].val, OUT, PREDICATE_ID, &p2sz); // get vid's all predicate
+                // get vid's all predicate
+                edge_t *p2res = get_edges_local(0, vres[i].val, OUT, PREDICATE_ID, &p2sz);
                 for (int j = 0; j < p2sz; j++) {
                     if (p2res[j].val == key.pid && !found)
                         found = true;
@@ -1341,13 +1396,16 @@ public:
         }
     }
 
-    void ver_idx_check_outdir(ikey_t key, bool check) { //check on out-dir predicate-index
+    // check on out-dir predicate-index
+    void ver_idx_check_outdir(ikey_t key, bool check) {
         if (!check)
             return;
         uint64_t psz = 0;
-        edge_t *pres = get_edges_local(0, 0, OUT, PREDICATE_ID, &psz); // get all local predicates
+        // get all local predicates
+        edge_t *pres = get_edges_local(0, 0, OUT, PREDICATE_ID, &psz);
         bool found = false;
-        for (int i = 0; i < psz; i++) { // check whether the pid exists or duplicate
+        // check whether the pid exists or duplicate
+        for (int i = 0; i < psz; i++) {
             if (pres[i].val == key.pid && !found)
                 found = true;
             else if (pres[i].val == key.pid && found) {
@@ -1361,11 +1419,13 @@ public:
                                  << " there is no value " << key.pid << LOG_endl;
         }
         uint64_t vsz = 0;
-        edge_t *vres = get_edges_local(0, 0, OUT, key.pid, &vsz); // get the vid refered which refered by the predicate
+        // get the vid refered which refered by the predicate
+        edge_t *vres = get_edges_local(0, 0, OUT, key.pid, &vsz);
         for (int i = 0; i < vsz; i++) {
             found = false;
             uint64_t sosz = 0;
-            edge_t *sores = get_edges_local(0, 0, IN, TYPE_ID, &sosz); //get all local objects/subjects
+            // get all local objects/subjects
+            edge_t *sores = get_edges_local(0, 0, IN, TYPE_ID, &sosz);
             for (int j = 0; j < sosz; j++) {
                 if (sores[j].val == vres[i].val && !found)
                     found = true;
@@ -1381,7 +1441,8 @@ public:
             }
             found = false;
             uint64_t psz = 0;
-            edge_t *pres = get_edges_local(0, vres[i].val, IN, PREDICATE_ID, &psz); // get vid's all predicate
+            // get vid's all predicate
+            edge_t *pres = get_edges_local(0, vres[i].val, IN, PREDICATE_ID, &psz);
             for (int j = 0; j < psz; j++) {
                 if (pres[j].val == key.pid && !found)
                     found = true;
@@ -1400,13 +1461,16 @@ public:
         }
     }
 
-    void ver_nt_check(ikey_t key, bool check) { //check on normal types (7)
+    // check on normal types (7)
+    void ver_nt_check(ikey_t key, bool check) {
         if (!check)
             return;
         bool found = false;
         uint64_t psz = 0;
-        edge_t *pres = get_edges_local(0, key.vid, OUT, PREDICATE_ID, &psz); //get vid' all predicates
-        for (int i = 0; i < psz; i++) { //check if there is TYPE_ID in vid's predicates
+        // get vid' all predicates
+        edge_t *pres = get_edges_local(0, key.vid, OUT, PREDICATE_ID, &psz);
+        // check if there is TYPE_ID in vid's predicates
+        for (int i = 0; i < psz; i++) {
             if (pres[i].val == key.pid && !found)
                 found = true;
             else if (pres[i].val == key.pid && found) {
@@ -1425,7 +1489,8 @@ public:
         }
         found = false;
         uint64_t ossz = 0;
-        edge_t *osres = get_edges_local(0, 0, IN, key.pid, &ossz); // get all local subjects/objects
+        // get all local subjects/objects
+        edge_t *osres = get_edges_local(0, 0, IN, key.pid, &ossz);
         for (int i = 0; i < ossz; i++) {
             if (osres[i].val == key.vid && !found)
                 found = true;
@@ -1695,7 +1760,7 @@ public:
 
         logstream(LOG_INFO) << "entry: " << B2MiB(num_entries * sizeof(edge_t))
                             << " MB (" << num_entries << " entries)" << LOG_endl;
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
         edge_allocator->print_memory_usage();
 #else
         logstream(LOG_INFO) << "\tused: " << 100.0 * last_entry / num_entries

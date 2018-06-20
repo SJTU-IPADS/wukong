@@ -375,7 +375,7 @@ public:
         return 0; // success
     } // end of run_query_emu
 
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
     int dynamic_load_data(string &dname, RDFLoad &reply, Logger &logger, bool &check_dup) {
         logger.init();
 

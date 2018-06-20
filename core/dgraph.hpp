@@ -87,7 +87,7 @@ class DGraph {
     vector<vector<triple_t>> triple_ops;
     vector<vector<triple_attr_t>> triple_sav;
 
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
     boost::unordered_map<sid_t, sid_t> id2id;
 
     void flush_convertmap() { id2id.clear(); }
@@ -607,7 +607,7 @@ public:
     }
 
 
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
     int64_t dynamic_load_data(string dname, bool check_dup) {
         dynamic_load_mappings(dname); // load ID-mapping files and construct id2id mapping
 
