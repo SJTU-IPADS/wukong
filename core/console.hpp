@@ -150,7 +150,7 @@ void init_options_desc()
     // e.g., wukong> load <args>
     load_desc.add_options()
     (",d", value<string>()->value_name("<dname>"), "load data from directory <dname>")
-    (",c",  "check and skip duplicate rdf triple")
+    (",c", "check and skip duplicate rdf triple")
     ("help,h", "help message about load")
     ;
     all_desc.add(load_desc);
@@ -200,7 +200,7 @@ static void fail_to_parse(Proxy *proxy, int argc, char** argv)
  * the argc is the name of char*
  * the return value argv is the type of char**
  */
-static char ** cmd2args(string str, int &argc)
+static char **cmd2args(string str, int &argc)
 {
     vector<string> fields;
 
@@ -371,9 +371,9 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
             return;
         }
 
-        //  such options have been set as default value
-        //  mt_factor = 1, cnt = 1, nlines = 0
-        int mt_factor = sparql_vm["-m"].as<int>();
+        // NOTE: the option with default_value is always available
+        // default value: mfactor(1), cnt(1), nlines(0)
+        int mfactor = sparql_vm["-m"].as<int>(); // the number of multithreading
         int cnt = sparql_vm["-n"].as<int>();
         int nlines = sparql_vm["-v"].as<int>();
 
@@ -394,7 +394,7 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         SPARQLQuery reply;
         SPARQLQuery::Result &result = reply.result;
         Logger logger;
-        int ret = proxy->run_single_query(ifs, mt_factor, cnt, reply, logger);
+        int ret = proxy->run_single_query(ifs, mfactor, cnt, reply, logger);
         if (ret != 0) {
             logstream(LOG_ERROR) << "Failed to run the query (ERRNO: " << ret << ")!" << LOG_endl;
             fail_to_parse(proxy, argc, argv); // invalid cmd
@@ -431,7 +431,8 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
             int sg_argc = 0;
             char** sg_argv = cmd2args(sg_cmd, sg_argc);
 
-            if (sg_argc >= 2 && (string(sg_argv[0]) == "sparql" && string(sg_argv[1]) == "-f")) {
+            // only support single sparql query now (e.g., sparql -f ...)
+            if (sg_argc > 2 && (string(sg_argv[0]) == "sparql" && string(sg_argv[1]) == "-f")) {
                 cout << "Run the command: " << sg_cmd << endl;
                 run_sparql(proxy, sg_argc, sg_argv);
                 cout << endl;
@@ -492,16 +493,16 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
         return;
     }
 
-    //  such options have been set as default value
-    //  duration = 10, warmup = 5, parallel_factor = 20
+    // NOTE: the option with default_value is always available
+    // default value: duration(10), warmup(5), pfactor(20)
     int duration = sparql_emu_vm["-d"].as<int>();
     int warmup = sparql_emu_vm["-w"].as<int>();
-    int parallel_factor = sparql_emu_vm["-p"].as<int>();
+    int pfactor = sparql_emu_vm["-p"].as<int>(); // the number of paralle queries on the fly
 
-    if (duration <= 0 || warmup < 0 || parallel_factor <= 0) {
+    if (duration <= 0 || warmup < 0 || pfactor <= 0) {
         logstream(LOG_ERROR) << "invalid parameters for SPARQL emulator! "
                              << "(duration=" << duration << ", warmup=" << warmup
-                             << ", parallel_factor=" << parallel_factor << ")" << LOG_endl;
+                             << ", parallel_factor=" << pfactor << ")" << LOG_endl;
         fail_to_parse(proxy, argc, argv); // invalid cmd
         return;
     }
@@ -517,7 +518,7 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
 
     /// do sparql-emu
     Logger logger;
-    proxy->run_query_emu(ifs, duration, warmup, parallel_factor, logger);
+    proxy->run_query_emu(ifs, duration, warmup, pfactor, logger);
 
     // FIXME: maybe hang in here if the input file misses in some machines
     //        or inconsistent global variables (e.g., global_enable_planner)
@@ -571,15 +572,12 @@ static void run_load(Proxy * proxy, int argc, char **argv)
     string dname;
     if (!load_vm.count("-d")) {
         fail_to_parse(proxy, argc, argv);
-        return ; // invalid cmd
+        return;
     } else {
         dname = load_vm["-d"].as<string>();
     }
 
-    bool c_enable = false;
-    if (load_vm.count("-c"))
-        c_enable = true;
-
+    bool c_enable = load_vm.count("-c");
 
     /// do load
     if (dname[dname.length() - 1] != '/')
@@ -608,7 +606,7 @@ static void run_load(Proxy * proxy, int argc, char **argv)
  *   -i   check from index key/value pair to normal key/value pair
  *   -n   check from normal key/value pair to index key/value pair
  */
-static void run_gsck(Proxy * proxy, int argc, char **argv)
+static void run_gsck(Proxy *proxy, int argc, char **argv)
 {
     // use the master proxy thread to run gstore checker
     if (!IS_MASTER(proxy))
@@ -629,24 +627,12 @@ static void run_gsck(Proxy * proxy, int argc, char **argv)
         cout << gsck_desc;
         return;
     }
-    // no options were set 
-    bool no_enable = true;
 
-    // -i options
-    bool i_enable = false;
-    if (gsck_vm.count("-i")){
-        i_enable = true;
-        no_enable = false;
-    }
-    // -n options
-    bool n_enable = false;
-    if (gsck_vm.count("-n")){
-        n_enable = true;
-        no_enable = false;
-    }
+    bool i_enable = gsck_vm.count("-i");
+    bool n_enable = gsck_vm.count("-n");
 
-    // default is checking everything  
-    if (no_enable) {
+    // no option means enable all
+    if (!i_enable && !n_enable) {
         i_enable = true;
         n_enable = true;
     }
@@ -669,7 +655,7 @@ static void run_gsck(Proxy * proxy, int argc, char **argv)
  * load-stat [options]
  *   -f <fname>    load statistics from <fname> located at data folder
  */
-static void run_load_stat(Proxy * proxy, int argc, char **argv)
+static void run_load_stat(Proxy *proxy, int argc, char **argv)
 {
     // use the main proxy thread on each server to configure system
     if (proxy->tid != 0)
@@ -712,7 +698,7 @@ static void run_load_stat(Proxy * proxy, int argc, char **argv)
  * load-stat [options]
  *   -f <fname>    store statistics to <fname> located at data folder
  */
-static void run_store_stat(Proxy * proxy, int argc, char **argv)
+static void run_store_stat(Proxy *proxy, int argc, char **argv)
 {
     // use the master proxy thread to store statistics
     if (!IS_MASTER(proxy))
@@ -753,7 +739,7 @@ static void run_store_stat(Proxy * proxy, int argc, char **argv)
  * The Wukong's console is co-located with the main proxy (the 1st proxy thread on the 1st server)
  * and provide a simple interactive cmdline to tester
  */
-void run_console(Proxy * proxy)
+void run_console(Proxy *proxy)
 {
     // init option descriptions
     if (IS_MASTER(proxy))   // only master proxy
@@ -785,7 +771,7 @@ void run_console(Proxy * proxy)
             } else {
                 // interactive mode: print a prompt and retrieve the command
                 // skip input with blank
-               size_t pos;
+                size_t pos;
                 do {
                     cout << "wukong> ";
                     getline(cin, cmd);
