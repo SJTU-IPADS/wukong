@@ -442,7 +442,9 @@ class DGraph {
                     if (++cnt >= total * 0.05) {
                         int now = __sync_add_and_fetch(&progress, 1);
                         if (now % global_num_engines == 0)
-                            logstream(LOG_INFO) << "already aggregrate " << (now / global_num_engines) * 5 << "%" << LOG_endl;
+                            logstream(LOG_INFO) << "already aggregrate "
+                                                << (now / global_num_engines) * 5
+                                                << "%" << LOG_endl;
                         cnt = 0;
                     }
                 }

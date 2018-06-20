@@ -53,10 +53,8 @@ public:
 
     TCP_Adaptor* tcp_adaptor;
     int sid;
-    int num_servers;
 
-    data_statistic(TCP_Adaptor* _tcp_adaptor, int _sid, int _num_servers)
-        : tcp_adaptor(_tcp_adaptor), sid(_sid), num_servers(_num_servers) { }
+    data_statistic(TCP_Adaptor* _tcp_adaptor, int _sid) : tcp_adaptor(_tcp_adaptor), sid(_sid) { }
 
     data_statistic() { }
 
@@ -68,7 +66,7 @@ public:
 
         if (sid == 0) {
             vector<data_statistic> all_gather;
-            for (int i = 0; i < num_servers; i++) {
+            for (int i = 0; i < global_num_servers; i++) {
                 std::string str;
                 str = tcp_adaptor->recv(0);
                 data_statistic tmp_data;
@@ -167,24 +165,24 @@ public:
     // after the master server get whole statistics, this method is used to send it to all machines.
     void send_stat_to_all_machines() {
         if (sid == 0) {
-            std::stringstream my_ss;
-            boost::archive::binary_oarchive my_oa(my_ss);
+            // master server sends statistics
+            std::stringstream ss;
+            boost::archive::binary_oarchive my_oa(ss);
             my_oa << global_ptcount
                   << global_pscount
                   << global_pocount
                   << global_ppcount
                   << global_tyscount;
-            for (int i = 1; i < num_servers; i++) {
-                tcp_adaptor->send(i, 0, my_ss.str());
-            }
-        }
 
-        if (sid != 0) {
+            for (int i = 1; i < global_num_servers; i++)
+                tcp_adaptor->send(i, 0, ss.str());
+        } else {
+            // every slave server recieves statistics
             std::string str;
             str = tcp_adaptor->recv(0);
-            std::stringstream s;
-            s << str;
-            boost::archive::binary_iarchive ia(s);
+            std::stringstream ss;
+            ss << str;
+            boost::archive::binary_iarchive ia(ss);
             ia >> global_ptcount
                >> global_pscount
                >> global_pocount
@@ -194,15 +192,17 @@ public:
     }
 
     void load_stat_from_file(string fname) {
+        uint64_t t1 = timer::get_usec();
 
-        // load data by the master server on local file
-        if (sid == 0){
-            // exit if file does not exist
+        // master server loads statistics and dispatchs them to all slave servers
+        if (sid == 0) {
             ifstream file(fname.c_str());
             if (!file.good()) {
                 logstream(LOG_WARNING) << "statistics file "  << fname
-                                    << " does not exsit, pleanse check the fname"
-                                    << " and use load-stat to mannually set it"  << LOG_endl;
+                                       << " does not exsit, pleanse check the fname"
+                                       << " and use load-stat to mannually set it"  << LOG_endl;
+
+                /// FIXME: HANG bug if master return here
                 return;
             }
 
@@ -218,8 +218,9 @@ public:
 
         send_stat_to_all_machines();
 
-        logstream(LOG_INFO) << "load statistics from file "  << fname
-                            << " is finished."  << LOG_endl;
+        uint64_t t2 = timer::get_usec();
+        logstream(LOG_INFO) << (t2 - t1) / 1000 << " ms for loading statistics"
+                            << " at server " << sid << LOG_endl;
     }
 
     void store_stat_to_file(string fname) {

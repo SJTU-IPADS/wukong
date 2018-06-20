@@ -1062,7 +1062,7 @@ public:
             }
         }
         uint64_t t2 = timer::get_usec();
-        logstream(LOG_DEBUG) << (t2 - t1) / 1000 << " ms for (parallel) prepare index info" << LOG_endl;
+        logstream(LOG_DEBUG) << (t2 - t1) / 1000 << " ms for preparing index info (in parallel)" << LOG_endl;
 
         /// TODO: parallelize index insertion
 

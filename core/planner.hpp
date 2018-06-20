@@ -153,7 +153,7 @@ class Planner {
                     path.push_back(0);
                     path.push_back(IN);
                     path.push_back(o1);
-                    add_cost = double(statistic->global_pscount[p]) / statistic->num_servers; //find subjects
+                    add_cost = double(statistic->global_pscount[p]) / global_num_servers; // find subjects
                     // next iteration
                     //cout << "pick : " << o1 << " " << p << " " << d << " " << o2 << endl;
                     //cout << "add_cost : " << add_cost << endl;
@@ -177,7 +177,7 @@ class Planner {
                     path.push_back(0);
                     path.push_back(OUT);
                     path.push_back(o2);
-                    add_cost = double(statistic->global_pocount[p]) / statistic->num_servers; //find objects
+                    add_cost = double(statistic->global_pocount[p]) / global_num_servers; // find objects
                     // next iteration
                     //cout << "pick : " << o1 << " " << p << " " << d << " " << o2 << endl;
                     //cout << "add_cost : " << add_cost << endl;
