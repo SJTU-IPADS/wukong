@@ -214,7 +214,18 @@ INFO:     (average) latency: 1072962 usec
 ## Graph storage integrity check on Wukong
 This command can help you make sure the correctness of current graph storage.
 
-1) Check the storage integrity related with index vertex.
+1) Check the storage integrity related with both index vertex and normal vertex
+
+```bash
+wukong> gsck
+INFO:     Graph storage intergity check has started on server 0
+INFO:     Graph storage intergity check has started on server 1
+INFO:     Server#0 has checked 47 index vertices and 110115 normal vertices.
+INFO:     Server#1 has checked 49 index vertices and 110013 normal vertices.
+INFO:     (average) latency: 49943499 usec
+```
+
+2) Check the storage integrity related with index vertex.
 
 ```bash
 wukong> gsck -i
@@ -225,7 +236,7 @@ INFO:     Server#1 has checked 49 index vertices and 0 normal vertices.
 INFO:     (average) latency: 18493196 usec
 ```
 
-2) Check the storage integrity related with normal vertex.
+3) Check the storage integrity related with normal vertex.
 
 ```bash
 wukong> gsck -n
@@ -234,15 +245,4 @@ INFO:     Graph storage intergity check has started on server 1
 INFO:     Server#0 has checked 0 index vertices and 110115 normal vertices.
 INFO:     Server#1 has checked 0 index vertices and 110013 normal vertices.
 INFO:     (average) latency: 36454664 usec
-```
-
-3) Check both of them
-
-```bash
-wukong> gsck -a
-INFO:     Graph storage intergity check has started on server 0
-INFO:     Graph storage intergity check has started on server 1
-INFO:     Server#0 has checked 47 index vertices and 110115 normal vertices.
-INFO:     Server#1 has checked 49 index vertices and 110013 normal vertices.
-INFO:     (average) latency: 49943499 usec
 ```
