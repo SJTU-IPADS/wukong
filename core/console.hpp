@@ -34,7 +34,7 @@
 
 #include "config.hpp"
 #include "proxy.hpp"
-#include "logger.hpp"
+#include "monitor.hpp"
 
 using namespace std;
 using namespace boost;
@@ -393,14 +393,14 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         /// do sparql
         SPARQLQuery reply;
         SPARQLQuery::Result &result = reply.result;
-        Logger logger;
-        int ret = proxy->run_single_query(ifs, mfactor, cnt, reply, logger);
+        Monitor monitor;
+        int ret = proxy->run_single_query(ifs, mfactor, cnt, reply, monitor);
         if (ret != 0) {
             logstream(LOG_ERROR) << "Failed to run the query (ERRNO: " << ret << ")!" << LOG_endl;
             fail_to_parse(proxy, argc, argv); // invalid cmd
             return;
         }
-        logger.print_latency(cnt);
+        monitor.print_latency(cnt);
         logstream(LOG_INFO) << "(last) result size: " << result.row_num << LOG_endl;
 
         // print or dump results
@@ -517,8 +517,8 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
 
 
     /// do sparql-emu
-    Logger logger;
-    proxy->run_query_emu(ifs, duration, warmup, pfactor, logger);
+    Monitor monitor;
+    proxy->run_query_emu(ifs, duration, warmup, pfactor, monitor);
 
     // FIXME: maybe hang in here if the input file misses in some machines
     //        or inconsistent global variables (e.g., global_enable_planner)
@@ -527,15 +527,16 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
     // print a performance statistic for running emulator on all servers
     if (IS_MASTER(proxy)) {
         for (int i = 0; i < global_num_servers * global_num_proxies - 1; i++) {
-            Logger other = console_recv<Logger>(proxy->tid);
-            logger.merge(other);
+            Monitor other = console_recv<Monitor>(proxy->tid);
+            monitor.merge(other);
         }
-        logger.aggregate();
-        logger.print_cdf();
-        logger.print_thpt();
+
+        monitor.aggregate();
+        monitor.print_cdf();
+        monitor.print_thpt();
     } else {
         // send logs to the master proxy
-        console_send<Logger>(0, 0, logger);
+        console_send<Monitor>(0, 0, monitor);
     }
 }
 
@@ -583,16 +584,16 @@ static void run_load(Proxy * proxy, int argc, char **argv)
     if (dname[dname.length() - 1] != '/')
         dname = dname + "/"; // force a "/" at the end of dname.
 
-    Logger logger;
+    Monitor monitor;
     RDFLoad reply;
     //FIXME: the dynamic_load_data will exit if the directory is not exist
-    int ret = proxy->dynamic_load_data(dname, reply, logger, c_enable);
+    int ret = proxy->dynamic_load_data(dname, reply, monitor, c_enable);
     if (ret != 0) {
         logstream(LOG_ERROR) << "Failed to load dynamic data from directory " << dname
                              << " (ERRNO: " << ret << ")!" << LOG_endl;
         return;
     }
-    logger.print_latency();
+    monitor.print_latency();
 #else
     logstream(LOG_ERROR) << "Can't load data into static graph store." << LOG_endl;
     logstream(LOG_ERROR) << "You can enable it by building Wukong with -DUSE_DYNAMIC_GSTORE=ON." << LOG_endl;
@@ -638,15 +639,15 @@ static void run_gsck(Proxy *proxy, int argc, char **argv)
     }
 
     /// do gsck
-    Logger logger;
+    Monitor monitor;
     GStoreCheck reply;
-    int ret = proxy->gstore_check(reply, logger, i_enable, n_enable);
+    int ret = proxy->gstore_check(reply, monitor, i_enable, n_enable);
     if (ret != 0) {
         logstream(LOG_ERROR) << "Some error found in gstore!"
                              << " (ERRNO: " << ret << ")" << LOG_endl;
         return;
     }
-    logger.print_latency();
+    monitor.print_latency();
 }
 
 /**

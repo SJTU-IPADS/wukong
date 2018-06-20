@@ -34,7 +34,7 @@
 #include "planner.hpp"
 #include "data_statistic.hpp"
 #include "string_server.hpp"
-#include "logger.hpp"
+#include "monitor.hpp"
 
 #include "mymath.hpp"
 #include "timer.hpp"
@@ -199,7 +199,7 @@ public:
     // @is: input
     // @reply: result
     int run_single_query(istream &is, int mt_factor, int cnt,
-                         SPARQLQuery &reply, Logger &logger) {
+                         SPARQLQuery &reply, Monitor &monitor) {
         uint64_t start, end;
         SPARQLQuery request;
 
@@ -229,7 +229,7 @@ public:
         }
 
         // Execute the SPARQL query
-        logger.init();
+        monitor.init();
         for (int i = 0; i < cnt; i++) {
             setpid(request);
 
@@ -246,7 +246,7 @@ public:
             send_request(request);
             reply = recv_reply();
         }
-        logger.finish();
+        monitor.finish();
         return 0; // success
     } // end of run_single_query
 
@@ -254,7 +254,7 @@ public:
     // Warm up for @w firstly, then measure throughput.
     // Latency is evaluated for @d seconds.
     // Proxy keeps @p queries in flight.
-    int run_query_emu(istream &is, int d, int w, int p, Logger &logger) {
+    int run_query_emu(istream &is, int d, int w, int p, Monitor &monitor) {
         uint64_t duration = SEC(d);
         uint64_t warmup = SEC(w);
         int parallel_factor = p;
@@ -309,7 +309,7 @@ public:
                 fill_template(tpls[i]);
         }
 
-        logger.init(ntypes);
+        monitor.init(ntypes);
 
         bool start = false; // start to measure throughput
         uint64_t send_cnt = 0, recv_cnt = 0, flying_cnt = 0;
@@ -330,7 +330,7 @@ public:
                 setpid(request);
                 request.result.blind = true; // always not take back results in batch mode
 
-                logger.start_record(request.pid, idx);
+                monitor.start_record(request.pid, idx);
                 send_request(request);
 
                 send_cnt++;
@@ -341,21 +341,21 @@ public:
                 SPARQLQuery r;
                 while (tryrecv_reply(r)) {
                     recv_cnt++;
-                    logger.end_record(r.pid);
+                    monitor.end_record(r.pid);
                 }
             }
 
-            logger.print_timely_thpt(recv_cnt, sid, tid); // print throughput
+            monitor.print_timely_thpt(recv_cnt, sid, tid); // print throughput
 
             // start to measure throughput after first warmup seconds
             if (!start && (timer::get_usec() - init) > warmup) {
-                logger.start_thpt(recv_cnt);
+                monitor.start_thpt(recv_cnt);
                 start = true;
             }
 
             flying_cnt = send_cnt - recv_cnt;
         }
-        logger.end_thpt(recv_cnt); // finish to measure throughput
+        monitor.end_thpt(recv_cnt); // finish to measure throughput
 
         // recieve all replies to calculate the tail latency
         while (recv_cnt < send_cnt) {
@@ -364,20 +364,20 @@ public:
             SPARQLQuery r;
             while (tryrecv_reply(r)) {
                 recv_cnt ++;
-                logger.end_record(r.pid);
+                monitor.end_record(r.pid);
             }
 
-            logger.print_timely_thpt(recv_cnt, sid, tid);
+            monitor.print_timely_thpt(recv_cnt, sid, tid);
         }
 
-        logger.finish();
+        monitor.finish();
 
         return 0; // success
     } // end of run_query_emu
 
 #ifdef DYNAMIC_GSTORE
-    int dynamic_load_data(string &dname, RDFLoad &reply, Logger &logger, bool &check_dup) {
-        logger.init();
+    int dynamic_load_data(string &dname, RDFLoad &reply, Monitor &monitor, bool &check_dup) {
+        monitor.init();
 
         RDFLoad request(dname, check_dup);
         setpid(request);
@@ -396,13 +396,13 @@ public:
                 ret = reply.load_ret;
         }
 
-        logger.finish();
+        monitor.finish();
         return ret;
     }
 #endif
 
-    int gstore_check(GStoreCheck &reply, Logger &logger, bool i_enable, bool n_enable) {
-        logger.init();
+    int gstore_check(GStoreCheck &reply, Monitor &monitor, bool i_enable, bool n_enable) {
+        monitor.init();
 
 
         GStoreCheck request(i_enable, n_enable);
@@ -422,7 +422,7 @@ public:
                 ret = reply.check_ret;
         }
 
-        logger.finish();
+        monitor.finish();
         return ret;
 
     }
