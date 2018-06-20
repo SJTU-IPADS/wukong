@@ -431,12 +431,7 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
             int sg_argc = 0;
             char** sg_argv = cmd2args(sg_cmd, sg_argc);
 
-            string tk1, tk2;
-            if(sg_argc >= 2 ) {
-                tk1 = string(sg_argv[0]);
-                tk2 = string(sg_argv[1]);
-            }
-            if (tk1 == "sparql" && tk2 == "-f") {
+            if (sg_argc >= 2 && (string(sg_argv[0]) == "sparql" && string(sg_argv[1]) == "-f")) {
                 cout << "Run the command: " << sg_cmd << endl;
                 run_sparql(proxy, sg_argc, sg_argv);
                 cout << endl;
@@ -612,7 +607,6 @@ static void run_load(Proxy * proxy, int argc, char **argv)
  * gsck [options]
  *   -i   check from index key/value pair to normal key/value pair
  *   -n   check from normal key/value pair to index key/value pair
- *   -a   check all above
  */
 static void run_gsck(Proxy * proxy, int argc, char **argv)
 {
@@ -635,19 +629,26 @@ static void run_gsck(Proxy * proxy, int argc, char **argv)
         cout << gsck_desc;
         return;
     }
+    // no options were set 
+    bool no_enable = true;
 
+    // -i options
     bool i_enable = false;
-    if (gsck_vm.count("-i"))
+    if (gsck_vm.count("-i")){
         i_enable = true;
-
+        no_enable = false;
+    }
+    // -n options
     bool n_enable = false;
-    if (gsck_vm.count("-n"))
+    if (gsck_vm.count("-n")){
         n_enable = true;
-    // gsck must run with option -i or -n
-    if (!(gsck_vm.count("-i") && gsck_vm.count("-n"))) {
-        logstream(LOG_ERROR) << "Cann't run the gsck without -n and -i" <<LOG_endl;
-        logstream(LOG_ERROR) << "You can run with option -i or -n" << LOG_endl;
-        return; 
+        no_enable = false;
+    }
+
+    // default is checking everything  
+    if (no_enable) {
+        i_enable = true;
+        n_enable = true;
     }
 
     /// do gsck
@@ -784,14 +785,12 @@ void run_console(Proxy * proxy)
             } else {
                 // interactive mode: print a prompt and retrieve the command
                 // skip input with blank
-                while (true) {
+               size_t pos;
+                do {
                     cout << "wukong> ";
                     getline(cin, cmd);
-                    // only break when input is not blanks
-                    size_t pos = cmd.find_first_not_of(" \t");
-                    if (pos != string::npos)
-                        break;
-                }
+                    pos = cmd.find_first_not_of(" \t");
+                } while (pos == string::npos); // if all are blanks, do again
             }
 
             // trim input
