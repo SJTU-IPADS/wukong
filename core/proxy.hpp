@@ -235,9 +235,11 @@ public:
 
             // set the multi-threading factor for queries start from index
             if (request.start_from_index()) {
-                if (mt_factor == 1 && global_mt_threshold > 1) {
-                    logstream(LOG_EMPH) << "This query starts from index, consider using option -m to accelerate it" << LOG_endl;
-                }
+                if (mt_factor == 1 && global_mt_threshold > 1)
+                    logstream(LOG_EMPH) << "The query starts from an index vertex, "
+                                        << "you could use option -m to accelerate it."
+                                        << LOG_endl;
+
                 request.mt_factor = min(mt_factor, global_mt_threshold);
             }
 
@@ -314,9 +316,9 @@ public:
         bool start = false; // start to measure throughput
         uint64_t send_cnt = 0, recv_cnt = 0, flying_cnt = 0;
 
-        // start
         uint64_t init = timer::get_usec();
-        while ((timer::get_usec() - init) < duration) { // send requeries for duration seconds
+        // send requeries for duration seconds
+        while ((timer::get_usec() - init) < duration) {
             // send requests
             for (int i = 0; i < parallel_factor - flying_cnt; i++) {
                 sweep_msgs(); // sweep pending msgs first
@@ -325,10 +327,11 @@ public:
                 SPARQLQuery request = idx < nlights ?
                                       tpls[idx].instantiate(coder.get_random()) : // light query
                                       heavy_reqs[idx - nlights]; // heavy query
+
                 if (global_enable_planner)
                     planner.generate_plan(request, statistic);
                 setpid(request);
-                request.result.blind = true; // always not take back results in batch mode
+                request.result.blind = true; // always not take back results for emulator
 
                 monitor.start_record(request.pid, idx);
                 send_request(request);
@@ -355,6 +358,7 @@ public:
 
             flying_cnt = send_cnt - recv_cnt;
         }
+
         monitor.end_thpt(recv_cnt); // finish to measure throughput
 
         // recieve all replies to calculate the tail latency

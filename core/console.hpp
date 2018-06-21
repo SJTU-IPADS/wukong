@@ -39,6 +39,8 @@
 using namespace std;
 using namespace boost;
 using namespace boost::program_options;
+
+
 // communicate between proxy threads
 TCP_Adaptor *con_adaptor;
 
@@ -57,12 +59,9 @@ static void console_send(int sid, int tid, T &r)
 template<typename T>
 static T console_recv(int tid)
 {
-    string str;
-    str = con_adaptor->recv(tid);
-
+    string str = con_adaptor->recv(tid);
     stringstream ss;
     ss << str;
-
     boost::archive::binary_iarchive ia(ss);
     T r;
     ia >> r;
@@ -74,7 +73,7 @@ static void console_barrier(int tid)
     static int _curr = 0;
     static __thread int _next = 1;
 
-    // inter-server barrier
+    // inter-server barrier (by the leader proxy)
     if (tid == 0)
         MPI_Barrier(MPI_COMM_WORLD);
 
@@ -86,12 +85,15 @@ static void console_barrier(int tid)
 }
 
 // the master proxy is the 1st proxy of the 1st server (i.e., sid == 0 and tid == 0)
-#define IS_MASTER(_p) ((_p)->sid == 0 && (_p)->tid == 0)
-#define PRINT_ID(_p) (cout << "[" << (_p)->sid << "-" << (_p)->tid << "]$ ")
+#define MASTER(_p) ((_p)->sid == 0 && (_p)->tid == 0)
+// the leader proxy is the 1st proxy on each server (i.e., tid == 0)
+#define LEADER(_p) ((_p)->tid == 0)
+
+#define PRINT_ID(_p) "[" << (_p)->sid << "|" << (_p)->tid << "]"
 
 
 // options
-options_description all_desc("These are common Wukong commands: ");
+options_description        all_desc("These are common Wukong commands: ");
 options_description       help_desc("help                display help infomation");
 options_description       quit_desc("quit                quit from the console");
 options_description     config_desc("config <args>       run commands for configueration");
@@ -184,15 +186,14 @@ void init_options_desc()
  */
 static void fail_to_parse(Proxy *proxy, int argc, char** argv)
 {
-    if (IS_MASTER(proxy)) {
-        string cmd;
-        for (int i = 0; i < argc; i++)
-            cmd = cmd + argv[i] + " ";
+    string cmd;
+    for (int i = 0; i < argc; i++)
+        cmd = cmd + argv[i] + " ";
 
-        logstream(LOG_ERROR) << "Failed to run the command: " << cmd << LOG_endl;
-        cout << endl
-             << "Input \'help\' command to get more information." << endl;
-    }
+    logstream(LOG_ERROR) << PRINT_ID(proxy)
+                         << " Failed to run the command: " << cmd << LOG_endl;
+    cout << endl
+         << "Input \'help\' command to get more information." << endl;
 }
 
 /**
@@ -274,13 +275,13 @@ static void run_config(Proxy *proxy, int argc, char **argv)
 
     // parse options
     if (config_vm.count("help")) {
-        if (IS_MASTER(proxy))
+        if (MASTER(proxy))
             cout << config_desc;
         return;
     }
 
     if (config_vm.count("-v")) {
-        if (IS_MASTER(proxy))
+        if (MASTER(proxy))
             print_config();
         return;
     }
@@ -292,7 +293,7 @@ static void run_config(Proxy *proxy, int argc, char **argv)
     }
 
     string fname, str;
-    if (IS_MASTER(proxy)) {
+    if (MASTER(proxy)) {
         if (config_vm.count("-l")) {
             fname = config_vm["-l"].as<string>();
             file2str(fname, str);
@@ -315,7 +316,7 @@ static void run_config(Proxy *proxy, int argc, char **argv)
     if (!str.empty()) {
         reload_config(str);
     } else {
-        if (IS_MASTER(proxy))
+        if (MASTER(proxy))
             logstream(LOG_ERROR) << "Failed to load config file: " << fname << LOG_endl;
     }
 }
@@ -335,7 +336,7 @@ static void run_config(Proxy *proxy, int argc, char **argv)
 static void run_sparql(Proxy * proxy, int argc, char **argv)
 {
     // use the master proxy thread to run SPARQL queries in single mode or batch mode
-    if (!IS_MASTER(proxy))
+    if (!MASTER(proxy))
         return;
 
     // parse command
@@ -350,7 +351,7 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
 
     // parse options
     if (sparql_vm.count("help")) {
-        if (IS_MASTER(proxy))
+        if (MASTER(proxy))
             cout << sparql_desc;
         return;
     }
@@ -472,7 +473,7 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
 
     // parse options
     if (sparql_emu_vm.count("help")) {
-        if (IS_MASTER(proxy))
+        if (MASTER(proxy))
             cout << sparql_emu_desc;
         return;
     }
@@ -524,13 +525,12 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
     //        or inconsistent global variables (e.g., global_enable_planner)
     console_barrier(proxy->tid);
 
-    // print a performance statistic for running emulator on all servers
-    if (IS_MASTER(proxy)) {
-        for (int i = 0; i < global_num_servers * global_num_proxies - 1; i++) {
+    // aggregate and print performance statistics for running emulators on all servers
+    if (MASTER(proxy)) {
+        for (int i = 1; i < global_num_servers * global_num_proxies; i++) {
             Monitor other = console_recv<Monitor>(proxy->tid);
             monitor.merge(other);
         }
-
         monitor.aggregate();
         monitor.print_cdf();
         monitor.print_thpt();
@@ -549,7 +549,7 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
 static void run_load(Proxy * proxy, int argc, char **argv)
 {
     // use the master proxy thread to dyanmically load RDF data
-    if (!IS_MASTER(proxy))
+    if (!MASTER(proxy))
         return;
 
 #ifdef DYNAMIC_GSTORE
@@ -565,7 +565,7 @@ static void run_load(Proxy * proxy, int argc, char **argv)
 
     // parse options
     if (load_vm.count("help")) {
-        if (IS_MASTER(proxy))
+        if (MASTER(proxy))
             cout << load_desc;
         return;
     }
@@ -610,7 +610,7 @@ static void run_load(Proxy * proxy, int argc, char **argv)
 static void run_gsck(Proxy *proxy, int argc, char **argv)
 {
     // use the master proxy thread to run gstore checker
-    if (!IS_MASTER(proxy))
+    if (!MASTER(proxy))
         return;
 
     // parse command
@@ -643,8 +643,8 @@ static void run_gsck(Proxy *proxy, int argc, char **argv)
     GStoreCheck reply;
     int ret = proxy->gstore_check(reply, monitor, i_enable, n_enable);
     if (ret != 0) {
-        logstream(LOG_ERROR) << "Some error found in gstore!"
-                             << " (ERRNO: " << ret << ")" << LOG_endl;
+        logstream(LOG_ERROR) << "Data integrity failed in graph store"
+                             << " (" << ret << ")" << LOG_endl;
         return;
     }
     monitor.print_latency();
@@ -658,8 +658,8 @@ static void run_gsck(Proxy *proxy, int argc, char **argv)
  */
 static void run_load_stat(Proxy *proxy, int argc, char **argv)
 {
-    // use the main proxy thread on each server to configure system
-    if (proxy->tid != 0)
+    // use the leader proxy thread on each server to configure system
+    if (!LEADER(proxy))
         return;
 
     // parse command
@@ -674,7 +674,7 @@ static void run_load_stat(Proxy *proxy, int argc, char **argv)
 
     // parse options
     if (load_stat_vm.count("help")) {
-        if (IS_MASTER(proxy))
+        if (MASTER(proxy))
             cout << load_stat_desc;
         return;
     }
@@ -702,7 +702,7 @@ static void run_load_stat(Proxy *proxy, int argc, char **argv)
 static void run_store_stat(Proxy *proxy, int argc, char **argv)
 {
     // use the master proxy thread to store statistics
-    if (!IS_MASTER(proxy))
+    if (!MASTER(proxy))
         return;
 
     // parse command
@@ -717,7 +717,7 @@ static void run_store_stat(Proxy *proxy, int argc, char **argv)
 
     // parse options
     if (store_stat_vm.count("help")) {
-        if (IS_MASTER(proxy))
+        if (MASTER(proxy))
             cout << store_stat_desc;
         return;
     }
@@ -742,12 +742,12 @@ static void run_store_stat(Proxy *proxy, int argc, char **argv)
  */
 void run_console(Proxy *proxy)
 {
-    // init option descriptions
-    if (IS_MASTER(proxy))   // only master proxy
+    // init option descriptions once on each server (by the leader proxy)
+    if (LEADER(proxy))
         init_options_desc();
 
     console_barrier(proxy->tid);
-    if (IS_MASTER(proxy))
+    if (MASTER(proxy))
         cout << endl
              << "Input \'help\' command to get more information"
              << endl
@@ -757,7 +757,7 @@ void run_console(Proxy *proxy)
     while (true) {
         console_barrier(proxy->tid);
         string cmd;
-        if (IS_MASTER(proxy)) {
+        if (MASTER(proxy)) {
             if (enable_oneshot) {
                 // one-shot command mode: run the command once and then quit
                 if (once) {
@@ -807,11 +807,11 @@ void run_console(Proxy *proxy)
         // run commmand on all consoles according to the keyword
         string cmd_type = argv[0];
         if (cmd_type == "help" || cmd_type == "h") {
-            if (IS_MASTER(proxy)) // FIXME: no need to run help on all consoles
+            if (MASTER(proxy))
                 print_help();
         } else if (cmd_type == "quit" || cmd_type == "q") {
-            if (proxy->tid == 0)
-                exit(0); // each server exits once by the 1st console
+            if (LEADER(proxy))
+                exit(0); // each server exits once (by the leader proxy)
         } else if (cmd_type == "config") {
             run_config(proxy, argc, argv);
         } else if (cmd_type == "sparql") { // handle SPARQL queries
