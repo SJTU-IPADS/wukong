@@ -5,7 +5,8 @@
 * [OpenMPI v1.6.5](#openmpi)
 * [Boost v1.67.0](#boost)
 * [Intel TBB v4.4.2](#tbb)
-* [ZeroMQ v4.0.5](#0MQ)
+* [~~ZeroMQ v4.0.5~~](#0MQ)
+* [nanomsg v1.1.4](#nanomsg)
 * [HWLOC v1.11.7](#hwloc)
 * [LibRDMA v1.0.0](#rdma)
 * [HDFS support](#hdfs)
@@ -95,6 +96,21 @@ export LIBRARY_PATH=$WUKONG_ROOT/deps/zeromq-4.0.5-install/lib:$LIBRARY_PATH
 export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/zeromq-4.0.5-install/lib:$LD_LIBRARY_PATH
 ```
 
+<a name="nanomsg"></a>
+### nanomsg v1.1.4
+
+```bash
+$cd $WUKONG_ROOT/deps/
+$tar zxvf 1.1.4.tar.gz
+$mkdir nanomsg-1.1.4-install
+$cd nanomsg-1.1.4
+$mkdir build
+$cd build
+$cmake -DCMAKE_INSTALL_PREFIX=$WUKONG_ROOT/deps/nanomsg-1.1.4-install/ ..
+$cmake --build . --target install
+$cd $WUKONG_ROOT/deps/
+$cp nn.hpp $WUKONG_ROOT/deps/nanomsg-1.1.4-install/include/nanomsg/
+```
 
 <a name="hwloc"></a>
 ### Portable Hardware Locality (hwloc) v1.11.7

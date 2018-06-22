@@ -5,6 +5,7 @@ openmpi="openmpi-1.6.5"
 boost="boost_1_67_0"
 tbb="tbb44_20151115oss"
 zeromq="zeromq-4.0.5"
+nanomsg="nanomsg-1.1.4"
 hwloc="hwloc-1.11.7"
 
 write_log(){
@@ -86,6 +87,40 @@ install_tbb(){
     if [ ! $TBBROOT ]; then
         echo -e "\n#Intel TBB configuration" >> ~/.bashrc
         echo ${tbb_prev}${tbb_ver}"/tbbvars.sh" >> ~/.bashrc
+        source ~/.bashrc
+    fi
+}
+
+install_nanomsg(){
+    trap "return" ERR
+    echo "Installing ${nanomsg}..."
+    write_log "${nanomsg}"
+    cd "$WUKONG_ROOT/deps"
+    if [ ! -d "${nanomsg}-install" ]; then
+        mkdir "${nanomsg}-install"
+        if [ ! -d "${nanomsg}" ]; then
+            if [ ! -f "1.1.4.tar.gz" ]; then
+                wget "https://github.com/nanomsg/nanomsg/archive/1.1.4.tar.gz"
+            fi
+            tar zxf "1.1.4.tar.gz"
+        fi
+        cd "$WUKONG_ROOT/deps/${nanomsg}"
+        mkdir build
+        cd build
+        trap - ERR
+        cmake -DCMAKE_INSTALL_PREFIX=${WUKONG_ROOT}/deps/${nanomsg}-install/ ..
+        cmake --build . --target install
+        cd "$WUKONG_ROOT/deps"
+        cp nn.hpp "$WUKONG_ROOT/deps/${nanomsg}-install/include/nanomsg/"
+    else
+        trap - ERR
+        echo "found ${nanomsg}."
+    fi
+    if [ $( echo "${CPATH}" | grep "${nanomsg}-install" | wc -l ) -eq 0 ]; then
+        echo '# nanomsg configuration' >> ~/.bashrc
+        echo "export CPATH=\$WUKONG_ROOT/deps/${nanomsg}-install/include:\$CPATH" >> ~/.bashrc
+        echo "export LIBRARY_PATH=\$WUKONG_ROOT/deps/${nanomsg}-install/lib:\$LIBRARY_PATH" >> ~/.bashrc
+        echo "export LD_LIBRARY_PATH=\$WUKONG_ROOT/deps/${nanomsg}-install/lib:\$LD_LIBRARY_PATH" >> ~/.bashrc
         source ~/.bashrc
     fi
 }
@@ -187,6 +222,20 @@ del_zeromq(){
     export LD_LIBRARY_PATH=$NEW_LD_LIBRARY_PATH
 }
 
+del_nanomsg(){
+    echo 'removing nanomsg...'
+    rm -rf "$WUKONG_ROOT/deps/${nanomsg}-install" "$WUKONG_ROOT/deps/${nanomsg}"
+    sed -i '/\(nanomsg configuration\)\|\(CPATH.*nanomsg\)\|\(LIBRARY_PATH.*nanomsg\)\|\(LD_LIBRARY_PATH.*nanomsg\)/d' ~/.bashrc
+
+    pattern=":$WUKONG_ROOT/deps/nanomsg[^:]*"
+    NEW_CPATH=`echo $CPATH | sed 's%'"$pattern"'%%g'`
+    NEW_LIBRARY_PATH=`echo $LIBRARY_PATH | sed 's%'"$pattern"'%%g'`
+    NEW_LD_LIBRARY_PATH=`echo $LD_LIBRARY_PATH | sed 's%'"$pattern"'%%g'`
+    export CPATH=$NEW_CPATH
+    export LIBRARY_PATH=$NEW_LIBRARY_PATH
+    export LD_LIBRARY_PATH=$NEW_LD_LIBRARY_PATH
+}
+
 del_hwloc(){
     echo 'removing hwloc...'
     rm -rf "$WUKONG_ROOT/deps/${hwloc}-install" "$WUKONG_ROOT/deps/${hwloc}"
@@ -210,7 +259,7 @@ clean_deps(){
         del_mpi
         del_boost
         del_tbb
-        del_zeromq
+        del_nanomsg
         del_hwloc
     else
         for ((i=2;i<=$#;i++)); do
@@ -220,6 +269,7 @@ clean_deps(){
                 "boost") del_boost ;;
                 "tbb") del_tbb ;;
                 "zeromq") del_zeromq ;;
+                "nanomsg") del_nanomsg ;;
                 "hwloc") del_hwloc ;;
                 *) echo "cannot clean $item" ;;
             esac
@@ -227,16 +277,40 @@ clean_deps(){
     fi
 }
 
+install_deps(){
+    if [[ "$#" == "1" || "$2" == "all" ]]; then
+        install_all_deps
+    else
+        for ((i=2;i<=$#;i++)); do
+            item=${!i}
+            case "$item" in
+                "mpi") install_mpi ;;
+                "boost") install_boost ;;
+                "tbb") install_tbb ;;
+                "nanomsg") install_nanomsg ;;
+                "hwloc") install_hwloc ;;
+                *) echo "cannot install $item" ;;
+            esac
+        done
+    fi
+}
+
+install_all_deps(){
+    install_mpi
+    install_boost
+    install_tbb
+    install_nanomsg
+    install_hwloc
+}
+
 # handle options
 if [ $WUKONG_ROOT ]; then
     if [ "$1" == "clean" ]; then
         clean_deps "$@"
+    elif [ "$1" == "install" ]; then
+        install_deps "$@"
     else
-        install_mpi
-        install_boost
-        install_tbb
-        install_zeromq
-        install_hwloc
+        install_all_deps
     fi
     cd "$WUKONG_ROOT/deps"
     source ~/.bashrc
