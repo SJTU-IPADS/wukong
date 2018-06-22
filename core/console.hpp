@@ -787,7 +787,7 @@ void run_console(Proxy *proxy)
             cmd.erase(pos + 1, cmd.length() - (pos + 1));
 
 
-            // send <cmd> to all consoles
+            // send <cmd> to all proxies
             for (int i = 0; i < global_num_servers; i++) {
                 for (int j = 0; j < global_num_proxies; j++) {
                     if (i == 0 && j == 0) continue ;
@@ -804,7 +804,7 @@ void run_console(Proxy *proxy)
         char **argv = cmd2args(cmd, argc);
 
 
-        // run commmand on all consoles according to the keyword
+        // run commmand on all proxies according to the keyword
         string cmd_type = argv[0];
         if (cmd_type == "help" || cmd_type == "h") {
             if (MASTER(proxy))
@@ -827,7 +827,9 @@ void run_console(Proxy *proxy)
         } else if (cmd_type == "store-stat") {
             run_store_stat(proxy, argc, argv);
         } else {
-            fail_to_parse(proxy, argc, argv);
+            // the same invalid command dispatch to all proxies, print error msg once
+            if (MASTER(proxy))
+                fail_to_parse(proxy, argc, argv);
         }
     }
 }
