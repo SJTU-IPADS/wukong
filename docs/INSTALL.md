@@ -41,12 +41,16 @@ export WUKONG_ROOT=[/path/to/wukong]
 
 We provide a shell script (i.e., `$WUKONG_ROOT/deps/deps.sh`) to download and install most of required dependencies automatically within the local sub-directory (i.e., `$WUKONG_ROOT/deps/`).
 
-> Currently, we requires OpenMPI v1.6.5, Boost v1.67.0, Intel TBB v4.4.2, ZeroMQ v4.0.5, HWLOC v1.11.7, and LibRDMA v1.0.0 (optional).
+> Currently, we requires OpenMPI v1.6.5, Boost v1.67.0, Intel TBB v4.4.2, nanomsg v1.1.4, HWLOC v1.11.7, and LibRDMA v1.0.0 (optional).
 
 ```bash
 $cd deps
 # install all dependencies
 $source deps.sh
+
+# install specified dependencies
+# option: all, mpi, boost, tbb, nanomsg, hwloc, librdma
+$source deps.sh install option
 ```
 
 > If you run Wukong on non-RDMA networks, you could skip LibRDMA by running `source deps.sh no-rdma`
@@ -55,7 +59,7 @@ You can also use the same shell script to uninstall dependencies.
 
 ```bash
 $cd deps
-# option: all, mpi, boost, tbb, zeromq, hwloc, librdma
+# option: all, mpi, boost, tbb, nanomsg, hwloc, librdma
 $source deps.sh clean option
 ```
 
