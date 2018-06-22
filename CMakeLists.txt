@@ -64,6 +64,6 @@ if(USE_DTYPE_64BIT)
 endif(USE_DTYPE_64BIT)
 
 ## Build Wukong 
-target_link_libraries(wukong zmq rt ibverbs tbb hwloc ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a ${BOOST_LIB}/libboost_program_options.a)
+target_link_libraries(wukong nanomsg zmq rt ibverbs tbb hwloc ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a ${BOOST_LIB}/libboost_program_options.a)
 
 
