@@ -287,6 +287,7 @@ install_deps(){
                 "mpi") install_mpi ;;
                 "boost") install_boost ;;
                 "tbb") install_tbb ;;
+                "zeromq") install_zeromq;;
                 "nanomsg") install_nanomsg ;;
                 "hwloc") install_hwloc ;;
                 *) echo "cannot install $item" ;;
@@ -299,6 +300,7 @@ install_all_deps(){
     install_mpi
     install_boost
     install_tbb
+    install_zeromq
     install_nanomsg
     install_hwloc
 }

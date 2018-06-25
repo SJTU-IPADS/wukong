@@ -5,7 +5,7 @@
 * [OpenMPI v1.6.5](#openmpi)
 * [Boost v1.67.0](#boost)
 * [Intel TBB v4.4.2](#tbb)
-* [~~ZeroMQ v4.0.5~~](#0MQ)
+* [ZeroMQ v4.0.5](#0MQ)
 * [nanomsg v1.1.4](#nanomsg)
 * [HWLOC v1.11.7](#hwloc)
 * [LibRDMA v1.0.0](#rdma)
