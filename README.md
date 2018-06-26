@@ -47,6 +47,6 @@ If you use Wukong in your research, please cite our paper:
 
 [**SOSP**] [Sub-millisecond Stateful Stream Querying over Fast-evolving Linked Data](docs/papers/wukong+s-sosp17.pdf). Yunhao Zhang, Rong Chen, and Haibo Chen. Proceedings of the 26th ACM Symposium on Operating Systems Principles, Shanghai, China, October, 2017. 
 
-[**USENIX ATC**] [Fast and Concurrent RDF Queries using RDMA-assisted GPU Graph Exploration] (docs/papers/wukong+g-atc18.pdf). Siyuan Wang, Chang Lou, Rong Chen, and Haibo Chen. Proceedings of 2018 USENIX Annual Technical Conference, Boston, MA, US, July 2018.
+[**USENIX ATC**] [Fast and Concurrent RDF Queries using RDMA-assisted GPU Graph Exploration](docs/papers/wukong+g-atc18.pdf). Siyuan Wang, Chang Lou, Rong Chen, and Haibo Chen. Proceedings of 2018 USENIX Annual Technical Conference, Boston, MA, US, July 2018.
 
 
