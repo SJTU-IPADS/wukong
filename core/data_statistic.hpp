@@ -37,6 +37,46 @@ struct direct_p {
 };
 
 class data_statistic {
+private:
+    // after the master server get whole statistics, this method is used to send it to all machines.
+    void send_stat_to_all_machines(TCP_Adaptor *con_adaptor) {
+        if (sid == 0) {
+            // master server sends statistics
+            std::stringstream ss;
+            boost::archive::binary_oarchive my_oa(ss);
+            my_oa << global_ptcount
+                  << global_pscount
+                  << global_pocount
+                  << global_ppcount
+                  << global_tyscount;
+
+            for (int i = 1; i < global_num_servers; i++)
+                con_adaptor->send(i, 0, ss.str());
+        } else {
+            // every slave server recieves statistics
+            std::string str;
+            str = con_adaptor->recv(0);
+            std::stringstream ss;
+            ss << str;
+            boost::archive::binary_iarchive ia(ss);
+            ia >> global_ptcount
+               >> global_pscount
+               >> global_pocount
+               >> global_ppcount
+               >> global_tyscount;
+        }
+    }
+
+    friend class boost::serialization::access;
+    template <typename Archive>
+    void serialize(Archive &ar, const unsigned int version) {
+        ar & predicate_to_triple;
+        ar & predicate_to_subject;
+        ar & predicate_to_object;
+        ar & type_to_subject;
+        ar & correlation;
+    }
+
 public:
     unordered_map<ssid_t, int> predicate_to_triple;
     unordered_map<ssid_t, int> predicate_to_subject;
@@ -58,17 +98,17 @@ public:
 
     data_statistic() { }
 
-    void gather_stat() {
+    void gather_stat(TCP_Adaptor *con_adaptor) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
         oa << (*this);
-        tcp_adaptor->send(0, 0, ss.str());
+        con_adaptor->send(0, 0, ss.str());
 
         if (sid == 0) {
             vector<data_statistic> all_gather;
             for (int i = 0; i < global_num_servers; i++) {
                 std::string str;
-                str = tcp_adaptor->recv(0);
+                str = con_adaptor->recv(0);
                 data_statistic tmp_data;
                 std::stringstream s;
                 s << str;
@@ -156,42 +196,13 @@ public:
 
         }
 
-        send_stat_to_all_machines();
+        send_stat_to_all_machines(con_adaptor);
 
         logstream(LOG_INFO) << "#" << sid << ": load stats of DGraph is finished." << LOG_endl;
 
     }
 
-    // after the master server get whole statistics, this method is used to send it to all machines.
-    void send_stat_to_all_machines() {
-        if (sid == 0) {
-            // master server sends statistics
-            std::stringstream ss;
-            boost::archive::binary_oarchive my_oa(ss);
-            my_oa << global_ptcount
-                  << global_pscount
-                  << global_pocount
-                  << global_ppcount
-                  << global_tyscount;
-
-            for (int i = 1; i < global_num_servers; i++)
-                tcp_adaptor->send(i, 0, ss.str());
-        } else {
-            // every slave server recieves statistics
-            std::string str;
-            str = tcp_adaptor->recv(0);
-            std::stringstream ss;
-            ss << str;
-            boost::archive::binary_iarchive ia(ss);
-            ia >> global_ptcount
-               >> global_pscount
-               >> global_pocount
-               >> global_ppcount
-               >> global_tyscount;
-        }
-    }
-
-    void load_stat_from_file(string fname) {
+    void load_stat_from_file(string fname, TCP_Adaptor *con_adaptor) {
         uint64_t t1 = timer::get_usec();
 
         // master server loads statistics and dispatchs them to all slave servers
@@ -216,7 +227,7 @@ public:
             ifs.close();
         }
 
-        send_stat_to_all_machines();
+        send_stat_to_all_machines(con_adaptor);
 
         uint64_t t2 = timer::get_usec();
         logstream(LOG_INFO) << (t2 - t1) / 1000 << " ms for loading statistics"
@@ -242,15 +253,6 @@ public:
             logstream(LOG_INFO) << "store statistics to file "
                                 << fname << " is finished." << LOG_endl;
         }
-    }
-
-    template <typename Archive>
-    void serialize(Archive &ar, const unsigned int version) {
-        ar & predicate_to_triple;
-        ar & predicate_to_subject;
-        ar & predicate_to_object;
-        ar & type_to_subject;
-        ar & correlation;
     }
 
 };

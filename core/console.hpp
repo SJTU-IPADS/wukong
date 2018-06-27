@@ -690,7 +690,7 @@ static void run_load_stat(Proxy *proxy, int argc, char **argv)
         fname = load_stat_vm["-f"].as<string>();
     }
 
-    proxy->statistic->load_stat_from_file(fname);
+    proxy->statistic->load_stat_from_file(fname, con_adaptor);
 }
 
 /**
