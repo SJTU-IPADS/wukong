@@ -64,7 +64,7 @@ if(USE_DTYPE_64BIT)
   add_definitions(-DDTYPE_64BIT)
 endif(USE_DTYPE_64BIT)
 
-#### GPU
+#### GPU(UNAVAILABLE NOW, COMMING SOON)
 option (USE_GPU "enable gpu support" OFF)
 if(USE_GPU)
     add_definitions(-DUSE_GPU)
