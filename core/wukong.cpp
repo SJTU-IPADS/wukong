@@ -127,24 +127,24 @@ main(int argc, char *argv[])
     // load RDF graph (shared by all engines)
     DGraph dgraph(sid, mem, &str_server, global_input_folder);
 
+    // init control communicaiton
+    con_adaptor = new TCP_Adaptor(sid, host_fname, global_num_proxies, global_ctrl_port_base);
+
     // prepare statistics for SPARQL optimizer
-    data_statistic stat(tcp_adaptor, sid);
+    data_statistic stat(sid);
     if (global_enable_planner) {
         if (global_generate_statistics) {
             dgraph.gstore.generate_statistic(stat);
-            stat.gather_stat();
+            stat.gather_stat(con_adaptor);
         } else {
             // use the dataset name by default
             vector<string> strs;
             boost::split(strs, global_input_folder, boost::is_any_of("/"));
             string fname = strs[strs.size() - 2] + ".statfile";
 
-            stat.load_stat_from_file(fname);
+            stat.load_stat_from_file(fname, con_adaptor);
         }
     }
-
-    // init control communicaiton
-    con_adaptor = new TCP_Adaptor(sid, host_fname, global_num_proxies, global_ctrl_port_base);
 
     // create proxies and engines
     ASSERT(global_num_threads == global_num_proxies + global_num_engines);
