@@ -63,7 +63,12 @@ if(USE_DTYPE_64BIT)
   add_definitions(-DDTYPE_64BIT)
 endif(USE_DTYPE_64BIT)
 
+#### GPU
+option (USE_GPU "enable gpu support" OFF)
+if(USE_GPU)
+    add_definitions(-DUSE_GPU)
+endif(USE_GPU)
+
 ## Build Wukong 
 target_link_libraries(wukong nanomsg zmq rt ibverbs tbb hwloc ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a ${BOOST_LIB}/libboost_program_options.a)
-
 
