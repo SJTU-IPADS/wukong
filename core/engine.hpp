@@ -36,7 +36,7 @@
 #include "assertion.hpp"
 #include "mymath.hpp"
 #include "timer.hpp"
-#include "reply_map.hpp"
+#include "rmap.hpp"
 
 using namespace std;
 
@@ -76,7 +76,7 @@ private:
     std::vector<SPARQLQuery> msg_fast_path;
     std::vector<SPARQLQuery> runqueue;
 
-    Reply_Map rmap; // a map of replies for pending (fork-join) queries
+    RMap rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
 
     vector<Message> pending_msgs;

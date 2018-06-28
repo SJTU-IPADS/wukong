@@ -29,7 +29,7 @@
 using namespace std;
 
 // The map is used to collect replies from sub_queries in fork-join execution mode
-class Reply_Map {
+class RMap {
 private:
     struct Item {
         int cnt; // #sub-queries
