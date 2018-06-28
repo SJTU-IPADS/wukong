@@ -39,7 +39,7 @@ struct direct_p {
 class data_statistic {
 private:
     // after the master server get whole statistics, this method is used to send it to all machines.
-    void send_stat_to_all_machines(TCP_Adaptor *con_adaptor) {
+    void send_stat_to_all_machines(TCP_Adaptor *tcp_ad) {
         if (sid == 0) {
             // master server sends statistics
             std::stringstream ss;
@@ -51,11 +51,11 @@ private:
                   << global_tyscount;
 
             for (int i = 1; i < global_num_servers; i++)
-                con_adaptor->send(i, 0, ss.str());
+                tcp_ad->send(i, 0, ss.str());
         } else {
             // every slave server recieves statistics
             std::string str;
-            str = con_adaptor->recv(0);
+            str = tcp_ad->recv(0);
             std::stringstream ss;
             ss << str;
             boost::archive::binary_iarchive ia(ss);
@@ -91,24 +91,23 @@ public:
     unordered_map<ssid_t, int> global_tyscount;
     unordered_map<pair<ssid_t, ssid_t>, four_num, boost::hash<pair<int, int>>> global_ppcount;
 
-    TCP_Adaptor* tcp_adaptor;
     int sid;
 
-    data_statistic(TCP_Adaptor* _tcp_adaptor, int _sid) : tcp_adaptor(_tcp_adaptor), sid(_sid) { }
+    data_statistic(int _sid) : sid(_sid) { }
 
     data_statistic() { }
 
-    void gather_stat(TCP_Adaptor *con_adaptor) {
+    void gather_stat(TCP_Adaptor *tcp_ad) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
         oa << (*this);
-        con_adaptor->send(0, 0, ss.str());
+        tcp_ad->send(0, 0, ss.str());
 
         if (sid == 0) {
             vector<data_statistic> all_gather;
             for (int i = 0; i < global_num_servers; i++) {
                 std::string str;
-                str = con_adaptor->recv(0);
+                str = tcp_ad->recv(0);
                 data_statistic tmp_data;
                 std::stringstream s;
                 s << str;
@@ -196,13 +195,13 @@ public:
 
         }
 
-        send_stat_to_all_machines(con_adaptor);
+        send_stat_to_all_machines(tcp_ad);
 
         logstream(LOG_INFO) << "#" << sid << ": load stats of DGraph is finished." << LOG_endl;
 
     }
 
-    void load_stat_from_file(string fname, TCP_Adaptor *con_adaptor) {
+    void load_stat_from_file(string fname, TCP_Adaptor *tcp_ad) {
         uint64_t t1 = timer::get_usec();
 
         // master server loads statistics and dispatchs them to all slave servers
@@ -227,7 +226,7 @@ public:
             ifs.close();
         }
 
-        send_stat_to_all_machines(con_adaptor);
+        send_stat_to_all_machines(tcp_ad);
 
         uint64_t t2 = timer::get_usec();
         logstream(LOG_INFO) << (t2 - t1) / 1000 << " ms for loading statistics"

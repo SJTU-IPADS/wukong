@@ -131,7 +131,7 @@ main(int argc, char *argv[])
     con_adaptor = new TCP_Adaptor(sid, host_fname, global_num_proxies, global_ctrl_port_base);
 
     // prepare statistics for SPARQL optimizer
-    data_statistic stat(tcp_adaptor, sid);
+    data_statistic stat(sid);
     if (global_enable_planner) {
         if (global_generate_statistics) {
             dgraph.gstore.generate_statistic(stat);
