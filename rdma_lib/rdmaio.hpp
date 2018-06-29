@@ -1837,8 +1837,6 @@ public:
     void register_connect_mr_gpu(int dev_id = 0) {
         RdmaDevice *rdma_device = get_rdma_device(dev_id);
         assert(rdma_device->pd != NULL);
-        if(enable_single_thread_mr_ && rdma_device->conn_buf_mr != NULL)
-            return;
 
         rdma_device->conn_buf_mr_gpu = ibv_reg_mr(
             rdma_device->pd,
