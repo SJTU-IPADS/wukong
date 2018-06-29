@@ -64,7 +64,6 @@ class RDMA {
             if (mem_gpu != nullptr && sz_gpu > 0) {
                 ctrl->set_connect_mr_gpu(mem_gpu, sz_gpu);
                 ctrl->register_connect_mr_gpu();
-                printf("[INFO] RDMA_Device: GPUDirect RDMA is enabled.\n");
                 logstream(LOG_INFO) << "RDMA_Device: GPUDirect RDMA is enabled." << LOG_endl;
             }
 #endif

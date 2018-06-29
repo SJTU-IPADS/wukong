@@ -66,6 +66,10 @@ bool global_enable_planner = true;  // for planner
 
 bool global_enable_vattr = false;  // for attr
 
+// GPU related
+int global_gpu_num_agents = 1;
+int global_gpu_rdma_buf_size_mb = 64;
+
 static bool set_immutable_config(string cfg_name, string value)
 {
     if (cfg_name == "global_num_proxies") {
@@ -104,7 +108,11 @@ static bool set_immutable_config(string cfg_name, string value)
         ASSERT(global_rdma_rbf_size_mb > 0);
     } else if (cfg_name == "global_generate_statistics") {
         global_generate_statistics = atoi(value.c_str());
-    }
+    } else if (cfg_name == "global_gpu_num_agents") {
+		global_gpu_num_agents = atoi(value.c_str());
+	} else if (cfg_name == "global_gpu_rdma_buf_size_mb") {
+		global_gpu_rdma_buf_size_mb = atoi(value.c_str());
+	}
     else {
         return false;
     }
@@ -250,10 +258,16 @@ void print_config(void)
     logstream(LOG_INFO) << "global_enable_planner: "        << global_enable_planner        << LOG_endl;
     logstream(LOG_INFO) << "global_generate_statistics: "   << global_generate_statistics   << LOG_endl;
     logstream(LOG_INFO) << "global_enable_vattr: "      << global_enable_vattr          << LOG_endl;
+#ifdef USE_GPU
+    logstream(LOG_INFO) << "GPU related configurations:" << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_num_agents: "        << global_gpu_num_agents        << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_rdma_buf_size_mb: "  << global_gpu_rdma_buf_size_mb  << LOG_endl;
+#endif
 
     logstream(LOG_INFO) << "--" << LOG_endl;
 
     // compute from other settings
     logstream(LOG_INFO) << "the number of servers: "        << global_num_servers           << LOG_endl;
     logstream(LOG_INFO) << "the number of threads: "        << global_num_threads           << LOG_endl;
+
 }

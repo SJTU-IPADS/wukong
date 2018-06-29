@@ -1454,6 +1454,8 @@ public:
             qp_attr.rkey = local_qp->dev_->conn_buf_mr->rkey;
 #endif
 #ifdef USE_GPU
+            assert(local_qp->dev_ != NULL);
+            assert(local_qp->dev_->conn_buf_mr_gpu != NULL);
             qp_attr.gpu_buf = (uint64_t) (uintptr_t) conn_buf_gpu_;
             qp_attr.gpu_buf_size = conn_buf_size_gpu_;
             qp_attr.gpu_rkey = local_qp->dev_->conn_buf_mr_gpu->rkey;

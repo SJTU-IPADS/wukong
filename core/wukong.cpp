@@ -27,6 +27,9 @@
 #include "config.hpp"
 #include "bind.hpp"
 #include "mem.hpp"
+#ifdef USE_GPU
+#include "gpu_mem.hpp"
+#endif
 #include "string_server.hpp"
 #include "dgraph.hpp"
 #include "engine.hpp"
@@ -77,6 +80,7 @@ main(int argc, char *argv[])
     boost::mpi::environment env(argc, argv);
     boost::mpi::communicator world;
     int sid = world.rank(); // server ID
+    int devid = 0;
 
     if (argc < 3) {
         usage(argv[0]);
@@ -113,7 +117,11 @@ main(int argc, char *argv[])
     Mem *mem = new Mem(global_num_servers, global_num_threads);
     logstream(LOG_INFO)  << "#" << sid << ": allocate " << B2GiB(mem->memory_size()) << "GB memory" << LOG_endl;
 #ifdef USE_GPU
-    // TODO: init gpu memory and RDMA_init
+    GPUMem *gpu_mem = new GPUMem(devid, global_num_servers, global_gpu_num_agents);
+    logstream(LOG_INFO)  << "#" << sid << ": allocate " << B2GiB(gpu_mem->memory_size()) << "GB GPU memory" << LOG_endl;
+    RDMA_init(global_num_servers, global_num_threads,
+	    sid, mem->memory(), mem->memory_size(),
+        gpu_mem->memory(), gpu_mem->memory_size(), host_fname);
 #else
     // init RDMA devices and connections
     RDMA_init(global_num_servers, global_num_threads,
