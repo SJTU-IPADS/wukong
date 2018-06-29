@@ -43,7 +43,8 @@ class RDMA {
         RdmaCtrl* ctrl = NULL;
 
         RDMA_Device(int nnodes, int nthds, int nid,
-                    char *mem, uint64_t sz, string ipfn) {
+            char *mem_cpu, uint64_t sz_cpu,
+            char *mem_gpu, uint64_t sz_gpu, string ipfn) {
             // record IPs of ndoes
             vector<string> ipset;
             ifstream ipfile(ipfn);
@@ -57,8 +58,16 @@ class RDMA {
             // init device and create QPs
             ctrl = new RdmaCtrl(nid, ipset, RDMA_CTRL_PORT, true); // enable single context
             ctrl->open_device();
-            ctrl->set_connect_mr(mem, sz);
+            ctrl->set_connect_mr(mem_cpu, sz_cpu);
             ctrl->register_connect_mr();//single
+#ifdef USE_GPU
+            if (mem_gpu != nullptr && sz_gpu > 0) {
+                ctrl->set_connect_mr_gpu(mem_gpu, sz_gpu);
+                ctrl->register_connect_mr_gpu();
+                printf("[INFO] RDMA_Device: GPUDirect RDMA is enabled.\n");
+                logstream(LOG_INFO) << "RDMA_Device: GPUDirect RDMA is enabled." << LOG_endl;
+            }
+#endif
             ctrl->start_server();
             for (uint j = 0; j < nthds; ++j) {
                 for (uint i = 0; i < nnodes; ++i) {
@@ -89,6 +98,18 @@ class RDMA {
                 if (connected == nthds * nnodes) break; // done
             }
         }
+
+#ifdef USE_GPU
+        // (sync) GPUDirect RDMA Write (w/ completion)
+        int GPURdmaWrite(int tid, int nid, char *local_gpu, uint64_t sz, uint64_t off) {
+            Qp* qp = ctrl->get_rc_qp(tid, nid);
+
+            int flags = IBV_SEND_SIGNALED;
+            qp->rc_post_send_gpu(IBV_WR_RDMA_WRITE, local_gpu, sz, off, flags);
+            qp->poll_completion();
+            return 0;
+        }
+#endif
 
         // (sync) RDMA Read (w/ completion)
         int RdmaRead(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
@@ -141,8 +162,10 @@ public:
     ~RDMA() { if (dev != NULL) delete dev; }
 
     void init_dev(int nnodes, int nthds, int nid,
-                  char *mem, uint64_t sz, string ipfn) {
-        dev = new RDMA_Device(nnodes, nthds, nid, mem, sz, ipfn);
+        char *mem_cpu, uint64_t sz_cpu,
+        char *mem_gpu, uint64_t sz_gpu, string ipfn) {
+        dev = new RDMA_Device(nnodes, nthds, nid,
+            mem_cpu, sz_cpu, mem_gpu, sz_gpu, ipfn);
     }
 
     inline static bool has_rdma() { return true; }
@@ -154,12 +177,13 @@ public:
 };
 
 void RDMA_init(int nnodes, int nthds, int nid,
-               char *mem, uint64_t sz, string ipfn) {
+            char *mem_cpu, uint64_t sz_cpu,
+            char *mem_gpu, uint64_t sz_gpu, string ipfn) {
     uint64_t t = timer::get_usec();
 
     // init RDMA device
     RDMA &rdma = RDMA::get_rdma();
-    rdma.init_dev(nnodes, nthds, nid, mem, sz, ipfn);
+    rdma.init_dev(nnodes, nthds, nid, mem_cpu, sz_cpu, mem_gpu, sz_gpu, ipfn);
 
     t = timer::get_usec() - t;
     logstream(LOG_INFO) << "initializing RMDA done (" << t / 1000  << " ms)" << LOG_endl;
@@ -170,7 +194,9 @@ void RDMA_init(int nnodes, int nthds, int nid,
 class RDMA {
     class RDMA_Device {
     public:
-        RDMA_Device(int nnodes, int nthds, int nid, char *mem, uint64_t sz, string fname) {
+        RDMA_Device(int nnodes, int nthds, int nid,
+            char *mem_cpu, uint64_t sz_cpu,
+            char *mem_gpu, uint64_t sz_gpu, string fname) {
             logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
             ASSERT(false);
         }
@@ -207,8 +233,10 @@ public:
 
     ~RDMA() { }
 
-    void init_dev(int nnodes, int nthds, int nid, char *mem, uint64_t sz, string ipfn) {
-        dev = new RDMA_Device(nnodes, nthds, nid, mem, sz, ipfn);
+    void init_dev(int nnodes, int nthds, int nid,
+    char *mem_cpu, uint64_t sz_cpu,
+    char *mem_gpu, uint64_t sz_gpu, string ipfn) {
+        dev = new RDMA_Device(nnodes, nthds, nid, mem_cpu, sz_cpu, mem_gpu, sz_gpu, ipfn);
     }
 
     inline static bool has_rdma() { return false; }
@@ -219,7 +247,9 @@ public:
     }
 };
 
-void RDMA_init(int nnodes, int nthds, int nid, char *mem, uint64_t sz, string ipfn) {
+void RDMA_init(int nnodes, int nthds, int nid,
+    char *mem_cpu, uint64_t sz_cpu,
+    char *mem_gpu, uint64_t sz_gpu, string ipfn) {
     logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
 }
 

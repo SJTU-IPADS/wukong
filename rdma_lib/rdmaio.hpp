@@ -40,7 +40,9 @@
 #include "simple_map.hpp"
 #include "utils.hpp"
 #include "helper_func.hpp"
-
+#ifdef USE_GPU
+#include "gpu_utils.hpp"
+#endif
 // #define PER_QP_PD
 
 #define MAX_POLL_CQ_TIMEOUT 4000 // Time-out of the poll complection
@@ -75,6 +77,9 @@ struct RdmaDevice {
     struct ibv_pd *pd;
     struct ibv_mr *conn_buf_mr;
     struct ibv_mr *dgram_buf_mr;
+#ifdef USE_GPU
+    struct ibv_mr *conn_buf_mr_gpu;
+#endif
 
     struct ibv_port_attr *port_attrs;
     //used for ud QPs
@@ -90,6 +95,14 @@ struct RdmaQpAttr {
     uintptr_t buf;
     uint32_t buf_size;
     uint32_t rkey;
+
+#ifdef USE_GPU
+    // buffer on GPU
+    uintptr_t gpu_buf;
+    uint32_t gpu_buf_size;
+    uint32_t gpu_rkey;
+#endif
+
     uint16_t lid;
     uint64_t qpn;
     RdmaQpAttr() { }
@@ -793,6 +806,42 @@ public:
 
     inline bool force_poll() { pendings = POLL_THRSHOLD; }
 
+#ifdef USE_GPU
+    IOStatus rc_post_send_gpu(ibv_wr_opcode op, char *local_gpu_buf,
+        int len, uint64_t off, int flags, int wr_id = 0) {
+        IOStatus rc = IO_SUCC;
+        struct ibv_send_wr sr, *bad_sr;
+        struct ibv_sge sge;
+        assert(this->qp->qp_type == IBV_QPT_RC);
+
+        sge.addr = (uint64_t)local_gpu_buf;
+        sge.length = len;
+
+        if (op == IBV_WR_RDMA_WRITE) {
+            sge.lkey = dev_->conn_buf_mr_gpu->lkey;
+        } else if (op == IBV_WR_RDMA_READ) {
+            fprintf(stdout, "rc_post_send_gpu: not support opcode! op: %d\n", op);
+            assert(false);
+        } else {
+            fprintf(stdout, "rc_post_send_gpu: not support opcode! op: %d\n", op);
+            assert(false);
+        }
+        sr.wr_id = wr_id;
+        sr.opcode = op;
+        sr.num_sge = 1;
+        sr.next = NULL;
+        sr.sg_list = &sge;
+        sr.send_flags = flags;
+
+        sr.wr.rdma.remote_addr = remote_attr_.gpu_buf + off;
+        sr.wr.rdma.rkey = remote_attr_.gpu_rkey;
+
+        rc = (IOStatus)ibv_post_send(qp, &sr, &bad_sr);
+        return rc;
+    }
+
+#endif
+
 public:
     // ud routing info
     //struct ibv_ah *ahs_[16]; //FIXME!, currently we only have 16 servers ..
@@ -1404,7 +1453,11 @@ public:
             assert(local_qp->dev_->conn_buf_mr != NULL);
             qp_attr.rkey = local_qp->dev_->conn_buf_mr->rkey;
 #endif
-
+#ifdef USE_GPU
+            qp_attr.gpu_buf = (uint64_t) (uintptr_t) conn_buf_gpu_;
+            qp_attr.gpu_buf_size = conn_buf_size_gpu_;
+            qp_attr.gpu_rkey = local_qp->dev_->conn_buf_mr_gpu->rkey;
+#endif
             //qp_attr.rkey = rdma_device_->conn_buf_mr->rkey;
             //qp_attr.rkey = qps_[qid]->reg_mr->rkey;
         }
@@ -1767,6 +1820,34 @@ public:
 
     SimpleMap<RdmaQpAttr*> remote_ud_qp_attrs_;
     SimpleMap<RdmaRecvHelper*> recv_helpers_;
+
+#ifdef USE_GPU
+    volatile uint8_t *conn_buf_gpu_;
+    uint64_t conn_buf_size_gpu_;
+
+    void set_connect_mr_gpu(volatile void *gpu_buf, uint64_t gpu_buf_size){
+        assert(gpu_buf != NULL);
+        CUDA_ASSERT( cudaMemset((char *) gpu_buf, 0, gpu_buf_size) );
+        conn_buf_gpu_ = (volatile uint8_t *)gpu_buf;
+        conn_buf_size_gpu_ = gpu_buf_size;
+    }
+
+    void register_connect_mr_gpu(int dev_id = 0) {
+        RdmaDevice *rdma_device = get_rdma_device(dev_id);
+        assert(rdma_device->pd != NULL);
+        if(enable_single_thread_mr_ && rdma_device->conn_buf_mr != NULL)
+            return;
+
+        rdma_device->conn_buf_mr_gpu = ibv_reg_mr(
+            rdma_device->pd,
+            (char *)conn_buf_gpu_,
+            conn_buf_size_gpu_,
+            DEFAULT_PROTECTION_FLAG);
+        CE_2(!rdma_device->conn_buf_mr_gpu,
+            "[librdma]: Connect Device Memory Region failed at dev %d, err %s\n",dev_id,
+            strerror(errno));
+    }
+#endif
 };
 
 bool Qp::get_ud_connect_info(int remote_id, int idx) {
@@ -1878,9 +1959,6 @@ bool Qp::get_ud_connect_info_specific(int remote_id, int thread_id, int idx) {
 
     return true;
 }
-
-
-
 }
 
 // private helper functions ////////////////////////////////////////////////////////////////////

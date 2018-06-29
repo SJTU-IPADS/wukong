@@ -112,11 +112,13 @@ main(int argc, char *argv[])
     // allocate memory
     Mem *mem = new Mem(global_num_servers, global_num_threads);
     logstream(LOG_INFO)  << "#" << sid << ": allocate " << B2GiB(mem->memory_size()) << "GB memory" << LOG_endl;
-
+#ifdef USE_GPU
+    // TODO: init gpu memory and RDMA_init
+#else
     // init RDMA devices and connections
     RDMA_init(global_num_servers, global_num_threads,
-              sid, mem->memory(), mem->memory_size(), host_fname);
-
+              sid, mem->memory(), mem->memory_size(), nullptr, 0, host_fname);
+#endif
     // init communication
     RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mem, global_num_servers, global_num_threads);
     TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_num_threads, global_data_port_base);
