@@ -66,9 +66,11 @@ bool global_enable_planner = true;  // for planner
 
 bool global_enable_vattr = false;  // for attr
 
-// GPU related
+#ifdef USE_GPU
+// GPU-related configurations
 int global_gpu_num_agents = 1;
 int global_gpu_rdma_buf_size_mb = 64;
+#endif
 
 static bool set_immutable_config(string cfg_name, string value)
 {
@@ -108,11 +110,14 @@ static bool set_immutable_config(string cfg_name, string value)
         ASSERT(global_rdma_rbf_size_mb > 0);
     } else if (cfg_name == "global_generate_statistics") {
         global_generate_statistics = atoi(value.c_str());
-    } else if (cfg_name == "global_gpu_num_agents") {
+    }
+#ifdef USE_GPU
+    else if (cfg_name == "global_gpu_num_agents") {
 		global_gpu_num_agents = atoi(value.c_str());
 	} else if (cfg_name == "global_gpu_rdma_buf_size_mb") {
 		global_gpu_rdma_buf_size_mb = atoi(value.c_str());
 	}
+#endif
     else {
         return false;
     }
@@ -258,6 +263,7 @@ void print_config(void)
     logstream(LOG_INFO) << "global_enable_planner: "        << global_enable_planner        << LOG_endl;
     logstream(LOG_INFO) << "global_generate_statistics: "   << global_generate_statistics   << LOG_endl;
     logstream(LOG_INFO) << "global_enable_vattr: "      << global_enable_vattr          << LOG_endl;
+
 #ifdef USE_GPU
     logstream(LOG_INFO) << "GPU related configurations:" << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_num_agents: "        << global_gpu_num_agents        << LOG_endl;
