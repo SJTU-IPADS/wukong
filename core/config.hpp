@@ -113,10 +113,10 @@ static bool set_immutable_config(string cfg_name, string value)
     }
 #ifdef USE_GPU
     else if (cfg_name == "global_gpu_num_agents") {
-		global_gpu_num_agents = atoi(value.c_str());
-	} else if (cfg_name == "global_gpu_rdma_buf_size_mb") {
-		global_gpu_rdma_buf_size_mb = atoi(value.c_str());
-	}
+        global_gpu_num_agents = atoi(value.c_str());
+    } else if (cfg_name == "global_gpu_rdma_buf_size_mb") {
+        global_gpu_rdma_buf_size_mb = atoi(value.c_str());
+    }
 #endif
     else {
         return false;
