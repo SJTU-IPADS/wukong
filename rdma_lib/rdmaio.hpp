@@ -807,8 +807,11 @@ public:
     inline bool force_poll() { pendings = POLL_THRSHOLD; }
 
 #ifdef USE_GPU
+    // data is from gpu mem.
+    // if to_gpu is true, send to remote gpu mem
+    // else send to cpu mem
     IOStatus rc_post_send_gpu(ibv_wr_opcode op, char *local_gpu_buf,
-        int len, uint64_t off, int flags, int wr_id = 0) {
+        int len, uint64_t off, int flags, bool to_gpu, int wr_id = 0) {
         IOStatus rc = IO_SUCC;
         struct ibv_send_wr sr, *bad_sr;
         struct ibv_sge sge;
@@ -833,8 +836,13 @@ public:
         sr.sg_list = &sge;
         sr.send_flags = flags;
 
-        sr.wr.rdma.remote_addr = remote_attr_.gpu_buf + off;
-        sr.wr.rdma.rkey = remote_attr_.gpu_rkey;
+        if (to_gpu) {
+            sr.wr.rdma.remote_addr = remote_attr_.gpu_buf + off;
+            sr.wr.rdma.rkey = remote_attr_.gpu_rkey;
+        } else {
+            sr.wr.rdma.remote_addr = remote_attr_.buf + off;
+            sr.wr.rdma.rkey = remote_attr_.rkey;
+        }
 
         rc = (IOStatus)ibv_post_send(qp, &sr, &bad_sr);
         return rc;

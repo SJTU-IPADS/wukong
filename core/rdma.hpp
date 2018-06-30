@@ -100,11 +100,11 @@ class RDMA {
 
 #ifdef USE_GPU
         // (sync) GPUDirect RDMA Write (w/ completion)
-        int GPURdmaWrite(int tid, int nid, char *local_gpu, uint64_t sz, uint64_t off) {
+        int GPURdmaWrite(int tid, int nid, char *local_gpu, uint64_t sz, uint64_t off, bool to_gpu = false) {
             Qp* qp = ctrl->get_rc_qp(tid, nid);
 
             int flags = IBV_SEND_SIGNALED;
-            qp->rc_post_send_gpu(IBV_WR_RDMA_WRITE, local_gpu, sz, off, flags);
+            qp->rc_post_send_gpu(IBV_WR_RDMA_WRITE, local_gpu, sz, off, flags, to_gpu);
             qp->poll_completion();
             return 0;
         }

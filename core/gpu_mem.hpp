@@ -42,19 +42,10 @@ private:
 public:
     GPUMem(int devid, int num_servers, int num_agents)
         : devid(devid), num_servers(num_servers), num_agents(num_agents) {
-
-        // calculate mem_gpuory usage
-        uint64_t buf_sz, buf_off, rbf_sz, rdma_sz;
-
         buf_sz = MiB2B(global_gpu_rdma_buf_size_mb);
-
-        // calculate GPUDirect RDMA buffer size
-        // mem_gpu_sz = buf_sz * num_threads + rbf_sz * num_servers * num_threads;
         mem_gpu_sz = buf_sz * num_agents;
 
         CUDA_ASSERT( cudaSetDevice(devid) );
-        // CUDA_ASSERT( cudaMemGetInfo(&free_sz, &total_sz) );
-
         CUDA_ASSERT( cudaMalloc(&mem_gpu, mem_gpu_sz) );
         CUDA_ASSERT( cudaMemset(mem_gpu, 0, mem_gpu_sz) );
 
@@ -73,5 +64,5 @@ public:
 	inline uint64_t buffer_size() { return buf_sz; }
 	inline uint64_t buffer_offset(int tid) { return buf_off + buf_sz * (tid % num_agents); }
 
-}; // end of class GPUMem
+};
 #endif
