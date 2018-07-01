@@ -525,7 +525,8 @@ class Planner {
     Type_table type_table;
     unordered_map<ssid_t, int> var2col;  // convert
     unordered_map<ssid_t, int> var2ptindex;  // find the first appearance for var
-    
+    DGraph *graph;    
+
     // for test
     int count00;
     int count01;
@@ -685,7 +686,12 @@ class Planner {
                     //assert(false);
                     // selectivity and cost estimation
                     // find all types, push into result table
-                    ssid_t o1type = 31; // use o1 get_global_edges
+
+                    // use o1 get_global_edges
+                    uint64_t type_sz = 0;
+                    edge_t *res = graph->get_edges_global(0, o1, OUT, TYPE_ID, &type_sz);
+                    ssid_t o1type = res[0].val;
+
                     int tycount = statistic->global_tystat.get_pstype_count(p, o1type);
                     vector<ty_count> tycountv = statistic->global_tystat.fine_type[make_pair(o1type, p)];
                     for (size_t k = 0; k < tycountv.size(); k++) {
@@ -750,7 +756,12 @@ class Planner {
                         updated_result_table.push_back(vtype);
                     } else { // normal triples TODO
                         //assert(false);
-                        ssid_t o2type = 31; // use o2 get_global_edges
+                        
+                        // use o2 get_global_edges
+                        uint64_t type_sz = 0;
+                        edge_t *res = graph->get_edges_global(0, o2, OUT, TYPE_ID, &type_sz);
+                        ssid_t o2type = res[0].val;
+
                         int tycount = statistic->global_tystat.get_potype_count(p, o2type);
                         vector<ty_count> tycountv = statistic->global_tystat.fine_type[make_pair(p, o2type)];
                         for (size_t k = 0; k < tycountv.size(); k++) {
@@ -848,7 +859,9 @@ class Planner {
                             if (o2 > 0) { 
                                 // TODO for constant pruning
                                 //assert(false);
-                                ssid_t o2type = 31; // TODO
+                                uint64_t type_sz = 0;
+                                edge_t *res = graph->get_edges_global(0, o2, OUT, TYPE_ID, &type_sz);
+                                ssid_t o2type = res[0].val;
                                 if (vtype == o2type) match_flag = 1;
                             }
                             else if (var2col.find(o2) != var2col.end() && var2col[o2] > 0) { 
@@ -952,7 +965,9 @@ class Planner {
                             if (o1 > 0) { 
                                 // TODO for constant pruning
                                 //assert(false);
-                                ssid_t o1type = 31; // TODO
+                                uint64_t type_sz = 0;
+                                edge_t *res = graph->get_edges_global(0, o1, OUT, TYPE_ID, &type_sz);
+                                ssid_t o1type = res[0].val;
                                 if (vtype == o1type) match_flag = 1;
                             }
                             else if (var2col.find(o1) != var2col.end() && var2col[o1] > 0) { 
@@ -1023,6 +1038,7 @@ class Planner {
 
 public:
     Planner() { }
+    Planner(DGraph *graph):graph(graph) { }
 
     bool generate_for_patterns(vector<SPARQLQuery::Pattern> &patterns) {
         // transfer from patterns to temp_cmd_chains, may cause performance decrease

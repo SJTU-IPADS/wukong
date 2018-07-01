@@ -124,7 +124,7 @@ main(int argc, char *argv[])
     // load string server (read-only, shared by all proxies and all engines)
     String_Server str_server(global_input_folder);
 
-    // load RDF graph (shared by all engines)
+    // load RDF graph (shared by all engines and proxies)
     DGraph dgraph(sid, mem, &str_server, global_input_folder);
 
     // init control communicaiton
@@ -156,7 +156,7 @@ main(int argc, char *argv[])
 
         // TID: proxy = [0, #proxies), engine = [#proxies, #proxies + #engines)
         if (tid < global_num_proxies) {
-            Proxy *proxy = new Proxy(sid, tid, &str_server, adaptor, &stat);
+            Proxy *proxy = new Proxy(sid, tid, &str_server, &dgraph, adaptor, &stat);
             proxies.push_back(proxy);
         } else {
             Engine *engine = new Engine(sid, tid, &str_server, &dgraph, adaptor);
