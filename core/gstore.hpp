@@ -1723,8 +1723,10 @@ public:
     }
 
     // prepare data for planner
-    void generate_statistic_new(data_statistic &stat) {
+    void generate_statistic_new(data_statistic &stat, String_Server *str_server) {
 
+        // TODO tricky code
+        string GRADUATE_STUDENT = "<http://swat.cse.lehigh.edu/onto/univ-bench.owl#GraduateStudent>";
         for (uint64_t bucket_id = 0; bucket_id < num_buckets + num_buckets_ext; bucket_id++) {
             uint64_t slot_id = bucket_id * ASSOCIATIVITY;
             for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
@@ -1752,9 +1754,12 @@ public:
                         uint64_t type_sz = 0;
                         edge_t *res = get_edges_global(0, sbid, OUT, TYPE_ID, &type_sz);
                         if (type_sz > 1) {
-                            //Exception: LUBM graduate student have two types
+                            //TODO
+                            //Exception: LUBM graduate student have two types, the other one is teaching assistant
+                            //but only Type graduate student occurs in query, so we only use this type here
                             //The same Exception occurs threes times below
-                            res_type.push_back(19); //10 for 10240, 19 for 2560, 23 for 40, 2 for 640
+                            int type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
+                            res_type.push_back(type); //10 for 10240, 19 for 2560, 23 for 40, 2 for 640
                         }
                         else {
                             if (type_sz == 0) ; //cout << "no type: " << sbid << endl;
@@ -1770,7 +1775,7 @@ public:
                     edge_t *res = get_edges_local(0, vid, OUT, TYPE_ID, &type_sz);
                     ssid_t type;
                     if (type_sz > 1) {
-                        type = 19;
+                        type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
                     } else {
                       if (type_sz == 0) ;//cout << "no type: " << vid << endl;
                       else {
@@ -1799,7 +1804,8 @@ public:
                         uint64_t type_sz = 0;
                         edge_t *res = get_edges_global(0, obid, OUT, TYPE_ID, &type_sz);
                         if (type_sz > 1) {
-                            res_type.push_back(19);
+                            int type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
+                            res_type.push_back(type);
                         }
                         else {
                           if (type_sz == 0) ;//cout << "no type: " << obid << endl;
@@ -1815,7 +1821,7 @@ public:
                     edge_t *res = get_edges_local(0, vid, OUT, TYPE_ID, &type_sz);
                     ssid_t type;
                     if (type_sz > 1) { 
-                        type = 19;
+                        type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
                     } else {
                       if (type_sz == 0) ;//cout << "no type: " << vid << endl;
                       else {
