@@ -36,6 +36,90 @@ struct direct_p {
     direct_p(ssid_t x, ssid_t y): dir(x), p(y) {}
 };
 
+struct ty_count {
+    ssid_t ty;
+    int count;
+    template <typename Archive>
+    void serialize(Archive &ar, const unsigned int version) {
+        ar & ty;
+        ar & count;
+    }
+};
+
+struct type_stat {
+    unordered_map<ssid_t, vector<ty_count>> pstype;
+    unordered_map<ssid_t, vector<ty_count>> potype;
+    unordered_map<pair<ssid_t, ssid_t>, vector<ty_count>, boost::hash<pair<int, int>>> fine_type;
+    // pair<subject, predicate> means subject predicate -> ?
+    // pair<predicate, object> means ? predicate -> object
+    int get_pstype_count(ssid_t predicate, ssid_t type) {
+        vector<ty_count>& types = pstype[predicate];
+        for (size_t i = 0; i < types.size(); i++) {
+            if (types[i].ty == type) {
+                return types[i].count;
+            }
+        }
+        return 0;
+    }
+    int get_potype_count(ssid_t predicate, ssid_t type) {
+        vector<ty_count>& types = potype[predicate];
+        for (size_t i = 0; i < types.size(); i++) {
+            if (types[i].ty == type) {
+                return types[i].count;
+            }
+        }
+        return 0;
+    }
+    int insert_stype(ssid_t predicate, ssid_t type, int count) {
+        vector<ty_count>& types = pstype[predicate];
+        for (size_t i = 0; i < types.size(); i++) {
+            if (types[i].ty == type) {
+                types[i].count += count;
+                return 0;
+            }
+        }
+        ty_count newty;
+        newty.ty = type;
+        newty.count = count;
+        types.push_back(newty);
+        return 1;
+    }
+    int insert_otype(ssid_t predicate, ssid_t type, int count) {
+        vector<ty_count>& types = potype[predicate];
+        for (size_t i = 0; i < types.size(); i++) {
+            if (types[i].ty == type) {
+                types[i].count += count;
+                return 0;
+            }
+        }
+        ty_count newty;
+        newty.ty = type;
+        newty.count = count;
+        types.push_back(newty);
+        return 1;
+    }
+    int insert_finetype(ssid_t first, ssid_t second, ssid_t type, int count){
+        vector<ty_count>& types = fine_type[make_pair(first, second)];
+        for (size_t i = 0; i < types.size(); i++) {
+            if (types[i].ty == type) {
+                types[i].count += count;
+                return 0;
+            }
+        }
+        ty_count newty;
+        newty.ty = type;
+        newty.count = count;
+        types.push_back(newty);
+        return 1;
+    }
+    template <typename Archive>
+    void serialize(Archive &ar, const unsigned int version) {
+        ar & pstype;
+        ar & potype;
+        ar & fine_type;
+    }
+};
+
 class data_statistic {
 private:
     // after the master server get whole statistics, this method is used to send it to all machines.
@@ -75,6 +159,7 @@ private:
         ar & predicate_to_object;
         ar & type_to_subject;
         ar & correlation;
+        ar & local_tystat;
     }
 
 public:
@@ -90,6 +175,9 @@ public:
     unordered_map<ssid_t, int> global_pocount;
     unordered_map<ssid_t, int> global_tyscount;
     unordered_map<pair<ssid_t, ssid_t>, four_num, boost::hash<pair<int, int>>> global_ppcount;
+
+    type_stat local_tystat;
+    type_stat global_tystat;
 
     int sid;
 
@@ -176,6 +264,28 @@ public:
                     }
                 }
 
+                for (unordered_map<ssid_t, vector<ty_count>>::iterator it = all_gather[i].local_tystat.pstype.begin();
+                        it != all_gather[i].local_tystat.pstype.end(); it++ ) {
+                    ssid_t key = it->first;
+                    vector<ty_count>& types = it->second;
+                    for (size_t k = 0; k < types.size(); k++)
+                        global_tystat.insert_stype(key, types[k].ty, types[k].count);
+                }
+                for (unordered_map<ssid_t, vector<ty_count>>::iterator it = all_gather[i].local_tystat.potype.begin();
+                        it != all_gather[i].local_tystat.potype.end(); it++ ) {
+                    ssid_t key = it->first;
+                    vector<ty_count>& types = it->second;
+                    for (size_t k = 0; k < types.size(); k++)
+                        global_tystat.insert_otype(key, types[k].ty, types[k].count);
+                }
+                for (unordered_map<pair<ssid_t, ssid_t>, vector<ty_count>, boost::hash<pair<int, int> > >::iterator 
+                        it = all_gather[i].local_tystat.fine_type.begin();
+                        it != all_gather[i].local_tystat.fine_type.end(); it++ ) {
+                    pair<ssid_t, ssid_t> key = it->first;
+                    vector<ty_count>& types = it->second;
+                    for (size_t k = 0; k < types.size(); k++)
+                        global_tystat.insert_finetype(key.first, key.second, types[k].ty, types[k].count);
+                }
             }
 
             logstream(LOG_INFO) << "global_ptcount size: " << global_ptcount.size() << LOG_endl;
@@ -183,6 +293,9 @@ public:
             logstream(LOG_INFO) << "global_pocount size: " << global_pocount.size() << LOG_endl;
             logstream(LOG_INFO) << "global_ppcount size: " << global_ppcount.size() << LOG_endl;
             logstream(LOG_INFO) << "global_tyscount size: " << global_tyscount.size() << LOG_endl;
+            logstream(LOG_INFO) << "global_tystat.pstype.size: " << global_tystat.pstype.size() << LOG_endl;
+            logstream(LOG_INFO) << "global_tystat.potype.size: " << global_tystat.potype.size() << LOG_endl;
+            logstream(LOG_INFO) << "global_tystat.fine_type.size: " << global_tystat.fine_type.size() << LOG_endl;
 
             // for type predicate
             global_pocount[1] = global_tyscount.size();
@@ -223,6 +336,7 @@ public:
             ia >> global_pocount;
             ia >> global_tyscount;
             ia >> global_ppcount;
+            ia >> global_tystat;
             ifs.close();
         }
 
@@ -247,6 +361,7 @@ public:
             oa << global_pocount;
             oa << global_tyscount;
             oa << global_ppcount;
+            oa << global_tystat;
             ofs.close();
 
             logstream(LOG_INFO) << "store statistics to file "

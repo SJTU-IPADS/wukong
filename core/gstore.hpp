@@ -1722,6 +1722,137 @@ public:
         logstream(LOG_INFO) << "#" << sid << ": generating stats is finished." << LOG_endl;
     }
 
+    // prepare data for planner
+    void generate_statistic_new(data_statistic &stat) {
+
+        for (uint64_t bucket_id = 0; bucket_id < num_buckets + num_buckets_ext; bucket_id++) {
+            uint64_t slot_id = bucket_id * ASSOCIATIVITY;
+            for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
+                // skip empty slot
+                if (vertices[slot_id].key.is_empty()) continue;
+
+                sid_t vid = vertices[slot_id].key.vid;
+                sid_t pid = vertices[slot_id].key.pid;
+
+                uint64_t sz = vertices[slot_id].ptr.size;
+                uint64_t off = vertices[slot_id].ptr.off;
+                if (vid == PREDICATE_ID || pid == PREDICATE_ID) continue; // skip for index vertex
+
+                unordered_map<ssid_t, int> &pscount = stat.predicate_to_subject;
+                unordered_map<ssid_t, int> &tyscount = stat.type_to_subject;
+                type_stat &ty_stat = stat.local_tystat;
+
+                if (vertices[slot_id].key.dir == IN) {
+                    
+                    // for type derivation
+                    // get types of values found by key (Subjects)
+                    vector<ssid_t> res_type;
+                    for (uint64_t k = 0; k < sz; k++) {
+                        ssid_t sbid = edges[off + k].val;
+                        uint64_t type_sz = 0;
+                        edge_t *res = get_edges_global(0, sbid, OUT, TYPE_ID, &type_sz);
+                        if (type_sz > 1) {
+                            //Exception: LUBM graduate student have two types
+                            //The same Exception occurs threes times below
+                            res_type.push_back(19); //10 for 10240, 19 for 2560, 23 for 40, 2 for 640
+                        }
+                        else {
+                            if (type_sz == 0) ; //cout << "no type: " << sbid << endl;
+                            else {
+                              res_type.push_back(res[0].val);
+                            }
+                        }
+                    }
+
+                    // type for objects
+                    // get type of vid (Object)
+                    uint64_t type_sz = 0;
+                    edge_t *res = get_edges_local(0, vid, OUT, TYPE_ID, &type_sz);
+                    ssid_t type;
+                    if (type_sz > 1) {
+                        type = 19;
+                    } else {
+                      if (type_sz == 0) ;//cout << "no type: " << vid << endl;
+                      else {
+                          type = res[0].val;
+                      }
+                    }
+                    if (type_sz != 0) {
+                        ty_stat.insert_otype(pid, type, 1);
+                        for (int j = 0; j < res_type.size(); j++) {
+                            ty_stat.insert_finetype(pid, type, res_type[j], 1);
+                        }
+                    }
+
+                } else {
+                    // count subjects
+                    if (pscount.find(pid) == pscount.end())
+                        pscount[pid] = 1;
+                    else
+                        pscount[pid]++;
+                    
+                    // for type derivation
+                    // get types of values found by key (Objects)
+                    vector<ssid_t> res_type;
+                    for (uint64_t k = 0; k < sz; k++) {
+                        ssid_t obid = edges[off + k].val;
+                        uint64_t type_sz = 0;
+                        edge_t *res = get_edges_global(0, obid, OUT, TYPE_ID, &type_sz);
+                        if (type_sz > 1) {
+                            res_type.push_back(19);
+                        }
+                        else {
+                          if (type_sz == 0) ;//cout << "no type: " << obid << endl;
+                          else {
+                              res_type.push_back(res[0].val);
+                          }
+                        }
+                    }
+                    
+                    // type for subjects
+                    // get type of vid (Subject)
+                    uint64_t type_sz = 0;
+                    edge_t *res = get_edges_local(0, vid, OUT, TYPE_ID, &type_sz);
+                    ssid_t type;
+                    if (type_sz > 1) { 
+                        type = 19;
+                    } else {
+                      if (type_sz == 0) ;//cout << "no type: " << vid << endl;
+                      else {
+                          type = res[0].val;
+                      }
+                    }
+                    if (type_sz != 0) {
+                        ty_stat.insert_stype(pid, type, 1);
+                        for (int j = 0; j < res_type.size(); j++) {
+                            ty_stat.insert_finetype(type, pid, res_type[j], 1);
+                        }
+                    }
+
+                    // count type predicate
+                    if (pid == TYPE_ID) {
+                        for (uint64_t j = 0; j < sz; j++) {
+                            //src may belongs to multiple types
+                            sid_t obid = edges[off + j].val;
+
+                            if (tyscount.find(obid) == tyscount.end())
+                                tyscount[obid] = 1;
+                            else
+                                tyscount[obid]++;
+
+                            if (pscount.find(obid) == pscount.end())
+                                pscount[obid] = 1;
+                            else
+                                pscount[obid]++;
+                        }
+                    }
+                }
+            }
+        }
+
+        cout << "INFO#" << sid << ": generating stats is finished." << endl;
+    }
+
     // analysis and debuging
     void print_mem_usage() {
         uint64_t used_slots = 0;
