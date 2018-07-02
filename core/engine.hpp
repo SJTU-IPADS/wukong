@@ -34,9 +34,9 @@
 #include "dgraph.hpp"
 #include "query.hpp"
 #include "assertion.hpp"
-
 #include "mymath.hpp"
 #include "timer.hpp"
+#include "rmap.hpp"
 
 using namespace std;
 
@@ -45,80 +45,6 @@ using namespace std;
 #define MAX_SNOOZE_TIME 80 // MAX snooze time
 
 #define QUERY_FROM_PROXY(tid) ((tid) < global_num_proxies)
-
-// The map is used to colloect the replies of sub-queries in fork-join execution
-class Reply_Map {
-private:
-
-    struct Item {
-        int cnt; // #sub-queries
-        SPARQLQuery parent;
-        SPARQLQuery reply;
-    };
-
-    boost::unordered_map<int, Item> internal_map;
-
-public:
-    void put_parent_request(SPARQLQuery &r, int cnt) {
-        logstream(LOG_DEBUG) << "add pid=" << r.id << " and cnt=" << cnt << LOG_endl;
-
-        // not exist
-        ASSERT(internal_map.find(r.id) == internal_map.end());
-
-        Item d;
-        d.cnt = cnt;
-        d.parent = r;
-
-        internal_map[r.id] = d;
-    }
-
-    void put_reply(SPARQLQuery &r) {
-        // exist
-        ASSERT(internal_map.find(r.pid) != internal_map.end());
-
-        Item &d = internal_map[r.pid];
-        SPARQLQuery::Result &whole = d.reply.result;
-        SPARQLQuery::Result &part = r.result;
-        d.cnt--;
-
-        if (d.parent.has_union())
-            whole.merge_union(part);
-        else
-            whole.append_result(part);
-
-        // keep inprogress
-        if (d.parent.state == SPARQLQuery::SQState::SQ_PATTERN)
-            d.reply.pattern_step = r.pattern_step;
-    }
-
-    bool is_ready(int pid) {
-        return internal_map[pid].cnt == 0;
-    }
-
-    SPARQLQuery get_merged_reply(int pid) {
-        SPARQLQuery r = internal_map[pid].parent;
-        SPARQLQuery &reply = internal_map[pid].reply;
-
-        // copy the result
-        // FIXME: implement copy construct of SPARQLQuery::Result
-        r.result.col_num = reply.result.col_num;
-        r.result.blind = reply.result.blind;
-        r.result.row_num = reply.result.row_num;
-        r.result.attr_col_num = reply.result.attr_col_num;
-        r.result.v2c_map = reply.result.v2c_map;
-        r.result.result_table.swap(reply.result.result_table);
-        r.result.attr_res_table.swap(reply.result.attr_res_table);
-
-        // FIXME: need sync other fields or not
-        if (r.state == SPARQLQuery::SQState::SQ_PATTERN)
-            r.pattern_step = reply.pattern_step;
-
-        internal_map.erase(pid);
-        logstream(LOG_DEBUG) << "erase pid=" << pid << LOG_endl;
-        return r;
-    }
-};
-
 
 typedef pair<int64_t, int64_t> int64_pair;
 
@@ -150,7 +76,7 @@ private:
     std::vector<SPARQLQuery> msg_fast_path;
     std::vector<SPARQLQuery> runqueue;
 
-    Reply_Map rmap; // a map of replies for pending (fork-join) queries
+    RMap rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
 
     vector<Message> pending_msgs;
