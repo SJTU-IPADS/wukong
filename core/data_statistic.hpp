@@ -107,7 +107,8 @@ private:
             std::stringstream ss;
             boost::archive::binary_oarchive my_oa(ss);
             my_oa << global_pscount
-                  << global_tyscount;
+                  << global_tyscount
+                  << global_tystat;
 
             for (int i = 1; i < global_num_servers; i++)
                 tcp_ad->send(i, 0, ss.str());
@@ -119,7 +120,8 @@ private:
             ss << str;
             boost::archive::binary_iarchive ia(ss);
             ia >> global_pscount
-               >> global_tyscount;
+               >> global_tyscount
+               >> global_tystat;
         }
     }
 
@@ -220,13 +222,6 @@ public:
             logstream(LOG_INFO) << "global_tystat.pstype.size: " << global_tystat.pstype.size() << LOG_endl;
             logstream(LOG_INFO) << "global_tystat.potype.size: " << global_tystat.potype.size() << LOG_endl;
             logstream(LOG_INFO) << "global_tystat.fine_type.size: " << global_tystat.fine_type.size() << LOG_endl;
-
-            // for type predicate
-            int triple = 0;
-            for (unordered_map<ssid_t, int>::iterator it = global_tyscount.begin();
-                    it != global_tyscount.end(); it++ ) {
-                triple += it->second;
-            }
 
         }
 
