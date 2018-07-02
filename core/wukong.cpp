@@ -117,7 +117,7 @@ main(int argc, char *argv[])
     Mem *mem = new Mem(global_num_servers, global_num_threads);
     logstream(LOG_INFO)  << "#" << sid << ": allocate " << B2GiB(mem->memory_size()) << "GB memory" << LOG_endl;
 #ifdef USE_GPU
-    GPUMem *gpu_mem = new GPUMem(devid, global_num_servers, global_gpu_num_agents);
+    GPUMem *gpu_mem = new GPUMem(devid, global_num_servers, global_num_gpus);
     logstream(LOG_INFO)  << "#" << sid << ": allocate " << B2GiB(gpu_mem->memory_size()) << "GB GPU memory" << LOG_endl;
     RDMA_init(global_num_servers, global_num_threads,
 	    sid, mem->memory(), mem->memory_size(),

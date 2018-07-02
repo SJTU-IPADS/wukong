@@ -68,7 +68,7 @@ bool global_enable_vattr = false;  // for attr
 
 #ifdef USE_GPU
 // GPU-related configurations
-int global_gpu_num_agents = 1;
+int global_num_gpus = 1;
 int global_gpu_rdma_buf_size_mb = 64;
 #endif
 
@@ -112,8 +112,8 @@ static bool set_immutable_config(string cfg_name, string value)
         global_generate_statistics = atoi(value.c_str());
     }
 #ifdef USE_GPU
-    else if (cfg_name == "global_gpu_num_agents") {
-        global_gpu_num_agents = atoi(value.c_str());
+    else if (cfg_name == "global_num_gpus") {
+        global_num_gpus = atoi(value.c_str());
     } else if (cfg_name == "global_gpu_rdma_buf_size_mb") {
         global_gpu_rdma_buf_size_mb = atoi(value.c_str());
     }
@@ -265,8 +265,7 @@ void print_config(void)
     logstream(LOG_INFO) << "global_enable_vattr: "      << global_enable_vattr          << LOG_endl;
 
 #ifdef USE_GPU
-    logstream(LOG_INFO) << "GPU related configurations:" << LOG_endl;
-    logstream(LOG_INFO) << "global_gpu_num_agents: "        << global_gpu_num_agents        << LOG_endl;
+    logstream(LOG_INFO) << "global_num_gpus: "        << global_num_gpus        << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_rdma_buf_size_mb: "  << global_gpu_rdma_buf_size_mb  << LOG_endl;
 #endif
 

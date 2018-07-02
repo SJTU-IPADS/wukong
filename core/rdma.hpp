@@ -66,6 +66,8 @@ class RDMA {
                 ctrl->register_connect_mr_gpu();
                 logstream(LOG_INFO) << "RDMA_Device: GPUDirect RDMA is enabled." << LOG_endl;
             }
+#else
+            assert(mem_gpu == nullptr && sz_gpu == 0);
 #endif
             ctrl->start_server();
             for (uint j = 0; j < nthds; ++j) {
