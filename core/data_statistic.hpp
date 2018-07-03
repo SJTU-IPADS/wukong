@@ -1,5 +1,7 @@
 #pragma once
 
+#include <unordered_map>
+#include <unordered_set>
 #include <boost/mpi.hpp>
 #include <boost/functional/hash.hpp>
 #include <boost/algorithm/string.hpp>
@@ -8,11 +10,46 @@
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/serialization/unordered_map.hpp>
+#include <boost/serialization/unordered_set.hpp>
 
 #include "tcp_adaptor.hpp"
 #include "config.hpp"
 
 using namespace std;
+
+struct type_t{
+    bool data_type;   //true for type_composition, false for index_composition
+    std::unordered_set<int> composition;
+
+    void set_type_composition(std::unordered_set<int> composition){
+        data_type = true;
+        this->composition = composition;
+    }
+
+    void set_index_composition(std::unordered_set<int> composition){
+        data_type = false;
+        this->composition = composition;
+    };
+    bool operator==(const type_t &other) const{
+        if(data_type != other.data_type) return false;
+        return this->composition == other.composition;
+    }
+
+    template <typename Archive>
+    void serialize(Archive &ar, const unsigned int version) {
+        ar & data_type;
+        ar & composition;
+    }
+};
+
+struct type_t_hasher{
+    size_t operator()( const type_t& type ) const{
+        size_t res = 17;
+        for ( auto it = type.composition.cbegin(); it != type.composition.cend(); ++it )
+            res = (res + *it) << 1;
+        return res;
+    }
+};
 
 struct ty_count {
     ssid_t ty;
@@ -106,8 +143,7 @@ private:
             // master server sends statistics
             std::stringstream ss;
             boost::archive::binary_oarchive my_oa(ss);
-            my_oa << global_pscount
-                  << global_tyscount
+            my_oa << global_tyscount
                   << global_tystat;
 
             for (int i = 1; i < global_num_servers; i++)
@@ -119,8 +155,7 @@ private:
             std::stringstream ss;
             ss << str;
             boost::archive::binary_iarchive ia(ss);
-            ia >> global_pscount
-               >> global_tyscount
+            ia >> global_tyscount
                >> global_tystat;
         }
     }
@@ -128,20 +163,20 @@ private:
     friend class boost::serialization::access;
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
-        ar & predicate_to_subject;
         ar & type_to_subject;
         ar & local_tystat;
     }
 
 public:
-    unordered_map<ssid_t, int> predicate_to_subject;
     unordered_map<ssid_t, int> type_to_subject;
-
-    unordered_map<ssid_t, int> global_pscount;
     unordered_map<ssid_t, int> global_tyscount;
 
     type_stat local_tystat;
     type_stat global_tystat;
+
+    // use negative numbers to represent complex types (type_composition and index_composition)
+    unordered_map<ssid_t, type_t> global_int2type;    
+    unordered_map<type_t, ssid_t, type_t_hasher> global_type2int;
 
     int sid;
 
@@ -169,17 +204,6 @@ public:
             }
 
             for (int i = 0; i < all_gather.size(); i++) {
-
-                for (unordered_map<ssid_t, int>::iterator it = all_gather[i].predicate_to_subject.begin();
-                        it != all_gather[i].predicate_to_subject.end(); it++ ) {
-                    ssid_t key = it->first;
-                    int subject = it->second;
-                    if (global_pscount.find(key) == global_pscount.end()) {
-                        global_pscount[key] = subject;
-                    } else {
-                        global_pscount[key] += subject;
-                    }
-                }
 
                 //for type predicate
                 for (unordered_map<ssid_t, int>::iterator it = all_gather[i].type_to_subject.begin();
@@ -217,7 +241,6 @@ public:
                 }
             }
 
-            logstream(LOG_INFO) << "global_pscount size: " << global_pscount.size() << LOG_endl;
             logstream(LOG_INFO) << "global_tyscount size: " << global_tyscount.size() << LOG_endl;
             logstream(LOG_INFO) << "global_tystat.pstype.size: " << global_tystat.pstype.size() << LOG_endl;
             logstream(LOG_INFO) << "global_tystat.potype.size: " << global_tystat.potype.size() << LOG_endl;
@@ -248,9 +271,10 @@ public:
 
             ifstream ifs(fname);
             boost::archive::binary_iarchive ia(ifs);
-            ia >> global_pscount;
             ia >> global_tyscount;
             ia >> global_tystat;
+            ia >> global_int2type;
+            ia >> global_type2int;
             ifs.close();
         }
 
@@ -270,9 +294,10 @@ public:
         if (!file.good()) {
             ofstream ofs(fname);
             boost::archive::binary_oarchive oa(ofs);
-            oa << global_pscount;
             oa << global_tyscount;
             oa << global_tystat;
+            oa << global_int2type;
+            oa << global_type2int;
             ofs.close();
 
             logstream(LOG_INFO) << "store statistics to file "
@@ -280,5 +305,19 @@ public:
         }
     }
 
+    ssid_t get_simple_type(type_t &type){
+        unordered_map<type_t, ssid_t, type_t_hasher>::const_iterator res = global_type2int.find(type);
+
+        if(res == global_type2int.end()){
+            ssid_t number = global_type2int.size();
+            number ++;
+            number = -number;
+            global_type2int[type] = number;
+            global_int2type[number] = type;
+        }
+        else{
+            return res->second;
+        }
+    }
 };
 

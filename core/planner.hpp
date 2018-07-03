@@ -118,6 +118,7 @@ class Planner {
 
     // type-centric dfs enumeration
     bool plan_enum(unsigned int pt_bits, double cost, double pre_results) {
+        if (is_empty) return false;
         if (pt_bits == ( 1 << _chains_size_div_4 ) - 1) {
             //cout << "estimated cost : " << cost << endl;
             //finalpath ++;
@@ -175,7 +176,10 @@ class Planner {
                         correprune_boost_results += updated_result_table[j];
                     }
                     condprune_results = correprune_boost_results;
-                    if (condprune_results == 0) condprune_results = 1;
+                    if (condprune_results == 0){
+                        is_empty = true;
+                        return false;
+                    }
                     add_cost = CC_const_known*condprune_results;
                     //cout << "results: " << condprune_results << endl;
                     //cout << "add cost: " << add_cost << endl;
@@ -227,7 +231,10 @@ class Planner {
                         correprune_boost_results += updated_result_table[j];
                     }
                     condprune_results = correprune_boost_results;
-                    if (condprune_results == 0) condprune_results = 1;
+                    if (condprune_results == 0){
+                        is_empty = true;
+                        return false;
+                    }
                     add_cost = CC_const_known*condprune_results;
                     //cout << "results: " << condprune_results << endl;
                     //cout << "add cost: " << add_cost << endl;
@@ -289,7 +296,10 @@ class Planner {
                         correprune_boost_results += updated_result_table[j];
                     }
                     condprune_results = correprune_boost_results;
-                    if (condprune_results == 0) condprune_results = 1;
+                    if (condprune_results == 0){
+                        is_empty = true;
+                        return false;
+                    }
                     add_cost = CC_const_known*condprune_results;
                     //cout << "results: " << condprune_results << endl;
                     //cout << "add cost: " << add_cost << endl;
@@ -334,7 +344,7 @@ class Planner {
                     if (p == TYPE_ID) {
                         // start from ty-index vertex
                         ssid_t vtype = o2; 
-                        double vcount = double(statistic->global_pscount[o2]) / global_num_servers;
+                        double vcount = double(statistic->global_tyscount[o2]) / global_num_servers;
                         updated_result_table.push_back(vcount);
                         updated_result_table.push_back(vtype);
                     } else { // normal triples TODO
@@ -360,7 +370,10 @@ class Planner {
                         correprune_boost_results += updated_result_table[j];
                     }
                     condprune_results = correprune_boost_results;
-                    if (condprune_results == 0) condprune_results = 1;
+                    if (condprune_results == 0){
+                        is_empty = true;
+                        return false;
+                    }
                     add_cost = CC_const_known*condprune_results;
                     //cout << "results: " << condprune_results << endl;
                     //cout << "add cost: " << add_cost << endl;
@@ -390,10 +403,10 @@ class Planner {
                     updated_result_table.clear();
                 }
             } else {
-                // var in the result table
+                // var o1 in the result table
                 if (o1 < 0 && (var2col.find(o1) != var2col.end()) && var2col[o1] > 0) {
                     //count02++;
-                  //cout << "var2col[o1]:" << var2col[o1] << endl;
+                    //cout << "var2col[o1]:" << var2col[o1] << endl;
                     if (var2col[o1] > type_table.get_col_num()) assert(false);
                     //cout << "var2col[o2]: " << var2col[o2] << endl;
                     //cout << "o1: " << o1 << " var2col[o1]: " << var2col[o1] << endl;
@@ -427,7 +440,7 @@ class Planner {
                             condprune_results += pre_count;
                             continue;
                         }
-                        int tycount = statistic->global_pscount[pre_tyid];
+                        int tycount = statistic->global_tyscount[pre_tyid];
                         if (dup_flag) tycount = statistic->global_tystat.get_pstype_count(p, pre_tyid);
                         prune_ratio = double(statistic->global_tystat.get_pstype_count(p, pre_tyid)) / tycount; // for cost model
                         double afterprune = pre_count * prune_ratio;
@@ -440,8 +453,7 @@ class Planner {
                             double vcount = double(tycountv[k].count) / tycount * pre_count;
                             correprune_boost_results += vcount;
                             if (o2 > 0) { 
-                                // TODO for constant pruning
-                                //assert(false);
+                                // for constant pruning
                                 uint64_t type_sz = 0;
                                 edge_t *res = graph->get_edges_global(0, o2, OUT, TYPE_ID, &type_sz);
                                 ssid_t o2type = res[0].val;
@@ -451,7 +463,7 @@ class Planner {
                                 // for variable pruning
                                 ssid_t pretype = type_table.get_row_col(i, var2col[o2]);
                                 if (vtype == pretype) {
-                                    int type_num = statistic->global_pscount[pretype];
+                                    int type_num = statistic->global_tyscount[pretype];
                                     vcount = vcount / type_num;
                                     type_table.append_newv_row_to(i, updated_result_table, vcount);
                                     condprune_results += vcount;
@@ -469,7 +481,10 @@ class Planner {
                         }
                     }
 
-                    if (condprune_results == 0) condprune_results = 1;
+                    if (condprune_results == 0){
+                        is_empty = true;
+                        return false;
+                    }
                     // calculate cost
                     add_cost = AA_full*final_ret + AA_early*early_ret
                               + BB_ifor * correprune_boost_results
@@ -507,7 +522,7 @@ class Planner {
                     }
                     updated_result_table.clear();
                 }
-                // var in the result table
+                // var o2 in the result table
                 if (o2 < 0 && (var2col.find(o2) != var2col.end()) && var2col[o2] > 0) {
                   //count02++;
                     if (var2col[o2] > type_table.get_col_num()) assert(false);
@@ -517,8 +532,8 @@ class Planner {
 
                     // initialize
                     add_cost = 0;
-                    correprune_boost_results = 0;
-                    condprune_results = 0;
+                    correprune_boost_results = 0;   //get edges number
+                    condprune_results = 0;          //push back number
                     double early_ret = 0;
                     double final_ret = 0;
 
@@ -533,7 +548,7 @@ class Planner {
                     for (size_t i = 0; i < row_num; i++) {
                         sid_t pre_tyid = type_table.get_row_col(i, var_col);
                         double pre_count = type_table.get_row_col(i, 0);
-                        int tycount = statistic->global_pscount[pre_tyid];
+                        int tycount = statistic->global_tyscount[pre_tyid];
                         if (dup_flag) tycount = statistic->global_tystat.get_potype_count(p, pre_tyid);
                         prune_ratio = double(statistic->global_tystat.get_potype_count(p, pre_tyid)) / tycount; // for cost model
                         double afterprune = pre_count * prune_ratio;
@@ -546,8 +561,7 @@ class Planner {
                             double vcount = double(tycountv[k].count) / tycount * pre_count;
                             correprune_boost_results += vcount;
                             if (o1 > 0) { 
-                                // TODO for constant pruning
-                                //assert(false);
+                                // for constant pruning
                                 uint64_t type_sz = 0;
                                 edge_t *res = graph->get_edges_global(0, o1, OUT, TYPE_ID, &type_sz);
                                 ssid_t o1type = res[0].val;
@@ -557,7 +571,7 @@ class Planner {
                                 // for variable pruning
                                 ssid_t pretype = type_table.get_row_col(i, var2col[o1]);
                                 if (vtype == pretype) {
-                                    int type_num = statistic->global_pscount[pretype];
+                                    int type_num = statistic->global_tyscount[pretype];
                                     vcount = vcount / type_num;
                                     type_table.append_newv_row_to(i, updated_result_table, vcount);
                                     condprune_results += vcount;
@@ -575,7 +589,10 @@ class Planner {
                         }
                     }
 
-                    if (condprune_results == 0) condprune_results = 1;
+                    if (condprune_results == 0){
+                        is_empty = true;
+                        return false;
+                    }
                     // calculate cost
                     add_cost = AA_full*final_ret + AA_early*early_ret
                               + BB_ifor * correprune_boost_results
@@ -685,6 +702,12 @@ public:
                 }
             }
         }
+
+        for (int i = 0, ilimit = min_path.size(); i < ilimit; i = i + 4)
+          cout << "min_path " << " : " << min_path[i] << " "
+            << min_path[i+1] << " "
+            << min_path[i+2] << " "
+            << min_path[i+3] << endl;
 
         // output: min_path
         // transform min_path to patterns

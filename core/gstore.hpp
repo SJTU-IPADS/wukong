@@ -1605,8 +1605,50 @@ public:
     // prepare data for planner
     void generate_statistic(data_statistic &stat, String_Server *str_server) {
 
+        unordered_map<ssid_t, int> &tyscount = stat.type_to_subject;
+        type_stat &ty_stat = stat.local_tystat;
         // TODO tricky code
         string GRADUATE_STUDENT = "<http://swat.cse.lehigh.edu/onto/univ-bench.owl#GraduateStudent>";
+        // for no_type vertex numbering
+        unordered_set<ssid_t> record_set; 
+
+        //use index_composition as type of no_type
+        auto generate_no_type = [&](ssid_t id) -> ssid_t {
+            type_t type;
+            uint64_t psize1 = 0;
+            unordered_set<int> index_composition;
+            edge_t *res1 = get_edges_global(0, id, OUT, PREDICATE_ID, &psize1);
+            for (uint64_t k = 0; k < psize1; k++) {
+                ssid_t pre = res1[k].val;
+                index_composition.insert(pre);
+            }
+            uint64_t psize2 = 0;
+            edge_t *res2 = get_edges_global(0, id, IN, PREDICATE_ID, &psize2);
+            for (uint64_t k = 0; k < psize2; k++) {
+                ssid_t pre = res2[k].val;
+                index_composition.insert(-pre);
+            }
+            type.set_index_composition(index_composition);
+
+            return stat.get_simple_type(type);
+        };
+
+        // return success or not, because one id can only be recorded once
+        auto insert_no_type_count = [&](ssid_t id, ssid_t type) -> bool{
+            bool exist = false;
+            if(record_set.count(id) > 0){
+                return false;
+            }
+            else{
+                record_set.insert(id);
+                if (tyscount.find(type) == tyscount.end())
+                    tyscount[type] = 1;
+                else
+                    tyscount[type]++;
+                return true;
+            }
+        };
+
         for (uint64_t bucket_id = 0; bucket_id < num_buckets + num_buckets_ext; bucket_id++) {
             uint64_t slot_id = bucket_id * ASSOCIATIVITY;
             for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
@@ -1619,10 +1661,6 @@ public:
                 uint64_t sz = vertices[slot_id].ptr.size;
                 uint64_t off = vertices[slot_id].ptr.off;
                 if (vid == PREDICATE_ID || pid == PREDICATE_ID) continue; // skip for index vertex
-
-                unordered_map<ssid_t, int> &pscount = stat.predicate_to_subject;
-                unordered_map<ssid_t, int> &tyscount = stat.type_to_subject;
-                type_stat &ty_stat = stat.local_tystat;
 
                 if (vertices[slot_id].key.dir == IN) {
                     
@@ -1638,13 +1676,17 @@ public:
                             //Exception: LUBM graduate student have two types, the other one is teaching assistant
                             //but only Type graduate student occurs in query, so we only use this type here
                             //The same Exception occurs threes times below
-                            int type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
+                            ssid_t type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
                             res_type.push_back(type); //10 for 10240, 19 for 2560, 23 for 40, 2 for 640
                         }
                         else {
-                            if (type_sz == 0) ; //cout << "no type: " << sbid << endl;
+                            if (type_sz == 0){
+                                //cout << "no type: " << sbid << endl;
+                                ssid_t type = generate_no_type(sbid);
+                                res_type.push_back(type);
+                            } 
                             else {
-                              res_type.push_back(res[0].val);
+                                res_type.push_back(res[0].val);
                             }
                         }
                     }
@@ -1657,38 +1699,44 @@ public:
                     if (type_sz > 1) {
                         type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
                     } else {
-                      if (type_sz == 0) ;//cout << "no type: " << vid << endl;
+                      if (type_sz == 0){
+                            //cout << "no type: " << vid << endl;
+                            type = generate_no_type(vid);
+                      }
                       else {
                           type = res[0].val;
                       }
                     }
-                    if (type_sz != 0) {
+                    //if (type_sz != 0) {
                         ty_stat.insert_otype(pid, type, 1);
                         for (int j = 0; j < res_type.size(); j++) {
                             ty_stat.insert_finetype(pid, type, res_type[j], 1);
                         }
-                    }
+                    //}
 
                 } else {
-                    // count subjects
-                    if (pscount.find(pid) == pscount.end())
-                        pscount[pid] = 1;
-                    else
-                        pscount[pid]++;
-                    
-                    // for type derivation
+                    // no_type only need to be counted in one direction (using OUT)
                     // get types of values found by key (Objects)
                     vector<ssid_t> res_type;
                     for (uint64_t k = 0; k < sz; k++) {
                         ssid_t obid = edges[off + k].val;
                         uint64_t type_sz = 0;
                         edge_t *res = get_edges_global(0, obid, OUT, TYPE_ID, &type_sz);
+
+                        //if(pid == 3) cout << "type_sz: " << type_sz << endl;
                         if (type_sz > 1) {
-                            int type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
+                            ssid_t type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
                             res_type.push_back(type);
                         }
                         else {
-                          if (type_sz == 0) ;//cout << "no type: " << obid << endl;
+                          if (type_sz == 0){
+                            //   if(pid != 1){
+                            //         cout << "no type: " << obid << endl;
+                            //   }
+                                ssid_t type = generate_no_type(obid);
+                                res_type.push_back(type);
+                                insert_no_type_count(obid,type);
+                          } 
                           else {
                               res_type.push_back(res[0].val);
                           }
@@ -1703,17 +1751,22 @@ public:
                     if (type_sz > 1) { 
                         type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
                     } else {
-                      if (type_sz == 0) ;//cout << "no type: " << vid << endl;
+                      if (type_sz == 0){
+                            //cout << "no type: " << vid << endl;
+                            type = generate_no_type(vid);
+                            insert_no_type_count(vid,type);
+                      }
                       else {
                           type = res[0].val;
                       }
                     }
-                    if (type_sz != 0) {
+
+                    //if (type_sz != 0) {
                         ty_stat.insert_stype(pid, type, 1);
                         for (int j = 0; j < res_type.size(); j++) {
                             ty_stat.insert_finetype(type, pid, res_type[j], 1);
                         }
-                    }
+                    //}
 
                     // count type predicate
                     if (pid == TYPE_ID) {
@@ -1725,11 +1778,6 @@ public:
                                 tyscount[obid] = 1;
                             else
                                 tyscount[obid]++;
-
-                            if (pscount.find(obid) == pscount.end())
-                                pscount[obid] = 1;
-                            else
-                                pscount[obid]++;
                         }
                     }
                 }
