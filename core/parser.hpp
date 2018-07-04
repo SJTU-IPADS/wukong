@@ -221,7 +221,7 @@ private:
         for (auto &p : group.patterns) {
             ssid_t subject = transfer_element(p.subject);
             ssid_t predicate = transfer_element(p.predicate);
-            dir_t direction = (dir_t)OUT;  /// FIXME: different to transfer_pattern()
+            dir_t direction = (dir_t)p.direction;
             ssid_t object = transfer_element(p.object);
             SPARQLQuery::Pattern pattern(subject, predicate, direction, object);
 
