@@ -27,7 +27,6 @@
 
 #include <unistd.h>
 #include <infiniband/verbs.h>
-#include <zmq.hpp>
 #include <vector>
 #include <string>
 #include <mutex>
@@ -133,10 +132,6 @@ int num_ud_qps;
 int node_id;
 
 std::vector<std::string> network;
-
-// seems that zeromq requires to use one context per process
-zmq::context_t context(12);
-
 
 // per-thread allocator
 __thread RdmaDevice **rdma_devices_;
