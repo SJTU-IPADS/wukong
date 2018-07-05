@@ -86,9 +86,6 @@ class Planner {
     vector<ssid_t> min_path;
     int _chains_size_div_4 ;
 
-    // store all orders for DP
-    vector<int> subgraph[11]; // for 2^10 all orders
-
     // remove the attr pattern query before doing the planner and transfer pattern to cmd_chains
     void transfer_to_cmd_chains(vector<SPARQLQuery::Pattern> &p, vector<ssid_t> &attr_pattern, vector<int>& attr_pred_chains, vector<ssid_t> &temp_cmd_chains) {
         for (int i = 0; i < p.size(); i++) {
@@ -344,9 +341,26 @@ class Planner {
                     if (p == TYPE_ID) {
                         // start from ty-index vertex
                         ssid_t vtype = o2; 
-                        double vcount = double(statistic->global_tyscount[o2]) / global_num_servers;
-                        updated_result_table.push_back(vcount);
-                        updated_result_table.push_back(vtype);
+                        if(statistic->global_single2complex.find(vtype) == statistic->global_single2complex.end()){
+                            double vcount = double(statistic->global_tyscount[o2]) / global_num_servers;
+                            updated_result_table.push_back(vcount);
+                            updated_result_table.push_back(vtype);
+                        }
+                        else{
+                            // single type o2 may not exist in muititype situation
+                            if(statistic->global_tyscount.find(vtype) != statistic->global_tyscount.end()){
+                                double vcount = double(statistic->global_tyscount[o2]) / global_num_servers;
+                                updated_result_table.push_back(vcount);
+                                updated_result_table.push_back(vtype);
+                            }
+                            // single type o2 may be contained in complex type
+                            unordered_set<ssid_t> type_set = statistic->global_single2complex[vtype];
+                            for(auto iter = type_set.cbegin(); iter != type_set.cend(); ++iter){
+                                double vcount = double(statistic->global_tyscount[*iter]) / global_num_servers;
+                                updated_result_table.push_back(vcount);
+                                updated_result_table.push_back(*iter);
+                            }
+                        }
                     } else { // normal triples TODO
                         //assert(false);
                         
@@ -435,7 +449,17 @@ class Planner {
                         if (p == TYPE_ID && o2 > 0) {
                             correprune_boost_results += pre_count;
                             early_ret += pre_count;
-                            if (pre_tyid != o2) continue;
+                            // if pre_tyid do not belong to o2, prune it
+                            if(pre_tyid >= 0){
+                                if (pre_tyid != o2) continue;
+                            }
+                            else{
+                                if(statistic->global_single2complex.find(o2) != statistic->global_single2complex.end()){
+                                    unordered_set<ssid_t> type_set = statistic->global_single2complex[o2];
+                                    if(type_set.count(pre_tyid) == 0) continue;
+                                }
+                                else continue;
+                            }
                             type_table.append_row_to(i, updated_result_table);
                             condprune_results += pre_count;
                             continue;

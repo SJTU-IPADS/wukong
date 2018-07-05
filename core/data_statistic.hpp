@@ -144,7 +144,8 @@ private:
             std::stringstream ss;
             boost::archive::binary_oarchive my_oa(ss);
             my_oa << global_tyscount
-                  << global_tystat;
+                  << global_tystat
+                  << global_single2complex;
 
             for (int i = 1; i < global_num_servers; i++)
                 tcp_ad->send(i, 0, ss.str());
@@ -156,27 +157,33 @@ private:
             ss << str;
             boost::archive::binary_iarchive ia(ss);
             ia >> global_tyscount
-               >> global_tystat;
+               >> global_tystat
+               >> global_single2complex;
         }
     }
 
     friend class boost::serialization::access;
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
-        ar & type_to_subject;
+        ar & local_tyscount;
         ar & local_tystat;
+        ar & local_int2type;
+        ar & local_type2int;
     }
 
 public:
-    unordered_map<ssid_t, int> type_to_subject;
+    unordered_map<ssid_t, int> local_tyscount;
     unordered_map<ssid_t, int> global_tyscount;
 
     type_stat local_tystat;
     type_stat global_tystat;
 
     // use negative numbers to represent complex types (type_composition and index_composition)
-    unordered_map<ssid_t, type_t> global_int2type;    
-    unordered_map<type_t, ssid_t, type_t_hasher> global_type2int;
+    unordered_map<ssid_t, type_t> local_int2type;    
+    unordered_map<type_t, ssid_t, type_t_hasher> local_type2int;
+
+    // single type may be contained by several multitype
+    unordered_map<ssid_t, unordered_set<ssid_t>> global_single2complex;    
 
     int sid;
 
@@ -192,6 +199,44 @@ public:
 
         if (sid == 0) {
             vector<data_statistic> all_gather;
+            unordered_map<ssid_t, type_t> global_int2type;    
+            unordered_map<type_t, ssid_t, type_t_hasher> global_type2int;
+
+            // complex type have different corresponding number on different machine
+            auto type_transform = [&](ssid_t type, data_statistic &stat) -> ssid_t{
+                type_t complex_type = stat.local_int2type[type];
+                if(global_type2int.find(complex_type) != global_type2int.end()){
+                    return global_type2int[complex_type];
+                }
+                else{
+                    ssid_t number = global_type2int.size();
+                    number ++;
+                    number = -number;
+                    global_type2int[complex_type] = number;
+                    global_int2type[number] = complex_type;
+
+                    // debug
+                    cout << "number: " << number << endl;
+                    for ( auto it = complex_type.composition.cbegin(); it != complex_type.composition.cend(); ++it )
+                        cout << *it << " ";
+                    cout << endl;
+
+                    // add single2complex index
+                    if(complex_type.data_type){
+                        for ( auto iter = complex_type.composition.cbegin(); iter != complex_type.composition.cend(); ++iter ){
+                            if(global_single2complex.find(*iter) != global_single2complex.end())
+                                global_single2complex[*iter].insert(number);
+                            else{
+                                unordered_set<ssid_t> multi_type_set;
+                                // set will automatically ensure no deplicated element exist
+                                multi_type_set.insert(number);
+                                global_single2complex[*iter] = multi_type_set;
+                            }
+                        }
+                    }
+                    return number;
+                }
+            };
             for (int i = 0; i < global_num_servers; i++) {
                 std::string str;
                 str = tcp_ad->recv(0);
@@ -206,10 +251,11 @@ public:
             for (int i = 0; i < all_gather.size(); i++) {
 
                 //for type predicate
-                for (unordered_map<ssid_t, int>::iterator it = all_gather[i].type_to_subject.begin();
-                        it != all_gather[i].type_to_subject.end(); it++ ) {
+                for (unordered_map<ssid_t, int>::iterator it = all_gather[i].local_tyscount.begin();
+                        it != all_gather[i].local_tyscount.end(); it++ ) {
                     ssid_t key = it->first;
                     int subject = it->second;
+                    if(key < 0) key = type_transform(key, all_gather[i]);
                     if (global_tyscount.find(key) == global_tyscount.end()) {
                         global_tyscount[key] = subject;
                     } else {
@@ -220,6 +266,7 @@ public:
                 for (unordered_map<ssid_t, vector<ty_count>>::iterator it = all_gather[i].local_tystat.pstype.begin();
                         it != all_gather[i].local_tystat.pstype.end(); it++ ) {
                     ssid_t key = it->first;
+                    if(key < 0) key = type_transform(key, all_gather[i]);
                     vector<ty_count>& types = it->second;
                     for (size_t k = 0; k < types.size(); k++)
                         global_tystat.insert_stype(key, types[k].ty, types[k].count);
@@ -227,6 +274,7 @@ public:
                 for (unordered_map<ssid_t, vector<ty_count>>::iterator it = all_gather[i].local_tystat.potype.begin();
                         it != all_gather[i].local_tystat.potype.end(); it++ ) {
                     ssid_t key = it->first;
+                    if(key < 0) key = type_transform(key, all_gather[i]);
                     vector<ty_count>& types = it->second;
                     for (size_t k = 0; k < types.size(); k++)
                         global_tystat.insert_otype(key, types[k].ty, types[k].count);
@@ -237,7 +285,9 @@ public:
                     pair<ssid_t, ssid_t> key = it->first;
                     vector<ty_count>& types = it->second;
                     for (size_t k = 0; k < types.size(); k++)
-                        global_tystat.insert_finetype(key.first, key.second, types[k].ty, types[k].count);
+                        global_tystat.insert_finetype(key.first<0 ? type_transform(key.first, all_gather[i]) : key.first,
+                                                      key.second<0 ? type_transform(key.second, all_gather[i]) : key.second,
+                                                      types[k].ty, types[k].count);
                 }
             }
 
@@ -245,6 +295,21 @@ public:
             logstream(LOG_INFO) << "global_tystat.pstype.size: " << global_tystat.pstype.size() << LOG_endl;
             logstream(LOG_INFO) << "global_tystat.potype.size: " << global_tystat.potype.size() << LOG_endl;
             logstream(LOG_INFO) << "global_tystat.fine_type.size: " << global_tystat.fine_type.size() << LOG_endl;
+
+            //debug single2complex
+            for ( auto iter = global_single2complex.cbegin(); iter != global_single2complex.cend(); ++iter ){
+                cout << iter->first ;
+                const unordered_set<ssid_t> set = iter->second;
+                for(auto it = set.cbegin(); it != set.cend(); ++it){
+                    cout << " " << *it;
+                }
+                cout << endl;
+            }
+
+            //debug tyscount
+            for ( auto iter = global_tyscount.cbegin(); iter != global_tyscount.cend(); ++iter ){
+                cout << iter->first << ": " << iter -> second << endl;;
+            }
 
         }
 
@@ -273,8 +338,7 @@ public:
             boost::archive::binary_iarchive ia(ifs);
             ia >> global_tyscount;
             ia >> global_tystat;
-            ia >> global_int2type;
-            ia >> global_type2int;
+            ia >> global_single2complex;
             ifs.close();
         }
 
@@ -283,6 +347,13 @@ public:
         uint64_t t2 = timer::get_usec();
         logstream(LOG_INFO) << (t2 - t1) / 1000 << " ms for loading statistics"
                             << " at server " << sid << LOG_endl;
+
+        // logstream(LOG_INFO) << global_tyscount[2] << endl;
+        // logstream(LOG_INFO) << global_tyscount[6] << endl;
+        // logstream(LOG_INFO) << global_tyscount[14] << endl;
+        // logstream(LOG_INFO) << global_tyscount[-1] << endl; // 2 6
+        // logstream(LOG_INFO) << global_tyscount[-7] << endl; // 2 14
+        
     }
 
     void store_stat_to_file(string fname) {
@@ -296,8 +367,7 @@ public:
             boost::archive::binary_oarchive oa(ofs);
             oa << global_tyscount;
             oa << global_tystat;
-            oa << global_int2type;
-            oa << global_type2int;
+            oa << global_single2complex;
             ofs.close();
 
             logstream(LOG_INFO) << "store statistics to file "
@@ -306,17 +376,17 @@ public:
     }
 
     ssid_t get_simple_type(type_t &type){
-        unordered_map<type_t, ssid_t, type_t_hasher>::const_iterator res = global_type2int.find(type);
+        auto iter = local_type2int.find(type);
 
-        if(res == global_type2int.end()){
-            ssid_t number = global_type2int.size();
+        if(iter == local_type2int.end()){
+            ssid_t number = local_type2int.size();
             number ++;
             number = -number;
-            global_type2int[type] = number;
-            global_int2type[number] = type;
+            local_type2int[type] = number;
+            local_int2type[number] = type;
         }
         else{
-            return res->second;
+            return iter->second;
         }
     }
 };

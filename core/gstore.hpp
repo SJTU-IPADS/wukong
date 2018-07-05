@@ -1605,11 +1605,11 @@ public:
     // prepare data for planner
     void generate_statistic(data_statistic &stat, String_Server *str_server) {
 
-        unordered_map<ssid_t, int> &tyscount = stat.type_to_subject;
+        unordered_map<ssid_t, int> &tyscount = stat.local_tyscount;
         type_stat &ty_stat = stat.local_tystat;
         // TODO tricky code
         string GRADUATE_STUDENT = "<http://swat.cse.lehigh.edu/onto/univ-bench.owl#GraduateStudent>";
-        // for no_type vertex numbering
+        // for complex type vertex numbering
         unordered_set<ssid_t> record_set; 
 
         //use index_composition as type of no_type
@@ -1629,13 +1629,22 @@ public:
                 index_composition.insert(-pre);
             }
             type.set_index_composition(index_composition);
+            return stat.get_simple_type(type);
+        };
 
+        //use type_composition as type of no_type
+        auto generate_multi_type = [&](edge_t *res, uint64_t type_sz) -> ssid_t {
+            type_t type;
+            unordered_set<int> type_composition;
+            for(int i = 0;i < type_sz; i ++){
+                type_composition.insert(res[i].val);
+            }
+            type.set_type_composition(type_composition);
             return stat.get_simple_type(type);
         };
 
         // return success or not, because one id can only be recorded once
-        auto insert_no_type_count = [&](ssid_t id, ssid_t type) -> bool{
-            bool exist = false;
+        auto insert_complex_type_count = [&](ssid_t id, ssid_t type) -> bool{
             if(record_set.count(id) > 0){
                 return false;
             }
@@ -1676,7 +1685,9 @@ public:
                             //Exception: LUBM graduate student have two types, the other one is teaching assistant
                             //but only Type graduate student occurs in query, so we only use this type here
                             //The same Exception occurs threes times below
-                            ssid_t type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
+                            //ssid_t type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
+
+                            ssid_t type = generate_multi_type(res, type_sz);
                             res_type.push_back(type); //10 for 10240, 19 for 2560, 23 for 40, 2 for 640
                         }
                         else {
@@ -1697,11 +1708,14 @@ public:
                     edge_t *res = get_edges_local(0, vid, OUT, TYPE_ID, &type_sz);
                     ssid_t type;
                     if (type_sz > 1) {
-                        type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
+                        //type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
+                        type = generate_multi_type(res, type_sz);
+                        insert_complex_type_count(vid, type);
                     } else {
                       if (type_sz == 0){
-                            //cout << "no type: " << vid << endl;
-                            type = generate_no_type(vid);
+                          //cout << "no type: " << vid << endl;
+                          type = generate_no_type(vid);
+                          insert_complex_type_count(vid, type);
                       }
                       else {
                           type = res[0].val;
@@ -1725,17 +1739,18 @@ public:
 
                         //if(pid == 3) cout << "type_sz: " << type_sz << endl;
                         if (type_sz > 1) {
-                            ssid_t type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
+                            //ssid_t type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
+                            ssid_t type = generate_multi_type(res, type_sz);
                             res_type.push_back(type);
                         }
                         else {
                           if (type_sz == 0){
-                            //   if(pid != 1){
-                            //         cout << "no type: " << obid << endl;
-                            //   }
-                                ssid_t type = generate_no_type(obid);
-                                res_type.push_back(type);
-                                insert_no_type_count(obid,type);
+                              // in this situation, obid may be some TYPE
+                              if(pid != 1){
+                                    //cout << "no type: " << obid << endl;
+                                    ssid_t type = generate_no_type(obid);
+                                    res_type.push_back(type);
+                              }
                           } 
                           else {
                               res_type.push_back(res[0].val);
@@ -1749,12 +1764,14 @@ public:
                     edge_t *res = get_edges_local(0, vid, OUT, TYPE_ID, &type_sz);
                     ssid_t type;
                     if (type_sz > 1) { 
-                        type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
+                        //type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
+                        type = generate_multi_type(res, type_sz);
+                        insert_complex_type_count(vid, type);
                     } else {
                       if (type_sz == 0){
                             //cout << "no type: " << vid << endl;
                             type = generate_no_type(vid);
-                            insert_no_type_count(vid,type);
+                            insert_complex_type_count(vid, type);
                       }
                       else {
                           type = res[0].val;
@@ -1770,9 +1787,9 @@ public:
 
                     // count type predicate
                     if (pid == TYPE_ID) {
-                        for (uint64_t j = 0; j < sz; j++) {
-                            //src may belongs to multiple types
-                            sid_t obid = edges[off + j].val;
+                        if (sz == 1){
+                            //only count single type
+                            sid_t obid = edges[off].val;
 
                             if (tyscount.find(obid) == tyscount.end())
                                 tyscount[obid] = 1;
