@@ -36,10 +36,10 @@
 #include <malloc.h>
 #include <arpa/inet.h> //used for checksum
 
+#include "utils.hpp"
 #include "rdma_header.hpp"
 #include "simple_map.hpp"
-#include "utils.hpp"
-#include "helper_func.hpp"
+#include "pre_connector.hpp"
 
 // #define PER_QP_PD
 
@@ -295,111 +295,161 @@ public:
 
     //return true if the connection is succesfull
     bool connect_rc() {
-
-        if (inited_) {
+        if(inited_) {
             return true;
         } else {
-            //          fprintf(stdout,"qp %d %d not connected\n",tid,nid);
+            //			fprintf(stdout,"qp %d %d not connected\n",tid,nid);
         }
 
-        int remote_qid = _QP_ENCODE_ID(node_id, RC_ID_BASE + tid * num_rc_qps + idx_);
+        int remote_qid = _QP_ENCODE_ID(node_id,RC_ID_BASE + tid * num_rc_qps + idx_);
 
         char address[30];
-        int address_len = snprintf(address, 30, "tcp://%s:%d", network[nid].c_str(), tcp_base_port);
-        assert(address_len < 30);
 
-        // prepare tcp connection
-        zmq::socket_t socket(context, ZMQ_REQ);
-        //fprintf(stdout,"qp %d %d zmq socket done\n",tid,nid);
-        socket.connect(address);
-        //fprintf(stdout,"qp %d %d zmq connect done\n",tid,nid);
+        QPConnArg arg; memset((char *)(&arg),0,sizeof(QPConnArg));
+        arg.qid = remote_qid;
+        arg.sign = MAGIC_NUM;
+        arg.tid  = tid;
+        arg.nid  = nid;
+        arg.calculate_checksum();
 
-        zmq::message_t request(sizeof(QPConnArg));
+        // prepare socket to remote
+        auto socket = PreConnector::get_send_socket(network[nid],tcp_base_port);
+        if(socket < 0) {
+            // cannot establish the connection, shall retry
+            return false;
+        }
+        auto n = send(socket,(char *)(&arg),sizeof(QPConnArg),0);
+        if(n != sizeof(QPConnArg)) {
+            close(socket);
+            return false;
+        }
 
-        QPConnArg *argp = (QPConnArg *)(request.data());
-        argp->qid = remote_qid;
-        argp->sign = MAGIC_NUM;
-        argp->calculate_checksum();
-        socket.send(request);
+        // receive reply
+        if(!PreConnector::wait_recv(socket)) {
+            close(socket);
+            return false;
+        }
 
-        zmq::message_t reply;
-        socket.recv(&reply);
-        if (((char *)reply.data())[0] == TCPSUCC) {
+        int buf_size = sizeof(QPReplyHeader) + sizeof(RdmaQpAttr); // format: header | QP attr
+        char *reply_buf = new char[buf_size];
 
-        } else if (((char *)reply.data())[0] == TCPFAIL) {
+        n = recv(socket,reply_buf,buf_size, MSG_WAITALL);
+
+        if(n != sizeof(RdmaQpAttr) + sizeof(QPReplyHeader)) {
+            close(socket);
+            delete reply_buf;
+            usleep(1000);
+            return false;
+        }
+
+        // close connection
+        close(socket);
+
+        QPReplyHeader *hdr = (QPReplyHeader *)(reply_buf);
+
+        if(hdr->status == TCPSUCC) {
+
+        } else if(hdr->status == TCPFAIL) {
+            delete reply_buf;
             return false;
         } else {
-            fprintf(stdout, "QP connect fail!, val %d\n", ((char *)reply.data())[0]);
+            fprintf(stdout,"QP connect fail!, val %d\n",((char *)reply_buf)[0]);
             assert(false);
         }
 
-        zmq_close(&socket);
         RdmaQpAttr qp_attr;
-        memcpy(&qp_attr, (char *)reply.data() + 1, sizeof(RdmaQpAttr));
+        memcpy(&qp_attr,(char *)reply_buf + sizeof(QPReplyHeader),sizeof(RdmaQpAttr));
 
         // verify the checksum
-        uint64_t checksum = ip_checksum((void *)(&(qp_attr.buf)), sizeof(RdmaQpAttr) - sizeof(uint64_t));
+        uint64_t checksum = ip_checksum((void *)(&(qp_attr.buf)),sizeof(RdmaQpAttr) - sizeof(uint64_t));
         assert(checksum == qp_attr.checksum);
 
-        change_qp_states(&qp_attr, port_idx);
-
+        change_qp_states(&qp_attr,port_idx);
         inited_ = true;
+
+        delete reply_buf;
+
         return true;
     }
 
     bool connect_uc() {
-
-        if (inited_) {
+        if(inited_) {
             return true;
         } else {
-            //          fprintf(stdout,"qp %d %d not connected\n",tid,nid);
+            //			fprintf(stdout,"qp %d %d not connected\n",tid,nid);
         }
 
-        int remote_qid = _QP_ENCODE_ID(node_id, UC_ID_BASE + tid * num_uc_qps + idx_);
+        int remote_qid = _QP_ENCODE_ID(node_id,UC_ID_BASE + tid * num_uc_qps + idx_);
 
         char address[30];
-        int address_len = snprintf(address, 30, "tcp://%s:%d", network[nid].c_str(), tcp_base_port);
+        int address_len = snprintf(address,30,"tcp://%s:%d",network[nid].c_str(),tcp_base_port);
         assert(address_len < 30);
 
-        // prepare tcp connection
-        zmq::socket_t socket(context, ZMQ_REQ);
-        socket.connect(address);
+        QPConnArg arg;
+        arg.qid = remote_qid;
+        arg.sign = MAGIC_NUM;
+        arg.calculate_checksum();
 
-        zmq::message_t request(sizeof(QPConnArg));
+        auto socket = PreConnector::get_send_socket(network[nid],tcp_base_port);
+        if(socket < 0) {
+            // cannot establish the connection, shall retry
+            return false;
+        }
 
-        QPConnArg *argp = (QPConnArg *)(request.data());
-        argp->qid = remote_qid;
-        argp->sign = MAGIC_NUM;
-        argp->calculate_checksum();
-        socket.send(request);
+        auto n = PreConnector::send_to(socket,(char *)(&arg),sizeof(QPConnArg));
+        if(n != sizeof(QPConnArg)) {
+            close(socket);
+            return false;
+        }
 
-        zmq::message_t reply;
-        socket.recv(&reply);
-        if (((char *)reply.data())[0] == TCPSUCC) {
+        if(!PreConnector::wait_recv(socket)) {
+            close(socket);
+            return false;
+        }
 
-        } else if (((char *)reply.data())[0] == TCPFAIL) {
+        int buf_size = sizeof(QPReplyHeader) + sizeof(RdmaQpAttr); // format: header | QP attr
+        char *reply_buf = new char[buf_size];
+
+        n = recv(socket,reply_buf,buf_size, MSG_WAITALL);
+        if(n != sizeof(RdmaQpAttr) + sizeof(QPReplyHeader)) {
+            close(socket);
+            delete reply_buf;
+            usleep(1000);
+            return false;
+        }
+
+        // close connection
+        close(socket);
+
+        QPReplyHeader *hdr = (QPReplyHeader *)(reply_buf);
+
+        if(hdr->status == TCPSUCC) {
+
+        } else if(hdr->status == TCPFAIL) {
+            delete reply_buf;
             return false;
         } else {
-            fprintf(stdout, "QP connect fail!, val %d\n", ((char *)reply.data())[0]);
             assert(false);
         }
-        zmq_close(&socket);
-        RdmaQpAttr qp_attr;
-        memcpy(&qp_attr, (char *)reply.data() + 1, sizeof(RdmaQpAttr));
 
-        // verify the checksum
-        uint64_t checksum = ip_checksum((void *)(&(qp_attr.buf)), sizeof(RdmaQpAttr) - sizeof(uint64_t));
+        RdmaQpAttr qp_attr;
+        memcpy(&qp_attr,(char *)reply_buf + sizeof(QPReplyHeader),sizeof(RdmaQpAttr));
+
+        // verify thise checksum
+        uint64_t checksum = ip_checksum((void *)(&(qp_attr.buf)),sizeof(RdmaQpAttr) - sizeof(uint64_t));
         assert(checksum == qp_attr.checksum);
 
-        change_qp_states(&qp_attr, port_idx);
+        change_qp_states(&qp_attr,port_idx);
 
         inited_ = true;
+
+        delete reply_buf;
         return true;
     }
 
     // return true if the connection is succesfull,
     // unlike rc, a ud qp can be used to connnect many destinations, so this method can be called many times
-    bool get_ud_connect_info(int remote_id, int idx);
+    //bool get_ud_connect_info(int remote_id, int idx);
 
     bool get_ud_connect_info_specific(int remote_id, int thread_id, int idx);
 
@@ -982,23 +1032,20 @@ public:
 
         rdma_device->dev_id = dev_id;
         rdma_device->ctx = ibv_open_device(device);
-        //CE_2(!rdma_device->ctx,"[librdma] : failed to open device %d\n",dev_id);
+        assert(rdma_device->ctx);
 
         struct ibv_device_attr device_attr;
         rc = ibv_query_device(rdma_device->ctx, &device_attr);
-        //CE_2(rc,"[librdma]: failed to query device %d\n",dev_id);
 
         int port_count = device_attr.phys_port_cnt;
         rdma_device->port_attrs = (struct ibv_port_attr*)
                                   malloc(sizeof(struct ibv_port_attr) * (port_count + 1));
         for (int port_id = 1; port_id <= port_count; port_id++) {
             rc = ibv_query_port (rdma_device->ctx, port_id, rdma_device->port_attrs + port_id);
-            //      CE_2(rc,"[librdma]: ibv_query_port on port %u failed\n",port_id);
         }
 
         rdma_device->pd = ibv_alloc_pd(rdma_device->ctx);
         assert(rdma_device->pd != 0);
-        // CE_1(!rdma_device_->pd, "[librdma]: ibv_alloc prodection doman failed at dev %d\n",dev_id);
     }
 
     // register memory buffer to a device, shall be called after the set_connect_mr and open_device
@@ -1032,64 +1079,71 @@ public:
         pthread_detach(pthread_self());
         struct RdmaCtrl *rdma = (struct RdmaCtrl*) arg;
 
-        zmq::socket_t socket(context, ZMQ_REP);
-
-        char address[30] = "";
         int port = rdma->tcp_base_port_;
-        //        char address[30]="";
-        //int port = rdma->`tcp_base_port_ + rdma->node_id_;
-        sprintf(address, "tcp://*:%d", port);
-        //  DEBUG(rdma->thread_id_,
-        printf("[librdma] : listener binding: %s\n", address);
-        socket.bind(address);
+
+        auto listenfd = PreConnector::get_listen_socket(rdma->network_[rdma->node_id_],port);
+        CE(listen(listenfd,rdma->network_.size() * 24) < 0,"[RDMA pre connector] bind TCP port error.");
+
+        int num = 0;
 
         try {
-            while (running) {
-                zmq::message_t request;
-                socket.recv(&request);
+            while(running) {
+                // accept a request
+                struct sockaddr_in cli_addr;
+                socklen_t clilen;
+                auto csfd = accept(listenfd,(struct sockaddr *) &cli_addr, &clilen);
+                QPConnArg arg;
 
-                //int qid =  *((int *)(request.data()));
-                QPConnArg *arg = (QPConnArg *)(request.data());
+                auto n = recv(csfd,(char *)(&arg),sizeof(QPConnArg), MSG_WAITALL);
+                assert(n == sizeof(QPConnArg));
+
                 // check that the arg is correct
-                assert(arg->sign = MAGIC_NUM);
-                assert(arg->get_checksum() == arg->checksum);
+                assert(arg.sign = MAGIC_NUM);
+                assert(arg.get_checksum() == arg.checksum);
 
-                uint64_t qid = arg->qid;
+                uint64_t qid = arg.qid;
                 uint64_t nid = _QP_DECODE_MAC(qid);
                 uint64_t idx = _QP_DECODE_INDEX(qid);
 
-                zmq::message_t reply(sizeof(RdmaQpAttr) + 1);
+                char *reply_buf = new char[sizeof(QPReplyHeader) + sizeof(RdmaQpAttr)];
+                memset(reply_buf,0,sizeof(QPReplyHeader) + sizeof(RdmaQpAttr));
 
                 rdma->mtx_->lock();
-                if (rdma->qps_.find(qid) == rdma->qps_.end()) {
-                    *(char *)(reply.data()) = TCPFAIL;
+                if(rdma->qps_.find(qid) == rdma->qps_.end()) {
+                    (*(QPReplyHeader *)(reply_buf)).status = TCPFAIL;
                 } else {
-                    if (IS_UD(qid)) {
-                        // further check whether receives are posted
+                    if(IS_UD(qid)) {
+                        (*(QPReplyHeader *)(reply_buf)).qid = qid;
+                        // further check whether QPs are initilized or not
                         Qp *ud_qp = rdma->qps_[qid];
-                        if (ud_qp->inited_ == false) {
-                            *(char *)(reply.data()) = TCPFAIL;
+                        if(ud_qp->inited_ == false) {
+                            (*(QPReplyHeader *)(reply_buf)).status = TCPFAIL;
                         } else {
+                            (*(QPReplyHeader *)(reply_buf)).status = TCPSUCC;
+                            num++;
                             RdmaQpAttr qp_attr = rdma->get_local_qp_attr(qid);
-                            *(char *)(reply.data()) = TCPSUCC;
-                            memcpy((char *)(reply.data()) + 1, (char *)(&qp_attr), sizeof(RdmaQpAttr));
+                            memcpy((char *)(reply_buf) + sizeof(QPReplyHeader),
+                                   (char *)(&qp_attr),sizeof(RdmaQpAttr));
                         }
                     } else {
                         RdmaQpAttr qp_attr = rdma->get_local_qp_attr(qid);
-                        *(char *)(reply.data()) = TCPSUCC;
-                        memcpy((char *)(reply.data()) + 1, (char *)(&qp_attr), sizeof(RdmaQpAttr));
+                        (*(QPReplyHeader *)(reply_buf)).status = TCPSUCC;
+                        memcpy((char *)(reply_buf) + sizeof(QPReplyHeader),(char *)(&qp_attr),sizeof(RdmaQpAttr));
                     }
                 }
+
                 rdma->mtx_->unlock();
+
                 // reply with the QP attribute
-                socket.send(reply);
-                //if(rdma->response_times_ < 0) continue;
-                //if(--rdma->response_times_ == 0)break;
+                PreConnector::send_to(csfd,reply_buf,sizeof(RdmaQpAttr) + sizeof(QPReplyHeader));
+                PreConnector::wait_close(csfd); // wait for the client to close the connection
+                delete reply_buf;
             }   // while receiving reqests
-            context.close();
+            close(listenfd);
         } catch (...) {
             // pass
         }
+
         printf("[librdma] : recv thread exit!\n");
     }
 
@@ -1419,55 +1473,6 @@ public:
         return qp_attr;
     }
 
-    RdmaQpAttr get_remote_qp_attr(int nid, uint64_t qid) {
-        assert(false);
-        int retry_count = 0;
-retry:
-        char address[30];
-        snprintf(address, 30, "tcp://%s:%d", network_[nid].c_str(), tcp_base_port_);
-        zmq::context_t context(1);
-        zmq::socket_t socket(context, ZMQ_REQ);
-        socket.connect(address);
-
-        zmq::message_t request(sizeof(QPConnArg));
-        fprintf(stdout, "conn to %s\n", address);
-        //    fprintf(stdout,"encode id %d %d\n",this->nodeId,_QP_DECODE_INDEX(qid));
-        //*((int *)request.data()) = qid;//////wa! o !
-        QPConnArg *argp = (QPConnArg *)(request.data());
-        argp->qid = qid;
-        argp->sign = MAGIC_NUM;
-        argp->calculate_checksum();
-
-        socket.send(request);
-
-        zmq::message_t reply;
-        socket.recv(&reply);
-
-        if (((char *)reply.data())[0] == TCPSUCC) {
-
-        } else if (((char *)reply.data())[0] == TCPFAIL) {
-
-            if (retry_count > 10) {
-                fprintf(stdout, "response %d, try connect to %d\n", ((char *)reply.data())[0], nid);
-                assert(false);
-            }
-            sleep(1);
-            retry_count += 1;
-            goto retry;
-
-        } else {
-            fprintf(stdout, "QP connect fail!, val %d\n", ((char *)reply.data())[0]);
-            assert(false);
-        }
-
-        RdmaQpAttr qp_attr;
-        memcpy(&qp_attr, (char *)reply.data() + 1, sizeof(RdmaQpAttr));
-
-        // verify the checksum
-        uint64_t checksum = ip_checksum((void *)(&(qp_attr.buf)), sizeof(RdmaQpAttr) - sizeof(uint64_t));
-        assert(checksum == qp_attr.checksum);
-        return qp_attr;
-    }
 
     int post_ud(int qid, RdmaReq* reqs) {
         int rc = 0;
@@ -1769,119 +1774,144 @@ public:
     SimpleMap<RdmaRecvHelper*> recv_helpers_;
 };
 
-bool Qp::get_ud_connect_info(int remote_id, int idx) {
-
-    // already gotten
-    if (ahs_[remote_id] != NULL) {
-        return true;
-    }
-
-    //int qid = _QP_ENCODE_ID(0,UD_ID_BASE + tid * num_ud_qps + idx);
-    uint64_t qid = _QP_ENCODE_ID(tid + UD_ID_BASE, UD_ID_BASE + idx);
-
-    char address[30];
-    snprintf(address, 30, "tcp://%s:%d", network[remote_id].c_str(), tcp_base_port);
-
-    // prepare tcp connection
-    zmq::socket_t socket(context, ZMQ_REQ);
-    socket.connect(address);
-
-    zmq::message_t request(sizeof(QPConnArg));
-
-    QPConnArg *argp = (QPConnArg *)(request.data());
-    argp->qid = qid;
-    argp->sign = MAGIC_NUM;
-    argp->calculate_checksum();
-
-    socket.send(request);
-
-    zmq::message_t reply;
-    socket.recv(&reply);
-
-    // the first byte of the message is used to identify the status of the request
-    if (((char *)reply.data())[0] == TCPSUCC) {
-
-    } else if (((char *)reply.data())[0] == TCPFAIL) {
-        return false;
-
-    } else {
-        fprintf(stdout, "QP connect fail!, val %d\n", ((char *)reply.data())[0]);
-        assert(false);
-    }
-    zmq_close(&socket);
-    RdmaQpAttr qp_attr;
-    memcpy(&qp_attr, (char *)reply.data() + 1, sizeof(RdmaQpAttr));
-
-    // verify the checksum
-    uint64_t checksum = ip_checksum((void *)(&(qp_attr.buf)), sizeof(RdmaQpAttr) - sizeof(uint64_t));
-    assert(checksum == qp_attr.checksum);
-
-    int dlid = qp_attr.lid;
-
-    ahs_[remote_id] = RdmaCtrl::create_ah(dlid, port_idx, dev_);
-    memcpy(&(ud_attrs_[remote_id]), (char *)reply.data() + 1, sizeof(RdmaQpAttr));
-
-    return true;
-}
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+// bool Qp::get_ud_connect_info(int remote_id, int idx) {                                                //
+//                                                                                                       //
+//     // already gotten                                                                                 //
+//     if (ahs_[remote_id] != NULL) {                                                                    //
+//         return true;                                                                                  //
+//     }                                                                                                 //
+//                                                                                                       //
+//     //int qid = _QP_ENCODE_ID(0,UD_ID_BASE + tid * num_ud_qps + idx);                                 //
+//     uint64_t qid = _QP_ENCODE_ID(tid + UD_ID_BASE, UD_ID_BASE + idx);                                 //
+//                                                                                                       //
+//     char address[30];                                                                                 //
+//     snprintf(address, 30, "tcp://%s:%d", network[remote_id].c_str(), tcp_base_port);                  //
+//                                                                                                       //
+//     // prepare tcp connection                                                                         //
+//     zmq::socket_t socket(context, ZMQ_REQ);                                                           //
+//     socket.connect(address);                                                                          //
+//                                                                                                       //
+//     zmq::message_t request(sizeof(QPConnArg));                                                        //
+//                                                                                                       //
+//     QPConnArg *argp = (QPConnArg *)(request.data());                                                  //
+//     argp->qid = qid;                                                                                  //
+//     argp->sign = MAGIC_NUM;                                                                           //
+//     argp->calculate_checksum();                                                                       //
+//                                                                                                       //
+//     socket.send(request);                                                                             //
+//                                                                                                       //
+//     zmq::message_t reply;                                                                             //
+//     socket.recv(&reply);                                                                              //
+//                                                                                                       //
+//     // the first byte of the message is used to identify the status of the request                    //
+//     if (((char *)reply.data())[0] == TCPSUCC) {                                                       //
+//                                                                                                       //
+//     } else if (((char *)reply.data())[0] == TCPFAIL) {                                                //
+//         return false;                                                                                 //
+//                                                                                                       //
+//     } else {                                                                                          //
+//         fprintf(stdout, "QP connect fail!, val %d\n", ((char *)reply.data())[0]);                     //
+//         assert(false);                                                                                //
+//     }                                                                                                 //
+//     zmq_close(&socket);                                                                               //
+//     RdmaQpAttr qp_attr;                                                                               //
+//     memcpy(&qp_attr, (char *)reply.data() + 1, sizeof(RdmaQpAttr));                                   //
+//                                                                                                       //
+//     // verify the checksum                                                                            //
+//     uint64_t checksum = ip_checksum((void *)(&(qp_attr.buf)), sizeof(RdmaQpAttr) - sizeof(uint64_t)); //
+//     assert(checksum == qp_attr.checksum);                                                             //
+//                                                                                                       //
+//     int dlid = qp_attr.lid;                                                                           //
+//                                                                                                       //
+//     ahs_[remote_id] = RdmaCtrl::create_ah(dlid, port_idx, dev_);                                      //
+//     memcpy(&(ud_attrs_[remote_id]), (char *)reply.data() + 1, sizeof(RdmaQpAttr));                    //
+//                                                                                                       //
+//     return true;                                                                                      //
+// }                                                                                                     //
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool Qp::get_ud_connect_info_specific(int remote_id, int thread_id, int idx) {
 
-    auto key = _QP_ENCODE_ID(remote_id, thread_id);
-    if (ahs_.find(key) != ahs_.end()) {
-        return true;
-    }
+  auto key = _UD_ENCODE_ID(remote_id,thread_id);
+  if(ahs_[key] != NULL) return true;
 
-    uint64_t qid = _QP_ENCODE_ID(thread_id + UD_ID_BASE, UD_ID_BASE + idx);
+  uint64_t qid = _QP_ENCODE_ID(thread_id + UD_ID_BASE,UD_ID_BASE + idx);
 
-    char address[30];
-    snprintf(address, 30, "tcp://%s:%d", network[remote_id].c_str(), tcp_base_port);
+  QPConnArg arg; memset((char *)(&arg),0,sizeof(QPConnArg));
+  arg.qid = qid;
+  arg.sign = MAGIC_NUM;
+  arg.tid  = thread_id;
+  arg.nid  = node_id;
+  arg.calculate_checksum();
 
-    // prepare tcp connection
-    zmq::socket_t socket(context, ZMQ_REQ);
-    socket.connect(address);
+  auto socket = PreConnector::get_send_socket(network[remote_id],tcp_base_port);
 
-    zmq::message_t request(sizeof(QPConnArg));
+  if(socket < 0) {
+      // cannot establish the connection, shall retry
+      return false;
+  }
 
-    QPConnArg *argp = (QPConnArg *)(request.data());
-    argp->qid = qid;
-    argp->sign = MAGIC_NUM;
-    argp->calculate_checksum();
+  auto n = PreConnector::send_to(socket,(char *)(&arg),sizeof(QPConnArg));
+  if(n != sizeof(QPConnArg)) {
+      close(socket);
+      return false;
+  }
 
-    socket.send(request);
+  if(!PreConnector::wait_recv(socket)) {
+      close(socket);
+      return false;
+  }
 
-    zmq::message_t reply;
-    socket.recv(&reply);
+  int buf_size = sizeof(QPReplyHeader) + sizeof(RdmaQpAttr);
+  char *reply_buf = new char[buf_size];
 
-    // the first byte of the message is used to identify the status of the request
-    if (((char *)reply.data())[0] == TCPSUCC) {
+  n = recv(socket,reply_buf,buf_size, MSG_WAITALL);
+  if(n != sizeof(RdmaQpAttr) + sizeof(QPReplyHeader)) {
+      fprintf(stdout,"Receive ud connection content %d by %s\n",n,network[remote_id].c_str());
+      close(socket);
+      delete reply_buf;
+      usleep(1000);
+      return false;
+  }
 
-    } else if (((char *)reply.data())[0] == TCPFAIL) {
-        return false;
+  // close connection
+  close(socket);
 
-    } else {
-        fprintf(stdout, "QP connect fail!, val %d\n", ((char *)reply.data())[0]);
-        assert(false);
-    }
-    zmq_close(&socket);
-    RdmaQpAttr qp_attr;
-    memcpy(&qp_attr, (char *)reply.data() + 1, sizeof(RdmaQpAttr));
+  QPReplyHeader *hdr = (QPReplyHeader *)(reply_buf);
 
-    // verify the checksum
-    uint64_t checksum = ip_checksum((void *)(&(qp_attr.buf)), sizeof(RdmaQpAttr) - sizeof(uint64_t));
-    assert(checksum == qp_attr.checksum);
+  // the first byte of the message is used to identify the status of the request
+  if(hdr->status == TCPSUCC) {
 
-    int dlid = qp_attr.lid;
+      if(hdr->qid != qid){ // sanity checks
+          assert(false);
+      }
 
-    ahs_.insert(std::make_pair(key, RdmaCtrl::create_ah(dlid, port_idx, dev_)));
-    ud_attrs_.insert(std::make_pair(key, RdmaQpAttr()));
-    memcpy(&(ud_attrs_[key]), (char *)reply.data() + 1, sizeof(RdmaQpAttr));
+  } else if(hdr->status == TCPFAIL) {
+      delete reply_buf;
+      return false;
+  } else {
+      fprintf(stdout,"QP connect fail!, val %d\n",reply_buf[0]);
+      assert(false);
+  }
+  RdmaQpAttr qp_attr;
+  memcpy(&qp_attr,reply_buf + sizeof(QPReplyHeader),sizeof(RdmaQpAttr));
 
-    return true;
+  // verify the checksum
+  uint64_t checksum = ip_checksum((void *)(&(qp_attr.buf)),sizeof(RdmaQpAttr) - sizeof(uint64_t));
+  assert(checksum == qp_attr.checksum);
+  int dlid = qp_attr.lid;
+
+  ahs_[key] = RdmaCtrl::create_ah(dlid,port_idx,dev_);
+  memcpy(&(ud_attrs_[key]),reply_buf + sizeof(QPReplyHeader),sizeof(RdmaQpAttr));
+
+  delete reply_buf;
+  return true;
 }
 
 
 
-}
+} // end namespace rdmaio
 
 // private helper functions ////////////////////////////////////////////////////////////////////
 
