@@ -447,9 +447,8 @@ public:
     }
 
     // return true if the connection is succesfull,
-    // unlike rc, a ud qp can be used to connnect many destinations, so this method can be called many times
-    //bool get_ud_connect_info(int remote_id, int idx);
-
+    // unlike rc, a ud qp can be used to connnect many destinations, so this method can be called many times,
+    // for a specific QP
     bool get_ud_connect_info_specific(int remote_id, int thread_id, int idx);
 
     // change rc,uc QP's states to ready
@@ -1772,63 +1771,6 @@ public:
     SimpleMap<RdmaQpAttr*> remote_ud_qp_attrs_;
     SimpleMap<RdmaRecvHelper*> recv_helpers_;
 };
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-// bool Qp::get_ud_connect_info(int remote_id, int idx) {                                                //
-//                                                                                                       //
-//     // already gotten                                                                                 //
-//     if (ahs_[remote_id] != NULL) {                                                                    //
-//         return true;                                                                                  //
-//     }                                                                                                 //
-//                                                                                                       //
-//     //int qid = _QP_ENCODE_ID(0,UD_ID_BASE + tid * num_ud_qps + idx);                                 //
-//     uint64_t qid = _QP_ENCODE_ID(tid + UD_ID_BASE, UD_ID_BASE + idx);                                 //
-//                                                                                                       //
-//     char address[30];                                                                                 //
-//     snprintf(address, 30, "tcp://%s:%d", network[remote_id].c_str(), tcp_base_port);                  //
-//                                                                                                       //
-//     // prepare tcp connection                                                                         //
-//     zmq::socket_t socket(context, ZMQ_REQ);                                                           //
-//     socket.connect(address);                                                                          //
-//                                                                                                       //
-//     zmq::message_t request(sizeof(QPConnArg));                                                        //
-//                                                                                                       //
-//     QPConnArg *argp = (QPConnArg *)(request.data());                                                  //
-//     argp->qid = qid;                                                                                  //
-//     argp->sign = MAGIC_NUM;                                                                           //
-//     argp->calculate_checksum();                                                                       //
-//                                                                                                       //
-//     socket.send(request);                                                                             //
-//                                                                                                       //
-//     zmq::message_t reply;                                                                             //
-//     socket.recv(&reply);                                                                              //
-//                                                                                                       //
-//     // the first byte of the message is used to identify the status of the request                    //
-//     if (((char *)reply.data())[0] == TCPSUCC) {                                                       //
-//                                                                                                       //
-//     } else if (((char *)reply.data())[0] == TCPFAIL) {                                                //
-//         return false;                                                                                 //
-//                                                                                                       //
-//     } else {                                                                                          //
-//         fprintf(stdout, "QP connect fail!, val %d\n", ((char *)reply.data())[0]);                     //
-//         assert(false);                                                                                //
-//     }                                                                                                 //
-//     zmq_close(&socket);                                                                               //
-//     RdmaQpAttr qp_attr;                                                                               //
-//     memcpy(&qp_attr, (char *)reply.data() + 1, sizeof(RdmaQpAttr));                                   //
-//                                                                                                       //
-//     // verify the checksum                                                                            //
-//     uint64_t checksum = ip_checksum((void *)(&(qp_attr.buf)), sizeof(RdmaQpAttr) - sizeof(uint64_t)); //
-//     assert(checksum == qp_attr.checksum);                                                             //
-//                                                                                                       //
-//     int dlid = qp_attr.lid;                                                                           //
-//                                                                                                       //
-//     ahs_[remote_id] = RdmaCtrl::create_ah(dlid, port_idx, dev_);                                      //
-//     memcpy(&(ud_attrs_[remote_id]), (char *)reply.data() + 1, sizeof(RdmaQpAttr));                    //
-//                                                                                                       //
-//     return true;                                                                                      //
-// }                                                                                                     //
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool Qp::get_ud_connect_info_specific(int remote_id, int thread_id, int idx) {
 
