@@ -203,8 +203,7 @@ public:
                         DEFAULT_PROTECTION_FLAG);
 #endif
 
-
-        recv_cq = send_cq = ibv_create_cq(rdma_device->ctx, RC_MAX_SEND_SIZE, NULL, NULL, 0);
+        recv_cq = send_cq = ibv_create_cq(rdma_device->ctx, RC_MAX_RECV_SIZE, NULL, NULL, 0);
         if (send_cq == NULL) {
             fprintf(stderr, "[librdma] qp: Failed to create cq, %s\n", strerror(errno));
         }
@@ -1013,7 +1012,7 @@ public:
         int rc;
 
         struct ibv_device *device = dev_list_[dev_id];
-        //CE_2(!device,"[librdma]: IB device %d wasn't found\n",dev_id);
+
         RdmaDevice *rdma_device;
         if (enable_single_thread_mr_) {
             if (rdma_single_device_ == NULL) {
@@ -1054,6 +1053,7 @@ public:
         RdmaDevice *rdma_device = get_rdma_device(dev_id);
         assert(rdma_device->pd != NULL);
         if (enable_single_thread_mr_ && rdma_device->conn_buf_mr != NULL) {
+            assert(false);
             return;
         }
         rdma_device->conn_buf_mr = ibv_reg_mr(rdma_device->pd, (char *)conn_buf_, conn_buf_size_,
@@ -1178,7 +1178,7 @@ public:
         Qp *res = NULL;
 
         mtx_->lock();
-        // fprintf(stdout,"create qp %d %d %d, qid %lu\n",tid,remote_id,idx,qid);
+        //fprintf(stdout,"create qp %d %d using dev_id %d\n",tid,remote_id,dev_id);
         if (qps_.find(qid) != qps_.end() && qps_[qid] != nullptr) {
             res = qps_[qid];
             mtx_->unlock();
@@ -1736,9 +1736,9 @@ public:
 
 private:
     // global mtx to protect qp_vector
-    std::mutex *mtx_;
+    std::mutex *mtx_ = NULL;
     // global mtx to protect ud_attr (routing info)
-    std::mutex *ud_mtx_;
+    std::mutex *ud_mtx_ = NULL;
 
     // current node id
     int node_id_;
@@ -1754,21 +1754,20 @@ public:
     // which device and port to use
     int dev_id_;
 
-    RdmaDevice *rdma_single_device_;
+    RdmaDevice *rdma_single_device_ = NULL;
     int num_devices_, num_ports_;
-    struct ibv_device **dev_list_;
+    struct ibv_device **dev_list_ = NULL;
     int* active_ports_;
 
     std::map<uint64_t, Qp*> qps_;
-    //SimpleMap<Qp *>qps_;
     int num_rc_qps_;
     int num_uc_qps_;
     int num_ud_qps_;
 
-    volatile uint8_t *conn_buf_;
-    uint64_t conn_buf_size_;
-    volatile uint8_t *dgram_buf_;
-    uint64_t dgram_buf_size_;
+    volatile uint8_t *conn_buf_ = NULL;
+    uint64_t conn_buf_size_ = 0;
+    volatile uint8_t *dgram_buf_ = NULL;
+    uint64_t dgram_buf_size_ = 0;
 
     SimpleMap<RdmaQpAttr*> remote_ud_qp_attrs_;
     SimpleMap<RdmaRecvHelper*> recv_helpers_;
