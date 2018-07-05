@@ -673,6 +673,11 @@ public:
         vector<int> attr_pred_chains;
         transfer_to_cmd_chains(patterns, attr_pattern, attr_pred_chains, temp_cmd_chains);
 
+        if(temp_cmd_chains.size() == 0){
+            if(attr_pattern.size() == 0) return false;
+            else return true;
+        }
+
         this->statistic = statistic;
         min_path.clear();
         path.clear();
