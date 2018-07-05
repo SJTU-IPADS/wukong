@@ -1093,8 +1093,16 @@ public:
                 auto csfd = accept(listenfd,(struct sockaddr *) &cli_addr, &clilen);
                 QPConnArg arg;
 
+                if(!PreConnector::wait_recv(csfd)) { // timeout
+                    close(csfd);
+                    continue;
+                }
                 auto n = recv(csfd,(char *)(&arg),sizeof(QPConnArg), MSG_WAITALL);
-                assert(n == sizeof(QPConnArg));
+                if(n != sizeof(QPConnArg)) { // an invalid message
+
+                    close(csfd);
+                    continue;
+                }
 
                 // check that the arg is correct
                 assert(arg.sign = MAGIC_NUM);
