@@ -203,6 +203,7 @@ public:
             unordered_map<type_t, ssid_t, type_t_hasher> global_type2int;
 
             // complex type have different corresponding number on different machine
+            // assume type < 0 here
             auto type_transform = [&](ssid_t type, data_statistic &stat) -> ssid_t{
                 type_t complex_type = stat.local_int2type[type];
                 if(global_type2int.find(complex_type) != global_type2int.end()){
@@ -216,10 +217,12 @@ public:
                     global_int2type[number] = complex_type;
 
                     // debug
-                    cout << "number: " << number << endl;
-                    for ( auto it = complex_type.composition.cbegin(); it != complex_type.composition.cend(); ++it )
-                        cout << *it << " ";
-                    cout << endl;
+                    // cout << "number: " << number << endl;
+                    // cout << "data_type: " << complex_type.data_type << endl;
+                    // cout << "size: " << complex_type.composition.size() << endl;
+                    // for ( auto it = complex_type.composition.cbegin(); it != complex_type.composition.cend(); ++it )
+                    //     cout << *it << " ";
+                    // cout << endl;
 
                     // add single2complex index
                     if(complex_type.data_type){
@@ -266,18 +269,20 @@ public:
                 for (unordered_map<ssid_t, vector<ty_count>>::iterator it = all_gather[i].local_tystat.pstype.begin();
                         it != all_gather[i].local_tystat.pstype.end(); it++ ) {
                     ssid_t key = it->first;
-                    if(key < 0) key = type_transform(key, all_gather[i]);
                     vector<ty_count>& types = it->second;
                     for (size_t k = 0; k < types.size(); k++)
-                        global_tystat.insert_stype(key, types[k].ty, types[k].count);
+                        global_tystat.insert_stype(key, 
+                                                    types[k].ty<0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
+                                                    types[k].count);
                 }
                 for (unordered_map<ssid_t, vector<ty_count>>::iterator it = all_gather[i].local_tystat.potype.begin();
                         it != all_gather[i].local_tystat.potype.end(); it++ ) {
                     ssid_t key = it->first;
-                    if(key < 0) key = type_transform(key, all_gather[i]);
                     vector<ty_count>& types = it->second;
                     for (size_t k = 0; k < types.size(); k++)
-                        global_tystat.insert_otype(key, types[k].ty, types[k].count);
+                        global_tystat.insert_otype(key, 
+                                                    types[k].ty<0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
+                                                    types[k].count);
                 }
                 for (unordered_map<pair<ssid_t, ssid_t>, vector<ty_count>, boost::hash<pair<int, int> > >::iterator 
                         it = all_gather[i].local_tystat.fine_type.begin();
@@ -287,7 +292,8 @@ public:
                     for (size_t k = 0; k < types.size(); k++)
                         global_tystat.insert_finetype(key.first<0 ? type_transform(key.first, all_gather[i]) : key.first,
                                                       key.second<0 ? type_transform(key.second, all_gather[i]) : key.second,
-                                                      types[k].ty, types[k].count);
+                                                      types[k].ty<0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
+                                                      types[k].count);
                 }
             }
 
@@ -297,20 +303,25 @@ public:
             logstream(LOG_INFO) << "global_tystat.fine_type.size: " << global_tystat.fine_type.size() << LOG_endl;
 
             //debug single2complex
-            for ( auto iter = global_single2complex.cbegin(); iter != global_single2complex.cend(); ++iter ){
-                cout << iter->first ;
-                const unordered_set<ssid_t> set = iter->second;
-                for(auto it = set.cbegin(); it != set.cend(); ++it){
-                    cout << " " << *it;
-                }
-                cout << endl;
-            }
+            // for ( auto iter = global_single2complex.cbegin(); iter != global_single2complex.cend(); ++iter ){
+            //     cout << iter->first ;
+            //     const unordered_set<ssid_t> set = iter->second;
+            //     for(auto it = set.cbegin(); it != set.cend(); ++it){
+            //         cout << " " << *it;
+            //     }
+            //     cout << endl;
+            // }
 
             //debug tyscount
-            for ( auto iter = global_tyscount.cbegin(); iter != global_tyscount.cend(); ++iter ){
-                cout << iter->first << ": " << iter -> second << endl;;
-            }
+            // cout << "local................." << endl;
+            // for ( auto iter = local_tyscount.cbegin(); iter != local_tyscount.cend(); ++iter ){
+            //     cout << iter->first << ": " << iter -> second << endl;;
+            // }
 
+            // cout << "global................." << endl;
+            // for ( auto iter = global_tyscount.cbegin(); iter != global_tyscount.cend(); ++iter ){
+            //     cout << iter->first << ": " << iter -> second << endl;;
+            // }
         }
 
         send_stat_to_all_machines(tcp_ad);
@@ -347,12 +358,6 @@ public:
         uint64_t t2 = timer::get_usec();
         logstream(LOG_INFO) << (t2 - t1) / 1000 << " ms for loading statistics"
                             << " at server " << sid << LOG_endl;
-
-        // logstream(LOG_INFO) << global_tyscount[2] << endl;
-        // logstream(LOG_INFO) << global_tyscount[6] << endl;
-        // logstream(LOG_INFO) << global_tyscount[14] << endl;
-        // logstream(LOG_INFO) << global_tyscount[-1] << endl; // 2 6
-        // logstream(LOG_INFO) << global_tyscount[-7] << endl; // 2 14
         
     }
 
