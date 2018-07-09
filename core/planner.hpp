@@ -36,7 +36,7 @@ class Type_table {
     int col_num = 0;
     int row_num = 0;
 public:
-    vector<ssid_t> tytable;
+    vector<double> tytable;
     // tytable store all the type info during planning
     // struct like
     /* |  0  |  -1  |  -2  |  -3  |
@@ -44,29 +44,23 @@ public:
        |.....|......|......|......|
     */
     Type_table() { }
-    int var2column(ssid_t vid) {
-        //assert(vid < 0); // pattern variable
-        //return (- vid);
-        // false impl
-        return -1;
-    }
     void set_col_num(int n) { col_num = n; }
     int get_col_num() { return col_num; };
     int get_row_num() {
         if (col_num == 0) return 0;
         return tytable.size() / col_num;
     }
-    ssid_t get_row_col(int r, int c) {
+    double get_row_col(int r, int c) {
         return tytable[col_num * r + c];
     }
-    void set_row_col(int r, int c, ssid_t val) {
+    void set_row_col(int r, int c, double val) {
         tytable[col_num * r + c] = val;
     }
-    void append_row_to(int r, vector<ssid_t> &updated_result_table) {
+    void append_row_to(int r, vector<double> &updated_result_table) {
         for (int c = 0; c < col_num; c++)
             updated_result_table.push_back(get_row_col(r, c));
     }
-    void append_newv_row_to(int r, vector<ssid_t> &updated_result_table, ssid_t val) {
+    void append_newv_row_to(int r, vector<double> &updated_result_table, double val) {
         updated_result_table.push_back(val);
         for (int c = 1; c < col_num; c++)
             updated_result_table.push_back(get_row_col(r, c));
@@ -113,6 +107,40 @@ class Planner {
     unordered_map<ssid_t, int> var2ptindex;  // find the first appearance for var
     DGraph *graph;    
 
+    // get the type of constant using get_edges_global
+    ssid_t get_type(ssid_t constant){
+        uint64_t type_sz = 0;
+        edge_t *res = graph->get_edges_global(0, constant, OUT, TYPE_ID, &type_sz);
+        if(type_sz == 1)    return res[0].val;
+        else if(type_sz > 1){
+            type_t type;
+            unordered_set<int> type_composition;
+            for(int i = 0;i < type_sz; i ++){
+                type_composition.insert(res[i].val);
+            }
+            type.set_type_composition(type_composition);
+            return statistic->global_type2int[type];
+        }
+        else{
+            type_t type;
+            uint64_t psize1 = 0;
+            unordered_set<int> index_composition;
+            edge_t *res1 = graph->get_edges_global(0, constant, OUT, PREDICATE_ID, &psize1);
+            for (uint64_t k = 0; k < psize1; k++) {
+                ssid_t pre = res1[k].val;
+                index_composition.insert(pre);
+            }
+            uint64_t psize2 = 0;
+            edge_t *res2 = graph->get_edges_global(0, constant, IN, PREDICATE_ID, &psize2);
+            for (uint64_t k = 0; k < psize2; k++) {
+                ssid_t pre = res2[k].val;
+                index_composition.insert(-pre);
+            }
+            type.set_index_composition(index_composition);
+            return statistic->global_type2int[type];
+        }
+    }
+
     // type-centric dfs enumeration
     bool plan_enum(unsigned int pt_bits, double cost, double pre_results) {
         if (is_empty) return false;
@@ -141,7 +169,7 @@ class Planner {
             double prune_ratio = 1;
             double correprune_boost_results = 0;
             double condprune_results = 0;
-            vector<ssid_t> updated_result_table;
+            vector<double> updated_result_table;
             ssid_t o1 = triples[i];
             ssid_t p = triples[i + 1];
             ssid_t d = triples[i + 2];
@@ -269,15 +297,11 @@ class Planner {
                     correprune_boost_results = 0;
                     condprune_results = 0;
 
-                    // TODO
-                    //assert(false);
                     // selectivity and cost estimation
                     // find all types, push into result table
 
                     // use o1 get_global_edges
-                    uint64_t type_sz = 0;
-                    edge_t *res = graph->get_edges_global(0, o1, OUT, TYPE_ID, &type_sz);
-                    ssid_t o1type = res[0].val;
+                    ssid_t o1type = get_type(o1);
 
                     int tycount = statistic->global_tystat.get_pstype_count(p, o1type);
                     vector<ty_count> tycountv = statistic->global_tystat.fine_type[make_pair(o1type, p)];
@@ -361,13 +385,9 @@ class Planner {
                                 updated_result_table.push_back(*iter);
                             }
                         }
-                    } else { // normal triples TODO
-                        //assert(false);
-                        
+                    } else { // normal triples
                         // use o2 get_global_edges
-                        uint64_t type_sz = 0;
-                        edge_t *res = graph->get_edges_global(0, o2, OUT, TYPE_ID, &type_sz);
-                        ssid_t o2type = res[0].val;
+                        ssid_t o2type = get_type(o2);
 
                         int tycount = statistic->global_tystat.get_potype_count(p, o2type);
                         vector<ty_count> tycountv = statistic->global_tystat.fine_type[make_pair(p, o2type)];
@@ -478,9 +498,7 @@ class Planner {
                             correprune_boost_results += vcount;
                             if (o2 > 0) { 
                                 // for constant pruning
-                                uint64_t type_sz = 0;
-                                edge_t *res = graph->get_edges_global(0, o2, OUT, TYPE_ID, &type_sz);
-                                ssid_t o2type = res[0].val;
+                                ssid_t o2type = get_type(o2);
                                 if (vtype == o2type) match_flag = 1;
                             }
                             else if (var2col.find(o2) != var2col.end() && var2col[o2] > 0) { 
@@ -586,9 +604,7 @@ class Planner {
                             correprune_boost_results += vcount;
                             if (o1 > 0) { 
                                 // for constant pruning
-                                uint64_t type_sz = 0;
-                                edge_t *res = graph->get_edges_global(0, o1, OUT, TYPE_ID, &type_sz);
-                                ssid_t o1type = res[0].val;
+                                ssid_t o1type = get_type(o1);
                                 if (vtype == o1type) match_flag = 1;
                             }
                             else if (var2col.find(o1) != var2col.end() && var2col[o1] > 0) { 
@@ -675,7 +691,7 @@ class Planner {
         double prune_ratio = 0;
         double correprune_boost_results = 0;
         double condprune_results = 0;
-        vector<ssid_t> updated_result_table;
+        vector<double> updated_result_table;
         ssid_t src = triples[index];
         ssid_t pred = triples[index + 1];
         ssid_t dir = triples[index + 2];
@@ -801,9 +817,7 @@ class Planner {
 
                     // selectivity and cost estimation
                     // find all types, push into result table
-                    uint64_t type_sz = 0;
-                    edge_t *res = graph->get_edges_global(0, o1, OUT, TYPE_ID, &type_sz);
-                    ssid_t o1type = res[0].val;
+                    ssid_t o1type = get_type(o1);
                     int tycount = statistic->global_tystat.get_pstype_count(p, o1type);
                     vector<ty_count> tycountv = statistic->global_tystat.fine_type[make_pair(o1type, p)];
                     for (size_t k = 0; k < tycountv.size(); k++) {
@@ -881,10 +895,8 @@ class Planner {
                             }
                         }
 
-                    } else { // normal triples TODO
-                        uint64_t type_sz = 0;
-                        edge_t *res = graph->get_edges_global(0, o2, OUT, TYPE_ID, &type_sz);
-                        ssid_t o2type = res[0].val;
+                    } else { // normal triples
+                        ssid_t o2type = get_type(o2);
                         int tycount = statistic->global_tystat.get_potype_count(p, o2type);
                         vector<ty_count> tycountv = statistic->global_tystat.fine_type[make_pair(p, o2type)];
                         for (size_t k = 0; k < tycountv.size(); k++) {
@@ -986,11 +998,8 @@ class Planner {
                         double vcount = double(tycountv[k].count) / tycount * pre_count;
                         correprune_boost_results += vcount;
                         if (o2 > 0) { 
-                            // TODO for constant pruning
-
-                            uint64_t type_sz = 0;
-                            edge_t *res = graph->get_edges_global(0, o2, OUT, TYPE_ID, &type_sz);
-                            ssid_t o2type = res[0].val;
+                            // for constant pruning
+                            ssid_t o2type = get_type(o2);
                             if (vtype == o2type) match_flag = 1;
                         }
                         else if (var2col.find(o2) != var2col.end() && var2col[o2] > 0) { 
@@ -1126,10 +1135,8 @@ class Planner {
                         double vcount = double(tycountv[k].count) / tycount * pre_count;
                         correprune_boost_results += vcount;
                         if (o1 > 0) { 
-                            // TODO for constant pruning
-                            uint64_t type_sz = 0;
-                            edge_t *res = graph->get_edges_global(0, o1, OUT, TYPE_ID, &type_sz);
-                            ssid_t o1type = res[0].val;
+                            // for constant pruning
+                            ssid_t o1type = get_type(o1);
                             if (vtype == o1type) match_flag = 1;
                         }
                         else if (var2col.find(o1) != var2col.end() && var2col[o1] > 0) { 

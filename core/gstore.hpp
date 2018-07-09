@@ -1603,12 +1603,15 @@ public:
     }
 
     // prepare data for planner
-    void generate_statistic(data_statistic &stat, String_Server *str_server) {
+    void generate_statistic(data_statistic &stat) {
+
+        #ifndef VERSATILE
+        logstream(LOG_ERROR)  << "please turn off generate_statistics in config and use stat file cache instead OR turn on VERSATILE option in CMakefiles to generate_statistic" << LOG_endl;    
+        exit(-1);            
+        #endif
 
         unordered_map<ssid_t, int> &tyscount = stat.local_tyscount;
         type_stat &ty_stat = stat.local_tystat;
-        // TODO tricky code
-        string GRADUATE_STUDENT = "<http://swat.cse.lehigh.edu/onto/univ-bench.owl#GraduateStudent>";
         // for complex type vertex numbering
         unordered_set<ssid_t> record_set; 
 
@@ -1681,12 +1684,6 @@ public:
                         uint64_t type_sz = 0;
                         edge_t *res = get_edges_global(0, sbid, OUT, TYPE_ID, &type_sz);
                         if (type_sz > 1) {
-                            //TODO
-                            //Exception: LUBM graduate student have two types, the other one is teaching assistant
-                            //but only Type graduate student occurs in query, so we only use this type here
-                            //The same Exception occurs threes times below
-                            //ssid_t type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
-
                             ssid_t type = generate_multi_type(res, type_sz);
                             res_type.push_back(type); //10 for 10240, 19 for 2560, 23 for 40, 2 for 640
                         }
@@ -1708,7 +1705,6 @@ public:
                     edge_t *res = get_edges_local(0, vid, OUT, TYPE_ID, &type_sz);
                     ssid_t type;
                     if (type_sz > 1) {
-                        //type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
                         type = generate_multi_type(res, type_sz);
                         insert_complex_type_count(vid, type);
                     } else {
@@ -1721,12 +1717,11 @@ public:
                           type = res[0].val;
                       }
                     }
-                    //if (type_sz != 0) {
-                        ty_stat.insert_otype(pid, type, 1);
-                        for (int j = 0; j < res_type.size(); j++) {
-                            ty_stat.insert_finetype(pid, type, res_type[j], 1);
-                        }
-                    //}
+
+                    ty_stat.insert_otype(pid, type, 1);
+                    for (int j = 0; j < res_type.size(); j++) {
+                        ty_stat.insert_finetype(pid, type, res_type[j], 1);
+                    }
 
                 } else {
                     // no_type only need to be counted in one direction (using OUT)
@@ -1737,9 +1732,7 @@ public:
                         uint64_t type_sz = 0;
                         edge_t *res = get_edges_global(0, obid, OUT, TYPE_ID, &type_sz);
 
-                        //if(pid == 3) cout << "type_sz: " << type_sz << endl;
                         if (type_sz > 1) {
-                            //ssid_t type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
                             ssid_t type = generate_multi_type(res, type_sz);
                             res_type.push_back(type);
                         }
@@ -1764,7 +1757,6 @@ public:
                     edge_t *res = get_edges_local(0, vid, OUT, TYPE_ID, &type_sz);
                     ssid_t type;
                     if (type_sz > 1) { 
-                        //type = str_server->exist(GRADUATE_STUDENT) ? str_server->str2id[GRADUATE_STUDENT] : 19;
                         type = generate_multi_type(res, type_sz);
                         insert_complex_type_count(vid, type);
                     } else {
@@ -1778,12 +1770,10 @@ public:
                       }
                     }
 
-                    //if (type_sz != 0) {
-                        ty_stat.insert_stype(pid, type, 1);
-                        for (int j = 0; j < res_type.size(); j++) {
-                            ty_stat.insert_finetype(type, pid, res_type[j], 1);
-                        }
-                    //}
+                    ty_stat.insert_stype(pid, type, 1);
+                    for (int j = 0; j < res_type.size(); j++) {
+                        ty_stat.insert_finetype(type, pid, res_type[j], 1);
+                    }
 
                     // count type predicate
                     if (pid == TYPE_ID) {

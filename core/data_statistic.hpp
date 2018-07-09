@@ -145,6 +145,7 @@ private:
             boost::archive::binary_oarchive my_oa(ss);
             my_oa << global_tyscount
                   << global_tystat
+                  << global_type2int
                   << global_single2complex;
 
             for (int i = 1; i < global_num_servers; i++)
@@ -158,6 +159,7 @@ private:
             boost::archive::binary_iarchive ia(ss);
             ia >> global_tyscount
                >> global_tystat
+               >> global_type2int
                >> global_single2complex;
         }
     }
@@ -181,6 +183,7 @@ public:
     // use negative numbers to represent complex types (type_composition and index_composition)
     unordered_map<ssid_t, type_t> local_int2type;    
     unordered_map<type_t, ssid_t, type_t_hasher> local_type2int;
+    unordered_map<type_t, ssid_t, type_t_hasher> global_type2int;
 
     // single type may be contained by several multitype
     unordered_map<ssid_t, unordered_set<ssid_t>> global_single2complex;    
@@ -200,7 +203,6 @@ public:
         if (sid == 0) {
             vector<data_statistic> all_gather;
             unordered_map<ssid_t, type_t> global_int2type;    
-            unordered_map<type_t, ssid_t, type_t_hasher> global_type2int;
 
             // complex type have different corresponding number on different machine
             // assume type < 0 here
@@ -349,6 +351,7 @@ public:
             boost::archive::binary_iarchive ia(ifs);
             ia >> global_tyscount;
             ia >> global_tystat;
+            ia >> global_type2int;
             ia >> global_single2complex;
             ifs.close();
         }
@@ -372,6 +375,7 @@ public:
             boost::archive::binary_oarchive oa(ofs);
             oa << global_tyscount;
             oa << global_tystat;
+            oa << global_type2int;
             oa << global_single2complex;
             ofs.close();
 
