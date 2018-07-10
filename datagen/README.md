@@ -12,8 +12,9 @@
 $g++ -std=c++11 generate_data.cpp -o generate_data
 ```
 
-`step 2` : transform the data format, from NT format to ID format. 
-./generate_data argument is the input directory(nt format directory) and the output directory (id format directory) 
+`step 2` : transform the data format, from NT format to ID format.
+
+arguments of ./generate_data are the input directory(nt format directory) and the output directory (id format directory) 
 
 ```
 $./generate_data nt_lubm_2 id_lubm_2
@@ -48,7 +49,7 @@ $g++ -std=c++11 add_attribute.cpp -o add_attribute
 `step 2` : 
  modify the LUBM dataset to add attribute data 
 
-./add_attribute  argument is the input directory(nt format directory) and the output directory(attribute triple directory) 
+arguments of ./add_attribute are the input directory(nt format directory) and the output directory(attribute triple directory) 
 
 ```
 $./add_attribute nt_lubm_2 nt_lubm_2_attr
