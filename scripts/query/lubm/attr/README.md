@@ -23,7 +23,8 @@ mv ~/uba1.7/uni*.nt nt_lubm_2/
 ##  Config 
 enable `global_enable_vattr`
 
-```global_num_proxies			4
+```
+global_num_proxies			4
 global_num_engines			16
 global_input_folder			/home/datanfs/nfs0/rdfdata/id_lubm_2/
 global_data_port_base		5500
