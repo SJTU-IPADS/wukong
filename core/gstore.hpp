@@ -31,6 +31,11 @@
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/concurrent_unordered_set.h>
 
+#ifdef USE_GPU
+#include <atomic>
+#include "rdf_meta.hpp"
+#endif
+
 #include "config.hpp"
 #include "rdma.hpp"
 #include "data_statistic.hpp"
@@ -91,6 +96,15 @@ uint64_t vid : NBITS_VID; // vertex
         r <<= NBITS_DIR;
         r += dir;
         return mymath::hash_u64(r); // the standard hash is too slow (i.e., std::hash<uint64_t>()(r))
+    }
+};
+
+struct ikey_Hasher {
+    static size_t hash(const ikey_t& k ) {
+        return k.hash();
+    }
+    static bool equal(const ikey_t& x, const ikey_t& y) {
+        return x.operator==(y);
     }
 };
 
@@ -261,10 +275,31 @@ private:
     pthread_spinlock_t bucket_ext_lock;
 
 
+    uint64_t bucket_local(ikey_t key) {
+        uint64_t bucket_id;
+#ifdef USE_GPU
+        // the smallest pid is 1
+        bucket_id = rdf_segment_metas[key.pid].bucket_start + key.hash() % rdf_segment_metas[key.pid].num_buckets;
+#else
+        bucket_id = key.hash() % num_buckets;
+#endif
+        return bucket_id;
+    }
+
+    uint64_t bucket_remote(ikey_t key, int dst_sid) {
+        uint64_t bucket_id;
+#ifdef USE_GPU
+        vector<rdf_segment_meta_t> &remote_metas = shared_rdf_segment_meta_map[dst_sid];
+        bucket_id = remote_metas[key.pid].bucket_start + key.hash() % remote_metas[key.pid].num_buckets;
+#else
+        bucket_id = key.hash() % num_buckets;
+#endif
+        return bucket_id;
+    }
 
     // cluster chaining hash-table (see paper: DrTM SOSP'15)
     uint64_t insert_key(ikey_t key, bool check_dup = true) {
-        uint64_t bucket_id = key.hash() % num_buckets;
+        uint64_t bucket_id = bucket_local(key);
         uint64_t slot_id = bucket_id * ASSOCIATIVITY;
         uint64_t lock_id = bucket_id % NUM_LOCKS;
 
@@ -305,13 +340,11 @@ private:
 
 
             // allocate and link a new indirect header
-            pthread_spin_lock(&bucket_ext_lock);
-            if (last_ext >= num_buckets_ext) {
-                logstream(LOG_ERROR) << "out of indirect-header region." << LOG_endl;
-                ASSERT(last_ext < num_buckets_ext);
-            }
-            vertices[slot_id].key.vid = num_buckets + (last_ext++);
-            pthread_spin_unlock(&bucket_ext_lock);
+#ifdef USE_GPU
+            vertices[slot_id].key.vid = rdf_segment_map[key.pid].next_ext_bucket();
+#else
+            vertices[slot_id].key.vid = alloc_ext_buckets(1);
+#endif
 
             slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY; // move to a new bucket_ext
             vertices[slot_id].key = key; // insert to the first slot
@@ -323,7 +356,6 @@ done:
         ASSERT(vertices[slot_id].key == key);
         return slot_id;
     }
-
 
     edge_t *edges;
     uint64_t num_entries;     // entry region (dynamical)
@@ -524,6 +556,23 @@ done:
         pthread_spin_unlock(&entry_lock);
         return orig;
     }
+
+    // Allocate extended buckets
+    // @n number of extended buckets to allocate
+    // @return start offset of allocated extended buckets
+    uint64_t alloc_ext_buckets(uint64_t n) {
+        uint64_t orig;
+        pthread_spin_lock(&bucket_ext_lock);
+        orig = last_ext;
+        last_ext += n;
+        if (last_ext >= num_buckets_ext) {
+            logstream(LOG_ERROR) << "out of indirect-header region." << LOG_endl;
+            ASSERT(last_ext < num_buckets_ext);
+        }
+        pthread_spin_unlock(&bucket_ext_lock);
+        return num_buckets + orig;
+    }
+
 #endif // DYNAMIC_GSTORE
 
     typedef tbb::concurrent_hash_map<sid_t, vector<sid_t>> tbb_hash_map;
@@ -531,6 +580,232 @@ done:
     tbb_hash_map pidx_in_map; // predicate-index (IN)
     tbb_hash_map pidx_out_map; // predicate-index (OUT)
     tbb_hash_map tidx_map; // type-index
+
+#ifdef USE_GPU  // enable GPU support
+
+    sid_t num_predicates;  // number of predicates
+
+    // wrapper of atomic counters
+    struct triple_cnt_t {
+        triple_cnt_t() {
+            normal_cnt = 0ul;
+            index_cnts[IN] = 0ul;
+            index_cnts[OUT] = 0ul;
+        }
+        triple_cnt_t(const triple_cnt_t& cnt) {
+            normal_cnt = cnt.normal_cnt.load();
+            index_cnts[IN] = cnt.index_cnts[IN].load();
+            index_cnts[OUT] = cnt.index_cnts[OUT].load();
+        }
+
+        atomic<uint64_t> normal_cnt;
+        atomic<uint64_t> index_cnts[2];
+    };
+
+    // represents a contiguous area in value region
+    struct extent_t {
+        extent_t() : start(0), size(0) {}
+        uint64_t start;
+        // TODO: the size should be aligned to value cacheblock in GCache
+        uint64_t size;
+    };
+
+    struct ext_bucket_extent_t : extent_t {
+        ext_bucket_extent_t() : off(0) {}
+        uint64_t off;
+    };
+
+    // Predicate segment
+    // RDF triples with same predicate will be stored together as a segment.
+    // A segment contains a normal extent and two index extents for IN and OUT directions.
+    class RDF_Segment {
+    public:
+        RDF_Segment() : gstore(NULL) { }
+        RDF_Segment(GStore *g) : gstore(g), num_buckets(0) { }
+        extent_t& normal_extent() {
+            return normal_ext;
+        }
+        extent_t& index_segment(dir_t d) {
+            ASSERT(d == IN || d == OUT);
+            return pidx_extents[d];
+        }
+
+        // get an indirect header from extended bucket extent
+        uint64_t next_ext_bucket() {
+            if (ext_bucket_ext.off < ext_bucket_ext.size) {
+                return (ext_bucket_ext.start + ext_bucket_ext.off++);
+            }
+
+            // we have allocated enough free indirect headers, thus shouldn't go to here
+            ASSERT_MSG(false, "out of free indirect headers");
+        }
+
+        const ext_bucket_extent_t& ext_bucket_extent() {
+            return ext_bucket_ext;
+        }
+
+        uint64_t get_num_keys() {
+            if (normal_ext.size == 0 &&
+                    (pidx_extents[IN].size + pidx_extents[OUT].size) == 0)
+                return 0;
+
+            // type-index only has one key
+            if (normal_ext.size == 0)
+                return 1;
+
+            return pidx_extents[IN].size + pidx_extents[OUT].size;
+        }
+
+        void set_ext_bucket_ext(ext_bucket_extent_t ext) {
+            ext_bucket_ext = ext;
+        }
+
+        // how to decide whether a rdf_segment is valid
+        bool is_valid() {
+            return !(normal_ext.size == 0 &&
+                    (pidx_extents[IN].size + pidx_extents[OUT].size) == 0);
+        }
+
+        uint64_t num_buckets;
+
+    private:
+        GStore *gstore;
+        extent_t normal_ext;
+        extent_t pidx_extents[2];   // p-index for in and out directions
+        ext_bucket_extent_t ext_bucket_ext; // extended buckets
+    };
+
+    // multiple engines will access shared_rdf_segment_meta_map
+    // key: server id, value: segment metadata of the server
+    tbb::concurrent_unordered_map <int, vector<rdf_segment_meta_t> > shared_rdf_segment_meta_map;
+
+    typedef tbb::concurrent_hash_map<ikey_t, vector<triple_t>, ikey_Hasher> tbb_triple_hash_map;
+    tbb_triple_hash_map triples_map;  // triples grouped by (predicate, direction)
+
+    // all predicate IDs
+    vector<sid_t> all_predicates;
+
+    // metadata of all predicate segments (will be used on GPU)
+    vector<rdf_segment_meta_t> rdf_segment_metas;
+
+    // key: predicate id, value: segment
+    std::map<sid_t, RDF_Segment> rdf_segment_map;
+
+    void send_my_segment_meta(TCP_Adaptor *tcp_ad) {
+        std::stringstream ss;
+        std::string str;
+        boost::archive::binary_oarchive oa(ss);
+        SyncSegmentMetaMsg msg(rdf_segment_metas);
+
+        msg.sender_sid = sid;
+        oa << msg;
+
+        // send pred_metas to other servers
+        for (int i = 0; i < global_num_servers; ++i) {
+            if (i == sid)
+                continue;
+            tcp_ad->send(i, 0, ss.str());
+            logstream(LOG_INFO) << "#"<< sid << " sends segment metadata to server " << i << LOG_endl;
+        }
+    }
+
+    void recv_others_segment_meta(TCP_Adaptor *tcp_ad) {
+        std::string str;
+        // receive global_num_servers - 1 messages
+        for (int i = 0; i < global_num_servers; ++i) {
+            if (i == sid)
+                continue;
+            std::stringstream ss;
+            str = tcp_ad->recv(0);
+            ss << str;
+            boost::archive::binary_iarchive ia(ss);
+            SyncSegmentMetaMsg msg;
+            ia >> msg;
+
+            shared_rdf_segment_meta_map.insert(make_pair(msg.sender_sid, msg.data));
+            logstream(LOG_INFO) << "#" << sid << " receives segment metadata from server " << msg.sender_sid << LOG_endl;
+        }
+    }
+
+    void collect_index_info(uint64_t slot_id) {
+        sid_t vid = vertices[slot_id].key.vid;
+        sid_t pid = vertices[slot_id].key.pid;
+        uint64_t sz = vertices[slot_id].ptr.size;
+        uint64_t off = vertices[slot_id].ptr.off;
+
+        if (vertices[slot_id].key.dir == IN) {
+            if (pid == PREDICATE_ID) {
+            } else if (pid == TYPE_ID) {
+                ASSERT(false); // (IN) type triples should be skipped
+            } else { // predicate-index (OUT) vid
+                tbb_hash_map::accessor a;
+                pidx_out_map.insert(a, pid);
+                a->second.push_back(vid);
+            }
+        } else {
+            if (pid == PREDICATE_ID) {
+            } else if (pid == TYPE_ID) {
+                // type-index (IN) -> vid_list
+                for (uint64_t e = 0; e < sz; e++) {
+                    tbb_hash_map::accessor a;
+                    tidx_map.insert(a, edges[off + e].val);
+                    a->second.push_back(vid);
+                }
+            } else { // predicate-index (IN) vid
+                tbb_hash_map::accessor a;
+                pidx_in_map.insert(a, pid);
+                a->second.push_back(vid);
+            }
+        }
+    }
+
+    void insert_tidx_map(tbb_hash_map &tidx_map, dir_t d) {
+        int pid = 0;
+        uint64_t off;
+        for (auto const &e : tidx_map) {
+            pid = e.first;
+
+            RDF_Segment &rdf_segment = rdf_segment_map[pid];
+            if (!rdf_segment.is_valid()) {
+                logger(LOG_FATAL, "insert_tidx_map: type-pid: %d is not allocated space!\n", pid);
+                continue;
+            }
+
+            uint64_t sz = e.second.size();
+            uint64_t off = rdf_segment.index_segment(d).start;
+            ASSERT(sz <= rdf_segment.index_segment(d).size);
+
+            ikey_t key = ikey_t(0, pid, d);
+            uint64_t slot_id = insert_key(key);
+            iptr_t ptr = iptr_t(sz, off);
+            vertices[slot_id].ptr = ptr;
+
+            for (auto const &vid : e.second)
+                edges[off++].val = vid;
+        }
+    }
+
+    void insert_pidx_map(tbb_hash_map &pidx_map, int pid, dir_t d) {
+        tbb_hash_map::const_accessor ca;
+        bool success = pidx_map.find(ca, pid);
+        if (!success)
+            return;
+
+        RDF_Segment &rdf_segment = rdf_segment_map[pid];
+        uint64_t sz = ca->second.size();
+        uint64_t off = rdf_segment.index_segment(d).start;
+        ASSERT(sz <= rdf_segment.index_segment(d).size);
+
+        ikey_t key = ikey_t(0, pid, d);
+        uint64_t slot_id = insert_key(key);
+        iptr_t ptr = iptr_t(sz, off);
+        vertices[slot_id].ptr = ptr;
+
+        for (auto const &vid : ca->second)
+            edges[off++].val = vid;
+    }
+
+#endif  // USE_GPU
 
     void insert_index_map(tbb_hash_map &map, dir_t d) {
         for (auto const &e : map) {
@@ -598,7 +873,7 @@ done:
     // Get remote vertex of given key. This func will fail if RDMA is disabled.
     vertex_t get_vertex_remote(int tid, ikey_t key) {
         int dst_sid = mymath::hash_mod(key.vid, global_num_servers);
-        uint64_t bucket_id = key.hash() % num_buckets;
+        uint64_t bucket_id = bucket_remote(key, dst_sid);
         vertex_t vert;
 
         // Currently, we don't support to directly get remote vertex/edge without RDMA
@@ -639,7 +914,7 @@ done:
 
     // Get local vertex of given key.
     vertex_t get_vertex_local(int tid, ikey_t key) {
-        uint64_t bucket_id = key.hash() % num_buckets;
+        uint64_t bucket_id = bucket_local(key);;
         while (true) {
             for (int i = 0; i < ASSOCIATIVITY; i++) {
                 uint64_t slot_id = bucket_id * ASSOCIATIVITY + i;
@@ -854,7 +1129,12 @@ public:
         pthread_spin_init(&entry_lock, 0);
 #endif
 
-        logstream(LOG_INFO) << "gstore = " << mem->kvstore_size() << " bytes " << LOG_endl;
+#ifdef USE_GPU
+        logstream(LOG_INFO) << "gpu-gstore = ";
+#else
+        logstream(LOG_INFO) << "gstore = ";
+#endif
+        logstream(LOG_INFO) << mem->kvstore_size() << " bytes " << LOG_endl;
         logstream(LOG_INFO) << "      header region: " << num_slots << " slots" << " (main = " << num_buckets << ", indirect = " << num_buckets_ext << ")" << LOG_endl;
         logstream(LOG_INFO) << "      entry region: " << num_entries << " entries" << LOG_endl;
 
@@ -881,6 +1161,327 @@ public:
         last_entry = 0;
 #endif
     }
+
+
+#ifdef USE_GPU
+    inline void set_num_predicates(sid_t n) {
+        num_predicates = n;
+    }
+
+    inline sid_t get_num_predicates() const {
+        return num_predicates;
+    }
+
+    const vector<sid_t>& get_all_predicates() const {
+        return all_predicates;
+    }
+
+    void sync_metadata(TCP_Adaptor *tcp_ad) {
+        send_my_segment_meta(tcp_ad);
+        recv_others_segment_meta(tcp_ad);
+    }
+
+    void init_triples_map(vector<vector<triple_t>> &triple_pso, vector<vector<triple_t>> &triple_pos) {
+        #pragma omp parallel for num_threads(global_num_engines)
+        for (int tid = 0; tid < global_num_engines; tid++) {
+            vector<triple_t> &pso_vec = triple_pso[tid];
+            vector<triple_t> &pos_vec = triple_pos[tid];
+
+            int i = 0;
+            int current_pid;
+            while (!pso_vec.empty() && i < pso_vec.size()) {
+                current_pid = pso_vec[i].p;
+                tbb_triple_hash_map::accessor a;
+                triples_map.insert(a, ikey_t(0, current_pid, OUT));
+
+                for (; pso_vec[i].p == current_pid; i++) {
+                    a->second.push_back(pso_vec[i]);
+                }
+            }
+
+            i = 0;
+            while (!pos_vec.empty() && i < pos_vec.size()) {
+                current_pid = pos_vec[i].p;
+                tbb_triple_hash_map::accessor a;
+                triples_map.insert(a, ikey_t(0, current_pid, IN));
+
+                for (; pos_vec[i].p == current_pid; i++) {
+                    a->second.push_back(pos_vec[i]);
+                }
+            }
+        }
+    }
+
+    void free_triples_map() {
+        triples_map.clear();
+    }
+
+    // init metadata for each segment
+    void init_segment_metas(const vector<vector<triple_t>> &triple_spo,
+            const vector<vector<triple_t>> &triple_ops) {
+
+        map<sid_t, triple_cnt_t> index_cnt_map;  // count children of index vertex
+        map<sid_t, triple_cnt_t> normal_cnt_map; // count normal vertices
+
+        // initialization
+        for (int i = 0; i <= num_predicates; ++i) {
+            rdf_segment_metas.push_back(rdf_segment_meta_t());
+            rdf_segment_metas[i].num_buckets = 0;
+            index_cnt_map.insert(make_pair(i, triple_cnt_t()));
+            normal_cnt_map.insert(make_pair(i, triple_cnt_t()));
+            rdf_segment_map.insert(make_pair(i, RDF_Segment(this)));
+        }
+
+        #pragma omp parallel for num_threads(global_num_engines)
+        for (int tid = 0; tid < global_num_engines; tid++) {
+            const vector<triple_t> &spo = triple_spo[tid];
+            const vector<triple_t> &ops = triple_ops[tid];
+
+            uint64_t s = 0;
+            while (s < spo.size()) {
+                uint64_t e = s + 1;
+
+                while ((e < spo.size())
+                        && (spo[s].s == spo[e].s)
+                        && (spo[s].p == spo[e].p))  {
+                    // count #edge of type-idx
+                    if (spo[e].p == TYPE_ID && is_tpid(spo[e].o)) {
+                        index_cnt_map[ spo[e].o ].index_cnts[ IN ]++;
+                    }
+                    e++;
+                }
+
+                // count #edge of predicate
+                normal_cnt_map[ spo[s].p ].normal_cnt += (e - s);
+
+                // count #edge of predicate-idx
+                index_cnt_map[ spo[s].p ].index_cnts[ IN ]++;
+
+                // count #edge of type-idx
+                if (spo[s].p == TYPE_ID && is_tpid(spo[s].o)) {
+                    index_cnt_map[ spo[s].o ].index_cnts[ IN ]++;
+                }
+                s = e;
+            }
+
+            uint64_t type_triples = 0;
+            triple_t tp;
+            while (type_triples < ops.size() && is_tpid(ops[type_triples].o)) {
+                type_triples++;
+            }
+
+            s = type_triples; // skip type triples
+            while (s < ops.size()) {
+                // predicate-based key (object + predicate)
+                uint64_t e = s + 1;
+                while ((e < ops.size())
+                        && (ops[s].o == ops[e].o)
+                        && (ops[s].p == ops[e].p)) {
+                    e++;
+                }
+
+                // count #edge of predicate
+                normal_cnt_map[ ops[s].p ].normal_cnt += (e - s);
+                index_cnt_map[ ops[s].p ].index_cnts[ OUT ]++;
+                s = e;
+            }
+        }
+
+        uint64_t num_keys = 0;
+        // count the total number of keys
+        for (int i = 1; i <= num_predicates; ++i) {
+            logger(LOG_DEBUG, "pid: %d: normal #edges: %lu, index: #ALL: %lu, #IN: %lu, #OUT: %lu\n",
+                    i, normal_cnt_map[i].normal_cnt.load(),
+                    (index_cnt_map[i].index_cnts[ IN ].load() + index_cnt_map[i].index_cnts[ OUT ].load()),
+                    index_cnt_map[i].index_cnts[ IN ].load(),
+                    index_cnt_map[i].index_cnts[ OUT ].load());
+            if (normal_cnt_map[i].normal_cnt.load() > 0)
+                num_keys += normal_cnt_map[i].normal_cnt.load() + 2; // #normal + #p-idx(IN) + #p-idx(OUT)
+            else
+                num_keys += 1;
+        }
+
+        uint64_t num_used_buckets = 0;
+        uint64_t num_free_buckets = num_buckets;
+        for (sid_t pid = 1; pid <= num_predicates; ++pid) {
+            RDF_Segment &rdf_segment = rdf_segment_map[pid];
+            rdf_segment.normal_extent().size = normal_cnt_map[pid].normal_cnt.load();
+            rdf_segment.index_segment(IN).size = index_cnt_map[pid].index_cnts[IN].load();
+            rdf_segment.index_segment(OUT).size = index_cnt_map[pid].index_cnts[OUT].load();
+
+            // collect predicates, excludes type-ids
+            if (rdf_segment.normal_extent().size > 0) {
+                all_predicates.push_back(pid);
+            }
+
+            // count #edge for predicates
+            if (rdf_segment.normal_extent().size > 0) {
+                rdf_segment.normal_extent().start = alloc_edges(rdf_segment.normal_extent().size);
+                rdf_segment_metas[pid].edge_start = rdf_segment.normal_extent().start;
+                // skip rdf:type
+                if (pid == TYPE_ID) {
+                    rdf_segment_metas[pid].edge_end = rdf_segment.normal_extent().size;
+                    goto bucket_allocation;
+                }
+            }
+
+            // count #in-edge for type-idx and p-idx
+            if (rdf_segment.index_segment(IN).size > 0) {
+                rdf_segment.index_segment(IN).start = alloc_edges(rdf_segment.index_segment(IN).size);
+                logger(LOG_DEBUG, "index_segment: pid: %d, dir: %s, [size: %lu, start: %lu]\n", pid,
+                        "IN" , rdf_segment.index_segment(IN).size, rdf_segment.index_segment(IN).start);
+
+                if (rdf_segment.normal_extent().size == 0) {
+                    rdf_segment_metas[pid].edge_start = rdf_segment.index_segment(IN).start;
+                }
+
+                rdf_segment_metas[pid].edge_end = rdf_segment.index_segment(IN).start + rdf_segment.index_segment(IN).size;
+            }
+
+            // count #out-edge for p-idx
+            if (rdf_segment.index_segment(OUT).size > 0) {
+                rdf_segment.index_segment(OUT).start = alloc_edges(rdf_segment.index_segment(OUT).size);
+                logger(LOG_DEBUG, "index_segment: pid: %d, dir: %s, [size: %lu, start: %lu]\n", pid,
+                        "OUT" , rdf_segment.index_segment(OUT).size, rdf_segment.index_segment(OUT).start);
+
+                rdf_segment_metas[pid].edge_end = rdf_segment.index_segment(OUT).start + rdf_segment.index_segment(OUT).size;
+            }
+
+bucket_allocation:
+            if (rdf_segment.get_num_keys() == 0) {
+                continue;
+            } if (rdf_segment.get_num_keys() == 1) {
+                rdf_segment.num_buckets = 1;
+                num_free_buckets -= 1;
+            } else {
+                rdf_segment.num_buckets = (static_cast<double>(rdf_segment.get_num_keys()) / num_keys) * num_free_buckets - 1;
+            }
+
+            // allocate buckets to segment
+            rdf_segment_metas[pid].num_buckets = rdf_segment.num_buckets;
+            rdf_segment_metas[pid].bucket_start = num_used_buckets;
+            rdf_segment_metas[pid].bucket_end = num_used_buckets + rdf_segment.num_buckets;
+            num_used_buckets += rdf_segment.num_buckets;
+            ASSERT(num_used_buckets <= num_buckets);
+
+            // allocate extended buckets
+            ext_bucket_extent_t ext;
+            // #buckets : #extended buckets = 1 : 0.15
+            ext.size = rdf_segment.num_buckets * 15 / 100 + 1;
+            ext.start = alloc_ext_buckets(ext.size);
+            rdf_segment.set_ext_bucket_ext(ext);
+
+            rdf_segment_metas[pid].ext_bucket_start = ext.start;
+        }
+    }
+
+    // re-adjust offset of indirect header
+    void finalize_segment_metas() {
+        for (auto &e : rdf_segment_map) {
+            // TODO
+            auto &ext = e.second.ext_bucket_extent();
+            rdf_segment_metas[e.first].ext_bucket_end = ext.start + ext.off;
+        }
+    }
+
+    void insert_triples_as_segments(int tid, sid_t pid) {
+        // get OUT edges and IN edges from  map
+        tbb_triple_hash_map::accessor a1, a2;
+        bool has_spo, has_ops;
+        RDF_Segment &rdf_segment = rdf_segment_map[pid];
+
+        logger(LOG_DEBUG, "Thread(%d): start to insert predicate %d triples.", tid, pid);
+
+        if (rdf_segment.normal_extent().size == 0) {
+            logger(LOG_DEBUG, "Thread(%d): abort! predicate %d is empty.", tid, pid);
+            return;
+        }
+
+        has_spo = triples_map.find(a1, ikey_t(0, pid, OUT));
+        has_ops = triples_map.find(a2, ikey_t(0, pid, IN));
+
+        // insert them into hashtable
+        // record metadata (edge_start, edge_end, indirect_hdr_start, indrect_hdr_end, etc)
+        // add index vertex to pidx_in_map, pidx_out_map
+        // insert index vertices
+        uint64_t off = rdf_segment.normal_extent().start; //normal_extent.start;
+        uint64_t s = 0;
+        uint64_t type_triples = 0;
+
+        if (has_spo) {
+            vector<triple_t> &spo = a1->second;
+            while (s < spo.size()) {
+                // predicate-based key (subject + predicate)
+                uint64_t e = s + 1;
+                while ((e < spo.size())
+                        && (spo[s].s == spo[e].s)
+                        && (spo[s].p == spo[e].p))  { e++; }
+
+                // allocate a vertex and edges
+                ikey_t key = ikey_t(spo[s].s, spo[s].p, OUT);
+
+                // insert a vertex
+                uint64_t slot_id = insert_key(key, &rdf_segment);
+                iptr_t ptr = iptr_t(e - s, off);
+                vertices[slot_id].ptr = ptr;
+
+                // insert edges
+                for (uint64_t i = s; i < e; i++)
+                    edges[off++].val = spo[i].o;
+
+                collect_index_info(slot_id);
+                s = e;
+            }
+        }
+
+        ASSERT(off <= rdf_segment.normal_extent().start + rdf_segment.normal_extent().size);
+        logger(LOG_DEBUG, "Thread(%d): inserted predicate %d spo.", tid, pid);
+
+        if (has_ops) {
+            vector<triple_t> &ops = a2->second;
+            while (type_triples < ops.size() && is_tpid(ops[type_triples].o))
+                type_triples++;
+
+            s = type_triples; // skip type triples
+
+            while (s < ops.size()) {
+                // predicate-based key (object + predicate)
+                uint64_t e = s + 1;
+                while ((e < ops.size())
+                        && (ops[s].o == ops[e].o)
+                        && (ops[s].p == ops[e].p)) { e++; }
+
+                // allocate a vertex and edges
+                ikey_t key = ikey_t(ops[s].o, ops[s].p, IN);
+
+                // insert a vertex
+                uint64_t slot_id = insert_key(key, &rdf_segment);
+                iptr_t ptr = iptr_t(e - s, off);
+                vertices[slot_id].ptr = ptr;
+
+                // insert edges
+                for (uint64_t i = s; i < e; i++)
+                    edges[off++].val = ops[i].s;
+
+                collect_index_info(slot_id);
+                s = e;
+            }
+        }
+
+        ASSERT(off <= rdf_segment.normal_extent().start + rdf_segment.normal_extent().size);
+        logger(LOG_DEBUG, "Thread(%d): inserted predicate %d ops.", tid, pid);
+
+        if (pid == TYPE_ID)
+            insert_tidx_map(tidx_map, IN);
+        else {
+            insert_pidx_map(pidx_in_map, pid, IN);
+            insert_pidx_map(pidx_out_map, pid, OUT);
+        }
+
+        logger(LOG_DEBUG, "Thread(%d): inserted predicate %d triples.", tid, pid);
+    }
+
+#endif  // USE_GPU
 
     /// skip all TYPE triples (e.g., <http://www.Department0.University0.edu> rdf:type ub:University)
     /// because Wukong treats all TYPE triples as index vertices. In addition, the triples in triple_ops

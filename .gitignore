@@ -1,6 +1,8 @@
 
 *~
 *.exe
+*.swp
 build/
 .vs/
 .vscode/
+.git/

@@ -130,6 +130,10 @@ main(int argc, char *argv[])
     // init control communicaiton
     con_adaptor = new TCP_Adaptor(sid, host_fname, global_num_proxies, global_ctrl_port_base);
 
+#ifdef USE_GPU
+    dgraph.sync_metadata(con_adaptor);
+#endif
+
     // prepare statistics for SPARQL optimizer
     data_statistic stat(sid);
     if (global_enable_planner) {

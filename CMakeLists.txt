@@ -32,6 +32,12 @@ add_executable(wukong ${SOURCES} "core/wukong.cpp")
 ## Set options (cached)
 ## usage: cmake .. -DUSE_RDMA=OFF -DUSE_HADOOP=ON
 
+#### GPU Processing (cannot coexist with Dynamic GStore)
+option (USE_GPU  "enable GPU support" OFF)
+if(USE_GPU)
+    add_definitions(-DUSE_GPU)
+endif(USE_GPU)
+
 #### RDMA
 option (USE_RDMA "enable RDMA support" ON)
 if(USE_RDMA)
@@ -64,6 +70,6 @@ if(USE_DTYPE_64BIT)
 endif(USE_DTYPE_64BIT)
 
 ## Build Wukong 
-target_link_libraries(wukong nanomsg zmq rt ibverbs tbb hwloc ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a ${BOOST_LIB}/libboost_program_options.a)
+target_link_libraries(wukong zmq rt ibverbs tbb hwloc ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a ${BOOST_LIB}/libboost_program_options.a)
 
 
