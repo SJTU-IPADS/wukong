@@ -219,12 +219,12 @@ public:
                     global_int2type[number] = complex_type;
 
                     // debug
-                    // cout << "number: " << number << endl;
-                    // cout << "data_type: " << complex_type.data_type << endl;
-                    // cout << "size: " << complex_type.composition.size() << endl;
-                    // for ( auto it = complex_type.composition.cbegin(); it != complex_type.composition.cend(); ++it )
-                    //     cout << *it << " ";
-                    // cout << endl;
+                    cout << "number: " << number << endl;
+                    cout << "data_type: " << complex_type.data_type << endl;
+                    cout << "size: " << complex_type.composition.size() << endl;
+                    for ( auto it = complex_type.composition.cbegin(); it != complex_type.composition.cend(); ++it )
+                        cout << *it << " ";
+                    cout << endl;
 
                     // add single2complex index
                     if(complex_type.data_type){
@@ -315,15 +315,15 @@ public:
             // }
 
             //debug tyscount
-            // cout << "local................." << endl;
-            // for ( auto iter = local_tyscount.cbegin(); iter != local_tyscount.cend(); ++iter ){
-            //     cout << iter->first << ": " << iter -> second << endl;;
-            // }
+            cout << "local................." << endl;
+            for ( auto iter = local_tyscount.cbegin(); iter != local_tyscount.cend(); ++iter ){
+                cout << iter->first << ": " << iter -> second << endl;;
+            }
 
-            // cout << "global................." << endl;
-            // for ( auto iter = global_tyscount.cbegin(); iter != global_tyscount.cend(); ++iter ){
-            //     cout << iter->first << ": " << iter -> second << endl;;
-            // }
+            cout << "global................." << endl;
+            for ( auto iter = global_tyscount.cbegin(); iter != global_tyscount.cend(); ++iter ){
+                cout << iter->first << ": " << iter -> second << endl;;
+            }
         }
 
         send_stat_to_all_machines(tcp_ad);

@@ -1647,12 +1647,15 @@ public:
         };
 
         // return success or not, because one id can only be recorded once
-        auto insert_complex_type_count = [&](ssid_t id, ssid_t type) -> bool{
+        auto insert_no_type_count = [&](ssid_t id, ssid_t type) -> bool{
             if(record_set.count(id) > 0){
                 return false;
             }
             else{
                 record_set.insert(id);
+                if(record_set.size() % 100000 == 0)
+                    cout << record_set.size() << endl;
+
                 if (tyscount.find(type) == tyscount.end())
                     tyscount[type] = 1;
                 else
@@ -1706,12 +1709,11 @@ public:
                     ssid_t type;
                     if (type_sz > 1) {
                         type = generate_multi_type(res, type_sz);
-                        insert_complex_type_count(vid, type);
                     } else {
                       if (type_sz == 0){
                           //cout << "no type: " << vid << endl;
                           type = generate_no_type(vid);
-                          insert_complex_type_count(vid, type);
+                          insert_no_type_count(vid, type);
                       }
                       else {
                           type = res[0].val;
@@ -1758,12 +1760,11 @@ public:
                     ssid_t type;
                     if (type_sz > 1) { 
                         type = generate_multi_type(res, type_sz);
-                        insert_complex_type_count(vid, type);
                     } else {
                       if (type_sz == 0){
                             //cout << "no type: " << vid << endl;
                             type = generate_no_type(vid);
-                            insert_complex_type_count(vid, type);
+                            insert_no_type_count(vid, type);
                       }
                       else {
                           type = res[0].val;
@@ -1777,8 +1778,23 @@ public:
 
                     // count type predicate
                     if (pid == TYPE_ID) {
-                        if (sz == 1){
-                            //only count single type
+                        // multi-type
+                        if (sz > 1){
+                            type_t complex_type;
+                            unordered_set<int> type_composition;
+                            for(int i = 0;i < sz; i ++){
+                                type_composition.insert(edges[off + i].val);
+                            }
+                            complex_type.set_type_composition(type_composition);
+                            ssid_t type_number = stat.get_simple_type(complex_type);
+                            
+                            if (tyscount.find(type_number) == tyscount.end())
+                                tyscount[type_number] = 1;
+                            else
+                                tyscount[type_number]++;
+                        }
+                        //single type
+                        else if (sz == 1){
                             sid_t obid = edges[off].val;
 
                             if (tyscount.find(obid) == tyscount.end())
