@@ -119,13 +119,11 @@ main(int argc, char *argv[])
 #ifdef USE_GPU
     GPUMem *gpu_mem = new GPUMem(devid, global_num_servers, global_num_gpus);
     logstream(LOG_INFO)  << "#" << sid << ": allocate " << B2GiB(gpu_mem->memory_size()) << "GB GPU memory" << LOG_endl;
-    RDMA_init(global_num_servers, global_num_threads,
-	    sid, mem->memory(), mem->memory_size(),
+    RDMA_init(global_num_servers, global_num_threads, sid, mem->memory(), mem->memory_size(),
         gpu_mem->memory(), gpu_mem->memory_size(), host_fname);
 #else
     // init RDMA devices and connections
-    RDMA_init(global_num_servers, global_num_threads,
-              sid, mem->memory(), mem->memory_size(), nullptr, 0, host_fname);
+    RDMA_init(global_num_servers, global_num_threads, sid, mem->memory(), mem->memory_size(), host_fname);
 #endif
     // init communication
     RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mem, global_num_servers, global_num_threads);

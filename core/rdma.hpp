@@ -177,14 +177,22 @@ public:
     }
 };
 
-void RDMA_init(int nnodes, int nthds, int nid,
-            char *mem_cpu, uint64_t sz_cpu,
-            char *mem_gpu, uint64_t sz_gpu, string ipfn) {
+void RDMA_init(int nnodes, int nthds, int nid, char *mem_cpu, uint64_t sz_cpu,
+#ifdef USE_GPU
+    char *mem_gpu, uint64_t sz_gpu,
+#endif
+    string ipfn) {
     uint64_t t = timer::get_usec();
 
     // init RDMA device
     RDMA &rdma = RDMA::get_rdma();
-    rdma.init_dev(nnodes, nthds, nid, mem_cpu, sz_cpu, mem_gpu, sz_gpu, ipfn);
+    rdma.init_dev(nnodes, nthds, nid, mem_cpu, sz_cpu,
+#ifdef USE_GPU
+        mem_gpu, sz_gpu,
+#else
+        nullptr, 0,
+#endif
+        ipfn);
 
     t = timer::get_usec() - t;
     logstream(LOG_INFO) << "initializing RMDA done (" << t / 1000  << " ms)" << LOG_endl;
@@ -248,9 +256,11 @@ public:
     }
 };
 
-void RDMA_init(int nnodes, int nthds, int nid,
-    char *mem_cpu, uint64_t sz_cpu,
-    char *mem_gpu, uint64_t sz_gpu, string ipfn) {
+void RDMA_init(int nnodes, int nthds, int nid, char *mem_cpu, uint64_t sz_cpu,
+#ifdef USE_GPU
+    char *mem_gpu, uint64_t sz_gpu,
+#endif
+    string ipfn) {
     logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
 }
 
