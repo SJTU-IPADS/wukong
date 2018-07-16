@@ -207,7 +207,15 @@ public:
             // complex type have different corresponding number on different machine
             // assume type < 0 here
             auto type_transform = [&](ssid_t type, data_statistic &stat) -> ssid_t{
-                type_t complex_type = stat.local_int2type[type];
+                // type may not occur in local_int2type
+
+                type_t complex_type;
+                if(local_int2type.find(type) != local_int2type.end()){
+                    complex_type = stat.local_int2type[type];
+                }
+                else{
+                    logstream(LOG_ERROR) << "type: " << type << " is not in local_int2type" << LOG_endl;
+                }
                 if(global_type2int.find(complex_type) != global_type2int.end()){
                     return global_type2int[complex_type];
                 }
@@ -219,12 +227,12 @@ public:
                     global_int2type[number] = complex_type;
 
                     // debug
-                    cout << "number: " << number << endl;
-                    cout << "data_type: " << complex_type.data_type << endl;
-                    cout << "size: " << complex_type.composition.size() << endl;
-                    for ( auto it = complex_type.composition.cbegin(); it != complex_type.composition.cend(); ++it )
-                        cout << *it << " ";
-                    cout << endl;
+                    // cout << "number: " << number << endl;
+                    // cout << "data_type: " << complex_type.data_type << endl;
+                    // cout << "size: " << complex_type.composition.size() << endl;
+                    // for ( auto it = complex_type.composition.cbegin(); it != complex_type.composition.cend(); ++it )
+                    //     cout << *it << " ";
+                    // cout << endl;
 
                     // add single2complex index
                     if(complex_type.data_type){
@@ -259,12 +267,12 @@ public:
                 for (unordered_map<ssid_t, int>::iterator it = all_gather[i].local_tyscount.begin();
                         it != all_gather[i].local_tyscount.end(); it++ ) {
                     ssid_t key = it->first;
-                    int subject = it->second;
+                    int number = it->second;
                     if(key < 0) key = type_transform(key, all_gather[i]);
                     if (global_tyscount.find(key) == global_tyscount.end()) {
-                        global_tyscount[key] = subject;
+                        global_tyscount[key] = number;
                     } else {
-                        global_tyscount[key] += subject;
+                        global_tyscount[key] += number;
                     }
                 }
 
@@ -315,15 +323,15 @@ public:
             // }
 
             //debug tyscount
-            cout << "local................." << endl;
-            for ( auto iter = local_tyscount.cbegin(); iter != local_tyscount.cend(); ++iter ){
-                cout << iter->first << ": " << iter -> second << endl;;
-            }
+            // cout << "local................." << endl;
+            // for ( auto iter = local_tyscount.cbegin(); iter != local_tyscount.cend(); ++iter ){
+            //     cout << iter->first << ": " << iter -> second << endl;;
+            // }
 
-            cout << "global................." << endl;
-            for ( auto iter = global_tyscount.cbegin(); iter != global_tyscount.cend(); ++iter ){
-                cout << iter->first << ": " << iter -> second << endl;;
-            }
+            // cout << "global................." << endl;
+            // for ( auto iter = global_tyscount.cbegin(); iter != global_tyscount.cend(); ++iter ){
+            //     cout << iter->first << ": " << iter -> second << endl;;
+            // }
         }
 
         send_stat_to_all_machines(tcp_ad);
@@ -393,6 +401,7 @@ public:
             number = -number;
             local_type2int[type] = number;
             local_int2type[number] = type;
+            return number;
         }
         else{
             return iter->second;

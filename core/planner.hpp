@@ -1309,11 +1309,11 @@ public:
             }
         }
 
-        for (int i = 0, ilimit = min_path.size(); i < ilimit; i = i + 4)
-          cout << "min_path " << " : " << min_path[i] << " "
-            << min_path[i+1] << " "
-            << min_path[i+2] << " "
-            << min_path[i+3] << endl;
+        // for (int i = 0, ilimit = min_path.size(); i < ilimit; i = i + 4)
+        //   cout << "min_path " << " : " << min_path[i] << " "
+        //     << min_path[i+1] << " "
+        //     << min_path[i+2] << " "
+        //     << min_path[i+3] << endl;
 
         // debug single order
         // triples = min_path;

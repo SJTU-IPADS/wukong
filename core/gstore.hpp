@@ -1632,6 +1632,12 @@ public:
                 index_composition.insert(-pre);
             }
             type.set_index_composition(index_composition);
+            // TO DO
+            // there should be no following situation according to comments on gstore layout
+            // but actually it happends 25 times and will not affect the correctness of optimizer
+            // if(index_composition.size() == 0){
+            //     cout << "empty index, may be type" << endl;
+            // }
             return stat.get_simple_type(type);
         };
 
@@ -1690,15 +1696,16 @@ public:
                             ssid_t type = generate_multi_type(res, type_sz);
                             res_type.push_back(type); //10 for 10240, 19 for 2560, 23 for 40, 2 for 640
                         }
+                        else if (type_sz == 0){
+                            //cout << "no type: " << sbid << endl;
+                            ssid_t type = generate_no_type(sbid);
+                            res_type.push_back(type);
+                        }
+                        else if (type_sz == 1){
+                            res_type.push_back(res[0].val);
+                        }
                         else {
-                            if (type_sz == 0){
-                                //cout << "no type: " << sbid << endl;
-                                ssid_t type = generate_no_type(sbid);
-                                res_type.push_back(type);
-                            } 
-                            else {
-                                res_type.push_back(res[0].val);
-                            }
+                            assert(false);
                         }
                     }
 
@@ -1738,18 +1745,19 @@ public:
                             ssid_t type = generate_multi_type(res, type_sz);
                             res_type.push_back(type);
                         }
-                        else {
-                          if (type_sz == 0){
+                        else if (type_sz == 0){
                               // in this situation, obid may be some TYPE
-                              if(pid != 1){
-                                    //cout << "no type: " << obid << endl;
-                                    ssid_t type = generate_no_type(obid);
-                                    res_type.push_back(type);
-                              }
-                          } 
-                          else {
-                              res_type.push_back(res[0].val);
-                          }
+                            if(pid != 1){
+                                //cout << "no type: " << obid << endl;
+                                ssid_t type = generate_no_type(obid);
+                                res_type.push_back(type);
+                            }
+                        }
+                        else if (type_sz == 1){
+                            res_type.push_back(res[0].val);
+                        }
+                        else{
+                            assert(false);
                         }
                     }
                     
