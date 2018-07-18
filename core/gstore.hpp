@@ -630,18 +630,29 @@ done:
             return pidx_extents[d];
         }
 
-        // get an indirect header from extended bucket extent
+        // get an indirect header
         uint64_t next_ext_bucket() {
-            if (ext_bucket_ext.off < ext_bucket_ext.size) {
-                return (ext_bucket_ext.start + ext_bucket_ext.off++);
+            for (auto &e : ext_bucket_exts) {
+                if (e.off < e.size)
+                    return (e.start + e.off++);
             }
 
-            // we have allocated enough free indirect headers, thus shouldn't go to here
-            ASSERT_MSG(false, "out of free indirect headers");
+            // free list is empty, allocate a new extent and put to free list
+            uint64_t bucket_id;
+            ext_bucket_extent_t ext;
+            // double the size of new extent
+            ext.size = ext_bucket_exts.back().size * 2;
+            ext.start = gstore->alloc_ext_buckets(ext.size);
+            ext.off = 0;
+
+            bucket_id = ext.start + ext.off++;
+            ext_bucket_exts.push_back(ext);
+
+            return bucket_id;
         }
 
-        const ext_bucket_extent_t& ext_bucket_extent() {
-            return ext_bucket_ext;
+        const vector<ext_bucket_extent_t>& ext_bucket_extents() {
+            return ext_bucket_exts;
         }
 
         uint64_t get_num_keys() {
@@ -656,8 +667,8 @@ done:
             return pidx_extents[IN].size + pidx_extents[OUT].size;
         }
 
-        void set_ext_bucket_ext(ext_bucket_extent_t ext) {
-            ext_bucket_ext = ext;
+        void add_ext_bucket_extent(ext_bucket_extent_t ext) {
+            ext_bucket_exts.push_back(ext);
         }
 
         // how to decide whether a rdf_segment is valid
@@ -672,7 +683,7 @@ done:
         GStore *gstore;
         extent_t normal_ext;
         extent_t pidx_extents[2];   // p-index for in and out directions
-        ext_bucket_extent_t ext_bucket_ext; // extended buckets
+        vector<ext_bucket_extent_t> ext_bucket_exts; // extended buckets
     };
 
     // multiple engines will access shared_rdf_segment_meta_map
@@ -1369,7 +1380,7 @@ bucket_allocation:
             // #buckets : #extended buckets = 1 : 0.15
             ext.size = rdf_segment.num_buckets * 15 / 100 + 1;
             ext.start = alloc_ext_buckets(ext.size);
-            rdf_segment.set_ext_bucket_ext(ext);
+            rdf_segment.add_ext_bucket_extent(ext);
 
             rdf_segment_metas[pid].ext_bucket_start = ext.start;
         }
@@ -1378,9 +1389,9 @@ bucket_allocation:
     // re-adjust offset of indirect header
     void finalize_segment_metas() {
         for (auto &e : rdf_segment_map) {
-            // TODO
-            auto &ext = e.second.ext_bucket_extent();
-            rdf_segment_metas[e.first].ext_bucket_end = ext.start + ext.off;
+            for (auto &ext : e.second.ext_bucket_extents()) {
+                rdf_segment_metas[e.first].ext_bucket_end = ext.start + ext.off;
+            }
         }
     }
 
