@@ -1076,6 +1076,11 @@ public:
         int port = rdma->tcp_base_port_;
 
         auto listenfd = PreConnector::get_listen_socket(rdma->network_[rdma->node_id_],port);
+
+        int opt = 1;
+        CE(setsockopt(listenfd,SOL_SOCKET,SO_REUSEADDR,&opt,sizeof(int)) != 0,
+           "[RDMA pre connector] set reused socket error!");
+
         CE(listen(listenfd,rdma->network_.size() * 24) < 0,"[RDMA pre connector] bind TCP port error.");
 
         int num = 0;
@@ -1093,8 +1098,8 @@ public:
                     continue;
                 }
                 auto n = recv(csfd,(char *)(&arg),sizeof(QPConnArg), MSG_WAITALL);
-                if(n != sizeof(QPConnArg)) { // an invalid message
 
+                if(n != sizeof(QPConnArg)) { // an invalid message
                     close(csfd);
                     continue;
                 }
