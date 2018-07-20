@@ -22,6 +22,16 @@
 
 #pragma once
 
+// constants
+
+namespace rdmaio {
+
+// magic number which indicates whether a connection is set
+#define TCPSUCC 27
+#define TCPFAIL 28
+
+#define MAGIC_NUM 73
+
 #define DUAL_PORT 1
 
 #define _RDMA_INDEX_MASK (0xffff)
@@ -29,6 +39,7 @@
 #define _QP_ENCODE_ID(mac,index) ((mac) << 16 | (index))
 #define _QP_DECODE_MAC(qid) (((qid) & _RDMA_MAC_MASK) >> 16 )
 #define _QP_DECODE_INDEX(qid) ((qid) & _RDMA_INDEX_MASK)
+#define _UD_ENCODE_ID(mac,index) (mac) // used for address handler
 
 #define IS_RC(qid) (_QP_DECODE_INDEX(qid)>=RC_ID_BASE && _QP_DECODE_INDEX(qid) < UC_ID_BASE)
 #define IS_UC(qid) (_QP_DECODE_INDEX(qid)>=UC_ID_BASE && _QP_DECODE_INDEX(qid) < UD_ID_BASE)
@@ -79,3 +90,29 @@
 
 
 #define CACHE_LINE_SZ 64
+
+// some useful structs
+struct QPReplyHeader {
+  int8_t status;
+  uint64_t qid;
+}  __attribute__ ((aligned (8)));
+
+
+struct QPConnArg {
+
+  uint64_t checksum;
+  uint64_t qid;  // the src qp id
+  uint8_t  tid;  // src thread id
+  uint8_t  nid;  // src node id
+  uint64_t sign; // a signature, which stored a magic number
+
+  void calculate_checksum() {
+    checksum = get_checksum();
+  }
+
+  uint64_t get_checksum() {
+    return ip_checksum(&(this->qid), sizeof(QPConnArg) - sizeof(uint64_t));
+  }
+} __attribute__ ((aligned (CACHE_LINE_SZ)));
+
+} // end namespace rdmaio
