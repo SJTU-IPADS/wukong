@@ -57,6 +57,7 @@ class RDMA {
 
             // init device and create QPs
             ctrl = new RdmaCtrl(nid, ipset, RDMA_CTRL_PORT, true); // enable single context
+            ctrl->query_devinfo();
             ctrl->open_device();
             ctrl->set_connect_mr(mem_cpu, sz_cpu);
             ctrl->register_connect_mr();//single
