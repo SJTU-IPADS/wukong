@@ -116,15 +116,18 @@ main(int argc, char *argv[])
     // allocate memory
     Mem *mem = new Mem(global_num_servers, global_num_threads);
     logstream(LOG_INFO)  << "#" << sid << ": allocate " << B2GiB(mem->memory_size()) << "GB memory" << LOG_endl;
-#ifdef USE_GPU
+    vector<RDMA::MemoryRegion> mrs;
+    RDMA::MemoryRegion mr_cpu = { mem->memory(), mem->memory_size(), RDMA::MemType::CPU };
+    mrs.push_back(mr_cpu);
+    #ifdef USE_GPU
     GPUMem *gpu_mem = new GPUMem(devid, global_num_servers, global_num_gpus);
     logstream(LOG_INFO)  << "#" << sid << ": allocate " << B2GiB(gpu_mem->memory_size()) << "GB GPU memory" << LOG_endl;
-    RDMA_init(global_num_servers, global_num_threads, sid, mem->memory(), mem->memory_size(),
-        gpu_mem->memory(), gpu_mem->memory_size(), host_fname);
-#else
+    RDMA::MemoryRegion mr_gpu = { gpu_mem->memory(), gpu_mem->memory_size(), RDMA::MemType::GPU };
+    mrs.push_back(mr_gpu);
+    #endif
     // init RDMA devices and connections
-    RDMA_init(global_num_servers, global_num_threads, sid, mem->memory(), mem->memory_size(), host_fname);
-#endif
+    RDMA_init(global_num_servers, global_num_threads, sid, mrs, host_fname);
+
     // init communication
     RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mem, global_num_servers, global_num_threads);
     TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_num_threads, global_data_port_base);
