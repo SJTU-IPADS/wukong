@@ -43,6 +43,7 @@ option (USE_HADOOP "enable HDFS support" OFF)
 if(USE_HADOOP)
   add_definitions(-DHAS_HADOOP)
   target_link_libraries(wukong hdfs)
+  set(WUKONG_LIBS ${WUKONG_LIBS} hdfs)
 endif(USE_HADOOP)
 
 #### Dynamic GStore
@@ -63,7 +64,15 @@ if(USE_DTYPE_64BIT)
   add_definitions(-DDTYPE_64BIT)
 endif(USE_DTYPE_64BIT)
 
-## Build Wukong 
-target_link_libraries(wukong nanomsg zmq rt ibverbs tbb hwloc ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a ${BOOST_LIB}/libboost_program_options.a)
+#### GPU(UNAVAILABLE NOW, COMMING SOON)
+option (USE_GPU "enable gpu support" OFF)
+if(USE_GPU)
+    add_definitions(-DUSE_GPU)
+    find_package(CUDA REQUIRED)
+    set(WUKONG_LIBS ${WUKONG_LIBS} cudart)
+endif(USE_GPU)
 
+set(WUKONG_LIBS ${WUKONG_LIBS} nanomsg zmq rt ibverbs tbb hwloc)
 
+## Build Wukong
+target_link_libraries(wukong ${WUKONG_LIBS} ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a ${BOOST_LIB}/libboost_program_options.a)
