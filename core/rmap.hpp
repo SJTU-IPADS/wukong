@@ -62,7 +62,7 @@ public:
         SPARQLQuery::Result &part = r.result;
         d.cnt--;
 
-        if (d.parent.has_union())
+        if (r.pg_type == SPARQLQuery::PGType::UNION)
             whole.merge_union(part);
         else
             whole.append_result(part);
@@ -70,6 +70,10 @@ public:
         // keep inprogress
         if (d.parent.state == SPARQLQuery::SQState::SQ_PATTERN)
             d.reply.pattern_step = r.pattern_step;
+        if (r.pg_type != SPARQLQuery::PGType::OPTIONAL && r.done(SPARQLQuery::SQState::SQ_OPTIONAL))
+            d.parent.optional_step = r.optional_step;
+        if (r.union_done)
+            d.parent.union_done = true;
     }
 
     bool is_ready(int pid) {
@@ -99,4 +103,3 @@ public:
         return r;
     }
 };
-
