@@ -621,11 +621,11 @@ done:
     class RDF_Segment {
     public:
         RDF_Segment() : gstore(NULL) { }
-        RDF_Segment(GStore *g) : gstore(g), num_buckets(0) { }
+        RDF_Segment(GStore *g) : gstore(g), num_buckets(0), num_keys(0)  { }
         extent_t& normal_extent() {
             return normal_ext;
         }
-        extent_t& index_segment(dir_t d) {
+        extent_t& index_extent(dir_t d) {
             ASSERT(d == IN || d == OUT);
             return pidx_extents[d];
         }
@@ -655,18 +655,6 @@ done:
             return ext_bucket_exts;
         }
 
-        uint64_t get_num_keys() {
-            if (normal_ext.size == 0 &&
-                    (pidx_extents[IN].size + pidx_extents[OUT].size) == 0)
-                return 0;
-
-            // type-index only has one key
-            if (normal_ext.size == 0)
-                return 1;
-
-            return pidx_extents[IN].size + pidx_extents[OUT].size;
-        }
-
         void add_ext_bucket_extent(ext_bucket_extent_t ext) {
             ext_bucket_exts.push_back(ext);
         }
@@ -678,6 +666,7 @@ done:
         }
 
         uint64_t num_buckets;
+        uint64_t num_keys;
 
     private:
         GStore *gstore;
@@ -783,8 +772,8 @@ done:
             }
 
             uint64_t sz = e.second.size();
-            uint64_t off = rdf_segment.index_segment(d).start;
-            ASSERT(sz <= rdf_segment.index_segment(d).size);
+            uint64_t off = rdf_segment.index_extent(d).start;
+            ASSERT(sz <= rdf_segment.index_extent(d).size);
 
             ikey_t key = ikey_t(0, pid, d);
             uint64_t slot_id = insert_key(key);
@@ -804,8 +793,8 @@ done:
 
         RDF_Segment &rdf_segment = rdf_segment_map[pid];
         uint64_t sz = ca->second.size();
-        uint64_t off = rdf_segment.index_segment(d).start;
-        ASSERT(sz <= rdf_segment.index_segment(d).size);
+        uint64_t off = rdf_segment.index_extent(d).start;
+        ASSERT(sz <= rdf_segment.index_extent(d).size);
 
         ikey_t key = ikey_t(0, pid, d);
         uint64_t slot_id = insert_key(key);
@@ -1228,8 +1217,8 @@ public:
     }
 
     // init metadata for each segment
-    void init_segment_metas(const vector<vector<triple_t>> &triple_spo,
-            const vector<vector<triple_t>> &triple_ops) {
+    void init_segment_metas(const vector<vector<triple_t>> &triple_pso,
+            const vector<vector<triple_t>> &triple_pos) {
 
         map<sid_t, triple_cnt_t> index_cnt_map;  // count children of index vertex
         map<sid_t, triple_cnt_t> normal_cnt_map; // count normal vertices
@@ -1245,80 +1234,85 @@ public:
 
         #pragma omp parallel for num_threads(global_num_engines)
         for (int tid = 0; tid < global_num_engines; tid++) {
-            const vector<triple_t> &spo = triple_spo[tid];
-            const vector<triple_t> &ops = triple_ops[tid];
+            const vector<triple_t> &pso = triple_pso[tid];
+            const vector<triple_t> &pos = triple_pos[tid];
 
             uint64_t s = 0;
-            while (s < spo.size()) {
+            while (s < pso.size()) {
                 uint64_t e = s + 1;
 
-                while ((e < spo.size())
-                        && (spo[s].s == spo[e].s)
-                        && (spo[s].p == spo[e].p))  {
+                while ((e < pso.size())
+                        && (pso[s].s == pso[e].s)
+                        && (pso[s].p == pso[e].p))  {
                     // count #edge of type-idx
-                    if (spo[e].p == TYPE_ID && is_tpid(spo[e].o)) {
-                        index_cnt_map[ spo[e].o ].index_cnts[ IN ]++;
+                    if (pso[e].p == TYPE_ID && is_tpid(pso[e].o)) {
+                        index_cnt_map[ pso[e].o ].index_cnts[ IN ]++;
                     }
                     e++;
                 }
 
                 // count #edge of predicate
-                normal_cnt_map[ spo[s].p ].normal_cnt += (e - s);
+                normal_cnt_map[ pso[s].p ].normal_cnt += (e - s);
 
                 // count #edge of predicate-idx
-                index_cnt_map[ spo[s].p ].index_cnts[ IN ]++;
+                index_cnt_map[ pso[s].p ].index_cnts[ IN ]++;
 
                 // count #edge of type-idx
-                if (spo[s].p == TYPE_ID && is_tpid(spo[s].o)) {
-                    index_cnt_map[ spo[s].o ].index_cnts[ IN ]++;
+                if (pso[s].p == TYPE_ID && is_tpid(pso[s].o)) {
+                    index_cnt_map[ pso[s].o ].index_cnts[ IN ]++;
                 }
                 s = e;
             }
 
             uint64_t type_triples = 0;
             triple_t tp;
-            while (type_triples < ops.size() && is_tpid(ops[type_triples].o)) {
+            while (type_triples < pos.size() && is_tpid(pos[type_triples].o)) {
                 type_triples++;
             }
 
             s = type_triples; // skip type triples
-            while (s < ops.size()) {
+            while (s < pos.size()) {
                 // predicate-based key (object + predicate)
                 uint64_t e = s + 1;
-                while ((e < ops.size())
-                        && (ops[s].o == ops[e].o)
-                        && (ops[s].p == ops[e].p)) {
+                while ((e < pos.size())
+                        && (pos[s].o == pos[e].o)
+                        && (pos[s].p == pos[e].p)) {
                     e++;
                 }
 
                 // count #edge of predicate
-                normal_cnt_map[ ops[s].p ].normal_cnt += (e - s);
-                index_cnt_map[ ops[s].p ].index_cnts[ OUT ]++;
+                normal_cnt_map[ pos[s].p ].normal_cnt += (e - s);
+                index_cnt_map[ pos[s].p ].index_cnts[ OUT ]++;
                 s = e;
             }
         }
 
-        uint64_t num_keys = 0;
+        uint64_t total_num_keys = 0;
         // count the total number of keys
+        // FIXME: num_keys should be #keys not #edges!
         for (int i = 1; i <= num_predicates; ++i) {
-            logger(LOG_DEBUG, "pid: %d: normal #edges: %lu, index: #ALL: %lu, #IN: %lu, #OUT: %lu\n",
+            logger(LOG_EMPH, "pid: %d: normal #edges: %lu, index: #ALL: %lu, #IN: %lu, #OUT: %lu\n",
                     i, normal_cnt_map[i].normal_cnt.load(),
                     (index_cnt_map[i].index_cnts[ IN ].load() + index_cnt_map[i].index_cnts[ OUT ].load()),
                     index_cnt_map[i].index_cnts[ IN ].load(),
                     index_cnt_map[i].index_cnts[ OUT ].load());
-            if (normal_cnt_map[i].normal_cnt.load() > 0)
-                num_keys += normal_cnt_map[i].normal_cnt.load() + 2; // #normal + #p-idx(IN) + #p-idx(OUT)
-            else
-                num_keys += 1;
+
+
+            if (normal_cnt_map[i].normal_cnt.load() > 0) {
+                total_num_keys += (index_cnt_map[i].index_cnts[IN].load() + index_cnt_map[i].index_cnts[OUT].load());
+
+            }
         }
 
-        uint64_t num_used_buckets = 0;
+        uint64_t bucket_off = 0;
         uint64_t num_free_buckets = num_buckets;
         for (sid_t pid = 1; pid <= num_predicates; ++pid) {
             RDF_Segment &rdf_segment = rdf_segment_map[pid];
             rdf_segment.normal_extent().size = normal_cnt_map[pid].normal_cnt.load();
-            rdf_segment.index_segment(IN).size = index_cnt_map[pid].index_cnts[IN].load();
-            rdf_segment.index_segment(OUT).size = index_cnt_map[pid].index_cnts[OUT].load();
+            rdf_segment.index_extent(IN).size = index_cnt_map[pid].index_cnts[IN].load();
+            rdf_segment.index_extent(OUT).size = index_cnt_map[pid].index_cnts[OUT].load();
+            rdf_segment.num_keys = rdf_segment.normal_extent().size == 0 ? 1:
+                (rdf_segment.index_extent(IN).size + rdf_segment.index_extent(OUT).size);
 
             // collect predicates, excludes type-ids
             if (rdf_segment.normal_extent().size > 0) {
@@ -1337,43 +1331,51 @@ public:
             }
 
             // count #in-edge for type-idx and p-idx
-            if (rdf_segment.index_segment(IN).size > 0) {
-                rdf_segment.index_segment(IN).start = alloc_edges(rdf_segment.index_segment(IN).size);
-                logger(LOG_DEBUG, "index_segment: pid: %d, dir: %s, [size: %lu, start: %lu]\n", pid,
-                        "IN" , rdf_segment.index_segment(IN).size, rdf_segment.index_segment(IN).start);
+            if (rdf_segment.index_extent(IN).size > 0) {
+                rdf_segment.index_extent(IN).start = alloc_edges(rdf_segment.index_extent(IN).size);
+                logger(LOG_DEBUG, "index_extent: pid: %d, dir: %s, [size: %lu, start: %lu]\n", pid,
+                        "IN" , rdf_segment.index_extent(IN).size, rdf_segment.index_extent(IN).start);
 
                 if (rdf_segment.normal_extent().size == 0) {
-                    rdf_segment_metas[pid].edge_start = rdf_segment.index_segment(IN).start;
+                    rdf_segment_metas[pid].edge_start = rdf_segment.index_extent(IN).start;
                 }
 
-                rdf_segment_metas[pid].edge_end = rdf_segment.index_segment(IN).start + rdf_segment.index_segment(IN).size;
+                rdf_segment_metas[pid].edge_end = rdf_segment.index_extent(IN).start + rdf_segment.index_extent(IN).size;
             }
 
             // count #out-edge for p-idx
-            if (rdf_segment.index_segment(OUT).size > 0) {
-                rdf_segment.index_segment(OUT).start = alloc_edges(rdf_segment.index_segment(OUT).size);
-                logger(LOG_DEBUG, "index_segment: pid: %d, dir: %s, [size: %lu, start: %lu]\n", pid,
-                        "OUT" , rdf_segment.index_segment(OUT).size, rdf_segment.index_segment(OUT).start);
+            if (rdf_segment.index_extent(OUT).size > 0) {
+                rdf_segment.index_extent(OUT).start = alloc_edges(rdf_segment.index_extent(OUT).size);
+                logger(LOG_DEBUG, "index_extent: pid: %d, dir: %s, [size: %lu, start: %lu]\n", pid,
+                        "OUT" , rdf_segment.index_extent(OUT).size, rdf_segment.index_extent(OUT).start);
 
-                rdf_segment_metas[pid].edge_end = rdf_segment.index_segment(OUT).start + rdf_segment.index_segment(OUT).size;
+                rdf_segment_metas[pid].edge_end = rdf_segment.index_extent(OUT).start + rdf_segment.index_extent(OUT).size;
             }
 
 bucket_allocation:
-            if (rdf_segment.get_num_keys() == 0) {
+            double ratio;
+            // allocate buckets to segment
+            if (rdf_segment.num_keys == 0) {
                 continue;
-            } if (rdf_segment.get_num_keys() == 1) {
+            } if (rdf_segment.num_keys == 1) {
                 rdf_segment.num_buckets = 1;
                 num_free_buckets -= 1;
             } else {
-                rdf_segment.num_buckets = (static_cast<double>(rdf_segment.get_num_keys()) / num_keys) * num_free_buckets - 1;
+                ratio = static_cast<double>(rdf_segment.num_keys) / total_num_keys;
+                rdf_segment.num_buckets = ratio * num_free_buckets - 1;
+                if (bucket_off + rdf_segment.num_buckets >= num_buckets) {
+                    rdf_segment.num_buckets = num_buckets - bucket_off;
+                }
             }
 
-            // allocate buckets to segment
             rdf_segment_metas[pid].num_buckets = rdf_segment.num_buckets;
-            rdf_segment_metas[pid].bucket_start = num_used_buckets;
-            rdf_segment_metas[pid].bucket_end = num_used_buckets + rdf_segment.num_buckets;
-            num_used_buckets += rdf_segment.num_buckets;
-            ASSERT(num_used_buckets <= num_buckets);
+            rdf_segment_metas[pid].bucket_start = bucket_off;
+            rdf_segment_metas[pid].bucket_end = bucket_off + rdf_segment.num_buckets;
+            bucket_off += rdf_segment.num_buckets;
+            logstream(LOG_EMPH) << "pid: " << pid  << ", num_keys: " << rdf_segment.num_keys
+                << ", ratio: " << ratio << ", bucket_off: " << bucket_off << ", num_buckets: "
+                << num_buckets << LOG_endl;
+            ASSERT(bucket_off <= num_buckets);
 
             // allocate extended buckets
             ext_bucket_extent_t ext;
@@ -1398,7 +1400,7 @@ bucket_allocation:
     void insert_triples_as_segments(int tid, sid_t pid) {
         // get OUT edges and IN edges from  map
         tbb_triple_hash_map::accessor a1, a2;
-        bool has_spo, has_ops;
+        bool has_pso, has_pos;
         RDF_Segment &rdf_segment = rdf_segment_map[pid];
 
         logger(LOG_DEBUG, "Thread(%d): start to insert predicate %d triples.", tid, pid);
@@ -1408,8 +1410,8 @@ bucket_allocation:
             return;
         }
 
-        has_spo = triples_map.find(a1, ikey_t(0, pid, OUT));
-        has_ops = triples_map.find(a2, ikey_t(0, pid, IN));
+        has_pso = triples_map.find(a1, ikey_t(0, pid, OUT));
+        has_pos = triples_map.find(a2, ikey_t(0, pid, IN));
 
         // insert them into hashtable
         // record metadata (edge_start, edge_end, indirect_hdr_start, indrect_hdr_end, etc)
@@ -1419,17 +1421,17 @@ bucket_allocation:
         uint64_t s = 0;
         uint64_t type_triples = 0;
 
-        if (has_spo) {
-            vector<triple_t> &spo = a1->second;
-            while (s < spo.size()) {
+        if (has_pso) {
+            vector<triple_t> &pso = a1->second;
+            while (s < pso.size()) {
                 // predicate-based key (subject + predicate)
                 uint64_t e = s + 1;
-                while ((e < spo.size())
-                        && (spo[s].s == spo[e].s)
-                        && (spo[s].p == spo[e].p))  { e++; }
+                while ((e < pso.size())
+                        && (pso[s].s == pso[e].s)
+                        && (pso[s].p == pso[e].p))  { e++; }
 
                 // allocate a vertex and edges
-                ikey_t key = ikey_t(spo[s].s, spo[s].p, OUT);
+                ikey_t key = ikey_t(pso[s].s, pso[s].p, OUT);
 
                 // insert a vertex
                 uint64_t slot_id = insert_key(key, &rdf_segment);
@@ -1438,7 +1440,7 @@ bucket_allocation:
 
                 // insert edges
                 for (uint64_t i = s; i < e; i++)
-                    edges[off++].val = spo[i].o;
+                    edges[off++].val = pso[i].o;
 
                 collect_index_info(slot_id);
                 s = e;
@@ -1446,24 +1448,24 @@ bucket_allocation:
         }
 
         ASSERT(off <= rdf_segment.normal_extent().start + rdf_segment.normal_extent().size);
-        logger(LOG_DEBUG, "Thread(%d): inserted predicate %d spo.", tid, pid);
+        logger(LOG_DEBUG, "Thread(%d): inserted predicate %d pso.", tid, pid);
 
-        if (has_ops) {
-            vector<triple_t> &ops = a2->second;
-            while (type_triples < ops.size() && is_tpid(ops[type_triples].o))
+        if (has_pos) {
+            vector<triple_t> &pos = a2->second;
+            while (type_triples < pos.size() && is_tpid(pos[type_triples].o))
                 type_triples++;
 
             s = type_triples; // skip type triples
 
-            while (s < ops.size()) {
+            while (s < pos.size()) {
                 // predicate-based key (object + predicate)
                 uint64_t e = s + 1;
-                while ((e < ops.size())
-                        && (ops[s].o == ops[e].o)
-                        && (ops[s].p == ops[e].p)) { e++; }
+                while ((e < pos.size())
+                        && (pos[s].o == pos[e].o)
+                        && (pos[s].p == pos[e].p)) { e++; }
 
                 // allocate a vertex and edges
-                ikey_t key = ikey_t(ops[s].o, ops[s].p, IN);
+                ikey_t key = ikey_t(pos[s].o, pos[s].p, IN);
 
                 // insert a vertex
                 uint64_t slot_id = insert_key(key, &rdf_segment);
@@ -1472,7 +1474,7 @@ bucket_allocation:
 
                 // insert edges
                 for (uint64_t i = s; i < e; i++)
-                    edges[off++].val = ops[i].s;
+                    edges[off++].val = pos[i].s;
 
                 collect_index_info(slot_id);
                 s = e;
@@ -1480,7 +1482,7 @@ bucket_allocation:
         }
 
         ASSERT(off <= rdf_segment.normal_extent().start + rdf_segment.normal_extent().size);
-        logger(LOG_DEBUG, "Thread(%d): inserted predicate %d ops.", tid, pid);
+        logger(LOG_DEBUG, "Thread(%d): inserted predicate %d pos.", tid, pid);
 
         if (pid == TYPE_ID)
             insert_tidx_map(tidx_map, IN);
@@ -1495,13 +1497,13 @@ bucket_allocation:
 #endif  // USE_GPU
 
     /// skip all TYPE triples (e.g., <http://www.Department0.University0.edu> rdf:type ub:University)
-    /// because Wukong treats all TYPE triples as index vertices. In addition, the triples in triple_ops
+    /// because Wukong treats all TYPE triples as index vertices. In addition, the triples in triple_pos
     /// has been sorted by the vid of object, and IDs of types are always smaller than normal vertex IDs.
-    /// Consequently, all TYPE triples are aggregated at the beggining of triple_ops
-    void insert_normal(vector<triple_t> &spo, vector<triple_t> &ops, int tid) {
+    /// Consequently, all TYPE triples are aggregated at the beggining of triple_pos
+    void insert_normal(vector<triple_t> &pso, vector<triple_t> &pos, int tid) {
         // treat type triples as index vertices
         uint64_t type_triples = 0;
-        while (type_triples < ops.size() && is_tpid(ops[type_triples].o))
+        while (type_triples < pos.size() && is_tpid(pos[type_triples].o))
             type_triples++;
 
 #ifdef VERSATILE
@@ -1516,15 +1518,15 @@ bucket_allocation:
 #endif // VERSATILE
 
         uint64_t s = 0;
-        while (s < spo.size()) {
+        while (s < pso.size()) {
             // predicate-based key (subject + predicate)
             uint64_t e = s + 1;
-            while ((e < spo.size())
-                    && (spo[s].s == spo[e].s)
-                    && (spo[s].p == spo[e].p))  { e++; }
+            while ((e < pso.size())
+                    && (pso[s].s == pso[e].s)
+                    && (pso[s].p == pso[e].p))  { e++; }
 
             // allocate a vertex and edges
-            ikey_t key = ikey_t(spo[s].s, spo[s].p, OUT);
+            ikey_t key = ikey_t(pso[s].s, pso[s].p, OUT);
             uint64_t off = alloc_edges(e - s, tid);
 
             // insert a vertex
@@ -1534,16 +1536,16 @@ bucket_allocation:
 
             // insert edges
             for (uint64_t i = s; i < e; i++)
-                edges[off++].val = spo[i].o;
+                edges[off++].val = pso[i].o;
 
 #ifdef VERSATILE
             // add a new predicate
-            predicates.push_back(spo[s].p);
+            predicates.push_back(pso[s].p);
 
             // insert a special PREDICATE triple (OUT)
-            if (e >= spo.size() || spo[s].s != spo[e].s) {
+            if (e >= pso.size() || pso[s].s != pso[e].s) {
                 // allocate a vertex and edges
-                ikey_t key = ikey_t(spo[s].s, PREDICATE_ID, OUT);
+                ikey_t key = ikey_t(pso[s].s, PREDICATE_ID, OUT);
                 uint64_t sz = predicates.size();
                 uint64_t off = alloc_edges(sz, tid);
 
@@ -1564,15 +1566,15 @@ bucket_allocation:
         }
 
         s = type_triples; // skip type triples
-        while (s < ops.size()) {
+        while (s < pos.size()) {
             // predicate-based key (object + predicate)
             uint64_t e = s + 1;
-            while ((e < ops.size())
-                    && (ops[s].o == ops[e].o)
-                    && (ops[s].p == ops[e].p)) { e++; }
+            while ((e < pos.size())
+                    && (pos[s].o == pos[e].o)
+                    && (pos[s].p == pos[e].p)) { e++; }
 
             // allocate a vertex and edges
-            ikey_t key = ikey_t(ops[s].o, ops[s].p, IN);
+            ikey_t key = ikey_t(pos[s].o, pos[s].p, IN);
             uint64_t off = alloc_edges(e - s, tid);
 
             // insert a vertex
@@ -1582,16 +1584,16 @@ bucket_allocation:
 
             // insert edges
             for (uint64_t i = s; i < e; i++)
-                edges[off++].val = ops[i].s;
+                edges[off++].val = pos[i].s;
 
 #ifdef VERSATILE
             // add a new predicate
-            predicates.push_back(ops[s].p);
+            predicates.push_back(pos[s].p);
 
             // insert a special PREDICATE triple (OUT)
-            if (e >= ops.size() || ops[s].o != ops[e].o) {
+            if (e >= pos.size() || pos[s].o != pos[e].o) {
                 // allocate a vertex and edges
-                ikey_t key = ikey_t(ops[s].o, PREDICATE_ID, IN);
+                ikey_t key = ikey_t(pos[s].o, PREDICATE_ID, IN);
                 uint64_t sz = predicates.size();
                 uint64_t off = alloc_edges(sz, tid);
 
@@ -1615,6 +1617,7 @@ bucket_allocation:
         uint64_t t1 = timer::get_usec();
 
         logstream(LOG_INFO) << " start (parallel) prepare index info " << LOG_endl;
+
 
 #ifdef DYNAMIC_GSTORE
         edge_allocator->merge_freelists();
