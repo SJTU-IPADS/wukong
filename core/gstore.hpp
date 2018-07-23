@@ -1289,18 +1289,15 @@ public:
 
         uint64_t total_num_keys = 0;
         // count the total number of keys
-        // FIXME: num_keys should be #keys not #edges!
         for (int i = 1; i <= num_predicates; ++i) {
-            logger(LOG_EMPH, "pid: %d: normal #edges: %lu, index: #ALL: %lu, #IN: %lu, #OUT: %lu\n",
+            logger(LOG_DEBUG, "pid: %d: normal #edges: %lu, index: #ALL: %lu, #IN: %lu, #OUT: %lu\n",
                     i, normal_cnt_map[i].normal_cnt.load(),
                     (index_cnt_map[i].index_cnts[ IN ].load() + index_cnt_map[i].index_cnts[ OUT ].load()),
                     index_cnt_map[i].index_cnts[ IN ].load(),
                     index_cnt_map[i].index_cnts[ OUT ].load());
 
-
             if (normal_cnt_map[i].normal_cnt.load() > 0) {
                 total_num_keys += (index_cnt_map[i].index_cnts[IN].load() + index_cnt_map[i].index_cnts[OUT].load());
-
             }
         }
 
@@ -1372,7 +1369,7 @@ bucket_allocation:
             rdf_segment_metas[pid].bucket_start = bucket_off;
             rdf_segment_metas[pid].bucket_end = bucket_off + rdf_segment.num_buckets;
             bucket_off += rdf_segment.num_buckets;
-            logstream(LOG_EMPH) << "pid: " << pid  << ", num_keys: " << rdf_segment.num_keys
+            logstream(LOG_DEBUG) << "pid: " << pid  << ", num_keys: " << rdf_segment.num_keys
                 << ", ratio: " << ratio << ", bucket_off: " << bucket_off << ", num_buckets: "
                 << num_buckets << LOG_endl;
             ASSERT(bucket_off <= num_buckets);
