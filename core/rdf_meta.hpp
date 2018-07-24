@@ -30,25 +30,41 @@
 using namespace std;
 using namespace boost::archive;
 
+#define EXT_LIST_MAX_LEN 10
+
 // Metadata of a predicate segment
 struct rdf_segment_meta_t {
     uint64_t num_buckets;  // allocated main headers (hash space)
     uint64_t bucket_start;  // start offset of main-header region
-    uint64_t bucket_end;
-    uint64_t ext_bucket_start; // start offset of indirect-header region
-    uint64_t ext_bucket_end;
+    // uint64_t bucket_end;
+    struct {
+        uint64_t num_ext_buckets;
+        uint64_t start;     // start offset of indirect-header region
+
+        template <typename Archive>
+        void serialize(Archive &ar, const unsigned int version) {
+            ar & num_ext_buckets;
+            ar & start;
+        }
+    } ext_bucket_list[EXT_LIST_MAX_LEN];
+
+    int ext_list_sz;
     uint64_t edge_start;    // start offset of edge region
-    uint64_t edge_end;
+    uint64_t num_edges;
+
+    rdf_segment_meta_t() : num_buckets(0), bucket_start(0),
+        ext_list_sz(0), edge_start(0), num_edges(0) {
+        memset(&ext_bucket_list, 0, sizeof(ext_bucket_list));
+    }
 
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
         ar & num_buckets;
         ar & bucket_start;
-        ar & bucket_end;
-        ar & ext_bucket_start;
-        ar & ext_bucket_end;
+        ar & ext_bucket_list;
+        ar & ext_list_sz;
         ar & edge_start;
-        ar & edge_end;
+        ar & num_edges;
     }
 };
 

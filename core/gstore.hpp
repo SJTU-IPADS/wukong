@@ -344,8 +344,8 @@ private:
             vertices[slot_id].key.vid = rdf_segment_map[key.pid].next_ext_bucket();
 #else
             vertices[slot_id].key.vid = alloc_ext_buckets(1);
-#endif
 
+#endif  // USE_GPU
             slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY; // move to a new bucket_ext
             vertices[slot_id].key = key; // insert to the first slot
             goto done;
@@ -606,7 +606,6 @@ done:
     struct extent_t {
         extent_t() : start(0), size(0) {}
         uint64_t start;
-        // TODO: the size should be aligned to value cacheblock in GCache
         uint64_t size;
     };
 
@@ -620,8 +619,9 @@ done:
     // A segment contains a normal extent and two index extents for IN and OUT directions.
     class RDF_Segment {
     public:
-        RDF_Segment() : gstore(NULL) { }
-        RDF_Segment(GStore *g) : gstore(g), num_buckets(0), num_keys(0)  { }
+        RDF_Segment() : gstore(nullptr), pid(0) { }
+        RDF_Segment(sid_t id, GStore *g) :
+            pid(id), gstore(g), meta(nullptr), num_buckets(0), num_keys(0)  { }
         extent_t& normal_extent() {
             return normal_ext;
         }
@@ -637,18 +637,16 @@ done:
                     return (e.start + e.off++);
             }
 
-            // free list is empty, allocate a new extent and put to free list
-            uint64_t bucket_id;
             ext_bucket_extent_t ext;
             // double the size of new extent
             ext.size = ext_bucket_exts.back().size * 2;
             ext.start = gstore->alloc_ext_buckets(ext.size);
             ext.off = 0;
 
-            bucket_id = ext.start + ext.off++;
-            ext_bucket_exts.push_back(ext);
+            uint64_t ext_bucket_id = ext.start + ext.off++;
+            add_ext_bucket_extent(ext);
 
-            return bucket_id;
+            return ext_bucket_id;
         }
 
         const vector<ext_bucket_extent_t>& ext_bucket_extents() {
@@ -657,6 +655,11 @@ done:
 
         void add_ext_bucket_extent(ext_bucket_extent_t ext) {
             ext_bucket_exts.push_back(ext);
+
+            // update metadata
+            meta->ext_bucket_list[meta->ext_list_sz].start = ext.start;
+            meta->ext_bucket_list[meta->ext_list_sz].num_ext_buckets = ext.off;
+            meta->ext_list_sz++;
         }
 
         // how to decide whether a rdf_segment is valid
@@ -668,8 +671,18 @@ done:
         uint64_t num_buckets;
         uint64_t num_keys;
 
+        void *set_rdf_meta(rdf_segment_meta_t *metap) {
+            ASSERT(num_buckets == metap->num_buckets);
+            meta = metap;
+        }
+
+        rdf_segment_meta_t *get_meta() {
+            return meta;
+        }
     private:
         GStore *gstore;
+        rdf_segment_meta_t *meta;
+        sid_t pid;
         extent_t normal_ext;
         extent_t pidx_extents[2];   // p-index for in and out directions
         vector<ext_bucket_extent_t> ext_bucket_exts; // extended buckets
@@ -1226,10 +1239,9 @@ public:
         // initialization
         for (int i = 0; i <= num_predicates; ++i) {
             rdf_segment_metas.push_back(rdf_segment_meta_t());
-            rdf_segment_metas[i].num_buckets = 0;
             index_cnt_map.insert(make_pair(i, triple_cnt_t()));
             normal_cnt_map.insert(make_pair(i, triple_cnt_t()));
-            rdf_segment_map.insert(make_pair(i, RDF_Segment(this)));
+            rdf_segment_map.insert(make_pair(i, RDF_Segment(i, this)));
         }
 
         #pragma omp parallel for num_threads(global_num_engines)
@@ -1305,6 +1317,7 @@ public:
         uint64_t num_free_buckets = num_buckets;
         for (sid_t pid = 1; pid <= num_predicates; ++pid) {
             RDF_Segment &rdf_segment = rdf_segment_map[pid];
+            rdf_segment.set_rdf_meta(&rdf_segment_metas[pid]);
             rdf_segment.normal_extent().size = normal_cnt_map[pid].normal_cnt.load();
             rdf_segment.index_extent(IN).size = index_cnt_map[pid].index_cnts[IN].load();
             rdf_segment.index_extent(OUT).size = index_cnt_map[pid].index_cnts[OUT].load();
@@ -1322,7 +1335,7 @@ public:
                 rdf_segment_metas[pid].edge_start = rdf_segment.normal_extent().start;
                 // skip rdf:type
                 if (pid == TYPE_ID) {
-                    rdf_segment_metas[pid].edge_end = rdf_segment.normal_extent().size;
+                    rdf_segment_metas[pid].num_edges = rdf_segment.normal_extent().size;
                     goto bucket_allocation;
                 }
             }
@@ -1337,7 +1350,7 @@ public:
                     rdf_segment_metas[pid].edge_start = rdf_segment.index_extent(IN).start;
                 }
 
-                rdf_segment_metas[pid].edge_end = rdf_segment.index_extent(IN).start + rdf_segment.index_extent(IN).size;
+                rdf_segment_metas[pid].num_edges = rdf_segment.index_extent(IN).size;
             }
 
             // count #out-edge for p-idx
@@ -1346,7 +1359,7 @@ public:
                 logger(LOG_DEBUG, "index_extent: pid: %d, dir: %s, [size: %lu, start: %lu]\n", pid,
                         "OUT" , rdf_segment.index_extent(OUT).size, rdf_segment.index_extent(OUT).start);
 
-                rdf_segment_metas[pid].edge_end = rdf_segment.index_extent(OUT).start + rdf_segment.index_extent(OUT).size;
+                rdf_segment_metas[pid].num_edges = rdf_segment.index_extent(OUT).size;
             }
 
 bucket_allocation:
@@ -1367,7 +1380,6 @@ bucket_allocation:
 
             rdf_segment_metas[pid].num_buckets = rdf_segment.num_buckets;
             rdf_segment_metas[pid].bucket_start = bucket_off;
-            rdf_segment_metas[pid].bucket_end = bucket_off + rdf_segment.num_buckets;
             bucket_off += rdf_segment.num_buckets;
             logstream(LOG_DEBUG) << "pid: " << pid  << ", num_keys: " << rdf_segment.num_keys
                 << ", ratio: " << ratio << ", bucket_off: " << bucket_off << ", num_buckets: "
@@ -1380,16 +1392,16 @@ bucket_allocation:
             ext.size = rdf_segment.num_buckets * 15 / 100 + 1;
             ext.start = alloc_ext_buckets(ext.size);
             rdf_segment.add_ext_bucket_extent(ext);
-
-            rdf_segment_metas[pid].ext_bucket_start = ext.start;
         }
     }
 
     // re-adjust offset of indirect header
     void finalize_segment_metas() {
         for (auto &e : rdf_segment_map) {
+            ASSERT(e.second.ext_bucket_extents().size() == rdf_segment_metas[e.first].ext_list_sz);
+            int i = 0;
             for (auto &ext : e.second.ext_bucket_extents()) {
-                rdf_segment_metas[e.first].ext_bucket_end = ext.start + ext.off;
+                rdf_segment_metas[e.first].ext_bucket_list[i++].num_ext_buckets = ext.off;
             }
         }
     }
