@@ -273,6 +273,11 @@ public:
         // OPTIONAL
         vector<bool> optional_matched_rows; // mark which rows are matched in optional block
 
+        #ifdef USE_GPU
+        char* gpu_history_ptr = nullptr; // pointer to history table on GPU
+        int gpu_history_table_size = 0;
+        #endif
+
         void clear() {
             result_table.clear();
             attr_res_table.clear();
@@ -918,6 +923,9 @@ void save(Archive &ar, const SPARQLQuery::Result &t, unsigned int version) {
     } else {
         ar << empty;
     }
+    #ifdef USE_GPU
+    ar << t.gpu_history_table_size;
+    #endif
 }
 
 template<class Archive>
@@ -936,6 +944,9 @@ void load(Archive & ar, SPARQLQuery::Result &t, unsigned int version) {
         ar >> t.result_table;
         ar >> t.attr_res_table;
     }
+    #ifdef USE_GPU
+    ar >> t.gpu_history_table_size;
+    #endif
 }
 
 template<class Archive>
