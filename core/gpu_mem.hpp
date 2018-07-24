@@ -19,11 +19,14 @@
  *      http://ipads.se.sjtu.edu.cn/projects/wukong.html
  *
  */
+
 #ifdef USE_GPU
 #pragma once
 
 #include "unit.hpp"
 #include "gpu_utils.hpp"
+
+enum MemTypes { GPU_DRAM = 1, CPU_DRAM };
 
 class GPUMem {
 private:
