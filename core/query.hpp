@@ -510,6 +510,11 @@ public:
     unsigned offset = 0;
     bool distinct = false;
 
+    #ifdef USE_GPU
+    // if this is a sub-query of a heavy query, the SubQueryType will be SPLIT
+    enum SubQueryType { FULL, SPLIT };
+    SubQueryType subquery_type;
+    #endif
 
     // ID-format triple patterns (Subject, Predicat, Direction, Object)
     PatternGroup pattern_group;
@@ -959,6 +964,9 @@ void save(Archive & ar, const SPARQLQuery &t, unsigned int version) {
         ar << empty;
     }
     ar << t.result;
+    #ifdef USE_GPU
+    ar << t.subquery_type;
+    #endif
 }
 
 template<class Archive>
@@ -984,6 +992,9 @@ void load(Archive & ar, SPARQLQuery &t, unsigned int version) {
     ar >> temp;
     if (temp == occupied) ar >> t.orders;
     ar >> t.result;
+    #ifdef USE_GPU
+    ar >> t.subquery_type;
+    #endif
 }
 
 }
