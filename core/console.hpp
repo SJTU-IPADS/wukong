@@ -682,10 +682,8 @@ static void run_load_stat(Proxy *proxy, int argc, char **argv)
     /// do load-stat
     string fname;
     if (!load_stat_vm.count("-f")) {
-        vector<string> strs;
-        boost::split(strs, global_input_folder, boost::is_any_of("/"));
         // if fname is not given, try the dataset name by default
-        fname = strs[strs.size() - 2] + ".statfile";
+        fname = global_input_folder + "/statfile";
     } else {
         fname = load_stat_vm["-f"].as<string>();
     }

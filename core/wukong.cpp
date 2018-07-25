@@ -139,7 +139,7 @@ main(int argc, char *argv[])
     // load string server (read-only, shared by all proxies and all engines)
     String_Server str_server(global_input_folder);
 
-    // load RDF graph (shared by all engines)
+    // load RDF graph (shared by all engines and proxies)
     DGraph dgraph(sid, mem, &str_server, global_input_folder);
 
     // init control communicaiton
@@ -149,14 +149,14 @@ main(int argc, char *argv[])
     data_statistic stat(sid);
     if (global_enable_planner) {
         if (global_generate_statistics) {
+            uint64_t t0 = timer::get_usec();
             dgraph.gstore.generate_statistic(stat);
+            uint64_t t1 = timer::get_usec();
+            logstream(LOG_EMPH)  << "generate_statistic using time: " << t1 - t0 << "usec" << LOG_endl;
             stat.gather_stat(con_adaptor);
         } else {
             // use the dataset name by default
-            vector<string> strs;
-            boost::split(strs, global_input_folder, boost::is_any_of("/"));
-            string fname = strs[strs.size() - 2] + ".statfile";
-
+            string fname = global_input_folder + "/statfile";
             stat.load_stat_from_file(fname, con_adaptor);
         }
     }
@@ -168,7 +168,7 @@ main(int argc, char *argv[])
 
         // TID: proxy = [0, #proxies), engine = [#proxies, #proxies + #engines)
         if (tid < global_num_proxies) {
-            Proxy *proxy = new Proxy(sid, tid, &str_server, adaptor, &stat);
+            Proxy *proxy = new Proxy(sid, tid, &str_server, &dgraph, adaptor, &stat);
             proxies.push_back(proxy);
         } else {
             Engine *engine = new Engine(sid, tid, &str_server, &dgraph, adaptor);
