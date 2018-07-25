@@ -518,7 +518,7 @@ public:
     #ifdef USE_GPU
     // if this is a sub-query of a heavy query, the SubQueryType will be SPLIT
     enum SubQueryType { FULL, SPLIT };
-    SubQueryType subquery_type;
+    SubQueryType subquery_type = FULL;
     #endif
 
     // ID-format triple patterns (Subject, Predicat, Direction, Object)

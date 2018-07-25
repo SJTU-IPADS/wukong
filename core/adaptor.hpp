@@ -27,8 +27,6 @@
 #include "tcp_adaptor.hpp"
 #include "rdma_adaptor.hpp"
 
-enum MemTypes { GPU_DRAM = 1, CPU_DRAM };
-
 /// TODO: define adaptor as a C++ interface and make tcp and rdma implement it
 class Adaptor {
 public:
@@ -77,9 +75,9 @@ public:
     /* send the forked subquery(in CPU mem) and partial history(in GPU mem) to remote server
      * table_size refers to the number of elements in history, not n_rows
      */
-    bool send_split(int dst_sid, int dst_tid, const SPARQLQuery &r, char *history_ptr, uint64_t table_size) {
+    bool send_split(int dst_sid, int dst_tid, SPARQLQuery &r, char *history_ptr, uint64_t table_size) {
         ASSERT(tid < global_num_threads);
-        ASSERT(r.subquery_type == SPLIT);
+        ASSERT(r.subquery_type == SPARQLQuery::SubQueryType::SPLIT);
         Bundle bundle(r);
         string ctrl_msg = bundle.get_type() + bundle.data;
         return rdma->send_split(tid, dst_sid, dst_tid, ctrl_msg.c_str(), history_ptr, ctrl_msg.length(), table_size * sizeof(sid_t));
@@ -102,7 +100,7 @@ public:
         r = b.get_sparql_query();
 
         // continue receive history of query
-        if (r.subquery_type == SPLIT) {
+        if (r.subquery_type == SPARQLQuery::SubQueryType::SPLIT) {
             int ret;
             std::string dumb_str;
 

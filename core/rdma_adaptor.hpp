@@ -44,6 +44,8 @@ using namespace std;
 
 #define WK_CLINE 64
 
+enum MemTypes { GPU_DRAM = 1, CPU_DRAM };
+
 // The communication over RDMA-based ring buffer
 class RDMA_Adaptor {
 private:
