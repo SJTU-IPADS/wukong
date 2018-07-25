@@ -353,7 +353,7 @@ public:
     }
 
     // for adapter sending split query
-    bool send_split(int tid, int dst_sid, int dst_tid, const char *ctrl, const char *data, uint64_t ctrl_sz, uint64_t data_sz) {
+    bool send_split(int tid, int dst_sid, int dst_tid, const char *ctrl, uint64_t ctrl_sz, const char *data, uint64_t data_sz) {
         // step1: get rmeta of dst rbf
         rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
         pthread_spin_lock(&rmeta->lock);

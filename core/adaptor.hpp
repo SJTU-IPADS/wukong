@@ -80,7 +80,7 @@ public:
         ASSERT(r.subquery_type == SPARQLQuery::SubQueryType::SPLIT);
         Bundle bundle(r);
         string ctrl_msg = bundle.get_type() + bundle.data;
-        return rdma->send_split(tid, dst_sid, dst_tid, ctrl_msg.c_str(), history_ptr, ctrl_msg.length(), table_size * sizeof(sid_t));
+        return rdma->send_split(tid, dst_sid, dst_tid, ctrl_msg.c_str(), ctrl_msg.length(), history_ptr, table_size * sizeof(sid_t));
     }
 
     /* first receive the forked subquery, then receive the partial history and copy it to local gpu mem
