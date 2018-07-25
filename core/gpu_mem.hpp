@@ -26,8 +26,6 @@
 #include "unit.hpp"
 #include "gpu_utils.hpp"
 
-enum MemTypes { GPU_DRAM = 1, CPU_DRAM };
-
 class GPUMem {
 private:
     int devid;

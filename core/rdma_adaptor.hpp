@@ -32,6 +32,13 @@
 
 #include "config.hpp"
 #include "rdma.hpp"
+#include "mem.hpp"
+
+#ifdef USE_GPU
+#include "gpu_utils.hpp"
+#include "gpu_mem.hpp"
+#include "gpu.hpp"
+#endif
 
 using namespace std;
 
@@ -97,9 +104,13 @@ private:
         return (data_sz != 0);
     }
 
-    // Fetch data from threads in dst_sid to tid
-    std::string fetch(int tid, int dst_sid) {
+    /* Fetch data from threads in dst_sid to tid
+     * for GPU, the data will be copied to GPU mem
+     */
+    bool fetch(int tid, int dst_sid, std::string &result, MemTypes memtype) {
+        // step 1: get lmeta of dst rbf
         rbf_lmeta_t *lmeta = &lmetas[tid * num_servers + dst_sid];
+        // step 2: calculate mem location and data size
         char * rbf = mem->ring(tid, dst_sid);
         uint64_t rbf_sz = mem->ring_size();
         // struct of data: [size | data | size]
@@ -108,7 +119,8 @@ private:
 
         uint64_t to_footer = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t));
         volatile uint64_t * footer = (volatile uint64_t *)(rbf + (lmeta->head + to_footer) % rbf_sz); // footer
-        while (*footer != data_sz) { // spin-wait RDMA-WRITE done
+        // step 3: spin-wait rdma-write done
+        while (*footer != data_sz) {
             _mm_pause();
             /* If RDMA-WRITE is done, footer == header == size
              * Otherwise, footer == 0
@@ -117,28 +129,50 @@ private:
         }
         *footer = 0;  // clean footer
 
-        // actually read data
-        std::string result;
-        result.reserve(data_sz);
-        uint64_t start = (lmeta->head + sizeof(uint64_t)) % rbf_sz; // start of data
-        uint64_t end = (lmeta->head + sizeof(uint64_t) + data_sz) % rbf_sz;  // end of data
-        if (start < end) {
-            result.append(rbf + start, data_sz);
-            memset(rbf + start, 0, ceil(data_sz, sizeof(uint64_t)));  // clean data
-        } else { // overwrite from the start
-            result.append(rbf + start, data_sz - end);
-            result.append(rbf, end);
-            memset(rbf + start, 0, data_sz - end);                    // clean data
-            memset(rbf, 0, ceil(end, sizeof(uint64_t)));              // clean data
+        // step 4: actually read data
+        uint64_t start = (lmeta->head + sizeof(uint64_t)) % rbf_sz; // start offset of data
+        uint64_t end = (lmeta->head + sizeof(uint64_t) + data_sz) % rbf_sz;  // end offset of data
+        if (memtype == GPU_DRAM) {
+            #ifdef USE_GPU
+            GPU &gpu = GPU::instance();
+            char *history_buf = gpu.history_inbuf();
+            if (start < end) {
+                GPU_ASSERT( cudaMemcpy(history_buf, rbf + start, data_sz, cudaMemcpyHostToDevice) );
+                memset(rbf + start, 0, ceil(data_sz, sizeof(uint64_t)));  // clean data
+            } else {
+                GPU_ASSERT( cudaMemcpy(history_buf, rbf + start, data_sz - end, cudaMemcpyHostToDevice) );
+                GPU_ASSERT( cudaMemcpy(history_buf + (data_sz - end), rbf, end, cudaMemcpyHostToDevice) );
+                memset(rbf + start, 0, data_sz - end);                    // clean data
+                memset(rbf, 0, ceil(end, sizeof(uint64_t)));              // clean data
+            }
+            gpu.set_history_size(data_sz / sizeof(int));
+            // caution: 把data拷贝上去之后，caller还需要设置r.result.gpu_history_ptr, r.result.gpu_history_size这些源数据
+            # else
+            logstream(LOG_ERROR) << "USE_GPU is undefined. Memtype should not be GPU_DRAM." << LOG_endl;
+            ASSERT(false);
+            #endif
+        } else {
+            result.reserve(data_sz);
+            if (start < end) {
+                result.append(rbf + start, data_sz);
+                memset(rbf + start, 0, ceil(data_sz, sizeof(uint64_t)));  // clean data
+            } else { // overwrite from the start
+                result.append(rbf + start, data_sz - end);
+                result.append(rbf, end);
+                memset(rbf + start, 0, data_sz - end);                    // clean data
+                memset(rbf, 0, ceil(end, sizeof(uint64_t)));              // clean data
+            }
         }
+        // step 5: move forward rbf head
         lmeta->head += 2 * sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t));
 
-        // update heads of ring buffer to writer to help it detect overflow
+        // step 6: update heads of ring buffer to writer to help it detect overflow
         char *head = mem->local_ring_head(tid, dst_sid);
         const uint64_t threshold = rbf_sz / 8;
         if (lmeta->head - * (uint64_t *)head > threshold) {
             *(uint64_t *)head = lmeta->head;
-            if (sid != dst_sid) {  // update to remote server
+            // update to remote server
+            if (sid != dst_sid) {
                 RDMA &rdma = RDMA::get_rdma();
                 uint64_t remote_head = mem->remote_ring_head_offset(tid, sid);
                 rdma.dev->RdmaWrite(tid, dst_sid, head, mem->remote_ring_head_size(), remote_head);
@@ -146,8 +180,7 @@ private:
                 *(uint64_t *)mem->remote_ring_head(tid, sid) = lmeta->head;
             }
         }
-
-        return result;
+        return true;
     } // end of fetch
 
     /* Check whether overflow occurs if given msg is sent
@@ -272,11 +305,15 @@ public:
     std::string recv(int tid) {
         ASSERT(init);
 
+        string str;
         while (true) {
             // each thread has a logical-queue (#servers physical-queues)
             int dst_sid = (schedulers[tid].rr_cnt++) % num_servers; // round-robin
-            if (check(tid, dst_sid))
-                return fetch(tid, dst_sid);
+            if (check(tid, dst_sid)) {
+                bool ret = fetch(tid, dst_sid, str, CPU_DRAM);
+                assert(ret == true);
+                return str;
+            }
         }
     }
 
@@ -287,10 +324,13 @@ public:
         // check all physical-queues of tid once
         for (int dst_sid = 0; dst_sid < num_servers; dst_sid++) {
             if (check(tid, dst_sid)) {
-                str = fetch(tid, dst_sid);
-                return true;
+                return fetch(tid, dst_sid, str, CPU_DRAM);
             }
         }
         return false;
     }
+
+    #ifdef USE_GPU
+
+    #endif
 };

@@ -26,6 +26,7 @@
 // @singleton
 class GPU {
 private:
+    int history_sz;
     GPU() {}
 
 public:
@@ -39,9 +40,12 @@ public:
         return nullptr;
     }
 
-    // TODO
     int history_size() const {
-        return 0;
+        return history_sz;
+    }
+
+    void set_history_size(int size) {
+        history_sz = size;
     }
 };
 #endif

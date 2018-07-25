@@ -27,6 +27,8 @@
 #include "tcp_adaptor.hpp"
 #include "rdma_adaptor.hpp"
 
+enum MemTypes { GPU_DRAM = 1, CPU_DRAM };
+
 /// TODO: define adaptor as a C++ interface and make tcp and rdma implement it
 class Adaptor {
 public:
