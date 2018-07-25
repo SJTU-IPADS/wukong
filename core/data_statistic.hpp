@@ -379,13 +379,19 @@ public:
         // avoid saving when it already exsits
         ifstream file(fname.c_str());
         if (!file.good()) {
-            ofstream ofs(fname);
-            boost::archive::binary_oarchive oa(ofs);
-            oa << global_tyscount;
-            oa << global_tystat;
-            oa << global_type2int;
-            oa << global_single2complex;
-            ofs.close();
+        	try{
+                ofstream ofs(fname);
+                boost::archive::binary_oarchive oa(ofs);
+                oa << global_tyscount;
+                oa << global_tystat;
+                oa << global_type2int;
+                oa << global_single2complex;
+                ofs.close();
+        	}
+        	catch(exception& e){
+                logstream(LOG_ERROR) << "store statistics unsuccessfully: " << e.what() << LOG_endl;
+                return;
+        	}
 
             logstream(LOG_INFO) << "store statistics to file "
                                 << fname << " is finished." << LOG_endl;

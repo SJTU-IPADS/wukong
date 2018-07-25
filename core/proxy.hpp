@@ -146,7 +146,6 @@ public:
     int tid;    // thread id
 
     String_Server *str_server;
-    DGraph *graph;
     Adaptor *adaptor;
 
     Coder coder;
@@ -157,7 +156,7 @@ public:
 
     Proxy(int sid, int tid, String_Server *str_server, DGraph * graph,
           Adaptor *adaptor, data_statistic *statistic)
-        : sid(sid), tid(tid), str_server(str_server), graph(graph), adaptor(adaptor),
+        : sid(sid), tid(tid), str_server(str_server), adaptor(adaptor),
           coder(sid, tid), parser(str_server), statistic(statistic), planner(graph) { }
 
     void setpid(SPARQLQuery &r) { r.pid = coder.get_and_inc_qid(); }

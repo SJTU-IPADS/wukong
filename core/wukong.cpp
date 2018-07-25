@@ -141,10 +141,7 @@ main(int argc, char *argv[])
             stat.gather_stat(con_adaptor);
         } else {
             // use the dataset name by default
-            vector<string> strs;
-            boost::split(strs, global_input_folder, boost::is_any_of("/"));
-            string fname = strs[strs.size() - 2] + ".statfile";
-
+            string fname = global_input_folder + "/statfile";
             stat.load_stat_from_file(fname, con_adaptor);
         }
     }
