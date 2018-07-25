@@ -150,8 +150,8 @@ private:
                 memset(rbf + start, 0, data_sz - end);                    // clean data
                 memset(rbf, 0, ceil(end, sizeof(uint64_t)));              // clean data
             }
-            gpu.set_history_size(data_sz / sizeof(int));
-            // caution: 把data拷贝上去之后，caller还需要设置r.result.gpu_history_ptr, r.result.gpu_history_size这些源数据
+            gpu.set_history_size(data_sz / sizeof(sid_t));
+            // caution: after copying data to gpu mem, the caller need to set r.result.gpu_history_ptr, r.result.gpu_history_size
             # else
             logstream(LOG_ERROR) << "USE_GPU is undefined. Memtype should not be GPU_DRAM." << LOG_endl;
             ASSERT(false);

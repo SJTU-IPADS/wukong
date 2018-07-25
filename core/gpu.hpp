@@ -40,6 +40,11 @@ public:
         return nullptr;
     }
 
+    // TODO
+    char *history_outbuf() {
+        return nullptr;
+    }
+
     int history_size() const {
         return history_sz;
     }

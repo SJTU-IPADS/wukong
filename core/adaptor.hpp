@@ -107,7 +107,7 @@ public:
             ret = rdma->recv_by_gpu(tid, sender_sid, dumb_str);
             ASSERT(ret > 0);
             GPU &gpu = GPU::instance();
-            // Siyuan: history已经load上GPU了，但gpu.query_id还没有设置
+            // hint: history has been copied to gpu mem(by recv_by_gpu->fetch), update r.result.gpu_history_ptr & r.result.gpu_history_table_size here
             r.result.gpu_history_ptr = gpu.history_inbuf();
             r.result.gpu_history_table_size = gpu.history_size();
         }
