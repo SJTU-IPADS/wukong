@@ -154,10 +154,10 @@ public:
     data_statistic *statistic; // for planner
 
 
-    Proxy(int sid, int tid, String_Server *str_server,
+    Proxy(int sid, int tid, String_Server *str_server, DGraph * graph,
           Adaptor *adaptor, data_statistic *statistic)
         : sid(sid), tid(tid), str_server(str_server), adaptor(adaptor),
-          coder(sid, tid), parser(str_server), statistic(statistic) { }
+          coder(sid, tid), parser(str_server), statistic(statistic), planner(graph) { }
 
     void setpid(SPARQLQuery &r) { r.pid = coder.get_and_inc_qid(); }
 
