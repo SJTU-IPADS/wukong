@@ -106,7 +106,7 @@ public:
             int ret;
             std::string dumb_str;
 
-            ret = rdma->recv_from(tid, sender_sid, dumb_str, GPU_DRAM);
+            ret = rdma->recv_by_gpu(tid, sender_sid, dumb_str);
             ASSERT(ret > 0);
             GPU &gpu = GPU::instance();
             // Siyuan: history已经load上GPU了，但gpu.query_id还没有设置
