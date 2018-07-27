@@ -19,6 +19,7 @@
  *      http://ipads.se.sjtu.edu.cn/projects/wukong.html
  *
  */
+
 #ifdef USE_GPU
 #pragma once
 
