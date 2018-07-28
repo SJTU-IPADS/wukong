@@ -29,41 +29,86 @@
 class GPUMem {
 private:
     int devid;
-	int num_servers;
-	int num_agents;
+    int num_servers;
+    int num_agents; // #gpu_engine
 
-	// The GPU memory layout: block-based kvstore | history | heap
-	char *mem_gpu;
-	uint64_t mem_gpu_sz;
+    // The GPU memory layout: block-based kvstore | history in/out buffer | rdma buffer | heap
+    char *mem_gpu;
+    uint64_t mem_gpu_sz;
 
-	char *buf; // #threads
-	uint64_t buf_sz;
-	uint64_t buf_off;
+    // kvstore on gpu
+    char *kvs;
+    uint64_t kvs_sz;
+    uint64_t kvs_off;
+
+    // history inbuf and outbuf, used to store (old and updated) history.
+    char *history_inbuf;
+    uint64_t history_inbuf_off;
+    char *history_outbuf;
+    uint64_t history_outbuf_off;
+    uint64_t history_buf_sz;
+
+    // rdma buffer
+    char *buf; // #threads
+    uint64_t buf_sz; // buffer size of single thread
+    uint64_t buf_off;
 
 public:
     GPUMem(int devid, int num_servers, int num_agents)
-        : devid(devid), num_servers(num_servers), num_agents(num_agents) {
-        buf_sz = MiB2B(global_gpu_rdma_buf_size_mb);
-        mem_gpu_sz = buf_sz * num_agents;
+    :devid(devid), num_servers(num_servers), num_agents(num_agents) {
+        kvs_sz = GiB2B(global_gpu_kvstore_size_gb);
+        history_buf_sz = global_gpu_max_element * sizeof(sid_t);
+        if (RDMA::get_rdma().has_rdma()) {
+            // only used by RDMA device
+            buf_sz = MiB2B(global_gpu_rdma_buf_size_mb);
+        } else {
+            buf_sz = 0;
+        }
+        mem_gpu_sz = kvs_sz + history_buf_sz * 2 + buf_sz * num_agents;
 
         CUDA_ASSERT( cudaSetDevice(devid) );
         CUDA_ASSERT( cudaMalloc(&mem_gpu, mem_gpu_sz) );
         CUDA_ASSERT( cudaMemset(mem_gpu, 0, mem_gpu_sz) );
 
-        buf_off = 0;
+        kvs_off = 0;
+        kvs = mem_gpu + kvs_off;
+
+        history_inbuf_off = kvs_off + kvs_sz;
+        history_inbuf = mem_gpu + history_inbuf_off;
+
+        history_outbuf_off = history_inbuf_off + history_buf_sz;
+        history_outbuf = mem_gpu + history_outbuf_off;
+
+        buf_off = history_outbuf_off + history_buf_sz;
         buf = mem_gpu + buf_off;
+
         logstream(LOG_INFO) << "GPUMem: devid: " << devid << ", num_servers: " << num_servers << ", num_agents: " << num_agents << LOG_endl;
     }
 
     ~GPUMem() { CUDA_ASSERT( cudaFree(mem_gpu) ); }
 
-	inline char *memory() { return mem_gpu; }
-	inline uint64_t memory_size() { return mem_gpu_sz; }
+    inline char *memory() { return mem_gpu; }
+    inline uint64_t memory_size() { return mem_gpu_sz; }
 
-	// buffer
-	inline char *buffer(int tid) { return buf + buf_sz * (tid % num_agents); }
-	inline uint64_t buffer_size() { return buf_sz; }
-	inline uint64_t buffer_offset(int tid) { return buf_off + buf_sz * (tid % num_agents); }
+    // kvstore
+    inline char *kvstore() { return kvs; }
+    inline uint64_t kvstore_size() { return kvs_sz; }
+    inline uint64_t kvstore_offset() { return kvs_off; }
+
+    // history_inbuf
+    inline char *history_inbuf() { return history_inbuf; }
+    inline uint64_t history_inbuf_size() { return history_inbuf_sz; }
+    inline uint64_t history_inbuf_offset() { return history_inbuf_off; }
+
+    // history_outbuf
+    inline char *history_outbuf() { return history_outbuf; }
+    inline uint64_t history_outbuf_size() { return history_outbuf_sz; }
+    inline uint64_t history_outbuf_offset() { return history_outbuf_off; }
+
+    // buffer
+    inline char *buffer(int tid) { return buf + buf_sz * (tid % num_agents); }
+    inline uint64_t buffer_size() { return buf_sz; }
+    inline uint64_t buffer_offset(int tid) { return buf_off + buf_sz * (tid % num_agents); }
 
 };
 #endif
