@@ -70,7 +70,11 @@ bool global_enable_vattr = false;  // for attr
 // GPU-related configurations
 int global_num_gpus = 1;
 int global_gpu_rdma_buf_size_mb = 64;
-uint64_t global_gpu_max_element =  20000000;
+uint64_t global_gpu_max_element =  20000000; // max history element num in gpu
+int global_gpu_num_keys_million = 100;
+int global_gpu_kvstore_size_gb = 10;
+int global_gpu_key_block_size_mb = 16;
+int global_gpu_value_block_size_mb = 4;
 #endif
 
 static bool set_immutable_config(string cfg_name, string value)
@@ -120,6 +124,14 @@ static bool set_immutable_config(string cfg_name, string value)
     } else if (cfg_name == "global_gpu_max_element") {
         char *tmp;
         global_gpu_max_element = strtoull(value.c_str(), &tmp, 10);
+    } else if (cfg_name == "global_gpu_num_keys_million") {
+        global_gpu_num_keys_million = atoi(value.c_str());
+    } else if (cfg_name == "global_gpu_kvstore_size_gb") {
+        global_gpu_kvstore_size_gb = atoi(value.c_str());
+    } else if (cfg_name == "global_gpu_key_block_size_mb") {
+        global_gpu_key_block_size_mb = atoi(value.c_str());
+    } else if (cfg_name == "global_gpu_value_block_size_mb") {
+        global_gpu_value_block_size_mb = atoi(value.c_str());
     }
 #endif
     else {
@@ -268,11 +280,15 @@ void print_config(void)
     logstream(LOG_INFO) << "global_generate_statistics: "   << global_generate_statistics   << LOG_endl;
     logstream(LOG_INFO) << "global_enable_vattr: "      << global_enable_vattr          << LOG_endl;
 
-#ifdef USE_GPU
+    #ifdef USE_GPU
     logstream(LOG_INFO) << "global_num_gpus: "        << global_num_gpus        << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_rdma_buf_size_mb: "  << global_gpu_rdma_buf_size_mb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_max_element: "  << global_gpu_max_element  << LOG_endl;
-#endif
+    logstream(LOG_INFO) << "global_gpu_num_keys_million: "  << global_gpu_num_keys_million  << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_kvstore_size_gb: "  << global_gpu_kvstore_size_gb  << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_key_block_size_mb: "  << global_gpu_key_block_size_mb  << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_value_block_size_mb: "  << global_gpu_value_block_size_mb  << LOG_endl;
+    #endif
 
     logstream(LOG_INFO) << "--" << LOG_endl;
 
