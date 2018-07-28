@@ -25,6 +25,7 @@
 
 #include "unit.hpp"
 #include "gpu_utils.hpp"
+#include "type.hpp"
 
 class GPUMem {
 private:
@@ -42,10 +43,10 @@ private:
     uint64_t kvs_off;
 
     // history inbuf and outbuf, used to store (old and updated) history.
-    char *history_inbuf;
-    uint64_t history_inbuf_off;
-    char *history_outbuf;
-    uint64_t history_outbuf_off;
+    char *inbuf;
+    uint64_t inbuf_off;
+    char *outbuf;
+    uint64_t outbuf_off;
     uint64_t history_buf_sz;
 
     // rdma buffer
@@ -73,13 +74,13 @@ public:
         kvs_off = 0;
         kvs = mem_gpu + kvs_off;
 
-        history_inbuf_off = kvs_off + kvs_sz;
-        history_inbuf = mem_gpu + history_inbuf_off;
+        inbuf_off = kvs_off + kvs_sz;
+        inbuf = mem_gpu + inbuf_off;
 
-        history_outbuf_off = history_inbuf_off + history_buf_sz;
-        history_outbuf = mem_gpu + history_outbuf_off;
+        outbuf_off = inbuf_off + history_buf_sz;
+        outbuf = mem_gpu + outbuf_off;
 
-        buf_off = history_outbuf_off + history_buf_sz;
+        buf_off = outbuf_off + history_buf_sz;
         buf = mem_gpu + buf_off;
 
         logstream(LOG_INFO) << "GPUMem: devid: " << devid << ", num_servers: " << num_servers << ", num_agents: " << num_agents << LOG_endl;
@@ -96,14 +97,14 @@ public:
     inline uint64_t kvstore_offset() { return kvs_off; }
 
     // history_inbuf
-    inline char *history_inbuf() { return history_inbuf; }
-    inline uint64_t history_inbuf_size() { return history_inbuf_sz; }
-    inline uint64_t history_inbuf_offset() { return history_inbuf_off; }
+    inline char *history_inbuf() { return inbuf; }
+    inline uint64_t history_inbuf_size() { return history_buf_sz; }
+    inline uint64_t history_inbuf_offset() { return inbuf_off; }
 
     // history_outbuf
-    inline char *history_outbuf() { return history_outbuf; }
-    inline uint64_t history_outbuf_size() { return history_outbuf_sz; }
-    inline uint64_t history_outbuf_offset() { return history_outbuf_off; }
+    inline char *history_outbuf() { return outbuf; }
+    inline uint64_t history_outbuf_size() { return history_buf_sz; }
+    inline uint64_t history_outbuf_offset() { return outbuf_off; }
 
     // buffer
     inline char *buffer(int tid) { return buf + buf_sz * (tid % num_agents); }
