@@ -26,6 +26,7 @@
 #include <vector>
 #include <map>
 #include <unordered_map>
+#include <algorithm>
 #include <cuda_runtime.h>
 #include "rdf_meta.hpp"
 #include "gstore.hpp"
@@ -87,6 +88,10 @@ private:
     // number of value blocks per segement using now
     unordered_map<segid_t, int> num_value_blocks_seg_using;
 
+    // segments that are in key/value cache
+    std::list<segid_t> segs_in_key_cache;
+    std::list<segid_t> segs_in_value_cache;
+
     // pointing to key area of gpu mem kvstore
     vertex_t *d_vertex_addr;
     // pointing to value area of gpu mem kvstore
@@ -133,4 +138,69 @@ public:
             num_value_blocks_seg_using.insert(std::make_pair(it->first, 0));
         }
     } // end of constructor
+
+    void evict_key_blocks(const vector<segid_t> &conflicts, segid_t seg_to_load, segid_t seg_using, int num_need_blocks) {
+        // step 1: traverse segments in key cache, evict segments that are not in conflicts or not to load/using
+        for (auto it = segs_in_key_cache.begin(); it != segs_in_key_cache.end(); ) {
+            segid_t seg = *it;
+            if (seg == seg_to_load || seg == seg_using) {
+                it++;
+                continue;
+            }
+            if (find(conflicts.begin(), conflicts.end(), seg) != conflicts.end()) {
+                it++;
+                continue;
+            }
+
+            for (int i = 0; i < num_key_blocks_seg_need[seg]; i++) {
+                int block_id = vertex_allocation[seg][i];
+                if (block_id != BLOCK_ID_ERR) {
+                    vertex_allocation[seg][i] = BLOCK_ID_ERR;
+                    num_key_blocks_seg_using[seg]--;
+                    if (num_key_blocks_seg_using[seg] == 0) {
+                        it = segs_in_key_cache.erase(it);
+                        // TODO key_bset, wukong+g line 170
+                    }
+                    free_key_blocks.push_back(block_id);
+                    // TODO global stat, wukong+g line 173
+
+                    if (free_key_blocks.size() >= num_need_blocks) {
+                        return;
+                    }
+                }
+            }
+        } // end of traverse segs_in_key_cache
+
+        // step 2: worst case. we have to evict segments that in conflicts
+        for (auto rit = conflicts.rbegin(); rit != conflicts.rend(); rit++) {
+            segid_t seg = *rit;
+            // skip segments not in cache or to load or using now
+            if (num_key_blocks_seg_using[seg] == 0 || seg == seg_to_load || seg == seg_using) {
+                continue;
+            }
+
+            for (int i = 0; i < num_key_blocks_seg_need[seg]; i++) {
+                int block_id = vertex_allocation[seg][i];
+                if (block_id != BLOCK_ID_ERR) {
+                    vertex_allocation[seg][i] = BLOCK_ID_ERR;
+                    num_key_blocks_seg_using[seg]--;
+                    if (num_key_blocks_seg_using[seg] == 0) {
+                        for (auto it = segs_in_key_cache.begin(); it != segs_in_key_cache.end(); it++) {
+                            if (*it == seg) {
+                                segs_in_key_cache.erase(it);
+                                break;
+                            }
+                        }
+                        // TODO key_bset, wukong+g line 214
+                    }
+                    free_key_blocks.push_back(block_id);
+                    // TODO global stat, wukong+g line 217
+
+                    if (free_key_blocks.size() >= num_need_blocks) {
+                        return;
+                    }
+                }
+            }
+        } // end of worst case
+    } // end of evict_key_blocks
 };
