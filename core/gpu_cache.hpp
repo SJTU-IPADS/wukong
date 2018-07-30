@@ -159,7 +159,6 @@ public:
                     num_key_blocks_seg_using[seg]--;
                     if (num_key_blocks_seg_using[seg] == 0) {
                         it = segs_in_key_cache.erase(it);
-                        // TODO key_bset, wukong+g line 170
                     }
                     free_key_blocks.push_back(block_id);
                     // TODO global stat, wukong+g line 173
@@ -191,7 +190,6 @@ public:
                                 break;
                             }
                         }
-                        // TODO key_bset, wukong+g line 214
                     }
                     free_key_blocks.push_back(block_id);
                     // TODO global stat, wukong+g line 217
