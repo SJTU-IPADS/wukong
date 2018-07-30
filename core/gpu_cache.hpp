@@ -294,4 +294,32 @@ public:
         }
         return headers;
     }
+
+    void reset() {
+        for (auto it = rdf_metas.begin(); it != rdf_metas.end(); it++) {
+            segid_t seg = it->first;
+            for (int i = 0; i < num_key_blocks_seg_need[seg]; i++) {
+                int block_id = vertex_allocation[seg][i];
+                if (block_id != BLOCK_ID_ERR) {
+                    vertex_allocation[seg][i] = BLOCK_ID_ERR;
+                    num_key_blocks_seg_using[seg]--;
+                    free_key_blocks.push_back(block_id);
+                }
+            }
+
+            for (int i = 0; i < num_value_blocks_seg_need[seg]; i++) {
+                int block_id = edge_allocation[seg][i];
+                if (block_id != BLOCK_ID_ERR) {
+                    edge_allocation[seg][i] = BLOCK_ID_ERR;
+                    num_edge_blocks_seg_using[seg]--;
+                    free_value_blocks.push_back(block_id);
+                }
+            }
+        }
+        segs_in_key_cache.clear();
+        segs_in_value_cache.clear();
+
+        ASSERT(free_key_blocks.size() == cap_gpu_key_blocks);
+        ASSERT(free_value_blocks.size() == cap_gpu_value_blocks);
+    }
 };
