@@ -32,12 +32,6 @@ add_executable(wukong ${SOURCES} "core/wukong.cpp")
 ## Set options (cached)
 ## usage: cmake .. -DUSE_RDMA=OFF -DUSE_HADOOP=ON
 
-#### GPU Processing (cannot coexist with Dynamic GStore)
-option (USE_GPU  "enable GPU support" OFF)
-if(USE_GPU)
-    add_definitions(-DUSE_GPU)
-endif(USE_GPU)
-
 #### RDMA
 option (USE_RDMA "enable RDMA support" ON)
 if(USE_RDMA)

@@ -33,6 +33,7 @@ using namespace boost::archive;
 
 #define EXT_LIST_MAX_LEN 4
 #define EXT_BUCKET_EXTENT_LEN(num_buckets) (num_buckets * 15 / 100 + 1)
+#define PREDICATE_NSEGS 4
 
 /**
  * A contiguous space in the indirect-header region
@@ -107,11 +108,11 @@ struct rdf_segment_meta_t {
  */
 struct segid_t {
     int index;  // normal or index segment
-    dir_t dir;  // direction of triples in the segment
+    int dir;  // direction of triples in the segment
     sid_t pid;  // predicate id
     segid_t(): index(0), dir(0), pid(0) { }
 
-    segid_t(int idx, sid_t p, dir_t d) : index(idx), pid(p), dir(d) { }
+    segid_t(int idx, sid_t p, int d) : index(idx), pid(p), dir(d) { }
     bool operator < (const segid_t& segid) const {
         if (pid < segid.pid)
             return true;
