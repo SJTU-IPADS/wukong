@@ -202,5 +202,6 @@ public:
                 }
             }
         } // end of worst case
+        logstream(LOG_ERROR) << "GPU Cache: No enough free key blocks!" << LOG_endl;
     } // end of evict_key_blocks
 };
