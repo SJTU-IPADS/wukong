@@ -20,6 +20,7 @@
  *
  */
 
+#ifdef USE_GPU
 #pragma once
 
 #include <boost/archive/binary_oarchive.hpp>
@@ -33,10 +34,13 @@ using namespace boost::archive;
 #define EXT_LIST_MAX_LEN 4
 #define EXT_BUCKET_EXTENT_LEN(num_buckets) (num_buckets * 15 / 100 + 1)
 
+/**
+ * A contiguous space in the indirect-header region
+ */
 struct ext_bucket_extent_t {
     uint64_t num_ext_buckets;   // capacity
     uint64_t off;       // current offset
-    uint64_t start;     // start offset of indirect-header region
+    uint64_t start;     // start offset in the indirect header region
 
     ext_bucket_extent_t() : num_ext_buckets(0), off(0), start(0) {}
     ext_bucket_extent_t(uint64_t nbuckets, uint64_t start_off)
@@ -50,15 +54,22 @@ struct ext_bucket_extent_t {
     }
 };
 
-// Metadata of a predicate segment
+/**
+ * Metadata of a segment
+ *
+ * Each predicate has four segments:
+ * 1) Normal-OUT 2) Normal-IN 3) Index-OUT 4) Index-IN.
+ * Normal segments are for normal vertices, while index segments for index vertices.
+ * And the IN/OUT indicates the direction of triples in the segment.
+ */
 struct rdf_segment_meta_t {
-    uint64_t num_keys;
-    uint64_t num_buckets;  // allocated main headers (hash space)
+    uint64_t num_keys;      // #key of the segment
+    uint64_t num_buckets;   // allocated main headers (hash space)
     uint64_t bucket_start;  // start offset of main-header region
     ext_bucket_extent_t ext_bucket_list[EXT_LIST_MAX_LEN];
-    int ext_list_sz;
-    uint64_t num_edges;
-    uint64_t edge_start;    // start offset of edge region
+    int ext_list_sz;        // the length of ext_bucket_list
+    uint64_t num_edges;     // #edge of the segment
+    uint64_t edge_start;    // start offset in the entry region
 
     rdf_segment_meta_t() : num_keys(0), num_buckets(0), bucket_start(0),
         ext_list_sz(0), edge_start(0), num_edges(0) {
@@ -91,10 +102,13 @@ struct rdf_segment_meta_t {
     }
 };
 
+/**
+ * Identifier of a segment
+ */
 struct segid_t {
     int index;  // normal or index segment
-    dir_t dir;    // direction of triples in the segment
-    sid_t pid;
+    dir_t dir;  // direction of triples in the segment
+    sid_t pid;  // predicate id
     segid_t(): index(0), dir(0), pid(0) { }
 
     segid_t(int idx, sid_t p, dir_t d) : index(idx), pid(p), dir(d) { }
@@ -118,6 +132,13 @@ struct segid_t {
     }
 };
 
+/**
+ * Metadata synchronization message
+ *
+ * When run on multiple servers, we need to sync the metadata of segments
+ * with each server. Because the layout of kvstore is different in each server.
+ * Then light queries running in in-place mode can work correctly.
+ */
 class SyncSegmentMetaMsg {
 public:
     int sender_sid;
@@ -136,3 +157,4 @@ public:
     }
 };
 
+#endif  // USE_GPU
