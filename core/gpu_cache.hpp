@@ -202,4 +202,68 @@ public:
         } // end of worst case
         logstream(LOG_ERROR) << "GPU Cache: No enough free key blocks!" << LOG_endl;
     } // end of evict_key_blocks
+
+    void evict_value_blocks(const vector<segid_t> &conflicts, segid_t seg_to_load, segid_t seg_using, int num_need_blocks) {
+        // step 1: traverse segments in value cache, evict segments that are not in conflicts or not to load/using
+        for (auto it = segs_in_value_cache.begin(); it != segs_in_value_cache.end(); ) {
+            segid_t seg = *it;
+            if (seg == seg_to_load || seg == seg_using) {
+                it++;
+                continue;
+            }
+            if (find(conflicts.begin(), conflicts.end(), seg) != conflicts.end()) {
+                it++;
+                continue;
+            }
+
+            for (int i = 0; i < num_value_blocks_seg_need[seg]; i++) {
+                int block_id = edge_allocation[seg][i];
+                if (block_id != BLOCK_ID_ERR) {
+                    edge_allocation[seg][i] = BLOCK_ID_ERR;
+                    num_value_blocks_seg_using[seg]--;
+                    if (num_value_blocks_seg_using[seg] == 0) {
+                        it = segs_in_value_cache.erase(it);
+                    }
+                    free_value_blocks.push_back(block_id);
+                    // TODO global stat, wukong+g line 261
+
+                    if (free_value_blocks.size() >= num_need_blocks) {
+                        return;
+                    }
+                }
+            }
+        } // end of traverse segs_in_value_cache
+
+        // step 2: worst case. we have to evict segments that in conflicts
+        for (auto rit = conflicts.rbegin(); rit != conflicts.rend(); rit++) {
+            segid_t seg = *rit;
+            // skip segments not in cache or to load or using now
+            if (num_value_blocks_seg_using[seg] == 0 || seg == seg_to_load || seg == seg_using) {
+                continue;
+            }
+
+            for (int i = 0; i < num_value_blocks_seg_need[seg]; i++) {
+                int block_id = edge_allocation[seg][i];
+                if (block_id != BLOCK_ID_ERR) {
+                    edge_allocation[seg][i] = BLOCK_ID_ERR;
+                    num_value_blocks_seg_using[seg]--;
+                    if (num_value_blocks_seg_using[seg] == 0) {
+                        for (auto it = segs_in_value_cache.begin(); it != segs_in_value_cache.end(); it++) {
+                            if (*it == seg) {
+                                segs_in_value_cache.erase(it);
+                                break;
+                            }
+                        }
+                    }
+                    free_value_blocks.push_back(block_id);
+                    // TODO global stat, wukong+g line 299
+
+                    if (free_value_blocks.size() >= num_need_blocks) {
+                        return;
+                    }
+                }
+            }
+        } // end of worst case
+        logstream(LOG_ERROR) << "GPU Cache: No enough free value blocks!" << LOG_endl;
+    } // end of evict_value_blocks
 };
