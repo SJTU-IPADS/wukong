@@ -611,7 +611,9 @@ public:
         #pragma omp parallel for num_threads(global_num_engines)
         for (int i = 0; i < predicates.size(); i++) {
             int localtid = omp_get_thread_num();
-            gstore.insert_triples_as_segments(localtid, predicates[i]);
+            sid_t pid = predicates[i];
+            gstore.insert_triples_to_segment(localtid, segid_t(0, pid, OUT));
+            gstore.insert_triples_to_segment(localtid, segid_t(0, pid, IN));
         }
 		end = timer::get_usec();
 		logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
