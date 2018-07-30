@@ -1402,13 +1402,14 @@ out:
                     sub_query.id = -1;
                     sub_query.pid = r.id;
                     // start from the next engine thread
-                    sub_query.tid = (tid + j + 1 - global_num_proxies) % global_num_engines
+                    int dst_tid = (tid + j + 1 - global_num_proxies) % global_num_engines
                                     + global_num_proxies;
+                    sub_query.tid = j;
                     sub_query.mt_factor = r.mt_factor;
                     sub_query.pattern_group.parallel = true;
 
                     Bundle bundle(sub_query);
-                    send_request(bundle, i, sub_query.tid);
+                    send_request(bundle, i, dst_tid);
                 }
             }
 

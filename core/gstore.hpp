@@ -2195,7 +2195,71 @@ public:
     }
 
     // prepare data for planner
-    void generate_statistic(data_statistic & stat) {
+    void generate_statistic(data_statistic &stat) {
+
+        #ifndef VERSATILE
+        logstream(LOG_ERROR)  << "please turn off generate_statistics in config and use stat file cache instead OR turn on VERSATILE option in CMakefiles to generate_statistic" << LOG_endl;    
+        exit(-1);            
+        #endif
+
+        unordered_map<ssid_t, int> &tyscount = stat.local_tyscount;
+        type_stat &ty_stat = stat.local_tystat;
+        // for complex type vertex numbering
+        unordered_set<ssid_t> record_set; 
+
+        //use index_composition as type of no_type
+        auto generate_no_type = [&](ssid_t id) -> ssid_t {
+            type_t type;
+            uint64_t psize1 = 0;
+            unordered_set<int> index_composition;
+            edge_t *res1 = get_edges_global(0, id, OUT, PREDICATE_ID, &psize1);
+            for (uint64_t k = 0; k < psize1; k++) {
+                ssid_t pre = res1[k].val;
+                index_composition.insert(pre);
+            }
+            uint64_t psize2 = 0;
+            edge_t *res2 = get_edges_global(0, id, IN, PREDICATE_ID, &psize2);
+            for (uint64_t k = 0; k < psize2; k++) {
+                ssid_t pre = res2[k].val;
+                index_composition.insert(-pre);
+            }
+            type.set_index_composition(index_composition);
+            // TO DO
+            // there should be no following situation according to comments on gstore layout
+            // but actually it happends 25 times and will not affect the correctness of optimizer
+            // if(index_composition.size() == 0){
+            //     cout << "empty index, may be type" << endl;
+            // }
+            return stat.get_simple_type(type);
+        };
+
+        //use type_composition as type of no_type
+        auto generate_multi_type = [&](edge_t *res, uint64_t type_sz) -> ssid_t {
+            type_t type;
+            unordered_set<int> type_composition;
+            for(int i = 0;i < type_sz; i ++){
+                type_composition.insert(res[i].val);
+            }
+            type.set_type_composition(type_composition);
+            return stat.get_simple_type(type);
+        };
+
+        // return success or not, because one id can only be recorded once
+        auto insert_no_type_count = [&](ssid_t id, ssid_t type) -> bool{
+            if(record_set.count(id) > 0){
+                return false;
+            }
+            else{
+                record_set.insert(id);
+
+                if (tyscount.find(type) == tyscount.end())
+                    tyscount[type] = 1;
+                else
+                    tyscount[type]++;
+                return true;
+            }
+        };
+
         for (uint64_t bucket_id = 0; bucket_id < num_buckets + num_buckets_ext; bucket_id++) {
             uint64_t slot_id = bucket_id * ASSOCIATIVITY;
             for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
@@ -2205,113 +2269,143 @@ public:
                 sid_t vid = vertices[slot_id].key.vid;
                 sid_t pid = vertices[slot_id].key.pid;
 
+                uint64_t sz = vertices[slot_id].ptr.size;
                 uint64_t off = vertices[slot_id].ptr.off;
-                if (pid == PREDICATE_ID) continue; // skip for index vertex
-
-                unordered_map<ssid_t, int> &ptcount = stat.predicate_to_triple;
-                unordered_map<ssid_t, int> &pscount = stat.predicate_to_subject;
-                unordered_map<ssid_t, int> &pocount = stat.predicate_to_object;
-                unordered_map<ssid_t, int> &tyscount = stat.type_to_subject;
-                unordered_map<ssid_t, vector<direct_p> > &ipcount = stat.id_to_predicate;
+                if (vid == PREDICATE_ID || pid == PREDICATE_ID) continue; // skip for index vertex
 
                 if (vertices[slot_id].key.dir == IN) {
-                    uint64_t sz = vertices[slot_id].ptr.size;
+                    
+                    // for type derivation
+                    // get types of values found by key (Subjects)
+                    vector<ssid_t> res_type;
+                    for (uint64_t k = 0; k < sz; k++) {
+                        ssid_t sbid = edges[off + k].val;
+                        uint64_t type_sz = 0;
+                        edge_t *res = get_edges_global(0, sbid, OUT, TYPE_ID, &type_sz);
+                        if (type_sz > 1) {
+                            ssid_t type = generate_multi_type(res, type_sz);
+                            res_type.push_back(type); //10 for 10240, 19 for 2560, 23 for 40, 2 for 640
+                        }
+                        else if (type_sz == 0){
+                            //cout << "no type: " << sbid << endl;
+                            ssid_t type = generate_no_type(sbid);
+                            res_type.push_back(type);
+                        }
+                        else if (type_sz == 1){
+                            res_type.push_back(res[0].val);
+                        }
+                        else {
+                            assert(false);
+                        }
+                    }
 
-                    // triples only count from one direction
-                    if (ptcount.find(pid) == ptcount.end())
-                        ptcount[pid] = sz;
-                    else
-                        ptcount[pid] += sz;
+                    // type for objects
+                    // get type of vid (Object)
+                    uint64_t type_sz = 0;
+                    edge_t *res = get_edges_local(0, vid, OUT, TYPE_ID, &type_sz);
+                    ssid_t type;
+                    if (type_sz > 1) {
+                        type = generate_multi_type(res, type_sz);
+                    } else {
+                      if (type_sz == 0){
+                          //cout << "no type: " << vid << endl;
+                          type = generate_no_type(vid);
+                          insert_no_type_count(vid, type);
+                      }
+                      else {
+                          type = res[0].val;
+                      }
+                    }
 
-                    // count objects
-                    if (pocount.find(pid) == pocount.end())
-                        pocount[pid] = 1;
-                    else
-                        pocount[pid]++;
+                    ty_stat.insert_otype(pid, type, 1);
+                    for (int j = 0; j < res_type.size(); j++) {
+                        ty_stat.insert_finetype(pid, type, res_type[j], 1);
+                    }
 
-                    // count in predicates for specific id
-                    ipcount[vid].push_back(direct_p(IN, pid));
                 } else {
-                    // count subjects
-                    if (pscount.find(pid) == pscount.end())
-                        pscount[pid] = 1;
-                    else
-                        pscount[pid]++;
+                    // no_type only need to be counted in one direction (using OUT)
+                    // get types of values found by key (Objects)
+                    vector<ssid_t> res_type;
+                    for (uint64_t k = 0; k < sz; k++) {
+                        ssid_t obid = edges[off + k].val;
+                        uint64_t type_sz = 0;
+                        edge_t *res = get_edges_global(0, obid, OUT, TYPE_ID, &type_sz);
 
-                    // count out predicates for specific id
-                    ipcount[vid].push_back(direct_p(OUT, pid));
+                        if (type_sz > 1) {
+                            ssid_t type = generate_multi_type(res, type_sz);
+                            res_type.push_back(type);
+                        }
+                        else if (type_sz == 0){
+                              // in this situation, obid may be some TYPE
+                            if(pid != 1){
+                                //cout << "no type: " << obid << endl;
+                                ssid_t type = generate_no_type(obid);
+                                res_type.push_back(type);
+                            }
+                        }
+                        else if (type_sz == 1){
+                            res_type.push_back(res[0].val);
+                        }
+                        else{
+                            assert(false);
+                        }
+                    }
+                    
+                    // type for subjects
+                    // get type of vid (Subject)
+                    uint64_t type_sz = 0;
+                    edge_t *res = get_edges_local(0, vid, OUT, TYPE_ID, &type_sz);
+                    ssid_t type;
+                    if (type_sz > 1) { 
+                        type = generate_multi_type(res, type_sz);
+                    } else {
+                      if (type_sz == 0){
+                            //cout << "no type: " << vid << endl;
+                            type = generate_no_type(vid);
+                            insert_no_type_count(vid, type);
+                      }
+                      else {
+                          type = res[0].val;
+                      }
+                    }
+
+                    ty_stat.insert_stype(pid, type, 1);
+                    for (int j = 0; j < res_type.size(); j++) {
+                        ty_stat.insert_finetype(type, pid, res_type[j], 1);
+                    }
 
                     // count type predicate
                     if (pid == TYPE_ID) {
-                        uint64_t sz = vertices[slot_id].ptr.size;
-                        uint64_t off = vertices[slot_id].ptr.off;
-
-                        for (uint64_t j = 0; j < sz; j++) {
-                            //src may belongs to multiple types
-                            sid_t obid = edges[off + j].val;
+                        // multi-type
+                        if (sz > 1){
+                            type_t complex_type;
+                            unordered_set<int> type_composition;
+                            for(int i = 0;i < sz; i ++){
+                                type_composition.insert(edges[off + i].val);
+                            }
+                            complex_type.set_type_composition(type_composition);
+                            ssid_t type_number = stat.get_simple_type(complex_type);
+                            
+                            if (tyscount.find(type_number) == tyscount.end())
+                                tyscount[type_number] = 1;
+                            else
+                                tyscount[type_number]++;
+                        }
+                        //single type
+                        else if (sz == 1){
+                            sid_t obid = edges[off].val;
 
                             if (tyscount.find(obid) == tyscount.end())
                                 tyscount[obid] = 1;
                             else
                                 tyscount[obid]++;
-
-                            if (pscount.find(obid) == pscount.end())
-                                pscount[obid] = 1;
-                            else
-                                pscount[obid]++;
-
-                            ipcount[vid].push_back(direct_p(OUT, obid));
                         }
                     }
                 }
             }
         }
 
-        //cout<<"sizeof predicate_to_triple = "<<stat.predicate_to_triple.size()<<endl;
-        //cout<<"sizeof predicate_to_subject = "<<stat.predicate_to_subject.size()<<endl;
-        //cout<<"sizeof predicate_to_object = "<<stat.predicate_to_object.size()<<endl;
-        //cout<<"sizeof type_to_subject = "<<stat.type_to_subject.size()<<endl;
-        //cout<<"sizeof id_to_predicate = "<<stat.id_to_predicate.size()<<endl;
-
-        unordered_map<pair<ssid_t, ssid_t>, four_num, boost::hash<pair<int, int>>> &ppcount = stat.correlation;
-
-        // do statistic for correlation
-        for (unordered_map<ssid_t, vector<direct_p> >::iterator it = stat.id_to_predicate.begin();
-                it != stat.id_to_predicate.end(); it++ ) {
-            ssid_t vid = it->first;
-            vector<direct_p> &vec = it->second;
-
-            for (uint64_t i = 0; i < vec.size(); i++) {
-                for (uint64_t j = i + 1; j < vec.size(); j++) {
-                    ssid_t p1, d1, p2, d2;
-                    if (vec[i].p < vec[j].p) {
-                        p1 = vec[i].p;
-                        d1 = vec[i].dir;
-                        p2 = vec[j].p;
-                        d2 = vec[j].dir;
-                    } else {
-                        p1 = vec[j].p;
-                        d1 = vec[j].dir;
-                        p2 = vec[i].p;
-                        d2 = vec[i].dir;
-                    }
-
-                    if (d1 == OUT && d2 == OUT)
-                        ppcount[make_pair(p1, p2)].out_out++;
-
-                    if (d1 == OUT && d2 == IN)
-                        ppcount[make_pair(p1, p2)].out_in++;
-
-                    if (d1 == IN && d2 == IN)
-                        ppcount[make_pair(p1, p2)].in_in++;
-
-                    if (d1 == IN && d2 == OUT)
-                        ppcount[make_pair(p1, p2)].in_out++;
-                }
-            }
-        }
-        //cout << "sizeof correlation = " << stat.correlation.size() << endl;
-        logstream(LOG_INFO) << "#" << sid << ": generating stats is finished." << LOG_endl;
+        cout << "INFO#" << sid << ": generating stats is finished." << endl;
     }
 
     // analysis and debuging

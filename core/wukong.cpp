@@ -27,6 +27,9 @@
 #include "config.hpp"
 #include "bind.hpp"
 #include "mem.hpp"
+#ifdef USE_GPU
+#include "gpu_mem.hpp"
+#endif
 #include "string_server.hpp"
 #include "dgraph.hpp"
 #include "engine.hpp"
@@ -77,6 +80,7 @@ main(int argc, char *argv[])
     boost::mpi::environment env(argc, argv);
     boost::mpi::communicator world;
     int sid = world.rank(); // server ID
+    int devid = 0;
 
     if (argc < 3) {
         usage(argv[0]);
@@ -112,10 +116,17 @@ main(int argc, char *argv[])
     // allocate memory
     Mem *mem = new Mem(global_num_servers, global_num_threads);
     logstream(LOG_INFO)  << "#" << sid << ": allocate " << B2GiB(mem->memory_size()) << "GB memory" << LOG_endl;
-
+    vector<RDMA::MemoryRegion> mrs;
+    RDMA::MemoryRegion mr_cpu = { mem->memory(), mem->memory_size(), RDMA::MemType::CPU };
+    mrs.push_back(mr_cpu);
+    #ifdef USE_GPU
+    GPUMem *gpu_mem = new GPUMem(devid, global_num_servers, global_num_gpus);
+    logstream(LOG_INFO)  << "#" << sid << ": allocate " << B2GiB(gpu_mem->memory_size()) << "GB GPU memory" << LOG_endl;
+    RDMA::MemoryRegion mr_gpu = { gpu_mem->memory(), gpu_mem->memory_size(), RDMA::MemType::GPU };
+    mrs.push_back(mr_gpu);
+    #endif
     // init RDMA devices and connections
-    RDMA_init(global_num_servers, global_num_threads,
-              sid, mem->memory(), mem->memory_size(), host_fname);
+    RDMA_init(global_num_servers, global_num_threads, sid, mrs, host_fname);
 
     // init communication
     RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mem, global_num_servers, global_num_threads);
@@ -124,7 +135,7 @@ main(int argc, char *argv[])
     // load string server (read-only, shared by all proxies and all engines)
     String_Server str_server(global_input_folder);
 
-    // load RDF graph (shared by all engines)
+    // load RDF graph (shared by all engines and proxies)
     DGraph dgraph(sid, mem, &str_server, global_input_folder);
 
     // init control communicaiton
@@ -138,14 +149,14 @@ main(int argc, char *argv[])
     data_statistic stat(sid);
     if (global_enable_planner) {
         if (global_generate_statistics) {
+            uint64_t t0 = timer::get_usec();
             dgraph.gstore.generate_statistic(stat);
+            uint64_t t1 = timer::get_usec();
+            logstream(LOG_EMPH)  << "generate_statistic using time: " << t1 - t0 << "usec" << LOG_endl;
             stat.gather_stat(con_adaptor);
         } else {
             // use the dataset name by default
-            vector<string> strs;
-            boost::split(strs, global_input_folder, boost::is_any_of("/"));
-            string fname = strs[strs.size() - 2] + ".statfile";
-
+            string fname = global_input_folder + "/statfile";
             stat.load_stat_from_file(fname, con_adaptor);
         }
     }
@@ -157,7 +168,7 @@ main(int argc, char *argv[])
 
         // TID: proxy = [0, #proxies), engine = [#proxies, #proxies + #engines)
         if (tid < global_num_proxies) {
-            Proxy *proxy = new Proxy(sid, tid, &str_server, adaptor, &stat);
+            Proxy *proxy = new Proxy(sid, tid, &str_server, &dgraph, adaptor, &stat);
             proxies.push_back(proxy);
         } else {
             Engine *engine = new Engine(sid, tid, &str_server, &dgraph, adaptor);
