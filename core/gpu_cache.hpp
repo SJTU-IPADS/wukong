@@ -266,4 +266,12 @@ public:
         } // end of worst case
         logstream(LOG_ERROR) << "GPU Cache: No enough free value blocks!" << LOG_endl;
     } // end of evict_value_blocks
+
+    // check whether a segment is in cache
+    bool seg_in_cache(segid_t seg) {
+        if (num_key_blocks_seg_using[seg] == num_key_blocks_seg_need[seg]
+        && num_value_blocks_seg_using[seg] == num_value_blocks_seg_need[seg])
+            return true;
+        return false;
+    }
 };
