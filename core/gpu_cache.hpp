@@ -39,7 +39,7 @@ using namespace std;
 class GPUCache {
 private:
     // number of segments
-    int n_seg;
+    int seg_num;
     /* the rdf data is divided into segments.
      * each predicate has 4 segments: in/out normal/index
      * GPUCache load data in segments
@@ -54,9 +54,9 @@ private:
     uint64_t cap_gpu_entries;
 
     // number of buckets per gpu key block
-    uint64_t n_buckets_per_block;
+    uint64_t num_buckets_per_block;
     // number of entries per gpu value block
-    uint64_t n_entries_per_block;
+    uint64_t num_entries_per_block;
 
     // capacity of key/value blocks
     uint64_t cap_gpu_key_blocks;
@@ -68,24 +68,24 @@ private:
     std::list<int> free_value_blocks;
 
 
-    /* map size: n_seg
+    /* map size: seg_num
      * vector size: number of key blocks this segment needs
      * value records the block ids this segment is using for storing main and indirect header
      */
     unordered_map<segid_t, vector<int>> vertex_allocation;
     // number of key blocks per segement needs
-    unordered_map<segid_t, int> n_key_blocks_seg_need;
+    unordered_map<segid_t, int> num_key_blocks_seg_need;
     // number of key blocks per segement using now
-    unordered_map<segid_t, int> n_key_blocks_seg_using;
-    /* map size: n_seg
+    unordered_map<segid_t, int> num_key_blocks_seg_using;
+    /* map size: seg_num
      * vector size: number of value blocks this segment needs
      * value records the block ids this segment is using for storing edges(value)
      */
     unordered_map<segid_t, vector<int>> edge_allocation;
     // number of value blocks per segement needs
-    unordered_map<segid_t, int> n_value_blocks_seg_need;
+    unordered_map<segid_t, int> num_value_blocks_seg_need;
     // number of value blocks per segement using now
-    unordered_map<segid_t, int> n_value_blocks_seg_using;
+    unordered_map<segid_t, int> num_value_blocks_seg_using;
 
     // pointing to key area of gpu mem kvstore
     vertex_t *d_vertex_addr;
@@ -100,17 +100,17 @@ private:
 public:
     GPUCache(vertex_t *d_v_a, edge_t *d_e_a, vertex_t *v_a, edge_t *e_a, const map<segid_t, rdf_segment_meta_t> &rdf_metas): d_vertex_addr(d_v_a), d_edge_addr(d_e_a), vertex_addr(v_a), edge_addr(e_a), rdf_metas(rdf_metas) {
         // step 1: calculate capacities
-        n_seg = rdf_metas.size();
+        seg_num = rdf_metas.size();
 
         cap_gpu_slots = global_gpu_num_keys_million * 1000 * 1000;
         cap_gpu_buckets = cap_gpu_slots / GStore::ASSOCIATIVITY;
         cap_gpu_entries = (GiB2B(global_gpu_kvstore_size_gb) - cap_gpu_slots * sizeof(vertex_t)) / sizeof(edge_t);
 
-        n_buckets_per_block = MiB2B(global_gpu_key_block_size_mb) / (sizeof(vertex_t) * GStore::ASSOCIATIVITY);
-        n_entries_per_block = MiB2B(global_gpu_value_block_size_mb) / sizeof(edge_t);
+        num_buckets_per_block = MiB2B(global_gpu_key_block_size_mb) / (sizeof(vertex_t) * GStore::ASSOCIATIVITY);
+        num_entries_per_block = MiB2B(global_gpu_value_block_size_mb) / sizeof(edge_t);
 
-        cap_gpu_key_blocks = cap_gpu_buckets / n_buckets_per_block;
-        cap_gpu_value_blocks = cap_gpu_entries / n_entries_per_block;
+        cap_gpu_key_blocks = cap_gpu_buckets / num_buckets_per_block;
+        cap_gpu_value_blocks = cap_gpu_entries / num_entries_per_block;
 
         // step 2: init free_key/value blocks
         for (int i = 0; i < cap_gpu_key_blocks; i++) {
@@ -122,15 +122,15 @@ public:
 
         // step 3: init vertex/edge allocations
         for (auto it = rdf_metas.begin(); it != rdf_metas.end(); it++) {
-            int key_blocks_need = ceil((double)it->second.get_total_num_buckets() / n_buckets_per_block);
+            int key_blocks_need = ceil((double)it->second.get_total_num_buckets() / num_buckets_per_block);
             vertex_allocation.insert(std::make_pair(it->first, vector<int>(key_blocks_need, BLOCK_ID_ERR)));
-            n_key_blocks_seg_need.insert(std::make_pair(it->first, key_blocks_need));
-            n_key_blocks_seg_using.insert(std::make_pair(it->first, 0));
+            num_key_blocks_seg_need.insert(std::make_pair(it->first, key_blocks_need));
+            num_key_blocks_seg_using.insert(std::make_pair(it->first, 0));
 
-            int value_blocks_need = ceil((double)it->second.num_edges / n_entries_per_block);
+            int value_blocks_need = ceil((double)it->second.num_edges / num_entries_per_block);
             edge_allocation.insert(std::make_pair(it->first, vector<int>(value_blocks_need, BLOCK_ID_ERR)));
-            n_value_blocks_seg_need.insert(std::make_pair(it->first, value_blocks_need));
-            n_value_blocks_seg_using.insert(std::make_pair(it->first, 0));
+            num_value_blocks_seg_need.insert(std::make_pair(it->first, value_blocks_need));
+            num_value_blocks_seg_using.insert(std::make_pair(it->first, 0));
         }
-    }
+    } // end of constructor
 };
