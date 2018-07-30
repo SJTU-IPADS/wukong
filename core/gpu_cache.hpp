@@ -274,4 +274,24 @@ public:
             return true;
         return false;
     }
+
+    // return the bucket offset of each key block in a segment
+    vector<uint64_t> get_seg_vertex_headers(segid_t seg) {
+        ASSERT(num_key_blocks_seg_using[seg] == num_key_blocks_seg_need[seg]);
+        vector<uint64_t> headers;
+        for (auto block_id : vertex_allocation[seg]) {
+            headers.push_back(block_id * num_buckets_per_block);
+        }
+        return headers;
+    }
+
+    // return the entry offset of each value block in a segment
+    vector<uint64_t> get_seg_edge_headers(segid_t seg) {
+        ASSERT(num_value_blocks_seg_using[seg] == num_value_blocks_seg_need[seg]);
+        vector<uint64_t> headers;
+        for (auto block_id : edge_allocation[seg]) {
+            headers.push_back(block_id * num_entries_per_block);
+        }
+        return headers;
+    }
 };
