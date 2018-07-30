@@ -1659,8 +1659,6 @@ public:
             }
             else{
                 record_set.insert(id);
-                if(record_set.size() % 100000 == 0)
-                    cout << record_set.size() << endl;
 
                 if (tyscount.find(type) == tyscount.end())
                     tyscount[type] = 1;
