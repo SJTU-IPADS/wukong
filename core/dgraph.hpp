@@ -507,6 +507,7 @@ class DGraph {
         ifs.close();
         return count;
     }
+
 #endif
 
     uint64_t inline floor(uint64_t original, uint64_t n) {
@@ -622,6 +623,10 @@ public:
         gstore.finalize_segment_metas();
         gstore.free_triples_map();
 
+        // synchronize segment metadata among servers
+        extern TCP_Adaptor *con_adaptor;
+        gstore.sync_metadata(con_adaptor);
+
 #else   // without GPU
         start = timer::get_usec();
         #pragma omp parallel for num_threads(global_num_engines)
@@ -657,15 +662,6 @@ public:
         logstream(LOG_INFO) << "#" << sid << ": loading DGraph is finished" << LOG_endl;
         gstore.print_mem_usage();
     }
-
-#ifdef USE_GPU
-
-    // Synchronize predicate segment metadata among servers
-    void sync_metadata(TCP_Adaptor *tcp_ad) {
-        gstore.sync_metadata(tcp_ad);
-    }
-
-#endif
 
 #ifdef DYNAMIC_GSTORE
     int64_t dynamic_load_data(string dname, bool check_dup) {

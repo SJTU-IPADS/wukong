@@ -132,18 +132,14 @@ main(int argc, char *argv[])
     RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mem, global_num_servers, global_num_threads);
     TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_num_threads, global_data_port_base);
 
+    // init control communicaiton
+    con_adaptor = new TCP_Adaptor(sid, host_fname, global_num_proxies, global_ctrl_port_base);
+
     // load string server (read-only, shared by all proxies and all engines)
     String_Server str_server(global_input_folder);
 
     // load RDF graph (shared by all engines and proxies)
     DGraph dgraph(sid, mem, &str_server, global_input_folder);
-
-    // init control communicaiton
-    con_adaptor = new TCP_Adaptor(sid, host_fname, global_num_proxies, global_ctrl_port_base);
-
-#ifdef USE_GPU
-    dgraph.sync_metadata(con_adaptor);
-#endif
 
     // prepare statistics for SPARQL optimizer
     data_statistic stat(sid);

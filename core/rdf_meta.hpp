@@ -28,6 +28,7 @@
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/map.hpp>
 #include <map>
+#include <sstream>
 using namespace std;
 using namespace boost::archive;
 
@@ -130,7 +131,9 @@ struct segid_t {
     }
 
     string stringify() {
-        return "[" + index + " | " + dir + " | " + pid + "]";
+        ostringstream ss;
+        ss << "[" << index << "|" << pid << "|" << dir << "]";
+        return ss.str();
     }
 
     template <typename Archive>
