@@ -139,11 +139,11 @@ public:
         }
     } // end of constructor
 
-    void evict_key_blocks(const vector<segid_t> &conflicts, segid_t seg_to_load, segid_t seg_using, int num_need_blocks) {
+    void evict_key_blocks(const vector<segid_t> &conflicts, segid_t seg_to_load, segid_t seg_in_pattern, int num_need_blocks) {
         // step 1: traverse segments in key cache, evict segments that are not in conflicts or not to load/using
         for (auto it = segs_in_key_cache.begin(); it != segs_in_key_cache.end(); ) {
             segid_t seg = *it;
-            if (seg == seg_to_load || seg == seg_using) {
+            if (seg == seg_to_load || seg == seg_in_pattern) {
                 it++;
                 continue;
             }
@@ -174,7 +174,7 @@ public:
         for (auto rit = conflicts.rbegin(); rit != conflicts.rend(); rit++) {
             segid_t seg = *rit;
             // skip segments not in cache or to load or using now
-            if (num_key_blocks_seg_using[seg] == 0 || seg == seg_to_load || seg == seg_using) {
+            if (num_key_blocks_seg_using[seg] == 0 || seg == seg_to_load || seg == seg_in_pattern) {
                 continue;
             }
 
@@ -203,11 +203,11 @@ public:
         logstream(LOG_ERROR) << "GPU Cache: No enough free key blocks!" << LOG_endl;
     } // end of evict_key_blocks
 
-    void evict_value_blocks(const vector<segid_t> &conflicts, segid_t seg_to_load, segid_t seg_using, int num_need_blocks) {
+    void evict_value_blocks(const vector<segid_t> &conflicts, segid_t seg_to_load, segid_t seg_in_pattern, int num_need_blocks) {
         // step 1: traverse segments in value cache, evict segments that are not in conflicts or not to load/using
         for (auto it = segs_in_value_cache.begin(); it != segs_in_value_cache.end(); ) {
             segid_t seg = *it;
-            if (seg == seg_to_load || seg == seg_using) {
+            if (seg == seg_to_load || seg == seg_in_pattern) {
                 it++;
                 continue;
             }
@@ -238,7 +238,7 @@ public:
         for (auto rit = conflicts.rbegin(); rit != conflicts.rend(); rit++) {
             segid_t seg = *rit;
             // skip segments not in cache or to load or using now
-            if (num_value_blocks_seg_using[seg] == 0 || seg == seg_to_load || seg == seg_using) {
+            if (num_value_blocks_seg_using[seg] == 0 || seg == seg_to_load || seg == seg_in_pattern) {
                 continue;
             }
 
