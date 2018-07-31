@@ -20,6 +20,7 @@
  *
  */
 
+#ifdef USE_GPU
 #pragma once
 
 #include <list>
@@ -31,6 +32,7 @@
 #include "rdf_meta.hpp"
 #include "gstore.hpp"
 #include "unit.hpp"
+#include "gpu_utils.hpp"
 
 using namespace std;
 
@@ -335,7 +337,19 @@ public:
      * seg_block: the block index of the segment
      * block_id: the free block on GPU cache
      */
-    void load_edge_block(segid_t seg, int seg_block_idx, int block_id, cudaStream_t stream_id) {}
+    void load_edge_block(segid_t seg, int seg_block_idx, int block_id, cudaStream_t stream_id) {
+        // the number of entries in this seg block
+        uint64_t data_size = 0;
+        if (seg_block_idx == (num_value_blocks_seg_need[seg] - 1))
+            data_size = rdf_metas[seg].num_edges % num_entries_per_block;
+        else
+            data_size = num_entries_per_block;
+        CUDA_ASSERT(cudaMemcpyAsync(d_edge_addr + block_id * num_entries_per_block,
+                                   edge_addr + rdf_metas[seg].edge_start + seg_block_idx * num_entries_per_block,
+                                   sizeof(edge_t) * data_size,
+                                   cudaMemcpyHostToDevice,
+                                   stream_id));
+    }
 
     void load_segment(segid_t seg_to_load, segid_t seg_in_pattern, SPARQLQuery &req, cudaStream_t stream_id, bool preload) {
         // step 1.1: evict key blocks
@@ -403,3 +417,4 @@ public:
         }
     }
 };
+#endif
