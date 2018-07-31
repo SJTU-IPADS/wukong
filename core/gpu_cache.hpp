@@ -200,7 +200,7 @@ public:
                 }
             }
         } // end of worst case
-        logstream(LOG_ERROR) << "GPU Cache: No enough free key blocks!" << LOG_endl;
+        logstream(LOG_ERROR) << "GPU Cache: evict_key_blocks() could not provide enough free key blocks." << LOG_endl;
     } // end of evict_key_blocks
 
     void evict_value_blocks(const vector<segid_t> &conflicts, segid_t seg_to_load, segid_t seg_in_pattern, int num_need_blocks) {
@@ -264,7 +264,7 @@ public:
                 }
             }
         } // end of worst case
-        logstream(LOG_ERROR) << "GPU Cache: No enough free value blocks!" << LOG_endl;
+        logstream(LOG_ERROR) << "GPU Cache: evict_value_blocks() could not provide enough free value blocks." << LOG_endl;
     } // end of evict_value_blocks
 
     // check whether a segment is in cache
@@ -321,5 +321,85 @@ public:
 
         ASSERT(free_key_blocks.size() == cap_gpu_key_blocks);
         ASSERT(free_value_blocks.size() == cap_gpu_value_blocks);
+    }
+
+    /* load one key block of a segment to a free block
+     * seg: the segment
+     * seg_block: the block index of the segment
+     * block_id: the free block on GPU cache
+     */
+    void load_vertex_block(segid_t seg, int seg_block_idx, int block_id, cudaStream_t stream_id) {}
+
+    /* load one value block of a segment to a free block
+     * seg: the segment
+     * seg_block: the block index of the segment
+     * block_id: the free block on GPU cache
+     */
+    void load_edge_block(segid_t seg, int seg_block_idx, int block_id, cudaStream_t stream_id) {}
+
+    void load_segment(segid_t seg_to_load, segid_t seg_in_pattern, SPARQLQuery &req, cudaStream_t stream_id, bool preload) {
+        // step 1.1: evict key blocks
+        int num_need_key_blocks = num_key_blocks_seg_need[seg_to_load] - num_key_blocks_seg_using[seg_to_load];
+        if (free_key_blocks.size() < num_need_key_blocks) {
+            evict_key_blocks(req.segments, seg_to_load, seg_in_pattern, num_need_key_blocks);
+        }
+        // step 1.2: load key blocks
+        for (int i = 0; i < num_key_blocks_seg_need[seg_to_load]; i++) {
+            // skip the blocks that are already loaded
+            if (vertex_allocation[seg_to_load][i] != BLOCK_ID_ERR)
+                continue;
+
+            if (free_key_blocks.empty()) {
+                // abort preload
+                if (preload) {
+                    logstream(LOG_WARNING) << "GPU Cache: No enough free key blocks. Preload is not complete. segment_to_load: " << seg_to_load.stringify() << ", seg_in_pattern: " << seg_in_pattern.stringify() << ", query id: " << req.id << LOG_endl;
+                    break;
+                }
+                // crash if it is not preload
+                logstream(LOG_ERROR) << "GPU Cache: No enough free key blocks. segment_to_load: " << seg_to_load.stringify() << ", seg_in_pattern: " << seg_in_pattern.stringify() << ", query id: " << req.id << LOG_endl;
+                ASSERT(false);
+            }
+            // load one block
+            int block_id = free_key_blocks.front();
+            free_key_blocks.pop_front();
+            load_vertex_block(seg_to_load, i, block_id, stream_id);
+            vertex_allocation[seg][i] = block_id;
+            if (num_key_blocks_seg_using[seg] == 0) {
+                segs_in_key_cache.push_back(seg_to_load);
+            }
+            num_key_blocks_seg_using[seg]++;
+        }
+
+        //step 2.1: evict value blocks
+        int num_need_value_blocks = num_value_blocks_seg_need[seg_to_load] - num_value_blocks_seg_using[seg_to_load];
+        if (free_value_blocks.size() < num_need_value_blocks) {
+            evict_value_blocks(req.segments, seg_to_load, seg_in_pattern, num_need_value_blocks);
+        }
+        // step 2.2: load value blocks
+        for (int i = 0; i < num_value_blocks_seg_need[seg_to_load]; i++) {
+            // skip the blocks that are already loaded
+            if (edge_allocation[seg_to_load][i] != BLOCK_ID_ERR)
+                continue;
+
+            if (free_value_blocks.empty()) {
+                // abort preload
+                if (preload) {
+                    logstream(LOG_WARNING) << "GPU Cache: No enough free value blocks. Preload is not complete. segment_to_load: " << seg_to_load.stringify() << ", seg_in_pattern: " << seg_in_pattern.stringify() << ", query id: " << req.id << LOG_endl;
+                    break;
+                }
+                // crash if it is not preload
+                logstream(LOG_ERROR) << "GPU Cache: No enough free value blocks. segment_to_load: " << seg_to_load.stringify() << ", seg_in_pattern: " << seg_in_pattern.stringify() << ", query id: " << req.id << LOG_endl;
+                ASSERT(false);
+            }
+            // load one block
+            int block_id = free_value_blocks.front();
+            free_value_blocks.pop_front();
+            load_edge_block(seg_to_load, i, block_id, stream_id);
+            edge_allocation[seg][i] = block_id;
+            if (num_value_blocks_seg_using[seg] == 0) {
+                segs_in_value_cache.push_back(seg_to_load);
+            }
+            num_value_blocks_seg_using[seg]++;
+        }
     }
 };
