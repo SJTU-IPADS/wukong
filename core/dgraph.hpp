@@ -633,6 +633,7 @@ public:
         for (int i = 0; i < num_dfiles; i++) {
             int64_t cnt = 0;
 
+            int64_t tid = omp_get_thread_num();
             /// FIXME: support HDFS
             ifstream file(dfiles[i]);
             sid_t s, p, o;
@@ -642,12 +643,12 @@ public:
                 check_sid(s); check_sid(p); check_sid(o);
 
                 if (sid == mymath::hash_mod(s, global_num_servers)) {
-                    gstore.insert_triple_out(triple_t(s, p, o), check_dup);
+                    gstore.insert_triple_out(triple_t(s, p, o), check_dup, tid);
                     cnt ++;
                 }
 
                 if (sid == mymath::hash_mod(o, global_num_servers)) {
-                    gstore.insert_triple_in(triple_t(s, p, o), check_dup);
+                    gstore.insert_triple_in(triple_t(s, p, o), check_dup, tid);
                     cnt ++;
                 }
             }

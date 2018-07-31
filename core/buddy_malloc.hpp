@@ -12,7 +12,7 @@ public:
     virtual void init(void *start, uint64_t size, uint64_t n) = 0;
 
     // return value: (the ptr which can write value - start)
-    virtual uint64_t malloc(uint64_t size, int64_t tid = -1) = 0;
+    virtual uint64_t malloc(uint64_t size, int64_t tid) = 0;
 
     //the idx is exact the value return by alloc
     virtual void free(uint64_t idx) = 0;
@@ -85,6 +85,8 @@ private:
     // a statistic for print_memory_usage()
     uint64_t usage_counter[level_up_bound + 1];
 
+    bool dynamic_load = false;
+
     //get the certain index of large freelist
     inline uint64_t level_to_index_large(uint64_t level) {
         assert(level >= level_dividing_line && level <= level_up_bound);
@@ -92,13 +94,15 @@ private:
     }
 
     //get the certain index of small freelist
-    inline uint64_t level_to_index_small(uint64_t level, int64_t tid = -1) {
+    inline uint64_t level_to_index_small(uint64_t level, int64_t tid) {
         assert(level <= level_dividing_line && level >= level_low_bound);
-        if (tid < 0)
-            return level - level_low_bound;
-        else
-            return (level - level_low_bound) + (level_dividing_line - level_low_bound + 1) * tid;
+        return (level - level_low_bound) + (level_dividing_line - level_low_bound + 1) * tid;
 
+    }
+
+    inline uint64_t level_to_index_small(uint64_t level) {
+        assert(level <= level_dividing_line && level >= level_low_bound);
+        return level - level_low_bound;
     }
 
     //return ptr from index
@@ -125,8 +129,8 @@ private:
 
     // return whether there exit free block for need level or not
     inline bool is_empty_small(uint64_t level, int64_t tid) {
-        if (tid < 0)
-            return small_free_list[level_to_index_small(level)]->next_free_idx == ptr_to_idx((char*)small_free_list[level_to_index_small(level, tid)]);
+        if (dynamic_load)
+            return small_free_list[level_to_index_small(level)]->next_free_idx == ptr_to_idx((char*)small_free_list[level_to_index_small(level)]);
         else
             return tmp_small_free_list[level_to_index_small(level, tid)]->next_free_idx == ptr_to_idx((char*) tmp_small_free_list[level_to_index_small(level, tid)]);
     }
@@ -190,8 +194,8 @@ private:
 
         header *free_header;
         // system initialization stage or not
-        if (tid < 0)
-            free_header = small_free_list[level_to_index_small(level, tid)];
+        if (dynamic_load)
+            free_header = small_free_list[level_to_index_small(level)];
         else
             free_header = tmp_small_free_list[level_to_index_small(level, tid)];
 
@@ -277,8 +281,8 @@ private:
                 //put into freelist
                 mark_free_small(new_heap, free_level, tid);
             }
-            if (tid < 0)
-                free_idx = small_free_list[level_to_index_small(free_level, tid)]->next_free_idx;
+            if (dynamic_load)
+                free_idx = small_free_list[level_to_index_small(free_level)]->next_free_idx;
             else
                 free_idx = tmp_small_free_list[level_to_index_small(free_level, tid)]->next_free_idx;
             return free_idx;
@@ -335,7 +339,7 @@ private:
         uint64_t free_level;
         uint64_t free_idx = UINT64_MAX;
         // find the smallest available block
-        if (tid < 0)
+        if (dynamic_load)
             pthread_spin_lock(&malloc_free_lock_small);
 
         free_idx = get_free_idx_small(need_level, free_level, tid);
@@ -351,7 +355,7 @@ private:
 
         mark_used((header*)idx_to_ptr(free_idx), need_level);
 
-        if (tid < 0)
+        if (dynamic_load)
             pthread_spin_unlock(&malloc_free_lock_small);
 
         return get_value_idx(free_idx);
@@ -465,7 +469,7 @@ public:
     }
 
     // return value: an index of starting unit
-    uint64_t malloc(uint64_t size, int64_t tid = -1) {
+    uint64_t malloc(uint64_t size, int64_t tid) {
         uint64_t need_level = size_to_level(size);
 
         pthread_spin_lock(&counter_lock);
@@ -519,6 +523,7 @@ public:
         }
         //free the array tmp_small_free_list
         delete[]tmp_small_free_list;
+        dynamic_load = true;
     }
 
     uint64_t sz_to_blksz (uint64_t size) {
@@ -538,7 +543,3 @@ public:
         logstream(LOG_INFO) << "Size count: " << size_count << LOG_endl << LOG_endl;
     }
 };
-
-
-
-
