@@ -111,8 +111,12 @@ struct segid_t {
     int dir;  // direction of triples in the segment
     sid_t pid;  // predicate id
     segid_t(): index(0), dir(0), pid(0) { }
-
     segid_t(int idx, sid_t p, int d) : index(idx), pid(p), dir(d) { }
+
+    bool operator == (const segid_t &s) const {
+        return (index == s.index && dir == s.dir && pid == s.pid);
+    }
+
     bool operator < (const segid_t& segid) const {
         if (pid < segid.pid)
             return true;
@@ -123,6 +127,10 @@ struct segid_t {
                 return true;
         }
         return false;
+    }
+
+    string stringify() {
+        return "[" + index + " | " + dir + " | " + pid + "]";
     }
 
     template <typename Archive>
