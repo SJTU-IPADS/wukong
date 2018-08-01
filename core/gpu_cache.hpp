@@ -129,12 +129,12 @@ public:
 
         // step 3: init vertex/edge allocations
         for (auto it = rdf_metas.begin(); it != rdf_metas.end(); it++) {
-            int key_blocks_need = ceil((double)it->second.get_total_num_buckets() / num_buckets_per_block);
+            int key_blocks_need = ceil(((double)it->second.get_total_num_buckets()) / num_buckets_per_block);
             vertex_allocation.insert(std::make_pair(it->first, vector<int>(key_blocks_need, BLOCK_ID_ERR)));
             num_key_blocks_seg_need.insert(std::make_pair(it->first, key_blocks_need));
             num_key_blocks_seg_using.insert(std::make_pair(it->first, 0));
 
-            int value_blocks_need = ceil((double)it->second.num_edges / num_entries_per_block);
+            int value_blocks_need = ceil(((double)it->second.num_edges) / num_entries_per_block);
             edge_allocation.insert(std::make_pair(it->first, vector<int>(value_blocks_need, BLOCK_ID_ERR)));
             num_value_blocks_seg_need.insert(std::make_pair(it->first, value_blocks_need));
             num_value_blocks_seg_using.insert(std::make_pair(it->first, 0));
@@ -323,14 +323,91 @@ public:
 
         ASSERT(free_key_blocks.size() == cap_gpu_key_blocks);
         ASSERT(free_value_blocks.size() == cap_gpu_value_blocks);
-    }
+    } // end of reset
 
     /* load one key block of a segment to a free block
      * seg: the segment
      * seg_block: the block index of the segment
      * block_id: the free block on GPU cache
+     * vertex blocks layout: main | main | ... | main (+ indirect) | indirect | ... | indirect
      */
-    void load_vertex_block(segid_t seg, int seg_block_idx, int block_id, cudaStream_t stream_id) {}
+    void load_vertex_block(segid_t seg, int seg_block_idx, int block_id, cudaStream_t stream_id) {
+        // step 1: calculate direct size
+        int end_main_block_idx = ceil(((double)rdf_metas[seg].num_buckets) / num_buckets_per_block) - 1;
+        int end_indirect_block_idx = ceil(((double)rdf_metas[seg].get_total_num_buckets()) / num_buckets_per_block) - 1;
+
+        uint64_t main_size = 0;
+        uint64_t indirect_size = 0;
+        uint64_t indirect_start = 0;
+
+        if (seg_block_idx == end_main_block_idx) {
+            // the loading block is the last block contains main headers, may contain indirect headers
+            main_size = rdf_metas[seg].num_buckets % num_buckets_per_block;
+            indirect_start = main_size;
+        } else if (seg_block_idx < end_main_block_idx) {
+            // the loading block contains main header (not tail)
+            main_size = num_buckets_per_block;
+        } else {
+            // the loading block contains indirect headers
+            main_size = 0;
+        }
+        // step 2: calculate indirect size
+        if (seg_block_idx < end_main_block_idx) {
+            indirect_size = 0;
+        } else if (seg_block_idx == end_indirect_block_idx) {
+            indirect_size = rdf_metas[seg].get_total_num_buckets() % num_buckets_per_block - indirect_start;
+        } else if (seg_block_idx < end_indirect_block_idx) {
+            indirect_size = num_buckets_per_block - indirect_start;
+        }
+        // step 3: load direct
+        if (main_size != 0) {
+            // TODO is the second parameter right?
+            CUDA_ASSERT(cudaMemcpyAsync(
+                d_vertex_addr + block_id * num_buckets_per_block * GStore::ASSOCIATIVITY,
+                vertex_addr + (rdf_metas[seg].bucket_start + seg_block_idx * num_buckets_per_block) * GStore::ASSOCIATIVITY,
+                sizeof(vertex_t) * main_size * GStore::ASSOCIATIVITY,
+                cudaMemcpyHostToDevice,
+                stream_id));
+        }
+        // step 4: load indirect
+        if (indirect_size != 0) {
+            // remain number of buckets to load
+            uint64_t remain = indirect_size;
+
+            // step 4.1: locate start ext bucket index
+            uint64_t start_bucket_idx = 0;
+            if (seg_block_idx != end_main_block_idx) {
+                start_bucket_idx = seg_block_idx * num_buckets_per_block - rdf_metas[seg].num_buckets;
+            }
+            // step 4.2 traverse the ext_bucket_list and load
+            uint64_t passed_buckets = 0;
+
+            for (int i = 0; i < rdf_metas[seg].ext_list_sz; i++) {
+                ext_bucket_extent_t ext = rdf_metas[seg].ext_bucket_list[i];
+                /* load from this ext
+                 * inside_off: the offset inside the ext
+                 * inside_load: number of buckets to be loaded from this ext
+                 */
+                if ((passed_buckets + ext.num_ext_buckets) > start_bucket_idx) {
+                    uint64_t inside_off = start_bucket_idx - passed_buckets;
+                    uint64_t inside_load = ext.num_ext_buckets - inside_off;
+                    if (inside_load > remain) inside_load = remain;
+                    uint64_t dst_off = (block_id * num_buckets_per_block + indirect_start + indirect_size - remain) * GStore::ASSOCIATIVITY;
+                    uint64_t src_off = (ext.start + inside_off) * GStore::ASSOCIATIVITY;
+                    CUDA_ASSERT(cudaMemcpyAsync(d_vertex_addr + dst_off, vertex_addr + src_off,
+                        sizeof(vertex_t) * inside_load * GStore::ASSOCIATIVITY,
+                        cudaMemcpyHostToDevice, stream_id));
+                    remain -= inside_load;
+                    start_bucket_idx += inside_load;
+                    // load complete
+                    if (remain == 0) {
+                        break;
+                    }
+                }
+                passed_buckets += ext.num_ext_buckets;
+            }
+        }
+    } // end of load_vertex_block
 
     /* load one value block of a segment to a free block
      * seg: the segment
@@ -349,7 +426,7 @@ public:
                                    sizeof(edge_t) * data_size,
                                    cudaMemcpyHostToDevice,
                                    stream_id));
-    }
+    } // end of load_edge_block
 
     void load_segment(segid_t seg_to_load, segid_t seg_in_pattern, SPARQLQuery &req, cudaStream_t stream_id, bool preload) {
         // step 1.1: evict key blocks
@@ -415,6 +492,6 @@ public:
             }
             num_value_blocks_seg_using[seg]++;
         }
-    }
+    } // end of load_segment
 };
 #endif
