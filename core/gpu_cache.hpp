@@ -163,7 +163,6 @@ public:
                         it = segs_in_key_cache.erase(it);
                     }
                     free_key_blocks.push_back(block_id);
-                    // TODO global stat, wukong+g line 173
 
                     if (free_key_blocks.size() >= num_need_blocks) {
                         return;
@@ -194,7 +193,6 @@ public:
                         }
                     }
                     free_key_blocks.push_back(block_id);
-                    // TODO global stat, wukong+g line 217
 
                     if (free_key_blocks.size() >= num_need_blocks) {
                         return;
@@ -227,7 +225,6 @@ public:
                         it = segs_in_value_cache.erase(it);
                     }
                     free_value_blocks.push_back(block_id);
-                    // TODO global stat, wukong+g line 261
 
                     if (free_value_blocks.size() >= num_need_blocks) {
                         return;
@@ -258,7 +255,6 @@ public:
                         }
                     }
                     free_value_blocks.push_back(block_id);
-                    // TODO global stat, wukong+g line 299
 
                     if (free_value_blocks.size() >= num_need_blocks) {
                         return;
@@ -361,7 +357,6 @@ public:
         }
         // step 3: load direct
         if (main_size != 0) {
-            // TODO is the second parameter right?
             CUDA_ASSERT(cudaMemcpyAsync(
                 d_vertex_addr + block_id * num_buckets_per_block * GStore::ASSOCIATIVITY,
                 vertex_addr + (rdf_metas[seg].bucket_start + seg_block_idx * num_buckets_per_block) * GStore::ASSOCIATIVITY,
