@@ -22,14 +22,11 @@
 
 #pragma once
 
-
 #ifndef SIMPLE_MAP
 #define SIMPLE_MAP
 
 #include <cstdint>
 #include <iostream>
-
-//#include "port/atomic.h"
 
 #define S_BUCKET_NUM 64
 
@@ -51,7 +48,7 @@ class SimpleMap {
         return murmur_hash64A(key, 0xdeadbeef) % S_BUCKET_NUM;
     }
 
-    static inline uint64_t murmur_hash64A (uint64_t key, unsigned int seed )  {
+    static inline uint64_t murmur_hash64A (uint64_t key, unsigned int seed)  {
 
         const uint64_t m = 0xc6a4a7935bd1e995;
         const int r = 47;
@@ -89,27 +86,23 @@ class SimpleMap {
     }
 
 public:
-    T   dummy_val;
-    T   *record_sets;
+    T dummy_val;
+    T *record_sets;
     int size;
 
-    //  SimpleMap(char *ptr,int
-    SimpleMap(T d, int max_capacity = -1)
-        : size(0),
-          dummy_val(d)
-    {
+    SimpleMap(T d, int max_capacity = -1): size(0), dummy_val(d) {
         for (int i = 0; i < S_BUCKET_NUM; ++i)
             slot_empty[i] = true;
-        if (max_capacity > 0) {
+
+        if (max_capacity > 0)
             record_sets = new T[max_capacity];
-        } else
+        else
             record_sets = NULL;
     }
 
     void insert(int key, T val) {
-
         int hash = get_hash(key);
-        //    std::cout<<hash<<std::endl;
+
         if (slot_empty[hash]) {
             slots[hash].key = key;
             slots[hash].val = val;
@@ -120,7 +113,7 @@ public:
         }
 
         simple_bucket *b = &(slots[hash]);
-        //    std::cout<<"second case\n";
+
         while (b->next != NULL)
             b = (b->next);
 
@@ -128,14 +121,15 @@ public:
         nb->key = key;
         nb->val = val;
         nb->next = NULL;
-        //    std::cout<<"second case alloc\n";
+
         /* a fence */
         asm volatile("mfence":::"memory");
+
         b->next = nb;
         size += 1;
     }
 
-    T  &operator[] (const int key) {
+    T &operator[] (const int key) {
         int hash = get_hash(key);
 
         if (slot_empty[hash])
@@ -144,6 +138,7 @@ public:
         simple_bucket &b = slots[hash];
         if (b.key == key)
             return b.val;
+
         simple_bucket *p = b.next;
         while (p != NULL) {
             if (p->key == key)
@@ -152,7 +147,6 @@ public:
         }
 
         return dummy_val;
-
     }
 };
 

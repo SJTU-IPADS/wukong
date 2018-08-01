@@ -1403,7 +1403,7 @@ out:
                     sub_query.pid = r.id;
                     // start from the next engine thread
                     int dst_tid = (tid + j + 1 - global_num_proxies) % global_num_engines
-                                    + global_num_proxies;
+                                  + global_num_proxies;
                     sub_query.tid = j;
                     sub_query.mt_factor = r.mt_factor;
                     sub_query.pattern_group.parallel = true;
