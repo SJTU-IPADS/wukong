@@ -3,7 +3,10 @@
 #include <iostream>
 #include <iomanip>
 #include <config.hpp>
+
+#ifdef USE_JEMALLOC
 #include <jemalloc/jemalloc.h>
+#endif
 
 // NOTICE: any implentation of this interface should be *tread-safe*
 class Malloc_Interface {
@@ -541,195 +544,176 @@ public:
     }
 };
 
-
-static void *extent_alloc_hook(extent_hooks_t *extent_hooks, void *new_addr, size_t size,size_t alignment, bool *zero, bool *commit, unsigned arena_ind);
-  static bool extent_dalloc_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    bool committed, unsigned arena_ind);
-  static void extent_destroy_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    bool committed, unsigned arena_ind);
-  static bool extent_commit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind);
-  static bool extent_decommit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind);
-  static bool extent_purge_lazy_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind);
-  static bool extent_purge_forced_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind);
-  static bool extent_split_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t size_a, size_t size_b, bool committed, unsigned arena_ind);
-  static bool extent_merge_hook(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
-    void *addr_b, size_t size_b, bool committed, unsigned arena_ind);
-
-
+#ifdef USE_JEMALLOC
 class JeMalloc :public Malloc_Interface{
 private:
+    //
     vector<unsigned> arena_inds;
     vector<unsigned> tcache_inds;
-    uint64_t memsize = 0;
+    uint64_t memsize;
     extent_hooks_t *new_hooks;
 public:
-    static char *gstart_ptr;
-    static char *gend_ptr;
-    static char *gtop_of_heap;
-    static uint64_t amount_sz;
+    static char *start_ptr;
+    static char *end_ptr;
+    static char *top_of_heap;
     static pthread_spinlock_t jelock;
 
+    // custom extent hooks which comprises function pointers
     extent_hooks_t hooks = {
-        extent_alloc_hook,
-        extent_dalloc_hook,
-        extent_destroy_hook,
-        extent_commit_hook,
-        extent_decommit_hook,
-        extent_purge_lazy_hook,
-        extent_purge_forced_hook,
-        extent_split_hook,
-        extent_merge_hook
+        JeMalloc::extent_alloc_hook,
+        JeMalloc::extent_dalloc_hook,
+        JeMalloc::extent_destroy_hook,
+        JeMalloc::extent_commit_hook,
+        JeMalloc::extent_decommit_hook,
+        JeMalloc::extent_purge_lazy_hook,
+        JeMalloc::extent_purge_forced_hook,
+        JeMalloc::extent_split_hook,
+        JeMalloc::extent_merge_hook
     };
 
+    //hook functions which manage extent lifetime
+    static void *extent_alloc_hook(extent_hooks_t *extent_hooks, void *new_addr, size_t size, size_t alignment, bool *zero, bool *commit, unsigned arena_ind){
+        //logstream(LOG_INFO) << __func__ << "(extent_hooks = " << extent_hooks << " , new_addr = " << new_addr << ", size = " << size <<  " , alignment = " << alignment << " , *zero = " << *zero << " , *commit = " << *commit << " , arena_ind = " << arena_ind << ")" << LOG_endl;
+
+        pthread_spin_lock(&jelock);
+        char *ret = (char*)top_of_heap;
+        //align the return address
+        if((uintptr_t)ret % alignment != 0) {
+            ret = ret + (alignment- (uintptr_t)ret % alignment);
+        }
+        if ((char*)ret + size >= (char*)end_ptr) {
+            logstream(LOG_ERROR) << "Out of memory, can not allocate any extent." << LOG_endl;
+            ASSERT(false);
+            pthread_spin_unlock(&jelock);
+            return NULL;
+        }
+        top_of_heap = ret + size;
+        pthread_spin_unlock(&jelock);
+        if (*zero) //extent should be zeroed
+            memset(ret, size, 0);
+
+        if((uintptr_t)ret % alignment != 0) {
+            logstream(LOG_ERROR) << "Alignment error." << LOG_endl;
+        }
+        return ret;
+    }
+
+    static bool extent_dalloc_hook(extent_hooks_t *extent_hooks, void *addr, size_t size, bool committed, unsigned arena_ind) {
+        //logstream(LOG_INFO) << __func__ << "(extent_hooks = " << extent_hooks << " , addr = " << addr << ", size = " << size <<  " , committed = " << committed << " , arena_ind = " << arena_ind << ")" << LOG_endl;
+
+        // opt out from dalloc
+        return true;
+    }
+
+    static void extent_destroy_hook(extent_hooks_t *extent_hooks, void *addr, size_t size, bool committed, unsigned arena_ind) {
+        //logstream(LOG_INFO) << __func__ << "(extent_hooks = " << extent_hooks << " , addr = " << addr << ", size = " << size <<  " , committed = " << committed << " , arena_ind = " << arena_ind << ")" << LOG_endl;
+
+        return;
+    }
+
+    static bool extent_commit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size, size_t offset, size_t length, unsigned arena_ind) {
+        //logstream(LOG_INFO) << __func__ << "(extent_hooks = " << extent_hooks << " , addr = " << addr << ", size = " << size <<  " , offset = " << offset << " , length = " << length << " , arena_ind = " << arena_ind << ")" << LOG_endl;
+
+        // commit should always succeed
+        return false;
+    }
+
+    static bool extent_decommit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size, size_t offset, size_t length, unsigned arena_ind) {
+        //logstream(LOG_INFO) << __func__ << "(extent_hooks = " << extent_hooks << " , addr = " << addr << ", size = " << size <<  " , offset = " << offset << " , length = " << length << " , arena_ind = " << arena_ind << ")" << LOG_endl;
+
+        // decommit should always succeed
+        return false;
+    }
+
+    static bool extent_purge_lazy_hook(extent_hooks_t *extent_hooks, void *addr, size_t size, size_t offset, size_t length, unsigned arena_ind) {
+        //logstream(LOG_INFO) << __func__ << "(extent_hooks = " << extent_hooks << " , addr = " << addr << ", size = " << size <<  " , offset = " << offset << " , length = " << length << " , arena_ind = " << arena_ind << ")" << LOG_endl;
+
+        // opt out
+        return true;
+    }
+
+    static bool extent_purge_forced_hook(extent_hooks_t *extent_hooks, void *addr, size_t size, size_t offset, size_t length, unsigned arena_ind) {
+        //logstream(LOG_INFO) << __func__ << "(extent_hooks = " << extent_hooks << " , addr = " << addr << ", size = " << size <<  " , offset = " << offset << " , length = " << length << " , arena_ind = " << arena_ind << ")" << LOG_endl;
+
+        // opt out
+        return true;
+    }
+
+    static bool extent_split_hook(extent_hooks_t *extent_hooks, void *addr, size_t size, size_t size_a, size_t size_b, bool committed, unsigned arena_ind) {
+        //logstream(LOG_INFO) << __func__ << "(extent_hooks = " << extent_hooks << " , addr = " << addr << ", size = " << size <<  " , size_a = " << size_a << " , size_b = " << size_b << " , committed = " << committed << " , arena_ind = " << arena_ind << ")" << LOG_endl;
+
+        // split should always succeed
+        return false;
+    }
+
+    static bool extent_merge_hook(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a, void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
+        //logstream(LOG_INFO) << __func__ << "(extent_hooks = " << extent_hooks << " , addr_a = " << addr_a << ", size_a = " << size_a <<  " , addr_b = " << addr_b << " , size_b = " << size_b << " , committed = " << committed << " , arena_ind = " << arena_ind << ")" << LOG_endl;
+
+        // merge should always succeed
+        return false;
+    }
+
     void init(void *start, uint64_t size, uint64_t n) {
-        gstart_ptr = gtop_of_heap = (char*)start;
+        start_ptr = top_of_heap = (char*)start;
         memsize = size;
-        gend_ptr = gstart_ptr + memsize;
+        end_ptr = start_ptr + memsize;
         pthread_spin_init(&jelock, 0);
 	    size_t hooks_len = sizeof(extent_hooks_t *);
         size_t  sz = sizeof(unsigned);
         arena_inds.resize(n);
         tcache_inds.resize(n);
         new_hooks = &hooks;
-        amount_sz = 0;
+        //create new arena for each engine and install custom extent hooks on it
         for(int i = 0; i < n; i++) {
-           mallctl("arenas.create", (void *)&arena_inds[i], &sz, (void *)&new_hooks, sizeof(extent_hooks_t *));
+            mallctl("arenas.create", (void *)&arena_inds[i], &sz, (void *)&new_hooks, sizeof(extent_hooks_t *));
         }
+        //create thread-specific cache for each engine
         for (int i = 0; i < n; i++) {
             mallctl("tcache.create", (void *)&tcache_inds[i], &sz, NULL,0);
         }
     }
 
     uint64_t malloc(uint64_t size, int64_t tid) {
-
-
+        // malloc from engine's own arena and tcache
         void *ptr = mallocx(size, MALLOCX_ARENA(arena_inds[tid])| MALLOCX_TCACHE(tcache_inds[tid]));
-        if ((char*)ptr < gstart_ptr||(char*)ptr + size > gend_ptr) {
-            cout << "memory range false" << endl;
-            printf("Allocated from new: %p, pre: %p, end: %p", ptr, gstart_ptr, gend_ptr);
+        if ((char*)ptr < start_ptr || (char*)ptr + size > end_ptr) {
+            logstream(LOG_ERROR) << "memory range false" << LOG_endl;
             ASSERT(false);
         }
-        uint64_t ret = (uint64_t)((char*)ptr - gstart_ptr);
+        uint64_t ret = (uint64_t)((char*)ptr - start_ptr);
         return ret;
     }
 
     void free(uint64_t idx) {
-
-        void* ptr = (void*)(gstart_ptr + idx);
+        void* ptr = (void*)(start_ptr + idx);
+        //make the memory be available for future allocations
         dallocx(ptr, 0);
         return;
     }
 
     size_t block_size(uint64_t idx) {
-        void* ptr = (void*)(gstart_ptr + idx);
+        void* ptr = (void*)(start_ptr + idx);
+        // get the real size of the allocation at ptr.
         return sallocx(ptr, 0);
     }
 
+    //to be suited with buddy malloc
     void merge_freelists() {
         return;
     }
 
     void print_memory_usage() {
+        uint64_t allocated_size = ((char*) top_of_heap - (char*)start_ptr) / (1024 * 1024);
+        logstream(LOG_INFO) << "graph_storage edge memory status:" << LOG_endl;
+        logstream(LOG_INFO) << "allocated " << allocated_size << " MB" << LOG_endl;
         return;
     }
 };
 
-char* JeMalloc::gstart_ptr = NULL;
-char* JeMalloc::gend_ptr = NULL;
-char* JeMalloc::gtop_of_heap = NULL;
-uint64_t JeMalloc::amount_sz = 0;
+//It is needed to provide a definition
+//for static member variables
+char* JeMalloc::start_ptr = NULL;
+char* JeMalloc::end_ptr = NULL;
+char* JeMalloc::top_of_heap = NULL;
 pthread_spinlock_t JeMalloc::jelock;
-
-
-static void *extent_alloc_hook(extent_hooks_t *extent_hooks, void *new_addr, size_t size,size_t alignment, bool *zero, bool *commit, unsigned arena_ind){
-    //printf("%s(extent_hooks=%p, new_addr=%p, size=%zu(%zu pages), alignment=%zu, ""*zero=%s, *commit=%s, arena_ind=%u)\n", __func__, extent_hooks,new_addr, size, size / 4096, alignment, *zero ?  "true" : "false", *commit ?"true" : "false", arena_ind);
-    pthread_spin_lock(&JeMalloc::jelock);
-    char *ret = (char*)JeMalloc::gtop_of_heap;
-    if((uintptr_t)ret % alignment != 0) {
-        ret = ret + (alignment- (uintptr_t)ret % alignment);
-    }
-    if ((char*)ret + size >= (char*)JeMalloc::gend_ptr) {
-        logstream(LOG_ERROR) << "out of memory, can not alloc any extent" << LOG_endl;
-        ASSERT(false);
-        pthread_spin_unlock(&JeMalloc::jelock);
-        return NULL;
-    }
-    JeMalloc::amount_sz += size;
-    JeMalloc::gtop_of_heap = ret + size;
-    pthread_spin_unlock(&JeMalloc::jelock);
-    if (*zero)
-        memset(ret, size, 0);
-
-    if((uintptr_t)ret % alignment != 0) {
-        cout << "alignment error" << endl;
-    }
-    return ret;
-}
-
-
-static bool
-extent_dalloc_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    bool committed, unsigned arena_ind) {
-    //printf("%s(extent_hooks=%p, addr=%p, size=%zu, committed=%s, " "arena_ind=%u)\n", __func__, extent_hooks, addr, size, committed ?"true" : "false", arena_ind);
-
-    return true;
-}
-
-static void
-extent_destroy_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    bool committed, unsigned arena_ind) {
-	//printf("%s(extent_hooks=%p, addr=%p, size=%zu, committed=%s, ""arena_ind=%u)\n", __func__, extent_hooks, addr, size, committed ?"true" : "false", arena_ind);
-
-    return;
-}
-
-static bool
-extent_commit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind) {
-    //printf("%s(extent_hooks=%p, addr=%p, size=%zu, offset=%zu, ""length=%zu, arena_ind=%u)\n", __func__, extent_hooks, addr, size,offset, length, arena_ind);
-
-    return false;
-
-}
-
-static bool
-extent_decommit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind) {
-    //printf("%s(extent_hooks=%p, addr=%p, size=%zu, offset=%zu, " "length=%zu, arena_ind=%u)\n", __func__, extent_hooks, addr, size,offset, length, arena_ind);
-
-    return false;
-}
-
-static bool
-extent_purge_lazy_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind) {
-    //printf("%s(extent_hooks=%p, addr=%p, size=%zu, offset=%zu, ""length=%zu arena_ind=%u)\n", __func__, extent_hooks, addr, size,offset, length, arena_ind);
-
-    return true;
-}
-
-static bool
-extent_purge_forced_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t offset, size_t length, unsigned arena_ind) {
-    //printf("%s(extent_hooks=%p, addr=%p, size=%zu, offset=%zu, ""length=%zu arena_ind=%u)\n", __func__, extent_hooks, addr, size,offset, length, arena_ind);
-    return true;
-}
-
-static bool
-extent_split_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
-    size_t size_a, size_t size_b, bool committed, unsigned arena_ind) {
-    //printf("%s(extent_hooks=%p, addr=%p, size=%zu, size_a=%zu, ""size_b=%zu, committed=%s, arena_ind=%u)\n", __func__, extent_hooks,addr, size, size_a, size_b,committed ? "true" : "false",arena_ind);
-    return false;
-}
-
-static bool
-extent_merge_hook(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
-    void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
-    //printf("%s(extent_hooks=%p, addr_a=%p, size_a=%zu, addr_b=%p ""size_b=%zu, committed=%s, arena_ind=%u)\n", __func__, extent_hooks,addr_a, size_a, addr_b, size_b, committed ? "true" : "false",arena_ind);
-    return false;
-}
+#endif

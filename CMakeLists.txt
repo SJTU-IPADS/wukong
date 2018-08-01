@@ -72,6 +72,14 @@ if(USE_GPU)
     set(WUKONG_LIBS ${WUKONG_LIBS} cudart)
 endif(USE_GPU)
 
+#### Jemalloc
+option (USE_JEMALLOC "enable Jemalloc support" OFF)
+if(USE_JEMALLOC)
+  add_definitions(-DUSE_JEMALLOC)
+  target_link_libraries(wukong jemalloc)
+  set(WUKONG_LIBS ${WUKONG_LIBS} jemalloc)
+endif(USE_JEMALLOC)
+
 set(WUKONG_LIBS ${WUKONG_LIBS} nanomsg zmq rt ibverbs tbb hwloc)
 
 ## Build Wukong

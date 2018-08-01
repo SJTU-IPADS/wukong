@@ -472,7 +472,7 @@ done:
             if (blksz(v->ptr.off) - 1 < need_size) {
                 iptr_t old_ptr = v->ptr;
 
-                uint64_t off = alloc_edges(need_size, tid);
+                uint64_t off = alloc_edges(blksz(v->ptr.off) * 2, tid);
                 memcpy(&edges[off], &edges[old_ptr.off], e2b(old_ptr.size));
                 edges[off + old_ptr.size].val = value;
                 // invalidate the old block
@@ -846,9 +846,11 @@ public:
         // entry region
         num_entries = entry_region / sizeof(edge_t);
 #ifdef DYNAMIC_GSTORE
+    #ifdef USE_JEMALLOC
         if (global_use_jemalloc)
             edge_allocator = new JeMalloc();
         else
+    #endif
             edge_allocator = new Buddy_Malloc();
         pthread_spin_init(&free_queue_lock, 0);
         lease = SEC(120);
