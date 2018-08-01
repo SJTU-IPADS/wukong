@@ -1,9 +1,11 @@
 
 *~
 *.exe
+*.swp
 build/
 .vs/
 .vscode/
+.git/
+.settings/
 .cproject
 .project
-.settings/
