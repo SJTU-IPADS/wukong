@@ -45,30 +45,31 @@
 
 using namespace std;
 
-struct triple_sort_by_spo {
-    inline bool operator()(const triple_t &t1, const triple_t &t2) {
-        if (t1.s < t2.s)
+struct triple_sort_by_pso {
+	inline bool operator()(const triple_t &t1, const triple_t &t2) {
+        if (t1.p < t2.p)
             return true;
-        else if (t1.s == t2.s)
-            if (t1.p < t2.p)
+        else if (t1.p == t2.p)
+            if (t1.s < t2.s)
                 return true;
-            else if (t1.p == t2.p && t1.o < t2.o)
+            else if (t1.s == t2.s && t1.o < t2.o)
                 return true;
-        return false;
-    }
+		return false;
+	}
 };
 
-struct triple_sort_by_ops {
-    inline bool operator()(const triple_t &t1, const triple_t &t2) {
-        if (t1.o < t2.o)
+struct triple_sort_by_pos {
+	inline bool operator()(const triple_t &t1, const triple_t &t2) {
+        if (t1.p < t2.p)
             return true;
-        else if (t1.o == t2.o)
-            if (t1.p < t2.p)
+        else if (t1.p == t2.p)
+            if (t1.o < t2.o)
                 return true;
-            else if ((t1.p == t2.p) && (t1.s < t2.s))
+            else if (t1.o == t2.o && t1.s < t2.s)
                 return true;
-        return false;
-    }
+
+		return false;
+	}
 };
 
 /**
@@ -83,8 +84,8 @@ class DGraph {
 
     vector<uint64_t> num_triples;  // record #triples loaded from input data for each server
 
-    vector<vector<triple_t>> triple_spo;
-    vector<vector<triple_t>> triple_ops;
+    vector<vector<triple_t>> triple_pso;
+    vector<vector<triple_t>> triple_pos;
     vector<vector<triple_attr_t>> triple_sav;
 
 #ifdef DYNAMIC_GSTORE
@@ -405,14 +406,14 @@ class DGraph {
         }
 
         // pre-expand to avoid frequent reallocation (maybe imbalance)
-        for (int i = 0; i < triple_spo.size(); i++) {
-            triple_spo[i].reserve(total / global_num_engines);
-            triple_ops[i].reserve(total / global_num_engines);
+        for (int i = 0; i < triple_pso.size(); i++) {
+            triple_pso[i].reserve(total / global_num_engines);
+            triple_pos[i].reserve(total / global_num_engines);
         }
 
         // each thread will scan all triples (from all servers) and pickup certain triples.
         // It ensures that the triples belong to the same vertex will be stored in the same
-        // triple_spo/ops. This will simplify the deduplication and insertion to gstore.
+        // triple_pso/ops. This will simplify the deduplication and insertion to gstore.
         volatile int progress = 0;
         #pragma omp parallel for num_threads(global_num_engines)
         for (int tid = 0; tid < global_num_engines; tid++) {
@@ -431,12 +432,12 @@ class DGraph {
                     // out-edges
                     if (mymath::hash_mod(s, global_num_servers) == sid)
                         if ((s % global_num_engines) == tid)
-                            triple_spo[tid].push_back(triple_t(s, p, o));
+                            triple_pso[tid].push_back(triple_t(s, p, o));
 
                     // in-edges
                     if (mymath::hash_mod(o, global_num_servers) == sid)
                         if ((o % global_num_engines) == tid)
-                            triple_ops[tid].push_back(triple_t(s, p, o));
+                            triple_pos[tid].push_back(triple_t(s, p, o));
 
                     // print the progress (step = 5%) of aggregation
                     if (++cnt >= total * 0.05) {
@@ -450,11 +451,11 @@ class DGraph {
                 }
             }
 
-            sort(triple_spo[tid].begin(), triple_spo[tid].end(), triple_sort_by_spo());
-            dedup_triples(triple_ops[tid]);
+            sort(triple_pso[tid].begin(), triple_pso[tid].end(), triple_sort_by_pso());
+            dedup_triples(triple_pos[tid]);
 
-            sort(triple_ops[tid].begin(), triple_ops[tid].end(), triple_sort_by_ops());
-            dedup_triples(triple_spo[tid]);
+            sort(triple_pos[tid].begin(), triple_pos[tid].end(), triple_sort_by_pos());
+            dedup_triples(triple_pso[tid]);
         }
     }
 
@@ -494,6 +495,21 @@ class DGraph {
 
     }
 
+#ifdef USE_GPU
+    int count_predicates(string file_str_index) {
+        string line, predicate;
+        int pid, count = 0;
+        ifstream ifs(file_str_index.c_str());
+        getline(ifs, line); // skip the "__PREDICATE__"
+        while (ifs >> predicate >> pid) {
+            count++;
+        }
+        ifs.close();
+        return count;
+    }
+
+#endif
+
     uint64_t inline floor(uint64_t original, uint64_t n) {
         ASSERT(n != 0);
         return original - original % n;
@@ -515,8 +531,8 @@ public:
 
         num_triples.resize(global_num_servers);
 
-        triple_spo.resize(global_num_engines);
-        triple_ops.resize(global_num_engines);
+        triple_pso.resize(global_num_engines);
+        triple_pos.resize(global_num_engines);
         triple_sav.resize(global_num_engines);
 
         vector<string> dfiles(list_files(dname, "id_"));   // ID-format data files
@@ -530,6 +546,11 @@ public:
                                 << " attributed files found in directory (" << dname
                                 << ") at server " << sid << LOG_endl;
         }
+
+#ifdef USE_GPU
+        sid_t num_preds = count_predicates(dname + "str_index");
+        gstore.set_num_predicates(num_preds);
+#endif
 
         // load_data: load partial input files by each server and exchanges triples
         //            according to graph partitioning
@@ -571,15 +592,50 @@ public:
         // initiate gstore (kvstore) after loading and exchanging triples (memory reused)
         gstore.refresh();
 
+#ifdef USE_GPU
+        start = timer::get_usec();
+        // merge triple_pso and triple_pos into a map
+        gstore.init_triples_map(triple_pso, triple_pos);
+        end = timer::get_usec();
+		logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+		                    << "for merging triple_pso and triple_pos." << LOG_endl;
 
+        start = timer::get_usec();
+		gstore.init_segment_metas(triple_pso, triple_pos);
+        end = timer::get_usec();
+		logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+		                    << "for initializing predicate segment statistics." << LOG_endl;
+
+		start = timer::get_usec();
+        auto& predicates = gstore.get_all_predicates();
+        logstream(LOG_DEBUG) << "#" << sid << ": all_predicates: " << predicates.size() << LOG_endl;
+        #pragma omp parallel for num_threads(global_num_engines)
+        for (int i = 0; i < predicates.size(); i++) {
+            int localtid = omp_get_thread_num();
+            sid_t pid = predicates[i];
+            gstore.insert_triples_to_segment(localtid, segid_t(0, pid, OUT));
+            gstore.insert_triples_to_segment(localtid, segid_t(0, pid, IN));
+        }
+		end = timer::get_usec();
+		logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+		                    << "for inserting triples as segments into gstore" << LOG_endl;
+
+        gstore.finalize_segment_metas();
+        gstore.free_triples_map();
+
+        // synchronize segment metadata among servers
+        extern TCP_Adaptor *con_adaptor;
+        gstore.sync_metadata(con_adaptor);
+
+#else   // without GPU
         start = timer::get_usec();
         #pragma omp parallel for num_threads(global_num_engines)
         for (int t = 0; t < global_num_engines; t++) {
-            gstore.insert_normal(triple_spo[t], triple_ops[t], t);
+            gstore.insert_normal(triple_pso[t], triple_pos[t], t);
 
             // release memory
-            vector<triple_t>().swap(triple_spo[t]);
-            vector<triple_t>().swap(triple_ops[t]);
+            vector<triple_t>().swap(triple_pso[t]);
+            vector<triple_t>().swap(triple_pos[t]);
         }
         end = timer::get_usec();
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
@@ -601,11 +657,11 @@ public:
         end = timer::get_usec();
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
                             << "for inserting index data into gstore" << LOG_endl;
+#endif  // USE_GPU
 
         logstream(LOG_INFO) << "#" << sid << ": loading DGraph is finished" << LOG_endl;
         gstore.print_mem_usage();
     }
-
 
 #ifdef DYNAMIC_GSTORE
     int64_t dynamic_load_data(string dname, bool check_dup) {
