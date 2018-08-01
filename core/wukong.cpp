@@ -136,14 +136,14 @@ main(int argc, char *argv[])
     #endif
     TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_num_threads, global_data_port_base);
 
+    // init control communicaiton
+    con_adaptor = new TCP_Adaptor(sid, host_fname, global_num_proxies, global_ctrl_port_base);
+
     // load string server (read-only, shared by all proxies and all engines)
     String_Server str_server(global_input_folder);
 
     // load RDF graph (shared by all engines and proxies)
     DGraph dgraph(sid, mem, &str_server, global_input_folder);
-
-    // init control communicaiton
-    con_adaptor = new TCP_Adaptor(sid, host_fname, global_num_proxies, global_ctrl_port_base);
 
     // prepare statistics for SPARQL optimizer
     data_statistic stat(sid);
