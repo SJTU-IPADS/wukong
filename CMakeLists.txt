@@ -72,7 +72,7 @@ if(USE_GPU)
     set(WUKONG_LIBS ${WUKONG_LIBS} cudart)
 endif(USE_GPU)
 
-set(WUKONG_LIBS ${WUKONG_LIBS} nanomsg zmq rt ibverbs tbb hwloc)
+set(WUKONG_LIBS ${WUKONG_LIBS} zmq rt ibverbs tbb hwloc)
 
 ## Build Wukong
 target_link_libraries(wukong ${WUKONG_LIBS} ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a ${BOOST_LIB}/libboost_program_options.a)
