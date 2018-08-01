@@ -803,7 +803,7 @@ done:
 
 #ifdef DYNAMIC_GSTORE
         // the size of entire blk
-        uint64_t r_sz = blksz(v.ptr.off + 1) * sizeof(edge_t);
+        uint64_t r_sz = blksz(v.ptr.off) * sizeof(edge_t);
 #else
         // the size of edges
         uint64_t r_sz = v.ptr.size * sizeof(edge_t);
