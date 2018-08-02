@@ -46,7 +46,7 @@
 using namespace std;
 
 struct triple_sort_by_pso {
-	inline bool operator()(const triple_t &t1, const triple_t &t2) {
+    inline bool operator()(const triple_t &t1, const triple_t &t2) {
         if (t1.p < t2.p)
             return true;
         else if (t1.p == t2.p)
@@ -54,12 +54,12 @@ struct triple_sort_by_pso {
                 return true;
             else if (t1.s == t2.s && t1.o < t2.o)
                 return true;
-		return false;
-	}
+        return false;
+    }
 };
 
 struct triple_sort_by_pos {
-	inline bool operator()(const triple_t &t1, const triple_t &t2) {
+    inline bool operator()(const triple_t &t1, const triple_t &t2) {
         if (t1.p < t2.p)
             return true;
         else if (t1.p == t2.p)
@@ -67,9 +67,8 @@ struct triple_sort_by_pos {
                 return true;
             else if (t1.o == t2.o && t1.s < t2.s)
                 return true;
-
-		return false;
-	}
+        return false;
+    }
 };
 
 /**
@@ -204,7 +203,7 @@ class DGraph {
     void send_triple(int tid, int dst_sid, sid_t s, sid_t p, sid_t o) {
         // the RDMA buffer is first split into #threads partitions
         // each partition is further split into #servers pieces
-        // each piece: #triple, tirple, triple, . . .
+        // each piece: #triples, tirple, triple, . . .
         uint64_t buf_sz = floor(mem->buffer_size() / global_num_servers - sizeof(uint64_t), sizeof(sid_t));
         uint64_t *pn = (uint64_t *)(mem->buffer(tid) + (buf_sz + sizeof(uint64_t)) * dst_sid);
         sid_t *buf = (sid_t *)(pn + 1);
@@ -597,16 +596,16 @@ public:
         // merge triple_pso and triple_pos into a map
         gstore.init_triples_map(triple_pso, triple_pos);
         end = timer::get_usec();
-		logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-		                    << "for merging triple_pso and triple_pos." << LOG_endl;
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+                            << "for merging triple_pso and triple_pos." << LOG_endl;
 
         start = timer::get_usec();
-		gstore.init_segment_metas(triple_pso, triple_pos);
+        gstore.init_segment_metas(triple_pso, triple_pos);
         end = timer::get_usec();
-		logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-		                    << "for initializing predicate segment statistics." << LOG_endl;
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+                            << "for initializing predicate segment statistics." << LOG_endl;
 
-		start = timer::get_usec();
+        start = timer::get_usec();
         auto& predicates = gstore.get_all_predicates();
         logstream(LOG_DEBUG) << "#" << sid << ": all_predicates: " << predicates.size() << LOG_endl;
         #pragma omp parallel for num_threads(global_num_engines)
@@ -616,9 +615,9 @@ public:
             gstore.insert_triples_to_segment(localtid, segid_t(0, pid, OUT));
             gstore.insert_triples_to_segment(localtid, segid_t(0, pid, IN));
         }
-		end = timer::get_usec();
-		logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-		                    << "for inserting triples as segments into gstore" << LOG_endl;
+        end = timer::get_usec();
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+                            << "for inserting triples as segments into gstore" << LOG_endl;
 
         gstore.finalize_segment_metas();
         gstore.free_triples_map();

@@ -96,7 +96,7 @@ namespace util {
 class Timer {
     std::clock_t start_;
     std::clock_t end_;
-  public:
+public:
     Timer() {
         start_ = std::clock();
     }
@@ -165,7 +165,5 @@ inline uint64_t ip_checksum(void* vdata, size_t length)
 }
 
 }; // namespace rdmaio
-
-
 
 #endif
