@@ -569,6 +569,8 @@ done:
         return orig;
     }
 
+#endif // DYNAMIC_GSTORE
+
     // Allocate extended buckets
     // @n number of extended buckets to allocate
     // @return start offset of allocated extended buckets
@@ -584,8 +586,6 @@ done:
         pthread_spin_unlock(&bucket_ext_lock);
         return num_buckets + orig;
     }
-
-#endif // DYNAMIC_GSTORE
 
     typedef tbb::concurrent_hash_map<sid_t, vector<sid_t>> tbb_hash_map;
 
