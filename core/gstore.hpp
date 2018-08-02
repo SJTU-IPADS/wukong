@@ -40,7 +40,8 @@
 #include "rdma.hpp"
 #include "data_statistic.hpp"
 #include "type.hpp"
-#include "malloc_interface.hpp"
+#include "mem_mgmt/jemalloc.hpp"
+#include "mem_mgmt/buddy_malloc.hpp"
 
 #include "mymath.hpp"
 #include "timer.hpp"
@@ -568,6 +569,7 @@ done:
         pthread_spin_unlock(&entry_lock);
         return orig;
     }
+#endif // DYNAMIC_GSTORE
 
     // Allocate extended buckets
     // @n number of extended buckets to allocate
@@ -584,8 +586,6 @@ done:
         pthread_spin_unlock(&bucket_ext_lock);
         return num_buckets + orig;
     }
-
-#endif // DYNAMIC_GSTORE
 
     typedef tbb::concurrent_hash_map<sid_t, vector<sid_t>> tbb_hash_map;
 
@@ -1069,11 +1069,10 @@ public:
         num_entries = entry_region / sizeof(edge_t);
 #ifdef DYNAMIC_GSTORE
     #ifdef USE_JEMALLOC
-        if (global_use_jemalloc)
             edge_allocator = new JeMalloc();
-        else
-    #endif
+    #else
             edge_allocator = new Buddy_Malloc();
+    #endif
         pthread_spin_init(&free_queue_lock, 0);
         lease = SEC(120);
         rdma_cache = RDMA_Cache(lease);

@@ -15,4 +15,3 @@ global_silent 				1
 global_enable_planner		0
 global_generate_statistics  0
 global_enable_vattr   		1
-global_use_jemalloc         0

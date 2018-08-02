@@ -66,8 +66,6 @@ bool global_enable_planner = true;  // for planner
 
 bool global_enable_vattr = false;  // for attr
 
-bool global_use_jemalloc = false; // for jemalloc
-
 #ifdef USE_GPU
 // GPU-related configurations
 int global_num_gpus = 1;
@@ -112,8 +110,6 @@ static bool set_immutable_config(string cfg_name, string value)
         ASSERT(global_rdma_rbf_size_mb > 0);
     } else if (cfg_name == "global_generate_statistics") {
         global_generate_statistics = atoi(value.c_str());
-    } else if (cfg_name == "global_use_jemalloc") {
-        global_use_jemalloc = atoi(value.c_str());
     }
 #ifdef USE_GPU
     else if (cfg_name == "global_num_gpus") {

@@ -73,7 +73,7 @@ if(USE_GPU)
 endif(USE_GPU)
 
 #### Jemalloc
-option (USE_JEMALLOC "enable Jemalloc support" OFF)
+option (USE_JEMALLOC "enable Jemalloc support" ON)
 if(USE_JEMALLOC)
   add_definitions(-DUSE_JEMALLOC)
   target_link_libraries(wukong jemalloc)
