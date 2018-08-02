@@ -119,12 +119,12 @@ main(int argc, char *argv[])
     vector<RDMA::MemoryRegion> mrs;
     RDMA::MemoryRegion mr_cpu = { mem->memory(), mem->memory_size(), RDMA::MemType::CPU };
     mrs.push_back(mr_cpu);
-    #ifdef USE_GPU
+#ifdef USE_GPU
     GPUMem *gpu_mem = new GPUMem(devid, global_num_servers, global_num_gpus);
     logstream(LOG_INFO)  << "#" << sid << ": allocate " << B2GiB(gpu_mem->memory_size()) << "GB GPU memory" << LOG_endl;
     RDMA::MemoryRegion mr_gpu = { gpu_mem->memory(), gpu_mem->memory_size(), RDMA::MemType::GPU };
     mrs.push_back(mr_gpu);
-    #endif
+#endif
     // init RDMA devices and connections
     RDMA_init(global_num_servers, global_num_threads, sid, mrs, host_fname);
 

@@ -29,10 +29,6 @@ include_directories(${ROOT}/rdma_lib)
 file(GLOB SOURCES "core/*.hpp" "utils/*.hpp" "rdma_lib/*.hpp" "test/network/*.hpp")
 add_executable(network ${SOURCES} "network.cpp")
 
-
-## Set options (cached)
-## usage: cmake .. -DUSE_RDMA=OFF -DUSE_HADOOP=ON
-
 # Build Wukong 
 target_link_libraries(network nanomsg zmq rt ibverbs tbb hwloc ${BOOST_LIB}/libboost_system.a ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a ${BOOST_LIB}/libboost_program_options.a)
 

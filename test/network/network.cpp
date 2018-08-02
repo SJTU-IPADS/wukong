@@ -1,3 +1,25 @@
+/*
+ * Copyright (c) 2016 Shanghai Jiao Tong University.
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://ipads.se.sjtu.edu.cn/projects/wukong
+ *
+ */
+
 #include "logger2.hpp"
 #include "tcp_adaptor.hpp"
 #include <boost/mpi.hpp>
@@ -24,6 +46,7 @@ int sid;
 #define IS_MASTER(_p) ((_p) == 0 )
 #define thread_num (1)
 #define global_port_base (9576)
+
 // init socket
 void init_socket(string host_fname)
 {
@@ -34,20 +57,20 @@ void init_socket(string host_fname)
 //implement the send method
 void * send (bool to_master)
 {
-    if(to_master) {
+    if (to_master) {
         // from slave to master
         test_adaptor->send(master_sid, thread_id, send_msg);
-    } else { 
+    } else {
         //from master to slave
         test_adaptor->send(slave_sid, thread_id, send_msg);
     }
 }
 
 // implent the recv method
-void * recv() 
+void * recv()
 {
     string msg;
-    msg =test_adaptor->recv(thread_id);
+    msg = test_adaptor->recv(thread_id);
 }
 
 // now only support two server to run the test
@@ -55,15 +78,15 @@ int main(int argc, char *argv[])
 {
     options_description     network_desc("network test:");
     network_desc.add_options()
-        ("help,h", "help message about network test")
-        ("num,n", value<int>()->default_value(100)->value_name("<num>"), "run <num> times")
-        ("size,s", value<int>()->default_value(1000)->value_name("<size>"), "set sending message <size>"); 
+    ("help,h", "help message about network test")
+    ("num,n", value<int>()->default_value(100)->value_name("<num>"), "run <num> times")
+    ("size,s", value<int>()->default_value(1000)->value_name("<size>"), "set sending message <size>");
 
     variables_map network_vm;
     try {
         store(parse_command_line(argc, argv, network_desc), network_vm);
     } catch (...) { // something go wrong
-        cout << "Error: error to run" <<endl;
+        cout << "Error: error to run" << endl;
         cout << network_desc;
         return -1;
     }
@@ -77,9 +100,9 @@ int main(int argc, char *argv[])
     }
 
     int num = network_vm["num"].as<int>();
-    int size = network_vm["size"].as<int>(); 
+    int size = network_vm["size"].as<int>();
     // construct the send message
-    for (int i = 0; i < size; i++ ){
+    for (int i = 0; i < size; i++ ) {
         send_msg += "a";
     }
 
@@ -94,21 +117,22 @@ int main(int argc, char *argv[])
     int sum = 0;
 
     // begin to elvation the latency
-    for (int i =0; i< num; i++) {
+    for (int i = 0; i < num; i++) {
         MPI_Barrier(MPI_COMM_WORLD);
         uint64_t start = timer::get_usec();
-        if(IS_MASTER(sid)) {
+        if (IS_MASTER(sid)) {
             send(false);
             recv();
-        }else {
+        } else {
             recv();
             send(true);
         }
         uint64_t end = timer::get_usec();
-        sum += (end -start);
+        sum += (end - start);
     }
 
-    if(IS_MASTER(sid))
-        cout << " the average sending time "<< sum/num<< endl; 
+    if (IS_MASTER(sid))
+        cout << " the average sending time " << sum / num << endl;
+
     return 0;
 }

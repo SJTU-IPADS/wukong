@@ -22,7 +22,6 @@
 
 #pragma once
 
-//#include <zmq.hpp>
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
@@ -42,8 +41,8 @@
 using namespace std;
 
 #define SUCC (0)
-//number of message received
-#define RECVBUF_NUM (10)
+
+#define RECVBUF_NUM (10)    // number of message received
 
 class TCP_Adaptor {
 private:
@@ -64,7 +63,7 @@ private:
 
 public:
 
-    TCP_Adaptor(int sid, string fname, int num_threads, int port_base)
+    TCP_Adaptor(int sid, string fname, int nths, int port_base)
         : port_base(port_base) {
 
         ifstream hostfile(fname);
@@ -72,21 +71,21 @@ public:
         while (hostfile >> ip)
             ipset.push_back(ip);
 
-        receivers.resize(num_threads);
-        for (int tid = 0; tid < num_threads; tid++) {
+        receivers.resize(nths);
+        for (int tid = 0; tid < nths; tid++) {
             char address[128] = "";
             snprintf(address, 128, "tcp://*:%d", port_base + port_code(sid, tid));
-            receivers[tid] = new nng_socket(); 
+            receivers[tid] = new nng_socket();
             int rv = 0;
             if ((rv = nng_pull0_open(receivers[tid])) != SUCC) {
                 logstream(LOG_FATAL) << "Failed to init a recv-side socket on " << address << LOG_endl;
                 assert(false);
             }
             // set recv size to unlimit
-            nng_setopt_size(*(receivers[tid]),NNG_OPT_RECVMAXSZ,0);
+            nng_setopt_size(*(receivers[tid]), NNG_OPT_RECVMAXSZ, 0);
             // default value is 1, it may hang with default value if dataset is large
             // so set it to RECVBUF_NUM
-            nng_setopt_int(*(receivers[tid]),NNG_OPT_RECVBUF,RECVBUF_NUM);
+            nng_setopt_int(*(receivers[tid]), NNG_OPT_RECVBUF, RECVBUF_NUM);
 
             if ((rv = nng_listen(*(receivers[tid]), address, NULL, 0)) != SUCC) {
                 logstream(LOG_FATAL) << "Failed to bind  a recv-side socket on " << address << LOG_endl;
@@ -94,8 +93,8 @@ public:
             }
         }
 
-        locks = (pthread_spinlock_t *)malloc(sizeof(pthread_spinlock_t) * num_threads);
-        for (int i = 0; i < num_threads; i++)
+        locks = (pthread_spinlock_t *)malloc(sizeof(pthread_spinlock_t) * nths);
+        for (int i = 0; i < nths; i++)
             pthread_spin_init(&locks[i], 0);
     }
 
@@ -116,7 +115,7 @@ public:
     bool send(int sid, int tid, string str) {
         int pid = port_code(sid, tid);
 
-        // alloc msg, nng_send is responsible to free it 
+        // alloc msg, nng_send is responsible to free it
         nng_msg* msg = NULL ;
         nng_msg_alloc(&msg, str.length());
         memcpy((nng_msg_body(msg)), str.c_str(), str.length());
@@ -139,15 +138,15 @@ public:
                 assert(false);
             }
         }
-       int n = 0;
-       pthread_spin_unlock(&locks[tid]);
+        int n = 0;
+        pthread_spin_unlock(&locks[tid]);
 
-       // if succ, msg will be free by nng_sendmsg
-       n = nng_sendmsg(*(senders[pid]), msg, 0);
+        // if succ, msg will be free by nng_sendmsg
+        n = nng_sendmsg(*(senders[pid]), msg, 0);
 
-        if(n != SUCC) {
+        if (n != SUCC) {
             nng_msg_free(msg);
-            logstream(LOG_FATAL) << "Failed to send the msg at send-side "<< LOG_endl;
+            logstream(LOG_FATAL) << "Failed to send the msg at send-side " << LOG_endl;
             return false;
         }
 
@@ -156,9 +155,9 @@ public:
 
     string recv(int tid) {
         nng_msg* msg = NULL;
-        int n = nng_recvmsg(*(receivers[tid]), &msg,0);
+        int n = nng_recvmsg(*(receivers[tid]), &msg, 0);
 
-        if(n != SUCC ) {
+        if (n != SUCC ) {
             logstream(LOG_FATAL) << "Failed to recv msg " << LOG_endl;
             assert(false);
         }
@@ -172,10 +171,10 @@ public:
 
         int n = nng_recvmsg(*(receivers[tid]), &msg, NNG_FLAG_NONBLOCK);
 
-        if(n != SUCC ) {
+        if (n != SUCC ) {
             return false;
         }
-        s= string((char *)(nng_msg_body(msg)), nng_msg_len(msg));
+        s = string((char *)(nng_msg_body(msg)), nng_msg_len(msg));
         nng_msg_free(msg);
         return true;
     }

@@ -22,8 +22,6 @@
 
 #pragma once
 
-// constants
-
 namespace rdmaio {
 
 // magic number which indicates whether a connection is set
@@ -52,7 +50,7 @@ namespace rdmaio {
 #define DEFAULT_PROTECTION_FLAG ( IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | \
                                   IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_ATOMIC)
 
-// XD: can we clean these flags?
+// FIXME: can we clean these flags? (BY Xingda Wei)
 #define GRH_SIZE 40
 #define MIN_STEP_SIZE 64
 #define MAX_PACKET_SIZE 4032 //4096 - 64
@@ -82,7 +80,7 @@ namespace rdmaio {
 
 #define POLL_THRSHOLD 64
 
-// XD: is it configurable?
+// FIXME: is it configurable? (BY Xingda Wei)
 #define DEFAULT_PSN 3185  /* PSN for all queues */
 #define DEFAULT_QKEY 0x11111111
 
@@ -93,26 +91,25 @@ namespace rdmaio {
 
 // some useful structs
 struct QPReplyHeader {
-  int8_t status;
-  uint64_t qid;
+    int8_t status;
+    uint64_t qid;
 }  __attribute__ ((aligned (8)));
 
 
 struct QPConnArg {
+    uint64_t checksum;
+    uint64_t qid;  // the src qp id
+    uint8_t  tid;  // src thread id
+    uint8_t  nid;  // src node id
+    uint64_t sign; // a signature, which stored a magic number
 
-  uint64_t checksum;
-  uint64_t qid;  // the src qp id
-  uint8_t  tid;  // src thread id
-  uint8_t  nid;  // src node id
-  uint64_t sign; // a signature, which stored a magic number
+    void calculate_checksum() {
+        checksum = get_checksum();
+    }
 
-  void calculate_checksum() {
-    checksum = get_checksum();
-  }
-
-  uint64_t get_checksum() {
-    return ip_checksum(&(this->qid), sizeof(QPConnArg) - sizeof(uint64_t));
-  }
+    uint64_t get_checksum() {
+        return ip_checksum(&(this->qid), sizeof(QPConnArg) - sizeof(uint64_t));
+    }
 } __attribute__ ((aligned (CACHE_LINE_SZ)));
 
 } // end namespace rdmaio
