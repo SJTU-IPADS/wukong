@@ -202,6 +202,12 @@ void RDMA_init(int nnodes, int nthds, int nid, vector<RDMA::MemoryRegion> &mrs, 
 #else
 
 class RDMA {
+    enum MemType { CPU, GPU };
+    struct MemoryRegion {
+        char *mem;
+        uint64_t sz;
+        MemType type;
+    };
     class RDMA_Device {
     public:
         RDMA_Device(int nnodes, int nthds, int nid, vector<RDMA::MemoryRegion> &mrs, string fname) {
@@ -253,7 +259,7 @@ public:
     }
 };
 
-void RDMA_init(int nnodes, int nthds, int nid, char *mem_cpu, uint64_t sz_cpu, vector<RDMA::MemoryRegion> &mrs, string ipfn) {
+void RDMA_init(int nnodes, int nthds, int nid, vector<RDMA::MemoryRegion> &mrs, string ipfn) {
     logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
 }
 
