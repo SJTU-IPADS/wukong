@@ -38,6 +38,16 @@ using namespace std;
 using namespace rdmaio;
 
 class RDMA {
+    
+public:
+    enum MemType { CPU, GPU };
+
+    struct MemoryRegion {
+        MemType type;
+        char *mem;
+        uint64_t sz;
+    };
+    
     class RDMA_Device {
         static const uint64_t RDMA_CTRL_PORT = 19344;
     public:
@@ -165,15 +175,6 @@ class RDMA {
         }
     };
 
-public:
-    enum MemType { CPU, GPU };
-
-    struct MemoryRegion {
-        MemType type;
-        char *mem;
-        uint64_t sz;
-    };
-
     RDMA_Device *dev = NULL;
 
     RDMA() { }
@@ -206,6 +207,16 @@ void RDMA_init(int nnodes, int nthds, int nid, vector<RDMA::MemoryRegion> &mrs, 
 #else
 
 class RDMA {
+    
+public:
+    enum MemType { CPU, GPU };
+
+    struct MemoryRegion {
+        MemType type;
+        char *mem;
+        uint64_t sz;
+    };
+
     class RDMA_Device {
     public:
         RDMA_Device(int nnodes, int nthds, int nid, vector<RDMA::MemoryRegion> &mrs, string fname) {
@@ -236,15 +247,6 @@ class RDMA {
             ASSERT(false);
             return 0;
         }
-    };
-
-public:
-    enum MemType { CPU, GPU };
-
-    struct MemoryRegion {
-        MemType type;
-        char *mem;
-        uint64_t sz;
     };
 
     RDMA_Device *dev = NULL;
