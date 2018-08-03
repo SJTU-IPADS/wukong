@@ -161,18 +161,38 @@ public:
         return n;
     }
 
+    typedef std::map<std::string,std::string> ipmap_t;
+    static ipmap_t &local_ip_cache() {
+        static __thread ipmap_t cache;
+        return cache;
+    }
+
     static std::string host_to_ip(const std::string &host) {
+
+        ipmap_t cache = local_ip_cache();
+        if(cache.find(host) != cache.end())
+            return cache[host];
+
         std::string res = "";
-        struct hostent *he;
-        struct in_addr **addr_list;
 
-        CE((he = gethostbyname(host.c_str())) == NULL, host.c_str());
-        addr_list = (struct in_addr **) he->h_addr_list;
+        struct addrinfo hints, *infoptr;
+        memset(&hints, 0, sizeof hints);
+        hints.ai_family = AF_INET; // AF_INET means IPv4 only addresses
 
-        for (auto i = 0; addr_list[i] != NULL; i++) {
-            res = std::string(inet_ntoa(*addr_list[i]));
-            break;
+        int result = getaddrinfo(host.c_str(), NULL, &hints, &infoptr);
+        if (result) {
+            fprintf(stderr, "getaddrinfo: %s at %s\n", gai_strerror(result),host.c_str());
+            return "";
         }
+        char ip[64]; memset(ip,0,sizeof(ip));
+
+        for(struct addrinfo *p = infoptr; p != NULL; p = p->ai_next) {
+            getnameinfo(p->ai_addr, p->ai_addrlen, ip, sizeof(ip), NULL, 0, NI_NUMERICHOST);
+        }
+
+        res = std::string(ip);
+        if(res != "")
+            cache.insert(std::make_pair(host,res));
         return res;
     }
 };
