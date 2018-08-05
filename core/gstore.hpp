@@ -1073,27 +1073,24 @@ public:
         // entry region
         num_entries = entry_region / sizeof(edge_t);
 #ifdef DYNAMIC_GSTORE
-
 #ifdef USE_JEMALLOC
         edge_allocator = new JeMalloc();
 #else
         edge_allocator = new Buddy_Malloc();
-#endif
+#endif // end of USE_JEMALLOC
         pthread_spin_init(&free_queue_lock, 0);
         lease = SEC(120);
         rdma_cache = RDMA_Cache(lease);
-
 #else
-
         pthread_spin_init(&entry_lock, 0);
+#endif // end of DYNAMIC_GSTORE
 
-#endif // end of USE_JEMALLOC
 
 #ifdef USE_GPU
         logstream(LOG_INFO) << "gpu-gstore = ";
 #else
         logstream(LOG_INFO) << "gstore = ";
-#endif
+#endif // end of USE_GPU
         logstream(LOG_INFO) << mem->kvstore_size() << " bytes " << LOG_endl;
         logstream(LOG_INFO) << "      header region: " << num_slots << " slots" << " (main = " << num_buckets << ", indirect = " << num_buckets_ext << ")" << LOG_endl;
         logstream(LOG_INFO) << "      entry region: " << num_entries << " entries" << LOG_endl;

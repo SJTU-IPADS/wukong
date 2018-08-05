@@ -19,20 +19,21 @@
  *      http://ipads.se.sjtu.edu.cn/projects/wukong
  *
  */
- 
-#ifdef USE_JEMALLOC
+
 #pragma once
+
+#ifdef USE_JEMALLOC
 
 #include "mem_mgmt/malloc_interface.hpp"
 #include <jemalloc/jemalloc.h>
 
-class JeMalloc :public Malloc_Interface{
+class JeMalloc : public Malloc_Interface {
 private:
-
     vector<unsigned> arena_inds;
     vector<unsigned> tcache_inds;
     uint64_t memsize;
     extent_hooks_t *new_hooks;
+
 public:
     static char *start_ptr;
     static char *end_ptr;
@@ -53,14 +54,19 @@ public:
     };
 
     //hook functions which manage extent lifetime
-    static void *extent_alloc_hook(extent_hooks_t *extent_hooks, void *new_addr, size_t size, size_t alignment, bool *zero, bool *commit, unsigned arena_ind){
-        //logstream(LOG_INFO) << __func__ << "(extent_hooks = " << extent_hooks << " , new_addr = " << new_addr << ", size = " << size <<  " , alignment = " << alignment << " , *zero = " << *zero << " , *commit = " << *commit << " , arena_ind = " << arena_ind << ")" << LOG_endl;
+    static void *extent_alloc_hook(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
+                                   size_t alignment, bool *zero, bool *commit, unsigned arena_ind) {
+        logstream(LOG_DEBUG) << __func__ << "(extent_hooks = " << extent_hooks
+                             << " , new_addr = " << new_addr << ", size = " << size
+                             <<  " , alignment = " << alignment
+                             << " , *zero = " << *zero << " , *commit = " << *commit
+                             << " , arena_ind = " << arena_ind << ")" << LOG_endl;
 
         pthread_spin_lock(&jelock);
         char *ret = (char*)top_of_heap;
         //align the return address
-        if((uintptr_t)ret % alignment != 0) {
-            ret = ret + (alignment- (uintptr_t)ret % alignment);
+        if ((uintptr_t)ret % alignment != 0) {
+            ret = ret + (alignment - (uintptr_t)ret % alignment);
         }
         if ((char*)ret + size >= (char*)end_ptr) {
             logstream(LOG_ERROR) << "Out of memory, can not allocate any extent." << LOG_endl;
@@ -73,62 +79,94 @@ public:
         if (*zero) //extent should be zeroed
             memset(ret, size, 0);
 
-        if((uintptr_t)ret % alignment != 0) {
+        if ((uintptr_t)ret % alignment != 0) {
             logstream(LOG_ERROR) << "Alignment error." << LOG_endl;
         }
         return ret;
     }
 
-    static bool extent_dalloc_hook(extent_hooks_t *extent_hooks, void *addr, size_t size, bool committed, unsigned arena_ind) {
-        //logstream(LOG_INFO) << __func__ << "(extent_hooks = " << extent_hooks << " , addr = " << addr << ", size = " << size <<  " , committed = " << committed << " , arena_ind = " << arena_ind << ")" << LOG_endl;
+    static bool extent_dalloc_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
+                                   bool committed, unsigned arena_ind) {
+        logstream(LOG_DEBUG) << __func__ << "(extent_hooks = " << extent_hooks
+                             << " , addr = " << addr << ", size = " << size
+                             <<  " , committed = " << committed
+                             << " , arena_ind = " << arena_ind << ")" << LOG_endl;
 
         // opt out from dalloc
         return true;
     }
 
-    static void extent_destroy_hook(extent_hooks_t *extent_hooks, void *addr, size_t size, bool committed, unsigned arena_ind) {
-        //logstream(LOG_INFO) << __func__ << "(extent_hooks = " << extent_hooks << " , addr = " << addr << ", size = " << size <<  " , committed = " << committed << " , arena_ind = " << arena_ind << ")" << LOG_endl;
+    static void extent_destroy_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
+                                    bool committed, unsigned arena_ind) {
+        logstream(LOG_DEBUG) << __func__ << "(extent_hooks = " << extent_hooks
+                             << " , addr = " << addr << ", size = " << size
+                             <<  " , committed = " << committed
+                             << " , arena_ind = " << arena_ind << ")" << LOG_endl;
 
         return;
     }
 
-    static bool extent_commit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size, size_t offset, size_t length, unsigned arena_ind) {
-        //logstream(LOG_INFO) << __func__ << "(extent_hooks = " << extent_hooks << " , addr = " << addr << ", size = " << size <<  " , offset = " << offset << " , length = " << length << " , arena_ind = " << arena_ind << ")" << LOG_endl;
+    static bool extent_commit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
+                                   size_t offset, size_t length, unsigned arena_ind) {
+        logstream(LOG_DEBUG) << __func__ << "(extent_hooks = " << extent_hooks
+                             << " , addr = " << addr << ", size = " << size
+                             <<  " , offset = " << offset << " , length = " << length
+                             << " , arena_ind = " << arena_ind << ")" << LOG_endl;
 
         // commit should always succeed
         return false;
     }
 
-    static bool extent_decommit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size, size_t offset, size_t length, unsigned arena_ind) {
-        //logstream(LOG_INFO) << __func__ << "(extent_hooks = " << extent_hooks << " , addr = " << addr << ", size = " << size <<  " , offset = " << offset << " , length = " << length << " , arena_ind = " << arena_ind << ")" << LOG_endl;
+    static bool extent_decommit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
+                                     size_t offset, size_t length, unsigned arena_ind) {
+        logstream(LOG_DEBUG) << __func__ << "(extent_hooks = " << extent_hooks
+                             << " , addr = " << addr << ", size = " << size
+                             <<  " , offset = " << offset << " , length = " << length
+                             << " , arena_ind = " << arena_ind << ")" << LOG_endl;
 
         // decommit should always succeed
         return false;
     }
 
-    static bool extent_purge_lazy_hook(extent_hooks_t *extent_hooks, void *addr, size_t size, size_t offset, size_t length, unsigned arena_ind) {
-        //logstream(LOG_INFO) << __func__ << "(extent_hooks = " << extent_hooks << " , addr = " << addr << ", size = " << size <<  " , offset = " << offset << " , length = " << length << " , arena_ind = " << arena_ind << ")" << LOG_endl;
+    static bool extent_purge_lazy_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
+                                       size_t offset, size_t length, unsigned arena_ind) {
+        logstream(LOG_DEBUG) << __func__ << "(extent_hooks = " << extent_hooks
+                             << " , addr = " << addr << ", size = " << size
+                             <<  " , offset = " << offset << " , length = " << length
+                             << " , arena_ind = " << arena_ind << ")" << LOG_endl;
 
         // opt out
         return true;
     }
 
-    static bool extent_purge_forced_hook(extent_hooks_t *extent_hooks, void *addr, size_t size, size_t offset, size_t length, unsigned arena_ind) {
-        //logstream(LOG_INFO) << __func__ << "(extent_hooks = " << extent_hooks << " , addr = " << addr << ", size = " << size <<  " , offset = " << offset << " , length = " << length << " , arena_ind = " << arena_ind << ")" << LOG_endl;
+    static bool extent_purge_forced_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
+                                         size_t offset, size_t length, unsigned arena_ind) {
+        logstream(LOG_DEBUG) << __func__ << "(extent_hooks = " << extent_hooks
+                             << " , addr = " << addr << ", size = " << size
+                             <<  " , offset = " << offset << " , length = " << length
+                             << " , arena_ind = " << arena_ind << ")" << LOG_endl;
 
         // opt out
         return true;
     }
 
-    static bool extent_split_hook(extent_hooks_t *extent_hooks, void *addr, size_t size, size_t size_a, size_t size_b, bool committed, unsigned arena_ind) {
-        //logstream(LOG_INFO) << __func__ << "(extent_hooks = " << extent_hooks << " , addr = " << addr << ", size = " << size <<  " , size_a = " << size_a << " , size_b = " << size_b << " , committed = " << committed << " , arena_ind = " << arena_ind << ")" << LOG_endl;
+    static bool extent_split_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
+                                  size_t size_a, size_t size_b, bool committed, unsigned arena_ind) {
+        logstream(LOG_DEBUG) << __func__ << "(extent_hooks = " << extent_hooks
+                             << " , addr = " << addr << ", size = " << size
+                             <<  " , size_a = " << size_a << " , size_b = " << size_b
+                             << " , committed = " << committed << " , arena_ind = " << arena_ind << ")" << LOG_endl;
 
         // split should always succeed
         return false;
     }
 
-    static bool extent_merge_hook(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a, void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
-        //logstream(LOG_INFO) << __func__ << "(extent_hooks = " << extent_hooks << " , addr_a = " << addr_a << ", size_a = " << size_a <<  " , addr_b = " << addr_b << " , size_b = " << size_b << " , committed = " << committed << " , arena_ind = " << arena_ind << ")" << LOG_endl;
+    static bool extent_merge_hook(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
+                                  void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
+        logstream(LOG_DEBUG) << __func__ << "(extent_hooks = " << extent_hooks
+                             << " , addr_a = " << addr_a << ", size_a = " << size_a
+                             <<  " , addr_b = " << addr_b << " , size_b = " << size_b
+                             << " , committed = " << committed << " , arena_ind = " << arena_ind << ")" << LOG_endl;
 
         // merge should always succeed
         return false;
@@ -145,18 +183,18 @@ public:
         tcache_inds.resize(n);
         new_hooks = &hooks;
         //create new arena for each engine and install custom extent hooks on it
-        for(int i = 0; i < n; i++) {
-            mallctl("arenas.create", (void *)&arena_inds[i], &sz, (void *)&new_hooks, sizeof(extent_hooks_t *));
-        }
+        for (int i = 0; i < n; i++)
+            mallctl("arenas.create", (void *)&arena_inds[i], &sz,
+                    (void *)&new_hooks, sizeof(extent_hooks_t *));
+
         //create thread-specific cache for each engine
-        for (int i = 0; i < n; i++) {
-            mallctl("tcache.create", (void *)&tcache_inds[i], &sz, NULL,0);
-        }
+        for (int i = 0; i < n; i++)
+            mallctl("tcache.create", (void *)&tcache_inds[i], &sz, NULL, 0);
     }
 
     uint64_t malloc(uint64_t size, int64_t tid) {
         // malloc from engine's own arena and tcache
-        void *ptr = mallocx(size, MALLOCX_ARENA(arena_inds[tid])| MALLOCX_TCACHE(tcache_inds[tid]));
+        void *ptr = mallocx(size, MALLOCX_ARENA(arena_inds[tid]) | MALLOCX_TCACHE(tcache_inds[tid]));
         if ((char*)ptr < start_ptr || (char*)ptr + size > end_ptr) {
             logstream(LOG_ERROR) << "memory range false" << LOG_endl;
             ASSERT(false);
@@ -179,20 +217,18 @@ public:
     }
 
     //to be suited with buddy malloc
-    void merge_freelists() {
-        return;
-    }
+    void merge_freelists() { return; }
 
     void print_memory_usage() {
-        uint64_t allocated_size = ((char*) top_of_heap - (char*)start_ptr) / (1024 * 1024);
+        uint64_t allocated_size = ((char*)top_of_heap - (char*)start_ptr) / (1024 * 1024);
+
         logstream(LOG_INFO) << "graph_storage edge memory status:" << LOG_endl;
         logstream(LOG_INFO) << "allocated " << allocated_size << " MB" << LOG_endl;
         return;
     }
 };
 
-//It is needed to provide a definition
-//for static member variables
+// needed to provide a definition for static member variables
 char* JeMalloc::start_ptr = NULL;
 char* JeMalloc::end_ptr = NULL;
 char* JeMalloc::top_of_heap = NULL;
