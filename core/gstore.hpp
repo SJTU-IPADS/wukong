@@ -40,8 +40,10 @@
 #include "rdma.hpp"
 #include "data_statistic.hpp"
 #include "type.hpp"
-#include "mem_mgmt/jemalloc.hpp"
-#include "mem_mgmt/buddy_malloc.hpp"
+
+#include "mm/malloc_interface.hpp"
+#include "mm/jemalloc.hpp"
+#include "mm/buddy_malloc.hpp"
 
 #include "mymath.hpp"
 #include "timer.hpp"
@@ -380,7 +382,7 @@ done:
 #ifdef DYNAMIC_GSTORE
 
     // manage the memory of edges(val)
-    Malloc_Interface *edge_allocator;
+    MAInterface *edge_allocator;
 
     /// A size flag is put into the tail of edges (in the entry region) for dynamic cache.
     /// NOTE: the (remote) edges accessed by (local) RDMA cache are valid
@@ -1076,7 +1078,7 @@ public:
 #ifdef USE_JEMALLOC
         edge_allocator = new JeMalloc();
 #else
-        edge_allocator = new Buddy_Malloc();
+        edge_allocator = new BuddyMalloc();
 #endif // end of USE_JEMALLOC
         pthread_spin_init(&free_queue_lock, 0);
         lease = SEC(120);
@@ -1085,15 +1087,12 @@ public:
         pthread_spin_init(&entry_lock, 0);
 #endif // end of DYNAMIC_GSTORE
 
-
-#ifdef USE_GPU
-        logstream(LOG_INFO) << "gpu-gstore = ";
-#else
+        // print gstore usage
         logstream(LOG_INFO) << "gstore = ";
-#endif // end of USE_GPU
         logstream(LOG_INFO) << mem->kvstore_size() << " bytes " << LOG_endl;
-        logstream(LOG_INFO) << "      header region: " << num_slots << " slots" << " (main = " << num_buckets << ", indirect = " << num_buckets_ext << ")" << LOG_endl;
-        logstream(LOG_INFO) << "      entry region: " << num_entries << " entries" << LOG_endl;
+        logstream(LOG_INFO) << "  header region: " << num_slots << " slots"
+                            << " (main = " << num_buckets << ", indirect = " << num_buckets_ext << ")" << LOG_endl;
+        logstream(LOG_INFO) << "  entry region: " << num_entries << " entries" << LOG_endl;
 
         vertices = (vertex_t *)(mem->kvstore());
         edges = (edge_t *)(mem->kvstore() + num_slots * sizeof(vertex_t));

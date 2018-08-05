@@ -24,7 +24,7 @@
 #include <iostream>
 
 // NOTICE: any implentation of this interface should be *tread-safe*
-class Malloc_Interface {
+class MAInterface {
 public:
 
     /* init the memory management system with the memory region which starts

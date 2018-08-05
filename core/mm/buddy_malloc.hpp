@@ -23,9 +23,9 @@
 
 #pragma once
 
-#include "mem_mgmt/malloc_interface.hpp"
+#include "mm/malloc_interface.hpp"
 
-class Buddy_Malloc : public Malloc_Interface {
+class BuddyMalloc : public MAInterface {
 private:
 
     // block size >= 2^level_low_bound units

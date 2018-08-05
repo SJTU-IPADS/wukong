@@ -24,10 +24,10 @@
 
 #ifdef USE_JEMALLOC
 
-#include "mem_mgmt/malloc_interface.hpp"
+#include "mm/malloc_interface.hpp"
 #include <jemalloc/jemalloc.h>
 
-class JeMalloc : public Malloc_Interface {
+class JeMalloc : public MAInterface {
 private:
     vector<unsigned> arena_inds;
     vector<unsigned> tcache_inds;
