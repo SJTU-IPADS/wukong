@@ -49,7 +49,8 @@ private:
     socket_vector receivers;     // static allocation
     socket_map senders;          // dynamic allocation
 
-    pthread_spinlock_t *locks;
+    pthread_spinlock_t *send_locks;
+    pthread_spinlock_t *receive_locks;
 
     vector<string> ipset;
 
@@ -73,9 +74,13 @@ public:
             receivers[tid]->bind(address);
         }
 
-        locks = (pthread_spinlock_t *)malloc(sizeof(pthread_spinlock_t) * num_threads);
+        send_locks = (pthread_spinlock_t *)malloc(sizeof(pthread_spinlock_t) * num_threads);
         for (int i = 0; i < num_threads; i++)
-            pthread_spin_init(&locks[i], 0);
+            pthread_spin_init(&send_locks[i], 0);
+        
+        receive_locks = (pthread_spinlock_t *)malloc(sizeof(pthread_spinlock_t) * num_threads);
+        for (int i = 0; i < num_threads; i++)
+            pthread_spin_init(&receive_locks[i], 0);
     }
 
     ~TCP_Adaptor() {
@@ -98,8 +103,9 @@ public:
         zmq::message_t msg(str.length());
         memcpy((void *)msg.data(), str.c_str(), str.length());
 
-        // FIXME: need lock or not? what to protect?
-        pthread_spin_lock(&locks[tid]);
+        // send_lock can avoid two proxies use same socket simultaneously,
+        // when they send requests to the same engine at the same time
+        pthread_spin_lock(&send_locks[tid]);
         if (senders.find(pid) == senders.end()) {
             // new socket on-demand
             char address[32] = "";
@@ -110,27 +116,37 @@ public:
         }
 
         bool result = senders[pid]->send(msg, ZMQ_DONTWAIT);
-        pthread_spin_unlock(&locks[tid]);
+        pthread_spin_unlock(&send_locks[tid]);
 
         return result;
     }
 
     string recv(int tid) {
         zmq::message_t msg;
+        
+        pthread_spin_lock(&receive_locks[tid]);
         if (receivers[tid]->recv(&msg) < 0) {
             logstream(LOG_ERROR) << "Failed to recv msg ("
                                  << strerror(errno) << ")" << LOG_endl;
             assert(false);
         }
+        pthread_spin_unlock(&receive_locks[tid]);
 
         return string((char *)msg.data(), msg.size());
     }
 
+    // when neighbor engine thread try to steal,
+    // it will use the same socket as current engine thread,
+    // thus receive_lock is needed.
     bool tryrecv(int tid, string &str) {
         zmq::message_t msg;
         bool success = false;
+        
+        pthread_spin_lock(&receive_locks[tid]);
         if (success = receivers[tid]->recv(&msg, ZMQ_NOBLOCK))
             str = string((char *)msg.data(), msg.size());
+        pthread_spin_unlock(&receive_locks[tid]);
+        
         return success;
     }
 };
