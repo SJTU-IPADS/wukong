@@ -57,7 +57,6 @@ private:
     inline int port_code(int sid, int tid) { return sid * 200 + tid; }
 
 public:
-
     TCP_Adaptor(int sid, string fname, int num_threads, int port_base)
         : port_base(port_base), context(1) {
 
@@ -77,7 +76,7 @@ public:
         send_locks = (pthread_spinlock_t *)malloc(sizeof(pthread_spinlock_t) * num_threads);
         for (int i = 0; i < num_threads; i++)
             pthread_spin_init(&send_locks[i], 0);
-        
+
         receive_locks = (pthread_spinlock_t *)malloc(sizeof(pthread_spinlock_t) * num_threads);
         for (int i = 0; i < num_threads; i++)
             pthread_spin_init(&receive_locks[i], 0);
@@ -103,8 +102,9 @@ public:
         zmq::message_t msg(str.length());
         memcpy((void *)msg.data(), str.c_str(), str.length());
 
-        // send_lock can avoid two proxies use same socket simultaneously,
-        // when they send requests to the same engine at the same time
+        // avoid two contentions
+        // 1) add the 'equal' sockets to the set (overwrite)
+        // 2) use the same socket by multiple proxy threads simultaneously.
         pthread_spin_lock(&send_locks[tid]);
         if (senders.find(pid) == senders.end()) {
             // new socket on-demand
@@ -123,7 +123,8 @@ public:
 
     string recv(int tid) {
         zmq::message_t msg;
-        
+
+        // multiple engine threads may recv the same msg simultaneously (no case)
         pthread_spin_lock(&receive_locks[tid]);
         if (receivers[tid]->recv(&msg) < 0) {
             logstream(LOG_ERROR) << "Failed to recv msg ("
@@ -135,18 +136,17 @@ public:
         return string((char *)msg.data(), msg.size());
     }
 
-    // when neighbor engine thread try to steal,
-    // it will use the same socket as current engine thread,
-    // thus receive_lock is needed.
     bool tryrecv(int tid, string &str) {
         zmq::message_t msg;
         bool success = false;
-        
+
+        // multiple engine threads may recv the same msg simultaneously
+        // (work-stealing is the only case now)
         pthread_spin_lock(&receive_locks[tid]);
         if (success = receivers[tid]->recv(&msg, ZMQ_NOBLOCK))
             str = string((char *)msg.data(), msg.size());
         pthread_spin_unlock(&receive_locks[tid]);
-        
+
         return success;
     }
 };
