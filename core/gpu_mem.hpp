@@ -20,8 +20,9 @@
  *
  */
 
-#ifdef USE_GPU
 #pragma once
+
+#ifdef USE_GPU
 
 #include "unit.hpp"
 #include "gpu_utils.hpp"
@@ -33,11 +34,11 @@ private:
     int num_servers;
     int num_agents; // #gpu_engine
 
-    // The GPU memory layout: block-based kvstore | history in/out buffer | rdma buffer | heap
+    // The GPU memory layout: key/value cache | history in/out buffer(intermediate results) | rdma buffer | heap
     char *mem_gpu;
     uint64_t mem_gpu_sz;
 
-    // kvstore on gpu
+    // cache on gpu
     char *kvs;
     uint64_t kvs_sz;
     uint64_t kvs_off;
@@ -57,7 +58,7 @@ private:
 public:
     GPUMem(int devid, int num_servers, int num_agents)
     :devid(devid), num_servers(num_servers), num_agents(num_agents) {
-        kvs_sz = GiB2B(global_gpu_kvstore_size_gb);
+        kvs_sz = GiB2B(global_gpu_kvcache_size_gb);
         history_buf_sz = global_gpu_max_element * sizeof(sid_t);
         if (RDMA::get_rdma().has_rdma()) {
             // only used by RDMA device
@@ -67,9 +68,9 @@ public:
         }
         mem_gpu_sz = kvs_sz + history_buf_sz * 2 + buf_sz * num_agents;
 
-        CUDA_ASSERT( cudaSetDevice(devid) );
-        CUDA_ASSERT( cudaMalloc(&mem_gpu, mem_gpu_sz) );
-        CUDA_ASSERT( cudaMemset(mem_gpu, 0, mem_gpu_sz) );
+        CUDA_ASSERT(cudaSetDevice(devid));
+        CUDA_ASSERT(cudaMalloc(&mem_gpu, mem_gpu_sz));
+        CUDA_ASSERT(cudaMemset(mem_gpu, 0, mem_gpu_sz));
 
         kvs_off = 0;
         kvs = mem_gpu + kvs_off;
@@ -86,7 +87,7 @@ public:
         logstream(LOG_INFO) << "GPUMem: devid: " << devid << ", num_servers: " << num_servers << ", num_agents: " << num_agents << LOG_endl;
     }
 
-    ~GPUMem() { CUDA_ASSERT( cudaFree(mem_gpu) ); }
+    ~GPUMem() { CUDA_ASSERT(cudaFree(mem_gpu)); }
 
     inline char *memory() { return mem_gpu; }
     inline uint64_t memory_size() { return mem_gpu_sz; }

@@ -53,26 +53,26 @@ int global_rdma_buf_size_mb = 64;
 int global_rdma_rbf_size_mb = 16;
 
 bool global_use_rdma = true;
-bool global_generate_statistics = true;
-bool global_enable_caching = true;
-bool global_enable_workstealing = false;
+int global_rdma_threshold = 300;
 
 int global_mt_threshold = 16;
-int global_rdma_threshold = 300;
+
+bool global_enable_caching = true;
+bool global_enable_workstealing = false;
 
 bool global_silent = true;  // don't take back results by default
 
 bool global_enable_planner = true;  // for planner
+bool global_generate_statistics = true;
 
 bool global_enable_vattr = false;  // for attr
 
 #ifdef USE_GPU
-// GPU-related configurations
 int global_num_gpus = 1;
 int global_gpu_rdma_buf_size_mb = 64;
 uint64_t global_gpu_max_element =  20000000; // max history element num in gpu
 int global_gpu_num_keys_million = 100;
-int global_gpu_kvstore_size_gb = 10;
+int global_gpu_kvcache_size_gb = 10;
 int global_gpu_key_block_size_mb = 16;
 int global_gpu_value_block_size_mb = 4;
 #endif
@@ -126,8 +126,8 @@ static bool set_immutable_config(string cfg_name, string value)
         global_gpu_max_element = strtoull(value.c_str(), &tmp, 10);
     } else if (cfg_name == "global_gpu_num_keys_million") {
         global_gpu_num_keys_million = atoi(value.c_str());
-    } else if (cfg_name == "global_gpu_kvstore_size_gb") {
-        global_gpu_kvstore_size_gb = atoi(value.c_str());
+    } else if (cfg_name == "global_gpu_kvcache_size_gb") {
+        global_gpu_kvcache_size_gb = atoi(value.c_str());
     } else if (cfg_name == "global_gpu_key_block_size_mb") {
         global_gpu_key_block_size_mb = atoi(value.c_str());
     } else if (cfg_name == "global_gpu_value_block_size_mb") {
@@ -285,7 +285,7 @@ void print_config(void)
     logstream(LOG_INFO) << "global_gpu_rdma_buf_size_mb: "  << global_gpu_rdma_buf_size_mb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_max_element: "  << global_gpu_max_element  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_num_keys_million: "  << global_gpu_num_keys_million  << LOG_endl;
-    logstream(LOG_INFO) << "global_gpu_kvstore_size_gb: "  << global_gpu_kvstore_size_gb  << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_kvcache_size_gb: "  << global_gpu_kvcache_size_gb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_key_block_size_mb: "  << global_gpu_key_block_size_mb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_value_block_size_mb: "  << global_gpu_value_block_size_mb  << LOG_endl;
     #endif

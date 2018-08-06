@@ -111,7 +111,7 @@ public:
 
         cap_gpu_slots = global_gpu_num_keys_million * 1000 * 1000;
         cap_gpu_buckets = cap_gpu_slots / GStore::ASSOCIATIVITY;
-        cap_gpu_entries = (GiB2B(global_gpu_kvstore_size_gb) - cap_gpu_slots * sizeof(vertex_t)) / sizeof(edge_t);
+        cap_gpu_entries = (GiB2B(global_gpu_kvcache_size_gb) - cap_gpu_slots * sizeof(vertex_t)) / sizeof(edge_t);
 
         num_buckets_per_block = MiB2B(global_gpu_key_block_size_mb) / (sizeof(vertex_t) * GStore::ASSOCIATIVITY);
         num_entries_per_block = MiB2B(global_gpu_value_block_size_mb) / sizeof(edge_t);
