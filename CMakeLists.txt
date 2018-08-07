@@ -38,6 +38,14 @@ if(USE_RDMA)
   add_definitions(-DHAS_RDMA)
 endif(USE_RDMA)
 
+#### GPU (NOT YET READY)
+option (USE_GPU "enable GPU support" OFF)
+if(USE_GPU)
+  add_definitions(-DUSE_GPU)
+  find_package(CUDA REQUIRED)
+  set(WUKONG_LIBS ${WUKONG_LIBS} cudart)
+endif(USE_GPU)
+
 #### HDFS
 option (USE_HADOOP "enable HDFS support" OFF)
 if(USE_HADOOP)
@@ -45,6 +53,14 @@ if(USE_HADOOP)
   target_link_libraries(wukong hdfs)
   set(WUKONG_LIBS ${WUKONG_LIBS} hdfs)
 endif(USE_HADOOP)
+
+#### JEMALLOC
+option (USE_JEMALLOC "enable jemalloc support" ON)
+if(USE_JEMALLOC)
+  add_definitions(-DUSE_JEMALLOC)
+  target_link_libraries(wukong jemalloc)
+  set(WUKONG_LIBS ${WUKONG_LIBS} jemalloc)
+endif(USE_JEMALLOC)
 
 #### Dynamic GStore
 option (USE_DYNAMIC_GSTORE "enable dynamic gstore" OFF)
@@ -64,13 +80,6 @@ if(USE_DTYPE_64BIT)
   add_definitions(-DDTYPE_64BIT)
 endif(USE_DTYPE_64BIT)
 
-#### GPU(UNAVAILABLE NOW, COMMING SOON)
-option (USE_GPU "enable gpu support" OFF)
-if(USE_GPU)
-    add_definitions(-DUSE_GPU)
-    find_package(CUDA REQUIRED)
-    set(WUKONG_LIBS ${WUKONG_LIBS} cudart)
-endif(USE_GPU)
 
 set(WUKONG_LIBS ${WUKONG_LIBS} zmq rt ibverbs tbb hwloc)
 

@@ -80,7 +80,6 @@ main(int argc, char *argv[])
     boost::mpi::environment env(argc, argv);
     boost::mpi::communicator world;
     int sid = world.rank(); // server ID
-    int devid = 0;
 
     if (argc < 3) {
         usage(argv[0]);
@@ -113,18 +112,24 @@ main(int argc, char *argv[])
         }
     }
 
-    // allocate memory
+    // allocate memory regions
+    vector<RDMA::MemoryRegion> mrs;
+
+    // CPU (host) memory
     Mem *mem = new Mem(global_num_servers, global_num_threads);
     logstream(LOG_INFO)  << "#" << sid << ": allocate " << B2GiB(mem->memory_size()) << "GB memory" << LOG_endl;
-    vector<RDMA::MemoryRegion> mrs;
-    RDMA::MemoryRegion mr_cpu = { mem->memory(), mem->memory_size(), RDMA::MemType::CPU };
+    RDMA::MemoryRegion mr_cpu = { RDMA::MemType::CPU, mem->memory(), mem->memory_size() };
     mrs.push_back(mr_cpu);
+
 #ifdef USE_GPU
+    // GPU (device) memory
+    int devid = 0; // FIXME: it means one GPU device?
     GPUMem *gpu_mem = new GPUMem(devid, global_num_servers, global_num_gpus);
     logstream(LOG_INFO)  << "#" << sid << ": allocate " << B2GiB(gpu_mem->memory_size()) << "GB GPU memory" << LOG_endl;
-    RDMA::MemoryRegion mr_gpu = { gpu_mem->memory(), gpu_mem->memory_size(), RDMA::MemType::GPU };
+    RDMA::MemoryRegion mr_gpu = { RDMA::MemType::GPU, gpu_mem->memory(), gpu_mem->memory_size() };
     mrs.push_back(mr_gpu);
 #endif
+
     // init RDMA devices and connections
     RDMA_init(global_num_servers, global_num_threads, sid, mrs, host_fname);
 

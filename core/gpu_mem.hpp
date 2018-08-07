@@ -19,50 +19,61 @@
  *      http://ipads.se.sjtu.edu.cn/projects/wukong.html
  *
  */
-#ifdef USE_GPU
+
 #pragma once
+
+#ifdef USE_GPU
 
 #include "unit.hpp"
 #include "gpu_utils.hpp"
 
 class GPUMem {
 private:
-    int devid;
+	int devid;
 	int num_servers;
 	int num_agents;
 
-	// The GPU memory layout: block-based kvstore | history | heap
+	// The Wukong's GPU memory layout: key/value cache | intermediate results | heap
 	char *mem_gpu;
 	uint64_t mem_gpu_sz;
 
+	// FIXME: kvcache for gstore
+	//
+
+	// intermediate results (history table)
 	char *buf; // #threads
 	uint64_t buf_sz;
 	uint64_t buf_off;
 
+	// FIXME: head
+	//
+
 public:
-    GPUMem(int devid, int num_servers, int num_agents)
-        : devid(devid), num_servers(num_servers), num_agents(num_agents) {
-        buf_sz = MiB2B(global_gpu_rdma_buf_size_mb);
-        mem_gpu_sz = buf_sz * num_agents;
+	GPUMem(int devid, int num_servers, int num_agents)
+		: devid(devid), num_servers(num_servers), num_agents(num_agents) {
+		buf_sz = MiB2B(global_gpu_rdma_buf_size_mb);
+		mem_gpu_sz = buf_sz * num_agents;
 
-        CUDA_ASSERT( cudaSetDevice(devid) );
-        CUDA_ASSERT( cudaMalloc(&mem_gpu, mem_gpu_sz) );
-        CUDA_ASSERT( cudaMemset(mem_gpu, 0, mem_gpu_sz) );
+		CUDA_ASSERT(cudaSetDevice(devid));
+		CUDA_ASSERT(cudaMalloc(&mem_gpu, mem_gpu_sz));
+		CUDA_ASSERT(cudaMemset(mem_gpu, 0, mem_gpu_sz));
 
-        buf_off = 0;
-        buf = mem_gpu + buf_off;
-        logstream(LOG_INFO) << "GPUMem: devid: " << devid << ", num_servers: " << num_servers << ", num_agents: " << num_agents << LOG_endl;
-    }
+		buf_off = 0;
+		buf = mem_gpu + buf_off;
+		logstream(LOG_INFO) << "GPUMem: devid: " << devid
+		                    << ", num_servers: " << num_servers
+		                    << ", num_agents: " << num_agents << LOG_endl;
+	}
 
-    ~GPUMem() { CUDA_ASSERT( cudaFree(mem_gpu) ); }
+	~GPUMem() { CUDA_ASSERT(cudaFree(mem_gpu)); }
 
 	inline char *memory() { return mem_gpu; }
 	inline uint64_t memory_size() { return mem_gpu_sz; }
 
-	// buffer
+	// intermediate results
 	inline char *buffer(int tid) { return buf + buf_sz * (tid % num_agents); }
 	inline uint64_t buffer_size() { return buf_sz; }
 	inline uint64_t buffer_offset(int tid) { return buf_off + buf_sz * (tid % num_agents); }
-
 };
+
 #endif

@@ -119,7 +119,7 @@ $./build.sh
 
 + **Enable/disable 64-bit ID** (default: OFF): The 32-bit ID is enough to support the dataset with more than 2 billion unified strings. If you want to support more large dataset (like LUBM-102400), you need to add a parameter `-DUSE_DTYPE_64BIT=ON` for cmake (i.e., `cmake .. -DUSE_DTYPE_64BIT=ON` or `./build.sh -DUSE_DTYPE_64BIT=ON`). Note that it will consume more memory and slightly increase the query latency.
 
-+ **Enable/disable dynamic data loading support** (default: OFF): To support data loading after Wukong has been initialized, you need to add a parameter `-USE_DYNAMIC_GSTORE=ON` for cmake (i.e., `cmake .. -USE_DYNAMIC_GSTORE=ON` or `./build.sh -USE_DYNAMIC_GSTORE=ON`). Noted that this feature will cost a bit more time on initialization.
++ **Enable/disable dynamic data loading support** (default: OFF): To support data loading after Wukong has been initialized, you need to add a parameter `-DUSE_DYNAMIC_GSTORE=ON` for cmake (i.e., `cmake .. -DUSE_DYNAMIC_GSTORE=ON` or `./build.sh -DUSE_DYNAMIC_GSTORE=ON`). Noted that this feature will cost a bit more time on initialization.
 
 > CMake will automatically cache the latest parameters.
 

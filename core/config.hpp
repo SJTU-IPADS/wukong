@@ -53,21 +53,21 @@ int global_rdma_buf_size_mb = 64;
 int global_rdma_rbf_size_mb = 16;
 
 bool global_use_rdma = true;
-bool global_generate_statistics = true;
-bool global_enable_caching = true;
-bool global_enable_workstealing = false;
+int global_rdma_threshold = 300;
 
 int global_mt_threshold = 16;
-int global_rdma_threshold = 300;
+
+bool global_enable_caching = true;
+bool global_enable_workstealing = false;
 
 bool global_silent = true;  // don't take back results by default
 
 bool global_enable_planner = true;  // for planner
+bool global_generate_statistics = true;
 
 bool global_enable_vattr = false;  // for attr
 
 #ifdef USE_GPU
-// GPU-related configurations
 int global_num_gpus = 1;
 int global_gpu_rdma_buf_size_mb = 64;
 #endif

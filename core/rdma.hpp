@@ -38,13 +38,16 @@ using namespace std;
 using namespace rdmaio;
 
 class RDMA {
+    
 public:
     enum MemType { CPU, GPU };
+
     struct MemoryRegion {
+        MemType type;
         char *mem;
         uint64_t sz;
-        MemType type;
     };
+    
     class RDMA_Device {
         static const uint64_t RDMA_CTRL_PORT = 19344;
     public:
@@ -56,6 +59,7 @@ public:
             vector<string> ipset;
             ifstream ipfile(ipfn);
             string ip;
+
             // get first nnodes IPs
             for (int i = 0; i < nnodes; i++) {
                 ipfile >> ip;
@@ -73,16 +77,17 @@ public:
                     ctrl->register_connect_mr();//single
                     break;
                 case RDMA::MemType::GPU:
-                    #ifdef USE_GPU
+#ifdef USE_GPU
                     ctrl->set_connect_mr_gpu(mr.mem, mr.sz);
                     ctrl->register_connect_mr_gpu();
                     break;
-                    #else
+#else
                     logstream(LOG_ERROR) << "GPU mode is not enabled." << LOG_endl;
                     ASSERT(false);
-                    #endif
+#endif
                 }
             }
+
             ctrl->start_server();
             for (uint j = 0; j < nthds; ++j) {
                 for (uint i = 0; i < nnodes; ++i) {
@@ -116,7 +121,8 @@ public:
 
 #ifdef USE_GPU
         // (sync) GPUDirect RDMA Write (w/ completion)
-        int GPURdmaWrite(int tid, int nid, char *local_gpu, uint64_t sz, uint64_t off, bool to_gpu = false) {
+        int GPURdmaWrite(int tid, int nid, char *local_gpu,
+                         uint64_t sz, uint64_t off, bool to_gpu = false) {
             Qp* qp = ctrl->get_rc_qp(tid, nid);
 
             int flags = IBV_SEND_SIGNALED;
@@ -169,7 +175,6 @@ public:
         }
     };
 
-public:
     RDMA_Device *dev = NULL;
 
     RDMA() { }
@@ -202,6 +207,16 @@ void RDMA_init(int nnodes, int nthds, int nid, vector<RDMA::MemoryRegion> &mrs, 
 #else
 
 class RDMA {
+    
+public:
+    enum MemType { CPU, GPU };
+
+    struct MemoryRegion {
+        MemType type;
+        char *mem;
+        uint64_t sz;
+    };
+
     class RDMA_Device {
     public:
         RDMA_Device(int nnodes, int nthds, int nid, vector<RDMA::MemoryRegion> &mrs, string fname) {
@@ -234,7 +249,6 @@ class RDMA {
         }
     };
 
-public:
     RDMA_Device *dev = NULL;
 
     RDMA() { }
@@ -253,8 +267,8 @@ public:
     }
 };
 
-void RDMA_init(int nnodes, int nthds, int nid, char *mem_cpu, uint64_t sz_cpu, vector<RDMA::MemoryRegion> &mrs, string ipfn) {
+void RDMA_init(int nnodes, int nthds, int nid, vector<RDMA::MemoryRegion> &mrs, string ipfn) {
     logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
 }
 
-#endif
+#endif // end of HAS_RDMA

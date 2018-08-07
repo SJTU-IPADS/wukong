@@ -34,13 +34,16 @@
 #ifdef USE_GPU
 #include <atomic>
 #include "rdf_meta.hpp"
-#endif
+#endif // USE_GPU
 
 #include "config.hpp"
 #include "rdma.hpp"
 #include "data_statistic.hpp"
 #include "type.hpp"
-#include "buddy_malloc.hpp"
+
+#include "mm/malloc_interface.hpp"
+#include "mm/jemalloc.hpp"
+#include "mm/buddy_malloc.hpp"
 
 #include "mymath.hpp"
 #include "timer.hpp"
@@ -100,11 +103,12 @@ uint64_t vid : NBITS_VID; // vertex
 };
 
 struct ikey_Hasher {
-    static size_t hash(const ikey_t& k ) {
+    static size_t hash(const ikey_t &k) {
         return k.hash();
     }
-    static bool equal(const ikey_t& x, const ikey_t& y) {
-        return x.operator==(y);
+
+    static bool equal(const ikey_t &x, const ikey_t &y) {
+        return x.operator == (y);
     }
 };
 
@@ -122,6 +126,7 @@ uint64_t off: NBITS_PTR;
 uint64_t type: NBITS_TYPE;
 
     iptr_t(): size(0), off(0), type(0) { }
+
     // the default type is sid(type = 0)
     iptr_t(uint64_t s, uint64_t o, uint64_t t = 0): size(s), off(o), type(t) {
         // no truncated
@@ -175,7 +180,7 @@ private:
              * only when expire_time is greater than the time to lookup.
              */
             uint64_t expire_time;
-#endif
+#endif // end of DYNAMIC_GSTORE
 
             Item() {
                 pthread_spin_init(&lock, 0);
@@ -199,7 +204,6 @@ private:
             bool found = false;
             pthread_spin_lock(&(items[idx].lock));
             if (items[idx].v.key == key) {
-
 #ifdef DYNAMIC_GSTORE
                 // check if timeout
                 if (timer::get_usec() < items[idx].expire_time) {
@@ -209,7 +213,7 @@ private:
 #else
                 ret = items[idx].v;
                 found = true;
-#endif
+#endif // end of DYNAMIC_GSTORE
             }
             pthread_spin_unlock(&(items[idx].lock));
             return found;
@@ -225,7 +229,7 @@ private:
 #ifdef DYNAMIC_GSTORE
             // set expire time of cache item
             items[idx].expire_time = timer::get_usec() + lease;
-#endif
+#endif // end of DYNAMIC_GSTORE
             items[idx].v = v;
             pthread_spin_unlock(&items[idx].lock);
         }
@@ -277,27 +281,31 @@ private:
 
     uint64_t bucket_local(ikey_t key) {
         uint64_t bucket_id;
+
 #ifdef USE_GPU
         // the smallest pid is 1
-        auto &segment = rdf_segment_meta_map[segid_t((key.vid == 0 ? 1 : 0), key.pid, key.dir)];
-        ASSERT(segment.num_buckets > 0);
-        bucket_id = segment.bucket_start + key.hash() % segment.num_buckets;
+        auto &seg = rdf_segment_meta_map[segid_t((key.vid == 0 ? 1 : 0), key.pid, key.dir)];
+        ASSERT(seg.num_buckets > 0);
+        bucket_id = seg.bucket_start + key.hash() % seg.num_buckets;
 #else
         bucket_id = key.hash() % num_buckets;
-#endif
+#endif // end of USE_GPU
+
         return bucket_id;
     }
 
     uint64_t bucket_remote(ikey_t key, int dst_sid) {
         uint64_t bucket_id;
+
 #ifdef USE_GPU
         auto &remote_meta_map = shared_rdf_segment_meta_map[dst_sid];
-        auto &segment = remote_meta_map[segid_t((key.vid == 0 ? 1 : 0), key.pid, key.dir)];
-        ASSERT(segment.num_buckets > 0);
-        bucket_id = segment.bucket_start + key.hash() % segment.num_buckets;
+        auto &seg = remote_meta_map[segid_t((key.vid == 0 ? 1 : 0), key.pid, key.dir)];
+        ASSERT(seg.num_buckets > 0);
+        bucket_id = seg.bucket_start + key.hash() % seg.num_buckets;
 #else
         bucket_id = key.hash() % num_buckets;
-#endif
+#endif // end of USE_GPU
+
         return bucket_id;
     }
 
@@ -342,22 +350,21 @@ private:
                 continue; // continue and jump to next bucket
             }
 
-
             // allocate and link a new indirect header
 #ifdef USE_GPU
-            rdf_segment_meta_t &segment = rdf_segment_meta_map[segid_t((key.vid == 0 ? 1 : 0), key.pid, key.dir)];
-            uint64_t ext_bucket_id = segment.get_ext_bucket();
+            rdf_segment_meta_t &seg = rdf_segment_meta_map[segid_t((key.vid == 0 ? 1 : 0), key.pid, key.dir)];
+            uint64_t ext_bucket_id = seg.get_ext_bucket();
             if (ext_bucket_id == 0) {
-                uint64_t nbuckets = EXT_BUCKET_EXTENT_LEN(segment.num_buckets);
+                uint64_t nbuckets = EXT_BUCKET_EXTENT_LEN(seg.num_buckets);
                 uint64_t start_off = alloc_ext_buckets(nbuckets);
-                segment.add_ext_buckets(ext_bucket_extent_t(nbuckets, start_off));
-                ext_bucket_id = segment.get_ext_bucket();
+                seg.add_ext_buckets(ext_bucket_extent_t(nbuckets, start_off));
+                ext_bucket_id = seg.get_ext_bucket();
             }
             vertices[slot_id].key.vid = ext_bucket_id;
-#else
+#else // !USE_GPU
             vertices[slot_id].key.vid = alloc_ext_buckets(1);
+#endif  // end of USE_GPU
 
-#endif  // USE_GPU
             slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY; // move to a new bucket_ext
             vertices[slot_id].key = key; // insert to the first slot
             goto done;
@@ -373,8 +380,9 @@ done:
     uint64_t num_entries;     // entry region (dynamical)
 
 #ifdef DYNAMIC_GSTORE
+
     // manage the memory of edges(val)
-    Malloc_Interface *edge_allocator;
+    MAInterface *edge_allocator;
 
     /// A size flag is put into the tail of edges (in the entry region) for dynamic cache.
     /// NOTE: the (remote) edges accessed by (local) RDMA cache are valid
@@ -387,15 +395,15 @@ done:
     // Convert given edge uints to byte units.
     inline uint64_t e2b(uint64_t sz) { return sz * sizeof(edge_t); }
     // Return exact block size of given size in edge unit.
-    inline uint64_t blksz(uint64_t sz) { return b2e(edge_allocator->sz_to_blksz(e2b(sz))); }
+    inline uint64_t blksz(uint64_t ptr) { return b2e(edge_allocator->block_size(e2b(ptr))); }
 
     /* Insert size flag size flag in edges.
      * @flag: size flag to insert
      * @sz: actual size of edges
      * @off: offset of edges
     */
-    inline void insert_sz(uint64_t flag, uint64_t sz, uint64_t off) {
-        uint64_t blk_sz = blksz(sz + 1);   // reserve one space for flag
+    inline void insert_sz(uint64_t flag, uint64_t off) {
+        uint64_t blk_sz = blksz(off);   // reserve one space for flag
         edges[off + blk_sz - 1].val = flag;
     }
 
@@ -406,7 +414,7 @@ done:
         if (!global_enable_caching)
             return true;
 
-        uint64_t blk_sz = blksz(v.ptr.size + 1);  // reserve one space for flag
+        uint64_t blk_sz = blksz(v.ptr.off);  // reserve one space for flag
         return (edge_ptr[blk_sz - 1].val == v.ptr.size);
     }
 
@@ -490,14 +498,14 @@ done:
         }
     }
 
-    bool insert_vertex_edge(ikey_t key, uint64_t value, bool &dedup_or_isdup) {
+    bool insert_vertex_edge(ikey_t key, uint64_t value, bool &dedup_or_isdup, int tid) {
         uint64_t bucket_id = key.hash() % num_buckets;
         uint64_t lock_id = bucket_id % NUM_LOCKS;
         uint64_t v_ptr = insert_key(key, false);
         vertex_t *v = &vertices[v_ptr];
         pthread_spin_lock(&bucket_locks[lock_id]);
         if (v->ptr.size == 0) {
-            uint64_t off = alloc_edges(1);
+            uint64_t off = alloc_edges(1, tid);
             edges[off].val = value;
             vertices[v_ptr].ptr = iptr_t(1, off);
             pthread_spin_unlock(&bucket_locks[lock_id]);
@@ -513,14 +521,14 @@ done:
             uint64_t need_size = v->ptr.size + 1;
 
             // a new block is needed
-            if (blksz(v->ptr.size + 1) - 1 < need_size) {
+            if (blksz(v->ptr.off) - 1 < need_size) {
                 iptr_t old_ptr = v->ptr;
 
-                uint64_t off = alloc_edges(need_size);
+                uint64_t off = alloc_edges(blksz(v->ptr.off) * 2, tid);
                 memcpy(&edges[off], &edges[old_ptr.off], e2b(old_ptr.size));
                 edges[off + old_ptr.size].val = value;
                 // invalidate the old block
-                insert_sz(INVALID_EDGES, old_ptr.size, old_ptr.off);
+                insert_sz(INVALID_EDGES, old_ptr.off);
                 v->ptr = iptr_t(need_size, off);
 
                 if (global_enable_caching)
@@ -529,7 +537,7 @@ done:
                     edge_allocator->free(e2b(old_ptr.off));
             } else {
                 // update size flag
-                insert_sz(need_size, need_size, v->ptr.off);
+                insert_sz(need_size, v->ptr.off);
                 edges[v->ptr.off + v->ptr.size].val = value;
                 v->ptr.size = need_size;
             }
@@ -541,22 +549,22 @@ done:
 
     // Allocate space to store edges of given size.
     // Return offset of allocated space.
-    inline uint64_t alloc_edges(uint64_t n, int64_t tid = -1) {
+    inline uint64_t alloc_edges(uint64_t n, int64_t tid) {
         if (global_enable_caching)
             sweep_free(); // collect free space before allocate
         uint64_t sz = e2b(n + 1); // reserve one space for sz
         uint64_t off = b2e(edge_allocator->malloc(sz, tid));
-        insert_sz(n, n, off);
+        insert_sz(n, off);
         return off;
     }
+#else // !DYNAMIC_GSTORE
 
-#else // NOT DYNAMIC_GSTORE
     uint64_t last_entry;
     pthread_spinlock_t entry_lock;
 
     // Allocate space to store edges of given size.
     // Return offset of allocated space.
-    uint64_t alloc_edges(uint64_t n, int64_t tid = -1) {
+    uint64_t alloc_edges(uint64_t n, int64_t tid) {
         uint64_t orig;
         pthread_spin_lock(&entry_lock);
         orig = last_entry;
@@ -568,6 +576,7 @@ done:
         pthread_spin_unlock(&entry_lock);
         return orig;
     }
+#endif // end of DYNAMIC_GSTORE
 
     // Allocate extended buckets
     // @n number of extended buckets to allocate
@@ -585,16 +594,14 @@ done:
         return num_buckets + orig;
     }
 
-#endif // DYNAMIC_GSTORE
-
     typedef tbb::concurrent_hash_map<sid_t, vector<sid_t>> tbb_hash_map;
 
     tbb_hash_map pidx_in_map; // predicate-index (IN)
     tbb_hash_map pidx_out_map; // predicate-index (OUT)
     tbb_hash_map tidx_map; // type-index
 
-#ifdef USE_GPU  // enable GPU support
 
+#ifdef USE_GPU  // enable GPU support
     int num_predicates;  // number of predicates
 
     // wrapper of atomic counters
@@ -605,7 +612,8 @@ done:
             index_cnts[IN] = 0ul;
             index_cnts[OUT] = 0ul;
         }
-        triple_cnt_t(const triple_cnt_t& cnt) {
+
+        triple_cnt_t(const triple_cnt_t &cnt) {
             normal_cnts[IN] = cnt.normal_cnts[IN].load();
             normal_cnts[OUT] = cnt.normal_cnts[OUT].load();
             index_cnts[IN] = cnt.index_cnts[IN].load();
@@ -644,7 +652,7 @@ done:
             if (i == sid)
                 continue;
             tcp_ad->send(i, 0, ss.str());
-            logstream(LOG_INFO) << "#"<< sid << " sends segment metadata to server " << i << LOG_endl;
+            logstream(LOG_INFO) << "#" << sid << " sends segment metadata to server " << i << LOG_endl;
         }
     }
 
@@ -706,7 +714,8 @@ done:
 
             rdf_segment_meta_t &segment = rdf_segment_meta_map[segid_t(1, pid, IN)];
             if (segment.num_edges == 0) {
-                logger(LOG_FATAL, "insert_tidx_map: pid %d is not allocated space. entry_sz: %lu", pid, e.second.size());
+                logger(LOG_FATAL, "insert_tidx_map: pid %d is not allocated space. entry_sz: %lu",
+                       pid, e.second.size());
                 ASSERT(false);
             }
 
@@ -741,7 +750,7 @@ done:
 
         ikey_t key = ikey_t(0, pid, d);
         logger(LOG_DEBUG, "insert_pidx_map[%s]: key: [%lu|%lu|%lu] sz: %lu",
-                d == IN ? "IN" : "OUT", key.vid, key.pid, key.dir, sz);
+               (d == IN) ? "IN" : "OUT", key.vid, key.pid, key.dir, sz);
         uint64_t slot_id = insert_key(key);
         iptr_t ptr = iptr_t(sz, off);
         vertices[slot_id].ptr = ptr;
@@ -751,14 +760,13 @@ done:
 
         ASSERT(off <= segment.edge_start + segment.num_edges);
     }
-
-#endif  // USE_GPU
+#endif  // end of USE_GPU
 
     void insert_index_map(tbb_hash_map &map, dir_t d) {
         for (auto const &e : map) {
             sid_t pid = e.first;
             uint64_t sz = e.second.size();
-            uint64_t off = alloc_edges(sz);
+            uint64_t off = alloc_edges(sz, 0);
 
             ikey_t key = ikey_t(0, pid, d);
             uint64_t slot_id = insert_key(key);
@@ -779,7 +787,7 @@ done:
 
     void insert_index_set(tbb_unordered_set &set, sid_t tpid, dir_t d) {
         uint64_t sz = set.size();
-        uint64_t off = alloc_edges(sz);
+        uint64_t off = alloc_edges(sz, 0);
 
         ikey_t key = ikey_t(0, tpid, d);
         uint64_t slot_id = insert_key(key);
@@ -799,11 +807,11 @@ done:
         ASSERT(global_use_rdma);
 
         char *buf = mem->buffer(tid);
-        uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
+        uint64_t r_off = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
 
 #ifdef DYNAMIC_GSTORE
         // the size of entire blk
-        uint64_t r_sz = blksz(v.ptr.size + 1) * sizeof(edge_t);
+        uint64_t r_sz = blksz(v.ptr.off) * sizeof(edge_t);
 #else
         // the size of edges
         uint64_t r_sz = v.ptr.size * sizeof(edge_t);
@@ -823,8 +831,7 @@ done:
         uint64_t bucket_id = bucket_remote(key, dst_sid);
         vertex_t vert;
 
-        // Currently, we don't support to directly get remote vertex/edge without RDMA
-        // TODO: implement it w/o RDMA
+        // FIXME: wukong doesn't support to directly get remote vertex/edge without RDMA
         ASSERT(global_use_rdma);
 
         // check cache
@@ -956,7 +963,7 @@ done:
         }
 
         edge_ptr = rdma_get_edges(tid, dst_sid, v);
-#endif // DYNAMIC_GSTORE
+#endif // end of DYNAMIC_GSTORE
 
         // get the edge
         uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
@@ -1068,22 +1075,24 @@ public:
         // entry region
         num_entries = entry_region / sizeof(edge_t);
 #ifdef DYNAMIC_GSTORE
-        edge_allocator = new Buddy_Malloc();
+#ifdef USE_JEMALLOC
+        edge_allocator = new JeMalloc();
+#else
+        edge_allocator = new BuddyMalloc();
+#endif // end of USE_JEMALLOC
         pthread_spin_init(&free_queue_lock, 0);
         lease = SEC(120);
         rdma_cache = RDMA_Cache(lease);
 #else
         pthread_spin_init(&entry_lock, 0);
-#endif
+#endif // end of DYNAMIC_GSTORE
 
-#ifdef USE_GPU
-        logstream(LOG_INFO) << "gpu-gstore = ";
-#else
+        // print gstore usage
         logstream(LOG_INFO) << "gstore = ";
-#endif
         logstream(LOG_INFO) << mem->kvstore_size() << " bytes " << LOG_endl;
-        logstream(LOG_INFO) << "      header region: " << num_slots << " slots" << " (main = " << num_buckets << ", indirect = " << num_buckets_ext << ")" << LOG_endl;
-        logstream(LOG_INFO) << "      entry region: " << num_entries << " entries" << LOG_endl;
+        logstream(LOG_INFO) << "  header region: " << num_slots << " slots"
+                            << " (main = " << num_buckets << ", indirect = " << num_buckets_ext << ")" << LOG_endl;
+        logstream(LOG_INFO) << "  entry region: " << num_entries << " entries" << LOG_endl;
 
         vertices = (vertex_t *)(mem->kvstore());
         edges = (edge_t *)(mem->kvstore() + num_slots * sizeof(vertex_t));
@@ -1167,9 +1176,9 @@ public:
     }
 
     ext_bucket_extent_t ext_bucket_extent(uint64_t nbuckets, uint64_t start_off) {
-            ext_bucket_extent_t ext;
-            ext.num_ext_buckets = nbuckets;
-            ext.start = start_off;
+        ext_bucket_extent_t ext;
+        ext.num_ext_buckets = nbuckets;
+        ext.start = start_off;
     }
 
     uint64_t main_hdr_off = 0;
@@ -1189,8 +1198,8 @@ public:
                 nbuckets = ratio * num_free_buckets;
                 total_ratio_ += ratio;
                 logger(LOG_DEBUG, "Seg[%lu|%lu|%lu]: #keys: %lu, nbuckets: %lu, bucket_off: %lu, ratio: %f, total_ratio: %f",
-                        segid.index, segid.pid, segid.dir,
-                        seg.num_keys, nbuckets, main_hdr_off, ratio, total_ratio_);
+                       segid.index, segid.pid, segid.dir,
+                       seg.num_keys, nbuckets, main_hdr_off, ratio, total_ratio_);
             }
             seg.num_buckets = (nbuckets > 0 ? nbuckets : 1);
         } else {
@@ -1213,7 +1222,7 @@ public:
 
     // init metadata for each segment
     void init_segment_metas(const vector<vector<triple_t>> &triple_pso,
-            const vector<vector<triple_t>> &triple_pos) {
+                            const vector<vector<triple_t>> &triple_pos) {
 
         map<sid_t, triple_cnt_t> index_cnt_map;  // count children of index vertex
         map<sid_t, triple_cnt_t> normal_cnt_map; // count normal vertices
@@ -1289,10 +1298,10 @@ public:
         // count the total number of keys
         for (int i = 1; i <= num_predicates; ++i) {
             logger(LOG_DEBUG, "pid: %d: normal: #IN: %lu, #OUT: %lu; index: #ALL: %lu, #IN: %lu, #OUT: %lu",
-                    i, normal_cnt_map[i].normal_cnts[IN].load(), normal_cnt_map[i].normal_cnts[OUT].load(),
-                    (index_cnt_map[i].index_cnts[ IN ].load() + index_cnt_map[i].index_cnts[ OUT ].load()),
-                    index_cnt_map[i].index_cnts[ IN ].load(),
-                    index_cnt_map[i].index_cnts[ OUT ].load());
+                   i, normal_cnt_map[i].normal_cnts[IN].load(), normal_cnt_map[i].normal_cnts[OUT].load(),
+                   (index_cnt_map[i].index_cnts[ IN ].load() + index_cnt_map[i].index_cnts[ OUT ].load()),
+                   index_cnt_map[i].index_cnts[ IN ].load(),
+                   index_cnt_map[i].index_cnts[ OUT ].load());
 
             if (normal_cnt_map[i].normal_cnts[IN].load() +  normal_cnt_map[i].normal_cnts[OUT].load() > 0) {
                 total_num_keys += (index_cnt_map[i].index_cnts[IN].load() + index_cnt_map[i].index_cnts[OUT].load());
@@ -1341,11 +1350,11 @@ public:
 
 
             logger(LOG_DEBUG, "Predicate[%d]: normal: OUT[#keys: %lu, #buckets: %lu, #edges: %lu] IN[#keys: %lu, #buckets: %lu, #edges: %lu];",
-                    pid, seg_normal_out.num_keys, seg_normal_out.num_buckets, seg_normal_out.num_edges,
-                         seg_normal_in.num_keys, seg_normal_in.num_buckets, seg_normal_in.num_edges);
+                   pid, seg_normal_out.num_keys, seg_normal_out.num_buckets, seg_normal_out.num_edges,
+                   seg_normal_in.num_keys, seg_normal_in.num_buckets, seg_normal_in.num_edges);
             logger(LOG_DEBUG, "index: OUT[#keys: %lu, #buckets: %lu, #edges: %lu], IN[#keys: %lu, #buckets: %lu, #edges: %lu], bucket_off: %lu\n",
-                         seg_index_out.num_keys, seg_index_out.num_buckets, seg_index_out.num_edges,
-                         seg_index_in.num_keys, seg_index_in.num_buckets, seg_index_in.num_edges, main_hdr_off);
+                   seg_index_out.num_keys, seg_index_out.num_buckets, seg_index_out.num_edges,
+                   seg_index_in.num_keys, seg_index_in.num_buckets, seg_index_in.num_edges, main_hdr_off);
 
         }
 
@@ -1687,7 +1696,7 @@ public:
     }
 
 #ifdef DYNAMIC_GSTORE
-    void insert_triple_out(const triple_t &triple, bool check_dup) {
+    void insert_triple_out(const triple_t &triple, bool check_dup, int tid) {
         bool dedup_or_isdup = check_dup;
         bool nodup = false;
         if (triple.p == TYPE_ID) {
@@ -1696,45 +1705,45 @@ public:
             dedup_or_isdup = true;
             ikey_t key = ikey_t(triple.s, triple.p, OUT);
             // <1> vid's type (7) [need dedup]
-            if (insert_vertex_edge(key, triple.o, dedup_or_isdup)) {
+            if (insert_vertex_edge(key, triple.o, dedup_or_isdup, tid)) {
 #ifdef VERSATILE
                 key = ikey_t(triple.s, PREDICATE_ID, OUT);
                 // key and its buddy_key should be used to
                 // identify the exist of corresponding index
                 ikey_t buddy_key = ikey_t(triple.s, PREDICATE_ID, IN);
                 // <2> vid's predicate, value is TYPE_ID (*8) [dedup from <1>]
-                if (insert_vertex_edge(key, triple.p, nodup) && !check_key_exist(buddy_key)) {
+                if (insert_vertex_edge(key, triple.p, nodup, tid) && !check_key_exist(buddy_key)) {
                     key = ikey_t(0, TYPE_ID, IN);
                     // <3> the index to vid (*3) [dedup from <2>]
-                    insert_vertex_edge(key, triple.s, nodup);
+                    insert_vertex_edge(key, triple.s, nodup, tid);
                 }
 #endif // VERSATILE
             }
             if (!dedup_or_isdup) {
                 key = ikey_t(0, triple.o, IN);
                 // <4> type-index (2) [if <1>'s result is not dup, this is not dup, too]
-                if (insert_vertex_edge(key, triple.s, nodup)) {
+                if (insert_vertex_edge(key, triple.s, nodup, tid)) {
 #ifdef VERSATILE
                     key = ikey_t(0, TYPE_ID, OUT);
                     // <5> index to this type (*4) [dedup from <4>]
-                    insert_vertex_edge(key, triple.o, nodup);
+                    insert_vertex_edge(key, triple.o, nodup, tid);
 #endif // VERSATILE
                 }
             }
         } else {
             ikey_t key = ikey_t(triple.s, triple.p, OUT);
             // <6> vid's ngbrs w/ predicate (6) [need dedup]
-            if (insert_vertex_edge(key, triple.o, dedup_or_isdup)) {
+            if (insert_vertex_edge(key, triple.o, dedup_or_isdup, tid)) {
                 key = ikey_t(0, triple.p, IN);
                 // key and its buddy_key should be used to
                 // identify the exist of corresponding index
                 ikey_t buddy_key = ikey_t(0, triple.p, OUT);
                 // <7> predicate-index (1) [dedup from <6>]
-                if (insert_vertex_edge(key, triple.s, nodup) && !check_key_exist(buddy_key)) {
+                if (insert_vertex_edge(key, triple.s, nodup, tid) && !check_key_exist(buddy_key)) {
 #ifdef VERSATILE
                     key = ikey_t(0, PREDICATE_ID, OUT);
                     // <8> the index to predicate (*5) [dedup from <7>]
-                    insert_vertex_edge(key, triple.p, nodup);
+                    insert_vertex_edge(key, triple.p, nodup, tid);
 #endif // VERSATILE
                 }
 #ifdef VERSATILE
@@ -1743,35 +1752,35 @@ public:
                 // identify the exist of corresponding index
                 buddy_key = ikey_t(triple.s, PREDICATE_ID, IN);
                 // <9> vid's predicate (*8) [dedup from <6>]
-                if (insert_vertex_edge(key, triple.p, nodup) && !check_key_exist(buddy_key)) {
+                if (insert_vertex_edge(key, triple.p, nodup, tid) && !check_key_exist(buddy_key)) {
                     key = ikey_t(0, TYPE_ID, IN);
                     // <10> the index to vid (*3) [dedup from <9>]
-                    insert_vertex_edge(key, triple.s, nodup);
+                    insert_vertex_edge(key, triple.s, nodup, tid);
                 }
 #endif // VERSATILE
             }
         }
     }
 
-    void insert_triple_in(const triple_t &triple, bool check_dup) {
+    void insert_triple_in(const triple_t &triple, bool check_dup, int tid) {
         bool dedup_or_isdup = check_dup;
         bool nodup = false;
         if (triple.p == TYPE_ID) // skipped
             return;
         ikey_t key = ikey_t(triple.o, triple.p, IN);
         // <1> vid's ngbrs w/ predicate (6) [need dedup]
-        if (insert_vertex_edge(key, triple.s, dedup_or_isdup)) {
+        if (insert_vertex_edge(key, triple.s, dedup_or_isdup, tid)) {
             // key doesn't exist before
             key = ikey_t(0, triple.p, OUT);
             // key and its buddy_key should be used
             // to identify the exist of corresponding index
             ikey_t buddy_key = ikey_t(0, triple.p, IN);
             // <2> predicate-index (1) [dedup from <1>]
-            if (insert_vertex_edge(key, triple.o, nodup) && !check_key_exist(buddy_key)) {
+            if (insert_vertex_edge(key, triple.o, nodup, tid) && !check_key_exist(buddy_key)) {
 #ifdef VERSATILE
                 key = ikey_t(0, PREDICATE_ID, OUT);
                 // <3> the index to predicate (*5) [dedup from <2>]
-                insert_vertex_edge(key, triple.p, nodup);
+                insert_vertex_edge(key, triple.p, nodup, tid);
 #endif // VERSATILE
             }
 #ifdef VERSATILE
@@ -1780,10 +1789,10 @@ public:
             // identify the exist of corresponding index
             buddy_key = ikey_t(triple.o, PREDICATE_ID, OUT);
             // <4> vid's predicate (*8) [dedup from <1>]
-            if (insert_vertex_edge(key, triple.p, nodup) && !check_key_exist(buddy_key)) {
+            if (insert_vertex_edge(key, triple.p, nodup, tid) && !check_key_exist(buddy_key)) {
                 key = ikey_t(0, TYPE_ID, IN);
                 // <5> the index to vid (*3) [dedup from <4>]
-                insert_vertex_edge(key, triple.o, nodup);
+                insert_vertex_edge(key, triple.o, nodup, tid);
             }
 #endif // VERSATILE
         }
@@ -1811,8 +1820,9 @@ public:
                 if (tres[j].val == key.pid && !found)
                     found = true;
                 else if (tres[j].val == key.pid && found) {  //duplicate type
-                    logstream(LOG_ERROR) << "In the value part of normal key/value pair [ " << key.vid
-                                         << " | TYPE_ID | OUT] there is DUPLICATE type " << key.pid << LOG_endl;
+                    logstream(LOG_ERROR) << "In the value part of normal key/value pair "
+                                         << "[ " << key.vid << " | TYPE_ID | OUT], "
+                                         << "there is DUPLICATE type " << key.pid << LOG_endl;
                 }
             }
             // may be it is a predicate_index
@@ -1820,10 +1830,12 @@ public:
                 // check if the key generated by vid and pid exists
                 if (get_vertex_local(0, ikey_t(vres[i].val, key.pid, OUT)).key.is_empty()) {
                     logstream(LOG_ERROR) << "if " << key.pid << " is type id, then there is NO type "
-                                         << key.pid << "in normal key/value pair ["
-                                         << key.vid << " | TYPE_ID | OUT] 's value part" << LOG_endl;
-                    logstream(LOG_ERROR) << "And if " << key.pid << " is predicate id, then there is NO key called "
-                                         << "[ " << vres[i].val << " | " << key.pid << " | " << "] exist" << LOG_endl;
+                                         << key.pid << " in normal key/value pair ["
+                                         << key.vid << " | TYPE_ID | OUT]'s value part" << LOG_endl;
+                    logstream(LOG_ERROR) << "And if " << key.pid << " is predicate id, "
+                                         << " then there is NO key called "
+                                         << "[ " << vres[i].val << " | " << key.pid << " | " << "] exist."
+                                         << LOG_endl;
                 }
             }
         }
@@ -1840,7 +1852,7 @@ public:
         for (int i = 0; i < vsz; i++) {
             // check if the key generated by vid and pid exists
             if (get_vertex_local(0, ikey_t(vres[i].val, key.pid, IN)).key.is_empty()) {
-                logstream(LOG_ERROR) << "key " << " [ " << vres[i].val << " | "
+                logstream(LOG_ERROR) << "The key " << " [ " << vres[i].val << " | "
                                      << key.pid << " | " << " IN ] does not exist." << LOG_endl;
             }
         }
@@ -1863,13 +1875,15 @@ public:
                 if (vres[j].val == key.vid && !found)
                     found = true;
                 else if (vres[j].val == key.vid && found) { // duplicate vid
-                    logstream(LOG_ERROR) << "In the value part of type index [ 0 | " << tres[i].val
-                                         << " | IN ]" << " there is duplicate value " << key.vid << LOG_endl;
+                    logstream(LOG_ERROR) << "In the value part of type index "
+                                         << "[ 0 | " << tres[i].val << " | IN ], "
+                                         << "there is duplicate value " << key.vid << LOG_endl;
                 }
             }
             if (!found) { // vid miss
-                logstream(LOG_ERROR) << "In the value part of type index [ 0 | " << tres[i].val
-                                     << " | IN ]" << " there is no value " << key.vid << LOG_endl;
+                logstream(LOG_ERROR) << "In the value part of type index "
+                                     << "[ 0 | " << tres[i].val << " | IN ], "
+                                     << "there is no value " << key.vid << LOG_endl;
             }
         }
     }
@@ -1887,19 +1901,20 @@ public:
             if (vres[i].val == key.vid && !found)
                 found = true;
             else if (vres[i].val == key.vid && found) { //duplicate vid
-                logstream(LOG_ERROR) << "In the value part of predicate index [ 0 | " << key.pid
-                                     << " | " << dir << " ]" << " there is duplicate value " << key.vid << LOG_endl;
+                logstream(LOG_ERROR) << "In the value part of predicate index "
+                                     << "[ 0 | " << key.pid << " | " << dir << " ], "
+                                     << "there is duplicate value " << key.vid << LOG_endl;
                 break;
             }
         }
-        if (!found) { //vid miss
-            logstream(LOG_ERROR) << "In the value part of predicate index [ 0 | " << key.pid
-                                 << " | " << dir << " ]" << " there is no value " << key.vid << LOG_endl;
-        }
+
+        if (!found) // vid miss
+            logstream(LOG_ERROR) << "In the value part of predicate index "
+                                 << "[ 0 | " << key.pid << " | " << dir << " ], "
+                                 << "there is no value " << key.vid << LOG_endl;
     }
 
 #ifdef VERSATILE
-
     // check on in-dir predicate-index or type-index
     void ver_idx_check_indir(ikey_t key, bool check) {
         if (!check)
@@ -2128,12 +2143,11 @@ public:
         nvertex_num = 0;
         for (uint64_t bucket_id = 0; bucket_id < num_buckets + num_buckets_ext; bucket_id++) {
             uint64_t slot_id = bucket_id * ASSOCIATIVITY;
-            for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
-                if (!vertices[slot_id].key.is_empty()) {
+            for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++)
+                if (!vertices[slot_id].key.is_empty())
                     check_on_vertex(vertices[slot_id].key, index_check, normal_check);
-                }
-            }
         }
+
         logstream(LOG_INFO) << "Server#" << sid << " has checked "
                             << ivertex_num << " index vertices and "
                             << nvertex_num << " normal vertices." << LOG_endl;
@@ -2196,37 +2210,41 @@ public:
 
     // prepare data for planner
     void generate_statistic(data_statistic &stat) {
-
-        #ifndef VERSATILE
-        logstream(LOG_ERROR)  << "please turn off generate_statistics in config and use stat file cache instead OR turn on VERSATILE option in CMakefiles to generate_statistic" << LOG_endl;    
-        exit(-1);            
-        #endif
+#ifndef VERSATILE
+        logstream(LOG_ERROR) << "please turn off generate_statistics in config "
+                             << "and use stat file cache instead OR turn on VERSATILE option "
+                             << "in CMakefiles to generate_statistic." << LOG_endl;
+        exit(-1);
+#endif
 
         unordered_map<ssid_t, int> &tyscount = stat.local_tyscount;
         type_stat &ty_stat = stat.local_tystat;
         // for complex type vertex numbering
-        unordered_set<ssid_t> record_set; 
+        unordered_set<ssid_t> record_set;
 
         //use index_composition as type of no_type
         auto generate_no_type = [&](ssid_t id) -> ssid_t {
             type_t type;
             uint64_t psize1 = 0;
             unordered_set<int> index_composition;
+
             edge_t *res1 = get_edges_global(0, id, OUT, PREDICATE_ID, &psize1);
             for (uint64_t k = 0; k < psize1; k++) {
                 ssid_t pre = res1[k].val;
                 index_composition.insert(pre);
             }
+
             uint64_t psize2 = 0;
             edge_t *res2 = get_edges_global(0, id, IN, PREDICATE_ID, &psize2);
             for (uint64_t k = 0; k < psize2; k++) {
                 ssid_t pre = res2[k].val;
                 index_composition.insert(-pre);
             }
+
             type.set_index_composition(index_composition);
-            // TO DO
-            // there should be no following situation according to comments on gstore layout
-            // but actually it happends 25 times and will not affect the correctness of optimizer
+            // TODO: there should be no following situation according to comments
+            // on gstore layout, but actually it happends 25 times and will not affect
+            // the correctness of optimizer
             // if(index_composition.size() == 0){
             //     cout << "empty index, may be type" << endl;
             // }
@@ -2237,19 +2255,18 @@ public:
         auto generate_multi_type = [&](edge_t *res, uint64_t type_sz) -> ssid_t {
             type_t type;
             unordered_set<int> type_composition;
-            for(int i = 0;i < type_sz; i ++){
+            for (int i = 0; i < type_sz; i ++)
                 type_composition.insert(res[i].val);
-            }
+
             type.set_type_composition(type_composition);
             return stat.get_simple_type(type);
         };
 
         // return success or not, because one id can only be recorded once
         auto insert_no_type_count = [&](ssid_t id, ssid_t type) -> bool{
-            if(record_set.count(id) > 0){
+            if (record_set.count(id) > 0) {
                 return false;
-            }
-            else{
+            } else{
                 record_set.insert(id);
 
                 if (tyscount.find(type) == tyscount.end())
@@ -2271,10 +2288,10 @@ public:
 
                 uint64_t sz = vertices[slot_id].ptr.size;
                 uint64_t off = vertices[slot_id].ptr.off;
-                if (vid == PREDICATE_ID || pid == PREDICATE_ID) continue; // skip for index vertex
+                if (vid == PREDICATE_ID || pid == PREDICATE_ID)
+                    continue; // skip for index vertex
 
                 if (vertices[slot_id].key.dir == IN) {
-                    
                     // for type derivation
                     // get types of values found by key (Subjects)
                     vector<ssid_t> res_type;
@@ -2285,16 +2302,13 @@ public:
                         if (type_sz > 1) {
                             ssid_t type = generate_multi_type(res, type_sz);
                             res_type.push_back(type); //10 for 10240, 19 for 2560, 23 for 40, 2 for 640
-                        }
-                        else if (type_sz == 0){
+                        } else if (type_sz == 0) {
                             //cout << "no type: " << sbid << endl;
                             ssid_t type = generate_no_type(sbid);
                             res_type.push_back(type);
-                        }
-                        else if (type_sz == 1){
+                        } else if (type_sz == 1) {
                             res_type.push_back(res[0].val);
-                        }
-                        else {
+                        } else {
                             assert(false);
                         }
                     }
@@ -2307,21 +2321,18 @@ public:
                     if (type_sz > 1) {
                         type = generate_multi_type(res, type_sz);
                     } else {
-                      if (type_sz == 0){
-                          //cout << "no type: " << vid << endl;
-                          type = generate_no_type(vid);
-                          insert_no_type_count(vid, type);
-                      }
-                      else {
-                          type = res[0].val;
-                      }
+                        if (type_sz == 0) {
+                            //cout << "no type: " << vid << endl;
+                            type = generate_no_type(vid);
+                            insert_no_type_count(vid, type);
+                        } else {
+                            type = res[0].val;
+                        }
                     }
 
                     ty_stat.insert_otype(pid, type, 1);
-                    for (int j = 0; j < res_type.size(); j++) {
+                    for (int j = 0; j < res_type.size(); j++)
                         ty_stat.insert_finetype(pid, type, res_type[j], 1);
-                    }
-
                 } else {
                     // no_type only need to be counted in one direction (using OUT)
                     // get types of values found by key (Objects)
@@ -2334,65 +2345,58 @@ public:
                         if (type_sz > 1) {
                             ssid_t type = generate_multi_type(res, type_sz);
                             res_type.push_back(type);
-                        }
-                        else if (type_sz == 0){
-                              // in this situation, obid may be some TYPE
-                            if(pid != 1){
-                                //cout << "no type: " << obid << endl;
+                        } else if (type_sz == 0) {
+                            // in this situation, obid may be some TYPE
+                            if (pid != 1) {
+                                logstream(LOG_DEBUG) << "[DEBUG] no type: " << obid << LOG_endl;
                                 ssid_t type = generate_no_type(obid);
                                 res_type.push_back(type);
                             }
-                        }
-                        else if (type_sz == 1){
+                        } else if (type_sz == 1) {
                             res_type.push_back(res[0].val);
-                        }
-                        else{
+                        } else {
                             assert(false);
                         }
                     }
-                    
+
                     // type for subjects
                     // get type of vid (Subject)
                     uint64_t type_sz = 0;
                     edge_t *res = get_edges_local(0, vid, OUT, TYPE_ID, &type_sz);
                     ssid_t type;
-                    if (type_sz > 1) { 
+                    if (type_sz > 1) {
                         type = generate_multi_type(res, type_sz);
                     } else {
-                      if (type_sz == 0){
-                            //cout << "no type: " << vid << endl;
+                        if (type_sz == 0) {
+                            // cout << "no type: " << vid << endl;
                             type = generate_no_type(vid);
                             insert_no_type_count(vid, type);
-                      }
-                      else {
-                          type = res[0].val;
-                      }
+                        } else {
+                            type = res[0].val;
+                        }
                     }
 
                     ty_stat.insert_stype(pid, type, 1);
-                    for (int j = 0; j < res_type.size(); j++) {
+                    for (int j = 0; j < res_type.size(); j++)
                         ty_stat.insert_finetype(type, pid, res_type[j], 1);
-                    }
 
                     // count type predicate
                     if (pid == TYPE_ID) {
                         // multi-type
-                        if (sz > 1){
+                        if (sz > 1) {
                             type_t complex_type;
                             unordered_set<int> type_composition;
-                            for(int i = 0;i < sz; i ++){
+                            for (int i = 0; i < sz; i ++)
                                 type_composition.insert(edges[off + i].val);
-                            }
+
                             complex_type.set_type_composition(type_composition);
                             ssid_t type_number = stat.get_simple_type(complex_type);
-                            
+
                             if (tyscount.find(type_number) == tyscount.end())
                                 tyscount[type_number] = 1;
                             else
                                 tyscount[type_number]++;
-                        }
-                        //single type
-                        else if (sz == 1){
+                        } else if (sz == 1) { // single type
                             sid_t obid = edges[off].val;
 
                             if (tyscount.find(obid) == tyscount.end())
