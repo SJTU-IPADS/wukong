@@ -20,9 +20,9 @@
  *
  */
 
-#ifdef USE_GPU
 #pragma once
 
+#ifdef USE_GPU
 // @singleton
 class GPU {
 private:
