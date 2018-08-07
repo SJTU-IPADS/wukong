@@ -61,7 +61,8 @@ public:
     bool tryrecv(Bundle &bundle) {
         std::string str;
         if (global_use_rdma && rdma->init) {
-            if (!rdma->tryrecv(tid, str)) return false;
+            int dst_sid_out = 0;
+            if (!rdma->tryrecv(tid, dst_sid_out, str)) return false;
         } else {
             if (!tcp->tryrecv(tid, str)) return false;
         }
@@ -90,7 +91,7 @@ public:
         std::string str;
         int sender_sid = 0;
 
-        if (!rdma->tryrecv(tid, str))
+        if (!rdma->tryrecv(tid, sender_sid, str))
             return false;
 
         Bundle b;

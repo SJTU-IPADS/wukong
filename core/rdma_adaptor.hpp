@@ -326,12 +326,13 @@ public:
     }
 
     // Try to recv data of given thread
-    bool tryrecv(int tid, std::string &str) {
+    bool tryrecv(int tid, int &dst_sid_out, std::string &str) {
         ASSERT(init);
 
         // check all physical-queues of tid once
         for (int dst_sid = 0; dst_sid < num_servers; dst_sid++) {
             if (check(tid, dst_sid)) {
+                dst_sid_out = dst_sid;
                 return fetch(tid, dst_sid, str, CPU_DRAM);
             }
         }
