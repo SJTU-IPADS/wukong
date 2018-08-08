@@ -53,13 +53,16 @@ static void console_send(int sid, int tid, T &r)
     stringstream ss;
     boost::archive::binary_oarchive oa(ss);
     oa << r;
-    con_adaptor->send(sid, tid, ss.str());
+    string str = ss.str();
+    con_adaptor->send(sid, tid, str.c_str(), str.length());
 }
 
 template<typename T>
 static T console_recv(int tid)
 {
-    string str = con_adaptor->recv(tid);
+    char str[sizeof(uint64_t) * 1000 * 1000] = {0};
+    uint64_t sz;
+    con_adaptor->recv(tid, str, sz);
     stringstream ss;
     ss << str;
     boost::archive::binary_iarchive ia(ss);

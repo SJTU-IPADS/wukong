@@ -31,6 +31,7 @@
 #include <boost/serialization/split_free.hpp>
 #include <set>
 #include <vector>
+#include <cstring>
 
 #include "type.hpp"
 
@@ -1046,18 +1047,16 @@ BOOST_CLASS_TRACKING(RDFLoad, boost::serialization::track_never);
  * Note this class does not use boost serialization
  */
 class Bundle {
-public:
+private:
     req_type type;
     string data;
 
+public:
     Bundle() { }
 
-    Bundle(string str) {
-        set_type(str.at(0));
-        data = str.substr(1);
-    }
+    Bundle(const req_type &t, const string &d): type(t), data(d) {}
 
-    Bundle(SPARQLQuery &r): type(SPARQL_QUERY) {
+    Bundle(const SPARQLQuery &r): type(SPARQL_QUERY) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
 
@@ -1065,7 +1064,7 @@ public:
         data = ss.str();
     }
 
-    Bundle(RDFLoad &r): type(DYNAMIC_LOAD) {
+    Bundle(const RDFLoad &r): type(DYNAMIC_LOAD) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
 
@@ -1073,7 +1072,7 @@ public:
         data = ss.str();
     }
 
-    Bundle(GStoreCheck r): type(GSTORE_CHECK) {
+    Bundle(const GStoreCheck &r): type(GSTORE_CHECK) {
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
 
@@ -1081,25 +1080,40 @@ public:
         data = ss.str();
     }
 
-    string get_type() {
-        switch (type) {
-        case SPARQL_QUERY: return "0";
-        case DYNAMIC_LOAD: return "1";
-        case GSTORE_CHECK: return "2";
-        case SPARQL_HISTORY: return "3";
-        }
+    void init(const char *str, uint64_t sz) {
+        uint64_t t;
+        char d[sz] = {0};
+        memcpy(&t, str, sizeof(uint64_t));
+        memcpy(d, str + sizeof(uint64_t), sz - sizeof(uint64_t));
+        set_type((req_type)t);
+        set_data(d);
     }
 
-    void set_type(char t) {
-        switch (t) {
-        case '0': type = SPARQL_QUERY; return;
-        case '1': type = DYNAMIC_LOAD; return;
-        case '2': type = GSTORE_CHECK; return;
-        case '3': type = SPARQL_HISTORY; return;
-        }
+    req_type get_type() const {
+        return type;
     }
 
-    SPARQLQuery get_sparql_query() {
+    void set_type(req_type t) {
+        type = t;
+    }
+
+    string get_data() const {
+        return data;
+    }
+
+    const char *get_data_c_str() const {
+        return data.c_str();
+    }
+
+    void set_data(const char *d) {
+        data = string(d);
+    }
+
+    void set_data(const string &d) {
+        data = d;
+    }
+
+    SPARQLQuery get_sparql_query() const {
         ASSERT(type == SPARQL_QUERY);
 
         std::stringstream ss;
@@ -1111,7 +1125,7 @@ public:
         return result;
     }
 
-    RDFLoad get_rdf_load() {
+    RDFLoad get_rdf_load() const {
         ASSERT(type == DYNAMIC_LOAD);
 
         std::stringstream ss;
@@ -1123,7 +1137,7 @@ public:
         return result;
     }
 
-    GStoreCheck get_gstore_check() {
+    GStoreCheck get_gstore_check() const {
         ASSERT(type == GSTORE_CHECK);
 
         std::stringstream ss;
@@ -1133,5 +1147,19 @@ public:
         GStoreCheck result;
         ia >> result;
         return result;
+    }
+
+    uint64_t bundle_size() const {
+        return sizeof(uint64_t) + data.length();
+    }
+
+    uint64_t data_size() const {
+        return data.length();
+    }
+
+    void to_c_str(char *str) const {
+        uint64_t t = (uint64_t) type;
+        memcpy(str, &t, sizeof(uint64_t));
+        memcpy(str + sizeof(uint64_t), data.c_str(), data.length());
     }
 };

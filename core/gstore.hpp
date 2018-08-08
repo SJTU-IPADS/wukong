@@ -564,7 +564,7 @@ done:
 
     // Allocate space to store edges of given size.
     // Return offset of allocated space.
-    uint64_t alloc_edges(uint64_t n, int64_t tid) {
+    uint64_t alloc_edges(uint64_t n, int64_t tid = 0) {
         uint64_t orig;
         pthread_spin_lock(&entry_lock);
         orig = last_entry;
@@ -651,19 +651,21 @@ done:
         for (int i = 0; i < global_num_servers; ++i) {
             if (i == sid)
                 continue;
-            tcp_ad->send(i, 0, ss.str());
+            string str = ss.str();
+            tcp_ad->send(i, 0, str.c_str(), str.length());
             logstream(LOG_INFO) << "#" << sid << " sends segment metadata to server " << i << LOG_endl;
         }
     }
 
     void recv_segment_meta(TCP_Adaptor *tcp_ad) {
-        std::string str;
+        char str[sizeof(uint64_t) * 1000 * 1000] = {0};
+        uint64_t sz;
         // receive global_num_servers - 1 messages
         for (int i = 0; i < global_num_servers; ++i) {
             if (i == sid)
                 continue;
             std::stringstream ss;
-            str = tcp_ad->recv(0);
+            tcp_ad->recv(0, str, sz);
             ss << str;
             boost::archive::binary_iarchive ia(ss);
             SyncSegmentMetaMsg msg;

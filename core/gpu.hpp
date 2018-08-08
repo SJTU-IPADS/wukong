@@ -27,6 +27,8 @@
 class GPU {
 private:
     int history_sz;
+    char *inbuf = nullptr;
+    char *outbuf = nullptr;
     GPU() {}
 
 public:
@@ -35,14 +37,16 @@ public:
         return gpu;
     }
 
-    // TODO
     char *history_inbuf() {
-        return nullptr;
+        if (inbuf == nullptr)
+            CUDA_ASSERT(cudaMalloc(&inbuf, 10000));
+        return inbuf;
     }
 
-    // TODO
     char *history_outbuf() {
-        return nullptr;
+        if (outbuf == nullptr)
+            CUDA_ASSERT(cudaMalloc(&outbuf, 10000));
+        return outbuf;
     }
 
     int history_size() const {

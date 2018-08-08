@@ -50,10 +50,10 @@ enum MemTypes { GPU_DRAM = 1, CPU_DRAM };
 // The communication over RDMA-based ring buffer
 class RDMA_Adaptor {
 private:
-    Mem *mem;
     int sid;
     int num_servers;
     int num_threads;
+    Mem *mem;
     #ifdef USE_GPU
     GPUMem *gmem;
     #endif
@@ -113,7 +113,7 @@ private:
     /* Fetch data from threads in dst_sid to tid
      * for GPU, the data will be copied to GPU mem
      */
-    bool fetch(int tid, int dst_sid, std::string &result, MemTypes memtype) {
+    bool fetch(int tid, int dst_sid, char *result, uint64_t &sz, MemTypes memtype) {
         // step 1: get lmeta of dst rbf
         rbf_lmeta_t *lmeta = &lmetas[tid * num_servers + dst_sid];
         // step 2: calculate mem location and data size
@@ -138,6 +138,8 @@ private:
         // step 4: actually read data
         uint64_t start = (lmeta->head + sizeof(uint64_t)) % rbf_sz; // start offset of data
         uint64_t end = (lmeta->head + sizeof(uint64_t) + data_sz) % rbf_sz;  // end offset of data
+
+        sz = data_sz;
         if (memtype == GPU_DRAM) {
             #ifdef USE_GPU
             GPU &gpu = GPU::instance();
@@ -158,13 +160,12 @@ private:
             ASSERT(false);
             #endif
         } else {
-            result.reserve(data_sz);
             if (start < end) {
-                result.append(rbf + start, data_sz);
+                memcpy(result, rbf + start, data_sz);
                 memset(rbf + start, 0, ceil(data_sz, sizeof(uint64_t)));  // clean data
             } else { // overwrite from the start
-                result.append(rbf + start, data_sz - end);
-                result.append(rbf, end);
+                memcpy(result, rbf + start, data_sz - end);
+                memcpy(result + data_sz - end, rbf, end);
                 memset(rbf + start, 0, data_sz - end);                    // clean data
                 memset(rbf, 0, ceil(end, sizeof(uint64_t)));              // clean data
             }
@@ -242,17 +243,14 @@ public:
 
     // Send given string to (dst_sid, dst_tid) by thread(tid)
     // Return false if failed . Otherwise, return true.
-    bool send(int tid, int dst_sid, int dst_tid, string str) {
+    bool send(int tid, int dst_sid, int dst_tid, const char *str, uint64_t str_sz) {
         ASSERT(init);
 
         rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
         uint64_t rbf_sz = mem->ring_size();
 
-        const char *data = str.c_str();
-        uint64_t data_sz = str.length();
-
-        // struct of data: [size | data | size] (use size of data as header and footer)
-        uint64_t msg_sz = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
+        // struct of data: [size | data | size] (use size of bundle as header and footer)
+        uint64_t msg_sz = sizeof(uint64_t) + ceil(str_sz, sizeof(uint64_t)) + sizeof(uint64_t);
 
         ASSERT(msg_sz < rbf_sz);
 
@@ -269,17 +267,20 @@ public:
 
             // write msg to the local physical-queue
             char *ptr = mem->ring(dst_tid, sid);
-            *((uint64_t *)(ptr + off % rbf_sz)) = data_sz;       // header
+
+            *((uint64_t *)(ptr + off % rbf_sz)) = str_sz;       // header
             off += sizeof(uint64_t);
-            if (off / rbf_sz == (off + data_sz - 1) / rbf_sz ) { // data
-                memcpy(ptr + (off % rbf_sz), data, data_sz);
+
+            if (off / rbf_sz == (off + str_sz - 1) / rbf_sz ) {    // data
+                memcpy(ptr + (off % rbf_sz), str, str_sz);
             } else {
                 uint64_t _sz = rbf_sz - (off % rbf_sz);
-                memcpy(ptr + (off % rbf_sz), data, _sz);
-                memcpy(ptr, data + _sz, data_sz - _sz);
+                memcpy(ptr + (off % rbf_sz), str, _sz);
+                memcpy(ptr, str + _sz, str_sz - _sz);
             }
-            off += ceil(data_sz, sizeof(uint64_t));
-            *((uint64_t *)(ptr + off % rbf_sz)) = data_sz;       // footer
+            off += ceil(str_sz, sizeof(uint64_t));
+
+            *((uint64_t *)(ptr + off % rbf_sz)) = str_sz;       // footer
         } else { // remote physical-queue
             uint64_t off = rmeta->tail;
             rmeta->tail += msg_sz;
@@ -290,11 +291,12 @@ public:
             uint64_t buf_sz = mem->buffer_size();
             ASSERT(msg_sz < buf_sz); // enough space to buffer the msg
 
-            *((uint64_t *)rdma_buf) = data_sz;  // header
+            *((uint64_t *)rdma_buf) = str_sz;  // header
             rdma_buf += sizeof(uint64_t);
-            memcpy(rdma_buf, data, data_sz);    // data
-            rdma_buf += ceil(data_sz, sizeof(uint64_t));
-            *((uint64_t*)rdma_buf) = data_sz;   // footer
+
+            memcpy(rdma_buf, str, str_sz);    // data
+            rdma_buf += ceil(str_sz, sizeof(uint64_t));
+            *((uint64_t*)rdma_buf) = str_sz;   // footer
 
             // write msg to the remote physical-queue
             RDMA &rdma = RDMA::get_rdma();
@@ -311,30 +313,28 @@ public:
         return true;
     } // end of send
 
-    std::string recv(int tid) {
+    void recv(int tid, char *str, uint64_t &sz) {
         ASSERT(init);
 
-        string str;
         while (true) {
             // each thread has a logical-queue (#servers physical-queues)
             int dst_sid = (schedulers[tid].rr_cnt++) % num_servers; // round-robin
             if (check(tid, dst_sid)) {
-                bool ret = fetch(tid, dst_sid, str, CPU_DRAM);
+                bool ret = fetch(tid, dst_sid, str, sz, CPU_DRAM);
                 assert(ret == true);
-                return str;
             }
         }
     }
 
     // Try to recv data of given thread
-    bool tryrecv(int tid, int &dst_sid_out, std::string &str) {
+    bool tryrecv(int tid, int &dst_sid_out, char *str, uint64_t &sz) {
         ASSERT(init);
 
         // check all physical-queues of tid once
         for (int dst_sid = 0; dst_sid < num_servers; dst_sid++) {
             if (check(tid, dst_sid)) {
                 dst_sid_out = dst_sid;
-                return fetch(tid, dst_sid, str, CPU_DRAM);
+                return fetch(tid, dst_sid, str, sz, CPU_DRAM);
             }
         }
         return false;
@@ -342,11 +342,12 @@ public:
 
     #ifdef USE_GPU
     // recv the data from specified rbf and copy to gpu mem, return the history_size
-    int recv_by_gpu(int tid, int dst_sid, std::string &str) {
+    int recv_by_gpu(int tid, int dst_sid, char *str) {
         while (true) {
             if (check(tid, dst_sid)) {
                 bool ret;
-                ret = fetch(tid, dst_sid, str, GPU_DRAM);
+                uint64_t sz;
+                ret = fetch(tid, dst_sid, str, sz, GPU_DRAM);
                 assert(ret == true);
                 return GPU::instance().history_size();
             }
@@ -359,9 +360,9 @@ public:
         // step1: get rmeta of dst rbf
         rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
         pthread_spin_lock(&rmeta->lock);
-        // step2: calculate msg size [data_sz | data | data_sz]
+        // step2: calculate msg size [data_sz | (type_sz) | data | data_sz]
         uint64_t ctrl_msg_sz = sizeof(uint64_t) + ceil(ctrl_sz, sizeof(uint64_t)) + sizeof(uint64_t);
-        uint64_t data_msg_sz = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
+        uint64_t data_msg_sz = sizeof(uint64_t) + sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
 
         // return false if rbf is full
         if (rbf_full(tid, dst_sid, dst_tid, ctrl_msg_sz + data_msg_sz)) {
@@ -377,8 +378,8 @@ public:
             // write msg to the local physical-queue
             char *ptr = mem->ring(dst_tid, sid);
             *((uint64_t *)(ptr + off % rbf_sz)) = ctrl_sz;       // header
-
             off += sizeof(uint64_t);
+
             if (off / rbf_sz == (off + ctrl_sz - 1) / rbf_sz ) { // data
                 memcpy(ptr + (off % rbf_sz), ctrl, ctrl_sz);
             } else {
@@ -387,15 +388,17 @@ public:
                 memcpy(ptr, ctrl + _sz, ctrl_sz - _sz);
             }
             off += ceil(ctrl_sz, sizeof(uint64_t));
+
             *((uint64_t *)(ptr + off % rbf_sz)) = ctrl_sz;       // footer
         } else { // remote physical-queue
             // prepare RDMA buffer for RDMA-WRITE
             char *rdma_buf = mem->buffer(tid);
             *((uint64_t *)rdma_buf) = ctrl_sz;  // header
-
             rdma_buf += sizeof(uint64_t);
+
             memcpy(rdma_buf, ctrl, ctrl_sz);    // data
             rdma_buf += ceil(ctrl_sz, sizeof(uint64_t));
+
             *((uint64_t*)rdma_buf) = ctrl_sz;   // footer
 
             // write msg to the remote physical-queue
@@ -420,29 +423,31 @@ public:
 
     // GPUDirect send, from local GPU mem to remote CPU mem (remote rbf)
     void gdr_send(int tid, int dst_sid, int dst_tid, const char *data, uint64_t data_sz, uint64_t offset) {
-
         uint64_t rbf_sz = mem->ring_size();
         uint64_t off = offset;
-        // msg: header + data + footer (use data_sz as header and footer)
-        uint64_t msg_sz = sizeof(uint64_t) + sizeof(to_string(SPARQL_HISTORY)) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
+        // msg: header + data + footer (use bundle_sz as header and footer)
+        uint64_t bundle_sz = sizeof(uint64_t) + data_sz;
+        uint64_t msg_sz = sizeof(uint64_t) + ceil(bundle_sz, sizeof(uint64_t)) + sizeof(uint64_t);
         ASSERT(msg_sz < rbf_sz);
         // must send to remote host
         ASSERT(sid != dst_sid);
         // prepare RDMA buffer for RDMA-WRITE
         char *rdma_buf = gmem->buffer(tid);
-        // copy header(data_sz) to rdma_buf(on local GPU mem)
-        CUDA_ASSERT( cudaMemcpy(rdma_buf, &data_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );
-
+        // copy header(bundle_sz) to rdma_buf(on local GPU mem)
+        CUDA_ASSERT( cudaMemcpy(rdma_buf, &bundle_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );
         rdma_buf += sizeof(uint64_t);
+
         // copy type
-        string msg_type = to_string(SPARQL_HISTORY);  // SPARQL_HISTORY
-        CUDA_ASSERT( cudaMemcpy(rdma_buf, &msg_type, sizeof(msg_type), cudaMemcpyHostToDevice) );
+        uint64_t msg_type = SPARQL_HISTORY;
+        CUDA_ASSERT( cudaMemcpy(rdma_buf, &msg_type, sizeof(uint64_t), cudaMemcpyHostToDevice) );
+        rdma_buf += sizeof(uint64_t);
+
         // copy data(on local GPU mem) to rdma_buf(on local GPU mem)
         CUDA_ASSERT( cudaMemcpy(rdma_buf, data, data_sz, cudaMemcpyDeviceToDevice) );    // data
-
         rdma_buf += ceil(data_sz, sizeof(uint64_t));
-        // copy footer(data_sz) to rdma_buf(on local GPU mem)
-        CUDA_ASSERT( cudaMemcpy(rdma_buf, &data_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );  // footer
+
+        // copy footer(bundle_sz) to rdma_buf(on local GPU mem)
+        CUDA_ASSERT( cudaMemcpy(rdma_buf, &bundle_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );  // footer
 
         // write msg to the remote physical-queue
         RDMA &rdma = RDMA::get_rdma();
@@ -463,7 +468,7 @@ public:
         rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
         pthread_spin_lock(&rmeta->lock);
         // step2: calculate msg size [data_sz | data | data_sz]
-        uint64_t data_msg_sz = sizeof(uint64_t) + sizeof(to_string(SPARQL_HISTORY)) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
+        uint64_t data_msg_sz = sizeof(uint64_t) + sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
 
         // return false if rbf is full
         if (rbf_full(tid, dst_sid, dst_tid, data_msg_sz)) {

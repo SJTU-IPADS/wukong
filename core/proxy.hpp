@@ -177,8 +177,9 @@ public:
 
     // Recv reply from engines.
     SPARQLQuery recv_reply(void) {
-        Bundle bundle = adaptor->recv();
-        ASSERT(bundle.type == SPARQL_QUERY);
+        Bundle bundle;
+        adaptor->recv(bundle);
+        ASSERT(bundle.get_type() == SPARQL_QUERY);
         SPARQLQuery r = bundle.get_sparql_query();
         return r;
     }
@@ -188,7 +189,7 @@ public:
         Bundle bundle;
         bool success = adaptor->tryrecv(bundle);
         if (success) {
-            ASSERT(bundle.type == SPARQL_QUERY);
+            ASSERT(bundle.get_type() == SPARQL_QUERY);
             r = bundle.get_sparql_query();
         }
 
@@ -392,8 +393,9 @@ public:
 
         int ret = 0;
         for (int i = 0; i < global_num_servers; i++) {
-            Bundle bundle = adaptor->recv();
-            ASSERT(bundle.type == DYNAMIC_LOAD);
+            Bundle bundle;
+            adaptor->recv(bundle);
+            ASSERT(bundle.get_type() == DYNAMIC_LOAD);
 
             reply = bundle.get_rdf_load();
             if (reply.load_ret < 0)
@@ -418,8 +420,9 @@ public:
 
         int ret = 0;
         for (int i = 0; i < global_num_servers; i++) {
-            Bundle bundle = adaptor->recv();
-            ASSERT(bundle.type == GSTORE_CHECK);
+            Bundle bundle;
+            adaptor->recv(bundle);
+            ASSERT(bundle.get_type() == GSTORE_CHECK);
 
             reply = bundle.get_gstore_check();
             if (reply.check_ret < 0)
