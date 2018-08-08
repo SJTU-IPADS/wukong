@@ -452,5 +452,26 @@ public:
             rdma.dev->GPURdmaWrite(tid, dst_sid, gmem->buffer(tid) + _sz, msg_sz - _sz, rdma_off);
         }
     }
+
+    // send message from gpu to remote ring buffer
+    bool send_g2c(int tid, int dst_sid, int dst_tid, const char *data, uint64_t data_sz) {
+        // step1: get rmeta of dst rbf
+        rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
+        pthread_spin_lock(&rmeta->lock);
+        // step2: calculate msg size [data_sz | data | data_sz]
+        uint64_t data_msg_sz = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
+
+        // return false if rbf is full
+        if (rbf_full(tid, dst_sid, dst_tid, data_msg_sz)) {
+            pthread_spin_unlock(&rmeta->lock);
+            return false;
+        }
+        // step3: send data
+        gdr_send(tid, dst_sid, dst_tid, data, data_sz, rmeta->tail);
+        rmeta->tail += data_msg_sz;
+
+        pthread_spin_unlock(&rmeta->lock);
+        return true;
+    }
     #endif
 };
