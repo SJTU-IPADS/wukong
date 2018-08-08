@@ -40,7 +40,7 @@ using namespace boost::archive;
 // defined as constexpr due to switch-case
 constexpr int const_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
-enum req_type { SPARQL_QUERY, DYNAMIC_LOAD, GSTORE_CHECK };
+enum req_type { SPARQL_QUERY = 0, DYNAMIC_LOAD = 1, GSTORE_CHECK = 2, SPARQL_HISTORY = 3 };
 
 enum var_type {
     known_var,
@@ -1086,6 +1086,7 @@ public:
         case SPARQL_QUERY: return "0";
         case DYNAMIC_LOAD: return "1";
         case GSTORE_CHECK: return "2";
+        case SPARQL_HISTORY: return "3";
         }
     }
 
@@ -1094,6 +1095,7 @@ public:
         case '0': type = SPARQL_QUERY; return;
         case '1': type = DYNAMIC_LOAD; return;
         case '2': type = GSTORE_CHECK; return;
+        case '3': type = SPARQL_HISTORY; return;
         }
     }
 

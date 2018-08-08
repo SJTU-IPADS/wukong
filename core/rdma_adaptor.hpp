@@ -33,6 +33,7 @@
 #include "config.hpp"
 #include "rdma.hpp"
 #include "mem.hpp"
+#include "query.hpp"
 
 #ifdef USE_GPU
 #include "gpu_utils.hpp"
@@ -423,7 +424,7 @@ public:
         uint64_t rbf_sz = mem->ring_size();
         uint64_t off = offset;
         // msg: header + data + footer (use data_sz as header and footer)
-        uint64_t msg_sz = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
+        uint64_t msg_sz = sizeof(uint64_t) + sizeof(to_string(SPARQL_HISTORY)) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
         ASSERT(msg_sz < rbf_sz);
         // must send to remote host
         ASSERT(sid != dst_sid);
@@ -433,6 +434,9 @@ public:
         CUDA_ASSERT( cudaMemcpy(rdma_buf, &data_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );
 
         rdma_buf += sizeof(uint64_t);
+        // copy type
+        string msg_type = to_string(SPARQL_HISTORY);  // SPARQL_HISTORY
+        CUDA_ASSERT( cudaMemcpy(rdma_buf, &msg_type, sizeof(msg_type), cudaMemcpyHostToDevice) );
         // copy data(on local GPU mem) to rdma_buf(on local GPU mem)
         CUDA_ASSERT( cudaMemcpy(rdma_buf, data, data_sz, cudaMemcpyDeviceToDevice) );    // data
 
@@ -454,12 +458,12 @@ public:
     }
 
     // send message from gpu to remote ring buffer
-    bool send_g2c(int tid, int dst_sid, int dst_tid, const char *data, uint64_t data_sz) {
+    bool send_device2host(int tid, int dst_sid, int dst_tid, const char *data, uint64_t data_sz) {
         // step1: get rmeta of dst rbf
         rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
         pthread_spin_lock(&rmeta->lock);
         // step2: calculate msg size [data_sz | data | data_sz]
-        uint64_t data_msg_sz = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
+        uint64_t data_msg_sz = sizeof(uint64_t) + sizeof(to_string(SPARQL_HISTORY)) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
 
         // return false if rbf is full
         if (rbf_full(tid, dst_sid, dst_tid, data_msg_sz)) {
