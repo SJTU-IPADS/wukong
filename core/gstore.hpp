@@ -657,8 +657,7 @@ done:
     }
 
     void recv_segment_meta(TCP_Adaptor *tcp_ad) {
-        string str;
-        uint64_t sz;
+        std::string str;
         // receive global_num_servers - 1 messages
         for (int i = 0; i < global_num_servers; ++i) {
             if (i == sid)

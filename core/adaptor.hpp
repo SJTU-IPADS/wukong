@@ -52,22 +52,18 @@ public:
         return send(dst_sid, dst_tid, str);
     }
 
-    string recv() {
+    Bundle recv() {
+        std::string str;
         if (global_use_rdma && rdma->init)
-            return rdma->recv(tid);
+            str = rdma->recv(tid);
         else
-            return tcp->recv(tid);
-    }
-
-    void recv(Bundle &b) {
-        string str = recv();
-        b.init(str.c_str(), str.length());
+            str = tcp->recv(tid);
+        return Bundle(str.c_str(), str.length());
     }
 
     bool tryrecv(string &str) {
         if (global_use_rdma && rdma->init) {
-            int dst_sid_out = 0;
-            if (!rdma->tryrecv(tid, dst_sid_out, str)) return false;
+            if (!rdma->tryrecv(tid, str)) return false;
         } else {
             if (!tcp->tryrecv(tid, str)) return false;
         }

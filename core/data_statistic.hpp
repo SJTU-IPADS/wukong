@@ -148,12 +148,12 @@ private:
                   << global_type2int
                   << global_single2complex;
 
-            for (int i = 1; i < global_num_servers; i++) {
+            for (int i = 1; i < global_num_servers; i++)
                 tcp_ad->send(i, 0, ss.str());
-            }
         } else {
             // every slave server recieves statistics
-            string str = tcp_ad->recv(0);
+            std::string str;
+            str = tcp_ad->recv(0);
             std::stringstream ss;
             ss << str;
             boost::archive::binary_iarchive ia(ss);
@@ -251,7 +251,8 @@ public:
                 }
             };
             for (int i = 0; i < global_num_servers; i++) {
-                string str = tcp_ad->recv(0);
+                std::string str;
+                str = tcp_ad->recv(0);
                 data_statistic tmp_data;
                 std::stringstream s;
                 s << str;

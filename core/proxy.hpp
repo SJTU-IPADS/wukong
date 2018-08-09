@@ -177,8 +177,7 @@ public:
 
     // Recv reply from engines.
     SPARQLQuery recv_reply(void) {
-        Bundle bundle;
-        adaptor->recv(bundle);
+        Bundle bundle = adaptor->recv();
         ASSERT(bundle.get_type() == SPARQL_QUERY);
         SPARQLQuery r = bundle.get_sparql_query();
         return r;
@@ -393,8 +392,7 @@ public:
 
         int ret = 0;
         for (int i = 0; i < global_num_servers; i++) {
-            Bundle bundle;
-            adaptor->recv(bundle);
+            Bundle bundle = adaptor->recv();
             ASSERT(bundle.get_type() == DYNAMIC_LOAD);
 
             reply = bundle.get_rdf_load();
@@ -420,8 +418,7 @@ public:
 
         int ret = 0;
         for (int i = 0; i < global_num_servers; i++) {
-            Bundle bundle;
-            adaptor->recv(bundle);
+            Bundle bundle = adaptor->recv();
             ASSERT(bundle.get_type() == GSTORE_CHECK);
 
             reply = bundle.get_gstore_check();

@@ -35,12 +35,6 @@
 #include "mem.hpp"
 #include "query.hpp"
 
-#ifdef USE_GPU
-#include "gpu_utils.hpp"
-#include "gpu_mem.hpp"
-#include "gpu.hpp"
-#endif
-
 using namespace std;
 
 #define WK_CLINE 64
@@ -48,10 +42,10 @@ using namespace std;
 // The communication over RDMA-based ring buffer
 class RDMA_Adaptor {
 private:
+    Mem *mem;
     int sid;
     int num_servers;
     int num_threads;
-    Mem *mem;
 
     /// The ring-buffer space contains #threads logical-queues.
     /// Each logical-queue contains #servers physical queues (ring-buffer).
@@ -105,10 +99,8 @@ private:
         return (data_sz != 0);
     }
 
-    /* Fetch data from threads in dst_sid to tid
-     * for GPU, the data will be copied to GPU mem
-     */
-    bool fetch(int tid, int dst_sid, string &result) {
+    // Fetch data from threads in dst_sid to tid
+    std::string fetch(int tid, int dst_sid) {
         // step 1: get lmeta of dst rbf
         rbf_lmeta_t *lmeta = &lmetas[tid * num_servers + dst_sid];
         // step 2: calculate mem location and data size
@@ -131,10 +123,10 @@ private:
         *footer = 0;  // clean footer
 
         // step 4: actually read data
-        uint64_t start = (lmeta->head + sizeof(uint64_t)) % rbf_sz; // start offset of data
-        uint64_t end = (lmeta->head + sizeof(uint64_t) + data_sz) % rbf_sz;  // end offset of data
-
+        std::string result;
         result.reserve(data_sz);
+        uint64_t start = (lmeta->head + sizeof(uint64_t)) % rbf_sz; // start of data
+        uint64_t end = (lmeta->head + sizeof(uint64_t) + data_sz) % rbf_sz;  // end of data
         if (start < end) {
             result.append(rbf + start, data_sz);
             memset(rbf + start, 0, ceil(data_sz, sizeof(uint64_t)));  // clean data
@@ -152,8 +144,7 @@ private:
         const uint64_t threshold = rbf_sz / 8;
         if (lmeta->head - * (uint64_t *)head > threshold) {
             *(uint64_t *)head = lmeta->head;
-            // update to remote server
-            if (sid != dst_sid) {
+            if (sid != dst_sid) {   // update to remote server
                 RDMA &rdma = RDMA::get_rdma();
                 uint64_t remote_head = mem->remote_ring_head_offset(tid, sid);
                 rdma.dev->RdmaWrite(tid, dst_sid, head, mem->remote_ring_head_size(), remote_head);
@@ -161,7 +152,7 @@ private:
                 *(uint64_t *)mem->remote_ring_head(tid, sid) = lmeta->head;
             }
         }
-        return true;
+        return result;
     } // end of fetch
 
     /* Check whether overflow occurs if given msg is sent
@@ -218,8 +209,11 @@ public:
         rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
         uint64_t rbf_sz = mem->ring_size();
 
-        // struct of data: [size | data | size] (use size of bundle as header and footer)
-        uint64_t msg_sz = sizeof(uint64_t) + ceil(str.length(), sizeof(uint64_t)) + sizeof(uint64_t);
+        const char *data = str.c_str();
+        uint64_t data_sz = str.length();
+
+        // struct of data: [size | data | size] (use size of data as header and footer)
+        uint64_t msg_sz = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
 
         ASSERT(msg_sz < rbf_sz);
 
@@ -237,19 +231,19 @@ public:
             // write msg to the local physical-queue
             char *ptr = mem->ring(dst_tid, sid);
 
-            *((uint64_t *)(ptr + off % rbf_sz)) = str.length();       // header
+            *((uint64_t *)(ptr + off % rbf_sz)) = data_sz;       // header
             off += sizeof(uint64_t);
 
-            if (off / rbf_sz == (off + str.length() - 1) / rbf_sz ) {    // data
-                memcpy(ptr + (off % rbf_sz), str.c_str(), str.length());
+            if (off / rbf_sz == (off + data_sz - 1) / rbf_sz ) {    // data
+                memcpy(ptr + (off % rbf_sz), data, data_sz);
             } else {
                 uint64_t _sz = rbf_sz - (off % rbf_sz);
-                memcpy(ptr + (off % rbf_sz), str.c_str(), _sz);
-                memcpy(ptr, str.c_str() + _sz, str.length() - _sz);
+                memcpy(ptr + (off % rbf_sz), data, _sz);
+                memcpy(ptr, data + _sz, data_sz - _sz);
             }
-            off += ceil(str.length(), sizeof(uint64_t));
+            off += ceil(data_sz, sizeof(uint64_t));
 
-            *((uint64_t *)(ptr + off % rbf_sz)) = str.length();       // footer
+            *((uint64_t *)(ptr + off % rbf_sz)) = data_sz;       // footer
         } else { // remote physical-queue
             uint64_t off = rmeta->tail;
             rmeta->tail += msg_sz;
@@ -260,12 +254,12 @@ public:
             uint64_t buf_sz = mem->buffer_size();
             ASSERT(msg_sz < buf_sz); // enough space to buffer the msg
 
-            *((uint64_t *)rdma_buf) = str.length();  // header
+            *((uint64_t *)rdma_buf) = data_sz;  // header
             rdma_buf += sizeof(uint64_t);
 
-            memcpy(rdma_buf, str.c_str(), str.length());    // data
-            rdma_buf += ceil(str.length(), sizeof(uint64_t));
-            *((uint64_t*)rdma_buf) = str.length();   // footer
+            memcpy(rdma_buf, data, data_sz);    // data
+            rdma_buf += ceil(data_sz, sizeof(uint64_t));
+            *((uint64_t*)rdma_buf) = data_sz;   // footer
 
             // write msg to the remote physical-queue
             RDMA &rdma = RDMA::get_rdma();
@@ -282,30 +276,26 @@ public:
         return true;
     } // end of send
 
-    string recv(int tid) {
+    std::string recv(int tid) {
         ASSERT(init);
 
         while (true) {
             // each thread has a logical-queue (#servers physical-queues)
             int dst_sid = (schedulers[tid].rr_cnt++) % num_servers; // round-robin
-            if (check(tid, dst_sid)) {
-                string str;
-                bool ret = fetch(tid, dst_sid, str);
-                assert(ret == true);
-                return str;
-            }
+            if (check(tid, dst_sid))
+                return fetch(tid, dst_sid);
         }
     }
 
     // Try to recv data of given thread
-    bool tryrecv(int tid, int &dst_sid_out, string &str) {
+    bool tryrecv(int tid, std::string &str) {
         ASSERT(init);
 
         // check all physical-queues of tid once
         for (int dst_sid = 0; dst_sid < num_servers; dst_sid++) {
             if (check(tid, dst_sid)) {
-                dst_sid_out = dst_sid;
-                return fetch(tid, dst_sid, str);
+                str = fetch(tid, dst_sid);
+                return true;
             }
         }
         return false;

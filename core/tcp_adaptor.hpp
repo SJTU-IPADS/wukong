@@ -100,7 +100,7 @@ public:
         int pid = port_code(sid, tid);
 
         zmq::message_t msg(str.length());
-        memcpy((char *)msg.data(), str.c_str(), str.length());
+        memcpy((void *)msg.data(), str.c_str(), str.length());
 
         // avoid two contentions
         // 1) add the 'equal' sockets to the set (overwrite)
@@ -143,9 +143,8 @@ public:
         // multiple engine threads may recv the same msg simultaneously
         // (work-stealing is the only case now)
         pthread_spin_lock(&receive_locks[tid]);
-        if (success = receivers[tid]->recv(&msg, ZMQ_NOBLOCK)) {
+        if (success = receivers[tid]->recv(&msg, ZMQ_NOBLOCK))
             str = string((char *)msg.data(), msg.size());
-        }
         pthread_spin_unlock(&receive_locks[tid]);
 
         return success;

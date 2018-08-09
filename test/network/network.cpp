@@ -69,7 +69,8 @@ void * send (bool to_master)
 // implent the recv method
 void * recv()
 {
-    test_adaptor->recv(thread_id);
+    string msg;
+    msg = test_adaptor->recv(thread_id);
 }
 
 // now only support two server to run the test
