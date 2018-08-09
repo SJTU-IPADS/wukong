@@ -626,7 +626,7 @@ public:
         extern TCP_Adaptor *con_adaptor;
         gstore.sync_metadata(con_adaptor);
 
-#else   // without GPU
+#else   // !USE_GPU
         start = timer::get_usec();
         #pragma omp parallel for num_threads(global_num_engines)
         for (int t = 0; t < global_num_engines; t++) {
@@ -643,7 +643,8 @@ public:
         start = timer::get_usec();
         #pragma omp parallel for num_threads(global_num_engines)
         for (int t = 0; t < global_num_engines; t++) {
-            gstore.insert_vertex_attr(triple_sav[t], t);
+            gstore.insert_attribute(triple_sav[t], t);
+
             // release memory
             vector<triple_attr_t>().swap(triple_sav[t]);
         }
@@ -656,7 +657,7 @@ public:
         end = timer::get_usec();
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
                             << "for inserting index data into gstore" << LOG_endl;
-#endif  // USE_GPU
+#endif  // end of USE_GPU
 
         logstream(LOG_INFO) << "#" << sid << ": loading DGraph is finished" << LOG_endl;
         gstore.print_mem_usage();
