@@ -116,7 +116,7 @@ public:
 
     string ip_of(int sid) { return ipset[sid]; }
 
-    bool send(int sid, int tid, string str) {
+    bool send(int sid, int tid, const string &str) {
         int pid = port_code(sid, tid);
 
         // alloc msg, nng_send is responsible to free it
@@ -184,7 +184,7 @@ public:
         if (n != SUCCESS)
             return false;
 
-        s = string((char *)(nng_msg_body(msg)), nng_msg_len(msg));
+        s = string((char *)nng_msg_body(msg), nng_msg_len(msg));
         nng_msg_free(msg);
         return true;
     }

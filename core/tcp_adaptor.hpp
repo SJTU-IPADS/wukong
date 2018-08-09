@@ -96,7 +96,7 @@ public:
 
     string ip_of(int sid) { return ipset[sid]; }
 
-    bool send(int sid, int tid, string str) {
+    bool send(int sid, int tid, const string &str) {
         int pid = port_code(sid, tid);
 
         zmq::message_t msg(str.length());

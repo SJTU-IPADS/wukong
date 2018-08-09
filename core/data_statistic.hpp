@@ -181,12 +181,12 @@ public:
     type_stat global_tystat;
 
     // use negative numbers to represent complex types (type_composition and index_composition)
-    unordered_map<ssid_t, type_t> local_int2type;    
+    unordered_map<ssid_t, type_t> local_int2type;
     unordered_map<type_t, ssid_t, type_t_hasher> local_type2int;
     unordered_map<type_t, ssid_t, type_t_hasher> global_type2int;
 
     // single type may be contained by several multitype
-    unordered_map<ssid_t, unordered_set<ssid_t>> global_single2complex;    
+    unordered_map<ssid_t, unordered_set<ssid_t>> global_single2complex;
 
     int sid;
 
@@ -202,7 +202,7 @@ public:
 
         if (sid == 0) {
             vector<data_statistic> all_gather;
-            unordered_map<ssid_t, type_t> global_int2type;    
+            unordered_map<ssid_t, type_t> global_int2type;
 
             // complex type have different corresponding number on different machine
             // assume type < 0 here
@@ -281,7 +281,7 @@ public:
                     ssid_t key = it->first;
                     vector<ty_count>& types = it->second;
                     for (size_t k = 0; k < types.size(); k++)
-                        global_tystat.insert_stype(key, 
+                        global_tystat.insert_stype(key,
                                                     types[k].ty<0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
                                                     types[k].count);
                 }
@@ -290,11 +290,11 @@ public:
                     ssid_t key = it->first;
                     vector<ty_count>& types = it->second;
                     for (size_t k = 0; k < types.size(); k++)
-                        global_tystat.insert_otype(key, 
+                        global_tystat.insert_otype(key,
                                                     types[k].ty<0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
                                                     types[k].count);
                 }
-                for (unordered_map<pair<ssid_t, ssid_t>, vector<ty_count>, boost::hash<pair<int, int> > >::iterator 
+                for (unordered_map<pair<ssid_t, ssid_t>, vector<ty_count>, boost::hash<pair<int, int> > >::iterator
                         it = all_gather[i].local_tystat.fine_type.begin();
                         it != all_gather[i].local_tystat.fine_type.end(); it++ ) {
                     pair<ssid_t, ssid_t> key = it->first;
@@ -369,7 +369,7 @@ public:
         uint64_t t2 = timer::get_usec();
         logstream(LOG_INFO) << (t2 - t1) / 1000 << " ms for loading statistics"
                             << " at server " << sid << LOG_endl;
-        
+
     }
 
     void store_stat_to_file(string fname) {
@@ -414,4 +414,3 @@ public:
         }
     }
 };
-

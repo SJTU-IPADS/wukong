@@ -40,11 +40,16 @@ public:
 
     ~Adaptor() { }
 
-    bool send(int dst_sid, int dst_tid, Bundle &bundle) {
+    bool send(int dst_sid, int dst_tid, const string &str) {
         if (global_use_rdma && rdma->init)
-            return rdma->send(tid, dst_sid, dst_tid, bundle.get_type() + bundle.data);
+            return rdma->send(tid, dst_sid, dst_tid, str);
         else
-            return tcp->send(dst_sid, dst_tid, bundle.get_type() + bundle.data);
+            return tcp->send(dst_sid, dst_tid, str);
+    }
+
+    bool send(int dst_sid, int dst_tid, const Bundle &b) {
+        string str = b.to_str();
+        return send(dst_sid, dst_tid, str);
     }
 
     Bundle recv() {
@@ -53,21 +58,22 @@ public:
             str = rdma->recv(tid);
         else
             str = tcp->recv(tid);
-
-        Bundle bundle(str);
-        return bundle;
+        return Bundle(str.c_str(), str.length());
     }
 
-    bool tryrecv(Bundle &bundle) {
-        std::string str;
+    bool tryrecv(string &str) {
         if (global_use_rdma && rdma->init) {
             if (!rdma->tryrecv(tid, str)) return false;
         } else {
             if (!tcp->tryrecv(tid, str)) return false;
         }
+        return true;
+    }
 
-        bundle.set_type(str.at(0));
-        bundle.data = str.substr(1);
+    bool tryrecv(Bundle &b) {
+        string str;
+        if (!tryrecv(str)) return false;
+        b.init(str.c_str(), str.length());
         return true;
     }
 };
