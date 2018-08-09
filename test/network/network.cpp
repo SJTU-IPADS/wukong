@@ -24,6 +24,7 @@
 #include "tcp_adaptor.hpp"
 #include <boost/mpi.hpp>
 #include <iostream>
+#include <climits>
 #include <map>
 #include "timer.hpp"
 #include <boost/program_options.hpp>
@@ -59,19 +60,17 @@ void * send (bool to_master)
 {
     if (to_master) {
         // from slave to master
-        test_adaptor->send(master_sid, thread_id, send_msg.c_str(), send_msg.length());
+        test_adaptor->send(master_sid, thread_id, send_msg);
     } else {
         //from master to slave
-        test_adaptor->send(slave_sid, thread_id, send_msg.c_str(), send_msg.length());
+        test_adaptor->send(slave_sid, thread_id, send_msg);
     }
 }
 
 // implent the recv method
 void * recv()
 {
-    char msg[sizeof(uint64_t) * 1000 * 1000] = {0};
-    uint64_t sz;
-    test_adaptor->recv(thread_id, msg, sz);
+    test_adaptor->recv(thread_id);
 }
 
 // now only support two server to run the test

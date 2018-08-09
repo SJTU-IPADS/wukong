@@ -23,6 +23,7 @@
 #pragma once
 
 #include <stdint.h> // uint64_t
+#include <climits>
 #include <vector>
 #include <queue>
 #include <iostream>
@@ -651,21 +652,20 @@ done:
         for (int i = 0; i < global_num_servers; ++i) {
             if (i == sid)
                 continue;
-            string str = ss.str();
-            tcp_ad->send(i, 0, str.c_str(), str.length());
+            tcp_ad->send(i, 0, ss.str());
             logstream(LOG_INFO) << "#" << sid << " sends segment metadata to server " << i << LOG_endl;
         }
     }
 
     void recv_segment_meta(TCP_Adaptor *tcp_ad) {
-        char str[sizeof(uint64_t) * 1000 * 1000] = {0};
+        string str;
         uint64_t sz;
         // receive global_num_servers - 1 messages
         for (int i = 0; i < global_num_servers; ++i) {
             if (i == sid)
                 continue;
             std::stringstream ss;
-            tcp_ad->recv(0, str, sz);
+            str = tcp_ad->recv(0);
             ss << str;
             boost::archive::binary_iarchive ia(ss);
             SyncSegmentMetaMsg msg;

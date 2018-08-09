@@ -2,6 +2,7 @@
 
 #include <unordered_map>
 #include <unordered_set>
+#include <climits>
 #include <boost/mpi.hpp>
 #include <boost/functional/hash.hpp>
 #include <boost/algorithm/string.hpp>
@@ -149,14 +150,11 @@ private:
                   << global_single2complex;
 
             for (int i = 1; i < global_num_servers; i++) {
-                string str = ss.str();
-                tcp_ad->send(i, 0, str.c_str(), str.length());
+                tcp_ad->send(i, 0, ss.str());
             }
         } else {
             // every slave server recieves statistics
-            char str[sizeof(uint64_t) * 1000 * 1000] = {0};
-            uint64_t sz;
-            tcp_ad->recv(0, str, sz);
+            string str = tcp_ad->recv(0);
             std::stringstream ss;
             ss << str;
             boost::archive::binary_iarchive ia(ss);
@@ -201,8 +199,7 @@ public:
         std::stringstream ss;
         boost::archive::binary_oarchive oa(ss);
         oa << (*this);
-        string str = ss.str();
-        tcp_ad->send(0, 0, str.c_str(), str.length());
+        tcp_ad->send(0, 0, ss.str());
 
         if (sid == 0) {
             vector<data_statistic> all_gather;
@@ -255,9 +252,7 @@ public:
                 }
             };
             for (int i = 0; i < global_num_servers; i++) {
-                char str[sizeof(uint64_t) * 1000 * 1000] = {0};
-                uint64_t sz;
-                tcp_ad->recv(0, str, sz);
+                string str = tcp_ad->recv(0);
                 data_statistic tmp_data;
                 std::stringstream s;
                 s << str;

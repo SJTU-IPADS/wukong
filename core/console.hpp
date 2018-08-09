@@ -25,6 +25,7 @@
 #include <iostream>
 #include <string>
 #include <set>
+#include <climits>
 
 #include <boost/unordered_map.hpp>
 #include <boost/archive/binary_oarchive.hpp>
@@ -53,16 +54,13 @@ static void console_send(int sid, int tid, T &r)
     stringstream ss;
     boost::archive::binary_oarchive oa(ss);
     oa << r;
-    string str = ss.str();
-    con_adaptor->send(sid, tid, str.c_str(), str.length());
+    con_adaptor->send(sid, tid, ss.str());
 }
 
 template<typename T>
 static T console_recv(int tid)
 {
-    char str[sizeof(uint64_t) * 1000 * 1000] = {0};
-    uint64_t sz;
-    con_adaptor->recv(tid, str, sz);
+    string str = con_adaptor->recv(tid);
     stringstream ss;
     ss << str;
     boost::archive::binary_iarchive ia(ss);

@@ -1080,11 +1080,14 @@ public:
         data = ss.str();
     }
 
+    Bundle(const char *str, uint64_t sz) {
+        init(str, sz);
+    }
+
     void init(const char *str, uint64_t sz) {
         uint64_t t;
-        char d[sz] = {0};
         memcpy(&t, str, sizeof(uint64_t));
-        memcpy(d, str + sizeof(uint64_t), sz - sizeof(uint64_t));
+        string d(str + sizeof(uint64_t), sz - sizeof(uint64_t));
         set_type((req_type)t);
         set_data(d);
     }
@@ -1103,10 +1106,6 @@ public:
 
     const char *get_data_c_str() const {
         return data.c_str();
-    }
-
-    void set_data(const char *d) {
-        data = string(d);
     }
 
     void set_data(const string &d) {
@@ -1157,9 +1156,11 @@ public:
         return data.length();
     }
 
-    void to_c_str(char *str) const {
+    string to_str() const {
+        char c_str[bundle_size()] = {0};
         uint64_t t = (uint64_t) type;
-        memcpy(str, &t, sizeof(uint64_t));
-        memcpy(str + sizeof(uint64_t), data.c_str(), data.length());
+        memcpy(c_str, &t, sizeof(uint64_t));
+        memcpy(c_str + sizeof(uint64_t), data.c_str(), data.length());
+        return string(c_str, bundle_size());
     }
 };

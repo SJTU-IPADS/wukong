@@ -116,13 +116,13 @@ public:
 
     string ip_of(int sid) { return ipset[sid]; }
 
-    bool send(int sid, int tid, const char *str, uint64_t str_sz) {
+    bool send(int sid, int tid, const string &str) {
         int pid = port_code(sid, tid);
 
         // alloc msg, nng_send is responsible to free it
         nng_msg *msg = NULL ;
-        nng_msg_alloc(&msg, str_sz);
-        memcpy((nng_msg_body(msg)), str, str_sz);
+        nng_msg_alloc(&msg, str.length());
+        memcpy((nng_msg_body(msg)), str.c_str(), str.length());
 
         // avoid two contentions
         // 1) add the 'equal' sockets to the set (overwrite)
@@ -157,7 +157,7 @@ public:
         return true ;
     }
 
-    void recv(int tid, char *str, uint64_t &sz) {
+    string recv(int tid) {
         nng_msg *msg = NULL;
 
         // multiple engine threads may recv the same msg simultaneously (no case)
@@ -168,13 +168,12 @@ public:
         }
         pthread_spin_unlock(&receive_locks[tid]);
 
-        char *src = (char *)nng_msg_body(msg);
-        memcpy(str, src, sz);
-        sz = nng_msg_len(msg);
+        string s((char *)nng_msg_body(msg), nng_msg_len(msg));
         nng_msg_free(msg);
+        return s;
     }
 
-    bool tryrecv(int tid, char *str, uint64_t &sz) {
+    bool tryrecv(int tid, string &s) {
         nng_ms *msg = NULL;
 
         // multiple engine threads may recv the same msg simultaneously (no case)
@@ -185,9 +184,7 @@ public:
         if (n != SUCCESS)
             return false;
 
-        char *src = (char *)nng_msg_body(msg);
-        memcpy(str, src, sz);
-        sz = nng_msg_len(msg);
+        s = string((char *)nng_msg_body(msg), nng_msg_len(msg));
         nng_msg_free(msg);
         return true;
     }

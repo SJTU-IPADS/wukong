@@ -96,11 +96,11 @@ public:
 
     string ip_of(int sid) { return ipset[sid]; }
 
-    bool send(int sid, int tid, const char *str, uint64_t str_sz) {
+    bool send(int sid, int tid, const string &str) {
         int pid = port_code(sid, tid);
 
-        zmq::message_t msg(str_sz);
-        memcpy((char *)msg.data(), str, str_sz);
+        zmq::message_t msg(str.length());
+        memcpy((char *)msg.data(), str.c_str(), str.length());
 
         // avoid two contentions
         // 1) add the 'equal' sockets to the set (overwrite)
@@ -121,7 +121,7 @@ public:
         return result;
     }
 
-    void recv(int tid, char *str, uint64_t &sz) {
+    string recv(int tid) {
         zmq::message_t msg;
 
         // multiple engine threads may recv the same msg simultaneously (no case)
@@ -133,12 +133,10 @@ public:
         }
         pthread_spin_unlock(&receive_locks[tid]);
 
-        char *src = (char *)msg.data();
-        memcpy(str, src, msg.size());
-        sz = msg.size();
+        return string((char *)msg.data(), msg.size());
     }
 
-    bool tryrecv(int tid, char *str, uint64_t &sz) {
+    bool tryrecv(int tid, string &str) {
         zmq::message_t msg;
         bool success = false;
 
@@ -146,9 +144,7 @@ public:
         // (work-stealing is the only case now)
         pthread_spin_lock(&receive_locks[tid]);
         if (success = receivers[tid]->recv(&msg, ZMQ_NOBLOCK)) {
-            char *src = (char *)msg.data();
-            memcpy(str, src, msg.size());
-            sz = msg.size();
+            str = string((char *)msg.data(), msg.size());
         }
         pthread_spin_unlock(&receive_locks[tid]);
 

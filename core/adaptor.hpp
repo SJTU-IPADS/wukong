@@ -27,10 +27,9 @@
 #include "tcp_adaptor.hpp"
 #include "rdma_adaptor.hpp"
 #include <cstring>
+#include <climits>
 
 /// TODO: define adaptor as a C++ interface and make tcp and rdma implement it
-const uint64_t MAX_MSG_SZ = sizeof(uint64_t) * 1000 * 1000;
-
 class Adaptor {
 public:
     int tid; // thread id
@@ -43,37 +42,44 @@ public:
 
     ~Adaptor() { }
 
-    bool send(int dst_sid, int dst_tid, const Bundle &bundle) {
-        char bundle_str[MAX_MSG_SZ] = {0};
-        bundle.to_c_str(bundle_str);
+    bool send(int dst_sid, int dst_tid, const string &str) {
         if (global_use_rdma && rdma->init)
-            return rdma->send(tid, dst_sid, dst_tid, bundle_str, bundle.bundle_size());
+            return rdma->send(tid, dst_sid, dst_tid, str);
         else
-            return tcp->send(dst_sid, dst_tid, bundle_str, bundle.bundle_size());
+            return tcp->send(dst_sid, dst_tid, str);
+    }
+
+    bool send(int dst_sid, int dst_tid, const Bundle &b) {
+        string str = b.to_str();
+        return send(dst_sid, dst_tid, str);
+    }
+
+    string recv() {
+        if (global_use_rdma && rdma->init)
+            return rdma->recv(tid);
+        else
+            return tcp->recv(tid);
     }
 
     void recv(Bundle &b) {
-        char str[MAX_MSG_SZ] = {0};
-        uint64_t sz;
-        if (global_use_rdma && rdma->init)
-            rdma->recv(tid, str, sz);
-        else
-            tcp->recv(tid, str, sz);
+        string str = recv();
+        b.init(str.c_str(), str.length());
+    }
 
-        b.init(str, sz);
+    bool tryrecv(string &str) {
+        if (global_use_rdma && rdma->init) {
+            int dst_sid_out = 0;
+            if (!rdma->tryrecv(tid, dst_sid_out, str)) return false;
+        } else {
+            if (!tcp->tryrecv(tid, str)) return false;
+        }
+        return true;
     }
 
     bool tryrecv(Bundle &b) {
-        char str[MAX_MSG_SZ] = {0};
-        uint64_t sz;
-        if (global_use_rdma && rdma->init) {
-            int dst_sid_out = 0;
-            if (!rdma->tryrecv(tid, dst_sid_out, str, sz)) return false;
-        } else {
-            if (!tcp->tryrecv(tid, str, sz)) return false;
-        }
-        b.init(str, sz);
-
+        string str;
+        if (!tryrecv(str)) return false;
+        b.init(str.c_str(), str.length());
         return true;
     }
 
@@ -85,9 +91,7 @@ public:
         ASSERT(tid < global_num_threads);
         ASSERT(r.subquery_type == SPARQLQuery::SubQueryType::SPLIT);
         Bundle bundle(r);
-        char ctrl[MAX_MSG_SZ] = {0};
-        bundle.to_c_str(ctrl);
-        return rdma->send_split(tid, dst_sid, dst_tid, ctrl, bundle.bundle_size(), history_ptr, table_size * sizeof(sid_t));
+        return rdma->send_split(tid, dst_sid, dst_tid, bundle.to_str(), history_ptr, table_size * sizeof(sid_t));
     }
 
     bool send_device2host(int dst_sid, int dst_tid, char *history_ptr, uint64_t table_size) {
@@ -99,22 +103,20 @@ public:
      * receive does not need acquire lock since there are only one reader on ring buffer
      */
     bool tryrecv_split(SPARQLQuery &r) {
-        char str[MAX_MSG_SZ] = {0};
-        uint64_t sz;
+        string str;
         int sender_sid = 0;
 
-        if (!rdma->tryrecv(tid, sender_sid, str, sz))
+        if (!rdma->tryrecv(tid, sender_sid, str))
             return false;
 
-        Bundle b;
-        b.init(str, sz);
+        Bundle b(str.c_str(), str.length());
 
         r = b.get_sparql_query();
 
         // continue receive history of query
         if (r.subquery_type == SPARQLQuery::SubQueryType::SPLIT) {
             int ret;
-            char dumb_str[MAX_MSG_SZ] = {0};
+            string dumb_str;
 
             ret = rdma->recv_by_gpu(tid, sender_sid, dumb_str);
             ASSERT(ret > 0);
