@@ -550,7 +550,7 @@ done:
 
     // Allocate space to store edges of given size.
     // Return offset of allocated space.
-    inline uint64_t alloc_edges(uint64_t n, int64_t tid) {
+    inline uint64_t alloc_edges(uint64_t n, int64_t tid = 0) {
         if (global_enable_caching)
             sweep_free(); // collect free space before allocate
         uint64_t sz = e2b(n + 1); // reserve one space for sz
@@ -768,7 +768,7 @@ done:
         for (auto const &e : map) {
             sid_t pid = e.first;
             uint64_t sz = e.second.size();
-            uint64_t off = alloc_edges(sz, 0);
+            uint64_t off = alloc_edges(sz);
 
             ikey_t key = ikey_t(0, pid, d);
             uint64_t slot_id = insert_key(key);
@@ -789,7 +789,7 @@ done:
 
     void insert_index_set(tbb_unordered_set &set, sid_t tpid, dir_t d) {
         uint64_t sz = set.size();
-        uint64_t off = alloc_edges(sz, 0);
+        uint64_t off = alloc_edges(sz);
 
         ikey_t key = ikey_t(0, tpid, d);
         uint64_t slot_id = insert_key(key);
