@@ -32,6 +32,10 @@
 
 #include "config.hpp"
 #include "rdma.hpp"
+#ifdef USE_GPU
+#include "gpu_mem.hpp"
+#include "gpu_utils.hpp"
+#endif
 
 using namespace std;
 
@@ -41,6 +45,9 @@ using namespace std;
 class RDMA_Adaptor {
 private:
     Mem *mem;
+    #ifdef USE_GPU
+    GPUMem *gmem = nullptr;
+    #endif
     int sid;
     int num_servers;
     int num_threads;
@@ -166,6 +173,49 @@ private:
         return (rbf_sz < (tail - head + msg_sz));
     }
 
+    #ifdef USE_GPU
+    // GPUDirect send, from local GPU mem to remote CPU mem (remote rbf)
+    void gdr_send(int tid, int dst_sid, int dst_tid, const char *data, uint64_t data_sz, uint64_t offset) {
+        uint64_t rbf_sz = mem->ring_size();
+        uint64_t off = offset;
+        // msg: header + (type + data) + footer (use bundle_sz as header and footer)
+        uint64_t bundle_sz = sizeof(uint64_t) + data_sz;
+        uint64_t msg_sz = sizeof(uint64_t) + ceil(bundle_sz, sizeof(uint64_t)) + sizeof(uint64_t);
+        ASSERT(msg_sz < rbf_sz);
+        // must send to remote host
+        ASSERT(sid != dst_sid);
+        // prepare RDMA buffer for RDMA-WRITE
+        char *rdma_buf = gmem->buffer(tid);
+        // copy header(bundle_sz) to rdma_buf(on local GPU mem)
+        CUDA_ASSERT( cudaMemcpy(rdma_buf, &bundle_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );
+        rdma_buf += sizeof(uint64_t);
+
+        // copy type
+        uint64_t msg_type = SPARQL_HISTORY;
+        CUDA_ASSERT( cudaMemcpy(rdma_buf, &msg_type, sizeof(uint64_t), cudaMemcpyHostToDevice) );
+        rdma_buf += sizeof(uint64_t);
+
+        // copy data(on local GPU mem) to rdma_buf(on local GPU mem)
+        CUDA_ASSERT( cudaMemcpy(rdma_buf, data, data_sz, cudaMemcpyDeviceToDevice) );    // data
+        rdma_buf += ceil(data_sz, sizeof(uint64_t));
+
+        // copy footer(bundle_sz) to rdma_buf(on local GPU mem)
+        CUDA_ASSERT( cudaMemcpy(rdma_buf, &bundle_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );  // footer
+
+        // write msg to the remote physical-queue
+        RDMA &rdma = RDMA::get_rdma();
+        uint64_t rdma_off = mem->ring_offset(dst_tid, sid);
+
+        if (off / rbf_sz == (off + msg_sz - 1) / rbf_sz ) {
+            rdma.dev->GPURdmaWrite(tid, dst_sid, gmem->buffer(tid), msg_sz, rdma_off + (off % rbf_sz));
+        } else {
+            uint64_t _sz = rbf_sz - (off % rbf_sz);
+            rdma.dev->GPURdmaWrite(tid, dst_sid, gmem->buffer(tid), _sz, rdma_off + (off % rbf_sz));
+            rdma.dev->GPURdmaWrite(tid, dst_sid, gmem->buffer(tid) + _sz, msg_sz - _sz, rdma_off);
+        }
+    }
+    #endif
+
 public:
     bool init = false;
 
@@ -198,6 +248,34 @@ public:
     }
 
     ~RDMA_Adaptor() { }  //TODO
+
+    #ifdef USE_GPU
+    void init_gpu_mem(GPUMem *m) {
+        gmem = m;
+    }
+
+    bool send_dev_to_host(int tid, int dst_sid, int dst_tid, char *data, uint64_t data_sz) {
+        // step1: get rmeta of dst rbf
+        rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
+        pthread_spin_lock(&rmeta->lock);
+        // step2: calculate msg size [data_sz | data | data_sz]
+        uint64_t msg_sz = sizeof(uint64_t) + sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
+
+        // return false if rbf is full
+        if (rbf_full(tid, dst_sid, dst_tid, msg_sz)) {
+            pthread_spin_unlock(&rmeta->lock);
+            return false;
+        }
+        uint64_t off = rmeta->tail;
+        rmeta->tail += msg_sz;
+        pthread_spin_unlock(&rmeta->lock);
+
+        // step3: send data
+        gdr_send(tid, dst_sid, dst_tid, data, data_sz, off);
+
+        return true;
+    }
+    #endif
 
     // Send given string to (dst_sid, dst_tid) by thread(tid)
     // Return false if failed . Otherwise, return true.
