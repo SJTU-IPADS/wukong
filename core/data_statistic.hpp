@@ -17,21 +17,22 @@
 
 using namespace std;
 
-struct type_t{
+struct type_t {
     bool data_type;   //true for type_composition, false for index_composition
     std::unordered_set<int> composition;
 
-    void set_type_composition(std::unordered_set<int> composition){
+    void set_type_composition(std::unordered_set<int> c) {
         data_type = true;
-        this->composition = composition;
+        this->composition = c;
     }
 
-    void set_index_composition(std::unordered_set<int> composition){
+    void set_index_composition(std::unordered_set<int> c) {
         data_type = false;
-        this->composition = composition;
+        this->composition = c;
     };
-    bool operator==(const type_t &other) const{
-        if(data_type != other.data_type) return false;
+
+    bool operator == (const type_t &other) const {
+        if (data_type != other.data_type) return false;
         return this->composition == other.composition;
     }
 
@@ -42,10 +43,10 @@ struct type_t{
     }
 };
 
-struct type_t_hasher{
-    size_t operator()( const type_t& type ) const{
+struct type_t_hasher {
+    size_t operator()( const type_t& type ) const {
         size_t res = 17;
-        for ( auto it = type.composition.cbegin(); it != type.composition.cend(); ++it )
+        for (auto it = type.composition.cbegin(); it != type.composition.cend(); ++it)
             res = (res + *it) << 1;
         return res;
     }
@@ -65,68 +66,73 @@ struct type_stat {
     unordered_map<ssid_t, vector<ty_count>> pstype;
     unordered_map<ssid_t, vector<ty_count>> potype;
     unordered_map<pair<ssid_t, ssid_t>, vector<ty_count>, boost::hash<pair<int, int>>> fine_type;
+
     // pair<subject, predicate> means subject predicate -> ?
     // pair<predicate, object> means ? predicate -> object
     int get_pstype_count(ssid_t predicate, ssid_t type) {
-        vector<ty_count>& types = pstype[predicate];
-        for (size_t i = 0; i < types.size(); i++) {
-            if (types[i].ty == type) {
+        vector<ty_count> &types = pstype[predicate];
+        for (size_t i = 0; i < types.size(); i++)
+            if (types[i].ty == type)
                 return types[i].count;
-            }
-        }
         return 0;
     }
+
     int get_potype_count(ssid_t predicate, ssid_t type) {
-        vector<ty_count>& types = potype[predicate];
-        for (size_t i = 0; i < types.size(); i++) {
-            if (types[i].ty == type) {
+        vector<ty_count> &types = potype[predicate];
+        for (size_t i = 0; i < types.size(); i++)
+            if (types[i].ty == type)
                 return types[i].count;
-            }
-        }
         return 0;
     }
+
     int insert_stype(ssid_t predicate, ssid_t type, int count) {
-        vector<ty_count>& types = pstype[predicate];
+        vector<ty_count> &types = pstype[predicate];
         for (size_t i = 0; i < types.size(); i++) {
             if (types[i].ty == type) {
                 types[i].count += count;
                 return 0;
             }
         }
+
         ty_count newty;
         newty.ty = type;
         newty.count = count;
         types.push_back(newty);
         return 1;
     }
+
     int insert_otype(ssid_t predicate, ssid_t type, int count) {
-        vector<ty_count>& types = potype[predicate];
+        vector<ty_count> &types = potype[predicate];
         for (size_t i = 0; i < types.size(); i++) {
             if (types[i].ty == type) {
                 types[i].count += count;
                 return 0;
             }
         }
+
         ty_count newty;
         newty.ty = type;
         newty.count = count;
         types.push_back(newty);
         return 1;
     }
-    int insert_finetype(ssid_t first, ssid_t second, ssid_t type, int count){
-        vector<ty_count>& types = fine_type[make_pair(first, second)];
+
+    int insert_finetype(ssid_t first, ssid_t second, ssid_t type, int count) {
+        vector<ty_count> &types = fine_type[make_pair(first, second)];
         for (size_t i = 0; i < types.size(); i++) {
             if (types[i].ty == type) {
                 types[i].count += count;
                 return 0;
             }
         }
+
         ty_count newty;
         newty.ty = type;
         newty.count = count;
         types.push_back(newty);
         return 1;
     }
+
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
         ar & pstype;
@@ -137,7 +143,8 @@ struct type_stat {
 
 class data_statistic {
 private:
-    // after the master server get whole statistics, this method is used to send it to all machines.
+    // after the master server get whole statistics,
+    // this method is used to send it to all machines.
     void send_stat_to_all_machines(TCP_Adaptor *tcp_ad) {
         if (sid == 0) {
             // master server sends statistics
@@ -150,6 +157,7 @@ private:
 
             for (int i = 1; i < global_num_servers; i++)
                 tcp_ad->send(i, 0, ss.str());
+
         } else {
             // every slave server recieves statistics
             std::string str;
@@ -180,7 +188,8 @@ public:
     type_stat local_tystat;
     type_stat global_tystat;
 
-    // use negative numbers to represent complex types (type_composition and index_composition)
+    // use negative numbers to represent complex types
+    // (type_composition and index_composition)
     unordered_map<ssid_t, type_t> local_int2type;
     unordered_map<type_t, ssid_t, type_t_hasher> local_type2int;
     unordered_map<type_t, ssid_t, type_t_hasher> global_type2int;
@@ -206,20 +215,18 @@ public:
 
             // complex type have different corresponding number on different machine
             // assume type < 0 here
-            auto type_transform = [&](ssid_t type, data_statistic &stat) -> ssid_t{
+            auto type_transform = [&](ssid_t type, data_statistic & stat) -> ssid_t{
                 // type may not occur in local_int2type
 
                 type_t complex_type;
-                if(local_int2type.find(type) != local_int2type.end()){
+                if (local_int2type.find(type) != local_int2type.end())
                     complex_type = stat.local_int2type[type];
-                }
-                else{
+                else
                     logstream(LOG_ERROR) << "type: " << type << " is not in local_int2type" << LOG_endl;
-                }
-                if(global_type2int.find(complex_type) != global_type2int.end()){
+
+                if (global_type2int.find(complex_type) != global_type2int.end())
                     return global_type2int[complex_type];
-                }
-                else{
+                else {
                     ssid_t number = global_type2int.size();
                     number ++;
                     number = -number;
@@ -235,11 +242,11 @@ public:
                     // cout << endl;
 
                     // add single2complex index
-                    if(complex_type.data_type){
-                        for ( auto iter = complex_type.composition.cbegin(); iter != complex_type.composition.cend(); ++iter ){
-                            if(global_single2complex.find(*iter) != global_single2complex.end())
+                    if (complex_type.data_type) {
+                        for (auto iter = complex_type.composition.cbegin(); iter != complex_type.composition.cend(); ++iter) {
+                            if (global_single2complex.find(*iter) != global_single2complex.end()) {
                                 global_single2complex[*iter].insert(number);
-                            else{
+                            } else {
                                 unordered_set<ssid_t> multi_type_set;
                                 // set will automatically ensure no deplicated element exist
                                 multi_type_set.insert(number);
@@ -250,6 +257,7 @@ public:
                     return number;
                 }
             };
+
             for (int i = 0; i < global_num_servers; i++) {
                 std::string str;
                 str = tcp_ad->recv(0);
@@ -262,18 +270,16 @@ public:
             }
 
             for (int i = 0; i < all_gather.size(); i++) {
-
                 //for type predicate
                 for (unordered_map<ssid_t, int>::iterator it = all_gather[i].local_tyscount.begin();
-                        it != all_gather[i].local_tyscount.end(); it++ ) {
+                        it != all_gather[i].local_tyscount.end(); it++) {
                     ssid_t key = it->first;
                     int number = it->second;
-                    if(key < 0) key = type_transform(key, all_gather[i]);
-                    if (global_tyscount.find(key) == global_tyscount.end()) {
+                    if (key < 0) key = type_transform(key, all_gather[i]);
+                    if (global_tyscount.find(key) == global_tyscount.end())
                         global_tyscount[key] = number;
-                    } else {
+                    else
                         global_tyscount[key] += number;
-                    }
                 }
 
                 for (unordered_map<ssid_t, vector<ty_count>>::iterator it = all_gather[i].local_tystat.pstype.begin();
@@ -282,27 +288,29 @@ public:
                     vector<ty_count>& types = it->second;
                     for (size_t k = 0; k < types.size(); k++)
                         global_tystat.insert_stype(key,
-                                                    types[k].ty<0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
-                                                    types[k].count);
+                                                   types[k].ty < 0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
+                                                   types[k].count);
                 }
+
                 for (unordered_map<ssid_t, vector<ty_count>>::iterator it = all_gather[i].local_tystat.potype.begin();
                         it != all_gather[i].local_tystat.potype.end(); it++ ) {
                     ssid_t key = it->first;
                     vector<ty_count>& types = it->second;
                     for (size_t k = 0; k < types.size(); k++)
                         global_tystat.insert_otype(key,
-                                                    types[k].ty<0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
-                                                    types[k].count);
+                                                   types[k].ty < 0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
+                                                   types[k].count);
                 }
-                for (unordered_map<pair<ssid_t, ssid_t>, vector<ty_count>, boost::hash<pair<int, int> > >::iterator
+
+                for (unordered_map<pair<ssid_t, ssid_t>, vector<ty_count>, boost::hash<pair<int, int>>>::iterator
                         it = all_gather[i].local_tystat.fine_type.begin();
                         it != all_gather[i].local_tystat.fine_type.end(); it++ ) {
                     pair<ssid_t, ssid_t> key = it->first;
                     vector<ty_count>& types = it->second;
                     for (size_t k = 0; k < types.size(); k++)
-                        global_tystat.insert_finetype(key.first<0 ? type_transform(key.first, all_gather[i]) : key.first,
-                                                      key.second<0 ? type_transform(key.second, all_gather[i]) : key.second,
-                                                      types[k].ty<0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
+                        global_tystat.insert_finetype(key.first < 0 ? type_transform(key.first, all_gather[i]) : key.first,
+                                                      key.second < 0 ? type_transform(key.second, all_gather[i]) : key.second,
+                                                      types[k].ty < 0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
                                                       types[k].count);
                 }
             }
@@ -379,7 +387,7 @@ public:
         // avoid saving when it already exsits
         ifstream file(fname.c_str());
         if (!file.good()) {
-        	try{
+            try {
                 ofstream ofs(fname);
                 boost::archive::binary_oarchive oa(ofs);
                 oa << global_tyscount;
@@ -387,29 +395,27 @@ public:
                 oa << global_type2int;
                 oa << global_single2complex;
                 ofs.close();
-        	}
-        	catch(exception& e){
+            } catch (exception& e) {
                 logstream(LOG_ERROR) << "store statistics unsuccessfully: " << e.what() << LOG_endl;
                 return;
-        	}
+            }
 
             logstream(LOG_INFO) << "store statistics to file "
                                 << fname << " is finished." << LOG_endl;
         }
     }
 
-    ssid_t get_simple_type(type_t &type){
+    ssid_t get_simple_type(type_t &type) {
         auto iter = local_type2int.find(type);
 
-        if(iter == local_type2int.end()){
+        if (iter == local_type2int.end()) {
             ssid_t number = local_type2int.size();
             number ++;
             number = -number;
             local_type2int[type] = number;
             local_int2type[number] = type;
             return number;
-        }
-        else{
+        } else {
             return iter->second;
         }
     }

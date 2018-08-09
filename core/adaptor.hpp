@@ -62,12 +62,10 @@ public:
     }
 
     bool tryrecv(string &str) {
-        if (global_use_rdma && rdma->init) {
-            if (!rdma->tryrecv(tid, str)) return false;
-        } else {
-            if (!tcp->tryrecv(tid, str)) return false;
-        }
-        return true;
+        if (global_use_rdma && rdma->init)
+            return rdma->tryrecv(tid, str);
+        else
+            return tcp->tryrecv(tid, str);
     }
 
     bool tryrecv(Bundle &b) {
