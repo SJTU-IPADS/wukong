@@ -2,7 +2,6 @@
 
 #include <unordered_map>
 #include <unordered_set>
-#include <climits>
 #include <boost/mpi.hpp>
 #include <boost/functional/hash.hpp>
 #include <boost/algorithm/string.hpp>

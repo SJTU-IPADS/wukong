@@ -24,7 +24,6 @@
 #include "tcp_adaptor.hpp"
 #include <boost/mpi.hpp>
 #include <iostream>
-#include <climits>
 #include <map>
 #include "timer.hpp"
 #include <boost/program_options.hpp>

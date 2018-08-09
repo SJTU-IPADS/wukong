@@ -274,11 +274,6 @@ public:
         // OPTIONAL
         vector<bool> optional_matched_rows; // mark which rows are matched in optional block
 
-        #ifdef USE_GPU
-        char* gpu_history_ptr = nullptr; // pointer to history table on GPU
-        int gpu_history_table_size = 0;
-        #endif
-
         void clear() {
             result_table.clear();
             attr_res_table.clear();
@@ -515,12 +510,6 @@ public:
     int limit = -1;
     unsigned offset = 0;
     bool distinct = false;
-
-    #ifdef USE_GPU
-    // if this is a sub-query of a heavy query, the SubQueryType will be SPLIT
-    enum SubQueryType { FULL, SPLIT };
-    SubQueryType subquery_type = FULL;
-    #endif
 
     // ID-format triple patterns (Subject, Predicat, Direction, Object)
     PatternGroup pattern_group;
@@ -924,9 +913,6 @@ void save(Archive &ar, const SPARQLQuery::Result &t, unsigned int version) {
     } else {
         ar << empty;
     }
-    #ifdef USE_GPU
-    ar << t.gpu_history_table_size;
-    #endif
 }
 
 template<class Archive>
@@ -945,9 +931,6 @@ void load(Archive & ar, SPARQLQuery::Result &t, unsigned int version) {
         ar >> t.result_table;
         ar >> t.attr_res_table;
     }
-    #ifdef USE_GPU
-    ar >> t.gpu_history_table_size;
-    #endif
 }
 
 template<class Archive>
@@ -976,9 +959,6 @@ void save(Archive & ar, const SPARQLQuery &t, unsigned int version) {
         ar << empty;
     }
     ar << t.result;
-    #ifdef USE_GPU
-    ar << t.subquery_type;
-    #endif
 }
 
 template<class Archive>
@@ -1004,9 +984,6 @@ void load(Archive & ar, SPARQLQuery &t, unsigned int version) {
     ar >> temp;
     if (temp == occupied) ar >> t.orders;
     ar >> t.result;
-    #ifdef USE_GPU
-    ar >> t.subquery_type;
-    #endif
 }
 
 }

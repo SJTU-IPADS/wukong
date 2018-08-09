@@ -26,8 +26,6 @@
 #include "query.hpp"
 #include "tcp_adaptor.hpp"
 #include "rdma_adaptor.hpp"
-#include <cstring>
-#include <climits>
 
 /// TODO: define adaptor as a C++ interface and make tcp and rdma implement it
 class Adaptor {
@@ -82,50 +80,4 @@ public:
         b.init(str.c_str(), str.length());
         return true;
     }
-
-    #ifdef USE_GPU
-    /* send the forked subquery(in CPU mem) and partial history(in GPU mem) to remote server
-     * table_size refers to the number of elements in history, not n_rows
-     */
-    bool send_split(int dst_sid, int dst_tid, SPARQLQuery &r, char *history_ptr, uint64_t table_size) {
-        ASSERT(tid < global_num_threads);
-        ASSERT(r.subquery_type == SPARQLQuery::SubQueryType::SPLIT);
-        Bundle bundle(r);
-        return rdma->send_split(tid, dst_sid, dst_tid, bundle.to_str(), history_ptr, table_size * sizeof(sid_t));
-    }
-
-    bool send_device2host(int dst_sid, int dst_tid, char *history_ptr, uint64_t table_size) {
-        ASSERT(tid < global_num_threads);
-        return rdma->send_device2host(tid, dst_sid, dst_tid, history_ptr, table_size * sizeof(sid_t));
-    }
-
-    /* first receive the forked subquery, then receive the partial history and copy it to local gpu mem
-     * receive does not need acquire lock since there are only one reader on ring buffer
-     */
-    bool tryrecv_split(SPARQLQuery &r) {
-        string str;
-        int sender_sid = 0;
-
-        if (!rdma->tryrecv(tid, sender_sid, str))
-            return false;
-
-        Bundle b(str.c_str(), str.length());
-
-        r = b.get_sparql_query();
-
-        // continue receive history of query
-        if (r.subquery_type == SPARQLQuery::SubQueryType::SPLIT) {
-            int ret;
-            string dumb_str;
-
-            ret = rdma->recv_by_gpu(tid, sender_sid, dumb_str);
-            ASSERT(ret > 0);
-            GPU &gpu = GPU::instance();
-            // hint: history has been copied to gpu mem(by recv_by_gpu->fetch), update r.result.gpu_history_ptr & r.result.gpu_history_table_size here
-            r.result.gpu_history_ptr = gpu.history_inbuf();
-            r.result.gpu_history_table_size = gpu.history_size();
-        }
-        return true;
-    }
-    #endif
 };

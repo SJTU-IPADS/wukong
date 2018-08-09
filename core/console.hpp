@@ -25,7 +25,6 @@
 #include <iostream>
 #include <string>
 #include <set>
-#include <climits>
 
 #include <boost/unordered_map.hpp>
 #include <boost/archive/binary_oarchive.hpp>

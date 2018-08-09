@@ -23,7 +23,6 @@
 #pragma once
 
 #include <stdint.h> // uint64_t
-#include <climits>
 #include <vector>
 #include <queue>
 #include <iostream>

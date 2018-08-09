@@ -134,11 +134,7 @@ main(int argc, char *argv[])
     RDMA_init(global_num_servers, global_num_threads, sid, mrs, host_fname);
 
     // init communication
-    #ifdef USE_GPU
-    RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mem, gpu_mem, global_num_servers, global_num_threads);
-    #else
     RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mem, global_num_servers, global_num_threads);
-    #endif
     TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_num_threads, global_data_port_base);
 
     // init control communicaiton
