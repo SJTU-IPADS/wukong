@@ -32,8 +32,6 @@
 
 #include "config.hpp"
 #include "rdma.hpp"
-#include "mem.hpp"
-#include "query.hpp"
 
 using namespace std;
 
@@ -144,7 +142,7 @@ private:
         const uint64_t threshold = rbf_sz / 8;
         if (lmeta->head - * (uint64_t *)head > threshold) {
             *(uint64_t *)head = lmeta->head;
-            if (sid != dst_sid) {   // update to remote server
+            if (sid != dst_sid) {  // update to remote server
                 RDMA &rdma = RDMA::get_rdma();
                 uint64_t remote_head = mem->remote_ring_head_offset(tid, sid);
                 rdma.dev->RdmaWrite(tid, dst_sid, head, mem->remote_ring_head_size(), remote_head);
@@ -234,7 +232,7 @@ public:
             *((uint64_t *)(ptr + off % rbf_sz)) = data_sz;       // header
             off += sizeof(uint64_t);
 
-            if (off / rbf_sz == (off + data_sz - 1) / rbf_sz ) {    // data
+            if (off / rbf_sz == (off + data_sz - 1) / rbf_sz ) { // data
                 memcpy(ptr + (off % rbf_sz), data, data_sz);
             } else {
                 uint64_t _sz = rbf_sz - (off % rbf_sz);
