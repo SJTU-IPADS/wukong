@@ -1480,6 +1480,8 @@ public:
         }
     }
 
+    inline std::map<segid_t, rdf_segment_meta_t> &get_rdf_segment_meta_map() { return rdf_segment_meta_map; }
+
 #endif  // end of USE_GPU
 
     /// skip all TYPE triples (e.g., <http://www.Department0.University0.edu> rdf:type ub:University)
@@ -2470,4 +2472,10 @@ public:
         // get_edges_local(0, 0, OUT, TYPE_ID, &sz);
         // logstream(LOG_INFO) << "#predicates: " << sz << LOG_endl;
     }
+
+    vertex_t *vertex_addr() { return vertices; }
+
+    edge_t *edge_addr() { return edges; }
+
+
 };
