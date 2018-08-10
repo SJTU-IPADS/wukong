@@ -1571,17 +1571,17 @@ out:
     }
 
     void execute(Bundle &bundle, Engine *engine) {
-        if (bundle.type == SPARQL_QUERY) {
+        if (bundle.get_type() == SPARQL_QUERY) {
             SPARQLQuery r = bundle.get_sparql_query();
             execute_sparql_query(r, engine);
         }
 #ifdef DYNAMIC_GSTORE
-        else if (bundle.type == DYNAMIC_LOAD) {
+        else if (bundle.get_type() == DYNAMIC_LOAD) {
             RDFLoad r = bundle.get_rdf_load();
             execute_load_data(r);
         }
 #endif
-        else if (bundle.type == GSTORE_CHECK) {
+        else if (bundle.get_type() == GSTORE_CHECK) {
             GStoreCheck r = bundle.get_gstore_check();
             execute_gstore_check(r);
         }
@@ -1650,7 +1650,7 @@ public:
             // normal path: own runqueue
             Bundle bundle;
             while (adaptor->tryrecv(bundle)) {
-                if (bundle.type == SPARQL_QUERY) {
+                if (bundle.get_type() == SPARQL_QUERY) {
                     // to be fair, engine will handle sub-queries priority
                     // instead of processing a new query.
                     SPARQLQuery req = bundle.get_sparql_query();

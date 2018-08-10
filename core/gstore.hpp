@@ -549,7 +549,7 @@ done:
 
     // Allocate space to store edges of given size.
     // Return offset of allocated space.
-    inline uint64_t alloc_edges(uint64_t n, int64_t tid) {
+    inline uint64_t alloc_edges(uint64_t n, int64_t tid = 0) {
         if (global_enable_caching)
             sweep_free(); // collect free space before allocate
         uint64_t sz = e2b(n + 1); // reserve one space for sz
@@ -564,7 +564,7 @@ done:
 
     // Allocate space to store edges of given size.
     // Return offset of allocated space.
-    uint64_t alloc_edges(uint64_t n, int64_t tid) {
+    uint64_t alloc_edges(uint64_t n, int64_t tid = 0) {
         uint64_t orig;
         pthread_spin_lock(&entry_lock);
         orig = last_entry;
@@ -766,7 +766,7 @@ done:
         for (auto const &e : map) {
             sid_t pid = e.first;
             uint64_t sz = e.second.size();
-            uint64_t off = alloc_edges(sz, 0);
+            uint64_t off = alloc_edges(sz);
 
             ikey_t key = ikey_t(0, pid, d);
             uint64_t slot_id = insert_key(key);
@@ -787,7 +787,7 @@ done:
 
     void insert_index_set(tbb_unordered_set &set, sid_t tpid, dir_t d) {
         uint64_t sz = set.size();
-        uint64_t off = alloc_edges(sz, 0);
+        uint64_t off = alloc_edges(sz);
 
         ikey_t key = ikey_t(0, tpid, d);
         uint64_t slot_id = insert_key(key);
@@ -1480,7 +1480,7 @@ public:
         }
     }
 
-#endif  // USE_GPU
+#endif  // end of USE_GPU
 
     /// skip all TYPE triples (e.g., <http://www.Department0.University0.edu> rdf:type ub:University)
     /// because Wukong treats all TYPE triples as index vertices. In addition, the triples in triple_pos
@@ -1501,7 +1501,7 @@ public:
         ///
         /// NOTE, it is disabled by default in order to save memory.
         vector<sid_t> predicates;
-#endif // VERSATILE
+#endif // end of VERSATILE
 
         uint64_t s = 0;
         while (s < pso.size()) {
@@ -1546,7 +1546,7 @@ public:
 
                 predicates.clear();
             }
-#endif // VERSATILE
+#endif // end of VERSATILE
 
             s = e;
         }
@@ -1594,8 +1594,39 @@ public:
 
                 predicates.clear();
             }
-#endif // VERSATILE
+#endif // end of VERSATILE
             s = e;
+        }
+    }
+
+    // insert attributes
+    void insert_attribute(vector<triple_attr_t> &attrs, int64_t tid) {
+        for (auto const &attr : attrs) {
+            // allocate a vertex and edges
+            ikey_t key = ikey_t(attr.s, attr.a, OUT);
+            int type = boost::apply_visitor(get_type, attr.v);
+            uint64_t sz = (get_sizeof(type) - 1) / sizeof(edge_t) + 1;   // get the ceil size;
+            uint64_t off = alloc_edges(sz, tid);
+
+            // insert a vertex
+            uint64_t slot_id = insert_key(key);
+            iptr_t ptr = iptr_t(sz, off, type);
+            vertices[slot_id].ptr = ptr;
+
+            // insert edges (attributes)
+            switch (type) {
+            case INT_t:
+                *(int *)(edges + off) = boost::get<int>(attr.v);
+                break;
+            case FLOAT_t:
+                *(float *)(edges + off) = boost::get<float>(attr.v);
+                break;
+            case DOUBLE_t:
+                *(double *)(edges + off) = boost::get<double>(attr.v);
+                break;
+            default:
+                logstream(LOG_ERROR) << "Unsupported value type of attribute" << LOG_endl;
+            }
         }
     }
 
@@ -1717,7 +1748,7 @@ public:
                     // <3> the index to vid (*3) [dedup from <2>]
                     insert_vertex_edge(key, triple.s, nodup, tid);
                 }
-#endif // VERSATILE
+#endif // end of VERSATILE
             }
             if (!dedup_or_isdup) {
                 key = ikey_t(0, triple.o, IN);
@@ -1727,7 +1758,7 @@ public:
                     key = ikey_t(0, TYPE_ID, OUT);
                     // <5> index to this type (*4) [dedup from <4>]
                     insert_vertex_edge(key, triple.o, nodup, tid);
-#endif // VERSATILE
+#endif // end of VERSATILE
                 }
             }
         } else {
@@ -1744,7 +1775,7 @@ public:
                     key = ikey_t(0, PREDICATE_ID, OUT);
                     // <8> the index to predicate (*5) [dedup from <7>]
                     insert_vertex_edge(key, triple.p, nodup, tid);
-#endif // VERSATILE
+#endif // end of VERSATILE
                 }
 #ifdef VERSATILE
                 key = ikey_t(triple.s, PREDICATE_ID, OUT);
@@ -1757,7 +1788,7 @@ public:
                     // <10> the index to vid (*3) [dedup from <9>]
                     insert_vertex_edge(key, triple.s, nodup, tid);
                 }
-#endif // VERSATILE
+#endif // end of VERSATILE
             }
         }
     }
@@ -1781,7 +1812,7 @@ public:
                 key = ikey_t(0, PREDICATE_ID, OUT);
                 // <3> the index to predicate (*5) [dedup from <2>]
                 insert_vertex_edge(key, triple.p, nodup, tid);
-#endif // VERSATILE
+#endif // end of VERSATILE
             }
 #ifdef VERSATILE
             key = ikey_t(triple.o, PREDICATE_ID, IN);
@@ -1794,11 +1825,36 @@ public:
                 // <5> the index to vid (*3) [dedup from <4>]
                 insert_vertex_edge(key, triple.o, nodup, tid);
             }
-#endif // VERSATILE
+#endif // end of VERSATILE
         }
     }
 
 #endif // DYNAMIC_GSTORE
+
+
+    // FIXME: refine parameters with vertex_t
+    edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
+        if (mymath::hash_mod(vid, global_num_servers) == sid)
+            return get_edges_local(tid, vid, d, pid, sz);
+        else
+            return get_edges_remote(tid, vid, d, pid, sz);
+    }
+
+    edge_t *get_index_edges_local(int tid, sid_t pid, dir_t d, uint64_t *sz) {
+        // the vid of index vertex should be 0
+        return get_edges_local(tid, 0, d, pid, sz);
+    }
+
+    // get vertex attributes global
+    // return the attr result
+    // if not found has_value will be set to false
+    attr_t get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, bool &has_value) {
+        if (sid == mymath::hash_mod(vid, global_num_servers))
+            return get_vertex_attr_local(tid, vid, d, pid, has_value);
+        else
+            return get_vertex_attr_remote(tid, vid, d, pid, has_value);
+    }
+
 
     uint64_t ivertex_num = 0;
     uint64_t nvertex_num = 0;
@@ -1839,6 +1895,9 @@ public:
                 }
             }
         }
+
+        // VERSATILE is enabled
+        ver_idx_check_indir(key, check);
     }
 
     // check on out-dir predicate-index
@@ -1856,6 +1915,9 @@ public:
                                      << key.pid << " | " << " IN ] does not exist." << LOG_endl;
             }
         }
+
+        // VERSATILE is enabled
+        ver_idx_check_outdir(key, check);
     }
 
     // check on normal types (7)
@@ -1886,6 +1948,9 @@ public:
                                      << "there is no value " << key.vid << LOG_endl;
             }
         }
+
+        // VERSATILE is enabled
+        ver_nt_check(key, check);
     }
 
     // check vid's ngbrs w/ predicate
@@ -2112,29 +2177,25 @@ public:
                                  << " there is NO value " << key.vid << LOG_endl;
         }
     }
-#endif // VERSATILE
+#else // !VERSATILE
+    void ver_idx_check_indir(ikey_t key, bool check) { }
+
+    void ver_idx_check_outdir(ikey_t key, bool check) { }
+
+    void ver_nt_check(ikey_t key, bool check) { }
+#endif // end of VERSATILE
 
     void check_on_vertex(ikey_t key, bool index_check, bool normal_check) {
-        if (key.vid == 0 && is_tpid(key.pid) && key.dir == IN) { // (2)/(1)[IN]
+        if (key.vid == 0 && is_tpid(key.pid) && key.dir == IN) // (2)/(1)[IN]
             idx_check_indir(key, index_check);
-#ifdef VERSATILE
-            ver_idx_check_indir(key, index_check);
-#endif
-        } else if (key.vid == 0 && is_tpid(key.pid) && key.dir == OUT) { // (1)[OUT]
+        else if (key.vid == 0 && is_tpid(key.pid) && key.dir == OUT) // (1)[OUT]
             idx_check_outdir(key, index_check);
-#ifdef VERSATILE
-            ver_idx_check_outdir(key, index_check);
-#endif
-        } else if (is_vid(key.vid) && key.pid == TYPE_ID && key.dir == OUT) { // (7)
+        else if (is_vid(key.vid) && key.pid == TYPE_ID && key.dir == OUT) // (7)
             nt_check(key, normal_check);
-#ifdef VERSATILE
-            ver_nt_check(key, index_check);
-#endif
-        } else if (is_vid(key.vid) && is_tpid(key.pid) && key.dir == OUT) { // (6)[OUT]
+        else if (is_vid(key.vid) && is_tpid(key.pid) && key.dir == OUT) // (6)[OUT]
             np_check(key, IN, normal_check);
-        } else if (is_vid(key.vid) && is_tpid(key.pid) && key.dir == IN) { // (6)[IN]
+        else if (is_vid(key.vid) && is_tpid(key.pid) && key.dir == IN) // (6)[IN]
             np_check(key, OUT, normal_check);
-        }
     }
 
     int gstore_check(bool index_check, bool normal_check) {
@@ -2152,60 +2213,6 @@ public:
                             << ivertex_num << " index vertices and "
                             << nvertex_num << " normal vertices." << LOG_endl;
         return 0;
-    }
-
-    // FIXME: refine parameters with vertex_t
-    edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
-        if (mymath::hash_mod(vid, global_num_servers) == sid)
-            return get_edges_local(tid, vid, d, pid, sz);
-        else
-            return get_edges_remote(tid, vid, d, pid, sz);
-    }
-
-    edge_t *get_index_edges_local(int tid, sid_t pid, dir_t d, uint64_t *sz) {
-        // the vid of index vertex should be 0
-        return get_edges_local(tid, 0, d, pid, sz);
-    }
-
-    // insert vertex attributes
-    void insert_vertex_attr(vector<triple_attr_t> &attrs, int64_t tid) {
-        for (auto const &attr : attrs) {
-            // allocate a vertex and edges
-            ikey_t key = ikey_t(attr.s, attr.a, OUT);
-            int type = boost::apply_visitor(get_type, attr.v);
-            uint64_t sz = (get_sizeof(type) - 1) / sizeof(edge_t) + 1;   // get the ceil size;
-            uint64_t off = alloc_edges(sz, tid);
-
-            // insert a vertex
-            uint64_t slot_id = insert_key(key);
-            iptr_t ptr = iptr_t(sz, off, type);
-            vertices[slot_id].ptr = ptr;
-
-            // insert edges (attributes)
-            switch (type) {
-            case INT_t:
-                *(int *)(edges + off) = boost::get<int>(attr.v);
-                break;
-            case FLOAT_t:
-                *(float *)(edges + off) = boost::get<float>(attr.v);
-                break;
-            case DOUBLE_t:
-                *(double *)(edges + off) = boost::get<double>(attr.v);
-                break;
-            default:
-                logstream(LOG_ERROR) << "Unsupported value type of attribute" << LOG_endl;
-            }
-        }
-    }
-
-    // get vertex attributes global
-    // return the attr result
-    // if not found has_value will be set to false
-    attr_t get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, bool &has_value) {
-        if (sid == mymath::hash_mod(vid, global_num_servers))
-            return get_vertex_attr_local(tid, vid, d, pid, has_value);
-        else
-            return get_vertex_attr_remote(tid, vid, d, pid, has_value);
     }
 
     // prepare data for planner

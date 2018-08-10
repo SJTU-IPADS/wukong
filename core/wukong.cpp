@@ -135,6 +135,9 @@ main(int argc, char *argv[])
 
     // init communication
     RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mem, global_num_servers, global_num_threads);
+    #ifdef USE_GPU
+    rdma_adaptor->init_gpu_mem(gpu_mem);
+    #endif
     TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_num_threads, global_data_port_base);
 
     // init control communicaiton
