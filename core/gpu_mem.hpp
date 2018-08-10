@@ -67,8 +67,8 @@ public:
 
 	~GPUMem() { CUDA_ASSERT(cudaFree(mem_gpu)); }
 
-	inline char *memory() { return mem_gpu; }
-	inline uint64_t memory_size() { return mem_gpu_sz; }
+	inline char *address() { return mem_gpu; }
+	inline uint64_t size() { return mem_gpu_sz; }
 
 	// intermediate results
 	inline char *buffer(int tid) { return buf + buf_sz * (tid % num_agents); }

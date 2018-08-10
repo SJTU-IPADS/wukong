@@ -53,18 +53,18 @@ public:
     }
 
     // gpu-direct send, from gpu mem to remote ring buffer
-    bool send_dev_to_host(int dst_sid, int dst_tid, char *data, uint64_t sz) {
-        #ifdef USE_GPU
+    bool send_dev2host(int dst_sid, int dst_tid, char *data, uint64_t sz) {
+#ifdef USE_GPU
         if (global_use_rdma && rdma->init)
-            return rdma->send_dev_to_host(tid, dst_sid, dst_tid, data, sz);
-        else {
-            logstream(LOG_ERROR) << "RDMA is required for send_dev_to_host." << LOG_endl;
-            ASSERT (false);
-        }
-        #else
+            return rdma->send_dev2host(tid, dst_sid, dst_tid, data, sz);
+
+        // TODO: support dev2host w/o RDMA
+        logstream(LOG_ERROR) << "RDMA is required for send_dev2host." << LOG_endl;
+        ASSERT (false);
+#else
         logstream(LOG_ERROR) << "USE_GPU is not defined." << LOG_endl;
         ASSERT (false);
-        #endif
+#endif
     }
 
     Bundle recv() {

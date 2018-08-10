@@ -117,16 +117,16 @@ main(int argc, char *argv[])
 
     // CPU (host) memory
     Mem *mem = new Mem(global_num_servers, global_num_threads);
-    logstream(LOG_INFO)  << "#" << sid << ": allocate " << B2GiB(mem->memory_size()) << "GB memory" << LOG_endl;
-    RDMA::MemoryRegion mr_cpu = { RDMA::MemType::CPU, mem->memory(), mem->memory_size() };
+    logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(mem->size()) << "GB memory" << LOG_endl;
+    RDMA::MemoryRegion mr_cpu = { RDMA::MemType::CPU, mem };
     mrs.push_back(mr_cpu);
 
 #ifdef USE_GPU
     // GPU (device) memory
     int devid = 0; // FIXME: it means one GPU device?
     GPUMem *gpu_mem = new GPUMem(devid, global_num_servers, global_num_gpus);
-    logstream(LOG_INFO)  << "#" << sid << ": allocate " << B2GiB(gpu_mem->memory_size()) << "GB GPU memory" << LOG_endl;
-    RDMA::MemoryRegion mr_gpu = { RDMA::MemType::GPU, gpu_mem->memory(), gpu_mem->memory_size() };
+    logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(gpu_mem->size()) << "GB GPU memory" << LOG_endl;
+    RDMA::MemoryRegion mr_gpu = { RDMA::MemType::GPU, gpu_mem };
     mrs.push_back(mr_gpu);
 #endif
 
@@ -134,10 +134,7 @@ main(int argc, char *argv[])
     RDMA_init(global_num_servers, global_num_threads, sid, mrs, host_fname);
 
     // init communication
-    RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mem, global_num_servers, global_num_threads);
-    #ifdef USE_GPU
-    rdma_adaptor->init_gpu_mem(gpu_mem);
-    #endif
+    RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mrs, global_num_servers, global_num_threads);
     TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_num_threads, global_data_port_base);
 
     // init control communicaiton

@@ -103,11 +103,17 @@ static bool set_immutable_config(string cfg_name, string value)
         global_memstore_size_gb = atoi(value.c_str());
         ASSERT(global_memstore_size_gb > 0);
     } else if (cfg_name == "global_rdma_buf_size_mb") {
-        global_rdma_buf_size_mb = atoi(value.c_str());
-        ASSERT(global_rdma_buf_size_mb > 0);
+        if (RDMA::get_rdma().has_rdma())
+            global_rdma_buf_size_mb = atoi(value.c_str());
+        else
+            global_rdma_buf_size_mb = 0;
+        ASSERT(global_rdma_buf_size_mb >= 0);
     } else if (cfg_name == "global_rdma_rbf_size_mb") {
-        global_rdma_rbf_size_mb = atoi(value.c_str());
-        ASSERT(global_rdma_rbf_size_mb > 0);
+        if (RDMA::get_rdma().has_rdma())
+            global_rdma_rbf_size_mb = atoi(value.c_str());
+        else
+            global_rdma_buf_size_mb = 0;
+        ASSERT(global_rdma_rbf_size_mb >= 0);
     } else if (cfg_name == "global_generate_statistics") {
         global_generate_statistics = atoi(value.c_str());
     }

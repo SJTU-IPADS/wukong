@@ -32,6 +32,7 @@
 
 #include "config.hpp"
 #include "rdma.hpp"
+
 #ifdef USE_GPU
 #include "gpu_mem.hpp"
 #include "gpu_utils.hpp"
@@ -44,10 +45,12 @@ using namespace std;
 // The communication over RDMA-based ring buffer
 class RDMA_Adaptor {
 private:
-    Mem *mem;
-    #ifdef USE_GPU
-    GPUMem *gmem = nullptr;
-    #endif
+
+    Mem *mem = nullptr;   // (Host) CPU memory
+#ifdef USE_GPU
+    GPUMem *gmem = nullptr; // (Device) GPU memory
+#endif
+
     int sid;
     int num_servers;
     int num_threads;
@@ -173,11 +176,59 @@ private:
         return (rbf_sz < (tail - head + msg_sz));
     }
 
-    #ifdef USE_GPU
-    // GPUDirect send, from local GPU mem to remote CPU mem (remote rbf)
-    void gdr_send(int tid, int dst_sid, int dst_tid, const char *data, uint64_t data_sz, uint64_t offset) {
+    void native_send(int tid, const char *data, uint64_t data_sz,
+                     int dst_sid, int dst_tid, uint64_t off, uint64_t msg_sz) {
         uint64_t rbf_sz = mem->ring_size();
-        uint64_t off = offset;
+
+        if (sid == dst_sid) { // local physical-queue
+            // write msg to the local physical-queue
+            char *ptr = mem->ring(dst_tid, sid);
+
+            *((uint64_t *)(ptr + off % rbf_sz)) = data_sz;       // header
+            off += sizeof(uint64_t);
+
+            if (off / rbf_sz == (off + data_sz - 1) / rbf_sz ) { // data
+                memcpy(ptr + (off % rbf_sz), data, data_sz);
+            } else {
+                uint64_t _sz = rbf_sz - (off % rbf_sz);
+                memcpy(ptr + (off % rbf_sz), data, _sz);
+                memcpy(ptr, data + _sz, data_sz - _sz);
+            }
+            off += ceil(data_sz, sizeof(uint64_t));
+
+            *((uint64_t *)(ptr + off % rbf_sz)) = data_sz;       // footer
+        } else { // remote physical-queue
+            // prepare RDMA buffer for RDMA-WRITE
+            char *rdma_buf = mem->buffer(tid);
+            uint64_t buf_sz = mem->buffer_size();
+            ASSERT(msg_sz < buf_sz); // enough space to buffer the msg
+
+            *((uint64_t *)rdma_buf) = data_sz;                  // header
+            rdma_buf += sizeof(uint64_t);
+
+            memcpy(rdma_buf, data, data_sz);                    // data
+            rdma_buf += ceil(data_sz, sizeof(uint64_t));
+            *((uint64_t*)rdma_buf) = data_sz;                   // footer
+
+
+            // write msg to the remote physical-queue
+            RDMA &rdma = RDMA::get_rdma();
+            uint64_t rdma_off = mem->ring_offset(dst_tid, sid);
+            if (off / rbf_sz == (off + msg_sz - 1) / rbf_sz) {
+                rdma.dev->RdmaWrite(tid, dst_sid, mem->buffer(tid), msg_sz, rdma_off + (off % rbf_sz));
+            } else {
+                uint64_t _sz = rbf_sz - (off % rbf_sz);
+                rdma.dev->RdmaWrite(tid, dst_sid, mem->buffer(tid), _sz, rdma_off + (off % rbf_sz));
+                rdma.dev->RdmaWrite(tid, dst_sid, mem->buffer(tid) + _sz, msg_sz - _sz, rdma_off);
+            }
+        }
+    }
+
+#ifdef USE_GPU
+    // GPUDirect send, from local GPU mem to remote CPU mem (remote rbf)
+    void gdr_send(int tid, int dst_sid, int dst_tid, const char *data, uint64_t data_sz, uint64_t off) {
+        uint64_t rbf_sz = mem->ring_size();
+
         // msg: header + (type + data) + footer (use bundle_sz as header and footer)
         uint64_t bundle_sz = sizeof(uint64_t) + data_sz;
         uint64_t msg_sz = sizeof(uint64_t) + ceil(bundle_sz, sizeof(uint64_t)) + sizeof(uint64_t);
@@ -190,6 +241,7 @@ private:
         CUDA_ASSERT( cudaMemcpy(rdma_buf, &bundle_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );
         rdma_buf += sizeof(uint64_t);
 
+        // FIXME: adaptor should have no idea about 'type' (@RONG)
         // copy type
         uint64_t msg_type = SPARQL_HISTORY;
         CUDA_ASSERT( cudaMemcpy(rdma_buf, &msg_type, sizeof(uint64_t), cudaMemcpyHostToDevice) );
@@ -214,15 +266,33 @@ private:
             rdma.dev->GPURdmaWrite(tid, dst_sid, gmem->buffer(tid) + _sz, msg_sz - _sz, rdma_off);
         }
     }
-    #endif
+#endif // end of USE_GPU
 
 public:
     bool init = false;
 
-    RDMA_Adaptor(int sid, Mem *mem, int num_servers, int num_threads)
-        : sid(sid), mem(mem), num_servers(num_servers), num_threads(num_threads) {
+    RDMA_Adaptor(int sid, vector<RDMA::MemoryRegion> &mrs, int num_servers, int num_threads)
+        : sid(sid), num_servers(num_servers), num_threads(num_threads) {
         // no RDMA device
         if (!RDMA::get_rdma().has_rdma()) return;
+
+        // init memory regions
+        assert(mrs.size() <= 2); // only support at most one CPU memory region and one GPU memory region
+        for (auto mr : mrs) {
+            switch (mr.type) {
+            case RDMA::MemType::CPU:
+                mem = (Mem *)mr.mem;
+                break;
+            case RDMA::MemType::GPU:
+#ifdef USE_GPU
+                gmem = (GPUMem *)mr.mem;
+                break;
+#else
+                logstream(LOG_ERROR) << "Build wukong w/o GPU support." << LOG_endl;
+                ASSERT(false);
+#endif
+            }
+        }
 
         // init the metadata of remote and local ring-buffers
         int nrbfs = num_servers * num_threads;
@@ -249,20 +319,54 @@ public:
 
     ~RDMA_Adaptor() { }  //TODO
 
-    #ifdef USE_GPU
-    void init_gpu_mem(GPUMem *m) {
-        gmem = m;
-    }
+#ifdef USE_GPU
+    bool send_dev2host(int tid, int dst_sid, int dst_tid, char *data, uint64_t data_sz) {
+        ASSERT(init);
 
-    bool send_dev_to_host(int tid, int dst_sid, int dst_tid, char *data, uint64_t data_sz) {
-        // step1: get rmeta of dst rbf
-        rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
-        pthread_spin_lock(&rmeta->lock);
-        // step2: calculate msg size [data_sz | data | data_sz]
+        // 1. calculate msg size
+        // struct of msg: [data_sz | data | data_sz] (use size of data as header and footer)
         uint64_t msg_sz = sizeof(uint64_t) + sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
 
-        // return false if rbf is full
-        if (rbf_full(tid, dst_sid, dst_tid, msg_sz)) {
+
+        // 2. reserve space in ring-buffer
+        rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
+
+        pthread_spin_lock(&rmeta->lock);
+        if (rbf_full(tid, dst_sid, dst_tid, msg_sz)) { // detect overflow
+            pthread_spin_unlock(&rmeta->lock);
+            return false; // return false if rbf is full
+        }
+        uint64_t off = rmeta->tail;
+        rmeta->tail += msg_sz;
+        pthread_spin_unlock(&rmeta->lock);
+
+
+        // 3. (real) send data
+        // local data:  <tid, data, data_sz>; remote buffer: <dst_sid, dst_tid, off, msg_sz>
+        gdr_send(tid, dst_sid, dst_tid, data, data_sz, off);
+
+        return true;
+    }
+#endif
+
+    // Send given string to (dst_sid, dst_tid) by thread(tid)
+    // Return false if failed . Otherwise, return true.
+    bool send(int tid, int dst_sid, int dst_tid, const string &str) {
+        ASSERT(init);
+
+        const char *data = str.c_str();
+        uint64_t data_sz = str.length();
+
+        // 1. calculate msg size
+        // struct of msg: [size | data | size] (use size of data as header and footer)
+        uint64_t msg_sz = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
+
+
+        // 2. reserve space in ring-buffer
+        rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
+
+        pthread_spin_lock(&rmeta->lock);
+        if (rbf_full(tid, dst_sid, dst_tid, msg_sz)) { // detect overflow
             pthread_spin_unlock(&rmeta->lock);
             return false;
         }
@@ -270,87 +374,13 @@ public:
         rmeta->tail += msg_sz;
         pthread_spin_unlock(&rmeta->lock);
 
-        // step3: send data
-        gdr_send(tid, dst_sid, dst_tid, data, data_sz, off);
+
+        // 3. (real) send data
+        // local data:  <tid, data, data_sz>; remote buffer: <dst_sid, dst_tid, off, msg_sz>
+        native_send(tid, data, data_sz, dst_sid, dst_tid, off, msg_sz);
 
         return true;
     }
-    #endif
-
-    // Send given string to (dst_sid, dst_tid) by thread(tid)
-    // Return false if failed . Otherwise, return true.
-    bool send(int tid, int dst_sid, int dst_tid, const string &str) {
-        ASSERT(init);
-
-        rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
-        uint64_t rbf_sz = mem->ring_size();
-
-        const char *data = str.c_str();
-        uint64_t data_sz = str.length();
-
-        // struct of data: [size | data | size] (use size of data as header and footer)
-        uint64_t msg_sz = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
-
-        ASSERT(msg_sz < rbf_sz);
-
-        pthread_spin_lock(&rmeta->lock);
-        if (rbf_full(tid, dst_sid, dst_tid, msg_sz)) { // detect overflow
-            pthread_spin_unlock(&rmeta->lock);
-            return false;
-        }
-
-        if (sid == dst_sid) { // local physical-queue
-            uint64_t off = rmeta->tail;
-            rmeta->tail += msg_sz;
-            pthread_spin_unlock(&rmeta->lock);
-
-            // write msg to the local physical-queue
-            char *ptr = mem->ring(dst_tid, sid);
-
-            *((uint64_t *)(ptr + off % rbf_sz)) = data_sz;       // header
-            off += sizeof(uint64_t);
-
-            if (off / rbf_sz == (off + data_sz - 1) / rbf_sz ) { // data
-                memcpy(ptr + (off % rbf_sz), data, data_sz);
-            } else {
-                uint64_t _sz = rbf_sz - (off % rbf_sz);
-                memcpy(ptr + (off % rbf_sz), data, _sz);
-                memcpy(ptr, data + _sz, data_sz - _sz);
-            }
-            off += ceil(data_sz, sizeof(uint64_t));
-
-            *((uint64_t *)(ptr + off % rbf_sz)) = data_sz;       // footer
-        } else { // remote physical-queue
-            uint64_t off = rmeta->tail;
-            rmeta->tail += msg_sz;
-            pthread_spin_unlock(&rmeta->lock);
-
-            // prepare RDMA buffer for RDMA-WRITE
-            char *rdma_buf = mem->buffer(tid);
-            uint64_t buf_sz = mem->buffer_size();
-            ASSERT(msg_sz < buf_sz); // enough space to buffer the msg
-
-            *((uint64_t *)rdma_buf) = data_sz;  // header
-            rdma_buf += sizeof(uint64_t);
-
-            memcpy(rdma_buf, data, data_sz);    // data
-            rdma_buf += ceil(data_sz, sizeof(uint64_t));
-            *((uint64_t*)rdma_buf) = data_sz;   // footer
-
-            // write msg to the remote physical-queue
-            RDMA &rdma = RDMA::get_rdma();
-            uint64_t rdma_off = mem->ring_offset(dst_tid, sid);
-            if (off / rbf_sz == (off + msg_sz - 1) / rbf_sz ) {
-                rdma.dev->RdmaWrite(tid, dst_sid, mem->buffer(tid), msg_sz, rdma_off + (off % rbf_sz));
-            } else {
-                uint64_t _sz = rbf_sz - (off % rbf_sz);
-                rdma.dev->RdmaWrite(tid, dst_sid, mem->buffer(tid), _sz, rdma_off + (off % rbf_sz));
-                rdma.dev->RdmaWrite(tid, dst_sid, mem->buffer(tid) + _sz, msg_sz - _sz, rdma_off);
-            }
-        }
-
-        return true;
-    } // end of send
 
     std::string recv(int tid) {
         ASSERT(init);
