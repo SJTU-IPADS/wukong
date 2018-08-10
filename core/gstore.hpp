@@ -1605,6 +1605,10 @@ public:
     // prepare data for planner
     void generate_statistic(data_statistic &stat) {
 
+    	//find if the same raw type have similar predicates
+//    	unordered_map<ssid_t, unordered_set<type_t,type_t_hasher>> rawType_to_predicates;
+//    	unordered_map<type_t, int, type_t_hasher> each_predicate_number;
+
         #ifndef VERSATILE
         logstream(LOG_ERROR)  << "please turn off generate_statistics in config and use stat file cache instead OR turn on VERSATILE option in CMakefiles to generate_statistic" << LOG_endl;    
         exit(-1);            
@@ -1668,7 +1672,14 @@ public:
             }
         };
 
+    	int percent_number = 1;
         for (uint64_t bucket_id = 0; bucket_id < num_buckets + num_buckets_ext; bucket_id++) {
+        	// print progress percent info
+        	if(bucket_id * 1.0 / (num_buckets + num_buckets_ext) > percent_number * 1.0 / 10){
+                logstream(LOG_INFO) << "#" << sid << ": already generate statistics " << percent_number << "0%" << LOG_endl;
+                percent_number ++;
+        	}
+
             uint64_t slot_id = bucket_id * ASSOCIATIVITY;
             for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
                 // skip empty slot
@@ -1807,6 +1818,39 @@ public:
                                 tyscount[obid] = 1;
                             else
                                 tyscount[obid]++;
+
+                            //record predicates of vid, to find if the same raw type have similar predicates
+//                            type_t predicates_combination;
+//                            uint64_t psize1 = 0;
+//                            unordered_set<int> index_composition;
+//                            edge_t *res1 = get_edges_global(0, vid, OUT, PREDICATE_ID, &psize1);
+//                            for (uint64_t k = 0; k < psize1; k++) {
+//                                ssid_t pre = res1[k].val;
+//                                index_composition.insert(pre);
+//                            }
+//                            uint64_t psize2 = 0;
+//                            edge_t *res2 = get_edges_global(0, vid, IN, PREDICATE_ID, &psize2);
+//                            for (uint64_t k = 0; k < psize2; k++) {
+//                                ssid_t pre = res2[k].val;
+//                                index_composition.insert(-pre);
+//                            }
+//                            predicates_combination.set_index_composition(index_composition);
+//
+//                            if (rawType_to_predicates.find(obid) != rawType_to_predicates.end()){
+//                            	rawType_to_predicates[obid].insert(predicates_combination);
+//                            }
+//                            else{
+//                                unordered_set<type_t,type_t_hasher> all_predicates_combination;
+//                                all_predicates_combination.insert(predicates_combination);
+//                                rawType_to_predicates[obid] = all_predicates_combination;
+//                            }
+//
+//                            if(each_predicate_number.find(predicates_combination) != each_predicate_number.end()){
+//                            	each_predicate_number[predicates_combination]++;
+//                            }
+//                            else{
+//                            	each_predicate_number[predicates_combination] = 1;
+//                            }
                         }
                     }
                 }
@@ -1814,6 +1858,27 @@ public:
         }
 
         cout << "INFO#" << sid << ": generating stats is finished." << endl;
+
+        //print info of rawType_to_predicates, to find if the same raw type have similar predicates
+//        unordered_set<type_t,type_t_hasher> all_types;
+//        cout << "total size: " << rawType_to_predicates.size() << endl;
+//        for(auto iter = rawType_to_predicates.cbegin(); iter != rawType_to_predicates.cend(); ++iter){
+//        	cout << "rawType: " << iter->first << endl;
+//        	cout << "predicates size: ";
+//        	const unordered_set<type_t,type_t_hasher> &all_predicates_combination = iter->second;
+//        	cout << all_predicates_combination.size() << endl;
+//        	for(auto set_iter = all_predicates_combination.cbegin(); set_iter != all_predicates_combination.cend(); ++set_iter){
+//        		all_types.insert(*set_iter);
+//        		const unordered_set<int> &set = set_iter->composition;
+//        		for(auto index_iter = set.cbegin(); index_iter != set.cend(); ++index_iter){
+//        			cout << *index_iter << " ";
+//        		}
+//        		cout << "  number: " << each_predicate_number[*set_iter];
+//        		cout << endl;
+//        	}
+//        	cout << endl;
+//        }
+
     }
 
     // analysis and debuging

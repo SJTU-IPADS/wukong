@@ -210,7 +210,7 @@ public:
                 // type may not occur in local_int2type
 
                 type_t complex_type;
-                if(local_int2type.find(type) != local_int2type.end()){
+                if(local_int2type.find(type) != stat.local_int2type.end()){
                     complex_type = stat.local_int2type[type];
                 }
                 else{
@@ -241,7 +241,7 @@ public:
                                 global_single2complex[*iter].insert(number);
                             else{
                                 unordered_set<ssid_t> multi_type_set;
-                                // set will automatically ensure no deplicated element exist
+                                // set will automatically ensure no duplicated element exist
                                 multi_type_set.insert(number);
                                 global_single2complex[*iter] = multi_type_set;
                             }
