@@ -39,9 +39,9 @@ private:
     uint64_t mem_gpu_sz;
 
     // cache on gpu
-    char *kvs;
-    uint64_t kvs_sz;
-    uint64_t kvs_off;
+    char *kvc;
+    uint64_t kvc_sz;
+    uint64_t kvc_off;
 
     // history inbuf and outbuf, used to store (old and updated) history.
     char *inbuf;
@@ -58,7 +58,7 @@ private:
 public:
     GPUMem(int devid, int num_servers, int num_agents)
     :devid(devid), num_servers(num_servers), num_agents(num_agents) {
-        kvs_sz = GiB2B(global_gpu_kvcache_size_gb);
+        kvc_sz = GiB2B(global_gpu_kvcache_size_gb);
         history_buf_sz = global_gpu_max_element * sizeof(sid_t);
         if (RDMA::get_rdma().has_rdma()) {
             // only used by RDMA device
@@ -66,16 +66,16 @@ public:
         } else {
             buf_sz = 0;
         }
-        mem_gpu_sz = kvs_sz + history_buf_sz * 2 + buf_sz * num_agents;
+        mem_gpu_sz = kvc_sz + history_buf_sz * 2 + buf_sz * num_agents;
 
         CUDA_ASSERT(cudaSetDevice(devid));
         CUDA_ASSERT(cudaMalloc(&mem_gpu, mem_gpu_sz));
         CUDA_ASSERT(cudaMemset(mem_gpu, 0, mem_gpu_sz));
 
-        kvs_off = 0;
-        kvs = mem_gpu + kvs_off;
+        kvc_off = 0;
+        kvc = mem_gpu + kvc_off;
 
-        inbuf_off = kvs_off + kvs_sz;
+        inbuf_off = kvc_off + kvc_sz;
         inbuf = mem_gpu + inbuf_off;
 
         outbuf_off = inbuf_off + history_buf_sz;
@@ -92,10 +92,10 @@ public:
     inline char *memory() { return mem_gpu; }
     inline uint64_t memory_size() { return mem_gpu_sz; }
 
-    // kvstore
-    inline char *kvstore() { return kvs; }
-    inline uint64_t kvstore_size() { return kvs_sz; }
-    inline uint64_t kvstore_offset() { return kvs_off; }
+    // gpu cache
+    inline char *kvcache() { return kvc; }
+    inline uint64_t kvcache_size() { return kvc_sz; }
+    inline uint64_t kvcache_offset() { return kvc_off; }
 
     // history_inbuf
     inline char *history_inbuf() { return inbuf; }
@@ -107,10 +107,10 @@ public:
     inline uint64_t history_outbuf_size() { return history_buf_sz; }
     inline uint64_t history_outbuf_offset() { return outbuf_off; }
 
-    // buffer
+    // rdma buffer
     inline char *buffer(int tid) { return buf + buf_sz * (tid % num_agents); }
     inline uint64_t buffer_size() { return buf_sz; }
     inline uint64_t buffer_offset(int tid) { return buf_off + buf_sz * (tid % num_agents); }
-
 };
+
 #endif
