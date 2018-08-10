@@ -59,4 +59,56 @@ struct triple_attr_t {
     triple_attr_t(sid_t _s, sid_t _a, attr_t _v): s(_s), a(_a), v(_v) { }
 };
 
+struct triple_sort_by_spo {
+    inline bool operator()(const triple_t &t1, const triple_t &t2) {
+        if (t1.s < t2.s)
+            return true;
+        else if (t1.s == t2.s)
+            if (t1.p < t2.p)
+                return true;
+            else if (t1.p == t2.p && t1.o < t2.o)
+                return true;
+        return false;
+    }
+};
+
+struct triple_sort_by_ops {
+    inline bool operator()(const triple_t &t1, const triple_t &t2) {
+        if (t1.o < t2.o)
+            return true;
+        else if (t1.o == t2.o)
+            if (t1.p < t2.p)
+                return true;
+            else if ((t1.p == t2.p) && (t1.s < t2.s))
+                return true;
+        return false;
+    }
+};
+
+struct triple_sort_by_pso {
+    inline bool operator()(const triple_t &t1, const triple_t &t2) {
+        if (t1.p < t2.p)
+            return true;
+        else if (t1.p == t2.p)
+            if (t1.s < t2.s)
+                return true;
+            else if (t1.s == t2.s && t1.o < t2.o)
+                return true;
+        return false;
+    }
+};
+
+struct triple_sort_by_pos {
+    inline bool operator()(const triple_t &t1, const triple_t &t2) {
+        if (t1.p < t2.p)
+            return true;
+        else if (t1.p == t2.p)
+            if (t1.o < t2.o)
+                return true;
+            else if (t1.o == t2.o && t1.s < t2.s)
+                return true;
+        return false;
+    }
+};
+
 enum dir_t { IN = 0, OUT, CORUN }; // direction: IN=0, OUT=1, and optimization hints
