@@ -230,7 +230,11 @@ void load_config(string fname, int num_servers)
     }
 
     // set the total number of threads
+#ifndef USE_GPU
     global_num_threads = global_num_engines + global_num_proxies;
+#else
+    global_num_threads = global_num_engines + global_num_proxies + global_num_gpus;
+#endif // USE_GPU
 
     // limited the number of engines
     global_mt_threshold = max(1, min(global_mt_threshold, global_num_engines));

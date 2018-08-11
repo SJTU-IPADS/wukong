@@ -27,9 +27,6 @@
 #include "config.hpp"
 #include "bind.hpp"
 #include "mem.hpp"
-#ifdef USE_GPU
-#include "gpu_mem.hpp"
-#endif
 #include "string_server.hpp"
 #include "dgraph.hpp"
 #include "engine.hpp"
@@ -37,10 +34,12 @@
 #include "console.hpp"
 #include "rdma.hpp"
 #include "adaptor.hpp"
-
 #include "unit.hpp"
-
 #include "data_statistic.hpp"
+#ifdef USE_GPU
+#include "gpu_mem.hpp"
+#include "gpu_agent.hpp"
+#endif
 
 void *engine_thread(void *arg)
 {
@@ -162,8 +161,11 @@ main(int argc, char *argv[])
         }
     }
 
-    // create proxies and engines
+#ifndef USE_GPU
     ASSERT(global_num_threads == global_num_proxies + global_num_engines);
+#endif // USE_GPU
+
+    // create proxies and engines
     for (int tid = 0; tid < global_num_threads; tid++) {
         Adaptor *adaptor = new Adaptor(tid, tcp_adaptor, rdma_adaptor);
 
@@ -176,6 +178,15 @@ main(int argc, char *argv[])
             engines.push_back(engine);
         }
     }
+
+#ifdef USE_GPU
+    ASSERT(global_num_threads == global_num_proxies + global_num_engines + global_num_gpus);
+    for (int tid = global_num_proxies + global_num_engines; tid < global_num_threads; tid++) {
+        Adaptor *adaptor = new Adaptor(tid, tcp_adaptor, rdma_adaptor);
+        GPU_Agent *agent = new GPU_Agent(sid, tid, &str_server, &dgraph, adaptor);
+        gpu_agents.push_back(agent);
+    }
+#endif
 
     // launch all proxies and engines
     pthread_t *threads  = new pthread_t[global_num_threads];
