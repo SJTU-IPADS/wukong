@@ -90,8 +90,8 @@ public:
 
     ~GPUMem() { CUDA_ASSERT(cudaFree(mem_gpu)); }
 
-    inline char *memory() { return mem_gpu; }
-    inline uint64_t memory_size() { return mem_gpu_sz; }
+    inline char *address() { return mem_gpu; }
+    inline uint64_t size() { return mem_gpu_sz; }
 
     // gpu cache
     inline char *kvcache() { return kvc; }
@@ -111,10 +111,14 @@ public:
     inline uint64_t history_outbuf_size() { return history_buf_sz; }
     inline uint64_t history_outbuf_offset() { return outbuf_off; }
 
-    // rdma buffer
-    inline char *buffer(int tid) { return buf + buf_sz * (tid % num_agents); }
-    inline uint64_t buffer_size() { return buf_sz; }
-    inline uint64_t buffer_offset(int tid) { return buf_off + buf_sz * (tid % num_agents); }
+    // rdma buffer layout: header | type | body
+    inline char *rdma_buf_hdr(int tid) { return buf + buf_sz * (tid % num_agents); }
+    inline char *rdma_buf_type(int tid) { return buf + buf_sz * (tid % num_agents) + sizeof(uint64_t); }
+    inline char *rdma_buf_body(int tid) { return buf + buf_sz * (tid % num_agents) + 2 * sizeof(uint64_t); }
+    inline uint64_t rdma_buf_body_size() { return buf_sz - 2 * sizeof(uint64_t); }
+    inline uint64_t rdma_buf_hdr_offset(int tid) { return buf_off + buf_sz * (tid % num_agents); }
+    inline uint64_t rdma_buf_type_offset(int tid) { return buf_off + buf_sz * (tid % num_agents) + sizeof(uint64_t); }
+    inline uint64_t rdma_buf_body_offset(int tid) { return buf_off + buf_sz * (tid % num_agents) + 2 * sizeof(uint64_t); }
 };
 
 #endif

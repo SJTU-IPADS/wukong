@@ -236,34 +236,27 @@ private:
         // must send to remote host
         ASSERT(sid != dst_sid);
         // prepare RDMA buffer for RDMA-WRITE
-        char *rdma_buf = gmem->buffer(tid);
+        char *rdma_buf_body = gmem->rdma_buf_body(tid);
         // copy header(bundle_sz) to rdma_buf(on local GPU mem)
-        CUDA_ASSERT( cudaMemcpy(rdma_buf, &bundle_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );
-        rdma_buf += sizeof(uint64_t);
+        CUDA_ASSERT( cudaMemcpy(gmem->rdma_buf_hdr(tid), &bundle_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );
 
-        // FIXME: adaptor should have no idea about 'type' (@RONG)
-        // copy type
-        uint64_t msg_type = SPARQL_HISTORY;
-        CUDA_ASSERT( cudaMemcpy(rdma_buf, &msg_type, sizeof(uint64_t), cudaMemcpyHostToDevice) );
-        rdma_buf += sizeof(uint64_t);
-
-        // copy data(on local GPU mem) to rdma_buf(on local GPU mem)
-        CUDA_ASSERT( cudaMemcpy(rdma_buf, data, data_sz, cudaMemcpyDeviceToDevice) );    // data
-        rdma_buf += ceil(data_sz, sizeof(uint64_t));
+        // copy data(on local GPU mem) to rdma_buf_body(on local GPU mem)
+        CUDA_ASSERT( cudaMemcpy(rdma_buf_body, data, data_sz, cudaMemcpyDeviceToDevice) );    // data
+        rdma_buf_body += ceil(data_sz, sizeof(uint64_t));
 
         // copy footer(bundle_sz) to rdma_buf(on local GPU mem)
-        CUDA_ASSERT( cudaMemcpy(rdma_buf, &bundle_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );  // footer
+        CUDA_ASSERT( cudaMemcpy(rdma_buf_body, &bundle_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );  // footer
 
         // write msg to the remote physical-queue
         RDMA &rdma = RDMA::get_rdma();
         uint64_t rdma_off = mem->ring_offset(dst_tid, sid);
 
         if (off / rbf_sz == (off + msg_sz - 1) / rbf_sz ) {
-            rdma.dev->GPURdmaWrite(tid, dst_sid, gmem->buffer(tid), msg_sz, rdma_off + (off % rbf_sz));
+            rdma.dev->GPURdmaWrite(tid, dst_sid, gmem->rdma_buf_hdr(tid), msg_sz, rdma_off + (off % rbf_sz));
         } else {
             uint64_t _sz = rbf_sz - (off % rbf_sz);
-            rdma.dev->GPURdmaWrite(tid, dst_sid, gmem->buffer(tid), _sz, rdma_off + (off % rbf_sz));
-            rdma.dev->GPURdmaWrite(tid, dst_sid, gmem->buffer(tid) + _sz, msg_sz - _sz, rdma_off);
+            rdma.dev->GPURdmaWrite(tid, dst_sid, gmem->rdma_buf_hdr(tid), _sz, rdma_off + (off % rbf_sz));
+            rdma.dev->GPURdmaWrite(tid, dst_sid, gmem->rdma_buf_hdr(tid) + _sz, msg_sz - _sz, rdma_off);
         }
     }
 #endif // end of USE_GPU
