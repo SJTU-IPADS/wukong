@@ -19,11 +19,12 @@
  *      http://ipads.se.sjtu.edu.cn/projects/wukong
  *
  */
-#include "logger2.hpp"
+
 #include <map>
 #include <boost/mpi.hpp>
 #include <iostream>
 
+#include "global.hpp"
 #include "config.hpp"
 #include "bind.hpp"
 #include "mem.hpp"
@@ -37,10 +38,10 @@
 #include "console.hpp"
 #include "rdma.hpp"
 #include "adaptor.hpp"
+#include "data_statistic.hpp"
+#include "logger2.hpp"
 
 #include "unit.hpp"
-
-#include "data_statistic.hpp"
 
 void *engine_thread(void *arg)
 {
@@ -118,7 +119,7 @@ main(int argc, char *argv[])
     // CPU (host) memory
     Mem *mem = new Mem(global_num_servers, global_num_threads);
     logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(mem->size()) << "GB memory" << LOG_endl;
-    RDMA::MemoryRegion mr_cpu = { RDMA::MemType::CPU, mem };
+    RDMA::MemoryRegion mr_cpu = { RDMA::MemType::CPU, mem->address(), mem->size(), mem };
     mrs.push_back(mr_cpu);
 
 #ifdef USE_GPU
@@ -126,7 +127,7 @@ main(int argc, char *argv[])
     int devid = 0; // FIXME: it means one GPU device?
     GPUMem *gpu_mem = new GPUMem(devid, global_num_servers, global_num_gpus);
     logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(gpu_mem->size()) << "GB GPU memory" << LOG_endl;
-    RDMA::MemoryRegion mr_gpu = { RDMA::MemType::GPU, gpu_mem };
+    RDMA::MemoryRegion mr_gpu = { RDMA::MemType::GPU, gpu_mem->address(), gpu_mem->size(), gpu_mem };
     mrs.push_back(mr_gpu);
 #endif
 

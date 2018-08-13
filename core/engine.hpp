@@ -24,10 +24,10 @@
 
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
-#include <algorithm>//sort
+#include <algorithm> //sort
 #include <regex>
 
-#include "config.hpp"
+#include "global.hpp"
 #include "type.hpp"
 #include "coder.hpp"
 #include "adaptor.hpp"

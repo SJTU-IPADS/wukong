@@ -36,7 +36,8 @@
 #include <boost/algorithm/string/predicate.hpp>
 
 #include "omp.h"
-#include "config.hpp"
+
+#include "global.hpp"
 #include "type.hpp"
 #include "rdma.hpp"
 #include "gstore.hpp"

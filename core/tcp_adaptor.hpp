@@ -35,6 +35,8 @@
 
 #include <tbb/concurrent_unordered_map.h>
 
+#include "global.hpp"
+
 using namespace std;
 
 class TCP_Adaptor {

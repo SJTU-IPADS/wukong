@@ -24,6 +24,8 @@
 
 #ifdef USE_GPU
 
+#include "global.hpp"
+#include "rdma.hpp"
 #include "unit.hpp"
 #include "gpu_utils.hpp"
 

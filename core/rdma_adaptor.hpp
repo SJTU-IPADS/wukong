@@ -30,7 +30,7 @@
 #include <errno.h>
 #include <sstream>
 
-#include "config.hpp"
+#include "global.hpp"
 #include "rdma.hpp"
 
 #ifdef USE_GPU

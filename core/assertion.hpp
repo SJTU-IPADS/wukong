@@ -76,6 +76,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+
 #include "logger2.hpp"
 
 // failed option control
