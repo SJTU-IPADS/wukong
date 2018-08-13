@@ -26,7 +26,7 @@
 #include <boost/unordered_map.hpp>
 #include <unistd.h>
 
-#include "config.hpp"
+#include "global.hpp"
 #include "coder.hpp"
 #include "query.hpp"
 #include "adaptor.hpp"

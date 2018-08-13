@@ -30,13 +30,10 @@
 #include <boost/unordered_set.hpp>
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/concurrent_unordered_set.h>
-
-#ifdef USE_GPU
 #include <atomic>
-#include "rdf_meta.hpp"
-#endif // USE_GPU
 
-#include "config.hpp"
+
+#include "global.hpp"
 #include "rdma.hpp"
 #include "data_statistic.hpp"
 #include "type.hpp"
@@ -44,6 +41,10 @@
 #include "mm/malloc_interface.hpp"
 #include "mm/jemalloc.hpp"
 #include "mm/buddy_malloc.hpp"
+
+#ifdef USE_GPU
+#include "rdf_meta.hpp"
+#endif // USE_GPU
 
 #include "mymath.hpp"
 #include "timer.hpp"

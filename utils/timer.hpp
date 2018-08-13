@@ -26,6 +26,8 @@
 #include <unistd.h>
 #include <stdint.h>
 
+#include "logger2.hpp"
+
 class timer {
 public:
     static uint64_t get_usec() {

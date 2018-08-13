@@ -27,19 +27,17 @@
 #include <iostream>     // std::cout
 #include <fstream>      // std::ifstream
 #include <vector>
+
 using namespace std;
 
+#include "global.hpp"
 #include "timer.hpp"
 #include "assertion.hpp"
 
 #ifdef HAS_RDMA
 
-#include "mem.hpp"
-#ifdef USE_GPU
-#include "gpu_mem.hpp"
-#endif
-
 #include "rdmaio.hpp"
+
 using namespace rdmaio;
 
 class RDMA {
@@ -49,6 +47,8 @@ public:
 
     struct MemoryRegion {
         MemType type;
+        char *addr;
+        uint64_t sz;
         void *mem;
     };
 
@@ -76,23 +76,19 @@ public:
             ctrl->open_device();
             for (auto mr : mrs) {
                 switch (mr.type) {
-                case RDMA::MemType::CPU: {
-                    Mem *mem = (Mem *)mr.mem;
-                    ctrl->set_connect_mr(mem->address(), mem->size());
+                case RDMA::MemType::CPU:
+                    ctrl->set_connect_mr(mr.addr, mr.sz);
                     ctrl->register_connect_mr();
                     break;
-                }
-                case RDMA::MemType::GPU: {
+                case RDMA::MemType::GPU:
 #ifdef USE_GPU
-                    GPUMem *gmem = (GPUMem *)mr.mem;
-                    ctrl->set_connect_mr_gpu(gmem->address(), gmem->size());
+                    ctrl->set_connect_mr_gpu(mr.addr, mr.sz);
                     ctrl->register_connect_mr_gpu();
                     break;
 #else
                     logstream(LOG_ERROR) << "Build wukong w/o GPU support." << LOG_endl;
                     ASSERT(false);
 #endif
-                }
                 default:
                     logstream(LOG_ERROR) << "Unkown memory region." << LOG_endl;
                 }
