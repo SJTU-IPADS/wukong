@@ -24,6 +24,8 @@
 
 #include <stdlib.h>
 
+#include "global.hpp"
+
 using namespace std;
 
 class Coder {

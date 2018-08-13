@@ -25,6 +25,7 @@
 #include <iostream>
 #include <boost/serialization/unordered_map.hpp>
 
+#include "assertion.hpp"
 #include "timer.hpp"
 #include "unit.hpp"
 

@@ -32,6 +32,8 @@
 
 #include "global.hpp"
 #include "rdma.hpp"
+#include "mem.hpp"
+#include "assertion.hpp"
 
 #ifdef USE_GPU
 #include "gpu_mem.hpp"
