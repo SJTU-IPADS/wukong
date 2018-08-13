@@ -135,11 +135,14 @@ main(int argc, char *argv[])
     RDMA_init(global_num_servers, global_num_threads, sid, mrs, host_fname);
 
     // init communication
-    RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mrs, global_num_servers, global_num_threads);
-    TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_num_threads, global_data_port_base);
+    RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mrs,
+            global_num_servers, global_num_threads);
+    TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_data_port_base,
+            global_num_servers, global_num_threads);
 
     // init control communicaiton
-    con_adaptor = new TCP_Adaptor(sid, host_fname, global_num_proxies, global_ctrl_port_base);
+    con_adaptor = new TCP_Adaptor(sid, host_fname, global_ctrl_port_base,
+                                  global_num_servers, global_num_proxies);
 
     // load string server (read-only, shared by all proxies and all engines)
     String_Server str_server(global_input_folder);
