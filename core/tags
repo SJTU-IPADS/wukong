@@ -1,0 +1,1238 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.8	//
+AA	planner.hpp	17;"	d
+AA_early	planner.hpp	23;"	d
+AA_full	planner.hpp	22;"	d
+ADDR_PER_SRV	mem.hpp	138;"	d
+ADDR_PER_TH	mem.hpp	141;"	d
+ASSERT	assertion.hpp	145;"	d
+ASSERT_EQ	assertion.hpp	147;"	d
+ASSERT_FALSE	assertion.hpp	143;"	d
+ASSERT_GE	assertion.hpp	151;"	d
+ASSERT_GT	assertion.hpp	152;"	d
+ASSERT_LE	assertion.hpp	149;"	d
+ASSERT_LT	assertion.hpp	150;"	d
+ASSERT_MSG	assertion.hpp	159;"	d
+ASSERT_NE	assertion.hpp	148;"	d
+ASSERT_STREQ	assertion.hpp	155;"	d
+ASSERT_TRUE	assertion.hpp	142;"	d
+ASSOCIATIVITY	gstore.hpp	/^    static const int ASSOCIATIVITY = 8;  \/\/ the associativity of slots in each bucket$/;"	m	class:GStore
+Adaptor	adaptor.hpp	/^    Adaptor(int tid, TCP_Adaptor *tcp, RDMA_Adaptor *rdma)$/;"	f	class:Adaptor
+Adaptor	adaptor.hpp	/^class Adaptor {$/;"	c
+And	SPARQLLexer.hpp	/^                 Type, Not, Or, And, Plus, Minus, Mul, Div, Integer, Decimal,$/;"	e	enum:SPARQLLexer::Token
+And	SPARQLParser.hpp	/^            Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,$/;"	e	enum:SPARQLParser::Filter::Type
+And	query.hpp	/^        enum Type {Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,$/;"	e	enum:SPARQLQuery::Filter::Type
+Anon	SPARQLLexer.hpp	/^                 RParen, LBracket, RBracket, LArrow, RArrow, Anon, Equal,$/;"	e	enum:SPARQLLexer::Token
+ArgumentList	SPARQLParser.hpp	/^            Literal, Variable, IRI, Function, ArgumentList, Builtin_str,$/;"	e	enum:SPARQLParser::Filter::Type
+ArgumentList	query.hpp	/^                   Literal, Variable, IRI, Function, ArgumentList, Builtin_str,$/;"	e	enum:SPARQLQuery::Filter::Type
+At	SPARQLLexer.hpp	/^                 NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual, At,$/;"	e	enum:SPARQLLexer::Token
+BASIC	query.hpp	/^    enum PGType { BASIC, UNION, OPTIONAL };$/;"	e	enum:SPARQLQuery::PGType
+BB	planner.hpp	18;"	d
+BB_ifor	planner.hpp	24;"	d
+BLACK	logger2.hpp	72;"	d
+BLANK_ID	type.hpp	32;"	d
+BLANK_ID	type.hpp	38;"	d
+BLINK	logger2.hpp	68;"	d
+BLUE	logger2.hpp	76;"	d
+BRIGHT	logger2.hpp	65;"	d
+BUSY_POLLING_THRESHOLD	engine.hpp	43;"	d
+Buddy_Malloc	buddy_malloc.hpp	/^class Buddy_Malloc : public Malloc_Interface {$/;"	c
+Builtin_bound	SPARQLParser.hpp	/^            Builtin_lang, Builtin_langmatches, Builtin_datatype, Builtin_bound,$/;"	e	enum:SPARQLParser::Filter::Type
+Builtin_bound	query.hpp	/^                   Builtin_lang, Builtin_langmatches, Builtin_datatype, Builtin_bound,$/;"	e	enum:SPARQLQuery::Filter::Type
+Builtin_datatype	SPARQLParser.hpp	/^            Builtin_lang, Builtin_langmatches, Builtin_datatype, Builtin_bound,$/;"	e	enum:SPARQLParser::Filter::Type
+Builtin_datatype	query.hpp	/^                   Builtin_lang, Builtin_langmatches, Builtin_datatype, Builtin_bound,$/;"	e	enum:SPARQLQuery::Filter::Type
+Builtin_in	SPARQLParser.hpp	/^            Builtin_regex, Builtin_in$/;"	e	enum:SPARQLParser::Filter::Type
+Builtin_in	query.hpp	/^                   Builtin_regex, Builtin_in$/;"	e	enum:SPARQLQuery::Filter::Type
+Builtin_isblank	SPARQLParser.hpp	/^            Builtin_sameterm, Builtin_isiri, Builtin_isblank, Builtin_isliteral,$/;"	e	enum:SPARQLParser::Filter::Type
+Builtin_isblank	query.hpp	/^                   Builtin_sameterm, Builtin_isiri, Builtin_isblank, Builtin_isliteral,$/;"	e	enum:SPARQLQuery::Filter::Type
+Builtin_isiri	SPARQLParser.hpp	/^            Builtin_sameterm, Builtin_isiri, Builtin_isblank, Builtin_isliteral,$/;"	e	enum:SPARQLParser::Filter::Type
+Builtin_isiri	query.hpp	/^                   Builtin_sameterm, Builtin_isiri, Builtin_isblank, Builtin_isliteral,$/;"	e	enum:SPARQLQuery::Filter::Type
+Builtin_isliteral	SPARQLParser.hpp	/^            Builtin_sameterm, Builtin_isiri, Builtin_isblank, Builtin_isliteral,$/;"	e	enum:SPARQLParser::Filter::Type
+Builtin_isliteral	query.hpp	/^                   Builtin_sameterm, Builtin_isiri, Builtin_isblank, Builtin_isliteral,$/;"	e	enum:SPARQLQuery::Filter::Type
+Builtin_lang	SPARQLParser.hpp	/^            Builtin_lang, Builtin_langmatches, Builtin_datatype, Builtin_bound,$/;"	e	enum:SPARQLParser::Filter::Type
+Builtin_lang	query.hpp	/^                   Builtin_lang, Builtin_langmatches, Builtin_datatype, Builtin_bound,$/;"	e	enum:SPARQLQuery::Filter::Type
+Builtin_langmatches	SPARQLParser.hpp	/^            Builtin_lang, Builtin_langmatches, Builtin_datatype, Builtin_bound,$/;"	e	enum:SPARQLParser::Filter::Type
+Builtin_langmatches	query.hpp	/^                   Builtin_lang, Builtin_langmatches, Builtin_datatype, Builtin_bound,$/;"	e	enum:SPARQLQuery::Filter::Type
+Builtin_regex	SPARQLParser.hpp	/^            Builtin_regex, Builtin_in$/;"	e	enum:SPARQLParser::Filter::Type
+Builtin_regex	query.hpp	/^                   Builtin_regex, Builtin_in$/;"	e	enum:SPARQLQuery::Filter::Type
+Builtin_sameterm	SPARQLParser.hpp	/^            Builtin_sameterm, Builtin_isiri, Builtin_isblank, Builtin_isliteral,$/;"	e	enum:SPARQLParser::Filter::Type
+Builtin_sameterm	query.hpp	/^                   Builtin_sameterm, Builtin_isiri, Builtin_isblank, Builtin_isliteral,$/;"	e	enum:SPARQLQuery::Filter::Type
+Builtin_str	SPARQLParser.hpp	/^            Literal, Variable, IRI, Function, ArgumentList, Builtin_str,$/;"	e	enum:SPARQLParser::Filter::Type
+Builtin_str	query.hpp	/^                   Literal, Variable, IRI, Function, ArgumentList, Builtin_str,$/;"	e	enum:SPARQLQuery::Filter::Type
+Bundle	query.hpp	/^    Bundle() { }$/;"	f	class:Bundle
+Bundle	query.hpp	/^    Bundle(GStoreCheck r): type(GSTORE_CHECK) {$/;"	f	class:Bundle
+Bundle	query.hpp	/^    Bundle(RDFLoad &r): type(DYNAMIC_LOAD) {$/;"	f	class:Bundle
+Bundle	query.hpp	/^    Bundle(SPARQLQuery &r): type(SPARQL_QUERY) {$/;"	f	class:Bundle
+Bundle	query.hpp	/^    Bundle(string str) {$/;"	f	class:Bundle
+Bundle	query.hpp	/^class Bundle {$/;"	c
+CACHE_ratio	planner.hpp	27;"	d
+CC	planner.hpp	19;"	d
+CC_const_known	planner.hpp	25;"	d
+CC_unknown	planner.hpp	26;"	d
+CHECK	assertion.hpp	107;"	d
+CHECK_EQ	assertion.hpp	134;"	d
+CHECK_GE	assertion.hpp	138;"	d
+CHECK_GT	assertion.hpp	139;"	d
+CHECK_LE	assertion.hpp	136;"	d
+CHECK_LT	assertion.hpp	137;"	d
+CHECK_NE	assertion.hpp	135;"	d
+CHECK_OP	assertion.hpp	118;"	d
+COLOROUTPUT	logger2.hpp	61;"	d
+CORUN	type.hpp	/^enum dir_t { IN = 0, OUT, CORUN }; \/\/ direction: IN=0, OUT=1, and optimization hints$/;"	e	enum:dir_t
+COST_THRESHOLD	planner.hpp	16;"	d
+CPU	rdma.hpp	/^    enum MemType { CPU, GPU };$/;"	e	enum:RDMA::MemType
+CYAN	logger2.hpp	78;"	d
+Coder	coder.hpp	/^    Coder(int sid, int tid): sid(sid), tid(tid) {$/;"	f	class:Coder
+Coder	coder.hpp	/^class Coder {$/;"	c
+Colon	SPARQLLexer.hpp	/^    enum Token { None, Error, Eof, IRI, String, Variable, Identifier, Colon,$/;"	e	enum:SPARQLLexer::Token
+Comma	SPARQLLexer.hpp	/^                 Semicolon, Comma, Dot, Underscore, LCurly, RCurly, LParen,$/;"	e	enum:SPARQLLexer::Token
+Compare	engine.hpp	/^        Compare(SPARQLQuery &query, String_Server *str_server)$/;"	f	class:Engine::Compare
+Compare	engine.hpp	/^    class Compare {$/;"	c	class:Engine
+CustomLanguage	SPARQLParser.hpp	/^        enum SubType { None, CustomLanguage, CustomType };$/;"	e	enum:SPARQLParser::Element::SubType
+CustomType	SPARQLParser.hpp	/^        enum SubType { None, CustomLanguage, CustomType };$/;"	e	enum:SPARQLParser::Element::SubType
+DGraph	dgraph.hpp	/^    DGraph(int sid, Mem *mem, String_Server *str_server, string dname)$/;"	f	class:DGraph
+DGraph	dgraph.hpp	/^class DGraph {$/;"	c
+DIM	logger2.hpp	66;"	d
+DUMMY_ID	parser.hpp	/^    const static ssid_t DUMMY_ID = std::numeric_limits<ssid_t>::min();$/;"	m	class:Parser
+DYNAMIC_LOAD	query.hpp	/^enum req_type { SPARQL_QUERY, DYNAMIC_LOAD, GSTORE_CHECK };$/;"	e	enum:req_type
+Decimal	SPARQLLexer.hpp	/^                 Type, Not, Or, And, Plus, Minus, Mul, Div, Integer, Decimal,$/;"	e	enum:SPARQLLexer::Token
+Div	SPARQLLexer.hpp	/^                 Type, Not, Or, And, Plus, Minus, Mul, Div, Integer, Decimal,$/;"	e	enum:SPARQLLexer::Token
+Div	SPARQLParser.hpp	/^            GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,$/;"	e	enum:SPARQLParser::Filter::Type
+Div	query.hpp	/^                   GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,$/;"	e	enum:SPARQLQuery::Filter::Type
+Dot	SPARQLLexer.hpp	/^                 Semicolon, Comma, Dot, Underscore, LCurly, RCurly, LParen,$/;"	e	enum:SPARQLLexer::Token
+Double	SPARQLLexer.hpp	/^                 Double, Percent, PREDICATE$/;"	e	enum:SPARQLLexer::Token
+Element	SPARQLParser.hpp	/^    struct Element {$/;"	s	class:SPARQLParser
+Engine	engine.hpp	/^    Engine(int sid, int tid, String_Server * str_server, DGraph * graph, Adaptor * adaptor)$/;"	f	class:Engine
+Engine	engine.hpp	/^class Engine {$/;"	c
+Eof	SPARQLLexer.hpp	/^    enum Token { None, Error, Eof, IRI, String, Variable, Identifier, Colon,$/;"	e	enum:SPARQLLexer::Token
+Equal	SPARQLLexer.hpp	/^                 RParen, LBracket, RBracket, LArrow, RArrow, Anon, Equal,$/;"	e	enum:SPARQLLexer::Token
+Equal	SPARQLParser.hpp	/^            Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,$/;"	e	enum:SPARQLParser::Filter::Type
+Equal	query.hpp	/^        enum Type {Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,$/;"	e	enum:SPARQLQuery::Filter::Type
+Error	SPARQLLexer.hpp	/^    enum Token { None, Error, Eof, IRI, String, Variable, Identifier, Colon,$/;"	e	enum:SPARQLLexer::Token
+Filter	SPARQLParser.hpp	/^        Filter() : arg1(0), arg2(0), arg3(0), valueArg(0) { }$/;"	f	struct:SPARQLParser::Filter
+Filter	SPARQLParser.hpp	/^        Filter(const Filter &other)$/;"	f	struct:SPARQLParser::Filter
+Filter	SPARQLParser.hpp	/^    struct Filter {$/;"	s	class:SPARQLParser
+Filter	query.hpp	/^        Filter() : arg1(0), arg2(0), arg3(0), valueArg(0) { }$/;"	f	class:SPARQLQuery::Filter
+Filter	query.hpp	/^        Filter(const Filter &other)$/;"	f	class:SPARQLQuery::Filter
+Filter	query.hpp	/^    class Filter {$/;"	c	class:SPARQLQuery
+Function	SPARQLParser.hpp	/^            Literal, Variable, IRI, Function, ArgumentList, Builtin_str,$/;"	e	enum:SPARQLParser::Filter::Type
+Function	query.hpp	/^                   Literal, Variable, IRI, Function, ArgumentList, Builtin_str,$/;"	e	enum:SPARQLQuery::Filter::Type
+GPU	rdma.hpp	/^    enum MemType { CPU, GPU };$/;"	e	enum:RDMA::MemType
+GPUMem	gpu_mem.hpp	/^    GPUMem(int devid, int num_servers, int num_agents)$/;"	f	class:GPUMem
+GPUMem	gpu_mem.hpp	/^class GPUMem {$/;"	c
+GPURdmaWrite	rdma.hpp	/^        int GPURdmaWrite(int tid, int nid, char *local_gpu, uint64_t sz, uint64_t off, bool to_gpu = false) {$/;"	f	class:RDMA::RDMA_Device
+GREEN	logger2.hpp	74;"	d
+GSTORE_CHECK	query.hpp	/^enum req_type { SPARQL_QUERY, DYNAMIC_LOAD, GSTORE_CHECK };$/;"	e	enum:req_type
+GStore	gstore.hpp	/^    GStore(int sid, Mem *mem): sid(sid), mem(mem) {$/;"	f	class:GStore
+GStore	gstore.hpp	/^class GStore {$/;"	c
+GStoreCheck	query.hpp	/^    GStoreCheck() { }$/;"	f	class:GStoreCheck
+GStoreCheck	query.hpp	/^    GStoreCheck(bool i, bool n) : index_check(i), normal_check(n) { }$/;"	f	class:GStoreCheck
+GStoreCheck	query.hpp	/^class GStoreCheck {$/;"	c
+Greater	SPARQLLexer.hpp	/^                 NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual, At,$/;"	e	enum:SPARQLLexer::Token
+Greater	SPARQLParser.hpp	/^            Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,$/;"	e	enum:SPARQLParser::Filter::Type
+Greater	query.hpp	/^        enum Type {Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,$/;"	e	enum:SPARQLQuery::Filter::Type
+GreaterOrEqual	SPARQLLexer.hpp	/^                 NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual, At,$/;"	e	enum:SPARQLLexer::Token
+GreaterOrEqual	SPARQLParser.hpp	/^            GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,$/;"	e	enum:SPARQLParser::Filter::Type
+GreaterOrEqual	query.hpp	/^                   GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,$/;"	e	enum:SPARQLQuery::Filter::Type
+HD_RATIO	gstore.hpp	/^    static const int HD_RATIO = (128 * 100 \/ (128 + 3 * std::numeric_limits<sid_t>::digits));$/;"	m	class:GStore
+HIDDEN	logger2.hpp	70;"	d
+IN	type.hpp	/^enum dir_t { IN = 0, OUT, CORUN }; \/\/ direction: IN=0, OUT=1, and optimization hints$/;"	e	enum:dir_t
+INVALID_EDGES	gstore.hpp	/^    static const uint64_t INVALID_EDGES = 1 << NBITS_SIZE; \/\/ flag indicates invalidate edges$/;"	m	class:GStore
+IRI	SPARQLLexer.hpp	/^    enum Token { None, Error, Eof, IRI, String, Variable, Identifier, Colon,$/;"	e	enum:SPARQLLexer::Token
+IRI	SPARQLParser.hpp	/^            Literal, Variable, IRI, Function, ArgumentList, Builtin_str,$/;"	e	enum:SPARQLParser::Filter::Type
+IRI	SPARQLParser.hpp	/^        enum Type { Variable, Literal, IRI, Template, Predicate };$/;"	e	enum:SPARQLParser::Element::Type
+IRI	query.hpp	/^                   Literal, Variable, IRI, Function, ArgumentList, Builtin_str,$/;"	e	enum:SPARQLQuery::Filter::Type
+Identifier	SPARQLLexer.hpp	/^    enum Token { None, Error, Eof, IRI, String, Variable, Identifier, Colon,$/;"	e	enum:SPARQLLexer::Token
+Integer	SPARQLLexer.hpp	/^                 Type, Not, Or, And, Plus, Minus, Mul, Div, Integer, Decimal,$/;"	e	enum:SPARQLLexer::Token
+Item	gstore.hpp	/^            Item() {$/;"	f	struct:GStore::RDMA_Cache::Item
+Item	gstore.hpp	/^        struct Item {$/;"	s	class:GStore::RDMA_Cache
+Item	rmap.hpp	/^    struct Item {$/;"	s	class:RMap
+LArrow	SPARQLLexer.hpp	/^                 RParen, LBracket, RBracket, LArrow, RArrow, Anon, Equal,$/;"	e	enum:SPARQLLexer::Token
+LBracket	SPARQLLexer.hpp	/^                 RParen, LBracket, RBracket, LArrow, RArrow, Anon, Equal,$/;"	e	enum:SPARQLLexer::Token
+LCurly	SPARQLLexer.hpp	/^                 Semicolon, Comma, Dot, Underscore, LCurly, RCurly, LParen,$/;"	e	enum:SPARQLLexer::Token
+LEADER	console.hpp	90;"	d
+LOG_DEBUG	logger2.hpp	118;"	d
+LOG_EMPH	logger2.hpp	116;"	d
+LOG_ERROR	logger2.hpp	114;"	d
+LOG_EVERYTHING	logger2.hpp	119;"	d
+LOG_FATAL	logger2.hpp	113;"	d
+LOG_INFO	logger2.hpp	117;"	d
+LOG_NONE	logger2.hpp	112;"	d
+LOG_WARNING	logger2.hpp	115;"	d
+LOG_endl	logger2.hpp	533;"	d
+LParen	SPARQLLexer.hpp	/^                 Semicolon, Comma, Dot, Underscore, LCurly, RCurly, LParen,$/;"	e	enum:SPARQLLexer::Token
+Less	SPARQLLexer.hpp	/^                 NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual, At,$/;"	e	enum:SPARQLLexer::Token
+Less	SPARQLParser.hpp	/^            Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,$/;"	e	enum:SPARQLParser::Filter::Type
+Less	query.hpp	/^        enum Type {Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,$/;"	e	enum:SPARQLQuery::Filter::Type
+LessOrEqual	SPARQLLexer.hpp	/^                 NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual, At,$/;"	e	enum:SPARQLLexer::Token
+LessOrEqual	SPARQLParser.hpp	/^            Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,$/;"	e	enum:SPARQLParser::Filter::Type
+LessOrEqual	query.hpp	/^        enum Type {Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,$/;"	e	enum:SPARQLQuery::Filter::Type
+Literal	SPARQLParser.hpp	/^            Literal, Variable, IRI, Function, ArgumentList, Builtin_str,$/;"	e	enum:SPARQLParser::Filter::Type
+Literal	SPARQLParser.hpp	/^        enum Type { Variable, Literal, IRI, Template, Predicate };$/;"	e	enum:SPARQLParser::Element::Type
+Literal	query.hpp	/^                   Literal, Variable, IRI, Function, ArgumentList, Builtin_str,$/;"	e	enum:SPARQLQuery::Filter::Type
+MAGENTA	logger2.hpp	77;"	d
+MASTER	console.hpp	88;"	d
+MAX_SNOOZE_TIME	engine.hpp	45;"	d
+MHD_RATIO	gstore.hpp	/^    static const int MHD_RATIO = 80;$/;"	m	class:GStore
+MIN_SNOOZE_TIME	engine.hpp	44;"	d
+Malloc_Interface	buddy_malloc.hpp	/^class Malloc_Interface {$/;"	c
+Mem	mem.hpp	/^    Mem(int num_servers, int num_threads)$/;"	f	class:Mem
+Mem	mem.hpp	/^class Mem {$/;"	c
+MemType	rdma.hpp	/^    enum MemType { CPU, GPU };$/;"	g	class:RDMA
+MemoryRegion	rdma.hpp	/^    struct MemoryRegion {$/;"	s	class:RDMA
+Message	engine.hpp	/^        Message(int sid, int tid, Bundle &bundle)$/;"	f	class:Engine::Message
+Message	engine.hpp	/^    class Message {$/;"	c	class:Engine
+Message	proxy.hpp	/^        Message(int sid, int tid, Bundle &bundle)$/;"	f	class:Proxy::Message
+Message	proxy.hpp	/^    class Message {$/;"	c	class:Proxy
+Minus	SPARQLLexer.hpp	/^                 Type, Not, Or, And, Plus, Minus, Mul, Div, Integer, Decimal,$/;"	e	enum:SPARQLLexer::Token
+Minus	SPARQLParser.hpp	/^            GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,$/;"	e	enum:SPARQLParser::Filter::Type
+Minus	query.hpp	/^                   GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,$/;"	e	enum:SPARQLQuery::Filter::Type
+Modifier_Count	SPARQLParser.hpp	/^                              Modifier_Reduced, Modifier_Count,$/;"	e	enum:SPARQLParser::ProjectionModifier
+Modifier_Distinct	SPARQLParser.hpp	/^    enum ProjectionModifier { Modifier_None, Modifier_Distinct,$/;"	e	enum:SPARQLParser::ProjectionModifier
+Modifier_Duplicates	SPARQLParser.hpp	/^                              Modifier_Duplicates$/;"	e	enum:SPARQLParser::ProjectionModifier
+Modifier_None	SPARQLParser.hpp	/^    enum ProjectionModifier { Modifier_None, Modifier_Distinct,$/;"	e	enum:SPARQLParser::ProjectionModifier
+Modifier_Reduced	SPARQLParser.hpp	/^                              Modifier_Reduced, Modifier_Count,$/;"	e	enum:SPARQLParser::ProjectionModifier
+Monitor	monitor.hpp	/^class Monitor {$/;"	c
+Mul	SPARQLLexer.hpp	/^                 Type, Not, Or, And, Plus, Minus, Mul, Div, Integer, Decimal,$/;"	e	enum:SPARQLLexer::Token
+Mul	SPARQLParser.hpp	/^            GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,$/;"	e	enum:SPARQLParser::Filter::Type
+Mul	query.hpp	/^                   GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,$/;"	e	enum:SPARQLQuery::Filter::Type
+NBITS_COL	query.hpp	54;"	d
+NBITS_DIR	gstore.hpp	/^enum { NBITS_DIR = 1 };$/;"	e	enum:__anon1
+NBITS_IDX	gstore.hpp	/^enum { NBITS_IDX = 17 }; \/\/ equal to the size of t\/pid$/;"	e	enum:__anon2
+NBITS_PTR	gstore.hpp	/^enum { NBITS_PTR  = 34 };$/;"	e	enum:__anon6
+NBITS_SIZE	gstore.hpp	/^enum { NBITS_SIZE = 28 };$/;"	e	enum:__anon5
+NBITS_TYPE	gstore.hpp	/^enum { NBITS_TYPE =  2 };$/;"	e	enum:__anon7
+NBITS_VID	gstore.hpp	/^enum { NBITS_VID = (64 - NBITS_IDX - NBITS_DIR) }; \/\/ 0: index vertex, ID: normal vertex$/;"	e	enum:__anon3
+NO_RESULT	query.hpp	56;"	d
+NUM_ITEMS	gstore.hpp	/^        static const int NUM_ITEMS = 100000;$/;"	m	class:GStore::RDMA_Cache
+NUM_LOCKS	gstore.hpp	/^    static const int NUM_LOCKS = 1024;$/;"	m	class:GStore
+None	SPARQLLexer.hpp	/^    enum Token { None, Error, Eof, IRI, String, Variable, Identifier, Colon,$/;"	e	enum:SPARQLLexer::Token
+None	SPARQLParser.hpp	/^        enum SubType { None, CustomLanguage, CustomType };$/;"	e	enum:SPARQLParser::Element::SubType
+Not	SPARQLLexer.hpp	/^                 Type, Not, Or, And, Plus, Minus, Mul, Div, Integer, Decimal,$/;"	e	enum:SPARQLLexer::Token
+Not	SPARQLParser.hpp	/^            GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,$/;"	e	enum:SPARQLParser::Filter::Type
+Not	query.hpp	/^                   GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,$/;"	e	enum:SPARQLQuery::Filter::Type
+NotEqual	SPARQLLexer.hpp	/^                 NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual, At,$/;"	e	enum:SPARQLLexer::Token
+NotEqual	SPARQLParser.hpp	/^            Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,$/;"	e	enum:SPARQLParser::Filter::Type
+NotEqual	query.hpp	/^        enum Type {Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,$/;"	e	enum:SPARQLQuery::Filter::Type
+OFFSET_PER_SRV	mem.hpp	139;"	d
+OFFSET_PER_TH	mem.hpp	142;"	d
+OPTIONAL	query.hpp	/^    enum PGType { BASIC, UNION, OPTIONAL };$/;"	e	enum:SPARQLQuery::PGType
+OUT	type.hpp	/^enum dir_t { IN = 0, OUT, CORUN }; \/\/ direction: IN=0, OUT=1, and optimization hints$/;"	e	enum:dir_t
+OUTPUTLEVEL	logger2.hpp	127;"	d
+Or	SPARQLLexer.hpp	/^                 Type, Not, Or, And, Plus, Minus, Mul, Div, Integer, Decimal,$/;"	e	enum:SPARQLLexer::Token
+Or	SPARQLParser.hpp	/^            Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,$/;"	e	enum:SPARQLParser::Filter::Type
+Or	query.hpp	/^        enum Type {Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,$/;"	e	enum:SPARQLQuery::Filter::Type
+Order	SPARQLParser.hpp	/^    struct Order {$/;"	s	class:SPARQLParser
+Order	query.hpp	/^        Order() { }$/;"	f	class:SPARQLQuery::Order
+Order	query.hpp	/^        Order(ssid_t _id, bool _descending)$/;"	f	class:SPARQLQuery::Order
+Order	query.hpp	/^    class Order {$/;"	c	class:SPARQLQuery
+PGType	query.hpp	/^    enum PGType { BASIC, UNION, OPTIONAL };$/;"	g	class:SPARQLQuery
+PREDICATE	SPARQLLexer.hpp	/^                 Double, Percent, PREDICATE$/;"	e	enum:SPARQLLexer::Token
+PREDICATE_ID	gstore.hpp	/^enum { PREDICATE_ID = 0, TYPE_ID = 1 };$/;"	e	enum:__anon4
+PREDICATE_ID	parser.hpp	/^    const static ssid_t PREDICATE_ID = 0;$/;"	m	class:Parser
+PRINT_ID	console.hpp	92;"	d
+PTYPE_PH	parser.hpp	/^    const static ssid_t PTYPE_PH = std::numeric_limits<ssid_t>::min() + 1;$/;"	m	class:Parser
+Parser	parser.hpp	/^    Parser(String_Server *_ss): str_server(_ss) { }$/;"	f	class:Parser
+Parser	parser.hpp	/^class Parser {$/;"	c
+ParserException	SPARQLParser.hpp	/^        ParserException(const char *message) : message(message) { }$/;"	f	struct:SPARQLParser::ParserException
+ParserException	SPARQLParser.hpp	/^        ParserException(const std::string &message) : message(message) { }$/;"	f	struct:SPARQLParser::ParserException
+ParserException	SPARQLParser.hpp	/^    struct ParserException {$/;"	s	class:SPARQLParser
+Pattern	SPARQLParser.hpp	/^        Pattern(Element subject, Element predicate, Element object)$/;"	f	struct:SPARQLParser::Pattern
+Pattern	SPARQLParser.hpp	/^    struct Pattern {$/;"	s	class:SPARQLParser
+Pattern	query.hpp	/^        Pattern() { }$/;"	f	class:SPARQLQuery::Pattern
+Pattern	query.hpp	/^        Pattern(ssid_t subject, ssid_t predicate, dir_t direction, ssid_t object):$/;"	f	class:SPARQLQuery::Pattern
+Pattern	query.hpp	/^        Pattern(ssid_t subject, ssid_t predicate, ssid_t direction, ssid_t object):$/;"	f	class:SPARQLQuery::Pattern
+Pattern	query.hpp	/^    class Pattern {$/;"	c	class:SPARQLQuery
+PatternGroup	SPARQLParser.hpp	/^    struct PatternGroup {$/;"	s	class:SPARQLParser
+PatternGroup	query.hpp	/^    class PatternGroup {$/;"	c	class:SPARQLQuery
+PatternGroup	query.hpp	/^BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::PatternGroup);$/;"	v
+Percent	SPARQLLexer.hpp	/^                 Double, Percent, PREDICATE$/;"	e	enum:SPARQLLexer::Token
+Planner	planner.hpp	/^    Planner() { }$/;"	f	class:Planner
+Planner	planner.hpp	/^    Planner(DGraph *graph):graph(graph) { }$/;"	f	class:Planner
+Planner	planner.hpp	/^class Planner {$/;"	c
+Plus	SPARQLLexer.hpp	/^                 Type, Not, Or, And, Plus, Minus, Mul, Div, Integer, Decimal,$/;"	e	enum:SPARQLLexer::Token
+Plus	SPARQLParser.hpp	/^            GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,$/;"	e	enum:SPARQLParser::Filter::Type
+Plus	query.hpp	/^                   GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,$/;"	e	enum:SPARQLQuery::Filter::Type
+Predicate	SPARQLParser.hpp	/^        enum Type { Variable, Literal, IRI, Template, Predicate };$/;"	e	enum:SPARQLParser::Element::Type
+ProjectionModifier	SPARQLParser.hpp	/^    enum ProjectionModifier { Modifier_None, Modifier_Distinct,$/;"	g	class:SPARQLParser
+Proxy	proxy.hpp	/^    Proxy(int sid, int tid, String_Server *str_server, DGraph * graph,$/;"	f	class:Proxy
+Proxy	proxy.hpp	/^class Proxy {$/;"	c
+QUERY_FROM_PROXY	engine.hpp	47;"	d
+RArrow	SPARQLLexer.hpp	/^                 RParen, LBracket, RBracket, LArrow, RArrow, Anon, Equal,$/;"	e	enum:SPARQLLexer::Token
+RBracket	SPARQLLexer.hpp	/^                 RParen, LBracket, RBracket, LArrow, RArrow, Anon, Equal,$/;"	e	enum:SPARQLLexer::Token
+RCurly	SPARQLLexer.hpp	/^                 Semicolon, Comma, Dot, Underscore, LCurly, RCurly, LParen,$/;"	e	enum:SPARQLLexer::Token
+RDFLoad	query.hpp	/^    RDFLoad() { }$/;"	f	class:RDFLoad
+RDFLoad	query.hpp	/^    RDFLoad(string s, bool b) : load_dname(s), check_dup(b) { }$/;"	f	class:RDFLoad
+RDFLoad	query.hpp	/^class RDFLoad {$/;"	c
+RDMA	rdma.hpp	/^    RDMA() { }$/;"	f	class:RDMA
+RDMA	rdma.hpp	/^class RDMA {$/;"	c
+RDMA_Adaptor	rdma_adaptor.hpp	/^    RDMA_Adaptor(int sid, Mem *mem, int num_servers, int num_threads)$/;"	f	class:RDMA_Adaptor
+RDMA_Adaptor	rdma_adaptor.hpp	/^class RDMA_Adaptor {$/;"	c
+RDMA_CTRL_PORT	rdma.hpp	/^        static const uint64_t RDMA_CTRL_PORT = 19344;$/;"	m	class:RDMA::RDMA_Device
+RDMA_Cache	gstore.hpp	/^        RDMA_Cache() { }$/;"	f	class:GStore::RDMA_Cache
+RDMA_Cache	gstore.hpp	/^        RDMA_Cache(uint64_t lease): lease(lease) { }$/;"	f	class:GStore::RDMA_Cache
+RDMA_Cache	gstore.hpp	/^    class RDMA_Cache {$/;"	c	class:GStore
+RDMA_Device	rdma.hpp	/^        RDMA_Device(int nnodes, int nthds, int nid, vector<RDMA::MemoryRegion> &mrs, string ipfn) {$/;"	f	class:RDMA::RDMA_Device
+RDMA_Device	rdma.hpp	/^    class RDMA_Device {$/;"	c	class:RDMA
+RDMA_init	rdma.hpp	/^void RDMA_init(int nnodes, int nthds, int nid, vector<RDMA::MemoryRegion> &mrs, string ipfn) {$/;"	f
+RED	logger2.hpp	73;"	d
+RESET	logger2.hpp	64;"	d
+REVERSE	logger2.hpp	69;"	d
+RMap	rmap.hpp	/^class RMap {$/;"	c
+RParen	SPARQLLexer.hpp	/^                 RParen, LBracket, RBracket, LArrow, RArrow, Anon, Equal,$/;"	e	enum:SPARQLLexer::Token
+RdmaRead	rdma.hpp	/^        int RdmaRead(int tid, int nid, char *local, uint64_t sz, uint64_t off) {$/;"	f	class:RDMA::RDMA_Device
+RdmaWrite	rdma.hpp	/^        int RdmaWrite(int tid, int nid, char *local, uint64_t sz, uint64_t off) {$/;"	f	class:RDMA::RDMA_Device
+RdmaWriteNonSignal	rdma.hpp	/^        int RdmaWriteNonSignal(int tid, int nid, char *local, uint64_t sz, uint64_t off) {$/;"	f	class:RDMA::RDMA_Device
+RdmaWriteSelective	rdma.hpp	/^        int RdmaWriteSelective(int tid, int nid, char *local, uint64_t sz, uint64_t off) {$/;"	f	class:RDMA::RDMA_Device
+ReduceCmp	engine.hpp	/^        ReduceCmp(int col_num): col_num(col_num) { }$/;"	f	class:Engine::ReduceCmp
+ReduceCmp	engine.hpp	/^    class ReduceCmp {$/;"	c	class:Engine
+Result	query.hpp	/^    class Result {$/;"	c	class:SPARQLQuery
+Result	query.hpp	/^BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::Result);$/;"	v
+SPARQLLexer	SPARQLLexer.hpp	/^    SPARQLLexer(const std::string &input)$/;"	f	class:SPARQLLexer
+SPARQLLexer	SPARQLLexer.hpp	/^class SPARQLLexer {$/;"	c
+SPARQLParser	SPARQLParser.hpp	/^    explicit SPARQLParser(SPARQLLexer &lexer)$/;"	f	class:SPARQLParser
+SPARQLParser	SPARQLParser.hpp	/^class SPARQLParser {$/;"	c
+SPARQLQuery	query.hpp	/^    SPARQLQuery() { }$/;"	f	class:SPARQLQuery
+SPARQLQuery	query.hpp	/^    SPARQLQuery(PatternGroup g, int n) : pattern_group(g) {$/;"	f	class:SPARQLQuery
+SPARQLQuery	query.hpp	/^BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery);$/;"	v
+SPARQLQuery	query.hpp	/^class SPARQLQuery {$/;"	c
+SPARQLQuery_Template	query.hpp	/^class SPARQLQuery_Template {$/;"	c
+SPARQL_QUERY	query.hpp	/^enum req_type { SPARQL_QUERY, DYNAMIC_LOAD, GSTORE_CHECK };$/;"	e	enum:req_type
+SQState	query.hpp	/^    enum SQState { SQ_PATTERN = 0, SQ_UNION, SQ_FILTER, SQ_OPTIONAL, SQ_FINAL, SQ_REPLY };$/;"	g	class:SPARQLQuery
+SQ_FILTER	query.hpp	/^    enum SQState { SQ_PATTERN = 0, SQ_UNION, SQ_FILTER, SQ_OPTIONAL, SQ_FINAL, SQ_REPLY };$/;"	e	enum:SPARQLQuery::SQState
+SQ_FINAL	query.hpp	/^    enum SQState { SQ_PATTERN = 0, SQ_UNION, SQ_FILTER, SQ_OPTIONAL, SQ_FINAL, SQ_REPLY };$/;"	e	enum:SPARQLQuery::SQState
+SQ_OPTIONAL	query.hpp	/^    enum SQState { SQ_PATTERN = 0, SQ_UNION, SQ_FILTER, SQ_OPTIONAL, SQ_FINAL, SQ_REPLY };$/;"	e	enum:SPARQLQuery::SQState
+SQ_PATTERN	query.hpp	/^    enum SQState { SQ_PATTERN = 0, SQ_UNION, SQ_FILTER, SQ_OPTIONAL, SQ_FINAL, SQ_REPLY };$/;"	e	enum:SPARQLQuery::SQState
+SQ_REPLY	query.hpp	/^    enum SQState { SQ_PATTERN = 0, SQ_UNION, SQ_FILTER, SQ_OPTIONAL, SQ_FINAL, SQ_REPLY };$/;"	e	enum:SPARQLQuery::SQState
+SQ_UNION	query.hpp	/^    enum SQState { SQ_PATTERN = 0, SQ_UNION, SQ_FILTER, SQ_OPTIONAL, SQ_FINAL, SQ_REPLY };$/;"	e	enum:SPARQLQuery::SQState
+Semicolon	SPARQLLexer.hpp	/^                 Semicolon, Comma, Dot, Underscore, LCurly, RCurly, LParen,$/;"	e	enum:SPARQLLexer::Token
+String	SPARQLLexer.hpp	/^    enum Token { None, Error, Eof, IRI, String, Variable, Identifier, Colon,$/;"	e	enum:SPARQLLexer::Token
+String_Server	string_server.hpp	/^    String_Server(string dname) {$/;"	f	class:String_Server
+String_Server	string_server.hpp	/^class String_Server {$/;"	c
+SubType	SPARQLParser.hpp	/^        enum SubType { None, CustomLanguage, CustomType };$/;"	g	struct:SPARQLParser::Element
+TCP_Adaptor	tcp_adaptor.hpp	/^    TCP_Adaptor(int sid, string fname, int num_threads, int port_base)$/;"	f	class:TCP_Adaptor
+TCP_Adaptor	tcp_adaptor.hpp	/^class TCP_Adaptor {$/;"	c
+TIMEOUT_THRESHOLD	engine.hpp	/^    const static uint64_t TIMEOUT_THRESHOLD = 10000; \/\/ 10 msec$/;"	m	class:Engine
+TYPE_ID	gstore.hpp	/^enum { PREDICATE_ID = 0, TYPE_ID = 1 };$/;"	e	enum:__anon4
+Template	SPARQLParser.hpp	/^        enum Type { Variable, Literal, IRI, Template, Predicate };$/;"	e	enum:SPARQLParser::Element::Type
+Token	SPARQLLexer.hpp	/^    enum Token { None, Error, Eof, IRI, String, Variable, Identifier, Colon,$/;"	g	class:SPARQLLexer
+Type	SPARQLLexer.hpp	/^                 Type, Not, Or, And, Plus, Minus, Mul, Div, Integer, Decimal,$/;"	e	enum:SPARQLLexer::Token
+Type	SPARQLParser.hpp	/^        enum Type { Variable, Literal, IRI, Template, Predicate };$/;"	g	struct:SPARQLParser::Element
+Type	SPARQLParser.hpp	/^        enum Type {$/;"	g	struct:SPARQLParser::Filter
+Type	query.hpp	/^        enum Type {Or, And, Equal, NotEqual, Less, LessOrEqual, Greater,$/;"	g	class:SPARQLQuery::Filter
+Type_table	planner.hpp	/^    Type_table() { }$/;"	f	class:Type_table
+Type_table	planner.hpp	/^class Type_table {$/;"	c
+UNDERLINE	logger2.hpp	67;"	d
+UNION	query.hpp	/^    enum PGType { BASIC, UNION, OPTIONAL };$/;"	e	enum:SPARQLQuery::PGType
+UnaryMinus	SPARQLParser.hpp	/^            GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,$/;"	e	enum:SPARQLParser::Filter::Type
+UnaryMinus	query.hpp	/^                   GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,$/;"	e	enum:SPARQLQuery::Filter::Type
+UnaryPlus	SPARQLParser.hpp	/^            GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,$/;"	e	enum:SPARQLParser::Filter::Type
+UnaryPlus	query.hpp	/^                   GreaterOrEqual, Plus, Minus, Mul, Div, Not, UnaryPlus, UnaryMinus,$/;"	e	enum:SPARQLQuery::Filter::Type
+Underscore	SPARQLLexer.hpp	/^                 Semicolon, Comma, Dot, Underscore, LCurly, RCurly, LParen,$/;"	e	enum:SPARQLLexer::Token
+Variable	SPARQLLexer.hpp	/^    enum Token { None, Error, Eof, IRI, String, Variable, Identifier, Colon,$/;"	e	enum:SPARQLLexer::Token
+Variable	SPARQLParser.hpp	/^            Literal, Variable, IRI, Function, ArgumentList, Builtin_str,$/;"	e	enum:SPARQLParser::Filter::Type
+Variable	SPARQLParser.hpp	/^        enum Type { Variable, Literal, IRI, Template, Predicate };$/;"	e	enum:SPARQLParser::Element::Type
+Variable	query.hpp	/^                   Literal, Variable, IRI, Function, ArgumentList, Builtin_str,$/;"	e	enum:SPARQLQuery::Filter::Type
+WHITE	logger2.hpp	79;"	d
+WK_CLINE	rdma_adaptor.hpp	38;"	d
+WUKONG_LOGGER_FAIL_METHOD	assertion.hpp	96;"	d
+WUKONG_LOGGER_FAIL_METHOD	assertion.hpp	98;"	d
+YELLOW	logger2.hpp	75;"	d
+_chains_size_div_4	planner.hpp	/^    int _chains_size_div_4 ;$/;"	m	class:Planner
+_log	logger2.hpp	/^    void _log(int loglevel, const char *file, const char *function, int line,$/;"	f	class:file_logger
+_print2FC	logger2.hpp	/^    void _print2FC(int loglevel, const char *buf, int len) {$/;"	f	class:file_logger
+a	type.hpp	/^    sid_t a;  \/\/ attribute$/;"	m	struct:triple_attr_t
+adaptor	engine.hpp	/^    Adaptor *adaptor;$/;"	m	class:Engine
+adaptor	proxy.hpp	/^    Adaptor *adaptor;$/;"	m	class:Proxy
+add_pending_free	gstore.hpp	/^    inline void add_pending_free(iptr_t ptr) {$/;"	f	class:GStore
+add_var2col	query.hpp	/^        void add_var2col(ssid_t vid, int col, int t = SID_t) {$/;"	f	class:SPARQLQuery::Result
+aggregate	monitor.hpp	/^    void aggregate() {$/;"	f	class:Monitor
+aggregate_data	dgraph.hpp	/^    void aggregate_data(int num_partitions) {$/;"	f	class:DGraph
+align	buddy_malloc.hpp	/^        uint64_t align: 25;$/;"	m	struct:Buddy_Malloc::header
+alloc_edges	gstore.hpp	/^    inline uint64_t alloc_edges(uint64_t n, int64_t tid = -1) {$/;"	f	class:GStore
+alloc_edges	gstore.hpp	/^    uint64_t alloc_edges(uint64_t n, int64_t tid = -1) {$/;"	f	class:GStore
+append_attr_row_to	query.hpp	/^        void append_attr_row_to(int r, vector<attr_t> &updated_result_table) {$/;"	f	class:SPARQLQuery::Result
+append_newv_row_to	planner.hpp	/^    void append_newv_row_to(int r, vector<double> &updated_result_table, double val) {$/;"	f	class:Type_table
+append_result	query.hpp	/^        void append_result(SPARQLQuery::Result &result) {$/;"	f	class:SPARQLQuery::Result
+append_row_to	planner.hpp	/^    void append_row_to(int r, vector<double> &updated_result_table) {$/;"	f	class:Type_table
+append_row_to	query.hpp	/^        void append_row_to(int r, vector<sid_t> &update) {$/;"	f	class:SPARQLQuery::Result
+arg1	SPARQLParser.hpp	/^        Filter *arg1, *arg2, *arg3;$/;"	m	struct:SPARQLParser::Filter
+arg1	query.hpp	/^        Filter *arg1, *arg2, *arg3; \/\/\/ Input arguments$/;"	m	class:SPARQLQuery::Filter
+arg2	SPARQLParser.hpp	/^        Filter *arg1, *arg2, *arg3;$/;"	m	struct:SPARQLParser::Filter
+arg2	query.hpp	/^        Filter *arg1, *arg2, *arg3; \/\/\/ Input arguments$/;"	m	class:SPARQLQuery::Filter
+arg3	SPARQLParser.hpp	/^        Filter *arg1, *arg2, *arg3;$/;"	m	struct:SPARQLParser::Filter
+arg3	query.hpp	/^        Filter *arg1, *arg2, *arg3; \/\/\/ Input arguments$/;"	m	class:SPARQLQuery::Filter
+args2str	console.hpp	/^static void args2str(string &str)$/;"	f
+at_work	engine.hpp	/^    bool at_work; \/\/ whether engine is at work or not$/;"	m	class:Engine
+attr_col_num	query.hpp	/^        int attr_col_num = 0; \/\/ FIXME: why not no attr_row_num$/;"	m	class:SPARQLQuery::Result
+attr_res_table	query.hpp	/^        vector<attr_t> attr_res_table; \/\/ result table for others$/;"	m	class:SPARQLQuery::Result
+b2e	gstore.hpp	/^    inline uint64_t b2e(uint64_t sz) { return sz \/ sizeof(edge_t); }$/;"	f	class:GStore
+bind_to_all	bind.hpp	/^void bind_to_all()$/;"	f
+bind_to_core	bind.hpp	/^void bind_to_core(cpu_set_t mask)$/;"	f
+bind_to_core	bind.hpp	/^void bind_to_core(size_t core)$/;"	f
+blind	query.hpp	/^        bool blind = false;$/;"	m	class:SPARQLQuery::Result
+blksz	gstore.hpp	/^    inline uint64_t blksz(uint64_t sz) { return b2e(edge_allocator->sz_to_blksz(e2b(sz))); }$/;"	f	class:GStore
+block_size	buddy_malloc.hpp	/^    inline uint64_t block_size(uint64_t idx) {$/;"	f	class:Buddy_Malloc
+boost	query.hpp	/^namespace boost {$/;"	n
+bound_filter	engine.hpp	/^    void bound_filter(SPARQLQuery::Filter &filter,$/;"	f	class:Engine
+bucket_ext_lock	gstore.hpp	/^    pthread_spinlock_t bucket_ext_lock;$/;"	m	class:GStore
+bucket_locks	gstore.hpp	/^    pthread_spinlock_t bucket_locks[NUM_LOCKS]; \/\/ lock virtualization (see paper: vLokc CGO'13)$/;"	m	class:GStore
+buf	gpu_mem.hpp	/^	char *buf; \/\/ #threads$/;"	m	class:GPUMem
+buf	mem.hpp	/^    char *buf; \/\/ #threads$/;"	m	class:Mem
+buf_off	gpu_mem.hpp	/^	uint64_t buf_off;$/;"	m	class:GPUMem
+buf_off	mem.hpp	/^    uint64_t buf_off;$/;"	m	class:Mem
+buf_sz	gpu_mem.hpp	/^	uint64_t buf_sz;$/;"	m	class:GPUMem
+buf_sz	mem.hpp	/^    uint64_t buf_sz;$/;"	m	class:Mem
+buffer	gpu_mem.hpp	/^	inline char *buffer(int tid) { return buf + buf_sz * (tid % num_agents); }$/;"	f	class:GPUMem
+buffer	mem.hpp	/^    inline char *buffer(int tid) { return buf + buf_sz * tid; }$/;"	f	class:Mem
+buffer_offset	gpu_mem.hpp	/^	inline uint64_t buffer_offset(int tid) { return buf_off + buf_sz * (tid % num_agents); }$/;"	f	class:GPUMem
+buffer_offset	mem.hpp	/^    inline uint64_t buffer_offset(int tid) { return buf_off + buf_sz * tid; }$/;"	f	class:Mem
+buffer_size	gpu_mem.hpp	/^	inline uint64_t buffer_size() { return buf_sz; }$/;"	f	class:GPUMem
+buffer_size	mem.hpp	/^    inline uint64_t buffer_size() { return buf_sz; }$/;"	f	class:Mem
+bundle	engine.hpp	/^        Bundle bundle;$/;"	m	class:Engine::Message
+bundle	proxy.hpp	/^        Bundle bundle;$/;"	m	class:Proxy::Message
+ceil	dgraph.hpp	/^    uint64_t inline ceil(uint64_t original, uint64_t n) {$/;"	f	class:DGraph
+ceil	rdma_adaptor.hpp	/^    uint64_t inline ceil(uint64_t val, uint64_t alignment) {$/;"	f	class:RDMA_Adaptor
+check	rdma_adaptor.hpp	/^    bool check(int tid, int dst_sid) {$/;"	f	class:RDMA_Adaptor
+check_dup	query.hpp	/^    bool check_dup = false;$/;"	m	class:RDFLoad
+check_key_exist	gstore.hpp	/^    bool check_key_exist(ikey_t key) {$/;"	f	class:GStore
+check_on_vertex	gstore.hpp	/^    void check_on_vertex(ikey_t key, bool index_check, bool normal_check) {$/;"	f	class:GStore
+check_ret	query.hpp	/^    int check_ret = 0;$/;"	m	class:GStoreCheck
+check_sid	dgraph.hpp	/^    bool check_sid(const sid_t id) {$/;"	f	class:DGraph
+clear	query.hpp	/^        void clear() {$/;"	f	class:SPARQLQuery::Result
+cmd2args	console.hpp	/^static char **cmd2args(string str, int &argc)$/;"	f
+cnt	monitor.hpp	/^    uint64_t cnt = 0ull;$/;"	m	class:Monitor
+cnt	rmap.hpp	/^        int cnt; \/\/ #sub-queries$/;"	m	struct:RMap::Item
+coder	engine.hpp	/^    Coder coder;$/;"	m	class:Engine
+coder	proxy.hpp	/^    Coder coder;$/;"	m	class:Proxy
+col2ext	query.hpp	/^int col2ext(int col, int t) { return ((t << NBITS_COL) | col); }$/;"	f
+col_num	engine.hpp	/^        int col_num;$/;"	m	class:Engine::ReduceCmp
+col_num	planner.hpp	/^    int col_num = 0;$/;"	m	class:Type_table
+col_num	query.hpp	/^        int col_num = 0;$/;"	m	class:SPARQLQuery::Result
+composition	data_statistic.hpp	/^    std::unordered_set<int> composition;$/;"	m	struct:type_t
+console_barrier	console.hpp	/^static void console_barrier(int tid)$/;"	f
+console_recv	console.hpp	/^static T console_recv(int tid)$/;"	f
+console_send	console.hpp	/^static void console_send(int sid, int tid, T &r)$/;"	f
+const_pair	query.hpp	/^constexpr int const_pair(int t1, int t2) { return ((t1 << 4) | t2); }$/;"	f
+const_to_known	engine.hpp	/^    void const_to_known(SPARQLQuery &req) {$/;"	f	class:Engine
+const_to_unknown	engine.hpp	/^    void const_to_unknown(SPARQLQuery &req) {$/;"	f	class:Engine
+const_to_unknown_attr	engine.hpp	/^    void const_to_unknown_attr(SPARQLQuery &req) {$/;"	f	class:Engine
+const_unknown_const	engine.hpp	/^    void const_unknown_const(SPARQLQuery &req) {$/;"	f	class:Engine
+const_unknown_unknown	engine.hpp	/^    void const_unknown_unknown(SPARQLQuery &req) {$/;"	f	class:Engine
+const_var	query.hpp	/^    const_var$/;"	e	enum:var_type
+context	tcp_adaptor.hpp	/^    zmq::context_t context;$/;"	m	class:TCP_Adaptor
+convert_sid	dgraph.hpp	/^    void convert_sid(sid_t &sid) {$/;"	f	class:DGraph
+core_bindings	bind.hpp	/^map<int, int> core_bindings; \/\/ user-defined core binding$/;"	v
+correct_optional_result	query.hpp	/^    void correct_optional_result(int row) {$/;"	f	class:SPARQLQuery
+corun_enabled	SPARQLParser.hpp	/^    bool corun_enabled;$/;"	m	class:SPARQLParser
+corun_enabled	query.hpp	/^    bool corun_enabled = false;$/;"	m	class:SPARQLQuery
+corun_step	SPARQLParser.hpp	/^    int corun_step;$/;"	m	class:SPARQLParser
+corun_step	query.hpp	/^    int corun_step = 0;$/;"	m	class:SPARQLQuery
+cost	planner.hpp	/^    double cost;           \/\/ min cost$/;"	m	struct:plan
+count	data_statistic.hpp	/^    int count;$/;"	m	struct:ty_count
+count_optional_new_vars	query.hpp	/^    void count_optional_new_vars(Result &r) {$/;"	f	class:SPARQLQuery
+counter_lock	buddy_malloc.hpp	/^    pthread_spinlock_t counter_lock;$/;"	m	class:Buddy_Malloc
+ctrl	rdma.hpp	/^        RdmaCtrl* ctrl = NULL;$/;"	m	class:RDMA::RDMA_Device
+data	query.hpp	/^    string data;$/;"	m	class:Bundle
+data_statistic	data_statistic.hpp	/^    data_statistic() { }$/;"	f	class:data_statistic
+data_statistic	data_statistic.hpp	/^    data_statistic(int _sid) : sid(_sid) { }$/;"	f	class:data_statistic
+data_statistic	data_statistic.hpp	/^class data_statistic {$/;"	c
+data_type	data_statistic.hpp	/^    bool data_type;   \/\/true for type_composition, false for index_composition$/;"	m	struct:type_t
+dedup_triples	dgraph.hpp	/^    void dedup_triples(vector<triple_t> &triples) {$/;"	f	class:DGraph
+default_bindings	bind.hpp	/^vector<int> default_bindings; \/\/ bind to core one-by-one$/;"	v
+descending	SPARQLParser.hpp	/^        bool descending;$/;"	m	struct:SPARQLParser::Order
+descending	query.hpp	/^        bool descending;    \/\/\/ desending$/;"	m	class:SPARQLQuery::Order
+dev	rdma.hpp	/^    RDMA_Device *dev = NULL;$/;"	m	class:RDMA
+devid	gpu_mem.hpp	/^    int devid;$/;"	m	class:GPUMem
+dir	gstore.hpp	/^uint64_t dir : NBITS_DIR; \/\/ direction$/;"	m	struct:ikey_t
+dir_t	type.hpp	/^enum dir_t { IN = 0, OUT, CORUN }; \/\/ direction: IN=0, OUT=1, and optimization hints$/;"	g
+direction	SPARQLParser.hpp	/^        dir_t direction = OUT;$/;"	m	struct:SPARQLParser::Pattern
+direction	query.hpp	/^        dir_t  direction;$/;"	m	class:SPARQLQuery::Pattern
+distinct	query.hpp	/^    bool distinct = false;$/;"	m	class:SPARQLQuery
+do_corun	engine.hpp	/^    void do_corun(SPARQLQuery &req) {$/;"	f	class:Engine
+done	query.hpp	/^    bool done(SQState state) {$/;"	f	class:SPARQLQuery
+done_time	monitor.hpp	/^    uint64_t init_time = 0ull, done_time = 0ull;$/;"	m	class:Monitor
+dump_node_topo	bind.hpp	/^void dump_node_topo(vector<vector<int>> topo)$/;"	f
+dump_result	query.hpp	/^        void dump_result(string path, int row2print, String_Server *str_server) {$/;"	f	class:SPARQLQuery::Result
+dynamic_load_data	dgraph.hpp	/^    int64_t dynamic_load_data(string dname, bool check_dup) {$/;"	f	class:DGraph
+dynamic_load_data	proxy.hpp	/^    int dynamic_load_data(string &dname, RDFLoad &reply, Monitor &monitor, bool &check_dup) {$/;"	f	class:Proxy
+dynamic_load_mappings	dgraph.hpp	/^    void dynamic_load_mappings(string dname) {$/;"	f	class:DGraph
+e2b	gstore.hpp	/^    inline uint64_t e2b(uint64_t sz) { return sz * sizeof(edge_t); }$/;"	f	class:GStore
+edge_allocator	gstore.hpp	/^    Malloc_Interface *edge_allocator;$/;"	m	class:GStore
+edge_is_valid	gstore.hpp	/^    inline bool edge_is_valid(vertex_t &v, edge_t *edge_ptr) {$/;"	f	class:GStore
+edge_t	gstore.hpp	/^struct edge_t {$/;"	s
+edges	gstore.hpp	/^    edge_t *edges;$/;"	m	class:GStore
+empty	query.hpp	/^char empty = 1;$/;"	m	namespace:boost::serialization
+enable_binding	bind.hpp	/^bool enable_binding = false;$/;"	v
+enable_oneshot	console.hpp	/^bool enable_oneshot = false;$/;"	v
+end_record	monitor.hpp	/^    void end_record(int reqid) {$/;"	f	class:Monitor
+end_thpt	monitor.hpp	/^    void end_thpt(uint64_t end) {$/;"	f	class:Monitor
+end_time	monitor.hpp	/^        uint64_t end_time = 0ull;$/;"	m	struct:Monitor::req_stats
+engine_thread	wukong.cpp	/^void *engine_thread(void *arg)$/;"	f
+engines	engine.hpp	/^std::vector<Engine *> engines;$/;"	v
+entry_lock	gstore.hpp	/^    pthread_spinlock_t entry_lock;$/;"	m	class:GStore
+exec	logger2.hpp	/^    inline static file_logger &exec(int lineloglevel, const char *file,$/;"	f	struct:log_stream_dispatch
+exec	logger2.hpp	/^    inline static null_stream exec(int lineloglevel, const char *file,$/;"	f	struct:log_stream_dispatch
+exec	logger2.hpp	/^    inline static void exec(int loglevel, const char *file, const char *function,$/;"	f	struct:log_dispatch
+execute	engine.hpp	/^    void execute(Bundle &bundle, Engine *engine) {$/;"	f	class:Engine
+execute_gstore_check	engine.hpp	/^    void execute_gstore_check(GStoreCheck &r) {$/;"	f	class:Engine
+execute_load_data	engine.hpp	/^    void execute_load_data(RDFLoad & r) {$/;"	f	class:Engine
+execute_one_pattern	engine.hpp	/^    bool execute_one_pattern(SPARQLQuery &req) {$/;"	f	class:Engine
+execute_patterns	engine.hpp	/^    bool execute_patterns(SPARQLQuery &r) {$/;"	f	class:Engine
+execute_sparql_query	engine.hpp	/^    void execute_sparql_query(SPARQLQuery &r, Engine *engine) {$/;"	f	class:Engine
+exist	string_server.hpp	/^    bool exist(sid_t sid) { return id2str.find(sid) != id2str.end(); }$/;"	f	class:String_Server
+exist	string_server.hpp	/^    bool exist(string str) { return str2id.find(str) != str2id.end(); }$/;"	f	class:String_Server
+expire_time	gstore.hpp	/^            uint64_t expire_time;$/;"	m	struct:GStore::RDMA_Cache::Item
+expire_time	gstore.hpp	/^        uint64_t expire_time;$/;"	m	struct:GStore::free_blk
+ext2col	query.hpp	/^int ext2col(int ext) { return (ext & ((1 << NBITS_COL) - 1)); }$/;"	f
+ext2type	query.hpp	/^int ext2type(int ext) { return ((ext >> NBITS_COL) & ((1 << NBITS_COL) - 1)); }$/;"	f
+f	logger2.hpp	/^    file_logger &operator<<(std::ostream & (*f)(std::ostream &)) {$/;"	f	class:file_logger
+f	logger2.hpp	/^    inline null_stream operator<<(std::ostream & (*f)(std::ostream &)) {$/;"	f	struct:null_stream
+fail_to_parse	console.hpp	/^static void fail_to_parse(Proxy *proxy, int argc, char** argv)$/;"	f
+fetch	rdma_adaptor.hpp	/^    std::string fetch(int tid, int dst_sid) {$/;"	f	class:RDMA_Adaptor
+fetch_step	SPARQLParser.hpp	/^    int fetch_step;$/;"	m	class:SPARQLParser
+fetch_step	query.hpp	/^    int fetch_step = 0;$/;"	m	class:SPARQLQuery
+file2items	config.hpp	/^static void file2items(string fname, map<string, string> &items)$/;"	f
+file2str	console.hpp	/^static void file2str(string fname, string &str)$/;"	f
+file_logger	logger2.hpp	/^    file_logger() {$/;"	f	class:file_logger
+file_logger	logger2.hpp	/^class file_logger {$/;"	c
+fill_template	proxy.hpp	/^    void fill_template(SPARQLQuery_Template &sqt) {$/;"	f	class:Proxy
+filter	engine.hpp	/^    void filter(SPARQLQuery &r) {$/;"	f	class:Engine
+filters	SPARQLParser.hpp	/^        std::vector<Filter> filters;$/;"	m	struct:SPARQLParser::PatternGroup
+filters	query.hpp	/^        vector<Filter> filters;$/;"	m	class:SPARQLQuery::PatternGroup
+final_process	engine.hpp	/^    void final_process(SPARQLQuery &r) {$/;"	f	class:Engine
+fine_type	data_statistic.hpp	/^    unordered_map<pair<ssid_t, ssid_t>, vector<ty_count>, boost::hash<pair<int, int>>> fine_type;$/;"	m	struct:type_stat
+finish	monitor.hpp	/^    void finish() {$/;"	f	class:Monitor
+floor	dgraph.hpp	/^    uint64_t inline floor(uint64_t original, uint64_t n) {$/;"	f	class:DGraph
+floor	rdma_adaptor.hpp	/^    uint64_t inline floor(uint64_t val, uint64_t alignment) {$/;"	f	class:RDMA_Adaptor
+flush_convertmap	dgraph.hpp	/^    void flush_convertmap() { id2id.clear(); }$/;"	f	class:DGraph
+flush_triples	dgraph.hpp	/^    void flush_triples(int tid, int dst_sid) {$/;"	f	class:DGraph
+fout	logger2.hpp	/^    std::ofstream fout;$/;"	m	class:file_logger
+free	buddy_malloc.hpp	/^    void free(uint64_t free_idx) {$/;"	f	class:Buddy_Malloc
+free_blk	gstore.hpp	/^        free_blk(uint64_t off, uint64_t expire_time): off(off), expire_time(expire_time) { }$/;"	f	struct:GStore::free_blk
+free_blk	gstore.hpp	/^    struct free_blk {$/;"	s	class:GStore
+free_queue	gstore.hpp	/^    queue<free_blk> free_queue;$/;"	m	class:GStore
+free_queue_lock	gstore.hpp	/^    pthread_spinlock_t free_queue_lock;$/;"	m	class:GStore
+gather_stat	data_statistic.hpp	/^    void gather_stat(TCP_Adaptor *tcp_ad) {$/;"	f	class:data_statistic
+general_filter	engine.hpp	/^    void general_filter(SPARQLQuery::Filter &filter,$/;"	f	class:Engine
+generate_for_group	planner.hpp	/^    bool generate_for_group(SPARQLQuery::PatternGroup &group) {$/;"	f	class:Planner
+generate_for_patterns	planner.hpp	/^    bool generate_for_patterns(vector<SPARQLQuery::Pattern> &patterns){$/;"	f	class:Planner
+generate_plan	planner.hpp	/^    bool generate_plan(SPARQLQuery &r, data_statistic *statistic) {$/;"	f	class:Planner
+generate_statistic	gstore.hpp	/^    void generate_statistic(data_statistic &stat) {$/;"	f	class:GStore
+generate_sub_query	engine.hpp	/^    vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req) {$/;"	f	class:Engine
+getCorunStep	SPARQLParser.hpp	/^    int getCorunStep() const { return corun_step; }$/;"	f	class:SPARQLParser
+getFetchStep	SPARQLParser.hpp	/^    int getFetchStep() const { return fetch_step; }$/;"	f	class:SPARQLParser
+getIRIValue	SPARQLLexer.hpp	/^    std::string getIRIValue() const {$/;"	f	class:SPARQLLexer
+getLimit	SPARQLParser.hpp	/^    int getLimit() const { return limit; }$/;"	f	class:SPARQLParser
+getLiteralValue	SPARQLLexer.hpp	/^    std::string getLiteralValue() const {$/;"	f	class:SPARQLLexer
+getNext	SPARQLLexer.hpp	/^    Token getNext() {$/;"	f	class:SPARQLLexer
+getOffset	SPARQLParser.hpp	/^    unsigned getOffset() const { return offset; }$/;"	f	class:SPARQLParser
+getPatterns	SPARQLParser.hpp	/^    const PatternGroup &getPatterns() const { return patterns; }$/;"	f	class:SPARQLParser
+getProjectionModifier	SPARQLParser.hpp	/^    ProjectionModifier getProjectionModifier() const { return projectionModifier; }$/;"	f	class:SPARQLParser
+getReader	SPARQLLexer.hpp	/^    std::string::const_iterator getReader() const {$/;"	f	class:SPARQLLexer
+getTokenValue	SPARQLLexer.hpp	/^    std::string getTokenValue() const {$/;"	f	class:SPARQLLexer
+getVariableCount	SPARQLParser.hpp	/^    unsigned getVariableCount() const { return variableCount; }$/;"	f	class:SPARQLParser
+getVariableName	SPARQLParser.hpp	/^    std::string getVariableName(int id) const {$/;"	f	class:SPARQLParser
+get_and_inc_qid	coder.hpp	/^    int get_and_inc_qid() {$/;"	f	class:Coder
+get_attr_col_num	query.hpp	/^        int get_attr_col_num() { return  attr_col_num; }$/;"	f	class:SPARQLQuery::Result
+get_attr_row_col	query.hpp	/^        attr_t get_attr_row_col(int r, int c) {$/;"	f	class:SPARQLQuery::Result
+get_col_num	planner.hpp	/^    int get_col_num() { return col_num; };$/;"	f	class:Type_table
+get_col_num	query.hpp	/^        int get_col_num() { return col_num; }$/;"	f	class:SPARQLQuery::Result
+get_core_binding	bind.hpp	/^cpu_set_t get_core_binding()$/;"	f
+get_edges_global	dgraph.hpp	/^    edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {$/;"	f	class:DGraph
+get_edges_global	gstore.hpp	/^    edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {$/;"	f	class:GStore
+get_edges_local	gstore.hpp	/^    edge_t *get_edges_local(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {$/;"	f	class:GStore
+get_edges_remote	gstore.hpp	/^    edge_t *get_edges_remote(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {$/;"	f	class:GStore
+get_free_buddy	buddy_malloc.hpp	/^    uint64_t get_free_buddy(uint64_t idx, uint64_t level) {$/;"	f	class:Buddy_Malloc
+get_free_idx_large	buddy_malloc.hpp	/^    uint64_t get_free_idx_large(uint64_t need_level, uint64_t& free_level) {$/;"	f	class:Buddy_Malloc
+get_free_idx_small	buddy_malloc.hpp	/^    uint64_t get_free_idx_small(uint64_t need_level, uint64_t& free_level, int64_t tid) {$/;"	f	class:Buddy_Malloc
+get_gstore_check	query.hpp	/^    GStoreCheck get_gstore_check() {$/;"	f	class:Bundle
+get_header_idx	buddy_malloc.hpp	/^    inline uint64_t get_header_idx(uint64_t value_idx) {$/;"	f	class:Buddy_Malloc
+get_index_edges_local	dgraph.hpp	/^    edge_t *get_index_edges_local(int tid, sid_t vid, dir_t d, uint64_t *sz) {$/;"	f	class:DGraph
+get_index_edges_local	gstore.hpp	/^    edge_t *get_index_edges_local(int tid, sid_t pid, dir_t d, uint64_t *sz) {$/;"	f	class:GStore
+get_log_file	logger2.hpp	/^    std::string get_log_file(void) { return log_file; }$/;"	f	class:file_logger
+get_log_level	logger2.hpp	/^    int get_log_level() { return log_level; }$/;"	f	class:file_logger
+get_log_to_console	logger2.hpp	/^    bool get_log_to_console() { return log_to_console; }$/;"	f	class:file_logger
+get_merged_reply	rmap.hpp	/^    SPARQLQuery get_merged_reply(int pid) {$/;"	f	class:RMap
+get_pattern	query.hpp	/^    Pattern & get_pattern() {$/;"	f	class:SPARQLQuery
+get_pattern	query.hpp	/^    Pattern & get_pattern(int step) {$/;"	f	class:SPARQLQuery
+get_potype_count	data_statistic.hpp	/^    int get_potype_count(ssid_t predicate, ssid_t type) {$/;"	f	struct:type_stat
+get_pstype_count	data_statistic.hpp	/^    int get_pstype_count(ssid_t predicate, ssid_t type) {$/;"	f	struct:type_stat
+get_random	coder.hpp	/^    unsigned int get_random() { return rand_r(&seed); }$/;"	f	class:Coder
+get_rdf_load	query.hpp	/^    RDFLoad get_rdf_load() {$/;"	f	class:Bundle
+get_rdma	rdma.hpp	/^    static RDMA &get_rdma() {$/;"	f	class:RDMA
+get_row_col	planner.hpp	/^    double get_row_col(int r, int c) {$/;"	f	class:Type_table
+get_row_col	query.hpp	/^        sid_t get_row_col(int r, int c) {$/;"	f	class:SPARQLQuery::Result
+get_row_num	planner.hpp	/^    int get_row_num() {$/;"	f	class:Type_table
+get_row_num	query.hpp	/^        int get_row_num() {$/;"	f	class:SPARQLQuery::Result
+get_simple_type	data_statistic.hpp	/^    ssid_t get_simple_type(type_t &type){$/;"	f	class:data_statistic
+get_sparql_query	query.hpp	/^    SPARQLQuery get_sparql_query() {$/;"	f	class:Bundle
+get_start	query.hpp	/^        ssid_t get_start() {$/;"	f	class:SPARQLQuery::PatternGroup
+get_type	planner.hpp	/^    ssid_t get_type(ssid_t constant){$/;"	f	class:Planner
+get_type	query.hpp	/^    string get_type() {$/;"	f	class:Bundle
+get_value_idx	buddy_malloc.hpp	/^    inline uint64_t get_value_idx(uint64_t header_idx) {$/;"	f	class:Buddy_Malloc
+get_vertex_attr_global	dgraph.hpp	/^    attr_t  get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, bool& has_value) {$/;"	f	class:DGraph
+get_vertex_attr_global	gstore.hpp	/^    attr_t get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, bool &has_value) {$/;"	f	class:GStore
+get_vertex_attr_local	gstore.hpp	/^    attr_t get_vertex_attr_local(int tid, sid_t vid, dir_t d, sid_t pid, bool &has_value) {$/;"	f	class:GStore
+get_vertex_attr_remote	gstore.hpp	/^    attr_t get_vertex_attr_remote(int tid, sid_t vid, dir_t d, sid_t pid, bool &has_value) {$/;"	f	class:GStore
+get_vertex_local	gstore.hpp	/^    vertex_t get_vertex_local(int tid, ikey_t key) {$/;"	f	class:GStore
+get_vertex_remote	gstore.hpp	/^    vertex_t get_vertex_remote(int tid, ikey_t key) {$/;"	f	class:GStore
+global_ctrl_port_base	config.hpp	/^int global_ctrl_port_base = 9576;$/;"	v
+global_data_port_base	config.hpp	/^int global_data_port_base = 5500;$/;"	v
+global_enable_caching	config.hpp	/^bool global_enable_caching = true;$/;"	v
+global_enable_planner	config.hpp	/^bool global_enable_planner = true;  \/\/ for planner$/;"	v
+global_enable_vattr	config.hpp	/^bool global_enable_vattr = false;  \/\/ for attr$/;"	v
+global_enable_workstealing	config.hpp	/^bool global_enable_workstealing = false;$/;"	v
+global_generate_statistics	config.hpp	/^bool global_generate_statistics = true;$/;"	v
+global_gpu_rdma_buf_size_mb	config.hpp	/^int global_gpu_rdma_buf_size_mb = 64;$/;"	v
+global_input_folder	config.hpp	/^string global_input_folder;$/;"	v
+global_logger	logger2.hpp	/^file_logger &global_logger() {$/;"	f
+global_memstore_size_gb	config.hpp	/^int global_memstore_size_gb = 20;$/;"	v
+global_mt_threshold	config.hpp	/^int global_mt_threshold = 16;$/;"	v
+global_num_engines	config.hpp	/^int global_num_engines = 1;    \/\/ the number of engines$/;"	v
+global_num_gpus	config.hpp	/^int global_num_gpus = 1;$/;"	v
+global_num_proxies	config.hpp	/^int global_num_proxies = 1;    \/\/ the number of proxies$/;"	v
+global_num_servers	config.hpp	/^int global_num_servers = 1;    \/\/ the number of servers$/;"	v
+global_num_threads	config.hpp	/^int global_num_threads = 2;    \/\/ the number of threads per server (incl. proxy and engine)$/;"	v
+global_rdma_buf_size_mb	config.hpp	/^int global_rdma_buf_size_mb = 64;$/;"	v
+global_rdma_rbf_size_mb	config.hpp	/^int global_rdma_rbf_size_mb = 16;$/;"	v
+global_rdma_threshold	config.hpp	/^int global_rdma_threshold = 300;$/;"	v
+global_silent	config.hpp	/^bool global_silent = true;  \/\/ don't take back results by default$/;"	v
+global_single2complex	data_statistic.hpp	/^    unordered_map<ssid_t, unordered_set<ssid_t>> global_single2complex;    $/;"	m	class:data_statistic
+global_type2int	data_statistic.hpp	/^    unordered_map<type_t, ssid_t, type_t_hasher> global_type2int;$/;"	m	class:data_statistic
+global_tyscount	data_statistic.hpp	/^    unordered_map<ssid_t, int> global_tyscount;$/;"	m	class:data_statistic
+global_tystat	data_statistic.hpp	/^    type_stat global_tystat;$/;"	m	class:data_statistic
+global_use_rdma	config.hpp	/^bool global_use_rdma = true;$/;"	v
+graph	engine.hpp	/^    DGraph *graph;$/;"	m	class:Engine
+graph	planner.hpp	/^    DGraph *graph;    $/;"	m	class:Planner
+gstore	dgraph.hpp	/^    GStore gstore;$/;"	m	class:DGraph
+gstore_check	dgraph.hpp	/^    int gstore_check(bool index_check, bool normal_check) {$/;"	f	class:DGraph
+gstore_check	gstore.hpp	/^    int gstore_check(bool index_check, bool normal_check) {$/;"	f	class:GStore
+gstore_check	proxy.hpp	/^    int gstore_check(GStoreCheck &reply, Monitor &monitor, bool i_enable, bool n_enable) {$/;"	f	class:Proxy
+hasNext	SPARQLLexer.hpp	/^    bool hasNext(Token value) {$/;"	f	class:SPARQLLexer
+hasTokenEnd	SPARQLLexer.hpp	/^    bool hasTokenEnd;$/;"	m	class:SPARQLLexer
+has_filter	query.hpp	/^    bool has_filter() { return pattern_group.filters.size() > 0; }$/;"	f	class:SPARQLQuery
+has_optional	query.hpp	/^    bool has_optional() { return pattern_group.optional.size() > 0; }$/;"	f	class:SPARQLQuery
+has_pattern	query.hpp	/^    bool has_pattern() { return pattern_group.patterns.size() > 0; }$/;"	f	class:SPARQLQuery
+has_rdma	rdma.hpp	/^    inline static bool has_rdma() { return true; }$/;"	f	class:RDMA
+has_union	query.hpp	/^    bool has_union() { return pattern_group.unions.size() > 0; }$/;"	f	class:SPARQLQuery
+hash	gstore.hpp	/^    uint64_t hash() {$/;"	f	struct:ikey_t
+hash_pair	engine.hpp	/^int64_t hash_pair(const int64_pair &x) {$/;"	f
+head	rdma_adaptor.hpp	/^        uint64_t head;$/;"	m	struct:RDMA_Adaptor::rbf_lmeta_t
+header	buddy_malloc.hpp	/^    struct header {$/;"	s	class:Buddy_Malloc
+heap_size	buddy_malloc.hpp	/^    uint64_t heap_size;$/;"	m	class:Buddy_Malloc
+id	SPARQLParser.hpp	/^        int id;$/;"	m	struct:SPARQLParser::Order
+id	SPARQLParser.hpp	/^        unsigned id;$/;"	m	struct:SPARQLParser::Element
+id	query.hpp	/^        ssid_t id;  \/\/\/ variable id$/;"	m	class:SPARQLQuery::Order
+id	query.hpp	/^    int id = -1;     \/\/ query id$/;"	m	class:SPARQLQuery
+id2id	dgraph.hpp	/^    boost::unordered_map<sid_t, sid_t> id2id;$/;"	m	class:DGraph
+id2str	string_server.hpp	/^    boost::unordered_map<sid_t, string> id2str;$/;"	m	class:String_Server
+idx_check_indir	gstore.hpp	/^    void idx_check_indir(ikey_t key, bool check) {$/;"	f	class:GStore
+idx_check_outdir	gstore.hpp	/^    void idx_check_outdir(ikey_t key, bool check) {$/;"	f	class:GStore
+idx_to_ptr	buddy_malloc.hpp	/^    inline void *idx_to_ptr(uint64_t idx) {$/;"	f	class:Buddy_Malloc
+ikey_t	gstore.hpp	/^    ikey_t(): vid(0), pid(0), dir(0) { }$/;"	f	struct:ikey_t
+ikey_t	gstore.hpp	/^    ikey_t(sid_t v, sid_t p, dir_t d): vid(v), pid(p), dir(d) {$/;"	f	struct:ikey_t
+ikey_t	gstore.hpp	/^struct ikey_t {$/;"	s
+in_use	buddy_malloc.hpp	/^        uint64_t in_use: 1;$/;"	m	struct:Buddy_Malloc::header
+index_check	query.hpp	/^    bool index_check = false;$/;"	m	class:GStoreCheck
+index_to_known	engine.hpp	/^    void index_to_known(SPARQLQuery &req) {$/;"	f	class:Engine
+index_to_unknown	engine.hpp	/^    void index_to_unknown(SPARQLQuery &req) {$/;"	f	class:Engine
+inherit_optional	query.hpp	/^    void inherit_optional(SPARQLQuery &r) {$/;"	f	class:SPARQLQuery
+inherit_union	query.hpp	/^    void inherit_union(SPARQLQuery &r, int idx) {$/;"	f	class:SPARQLQuery
+init	buddy_malloc.hpp	/^    void init(void *start, uint64_t size, uint64_t n) {$/;"	f	class:Buddy_Malloc
+init	monitor.hpp	/^    void init() {$/;"	f	class:Monitor
+init	monitor.hpp	/^    void init(int nquery_types) {$/;"	f	class:Monitor
+init	rdma_adaptor.hpp	/^    bool init = false;$/;"	m	class:RDMA_Adaptor
+init_dev	rdma.hpp	/^    void init_dev(int nnodes, int nthds, int nid, vector<RDMA::MemoryRegion> &mrs, string ipfn) {$/;"	f	class:RDMA
+init_options_desc	console.hpp	/^void init_options_desc()$/;"	f
+init_time	monitor.hpp	/^    uint64_t init_time = 0ull, done_time = 0ull;$/;"	m	class:Monitor
+input	SPARQLLexer.hpp	/^    std::string input;$/;"	m	class:SPARQLLexer
+insert	gstore.hpp	/^        void insert(vertex_t &v) {$/;"	f	class:GStore::RDMA_Cache
+insert_blank_col	query.hpp	/^        void insert_blank_col(int col) {$/;"	f	class:SPARQLQuery::Result
+insert_finetype	data_statistic.hpp	/^    int insert_finetype(ssid_t first, ssid_t second, ssid_t type, int count){$/;"	f	struct:type_stat
+insert_index	gstore.hpp	/^    void insert_index() {$/;"	f	class:GStore
+insert_index_map	gstore.hpp	/^    void insert_index_map(tbb_hash_map &map, dir_t d) {$/;"	f	class:GStore
+insert_index_set	gstore.hpp	/^    void insert_index_set(tbb_unordered_set &set, sid_t tpid, dir_t d) {$/;"	f	class:GStore
+insert_key	gstore.hpp	/^    uint64_t insert_key(ikey_t key, bool check_dup = true) {$/;"	f	class:GStore
+insert_normal	gstore.hpp	/^    void insert_normal(vector<triple_t> &spo, vector<triple_t> &ops, int tid) {$/;"	f	class:GStore
+insert_otype	data_statistic.hpp	/^    int insert_otype(ssid_t predicate, ssid_t type, int count) {$/;"	f	struct:type_stat
+insert_stype	data_statistic.hpp	/^    int insert_stype(ssid_t predicate, ssid_t type, int count) {$/;"	f	struct:type_stat
+insert_sz	gstore.hpp	/^    inline void insert_sz(uint64_t flag, uint64_t sz, uint64_t off) {$/;"	f	class:GStore
+insert_triple_in	gstore.hpp	/^    void insert_triple_in(const triple_t &triple, bool check_dup) {$/;"	f	class:GStore
+insert_triple_out	gstore.hpp	/^    void insert_triple_out(const triple_t &triple, bool check_dup) {$/;"	f	class:GStore
+insert_vertex_attr	gstore.hpp	/^    void insert_vertex_attr(vector<triple_attr_t> &attrs, int64_t tid) {$/;"	f	class:GStore
+insert_vertex_edge	gstore.hpp	/^    bool insert_vertex_edge(ikey_t key, uint64_t value, bool &dedup_or_isdup) {$/;"	f	class:GStore
+instantiate	query.hpp	/^    SPARQLQuery instantiate(int seed) {$/;"	f	class:SPARQLQuery_Template
+int64_pair	engine.hpp	/^typedef pair<int64_t, int64_t> int64_pair;$/;"	t
+internal_map	rmap.hpp	/^    boost::unordered_map<int, Item> internal_map;$/;"	m	class:RMap
+interval	monitor.hpp	/^    uint64_t interval = MSEC(500);  \/\/ 50msec$/;"	m	class:Monitor
+invalidate	gstore.hpp	/^        void invalidate(ikey_t key) {$/;"	f	class:GStore::RDMA_Cache
+ip_of	tcp_adaptor.hpp	/^    string ip_of(int sid) { return ipset[sid]; }$/;"	f	class:TCP_Adaptor
+ipset	tcp_adaptor.hpp	/^    vector<string> ipset;$/;"	m	class:TCP_Adaptor
+iptr_t	gstore.hpp	/^    iptr_t(): size(0), off(0), type(0) { }$/;"	f	struct:iptr_t
+iptr_t	gstore.hpp	/^    iptr_t(uint64_t s, uint64_t o, uint64_t t = 0): size(s), off(o), type(t) {$/;"	f	struct:iptr_t
+iptr_t	gstore.hpp	/^struct iptr_t {$/;"	s
+isCorunEnabled	SPARQLParser.hpp	/^    bool isCorunEnabled() const { return corun_enabled; }$/;"	f	class:SPARQLParser
+isKeyword	SPARQLLexer.hpp	/^    bool isKeyword(const char* keyword) const {$/;"	f	class:SPARQLLexer
+isUsingCustomGrammar	SPARQLParser.hpp	/^    bool isUsingCustomGrammar() const { return usingCustomGrammar; }$/;"	f	class:SPARQLParser
+is_IRI_filter	engine.hpp	/^    void is_IRI_filter(SPARQLQuery::Filter &filter,$/;"	f	class:Engine
+is_aggregated	monitor.hpp	/^    bool is_aggregated = false;$/;"	m	class:Monitor
+is_attr_col	query.hpp	/^        bool is_attr_col(ssid_t vid) {$/;"	f	class:SPARQLQuery::Result
+is_dup	gstore.hpp	/^    bool is_dup(vertex_t *v, uint64_t value) {$/;"	f	class:GStore
+is_empty	gstore.hpp	/^    bool is_empty() { return ((vid == 0) && (pid == 0) && (dir == 0)); }$/;"	f	struct:ikey_t
+is_empty	planner.hpp	/^    bool is_empty;            \/\/ help identify empty queries$/;"	m	class:Planner
+is_empty_large	buddy_malloc.hpp	/^    inline bool is_empty_large(uint64_t level) {$/;"	f	class:Buddy_Malloc
+is_empty_small	buddy_malloc.hpp	/^    inline bool is_empty_small(uint64_t level, int64_t tid) {$/;"	f	class:Buddy_Malloc
+is_ready	rmap.hpp	/^    bool is_ready(int pid) {$/;"	f	class:RMap
+is_tpid	gstore.hpp	/^static inline bool is_tpid(ssid_t id) { return (id > 1) && (id < (1 << NBITS_IDX)); }$/;"	f
+is_vid	gstore.hpp	/^static inline bool is_vid(ssid_t id) { return id >= (1 << NBITS_IDX); }$/;"	f
+items	gstore.hpp	/^        Item items[NUM_ITEMS];$/;"	m	class:GStore::RDMA_Cache
+ivertex_num	gstore.hpp	/^    uint64_t ivertex_num = 0;$/;"	m	class:GStore
+key	gstore.hpp	/^    ikey_t key; \/\/ 64-bit: vertex | predicate | direction$/;"	m	struct:vertex_t
+known_to_const	engine.hpp	/^    void known_to_const(SPARQLQuery &req) {$/;"	f	class:Engine
+known_to_known	engine.hpp	/^    void known_to_known(SPARQLQuery &req) {$/;"	f	class:Engine
+known_to_unknown	engine.hpp	/^    void known_to_unknown(SPARQLQuery &req) {$/;"	f	class:Engine
+known_to_unknown_attr	engine.hpp	/^    void known_to_unknown_attr(SPARQLQuery &req) {$/;"	f	class:Engine
+known_unknown_const	engine.hpp	/^    void known_unknown_const(SPARQLQuery &req) {$/;"	f	class:Engine
+known_unknown_unknown	engine.hpp	/^    void known_unknown_unknown(SPARQLQuery &req) {$/;"	f	class:Engine
+known_var	query.hpp	/^    known_var,$/;"	e	enum:var_type
+kvs	mem.hpp	/^    char *kvs;$/;"	m	class:Mem
+kvs_off	mem.hpp	/^    uint64_t kvs_off;$/;"	m	class:Mem
+kvs_sz	mem.hpp	/^    uint64_t kvs_sz;$/;"	m	class:Mem
+kvstore	mem.hpp	/^    inline char *kvstore() { return kvs; }$/;"	f	class:Mem
+kvstore_offset	mem.hpp	/^    inline uint64_t kvstore_offset() { return kvs_off; }$/;"	f	class:Mem
+kvstore_size	mem.hpp	/^    inline uint64_t kvstore_size() { return kvs_sz; }$/;"	f	class:Mem
+large_free	buddy_malloc.hpp	/^    void large_free(uint64_t free_header_idx) {$/;"	f	class:Buddy_Malloc
+large_free_list	buddy_malloc.hpp	/^    header *large_free_list[level_up_bound - level_dividing_line + 1];$/;"	m	class:Buddy_Malloc
+large_malloc	buddy_malloc.hpp	/^    uint64_t large_malloc(uint64_t need_level) {$/;"	f	class:Buddy_Malloc
+large_sbrk	buddy_malloc.hpp	/^    char *large_sbrk() {$/;"	f	class:Buddy_Malloc
+last_cnt	monitor.hpp	/^    uint64_t last_cnt = 0ull;$/;"	m	class:Monitor
+last_entry	gstore.hpp	/^    uint64_t last_entry;$/;"	m	class:GStore
+last_ext	gstore.hpp	/^    uint64_t last_ext;$/;"	m	class:GStore
+last_separator	monitor.hpp	/^    uint64_t last_time = 0ull, last_separator = 0ull;$/;"	m	class:Monitor
+last_time	engine.hpp	/^    uint64_t last_time; \/\/ busy or not (work-oblige)$/;"	m	class:Engine
+last_time	monitor.hpp	/^    uint64_t last_time = 0ull, last_separator = 0ull;$/;"	m	class:Monitor
+lease	gstore.hpp	/^        uint64_t lease;   \/\/ term of cache item. Only work for cache coherence.$/;"	m	class:GStore::RDMA_Cache
+lease	gstore.hpp	/^    uint64_t lease;$/;"	m	class:GStore
+level	buddy_malloc.hpp	/^        uint64_t level: 6;$/;"	m	struct:Buddy_Malloc::header
+level_dividing_line	buddy_malloc.hpp	/^    static const uint64_t level_dividing_line = 22;$/;"	m	class:Buddy_Malloc
+level_low_bound	buddy_malloc.hpp	/^    static const uint64_t level_low_bound = 4;$/;"	m	class:Buddy_Malloc
+level_to_index_large	buddy_malloc.hpp	/^    inline uint64_t level_to_index_large(uint64_t level) {$/;"	f	class:Buddy_Malloc
+level_to_index_small	buddy_malloc.hpp	/^    inline uint64_t level_to_index_small(uint64_t level, int64_t tid = -1) {$/;"	f	class:Buddy_Malloc
+level_up_bound	buddy_malloc.hpp	/^    static const uint64_t level_up_bound = 32;$/;"	m	class:Buddy_Malloc
+lexer	SPARQLParser.hpp	/^    SPARQLLexer &lexer;$/;"	m	class:SPARQLParser
+limit	SPARQLParser.hpp	/^    int limit;$/;"	m	class:SPARQLParser
+limit	query.hpp	/^    int limit = -1;$/;"	m	class:SPARQLQuery
+list_files	dgraph.hpp	/^    inline vector<string> list_files(string dname, string prefix) {$/;"	f	class:DGraph
+lmetas	rdma_adaptor.hpp	/^    rbf_lmeta_t *lmetas = NULL;$/;"	m	class:RDMA_Adaptor
+load	query.hpp	/^void load(Archive & ar, SPARQLQuery &t, unsigned int version) {$/;"	f	namespace:boost::serialization
+load	query.hpp	/^void load(Archive & ar, SPARQLQuery::Result &t, unsigned int version) {$/;"	f	namespace:boost::serialization
+load	query.hpp	/^void load(Archive &ar, SPARQLQuery::Pattern &t, unsigned int version) {$/;"	f	namespace:boost::serialization
+load	query.hpp	/^void load(Archive &ar, SPARQLQuery::PatternGroup &t, unsigned int version) {$/;"	f	namespace:boost::serialization
+load_attr_from_allfiles	dgraph.hpp	/^    void load_attr_from_allfiles(vector<string> &fnames) {$/;"	f	class:DGraph
+load_config	config.hpp	/^void load_config(string fname, int num_servers)$/;"	f
+load_core_binding	bind.hpp	/^bool load_core_binding(string fname)$/;"	f
+load_data	dgraph.hpp	/^    int load_data(vector<string> &fnames) {$/;"	f	class:DGraph
+load_data_from_allfiles	dgraph.hpp	/^    int load_data_from_allfiles(vector<string> &fnames) {$/;"	f	class:DGraph
+load_dname	query.hpp	/^    string load_dname = "";   \/\/ the file name used to be inserted$/;"	m	class:RDFLoad
+load_from_hdfs	string_server.hpp	/^    void load_from_hdfs(string dname) {$/;"	f	class:String_Server
+load_from_posixfs	string_server.hpp	/^    void load_from_posixfs(string dname) {$/;"	f	class:String_Server
+load_node_topo	bind.hpp	/^void load_node_topo(void)$/;"	f
+load_ret	query.hpp	/^    int load_ret = 0;$/;"	m	class:RDFLoad
+load_stat_from_file	data_statistic.hpp	/^    void load_stat_from_file(string fname, TCP_Adaptor *tcp_ad) {$/;"	f	class:data_statistic
+local_int2type	data_statistic.hpp	/^    unordered_map<ssid_t, type_t> local_int2type;    $/;"	m	class:data_statistic
+local_ring_head	mem.hpp	/^    inline char *local_ring_head(int tid, int sid) { return lrbf_hd + (lrbf_hd_sz * num_servers) * tid + lrbf_hd_sz * sid; }$/;"	f	class:Mem
+local_ring_head_offset	mem.hpp	/^    inline uint64_t local_ring_head_offset(int tid, int sid) { return lrbf_hd_off + (lrbf_hd_sz * num_servers) * tid + lrbf_hd_sz * sid; }$/;"	f	class:Mem
+local_ring_head_size	mem.hpp	/^    inline uint64_t local_ring_head_size() { return lrbf_hd_sz; }$/;"	f	class:Mem
+local_type2int	data_statistic.hpp	/^    unordered_map<type_t, ssid_t, type_t_hasher> local_type2int;$/;"	m	class:data_statistic
+local_tyscount	data_statistic.hpp	/^    unordered_map<ssid_t, int> local_tyscount;$/;"	m	class:data_statistic
+local_tystat	data_statistic.hpp	/^    type_stat local_tystat;$/;"	m	class:data_statistic
+local_var	query.hpp	/^    ssid_t local_var = 0;   \/\/ the local variable$/;"	m	class:SPARQLQuery
+lock	gstore.hpp	/^            pthread_spinlock_t lock;$/;"	m	struct:GStore::RDMA_Cache::Item
+lock	rdma_adaptor.hpp	/^        pthread_spinlock_t lock;$/;"	m	struct:RDMA_Adaptor::rbf_lmeta_t
+lock	rdma_adaptor.hpp	/^        pthread_spinlock_t lock;$/;"	m	struct:RDMA_Adaptor::rbf_rmeta_t
+log_dispatch	logger2.hpp	/^struct log_dispatch {};$/;"	s
+log_dispatch	logger2.hpp	/^struct log_dispatch<false> {$/;"	s
+log_dispatch	logger2.hpp	/^struct log_dispatch<true> {$/;"	s
+log_file	logger2.hpp	/^    std::string log_file;$/;"	m	class:file_logger
+log_level	logger2.hpp	/^    int log_level;$/;"	m	class:file_logger
+log_stream_dispatch	logger2.hpp	/^struct log_stream_dispatch { };$/;"	s
+log_stream_dispatch	logger2.hpp	/^struct log_stream_dispatch<false> {$/;"	s
+log_stream_dispatch	logger2.hpp	/^struct log_stream_dispatch<true> {$/;"	s
+log_to_console	logger2.hpp	/^    bool log_to_console;$/;"	m	class:file_logger
+logger	logger2.hpp	520;"	d
+logger	logger2.hpp	524;"	d
+logger_impl	logger2.hpp	/^namespace logger_impl {$/;"	n
+logstream	logger2.hpp	521;"	d
+logstream	logger2.hpp	527;"	d
+lookup	gstore.hpp	/^        bool lookup(ikey_t key, vertex_t &ret) {$/;"	f	class:GStore::RDMA_Cache
+lrbf_hd	mem.hpp	/^    char *lrbf_hd; \/\/ written and read by reciever (local)$/;"	m	class:Mem
+lrbf_hd_off	mem.hpp	/^    uint64_t lrbf_hd_off;$/;"	m	class:Mem
+lrbf_hd_sz	mem.hpp	/^    uint64_t lrbf_hd_sz;$/;"	m	class:Mem
+main	wukong.cpp	/^main(int argc, char *argv[])$/;"	f
+malloc	buddy_malloc.hpp	/^    uint64_t malloc(uint64_t size, int64_t tid = -1) {$/;"	f	class:Buddy_Malloc
+malloc_free_lock_large	buddy_malloc.hpp	/^    pthread_spinlock_t malloc_free_lock_large;$/;"	m	class:Buddy_Malloc
+malloc_free_lock_small	buddy_malloc.hpp	/^    pthread_spinlock_t malloc_free_lock_small;$/;"	m	class:Buddy_Malloc
+malloc_size	buddy_malloc.hpp	/^    uint64_t malloc_size;$/;"	m	class:Buddy_Malloc
+mark_free_large	buddy_malloc.hpp	/^    inline void mark_free_large(header *start, uint64_t level) {$/;"	f	class:Buddy_Malloc
+mark_free_small	buddy_malloc.hpp	/^    inline void mark_free_small(header *start, uint64_t level, int64_t tid) {$/;"	f	class:Buddy_Malloc
+mark_used	buddy_malloc.hpp	/^    inline void mark_used(header *start, uint64_t level) {$/;"	f	class:Buddy_Malloc
+mem	dgraph.hpp	/^    Mem *mem;$/;"	m	class:DGraph
+mem	gstore.hpp	/^    Mem *mem;$/;"	m	class:GStore
+mem	mem.hpp	/^    char *mem;$/;"	m	class:Mem
+mem	rdma.hpp	/^        char *mem;$/;"	m	struct:RDMA::MemoryRegion
+mem	rdma_adaptor.hpp	/^    Mem *mem;$/;"	m	class:RDMA_Adaptor
+mem_gpu	gpu_mem.hpp	/^	char *mem_gpu;$/;"	m	class:GPUMem
+mem_gpu_sz	gpu_mem.hpp	/^	uint64_t mem_gpu_sz;$/;"	m	class:GPUMem
+mem_sz	mem.hpp	/^    uint64_t mem_sz;$/;"	m	class:Mem
+memory	gpu_mem.hpp	/^	inline char *memory() { return mem_gpu; }$/;"	f	class:GPUMem
+memory	mem.hpp	/^    inline char *memory() { return mem; }$/;"	f	class:Mem
+memory_size	gpu_mem.hpp	/^	inline uint64_t memory_size() { return mem_gpu_sz; }$/;"	f	class:GPUMem
+memory_size	mem.hpp	/^    inline uint64_t memory_size() { return mem_sz; }$/;"	f	class:Mem
+merge	monitor.hpp	/^    void merge(Monitor & other) {$/;"	f	class:Monitor
+merge_freelists	buddy_malloc.hpp	/^    void merge_freelists() {$/;"	f	class:Buddy_Malloc
+merge_union	query.hpp	/^        void merge_union(SPARQLQuery::Result &result) {$/;"	f	class:SPARQLQuery::Result
+message	SPARQLParser.hpp	/^        std::string message;$/;"	m	struct:SPARQLParser::ParserException
+messages	logger2.hpp	/^const char *messages[] = {$/;"	v
+min_cost	planner.hpp	/^    double min_cost;$/;"	m	class:Planner
+min_path	planner.hpp	/^    vector<ssid_t> min_path;$/;"	m	class:Planner
+msg_fast_path	engine.hpp	/^    std::vector<SPARQLQuery> msg_fast_path;$/;"	m	class:Engine
+mt_factor	query.hpp	/^    int mt_factor = 1;  \/\/ use a single engine (thread) by default$/;"	m	class:SPARQLQuery
+mut	logger2.hpp	/^    pthread_mutex_t mut;$/;"	m	class:file_logger
+nameVariable	SPARQLParser.hpp	/^    int nameVariable(const std::string &name) {$/;"	f	class:SPARQLParser
+namedVariableCount	SPARQLParser.hpp	/^    unsigned namedVariableCount;$/;"	m	class:SPARQLParser
+namedVariables	SPARQLParser.hpp	/^    std::map<std::string, int> namedVariables;$/;"	m	class:SPARQLParser
+need_fork_join	engine.hpp	/^    bool need_fork_join(SPARQLQuery &req) {$/;"	f	class:Engine
+next_free_idx	buddy_malloc.hpp	/^        uint64_t next_free_idx: 48;$/;"	m	struct:Buddy_Malloc::header
+next_index_id	string_server.hpp	/^    uint64_t next_index_id;$/;"	m	class:String_Server
+next_normal_id	string_server.hpp	/^    uint64_t next_normal_id;$/;"	m	class:String_Server
+normal_check	query.hpp	/^    bool normal_check = false;$/;"	m	class:GStoreCheck
+np_check	gstore.hpp	/^    void np_check(ikey_t key, dir_t dir, bool check) {$/;"	f	class:GStore
+nquery_types	monitor.hpp	/^    int nquery_types = 0;$/;"	m	class:Monitor
+nt_check	gstore.hpp	/^    void nt_check(ikey_t key, bool check) {$/;"	f	class:GStore
+nthread_parallel_load	buddy_malloc.hpp	/^    uint64_t nthread_parallel_load;$/;"	m	class:Buddy_Malloc
+null_stream	logger2.hpp	/^struct null_stream {$/;"	s
+num_agents	gpu_mem.hpp	/^	int num_agents;$/;"	m	class:GPUMem
+num_buckets	gstore.hpp	/^    uint64_t num_buckets;     \/\/ main-header region (static)$/;"	m	class:GStore
+num_buckets_ext	gstore.hpp	/^    uint64_t num_buckets_ext; \/\/ indirect-header region (dynamical)$/;"	m	class:GStore
+num_cores	bind.hpp	/^int num_cores = 0;$/;"	v
+num_entries	gstore.hpp	/^    uint64_t num_entries;     \/\/ entry region (dynamical)$/;"	m	class:GStore
+num_servers	gpu_mem.hpp	/^	int num_servers;$/;"	m	class:GPUMem
+num_servers	mem.hpp	/^    int num_servers;$/;"	m	class:Mem
+num_servers	rdma_adaptor.hpp	/^    int num_servers;$/;"	m	class:RDMA_Adaptor
+num_slots	gstore.hpp	/^    uint64_t num_slots;       \/\/ 1 bucket = ASSOCIATIVITY slots$/;"	m	class:GStore
+num_threads	mem.hpp	/^    int num_threads;$/;"	m	class:Mem
+num_threads	rdma_adaptor.hpp	/^    int num_threads;$/;"	m	class:RDMA_Adaptor
+num_triples	dgraph.hpp	/^    vector<uint64_t> num_triples;  \/\/ record #triples loaded from input data for each server$/;"	m	class:DGraph
+nvars	query.hpp	/^        int nvars = 0; \/\/ the number of variables$/;"	m	class:SPARQLQuery::Result
+nvars	query.hpp	/^    int nvars;  \/\/ the number of variable in triple patterns$/;"	m	class:SPARQLQuery_Template
+nvertex_num	gstore.hpp	/^    uint64_t nvertex_num = 0;$/;"	m	class:GStore
+o	type.hpp	/^    sid_t o; \/\/ object$/;"	m	struct:triple_t
+object	SPARQLParser.hpp	/^        Element subject, predicate, object;$/;"	m	struct:SPARQLParser::Pattern
+object	query.hpp	/^        ssid_t object;$/;"	m	class:SPARQLQuery::Pattern
+occupied	query.hpp	/^char occupied = 0;$/;"	m	namespace:boost::serialization
+off	gstore.hpp	/^        uint64_t off;$/;"	m	struct:GStore::free_blk
+off	gstore.hpp	/^uint64_t off: NBITS_PTR;$/;"	m	struct:iptr_t
+offset	SPARQLParser.hpp	/^    unsigned offset;$/;"	m	class:SPARQLParser
+offset	query.hpp	/^    unsigned offset = 0;$/;"	m	class:SPARQLQuery
+oneshot_cmd	console.hpp	/^string oneshot_cmd = "";$/;"	v
+operator !=	gstore.hpp	/^    bool operator != (const ikey_t &key) { return !(operator == (key)); }$/;"	f	struct:ikey_t
+operator !=	gstore.hpp	/^    bool operator != (const iptr_t &ptr) {$/;"	f	struct:iptr_t
+operator ()	data_statistic.hpp	/^    size_t operator()( const type_t& type ) const{$/;"	f	struct:type_t_hasher
+operator ()	dgraph.hpp	/^    inline bool operator()(const triple_t &t1, const triple_t &t2) {$/;"	f	struct:triple_sort_by_ops
+operator ()	dgraph.hpp	/^    inline bool operator()(const triple_t &t1, const triple_t &t2) {$/;"	f	struct:triple_sort_by_spo
+operator ()	engine.hpp	/^        bool operator()(const int* a, const int* b) {$/;"	f	class:Engine::Compare
+operator ()	engine.hpp	/^        bool operator()(const int* a, const int* b) {$/;"	f	class:Engine::ReduceCmp
+operator <<	logger2.hpp	/^    file_logger &operator<<(T a) {$/;"	f	class:file_logger
+operator <<	logger2.hpp	/^    file_logger &operator<<(const char *a) {$/;"	f	class:file_logger
+operator <<	logger2.hpp	/^    inline null_stream operator<<(T t) {$/;"	f	struct:null_stream
+operator <<	logger2.hpp	/^    inline null_stream operator<<(const char *a) { return null_stream(); }$/;"	f	struct:null_stream
+operator =	SPARQLParser.hpp	/^        Filter &operator=(const Filter &other) {$/;"	f	struct:SPARQLParser::Filter
+operator =	gstore.hpp	/^    edge_t &operator = (const edge_t &e) {$/;"	f	struct:edge_t
+operator ==	data_statistic.hpp	/^    bool operator==(const type_t &other) const{$/;"	f	struct:type_t
+operator ==	gstore.hpp	/^    bool operator == (const ikey_t &key) {$/;"	f	struct:ikey_t
+operator ==	gstore.hpp	/^    bool operator == (const iptr_t &ptr) {$/;"	f	struct:iptr_t
+optional	SPARQLParser.hpp	/^        std::vector<PatternGroup> optional;$/;"	m	struct:SPARQLParser::PatternGroup
+optional	query.hpp	/^        vector<PatternGroup> optional;$/;"	m	class:SPARQLQuery::PatternGroup
+optional_matched_rows	query.hpp	/^        vector<bool> optional_matched_rows; \/\/ mark which rows are matched in optional block$/;"	m	class:SPARQLQuery::Result
+optional_new_vars	query.hpp	/^        set<ssid_t> optional_new_vars;$/;"	m	class:SPARQLQuery::PatternGroup
+optional_step	query.hpp	/^    int optional_step = 0;$/;"	m	class:SPARQLQuery
+order	SPARQLParser.hpp	/^    std::vector<Order> order;$/;"	m	class:SPARQLParser
+orderBegin	SPARQLParser.hpp	/^    order_iterator orderBegin() const { return order.begin(); }$/;"	f	class:SPARQLParser
+orderEnd	SPARQLParser.hpp	/^    order_iterator orderEnd() const { return order.end(); }$/;"	f	class:SPARQLParser
+order_iterator	SPARQLParser.hpp	/^    typedef std::vector<Order>::const_iterator order_iterator;$/;"	t	class:SPARQLParser
+orders	planner.hpp	/^    vector<ssid_t> orders; \/\/ best orders$/;"	m	struct:plan
+orders	query.hpp	/^    vector<Order> orders;$/;"	m	class:SPARQLQuery
+output_result	query.hpp	/^        void output_result(ostream &stream, int size, String_Server *str_server) {$/;"	f	class:SPARQLQuery::Result
+p	type.hpp	/^    sid_t p; \/\/ predicate$/;"	m	struct:triple_t
+p_set	gstore.hpp	/^    tbb_unordered_set p_set; \/\/ all of predicates$/;"	m	class:GStore
+parallel	query.hpp	/^        bool parallel = false;$/;"	m	class:SPARQLQuery::PatternGroup
+parent	rmap.hpp	/^        SPARQLQuery parent;$/;"	m	struct:RMap::Item
+parse	SPARQLParser.hpp	/^    void parse(bool multiQuery = false) {$/;"	f	class:SPARQLParser
+parse	parser.hpp	/^    bool parse(istream &is, SPARQLQuery &sq) {$/;"	f	class:Parser
+parseAdditiveExpression	SPARQLParser.hpp	/^    Filter *parseAdditiveExpression(std::map<std::string, unsigned> &localVars) {$/;"	f	class:SPARQLParser
+parseBlankNode	SPARQLParser.hpp	/^    Element parseBlankNode(PatternGroup &group, std::map<std::string, unsigned> &localVars) {$/;"	f	class:SPARQLParser
+parseBrackettedExpression	SPARQLParser.hpp	/^    Filter *parseBrackettedExpression(std::map<std::string, unsigned> &localVars) {$/;"	f	class:SPARQLParser
+parseBuiltInCall	SPARQLParser.hpp	/^    Filter *parseBuiltInCall(std::map<std::string, unsigned> &localVars) {$/;"	f	class:SPARQLParser
+parseConditionalAndExpression	SPARQLParser.hpp	/^    Filter *parseConditionalAndExpression(std::map<std::string, unsigned> &localVars) {$/;"	f	class:SPARQLParser
+parseConditionalOrExpression	SPARQLParser.hpp	/^    Filter *parseConditionalOrExpression(std::map<std::string, unsigned> &localVars) {$/;"	f	class:SPARQLParser
+parseConstraint	SPARQLParser.hpp	/^    Filter *parseConstraint(std::map<std::string, unsigned> &localVars) {$/;"	f	class:SPARQLParser
+parseCorun	SPARQLParser.hpp	/^    void parseCorun() {$/;"	f	class:SPARQLParser
+parseExpression	SPARQLParser.hpp	/^    Filter *parseExpression(std::map<std::string, unsigned> &localVars) {$/;"	f	class:SPARQLParser
+parseFilter	SPARQLParser.hpp	/^    void parseFilter(PatternGroup &group, std::map<std::string, unsigned> &localVars) {$/;"	f	class:SPARQLParser
+parseFrom	SPARQLParser.hpp	/^    void parseFrom() {$/;"	f	class:SPARQLParser
+parseGraphPattern	SPARQLParser.hpp	/^    void parseGraphPattern(PatternGroup &group) {$/;"	f	class:SPARQLParser
+parseGroupGraphPattern	SPARQLParser.hpp	/^    void parseGroupGraphPattern(PatternGroup &group) {$/;"	f	class:SPARQLParser
+parseIRIrefOrFunction	SPARQLParser.hpp	/^    Filter *parseIRIrefOrFunction(std::map<std::string, unsigned> &localVars, bool mustCall) {$/;"	f	class:SPARQLParser
+parseLimit	SPARQLParser.hpp	/^    void parseLimit() {$/;"	f	class:SPARQLParser
+parseMultiplicativeExpression	SPARQLParser.hpp	/^    Filter *parseMultiplicativeExpression(std::map<std::string, unsigned> &localVars) {$/;"	f	class:SPARQLParser
+parseNumericExpression	SPARQLParser.hpp	/^    Filter *parseNumericExpression(std::map<std::string, unsigned> &localVars) {$/;"	f	class:SPARQLParser
+parseOffset	SPARQLParser.hpp	/^    void parseOffset() {$/;"	f	class:SPARQLParser
+parseOrderBy	SPARQLParser.hpp	/^    void parseOrderBy() {$/;"	f	class:SPARQLParser
+parsePatternElement	SPARQLParser.hpp	/^    Element parsePatternElement(PatternGroup&group, std::map<std::string, unsigned> &localVars) {$/;"	f	class:SPARQLParser
+parsePrefix	SPARQLParser.hpp	/^    void parsePrefix() {$/;"	f	class:SPARQLParser
+parsePrimaryExpression	SPARQLParser.hpp	/^    Filter *parsePrimaryExpression(std::map<std::string, unsigned> &localVars) {$/;"	f	class:SPARQLParser
+parseProjection	SPARQLParser.hpp	/^    void parseProjection() {$/;"	f	class:SPARQLParser
+parseRDFLiteral	SPARQLParser.hpp	/^    void parseRDFLiteral(string &value, Element::SubType &subType, string &valueType) {$/;"	f	class:SPARQLParser
+parseRelationalExpression	SPARQLParser.hpp	/^    Filter *parseRelationalExpression(std::map<std::string, unsigned> &localVars) {$/;"	f	class:SPARQLParser
+parseUnaryExpression	SPARQLParser.hpp	/^    Filter *parseUnaryExpression(std::map<std::string, unsigned> &localVars) {$/;"	f	class:SPARQLParser
+parseValueLogical	SPARQLParser.hpp	/^    Filter *parseValueLogical(std::map<std::string, unsigned> &localVars) {$/;"	f	class:SPARQLParser
+parseWhere	SPARQLParser.hpp	/^    void parseWhere() {$/;"	f	class:SPARQLParser
+parse_template	parser.hpp	/^    bool parse_template(istream &is, SPARQLQuery_Template &sqt) {$/;"	f	class:Parser
+parser	proxy.hpp	/^    Parser parser;$/;"	m	class:Proxy
+path	planner.hpp	/^    vector<ssid_t> path;$/;"	m	class:Planner
+pattern_group	query.hpp	/^    PatternGroup pattern_group;$/;"	m	class:SPARQLQuery
+pattern_group	query.hpp	/^    SPARQLQuery::PatternGroup pattern_group;$/;"	m	class:SPARQLQuery_Template
+pattern_step	query.hpp	/^    int pattern_step = 0;$/;"	m	class:SPARQLQuery
+patterns	SPARQLParser.hpp	/^        std::vector<Pattern> patterns;$/;"	m	struct:SPARQLParser::PatternGroup
+patterns	SPARQLParser.hpp	/^    PatternGroup patterns;$/;"	m	class:SPARQLParser
+patterns	query.hpp	/^        vector<Pattern> patterns;$/;"	m	class:SPARQLQuery::PatternGroup
+pending_msgs	engine.hpp	/^    vector<Message> pending_msgs;$/;"	m	class:Engine
+pending_msgs	proxy.hpp	/^    vector<Message> pending_msgs; \/\/ pending msgs to send$/;"	m	class:Proxy
+pg_type	query.hpp	/^    PGType pg_type = BASIC;$/;"	m	class:SPARQLQuery
+pid	gstore.hpp	/^uint64_t pid : NBITS_IDX; \/\/ predicate$/;"	m	struct:ikey_t
+pid	query.hpp	/^    int pid = -1;    \/\/ parent query id$/;"	m	class:GStoreCheck
+pid	query.hpp	/^    int pid = -1;    \/\/ parent query id$/;"	m	class:RDFLoad
+pid	query.hpp	/^    int pid = -1;    \/\/ parqnt query id$/;"	m	class:SPARQLQuery
+pid2type	string_server.hpp	/^    boost::unordered_map<sid_t, int32_t> pid2type;$/;"	m	class:String_Server
+pidx_in_map	gstore.hpp	/^    tbb_hash_map pidx_in_map; \/\/ predicate-index (IN)$/;"	m	class:GStore
+pidx_out_map	gstore.hpp	/^    tbb_hash_map pidx_out_map; \/\/ predicate-index (OUT)$/;"	m	class:GStore
+plan	planner.hpp	/^struct plan {$/;"	s
+plan_enum	planner.hpp	/^    bool plan_enum(unsigned int pt_bits, double cost, double pre_results) {$/;"	f	class:Planner
+planner	proxy.hpp	/^    Planner planner;$/;"	m	class:Proxy
+port_base	tcp_adaptor.hpp	/^    int port_base;$/;"	m	class:TCP_Adaptor
+port_code	tcp_adaptor.hpp	/^    inline int port_code(int sid, int tid) { return sid * 200 + tid; }$/;"	f	class:TCP_Adaptor
+pos	SPARQLLexer.hpp	/^    std::string::const_iterator pos;$/;"	m	class:SPARQLLexer
+potype	data_statistic.hpp	/^    unordered_map<ssid_t, vector<ty_count>> potype;$/;"	m	struct:type_stat
+pred_type	query.hpp	/^        char  pred_type;$/;"	m	class:SPARQLQuery::Pattern
+predicate	SPARQLParser.hpp	/^        Element subject, predicate, object;$/;"	m	struct:SPARQLParser::Pattern
+predicate	query.hpp	/^        ssid_t predicate;$/;"	m	class:SPARQLQuery::Pattern
+prefixes	SPARQLParser.hpp	/^    std::map<std::string, std::string> prefixes;$/;"	m	class:SPARQLParser
+prev_free_idx	buddy_malloc.hpp	/^        uint64_t prev_free_idx: 48;$/;"	m	struct:Buddy_Malloc::header
+print_SQState	query.hpp	/^    void print_SQState() {$/;"	f	class:SPARQLQuery
+print_cdf	monitor.hpp	/^    void print_cdf() {$/;"	f	class:Monitor
+print_config	config.hpp	/^void print_config(void)$/;"	f
+print_filter	query.hpp	/^        void print_filter() {$/;"	f	class:SPARQLQuery::Filter
+print_group	query.hpp	/^        void print_group() const {$/;"	f	class:SPARQLQuery::PatternGroup
+print_help	console.hpp	/^static void print_help(void)$/;"	f
+print_key	gstore.hpp	/^    void print_key() { cout << "[" << vid << "|" << pid << "|" << dir << "]" << endl; }$/;"	f	struct:ikey_t
+print_latency	monitor.hpp	/^    void print_latency(int round = 1) {$/;"	f	class:Monitor
+print_mem_usage	gstore.hpp	/^    void print_mem_usage() {$/;"	f	class:GStore
+print_memory_usage	buddy_malloc.hpp	/^    void print_memory_usage() {$/;"	f	class:Buddy_Malloc
+print_pattern	query.hpp	/^        void print_pattern() { }$/;"	f	class:SPARQLQuery::Pattern
+print_result	query.hpp	/^        void print_result(int row2print, String_Server *str_server) {$/;"	f	class:SPARQLQuery::Result
+print_sparql_query	query.hpp	/^    void print_sparql_query() {$/;"	f	class:SPARQLQuery
+print_thpt	monitor.hpp	/^    void print_thpt() {$/;"	f	class:Monitor
+print_timely_thpt	monitor.hpp	/^    void print_timely_thpt(uint64_t cur_cnt, int sid, int tid) {$/;"	f	class:Monitor
+priority	query.hpp	/^    int priority = 0;$/;"	m	class:SPARQLQuery
+projection	SPARQLParser.hpp	/^    std::vector<int> projection;$/;"	m	class:SPARQLParser
+projectionBegin	SPARQLParser.hpp	/^    projection_iterator projectionBegin() const { return projection.begin(); }$/;"	f	class:SPARQLParser
+projectionEnd	SPARQLParser.hpp	/^    projection_iterator projectionEnd() const { return projection.end(); }$/;"	f	class:SPARQLParser
+projectionModifier	SPARQLParser.hpp	/^    ProjectionModifier projectionModifier;$/;"	m	class:SPARQLParser
+projection_iterator	SPARQLParser.hpp	/^    typedef std::vector<int>::const_iterator projection_iterator;$/;"	t	class:SPARQLParser
+proxies	proxy.hpp	/^std::vector<Proxy *> proxies;$/;"	v
+proxy_thread	wukong.cpp	/^void *proxy_thread(void *arg)$/;"	f
+pstype	data_statistic.hpp	/^    unordered_map<ssid_t, vector<ty_count>> pstype;$/;"	m	struct:type_stat
+ptr	gstore.hpp	/^    iptr_t ptr; \/\/ 64-bit: size | offset$/;"	m	struct:vertex_t
+ptr_to_idx	buddy_malloc.hpp	/^    inline uint64_t ptr_to_idx(char *ptr) {$/;"	f	class:Buddy_Malloc
+ptypes_grp	query.hpp	/^    vector<vector<sid_t>> ptypes_grp; \/\/ the candidates for random-constants$/;"	m	class:SPARQLQuery_Template
+ptypes_pos	query.hpp	/^    vector<int> ptypes_pos; \/\/ the locations of random-constants$/;"	m	class:SPARQLQuery_Template
+ptypes_str	query.hpp	/^    vector<string> ptypes_str; \/\/ the Types of random-constants$/;"	m	class:SPARQLQuery_Template
+putBack	SPARQLLexer.hpp	/^    Token putBack;$/;"	m	class:SPARQLLexer
+put_parent_request	rmap.hpp	/^    void put_parent_request(SPARQLQuery &r, int cnt) {$/;"	f	class:RMap
+put_reply	rmap.hpp	/^    void put_reply(SPARQLQuery &r) {$/;"	f	class:RMap
+qid	coder.hpp	/^    int qid;  \/\/ The ID of each (sub-)query$/;"	m	class:Coder
+query	engine.hpp	/^        SPARQLQuery &query;$/;"	m	class:Engine::Compare
+query_type	monitor.hpp	/^        int query_type;$/;"	m	struct:Monitor::req_stats
+rbf	mem.hpp	/^    char *rbf; \/\/ #thread x #servers$/;"	m	class:Mem
+rbf_full	rdma_adaptor.hpp	/^    inline bool rbf_full(int tid, int dst_sid, int dst_tid, uint64_t msg_sz) {$/;"	f	class:RDMA_Adaptor
+rbf_lmeta_t	rdma_adaptor.hpp	/^    struct rbf_lmeta_t {$/;"	s	class:RDMA_Adaptor
+rbf_off	mem.hpp	/^    uint64_t rbf_off;$/;"	m	class:Mem
+rbf_rmeta_t	rdma_adaptor.hpp	/^    struct rbf_rmeta_t {$/;"	s	class:RDMA_Adaptor
+rbf_sz	mem.hpp	/^    uint64_t rbf_sz;$/;"	m	class:Mem
+rdma	adaptor.hpp	/^    RDMA_Adaptor *rdma; \/\/ communicaiton by RDMA$/;"	m	class:Adaptor
+rdma_cache	gstore.hpp	/^    RDMA_Cache rdma_cache;$/;"	m	class:GStore
+rdma_get_edges	gstore.hpp	/^    inline edge_t *rdma_get_edges(int tid, int dst_sid, vertex_t &v) {$/;"	f	class:GStore
+read_input	parser.hpp	/^static string read_input(istream &in) {$/;"	f
+receive_locks	tcp_adaptor.hpp	/^    pthread_spinlock_t *receive_locks;$/;"	m	class:TCP_Adaptor
+receivers	tcp_adaptor.hpp	/^    socket_vector receivers;     \/\/ static allocation$/;"	m	class:TCP_Adaptor
+recv	adaptor.hpp	/^    Bundle recv() {$/;"	f	class:Adaptor
+recv	rdma_adaptor.hpp	/^    std::string recv(int tid) {$/;"	f	class:RDMA_Adaptor
+recv	tcp_adaptor.hpp	/^    string recv(int tid) {$/;"	f	class:TCP_Adaptor
+recv_lock	engine.hpp	/^    pthread_spinlock_t recv_lock;$/;"	m	class:Engine
+recv_reply	proxy.hpp	/^    SPARQLQuery recv_reply(void) {$/;"	f	class:Proxy
+refresh	gstore.hpp	/^    void refresh() {$/;"	f	class:GStore
+regex_filter	engine.hpp	/^    void regex_filter(SPARQLQuery::Filter &filter,$/;"	f	class:Engine
+relational_filter	engine.hpp	/^    void relational_filter(SPARQLQuery::Filter &filter,$/;"	f	class:Engine
+reload_config	config.hpp	/^void reload_config(string str)$/;"	f
+remote_ring_head	mem.hpp	/^    inline char *remote_ring_head(int tid, int sid) { return rrbf_hd + (rrbf_hd_sz * num_servers) * tid + rrbf_hd_sz * sid; }$/;"	f	class:Mem
+remote_ring_head_offset	mem.hpp	/^    inline uint64_t remote_ring_head_offset(int tid, int sid) { return rrbf_hd_off + (rrbf_hd_sz * num_servers) * tid + rrbf_hd_sz * sid; }$/;"	f	class:Mem
+remote_ring_head_size	mem.hpp	/^    inline uint64_t remote_ring_head_size() { return rrbf_hd_sz; }$/;"	f	class:Mem
+reorder_optional_patterns	query.hpp	/^    void reorder_optional_patterns(Result &r) {$/;"	f	class:SPARQLQuery
+reply	rmap.hpp	/^        SPARQLQuery reply;$/;"	m	struct:RMap::Item
+req_stats	monitor.hpp	/^    struct req_stats {$/;"	s	class:Monitor
+req_type	query.hpp	/^enum req_type { SPARQL_QUERY, DYNAMIC_LOAD, GSTORE_CHECK };$/;"	g
+required_vars	query.hpp	/^        vector<ssid_t> required_vars; \/\/ variables selected to return$/;"	m	class:SPARQLQuery::Result
+reset_color	logger2.hpp	/^void reset_color(FILE *handle) {$/;"	f
+result	query.hpp	/^    Result result;$/;"	m	class:SPARQLQuery
+result_num	planner.hpp	/^    double result_num;     \/\/ intermediate results$/;"	m	struct:plan
+result_table	query.hpp	/^        vector<sid_t> result_table; \/\/ result table for string IDs$/;"	m	class:SPARQLQuery::Result
+ring	mem.hpp	/^    inline char *ring(int tid, int sid) { return rbf + (rbf_sz * num_servers) * tid + rbf_sz * sid; }$/;"	f	class:Mem
+ring_offset	mem.hpp	/^    inline uint64_t ring_offset(int tid, int sid) { return rbf_off + (rbf_sz * num_servers) * tid + rbf_sz * sid; }$/;"	f	class:Mem
+ring_size	mem.hpp	/^    inline uint64_t ring_size() { return rbf_sz; }$/;"	f	class:Mem
+rmap	engine.hpp	/^    RMap rmap; \/\/ a map of replies for pending (fork-join) queries$/;"	m	class:Engine
+rmap_lock	engine.hpp	/^    pthread_spinlock_t rmap_lock;$/;"	m	class:Engine
+rmetas	rdma_adaptor.hpp	/^    rbf_rmeta_t *rmetas = NULL;$/;"	m	class:RDMA_Adaptor
+row_num	planner.hpp	/^    int row_num = 0;$/;"	m	class:Type_table
+row_num	query.hpp	/^        int row_num = 0;  \/\/ FIXME: vs. get_row_num()$/;"	m	class:SPARQLQuery::Result
+rr_cnt	rdma_adaptor.hpp	/^        uint64_t rr_cnt; \/\/ round-robin$/;"	m	struct:RDMA_Adaptor::scheduler_t
+rrbf_hd	mem.hpp	/^    char *rrbf_hd; \/\/ written by reciever (remote) and read by sender (local)$/;"	m	class:Mem
+rrbf_hd_off	mem.hpp	/^    uint64_t rrbf_hd_off;$/;"	m	class:Mem
+rrbf_hd_sz	mem.hpp	/^    uint64_t rrbf_hd_sz;$/;"	m	class:Mem
+run	engine.hpp	/^    void run() {$/;"	f	class:Engine
+run_config	console.hpp	/^static void run_config(Proxy *proxy, int argc, char **argv)$/;"	f
+run_console	console.hpp	/^void run_console(Proxy *proxy)$/;"	f
+run_gsck	console.hpp	/^static void run_gsck(Proxy *proxy, int argc, char **argv)$/;"	f
+run_load	console.hpp	/^static void run_load(Proxy * proxy, int argc, char **argv)$/;"	f
+run_load_stat	console.hpp	/^static void run_load_stat(Proxy *proxy, int argc, char **argv)$/;"	f
+run_query_emu	proxy.hpp	/^    int run_query_emu(istream &is, int d, int w, int p, Monitor &monitor) {$/;"	f	class:Proxy
+run_single_query	proxy.hpp	/^    int run_single_query(istream &is, int mt_factor, int cnt,$/;"	f	class:Proxy
+run_sparql	console.hpp	/^static void run_sparql(Proxy * proxy, int argc, char **argv)$/;"	f
+run_sparql_emu	console.hpp	/^static void run_sparql_emu(Proxy * proxy, int argc, char **argv)$/;"	f
+run_store_stat	console.hpp	/^static void run_store_stat(Proxy *proxy, int argc, char **argv)$/;"	f
+runqueue	engine.hpp	/^    std::vector<SPARQLQuery> runqueue;$/;"	m	class:Engine
+s	type.hpp	/^    sid_t s;  \/\/ subject$/;"	m	struct:triple_attr_t
+s	type.hpp	/^    sid_t s; \/\/ subject$/;"	m	struct:triple_t
+save	query.hpp	/^void save(Archive & ar, const SPARQLQuery &t, unsigned int version) {$/;"	f	namespace:boost::serialization
+save	query.hpp	/^void save(Archive &ar, const SPARQLQuery::Pattern &t, unsigned int version) {$/;"	f	namespace:boost::serialization
+save	query.hpp	/^void save(Archive &ar, const SPARQLQuery::PatternGroup &t, unsigned int version) {$/;"	f	namespace:boost::serialization
+save	query.hpp	/^void save(Archive &ar, const SPARQLQuery::Result &t, unsigned int version) {$/;"	f	namespace:boost::serialization
+scheduler_t	rdma_adaptor.hpp	/^    struct scheduler_t {$/;"	s	class:RDMA_Adaptor
+schedulers	rdma_adaptor.hpp	/^    scheduler_t *schedulers;$/;"	m	class:RDMA_Adaptor
+score_order_new	planner.hpp	/^    bool score_order_new(unsigned int index, double cost, double pre_results) {$/;"	f	class:Planner
+seed	coder.hpp	/^    unsigned int seed;$/;"	m	class:Coder
+send	adaptor.hpp	/^    bool send(int dst_sid, int dst_tid, Bundle &bundle) {$/;"	f	class:Adaptor
+send	proxy.hpp	/^    inline bool send(Bundle &bundle, int dst_sid) {$/;"	f	class:Proxy
+send	proxy.hpp	/^    inline bool send(Bundle &bundle, int dst_sid, int dst_tid) {$/;"	f	class:Proxy
+send	rdma_adaptor.hpp	/^    bool send(int tid, int dst_sid, int dst_tid, string str) {$/;"	f	class:RDMA_Adaptor
+send	tcp_adaptor.hpp	/^    bool send(int sid, int tid, string str) {$/;"	f	class:TCP_Adaptor
+send_locks	tcp_adaptor.hpp	/^    pthread_spinlock_t *send_locks;$/;"	m	class:TCP_Adaptor
+send_request	engine.hpp	/^    bool send_request(Bundle &bundle, int dst_sid, int dst_tid) {$/;"	f	class:Engine
+send_request	proxy.hpp	/^    void send_request(SPARQLQuery &r) {$/;"	f	class:Proxy
+send_stat_to_all_machines	data_statistic.hpp	/^    void send_stat_to_all_machines(TCP_Adaptor *tcp_ad) {$/;"	f	class:data_statistic
+send_triple	dgraph.hpp	/^    void send_triple(int tid, int dst_sid, sid_t s, sid_t p, sid_t o) {$/;"	f	class:DGraph
+senders	tcp_adaptor.hpp	/^    socket_map senders;          \/\/ dynamic allocation$/;"	m	class:TCP_Adaptor
+serialization	query.hpp	/^namespace serialization {$/;"	n	namespace:boost
+serialize	data_statistic.hpp	/^    void serialize(Archive &ar, const unsigned int version) {$/;"	f	class:data_statistic
+serialize	data_statistic.hpp	/^    void serialize(Archive &ar, const unsigned int version) {$/;"	f	struct:ty_count
+serialize	data_statistic.hpp	/^    void serialize(Archive &ar, const unsigned int version) {$/;"	f	struct:type_stat
+serialize	data_statistic.hpp	/^    void serialize(Archive &ar, const unsigned int version) {$/;"	f	struct:type_t
+serialize	monitor.hpp	/^        void serialize(Archive &ar, const unsigned int version) {$/;"	f	struct:Monitor::req_stats
+serialize	monitor.hpp	/^    void serialize(Archive & ar, const unsigned int version) {$/;"	f	class:Monitor
+serialize	query.hpp	/^        void serialize(Archive &ar, const unsigned int version) {$/;"	f	class:SPARQLQuery::Filter
+serialize	query.hpp	/^        void serialize(Archive &ar, const unsigned int version) {$/;"	f	class:SPARQLQuery::Order
+serialize	query.hpp	/^    void serialize(Archive &ar, const unsigned int version) {$/;"	f	class:GStoreCheck
+serialize	query.hpp	/^    void serialize(Archive &ar, const unsigned int version) {$/;"	f	class:RDFLoad
+set_attr_col_num	query.hpp	/^        int set_attr_col_num(int n) { attr_col_num = n; }$/;"	f	class:SPARQLQuery::Result
+set_col_num	planner.hpp	/^    void set_col_num(int n) { col_num = n; }$/;"	f	class:Type_table
+set_col_num	query.hpp	/^        void set_col_num(int n) { col_num = n; }$/;"	f	class:SPARQLQuery::Result
+set_immutable_config	config.hpp	/^static bool set_immutable_config(string cfg_name, string value)$/;"	f
+set_index_composition	data_statistic.hpp	/^    void set_index_composition(std::unordered_set<int> composition){$/;"	f	struct:type_t
+set_interval	monitor.hpp	/^    void set_interval(uint64_t update) { interval = update; }$/;"	f	class:Monitor
+set_log_file	logger2.hpp	/^    bool set_log_file(std::string file) {$/;"	f	class:file_logger
+set_log_level	logger2.hpp	/^    void set_log_level(int new_log_level) { log_level = new_log_level; }$/;"	f	class:file_logger
+set_log_to_console	logger2.hpp	/^    void set_log_to_console(bool consolelog) { log_to_console = consolelog; }$/;"	f	class:file_logger
+set_mutable_config	config.hpp	/^static bool set_mutable_config(string cfg_name, string value)$/;"	f
+set_row_col	planner.hpp	/^    void set_row_col(int r, int c, double val) {$/;"	f	class:Type_table
+set_type	query.hpp	/^    void set_type(char t) {$/;"	f	class:Bundle
+set_type_composition	data_statistic.hpp	/^    void set_type_composition(std::unordered_set<int> composition){$/;"	f	struct:type_t
+setpid	proxy.hpp	/^    void setpid(GStoreCheck &r) { r.pid = coder.get_and_inc_qid(); }$/;"	f	class:Proxy
+setpid	proxy.hpp	/^    void setpid(RDFLoad &r) { r.pid = coder.get_and_inc_qid(); }$/;"	f	class:Proxy
+setpid	proxy.hpp	/^    void setpid(SPARQLQuery &r) { r.pid = coder.get_and_inc_qid(); }$/;"	f	class:Proxy
+shrink_query	query.hpp	/^    void shrink_query() {$/;"	f	class:SPARQLQuery
+sid	coder.hpp	/^    int sid;    \/\/ server id$/;"	m	class:Coder
+sid	data_statistic.hpp	/^    int sid;$/;"	m	class:data_statistic
+sid	dgraph.hpp	/^    int sid;$/;"	m	class:DGraph
+sid	engine.hpp	/^        int sid;$/;"	m	class:Engine::Message
+sid	engine.hpp	/^    int sid;    \/\/ server id$/;"	m	class:Engine
+sid	gstore.hpp	/^    int sid;$/;"	m	class:GStore
+sid	proxy.hpp	/^        int sid;$/;"	m	class:Proxy::Message
+sid	proxy.hpp	/^    int sid;    \/\/ server id$/;"	m	class:Proxy
+sid	rdma_adaptor.hpp	/^    int sid;$/;"	m	class:RDMA_Adaptor
+sid_of	coder.hpp	/^    int sid_of(int qid) {$/;"	f	class:Coder
+sid_t	type.hpp	/^typedef uint32_t sid_t;  \/\/ data type for string-id$/;"	t
+sid_t	type.hpp	/^typedef uint64_t sid_t;  \/\/ data type for string-id$/;"	t
+size	gstore.hpp	/^uint64_t size: NBITS_SIZE;$/;"	m	struct:iptr_t
+size_per_header	buddy_malloc.hpp	/^    uint64_t size_per_header;$/;"	m	class:Buddy_Malloc
+size_to_level	buddy_malloc.hpp	/^    inline uint64_t size_to_level(uint64_t size) {$/;"	f	class:Buddy_Malloc
+small_free	buddy_malloc.hpp	/^    void small_free(uint64_t free_header_idx) {$/;"	f	class:Buddy_Malloc
+small_free_list	buddy_malloc.hpp	/^    header *small_free_list[level_dividing_line - level_low_bound + 1];$/;"	m	class:Buddy_Malloc
+small_malloc	buddy_malloc.hpp	/^    uint64_t small_malloc(uint64_t need_level, int64_t tid) {$/;"	f	class:Buddy_Malloc
+small_sbrk	buddy_malloc.hpp	/^    char *small_sbrk() {$/;"	f	class:Buddy_Malloc
+socket_map	tcp_adaptor.hpp	/^    typedef tbb::concurrent_unordered_map<int, zmq::socket_t *> socket_map;$/;"	t	class:TCP_Adaptor
+socket_vector	tcp_adaptor.hpp	/^    typedef vector<zmq::socket_t *> socket_vector;$/;"	t	class:TCP_Adaptor
+ssid_t	type.hpp	/^typedef int32_t ssid_t;  \/\/ signed string id$/;"	t
+ssid_t	type.hpp	/^typedef int64_t ssid_t;  \/\/ signed string id$/;"	t
+start_from_index	query.hpp	/^    bool start_from_index() {$/;"	f	class:SPARQLQuery
+start_ptr	buddy_malloc.hpp	/^    char *start_ptr;$/;"	m	class:Buddy_Malloc
+start_record	monitor.hpp	/^    void start_record(int reqid, int type) {$/;"	f	class:Monitor
+start_stream	logger2.hpp	/^    file_logger &start_stream(int lineloglevel, const char *file,$/;"	f	class:file_logger
+start_thpt	monitor.hpp	/^    void start_thpt(uint64_t start) {$/;"	f	class:Monitor
+start_time	monitor.hpp	/^        uint64_t start_time = 0ull;$/;"	m	struct:Monitor::req_stats
+state	query.hpp	/^    SQState state = SQ_PATTERN;$/;"	m	class:SPARQLQuery
+statistic	planner.hpp	/^    data_statistic *statistic ;$/;"	m	class:Planner
+statistic	proxy.hpp	/^    data_statistic *statistic; \/\/ for planner$/;"	m	class:Proxy
+stats_map	monitor.hpp	/^    unordered_map<int, req_stats> stats_map; \/\/ CDF$/;"	m	class:Monitor
+store_stat_to_file	data_statistic.hpp	/^    void store_stat_to_file(string fname) {$/;"	f	class:data_statistic
+str2id	string_server.hpp	/^    boost::unordered_map<string, sid_t> str2id;$/;"	m	class:String_Server
+str2items	config.hpp	/^static void str2items(string str, map<string, string> &items)$/;"	f
+str_server	dgraph.hpp	/^    String_Server *str_server;$/;"	m	class:DGraph
+str_server	engine.hpp	/^        String_Server *str_server;$/;"	m	class:Engine::Compare
+str_server	engine.hpp	/^    String_Server *str_server;$/;"	m	class:Engine
+str_server	parser.hpp	/^    String_Server *str_server;$/;"	m	class:Parser
+str_server	proxy.hpp	/^    String_Server *str_server;$/;"	m	class:Proxy
+stream_flush	logger2.hpp	/^    void stream_flush() {$/;"	f	class:file_logger
+streamactive	logger2.hpp	/^    bool streamactive;$/;"	m	struct:logger_impl::streambuf_entry
+streambuf_entry	logger2.hpp	/^struct streambuf_entry {$/;"	s	namespace:logger_impl
+streambuffdestructor	logger2.hpp	/^void streambuffdestructor(void *v) {$/;"	f
+streambuffer	logger2.hpp	/^    std::stringstream streambuffer;$/;"	m	struct:logger_impl::streambuf_entry
+streambufkey	logger2.hpp	/^    pthread_key_t streambufkey;$/;"	m	class:file_logger
+streamloglevel	logger2.hpp	/^    int streamloglevel;$/;"	m	class:file_logger
+strerror	parser.hpp	/^    std::string strerror;$/;"	m	class:Parser
+subType	SPARQLParser.hpp	/^        SubType subType;$/;"	m	struct:SPARQLParser::Element
+subTypeValue	SPARQLParser.hpp	/^        std::string subTypeValue;$/;"	m	struct:SPARQLParser::Element
+subject	SPARQLParser.hpp	/^        Element subject, predicate, object;$/;"	m	struct:SPARQLParser::Pattern
+subject	query.hpp	/^        ssid_t subject;$/;"	m	class:SPARQLQuery::Pattern
+sweep_free	gstore.hpp	/^    inline void sweep_free() {$/;"	f	class:GStore
+sweep_msgs	engine.hpp	/^    inline void sweep_msgs() {$/;"	f	class:Engine
+sweep_msgs	proxy.hpp	/^    inline void sweep_msgs() {$/;"	f	class:Proxy
+sz	rdma.hpp	/^        uint64_t sz;$/;"	m	struct:RDMA::MemoryRegion
+sz_to_blksz	buddy_malloc.hpp	/^    uint64_t sz_to_blksz (uint64_t size) {$/;"	f	class:Buddy_Malloc
+t_set	gstore.hpp	/^    tbb_unordered_set t_set; \/\/ all of types$/;"	m	class:GStore
+tail	rdma_adaptor.hpp	/^        uint64_t tail;$/;"	m	struct:RDMA_Adaptor::rbf_rmeta_t
+tbb_hash_map	gstore.hpp	/^    typedef tbb::concurrent_hash_map<sid_t, vector<sid_t>> tbb_hash_map;$/;"	t	class:GStore
+tbb_unordered_set	gstore.hpp	/^    typedef tbb::concurrent_unordered_set<sid_t> tbb_unordered_set;$/;"	t	class:GStore
+tcp	adaptor.hpp	/^    TCP_Adaptor *tcp;   \/\/ communicaiton by TCP\/IP$/;"	m	class:Adaptor
+textcolor	logger2.hpp	/^void textcolor(FILE *handle, int attr, int fg) {$/;"	f
+thpt	monitor.hpp	/^    float thpt = 0.0;$/;"	m	class:Monitor
+thpt_time	monitor.hpp	/^    uint64_t thpt_time = 0ull;$/;"	m	class:Monitor
+tid	adaptor.hpp	/^    int tid; \/\/ thread id$/;"	m	class:Adaptor
+tid	coder.hpp	/^    int tid;    \/\/ thread id$/;"	m	class:Coder
+tid	engine.hpp	/^        int tid;$/;"	m	class:Engine::Message
+tid	engine.hpp	/^    int tid;    \/\/ thread id$/;"	m	class:Engine
+tid	proxy.hpp	/^        int tid;$/;"	m	class:Proxy::Message
+tid	proxy.hpp	/^    int tid;    \/\/ thread id$/;"	m	class:Proxy
+tid	query.hpp	/^    int tid = 0;     \/\/ engine thread id (MT)$/;"	m	class:SPARQLQuery
+tid_of	coder.hpp	/^    int tid_of(int qid) {$/;"	f	class:Coder
+tidx_map	gstore.hpp	/^    tbb_hash_map tidx_map; \/\/ type-index$/;"	m	class:GStore
+tmp_small_free_list	buddy_malloc.hpp	/^    header **tmp_small_free_list;$/;"	m	class:Buddy_Malloc
+tokenEnd	SPARQLLexer.hpp	/^    std::string::const_iterator tokenEnd;$/;"	m	class:SPARQLLexer
+tokenStart	SPARQLLexer.hpp	/^    std::string::const_iterator tokenStart;$/;"	m	class:SPARQLLexer
+top_of_heap	buddy_malloc.hpp	/^    char *top_of_heap;$/;"	m	class:Buddy_Malloc
+total_latency_map	monitor.hpp	/^    std::map<int, vector<uint64_t>> total_latency_map;$/;"	m	class:Monitor
+transfer	parser.hpp	/^    void transfer(const SPARQLParser &sp, SPARQLQuery &sq) {$/;"	f	class:Parser
+transfer_element	parser.hpp	/^    ssid_t transfer_element(const SPARQLParser::Element &e) {$/;"	f	class:Parser
+transfer_filter	parser.hpp	/^    void transfer_filter(SPARQLParser::Filter &src, SPARQLQuery::Filter &dst) {$/;"	f	class:Parser
+transfer_patterns	parser.hpp	/^    void transfer_patterns(SPARQLParser::PatternGroup &src, SPARQLQuery::PatternGroup &dst) {$/;"	f	class:Parser
+transfer_template	parser.hpp	/^    void transfer_template(const SPARQLParser &sp, SPARQLQuery_Template &sqt) {$/;"	f	class:Parser
+transfer_to_cmd_chains	planner.hpp	/^    void transfer_to_cmd_chains(vector<SPARQLQuery::Pattern> &p, vector<ssid_t> &attr_pattern, vector<int>& attr_pred_chains, vector<ssid_t> &temp_cmd_chains) {$/;"	f	class:Planner
+triple_attr_t	type.hpp	/^    triple_attr_t():  s(0), a(0), v(0) { }$/;"	f	struct:triple_attr_t
+triple_attr_t	type.hpp	/^    triple_attr_t(sid_t _s, sid_t _a, attr_t _v): s(_s), a(_a), v(_v) { }$/;"	f	struct:triple_attr_t
+triple_attr_t	type.hpp	/^struct triple_attr_t {$/;"	s
+triple_ops	dgraph.hpp	/^    vector<vector<triple_t>> triple_ops;$/;"	m	class:DGraph
+triple_sav	dgraph.hpp	/^    vector<vector<triple_attr_t>> triple_sav;$/;"	m	class:DGraph
+triple_sort_by_ops	dgraph.hpp	/^struct triple_sort_by_ops {$/;"	s
+triple_sort_by_spo	dgraph.hpp	/^struct triple_sort_by_spo {$/;"	s
+triple_spo	dgraph.hpp	/^    vector<vector<triple_t>> triple_spo;$/;"	m	class:DGraph
+triple_t	type.hpp	/^    triple_t(): s(0), p(0), o(0) { }$/;"	f	struct:triple_t
+triple_t	type.hpp	/^    triple_t(sid_t _s, sid_t _p, sid_t _o): s(_s), p(_p), o(_o) { }$/;"	f	struct:triple_t
+triple_t	type.hpp	/^struct triple_t {$/;"	s
+triples	planner.hpp	/^    vector<ssid_t> triples;$/;"	m	class:Planner
+truncate_level	buddy_malloc.hpp	/^    inline uint64_t truncate_level(uint64_t level) {$/;"	f	class:Buddy_Malloc
+tryrecv	adaptor.hpp	/^    bool tryrecv(Bundle &bundle) {$/;"	f	class:Adaptor
+tryrecv	rdma_adaptor.hpp	/^    bool tryrecv(int tid, std::string &str) {$/;"	f	class:RDMA_Adaptor
+tryrecv	tcp_adaptor.hpp	/^    bool tryrecv(int tid, string &str) {$/;"	f	class:TCP_Adaptor
+tryrecv_reply	proxy.hpp	/^    bool tryrecv_reply(SPARQLQuery &r) {$/;"	f	class:Proxy
+ty	data_statistic.hpp	/^    ssid_t ty;$/;"	m	struct:ty_count
+ty_count	data_statistic.hpp	/^struct ty_count {$/;"	s
+type	SPARQLParser.hpp	/^        Type type;$/;"	m	struct:SPARQLParser::Element
+type	SPARQLParser.hpp	/^        Type type;$/;"	m	struct:SPARQLParser::Filter
+type	gstore.hpp	/^uint64_t type: NBITS_TYPE;$/;"	m	struct:iptr_t
+type	query.hpp	/^        Type type;$/;"	m	class:SPARQLQuery::Filter
+type	query.hpp	/^    req_type type;$/;"	m	class:Bundle
+type	rdma.hpp	/^        MemType type;$/;"	m	struct:RDMA::MemoryRegion
+type_stat	data_statistic.hpp	/^struct type_stat {$/;"	s
+type_t	data_statistic.hpp	/^struct type_t{$/;"	s
+type_t_hasher	data_statistic.hpp	/^struct type_t_hasher{$/;"	s
+type_table	planner.hpp	/^    Type_table type_table;$/;"	m	class:Planner
+tytable	planner.hpp	/^    vector<double> tytable;$/;"	m	class:Type_table
+unbind_to_core	bind.hpp	/^cpu_set_t unbind_to_core()$/;"	f
+unget	SPARQLLexer.hpp	/^    void unget(Token value) { putBack = value; }$/;"	f	class:SPARQLLexer
+union_done	query.hpp	/^    bool union_done = false;$/;"	m	class:SPARQLQuery
+unions	SPARQLParser.hpp	/^        std::vector<PatternGroup> unions;$/;"	m	struct:SPARQLParser::PatternGroup
+unions	query.hpp	/^        vector<PatternGroup> unions;$/;"	m	class:SPARQLQuery::PatternGroup
+unknown_var	query.hpp	/^    unknown_var,$/;"	e	enum:var_type
+usage	wukong.cpp	/^usage(char *fn)$/;"	f	file:
+usage_counter	buddy_malloc.hpp	/^    uint64_t usage_counter[level_up_bound + 1];$/;"	m	class:Buddy_Malloc
+usingCustomGrammar	SPARQLParser.hpp	/^    bool usingCustomGrammar;$/;"	m	class:SPARQLParser
+v	gstore.hpp	/^            vertex_t v;$/;"	m	struct:GStore::RDMA_Cache::Item
+v	type.hpp	/^    attr_t v; \/\/ value$/;"	m	struct:triple_attr_t
+v2c_map	query.hpp	/^        vector<int> v2c_map; \/\/ from variable ID (vid) to column ID, index: vid, value: col$/;"	m	class:SPARQLQuery::Result
+v_set	gstore.hpp	/^    tbb_unordered_set v_set; \/\/ all of subjects and objects$/;"	m	class:GStore
+val	gstore.hpp	/^    sid_t val;  \/\/ vertex ID$/;"	m	struct:edge_t
+value	SPARQLParser.hpp	/^        std::string value;$/;"	m	struct:SPARQLParser::Element
+value	SPARQLParser.hpp	/^        std::string value;$/;"	m	struct:SPARQLParser::Filter
+value	query.hpp	/^        std::string value; \/\/\/ The value (for constants param)$/;"	m	class:SPARQLQuery::Filter
+valueArg	SPARQLParser.hpp	/^        int valueArg;$/;"	m	struct:SPARQLParser::Filter
+valueArg	query.hpp	/^        int valueArg; \/\/\/ variable ids$/;"	m	class:SPARQLQuery::Filter
+valueType	SPARQLParser.hpp	/^        std::string valueType;$/;"	m	struct:SPARQLParser::Filter
+var2col	planner.hpp	/^    unordered_map<ssid_t, int> var2col;  \/\/ convert$/;"	m	class:Planner
+var2col	query.hpp	/^        int var2col(ssid_t vid) {$/;"	f	class:SPARQLQuery::Result
+var2ptindex	planner.hpp	/^    unordered_map<ssid_t, int> var2ptindex;  \/\/ find the first appearance for var$/;"	m	class:Planner
+var_type	query.hpp	/^enum var_type {$/;"	g
+variableCount	SPARQLParser.hpp	/^    unsigned variableCount;$/;"	m	class:SPARQLParser
+variable_type	query.hpp	/^        var_type variable_type(ssid_t vid) {$/;"	f	class:SPARQLQuery::Result
+ver_idx_check_indir	gstore.hpp	/^    void ver_idx_check_indir(ikey_t key, bool check) {$/;"	f	class:GStore
+ver_idx_check_outdir	gstore.hpp	/^    void ver_idx_check_outdir(ikey_t key, bool check) {$/;"	f	class:GStore
+ver_nt_check	gstore.hpp	/^    void ver_nt_check(ikey_t key, bool check) {$/;"	f	class:GStore
+vertex_t	gstore.hpp	/^struct vertex_t {$/;"	s
+vertices	gstore.hpp	/^    vertex_t *vertices;$/;"	m	class:GStore
+vid	gstore.hpp	/^uint64_t vid : NBITS_VID; \/\/ vertex$/;"	m	struct:ikey_t
+~Adaptor	adaptor.hpp	/^    ~Adaptor() { }$/;"	f	class:Adaptor
+~Coder	coder.hpp	/^    ~Coder() { }$/;"	f	class:Coder
+~Filter	SPARQLParser.hpp	/^        ~Filter() {$/;"	f	struct:SPARQLParser::Filter
+~Filter	query.hpp	/^        ~Filter() {$/;"	f	class:SPARQLQuery::Filter
+~GPUMem	gpu_mem.hpp	/^    ~GPUMem() { CUDA_ASSERT( cudaFree(mem_gpu) ); }$/;"	f	class:GPUMem
+~Mem	mem.hpp	/^    ~Mem() { free(mem); }$/;"	f	class:Mem
+~ParserException	SPARQLParser.hpp	/^        ~ParserException() { }$/;"	f	struct:SPARQLParser::ParserException
+~Pattern	SPARQLParser.hpp	/^        ~Pattern() { }$/;"	f	struct:SPARQLParser::Pattern
+~RDMA	rdma.hpp	/^    ~RDMA() { if (dev != NULL) delete dev; }$/;"	f	class:RDMA
+~RDMA_Adaptor	rdma_adaptor.hpp	/^    ~RDMA_Adaptor() { }  \/\/TODO$/;"	f	class:RDMA_Adaptor
+~SPARQLLexer	SPARQLLexer.hpp	/^    ~SPARQLLexer() { }$/;"	f	class:SPARQLLexer
+~SPARQLParser	SPARQLParser.hpp	/^    ~SPARQLParser() { }$/;"	f	class:SPARQLParser
+~TCP_Adaptor	tcp_adaptor.hpp	/^    ~TCP_Adaptor() {$/;"	f	class:TCP_Adaptor
+~file_logger	logger2.hpp	/^    ~file_logger() {$/;"	f	class:file_logger
