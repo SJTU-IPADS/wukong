@@ -238,8 +238,7 @@ private:
         // TODO: only support send local data (GPU) to ring buffer on remote host (CPU)
         ASSERT(sid != dst_sid);
 
-        // FIXME: adaptor should have no idea about 'type' (@RONG)
-        // msg: header + (type + data) + footer (use bundle_sz as header and footer)
+        // msg: header + bundle + footer (use bundle_sz as header and footer)
         uint64_t bundle_sz = sizeof(uint64_t) + data_sz;
         uint64_t msg_sz = sizeof(uint64_t) + ceil(bundle_sz, sizeof(uint64_t)) + sizeof(uint64_t);
         // must send to remote host
