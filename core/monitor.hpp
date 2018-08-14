@@ -23,6 +23,7 @@
 #pragma once
 
 #include <iostream>
+#include <map>
 #include <boost/serialization/unordered_map.hpp>
 
 #include "assertion.hpp"
@@ -172,7 +173,7 @@ public:
 
         logstream(LOG_INFO) << "Per-query CDF graph" << LOG_endl;
         int cnt, query_type;//, query_cnt = 0;
-        map<int, vector<uint64_t>> cdf_res;
+        std::map<int, vector<uint64_t>> cdf_res;
 
         // select 25 points from total_latency_map
         for (auto &e : total_latency_map) {

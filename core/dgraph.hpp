@@ -43,6 +43,7 @@
 #include "gstore.hpp"
 #include "timer.hpp"
 #include "assertion.hpp"
+#include "math.hpp"
 
 using namespace std;
 
@@ -242,8 +243,8 @@ class DGraph {
             auto lambda = [&](istream & file) {
                 sid_t s, p, o;
                 while (file >> s >> p >> o) {
-                    int s_sid = mymath::hash_mod(s, global_num_servers);
-                    int o_sid = mymath::hash_mod(o, global_num_servers);
+                    int s_sid = wukong::math::hash_mod(s, global_num_servers);
+                    int o_sid = wukong::math::hash_mod(o, global_num_servers);
                     if (s_sid == o_sid) {
                         send_triple(localtid, s_sid, s, p, o);
                     } else {
@@ -309,8 +310,8 @@ class DGraph {
             auto lambda = [&](istream & file) {
                 sid_t s, p, o;
                 while (file >> s >> p >> o) {
-                    int s_sid = mymath::hash_mod(s, global_num_servers);
-                    int o_sid = mymath::hash_mod(o, global_num_servers);
+                    int s_sid = wukong::math::hash_mod(s, global_num_servers);
+                    int o_sid = wukong::math::hash_mod(o, global_num_servers);
                     if ((s_sid == sid) || (o_sid == sid)) {
                         ASSERT((n * 3 + 3) * sizeof(sid_t) <= kvs_sz);
                         // buffer the triple and update the counter
@@ -376,7 +377,7 @@ class DGraph {
                         logstream(LOG_ERROR) << "Unsupported value type" << LOG_endl;
                         break;
                     }
-                    if (sid == mymath::hash_mod(s, global_num_servers))
+                    if (sid == wukong::math::hash_mod(s, global_num_servers))
                         triple_sav[localtid].push_back(triple_attr_t(s, a, v));
                 }
             };
@@ -430,12 +431,12 @@ class DGraph {
                     sid_t o = kvs[i * 3 + 2];
 
                     // out-edges
-                    if (mymath::hash_mod(s, global_num_servers) == sid)
+                    if (wukong::math::hash_mod(s, global_num_servers) == sid)
                         if ((s % global_num_engines) == tid)
                             triple_pso[tid].push_back(triple_t(s, p, o));
 
                     // in-edges
-                    if (mymath::hash_mod(o, global_num_servers) == sid)
+                    if (wukong::math::hash_mod(o, global_num_servers) == sid)
                         if ((o % global_num_engines) == tid)
                             triple_pos[tid].push_back(triple_t(s, p, o));
 
@@ -699,12 +700,12 @@ public:
                 /// FIXME: just check and print warning
                 check_sid(s); check_sid(p); check_sid(o);
 
-                if (sid == mymath::hash_mod(s, global_num_servers)) {
+                if (sid == wukong::math::hash_mod(s, global_num_servers)) {
                     gstore.insert_triple_out(triple_t(s, p, o), check_dup, tid);
                     cnt ++;
                 }
 
-                if (sid == mymath::hash_mod(o, global_num_servers)) {
+                if (sid == wukong::math::hash_mod(o, global_num_servers)) {
                     gstore.insert_triple_in(triple_t(s, p, o), check_dup, tid);
                     cnt ++;
                 }
@@ -756,7 +757,7 @@ public:
                     break;
                 }
 
-                if (sid == mymath::hash_mod(s, global_num_servers)) {
+                if (sid == wukong::math::hash_mod(s, global_num_servers)) {
                     /// Support attribute files
                     // gstore.insert_triple_attribute(triple_sav_t(s, a, v));
                     cnt ++;
