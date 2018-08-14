@@ -93,13 +93,6 @@ struct rdf_segment_meta_t {
         ext_bucket_list[ext_list_sz++] = ext;
     }
 
-    uint64_t get_total_num_buckets() const {
-        uint64_t res = num_buckets;
-        for (int i = 0; i < ext_list_sz; i++)
-            res += ext_bucket_list[i].num_ext_buckets;
-        return res;
-    }
-
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
         ar & num_buckets;
