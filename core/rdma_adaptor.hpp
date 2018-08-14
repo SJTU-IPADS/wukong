@@ -242,7 +242,6 @@ private:
         // msg: header + (type + data) + footer (use bundle_sz as header and footer)
         uint64_t bundle_sz = sizeof(uint64_t) + data_sz;
         uint64_t msg_sz = sizeof(uint64_t) + ceil(bundle_sz, sizeof(uint64_t)) + sizeof(uint64_t);
-        ASSERT(msg_sz < rbf_sz);
         // must send to remote host
         ASSERT(sid != dst_sid);
         // prepare RDMA buffer for RDMA-WRITE
@@ -259,7 +258,7 @@ private:
 
         // write msg to remote ring buffer (CPU)
         uint64_t rbf_sz = mem->ring_size();
-        ASSERT(sz < rbf_sz); // enough space (remote ring buffer)
+        ASSERT(msg_sz < rbf_sz); // enough space (remote ring buffer)
 
         RDMA &rdma = RDMA::get_rdma();
         uint64_t rdma_off = mem->ring_offset(dst_tid, sid);
@@ -349,7 +348,7 @@ public:
 
         // 3. (real) send data
         // local data:  <tid, data, data_sz>; remote buffer: <dst_sid, dst_tid, off, msg_sz>
-        gdr_send(tid, dst_sid, dst_tid, data, data_sz, off);
+        gdr_send(tid, data, data_sz, dst_sid, dst_tid, off);
 
         return true;
     }
