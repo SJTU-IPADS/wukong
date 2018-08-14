@@ -249,7 +249,7 @@ void print_config(void)
     logstream(LOG_INFO) << "global_generate_statistics: "   << global_generate_statistics   << LOG_endl;
     logstream(LOG_INFO) << "global_enable_vattr: "      << global_enable_vattr          << LOG_endl;
 
-    #ifdef USE_GPU
+#ifdef USE_GPU
     logstream(LOG_INFO) << "global_num_gpus: "        << global_num_gpus        << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_rdma_buf_size_mb: "  << global_gpu_rdma_buf_size_mb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_max_element: "  << global_gpu_max_element  << LOG_endl;
@@ -257,7 +257,7 @@ void print_config(void)
     logstream(LOG_INFO) << "global_gpu_kvcache_size_gb: "  << global_gpu_kvcache_size_gb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_key_block_size_mb: "  << global_gpu_key_block_size_mb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_value_block_size_mb: "  << global_gpu_value_block_size_mb  << LOG_endl;
-    #endif
+#endif
 
     logstream(LOG_INFO) << "--" << LOG_endl;
 
