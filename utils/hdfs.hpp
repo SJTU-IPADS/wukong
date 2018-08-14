@@ -228,7 +228,7 @@ public:
         return std::vector<std::string>();
     } // end of list_files
 
-    inline std::vector<std::string> list_files(const std::string path, string prefix) {
+    inline std::vector<std::string> list_files(const std::string path, std::string prefix) {
         std::cout << "Libhdfs is not installed on this system."
                   << std::endl;
         return std::vector<std::string>();

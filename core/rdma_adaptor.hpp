@@ -29,6 +29,7 @@
 #include <fstream>
 #include <errno.h>
 #include <sstream>
+#include <assert.h>
 
 #include "global.hpp"
 #include "rdma.hpp"
