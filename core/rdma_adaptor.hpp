@@ -35,6 +35,7 @@
 #include "rdma.hpp"
 #include "mem.hpp"
 #include "assertion.hpp"
+#include "atomic.hpp"
 
 #ifdef USE_GPU
 #include "gpu_mem.hpp"
@@ -101,25 +102,27 @@ private:
     }
 
     // Check if there is data from threads in dst_sid to tid
-    bool check(int tid, int dst_sid) {
+    uint64_t check(int tid, int dst_sid) {
         rbf_lmeta_t *lmeta = &lmetas[tid * num_servers + dst_sid];
         char *rbf = mem->ring(tid, dst_sid); // ring buffer for tid to recv data from threads in dst_sid
         uint64_t rbf_sz = mem->ring_size();
         volatile uint64_t data_sz = *(volatile uint64_t *)(rbf + lmeta->head % rbf_sz);  // header
 
-        return (data_sz != 0);
+        return data_sz;
     }
 
     // Fetch data from threads in dst_sid to tid
-    std::string fetch(int tid, int dst_sid) {
+    bool fetch(int tid, int dst_sid, std::string &data, uint64_t data_sz) {
         // step 1: get lmeta of dst rbf
         rbf_lmeta_t *lmeta = &lmetas[tid * num_servers + dst_sid];
-        // step 2: calculate mem location and data size
+        // step 2: calculate mem location
         char * rbf = mem->ring(tid, dst_sid);
         uint64_t rbf_sz = mem->ring_size();
         // struct of data: [size | data | size]
-        volatile uint64_t data_sz = *(volatile uint64_t *)(rbf + lmeta->head % rbf_sz);  // header
-        *(uint64_t *)(rbf + lmeta->head % rbf_sz) = 0;  // clean header
+        uint64_t *head_ptr = (uint64_t *)(rbf + lmeta->head % rbf_sz);
+        bool need_process = wukong::atomic::compare_and_swap(head_ptr, data_sz, 0); // clean head (BEGIN of lock)
+        if (!need_process)
+            return false;
 
         uint64_t to_footer = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t));
         volatile uint64_t * footer = (volatile uint64_t *)(rbf + (lmeta->head + to_footer) % rbf_sz); // footer
@@ -134,36 +137,38 @@ private:
         *footer = 0;  // clean footer
 
         // step 4: actually read data
-        std::string result;
-        result.reserve(data_sz);
         uint64_t start = (lmeta->head + sizeof(uint64_t)) % rbf_sz; // start of data
         uint64_t end = (lmeta->head + sizeof(uint64_t) + data_sz) % rbf_sz;  // end of data
         if (start < end) {
-            result.append(rbf + start, data_sz);
+            data.append(rbf + start, data_sz);
             memset(rbf + start, 0, ceil(data_sz, sizeof(uint64_t)));  // clean data
         } else { // overwrite from the start
-            result.append(rbf + start, data_sz - end);
-            result.append(rbf, end);
+            data.append(rbf + start, data_sz - end);
+            data.append(rbf, end);
             memset(rbf + start, 0, data_sz - end);                    // clean data
             memset(rbf, 0, ceil(end, sizeof(uint64_t)));              // clean data
         }
-        // step 5: move forward rbf head
-        lmeta->head += 2 * sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t));
+        // store updated head to temporary variable 
+        uint64_t temp_head = lmeta->head + 2 * sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t));
 
-        // step 6: update heads of ring buffer to writer to help it detect overflow
+        // step 5: update heads of ring buffer to writer to help it detect overflow
         char *head = mem->local_ring_head(tid, dst_sid);
         const uint64_t threshold = rbf_sz / 8;
-        if (lmeta->head - * (uint64_t *)head > threshold) {
-            *(uint64_t *)head = lmeta->head;
+        if (temp_head - * (uint64_t *)head > threshold) {
+            *(uint64_t *)head = temp_head;
             if (sid != dst_sid) {  // update to remote server
                 RDMA &rdma = RDMA::get_rdma();
                 uint64_t remote_head = mem->remote_ring_head_offset(tid, sid);
                 rdma.dev->RdmaWrite(tid, dst_sid, head, mem->remote_ring_head_size(), remote_head);
             } else {
-                *(uint64_t *)mem->remote_ring_head(tid, sid) = lmeta->head;
+                *(uint64_t *)mem->remote_ring_head(tid, sid) = temp_head;
             }
         }
-        return result;
+
+        // step 6: move forward rbf head and release lock (END of lock)
+        lmeta->head += 2 * sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t));
+
+        return true;
     } // end of fetch
 
     /* Check whether overflow occurs if given msg is sent
@@ -398,20 +403,28 @@ public:
         while (true) {
             // each thread has a logical-queue (#servers physical-queues)
             int dst_sid = (schedulers[tid].rr_cnt++) % num_servers; // round-robin
-            if (check(tid, dst_sid))
-                return fetch(tid, dst_sid);
+            uint64_t data_sz = check(tid, dst_sid);
+            if (data_sz != 0) {
+                std::string data;
+                data.reserve(data_sz);
+                bool success = fetch(tid, dst_sid, data, data_sz);
+                if (success)
+                    return data;
+            }
         }
     }
 
     // Try to recv data of given thread
-    bool tryrecv(int tid, std::string &str) {
+    bool tryrecv(int tid, std::string &data) {
         ASSERT(init);
 
         // check all physical-queues of tid once
         for (int dst_sid = 0; dst_sid < num_servers; dst_sid++) {
-            if (check(tid, dst_sid)) {
-                str = fetch(tid, dst_sid);
-                return true;
+            uint64_t data_sz = check(tid, dst_sid);
+            if (data_sz != 0) {
+                bool success = fetch(tid, dst_sid, data, data_sz);
+                if (success)
+                    return true;
             }
         }
         return false;
