@@ -65,13 +65,13 @@ private:
     /// (proxies and engine with the same "tid") on the X server.
     /// Access mode of physical queue is N writers (from the same server) and 1 reader.
 
-    // track tail of ring buffer for writer
+    // track tail of ring buffer for remote writer
     struct rbf_rmeta_t {
         uint64_t tail;
         pthread_spinlock_t lock;
     } __attribute__ ((aligned (WK_CLINE)));
 
-    // track head of ring buffer for reader
+    // track head of ring buffer for local reader
     struct rbf_lmeta_t {
         uint64_t head;
         pthread_spinlock_t lock;
@@ -153,14 +153,15 @@ private:
 
         // step 5: update heads of ring buffer to writer to help it detect overflow
         char *head = mem->local_ring_head(tid, dst_sid);
-        const uint64_t threshold = rbf_sz / 8;
-        if (temp_head - * (uint64_t *)head > threshold) {
-            *(uint64_t *)head = temp_head;
-            if (sid != dst_sid) {  // update to remote server
+        const uint64_t threshold = rbf_sz / 8; // define a threshold
+        if (temp_head - * (uint64_t *)head > threshold) { // lazy update
+            // remote.is_queue_full may be false positive since remote use old value of head
+            *(uint64_t *)head = temp_head; // update local ring head
+            if (sid != dst_sid) {  // update remote ring head via RDMA
                 RDMA &rdma = RDMA::get_rdma();
                 uint64_t remote_head = mem->remote_ring_head_offset(tid, sid);
                 rdma.dev->RdmaWrite(tid, dst_sid, head, mem->remote_ring_head_size(), remote_head);
-            } else {
+            } else { // direct update remote ring head
                 *(uint64_t *)mem->remote_ring_head(tid, sid) = temp_head;
             }
         }
@@ -178,7 +179,10 @@ private:
     */
     inline bool rbf_full(int tid, int dst_sid, int dst_tid, uint64_t msg_sz) {
         uint64_t rbf_sz = mem->ring_size();
+        // tail of remote queue can access via rmeta
         uint64_t tail = rmetas[dst_sid * num_threads + dst_tid].tail;
+        // head of remote queue must read from remote ring head
+        // since lmeta is used to check head of local queue
         uint64_t head = *(uint64_t *)mem->remote_ring_head(dst_tid, dst_sid);
 
         return (rbf_sz < (tail - head + msg_sz));
