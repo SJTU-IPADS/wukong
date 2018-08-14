@@ -34,7 +34,7 @@
 #include "dgraph.hpp"
 #include "query.hpp"
 #include "assertion.hpp"
-#include "mymath.hpp"
+#include "math.hpp"
 #include "timer.hpp"
 #include "rmap.hpp"
 
@@ -705,7 +705,7 @@ private:
 
         // group intermediate results to servers
         for (int i = 0; i < req.result.get_row_num(); i++) {
-            int dst_sid = mymath::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
+            int dst_sid = wukong::math::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
                                            global_num_servers);
             req.result.append_row_to(i, sub_reqs[dst_sid].result.result_table);
             if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
@@ -809,7 +809,7 @@ private:
         vector<sid_t> updated_result_table;
 
         if (sub_result.get_col_num() > 2) { // qsort
-            mytuple::qsort_tuple(sub_result.get_col_num(), sub_result.result_table);
+            wukong::tuple::qsort_tuple(sub_result.get_col_num(), sub_result.result_table);
 
             t3 = timer::get_usec();
             vector<sid_t> tmp_vec;
@@ -818,7 +818,7 @@ private:
                 for (int c = 0; c < pvars_map.size(); c++)
                     tmp_vec[c] = req_result.get_row_col(i, pvars_map[c]);
 
-                if (mytuple::binary_search_tuple(sub_result.get_col_num(),
+                if (wukong::tuple::binary_search_tuple(sub_result.get_col_num(),
                                                  sub_result.result_table, tmp_vec))
                     req_result.append_row_to(i, updated_result_table);
             }
@@ -1480,7 +1480,7 @@ out:
             for (int i = 0; i < size; i++) {
                 SPARQLQuery union_req;
                 union_req.inherit_union(r, i);
-                int dst_sid = mymath::hash_mod(union_req.pattern_group.get_start(),
+                int dst_sid = wukong::math::hash_mod(union_req.pattern_group.get_start(),
                                                global_num_servers);
                 if (dst_sid != sid) {
                     Bundle bundle(union_req);
@@ -1516,7 +1516,7 @@ out:
                 }
             } else {
                 engine->rmap.put_parent_request(r, 1);
-                int dst_sid = mymath::hash_mod(optional_req.pattern_group.get_start(),
+                int dst_sid = wukong::math::hash_mod(optional_req.pattern_group.get_start(),
                                                global_num_servers);
                 if (dst_sid != sid) {
                     Bundle bundle(optional_req);

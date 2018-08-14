@@ -8,7 +8,6 @@
 #include <math.h>
 
 #include "data_statistic.hpp"
-#include "mymath.hpp"
 #include "timer.hpp"
 
 using namespace std;

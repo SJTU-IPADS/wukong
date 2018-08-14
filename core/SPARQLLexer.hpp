@@ -33,6 +33,7 @@
 
 #pragma once
 
+#include <cstring> //include header for strncmp
 #include <string>
 
 using namespace std;

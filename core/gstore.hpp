@@ -46,7 +46,7 @@
 #include "rdf_meta.hpp"
 #endif // USE_GPU
 
-#include "mymath.hpp"
+#include "math.hpp"
 #include "timer.hpp"
 #include "unit.hpp"
 #include "variant.hpp"
@@ -99,7 +99,7 @@ uint64_t vid : NBITS_VID; // vertex
         r += pid;
         r <<= NBITS_DIR;
         r += dir;
-        return mymath::hash_u64(r); // the standard hash is too slow (i.e., std::hash<uint64_t>()(r))
+        return wukong::math::hash_u64(r); // the standard hash is too slow (i.e., std::hash<uint64_t>()(r))
     }
 };
 
@@ -828,7 +828,7 @@ done:
 
     // Get remote vertex of given key. This func will fail if RDMA is disabled.
     vertex_t get_vertex_remote(int tid, ikey_t key) {
-        int dst_sid = mymath::hash_mod(key.vid, global_num_servers);
+        int dst_sid = wukong::math::hash_mod(key.vid, global_num_servers);
         uint64_t bucket_id = bucket_remote(key, dst_sid);
         vertex_t vert;
 
@@ -893,7 +893,7 @@ done:
     // Get remote edges according to given vid, dir, pid.
     // @sz: size of return edges
     edge_t *get_edges_remote(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
-        int dst_sid = mymath::hash_mod(vid, global_num_servers);
+        int dst_sid = wukong::math::hash_mod(vid, global_num_servers);
         ikey_t key = ikey_t(vid, pid, d);
         edge_t *edge_ptr;
         vertex_t v = get_vertex_remote(tid, key);
@@ -935,7 +935,7 @@ done:
     // get the attribute value from remote
     attr_t get_vertex_attr_remote(int tid, sid_t vid, dir_t d, sid_t pid, bool &has_value) {
         //struct the key
-        int dst_sid = mymath::hash_mod(vid, global_num_servers);
+        int dst_sid = wukong::math::hash_mod(vid, global_num_servers);
         ikey_t key = ikey_t(vid, pid, d);
         edge_t *edge_ptr;
         vertex_t v;
@@ -1070,7 +1070,7 @@ public:
 
         // header region
         num_slots = header_region / sizeof(vertex_t);
-        num_buckets = mymath::hash_prime_u64((num_slots / ASSOCIATIVITY) * MHD_RATIO / 100);
+        num_buckets = wukong::math::hash_prime_u64((num_slots / ASSOCIATIVITY) * MHD_RATIO / 100);
         num_buckets_ext = (num_slots / ASSOCIATIVITY) - num_buckets;
 
         // entry region
@@ -1837,7 +1837,7 @@ public:
 
     // FIXME: refine parameters with vertex_t
     edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
-        if (mymath::hash_mod(vid, global_num_servers) == sid)
+        if (wukong::math::hash_mod(vid, global_num_servers) == sid)
             return get_edges_local(tid, vid, d, pid, sz);
         else
             return get_edges_remote(tid, vid, d, pid, sz);
@@ -1852,7 +1852,7 @@ public:
     // return the attr result
     // if not found has_value will be set to false
     attr_t get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, bool &has_value) {
-        if (sid == mymath::hash_mod(vid, global_num_servers))
+        if (sid == wukong::math::hash_mod(vid, global_num_servers))
             return get_vertex_attr_local(tid, vid, d, pid, has_value);
         else
             return get_vertex_attr_remote(tid, vid, d, pid, has_value);
