@@ -222,11 +222,11 @@ private:
             RDMA &rdma = RDMA::get_rdma();
             uint64_t rdma_off = mem->ring_offset(dst_tid, sid);
             if (off / rbf_sz == (off + sz - 1) / rbf_sz) {
-                rdma.dev->RdmaWrite(tid, dst_sid, rdma_buf, sz, rdma_off + (off % rbf_sz));
+                rdma.dev->RdmaWrite(tid, dst_sid, mem->buffer(tid), sz, rdma_off + (off % rbf_sz));
             } else {
                 uint64_t _sz = rbf_sz - (off % rbf_sz);
-                rdma.dev->RdmaWrite(tid, dst_sid, rdma_buf, _sz, rdma_off + (off % rbf_sz));
-                rdma.dev->RdmaWrite(tid, dst_sid, rdma_buf + _sz, sz - _sz, rdma_off);
+                rdma.dev->RdmaWrite(tid, dst_sid, mem->buffer(tid), _sz, rdma_off + (off % rbf_sz));
+                rdma.dev->RdmaWrite(tid, dst_sid, mem->buffer(tid) + _sz, sz - _sz, rdma_off);
             }
         }
     }
