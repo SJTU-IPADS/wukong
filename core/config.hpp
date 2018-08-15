@@ -82,7 +82,6 @@ static bool set_immutable_config(string cfg_name, string value)
     } else if (cfg_name == "global_generate_statistics") {
         global_generate_statistics = atoi(value.c_str());
     }
-#ifdef USE_GPU
     else if (cfg_name == "global_num_gpus") {
         global_num_gpus = atoi(value.c_str());
     } else if (cfg_name == "global_gpu_rdma_buf_size_mb") {
@@ -101,7 +100,6 @@ static bool set_immutable_config(string cfg_name, string value)
     } else if (cfg_name == "global_gpu_value_blk_size_mb") {
         global_gpu_value_blk_size_mb = atoi(value.c_str());
     }
-#endif
     else
         return false;
 
@@ -247,14 +245,12 @@ void print_config(void)
     logstream(LOG_INFO) << "global_generate_statistics: "   << global_generate_statistics   << LOG_endl;
     logstream(LOG_INFO) << "global_enable_vattr: "      << global_enable_vattr          << LOG_endl;
 
-#ifdef USE_GPU
     logstream(LOG_INFO) << "global_num_gpus: "        << global_num_gpus        << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_rdma_buf_size_mb: "  << global_gpu_rdma_buf_size_mb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_max_element: "  << global_gpu_max_element  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_kvcache_size_gb: "  << global_gpu_kvcache_size_gb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_key_blk_size_mb: "  << global_gpu_key_blk_size_mb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_value_blk_size_mb: "  << global_gpu_value_blk_size_mb  << LOG_endl;
-#endif
 
     logstream(LOG_INFO) << "--" << LOG_endl;
 
