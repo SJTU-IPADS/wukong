@@ -36,12 +36,11 @@ int main(int argc, char *argv[]){
     boost::mpi::communicator world;
     int sid = world.rank(); // server ID
 
-    int global_num_servers = world.size();
-    int global_num_threads = 1;
-    logstream(LOG_INFO) << "global_num_servers: " << global_num_servers << LOG_endl;
+    // load global configs
+    load_config(string(argv[1]), world.size());
 
     // set the address file of host/cluster
-    string host_fname = std::string(argv[1]);
+    string host_fname = std::string(argv[2]);
 
     // allocate memory regions
     vector<RDMA::MemoryRegion> mrs;
