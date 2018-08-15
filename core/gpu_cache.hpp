@@ -104,17 +104,16 @@ private:
     edge_t *edge_addr;
 
     const int BLOCK_ID_ERR = -1;
-    const int ASSOCIATIVITY = 8;
 public:
     GPUCache(vertex_t *d_v_a, edge_t *d_e_a, vertex_t *v_a, edge_t *e_a, map<segid_t, rdf_segment_meta_t> &rdf_metas): d_vertex_addr(d_v_a), d_edge_addr(d_e_a), vertex_addr(v_a), edge_addr(e_a), rdf_metas(rdf_metas) {
         // step 1: calculate capacities
         seg_num = rdf_metas.size();
 
-        cap_gpu_slots = global_gpu_num_keys_million * 1000 * 1000;
-        cap_gpu_buckets = cap_gpu_slots / ASSOCIATIVITY;
+        cap_gpu_slots = (GiB2B(global_gpu_kvcache_size_gb) * GStore::get_HD_RATIO()) / (100 * sizeof(vertex_t));
+        cap_gpu_buckets = cap_gpu_slots / GStore::get_ASSOCIATIVITY();
         cap_gpu_entries = (GiB2B(global_gpu_kvcache_size_gb) - cap_gpu_slots * sizeof(vertex_t)) / sizeof(edge_t);
 
-        num_buckets_per_block = MiB2B(global_gpu_key_blk_size_mb) / (sizeof(vertex_t) * ASSOCIATIVITY);
+        num_buckets_per_block = MiB2B(global_gpu_key_blk_size_mb) / (sizeof(vertex_t) * GStore::get_ASSOCIATIVITY());
         num_entries_per_block = MiB2B(global_gpu_value_blk_size_mb) / sizeof(edge_t);
 
         cap_gpu_key_blocks = cap_gpu_buckets / num_buckets_per_block;
@@ -359,9 +358,9 @@ public:
         // step 3: load direct
         if (main_size != 0) {
             CUDA_ASSERT(cudaMemcpyAsync(
-                d_vertex_addr + block_id * num_buckets_per_block * ASSOCIATIVITY,
-                vertex_addr + (rdf_metas[seg].bucket_start + seg_block_idx * num_buckets_per_block) * ASSOCIATIVITY,
-                sizeof(vertex_t) * main_size * ASSOCIATIVITY,
+                d_vertex_addr + block_id * num_buckets_per_block * GStore::get_ASSOCIATIVITY(),
+                vertex_addr + (rdf_metas[seg].bucket_start + seg_block_idx * num_buckets_per_block) * GStore::get_ASSOCIATIVITY(),
+                sizeof(vertex_t) * main_size * GStore::get_ASSOCIATIVITY(),
                 cudaMemcpyHostToDevice,
                 stream_id));
         }
@@ -388,10 +387,10 @@ public:
                     uint64_t inside_off = start_bucket_idx - passed_buckets;
                     uint64_t inside_load = ext.num_ext_buckets - inside_off;
                     if (inside_load > remain) inside_load = remain;
-                    uint64_t dst_off = (block_id * num_buckets_per_block + indirect_start + indirect_size - remain) * ASSOCIATIVITY;
-                    uint64_t src_off = (ext.start + inside_off) * ASSOCIATIVITY;
+                    uint64_t dst_off = (block_id * num_buckets_per_block + indirect_start + indirect_size - remain) * GStore::get_ASSOCIATIVITY();
+                    uint64_t src_off = (ext.start + inside_off) * GStore::get_ASSOCIATIVITY();
                     CUDA_ASSERT(cudaMemcpyAsync(d_vertex_addr + dst_off, vertex_addr + src_off,
-                        sizeof(vertex_t) * inside_load * ASSOCIATIVITY,
+                        sizeof(vertex_t) * inside_load * GStore::get_ASSOCIATIVITY(),
                         cudaMemcpyHostToDevice, stream_id));
                     remain -= inside_load;
                     start_bucket_idx += inside_load;

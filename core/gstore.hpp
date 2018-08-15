@@ -2477,4 +2477,8 @@ public:
     vertex_t *vertex_addr() { return vertices; }
 
     edge_t *edge_addr() { return edges; }
+
+    static int get_HD_RATIO() { return HD_RATIO; }
+
+    static int get_ASSOCIATIVITY() { return ASSOCIATIVITY; }
 };
