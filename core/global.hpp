@@ -56,11 +56,9 @@ bool global_generate_statistics = true;
 
 bool global_enable_vattr = false;  // for attr
 
-#ifdef USE_GPU
 int global_num_gpus = 1;
 int global_gpu_rdma_buf_size_mb = 64;
 uint64_t global_gpu_max_element =  20000000; // max history element num in gpu
 int global_gpu_kvcache_size_gb = 10;
 int global_gpu_key_blk_size_mb = 16;
 int global_gpu_value_blk_size_mb = 4;
-#endif
