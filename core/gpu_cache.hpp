@@ -114,8 +114,8 @@ public:
         cap_gpu_buckets = cap_gpu_slots / ASSOCIATIVITY;
         cap_gpu_entries = (GiB2B(global_gpu_kvcache_size_gb) - cap_gpu_slots * sizeof(vertex_t)) / sizeof(edge_t);
 
-        num_buckets_per_block = MiB2B(global_gpu_key_block_size_mb) / (sizeof(vertex_t) * ASSOCIATIVITY);
-        num_entries_per_block = MiB2B(global_gpu_value_block_size_mb) / sizeof(edge_t);
+        num_buckets_per_block = MiB2B(global_gpu_key_blk_size_mb) / (sizeof(vertex_t) * ASSOCIATIVITY);
+        num_entries_per_block = MiB2B(global_gpu_value_blk_size_mb) / sizeof(edge_t);
 
         cap_gpu_key_blocks = cap_gpu_buckets / num_buckets_per_block;
         cap_gpu_value_blocks = cap_gpu_entries / num_entries_per_block;
