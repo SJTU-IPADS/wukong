@@ -94,14 +94,12 @@ static bool set_immutable_config(string cfg_name, string value)
     } else if (cfg_name == "global_gpu_max_element") {
         char *tmp;
         global_gpu_max_element = strtoull(value.c_str(), &tmp, 10);
-    } else if (cfg_name == "global_gpu_num_keys_million") {
-        global_gpu_num_keys_million = atoi(value.c_str());
     } else if (cfg_name == "global_gpu_kvcache_size_gb") {
         global_gpu_kvcache_size_gb = atoi(value.c_str());
-    } else if (cfg_name == "global_gpu_key_block_size_mb") {
-        global_gpu_key_block_size_mb = atoi(value.c_str());
-    } else if (cfg_name == "global_gpu_value_block_size_mb") {
-        global_gpu_value_block_size_mb = atoi(value.c_str());
+    } else if (cfg_name == "global_gpu_key_blk_size_mb") {
+        global_gpu_key_blk_size_mb = atoi(value.c_str());
+    } else if (cfg_name == "global_gpu_value_blk_size_mb") {
+        global_gpu_value_blk_size_mb = atoi(value.c_str());
     }
 #endif
     else
@@ -253,10 +251,9 @@ void print_config(void)
     logstream(LOG_INFO) << "global_num_gpus: "        << global_num_gpus        << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_rdma_buf_size_mb: "  << global_gpu_rdma_buf_size_mb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_max_element: "  << global_gpu_max_element  << LOG_endl;
-    logstream(LOG_INFO) << "global_gpu_num_keys_million: "  << global_gpu_num_keys_million  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_kvcache_size_gb: "  << global_gpu_kvcache_size_gb  << LOG_endl;
-    logstream(LOG_INFO) << "global_gpu_key_block_size_mb: "  << global_gpu_key_block_size_mb  << LOG_endl;
-    logstream(LOG_INFO) << "global_gpu_value_block_size_mb: "  << global_gpu_value_block_size_mb  << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_key_blk_size_mb: "  << global_gpu_key_blk_size_mb  << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_value_blk_size_mb: "  << global_gpu_value_blk_size_mb  << LOG_endl;
 #endif
 
     logstream(LOG_INFO) << "--" << LOG_endl;
