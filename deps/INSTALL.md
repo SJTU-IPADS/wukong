@@ -8,7 +8,6 @@
 * [ZeroMQ v4.0.5](#0MQ)
 * [nanomsg v1.1.4](#nanomsg)
 * [HWLOC v1.11.7](#hwloc)
-* [LibRDMA v1.0.0](#rdma)
 * [Jemalloc v5.1.0](#jemalloc)
 * [HDFS support](#hdfs)
 
@@ -136,27 +135,6 @@ export LIBRARY_PATH=$WUKONG_ROOT/deps/hwloc-1.11.7-install/lib:$LIBRARY_PATH
 export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/hwloc-1.11.7-install/lib:$LD_LIBRARY_PATH
 ```
 
-
-<a name="rdma"></a>
-### IPADS LibRDMA v1.0.0 (optional)
-
-```bash
-$cd $WUKONG_ROOT/deps/
-$tar zxvf librdma-1.0.0.tar.gz
-$cd librdma-1.0.0/
-$./configure --prefix=$WUKONG_ROOT/deps/librdma-1.0.0-install/
-$make
-$make install
-```
-
-Add below settings to bash script (i.e., `~/.bashrc`).
-
-```bash
-# librdma configuration
-export CPATH=$WUKONG_ROOT/deps/librdma-1.0.0-install/include:$CPATH
-export LIBRARY_PATH=$WUKONG_ROOT/deps/librdma-1.0.0-install/lib:$LIBRARY_PATH
-export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/librdma-1.0.0-install/lib:$LD_LIBRARY_PATH
-```
 
 <a name="jemalloc"></a>
 ### Jemalloc v5.1.0

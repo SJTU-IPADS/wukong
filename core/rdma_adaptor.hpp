@@ -106,37 +106,38 @@ private:
         rbf_lmeta_t *lmeta = &lmetas[tid * num_servers + dst_sid];
         char *rbf = mem->ring(tid, dst_sid); // ring buffer for tid to recv data from threads in dst_sid
         uint64_t rbf_sz = mem->ring_size();
-        volatile uint64_t data_sz = *(volatile uint64_t *)(rbf + lmeta->head % rbf_sz);  // header
-
-        return data_sz;
+        return *(volatile uint64_t *)(rbf + lmeta->head % rbf_sz);  // header (data size)
     }
 
     // Fetch data from threads in dst_sid to tid
     bool fetch(int tid, int dst_sid, std::string &data, uint64_t data_sz) {
-        // step 1: get lmeta of dst rbf
-        rbf_lmeta_t *lmeta = &lmetas[tid * num_servers + dst_sid];
-        // step 2: calculate mem location
+        // 1. validate and acquire the message
         char * rbf = mem->ring(tid, dst_sid);
         uint64_t rbf_sz = mem->ring_size();
-        // struct of data: [size | data | size]
-        uint64_t *head_ptr = (uint64_t *)(rbf + lmeta->head % rbf_sz);
-        bool need_process = wukong::atomic::compare_and_swap(head_ptr, data_sz, 0); // clean head (BEGIN of lock)
-        if (!need_process)
-            return false;
 
+        // layout of msg: [size | data | size]
+        rbf_lmeta_t *lmeta = &lmetas[tid * num_servers + dst_sid];
+        uint64_t *head_ptr = (uint64_t *)(rbf + lmeta->head % rbf_sz);
+
+        // validate: data_sz is not changed; acquire: zeroing the size in header
+        // (NOTE: data_sz is read in check())
+        bool success = wukong::atomic::compare_and_swap(head_ptr, data_sz, 0);
+
+        if (!success) return false; // msg has been acquired by another concurrent engine
+
+        // 2. wait the entire msg has been written
         uint64_t to_footer = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t));
         volatile uint64_t * footer = (volatile uint64_t *)(rbf + (lmeta->head + to_footer) % rbf_sz); // footer
-        // step 3: spin-wait rdma-write done
+
+        // spin-wait RDMA WRITE done
         while (*footer != data_sz) {
             _mm_pause();
-            /* If RDMA-WRITE is done, footer == header == size
-             * Otherwise, footer == 0
-             */
+            // If RDMA-WRITE is done, then footer == header == size. Otherwise, footer == 0
             ASSERT(*footer == 0 || *footer == data_sz);
         }
         *footer = 0;  // clean footer
 
-        // step 4: actually read data
+        // 3. actually fetch data
         uint64_t start = (lmeta->head + sizeof(uint64_t)) % rbf_sz; // start of data
         uint64_t end = (lmeta->head + sizeof(uint64_t) + data_sz) % rbf_sz;  // end of data
         if (start < end) {
@@ -148,25 +149,25 @@ private:
             memset(rbf + start, 0, data_sz - end);                    // clean data
             memset(rbf, 0, ceil(end, sizeof(uint64_t)));              // clean data
         }
-        // store updated head to temporary variable 
-        uint64_t temp_head = lmeta->head + 2 * sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t));
 
-        // step 5: update heads of ring buffer to writer to help it detect overflow
+        // 4. notify sender the header of ring buffer (detect overflow)
+        uint64_t real_head = lmeta->head + 2 * sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t));
         char *head = mem->local_ring_head(tid, dst_sid);
-        const uint64_t threshold = rbf_sz / 8; // define a threshold
-        if (temp_head - * (uint64_t *)head > threshold) { // lazy update
+        const uint64_t threshold = rbf_sz / 8; // a threshold for lazy update
+
+        if (real_head - * (uint64_t *)head > threshold) {
             // remote.is_queue_full may be false positive since remote use old value of head
-            *(uint64_t *)head = temp_head; // update local ring head
+            *(uint64_t *)head = real_head; // update local ring head
             if (sid != dst_sid) {  // update remote ring head via RDMA
                 RDMA &rdma = RDMA::get_rdma();
                 uint64_t remote_head = mem->remote_ring_head_offset(tid, sid);
                 rdma.dev->RdmaWrite(tid, dst_sid, head, mem->remote_ring_head_size(), remote_head);
             } else { // direct update remote ring head
-                *(uint64_t *)mem->remote_ring_head(tid, sid) = temp_head;
+                *(uint64_t *)mem->remote_ring_head(tid, sid) = real_head;
             }
         }
 
-        // step 6: move forward rbf head and release lock (END of lock)
+        // 5. update the metadata of ring buffer (done)
         lmeta->head += 2 * sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t));
 
         return true;
@@ -403,9 +404,7 @@ public:
             uint64_t data_sz = check(tid, dst_sid);
             if (data_sz != 0) {
                 std::string data;
-                data.reserve(data_sz);
-                bool success = fetch(tid, dst_sid, data, data_sz);
-                if (success)
+                if (fetch(tid, dst_sid, data, data_sz))
                     return data;
             }
         }
@@ -418,12 +417,11 @@ public:
         // check all physical-queues of tid once
         for (int dst_sid = 0; dst_sid < num_servers; dst_sid++) {
             uint64_t data_sz = check(tid, dst_sid);
-            if (data_sz != 0) {
-                bool success = fetch(tid, dst_sid, data, data_sz);
-                if (success)
+            if (data_sz != 0)
+                if (fetch(tid, dst_sid, data, data_sz))
                     return true;
-            }
         }
+
         return false;
     }
 };

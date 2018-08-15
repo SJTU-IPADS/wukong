@@ -53,16 +53,13 @@ $source deps.sh
 $source deps.sh install option
 ```
 
-> If you run Wukong on non-RDMA networks, you could skip LibRDMA by running `source deps.sh no-rdma`
-
 You can also use the same shell script to uninstall dependencies.
 
 ```bash
 $cd deps
-# option: all, mpi, boost, tbb, nanomsg, hwloc, librdma
+# option: all, mpi, boost, tbb, nanomsg, hwloc, jemalloc
 $source deps.sh clean option
 ```
-
 
 BTW, if you want to do it manually, [deps/INSTALL.md](deps/INSTALL.md) provides step-by-step instruction.
 

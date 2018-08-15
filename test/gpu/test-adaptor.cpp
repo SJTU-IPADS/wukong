@@ -31,7 +31,7 @@
 #include "logger2.hpp"
 #include "unit.hpp"
 
-int main(int argc, char *argv[]){
+int main(int argc, char *argv[]) {
     boost::mpi::environment env(argc, argv);
     boost::mpi::communicator world;
     int sid = world.rank(); // server ID
@@ -63,8 +63,7 @@ int main(int argc, char *argv[]){
     RDMA_init(global_num_servers, global_num_threads, sid, mrs, host_fname);
 
     // init communication
-    RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mrs,
-            global_num_servers, global_num_threads);
+    RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mrs, global_num_servers, global_num_threads);
 
     // create proxies and engines
     vector<Adaptor *> adaptors;
@@ -77,15 +76,14 @@ int main(int argc, char *argv[]){
         sid_t str[3] = {1, 4, 3};
         char *outbuf;
         CUDA_ASSERT(cudaMalloc(&outbuf, 10000));
-        CUDA_ASSERT(cudaMemcpy(outbuf, str, 3*sizeof(sid_t), cudaMemcpyHostToDevice));
+        CUDA_ASSERT(cudaMemcpy(outbuf, str, 3 * sizeof(sid_t), cudaMemcpyHostToDevice));
         sid_t tmp[3];
-        CUDA_ASSERT(cudaMemcpy(tmp, outbuf, 3*sizeof(sid_t), cudaMemcpyDeviceToHost));
+        CUDA_ASSERT(cudaMemcpy(tmp, outbuf, 3 * sizeof(sid_t), cudaMemcpyDeviceToHost));
         logstream(LOG_ERROR) << "---I am sender, on GPU: " << tmp[0] << ", " << tmp[1] << ", " << tmp[2] << LOG_endl;
         // set type
         uint64_t test_type = SPARQL_HISTORY;
         CUDA_ASSERT(cudaMemcpy(gpu_mem->rdma_buf_type(0), &test_type, sizeof(uint64_t), cudaMemcpyHostToDevice));
         adaptors[0]->send_dev2host(1, 0, outbuf, 3 * sizeof(sid_t));
-
     } else {
         sid_t *tmp;
         Bundle b = adaptors[0]->recv();

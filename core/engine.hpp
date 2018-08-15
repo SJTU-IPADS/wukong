@@ -706,7 +706,7 @@ private:
         // group intermediate results to servers
         for (int i = 0; i < req.result.get_row_num(); i++) {
             int dst_sid = wukong::math::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
-                                           global_num_servers);
+                                                 global_num_servers);
             req.result.append_row_to(i, sub_reqs[dst_sid].result.result_table);
             if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
                 sub_reqs[dst_sid].result.optional_matched_rows.push_back(req.result.optional_matched_rows[i]);
@@ -819,7 +819,7 @@ private:
                     tmp_vec[c] = req_result.get_row_col(i, pvars_map[c]);
 
                 if (wukong::tuple::binary_search_tuple(sub_result.get_col_num(),
-                                                 sub_result.result_table, tmp_vec))
+                                                       sub_result.result_table, tmp_vec))
                     req_result.append_row_to(i, updated_result_table);
             }
             t4 = timer::get_usec();
@@ -1481,7 +1481,7 @@ out:
                 SPARQLQuery union_req;
                 union_req.inherit_union(r, i);
                 int dst_sid = wukong::math::hash_mod(union_req.pattern_group.get_start(),
-                                               global_num_servers);
+                                                     global_num_servers);
                 if (dst_sid != sid) {
                     Bundle bundle(union_req);
                     send_request(bundle, dst_sid, tid);
@@ -1517,7 +1517,7 @@ out:
             } else {
                 engine->rmap.put_parent_request(r, 1);
                 int dst_sid = wukong::math::hash_mod(optional_req.pattern_group.get_start(),
-                                               global_num_servers);
+                                                     global_num_servers);
                 if (dst_sid != sid) {
                     Bundle bundle(optional_req);
                     send_request(bundle, dst_sid, tid);
