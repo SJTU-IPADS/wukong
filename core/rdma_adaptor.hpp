@@ -238,29 +238,21 @@ private:
         // TODO: only support send local data (GPU) to ring buffer on remote host (CPU)
         ASSERT(sid != dst_sid);
 
-        // FIXME: adaptor should have no idea about 'type' (@RONG)
-        // msg: header + (type + data) + footer (use bundle_sz as header and footer)
+        // msg: header + bundle + footer (use bundle_sz as header and footer)
         uint64_t bundle_sz = sizeof(uint64_t) + data_sz;
         uint64_t sz = sizeof(uint64_t) + ceil(bundle_sz, sizeof(uint64_t)) + sizeof(uint64_t);
 
-        // copy msg to local RDMA buffer (GPU)
-        uint64_t buf_sz = mem->buffer_size();
-        ASSERT(sz < buf_sz); // enough space (local rdma buffer) for the msg
+        // prepare RDMA buffer for RDMA-WRITE
+        char *rdma_buf = gmem->rdma_buf_body(tid);
+        // copy header(bundle_sz) to rdma_buf(on local GPU mem)
+        CUDA_ASSERT( cudaMemcpy(gmem->rdma_buf_hdr(tid), &bundle_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );
 
-        char *rdma_buf = gmem->buffer(tid);
-        CUDA_ASSERT(cudaMemcpy(rdma_buf, &bundle_sz, sizeof(uint64_t), cudaMemcpyHostToDevice));  // header
-
-        // FIXME: adaptor should have no idea about 'type' (@RONG)
-        rdma_buf += sizeof(uint64_t);
-        uint64_t msg_type = SPARQL_HISTORY;
-        CUDA_ASSERT(cudaMemcpy(rdma_buf, &msg_type, sizeof(uint64_t), cudaMemcpyHostToDevice));   // type
-
-        rdma_buf += sizeof(uint64_t);
-        CUDA_ASSERT(cudaMemcpy(rdma_buf, data, data_sz, cudaMemcpyDeviceToDevice) );              // data
-
+        // copy data(on local GPU mem) to rdma_buf_body(on local GPU mem)
+        CUDA_ASSERT( cudaMemcpy(rdma_buf, data, data_sz, cudaMemcpyDeviceToDevice) );    // data
         rdma_buf += ceil(data_sz, sizeof(uint64_t));
-        CUDA_ASSERT(cudaMemcpy(rdma_buf, &bundle_sz, sizeof(uint64_t), cudaMemcpyHostToDevice));  // footer
 
+        // copy footer(bundle_sz) to rdma_buf(on local GPU mem)
+        CUDA_ASSERT( cudaMemcpy(rdma_buf, &bundle_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );  // footer
 
         // write msg to remote ring buffer (CPU)
         uint64_t rbf_sz = mem->ring_size();
@@ -268,12 +260,13 @@ private:
 
         RDMA &rdma = RDMA::get_rdma();
         uint64_t rdma_off = mem->ring_offset(dst_tid, sid);
+
         if (off / rbf_sz == (off + sz - 1) / rbf_sz ) {
-            rdma.dev->GPURdmaWrite(tid, dst_sid, rdma_buf, sz, rdma_off + (off % rbf_sz));
+            rdma.dev->GPURdmaWrite(tid, dst_sid, gmem->rdma_buf_hdr(tid), sz, rdma_off + (off % rbf_sz));
         } else {
             uint64_t _sz = rbf_sz - (off % rbf_sz);
-            rdma.dev->GPURdmaWrite(tid, dst_sid, rdma_buf, _sz, rdma_off + (off % rbf_sz));
-            rdma.dev->GPURdmaWrite(tid, dst_sid, rdma_buf + _sz, sz - _sz, rdma_off);
+            rdma.dev->GPURdmaWrite(tid, dst_sid, gmem->rdma_buf_hdr(tid), _sz, rdma_off + (off % rbf_sz));
+            rdma.dev->GPURdmaWrite(tid, dst_sid, gmem->rdma_buf_hdr(tid) + _sz, sz - _sz, rdma_off);
         }
     }
 #endif // end of USE_GPU
@@ -353,7 +346,7 @@ public:
 
         // 3. (real) send data
         // local data:  <tid, data, data_sz>; remote buffer: <dst_sid, dst_tid, off, msg_sz>
-        gdr_send(tid, dst_sid, dst_tid, data, data_sz, off);
+        gdr_send(tid, data, data_sz, dst_sid, dst_tid, off);
 
         return true;
     }
