@@ -250,6 +250,23 @@ private:
         }
     };
 
+    static const int NUM_LOCKS = 1024;
+
+    static const int ASSOCIATIVITY = 8;  // the associativity of slots in each bucket
+
+    // Memory Usage (estimation):
+    //   header region: |vertex| = 128-bit; #verts = (#S + #O) * AVG(#P) ～= #T
+    //   entry region:    |edge| =  32-bit; #edges = #T * 2 + (#S + #O) * AVG(#P) ～= #T * 3
+    //
+    //                                      (+VERSATILE)
+    //                                      #verts += #S + #O
+    //                                      #edges += (#S + #O) * AVG(#P) ~= #T
+    //
+    // main-header / (main-header + indirect-header)
+    static const int MHD_RATIO = 80;
+    // header * 100 / (header + entry)
+    static const int HD_RATIO = (128 * 100 / (128 + 3 * std::numeric_limits<sid_t>::digits));
+
     int sid;
     Mem *mem;
 
@@ -1005,23 +1022,6 @@ done:
     }
 
 public:
-    static const int NUM_LOCKS = 1024;
-
-    static const int ASSOCIATIVITY = 8;  // the associativity of slots in each bucket
-
-    // Memory Usage (estimation):
-    //   header region: |vertex| = 128-bit; #verts = (#S + #O) * AVG(#P) ～= #T
-    //   entry region:    |edge| =  32-bit; #edges = #T * 2 + (#S + #O) * AVG(#P) ～= #T * 3
-    //
-    //                                      (+VERSATILE)
-    //                                      #verts += #S + #O
-    //                                      #edges += (#S + #O) * AVG(#P) ~= #T
-    //
-    // main-header / (main-header + indirect-header)
-    static const int MHD_RATIO = 80;
-    // header * 100 / (header + entry)
-    static const int HD_RATIO = (128 * 100 / (128 + 3 * std::numeric_limits<sid_t>::digits));
-
     /// encoding rules of GStore
     /// subject/object (vid) >= 2^NBITS_IDX, 2^NBITS_IDX > predicate/type (p/tid) >= 2^1,
     /// TYPE_ID = 1, PREDICATE_ID = 0, OUT = 1, IN = 0
