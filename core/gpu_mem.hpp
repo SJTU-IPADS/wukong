@@ -100,9 +100,6 @@ public:
     inline uint64_t kvcache_size() { return kvc_sz; }
     inline uint64_t kvcache_offset() { return kvc_off; }
 
-    inline vertex_t *vertex_addr() { return (vertex_t *)kvc; }
-    inline edge_t *edge_addr() { return (edge_t *)(kvc + global_gpu_num_keys_million * 1000 * 1000 * sizeof(vertex_t)); }
-
     // history_inbuf
     inline char *history_inbuf() { return inbuf; }
     inline uint64_t history_inbuf_size() { return history_buf_sz; }
