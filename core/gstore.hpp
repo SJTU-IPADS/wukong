@@ -165,6 +165,23 @@ struct edge_t {
  * Map the Graph model (e.g., vertex, edge, index) to KVS model (e.g., key, value)
  */
 class GStore {
+public:
+    static const int NUM_LOCKS = 1024;
+    static const int ASSOCIATIVITY = 8;  // the associativity of slots in each bucket
+
+    // Memory Usage (estimation):
+    //   header region: |vertex| = 128-bit; #verts = (#S + #O) * AVG(#P) ～= #T
+    //   entry region:    |edge| =  32-bit; #edges = #T * 2 + (#S + #O) * AVG(#P) ～= #T * 3
+    //
+    //                                      (+VERSATILE)
+    //                                      #verts += #S + #O
+    //                                      #edges += (#S + #O) * AVG(#P) ~= #T
+    //
+    // main-header / (main-header + indirect-header)
+    static const int MHD_RATIO = 80;
+    // header * 100 / (header + entry)
+    static const int HD_RATIO = (128 * 100 / (128 + 3 * std::numeric_limits<sid_t>::digits));
+
 private:
     /// TODO: use more clever cache structure with lock-free implementation
     /* Cache remote vertex(location) of the given key, eleminating one RDMA read.
@@ -248,24 +265,7 @@ private:
                 items[idx].v.key = ikey_t();
             pthread_spin_unlock(&items[idx].lock);
         }
-    };
-
-    static const int NUM_LOCKS = 1024;
-
-    static const int ASSOCIATIVITY = 8;  // the associativity of slots in each bucket
-
-    // Memory Usage (estimation):
-    //   header region: |vertex| = 128-bit; #verts = (#S + #O) * AVG(#P) ～= #T
-    //   entry region:    |edge| =  32-bit; #edges = #T * 2 + (#S + #O) * AVG(#P) ～= #T * 3
-    //
-    //                                      (+VERSATILE)
-    //                                      #verts += #S + #O
-    //                                      #edges += (#S + #O) * AVG(#P) ~= #T
-    //
-    // main-header / (main-header + indirect-header)
-    static const int MHD_RATIO = 80;
-    // header * 100 / (header + entry)
-    static const int HD_RATIO = (128 * 100 / (128 + 3 * std::numeric_limits<sid_t>::digits));
+    }; // end of RDMA_Cache
 
     int sid;
     Mem *mem;
@@ -2477,8 +2477,4 @@ public:
     vertex_t *vertex_addr() { return vertices; }
 
     edge_t *edge_addr() { return edges; }
-
-    static int get_HD_RATIO() { return HD_RATIO; }
-
-    static int get_ASSOCIATIVITY() { return ASSOCIATIVITY; }
 };
