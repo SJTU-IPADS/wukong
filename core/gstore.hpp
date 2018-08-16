@@ -214,7 +214,7 @@ private:
         bucket_t *hashtable;
         uint64_t lease;  // only work when DYNAMIC_GSTORE=on
 
-        public:
+    public:
         RDMA_Cache() {
             // init hashtable
             size_t mem_size = sizeof(bucket_t) * NUM_BUCKETS;
@@ -277,7 +277,7 @@ private:
 
             while (true) {
                 for (int i = 0; i < ASSOCIATIVITY; i++) {
-                    if(items[i].v.key == v.key || items[i].v.key.is_empty()) {
+                    if (items[i].v.key == v.key || items[i].v.key.is_empty()) {
                         pos = i;
                         break;
                     }
@@ -290,7 +290,7 @@ private:
                         if (items[i].cnt < min_cnt) {
                             min_cnt = items[i].cnt;
                             pos = i;
-                            if(min_cnt == 0)
+                            if (min_cnt == 0)
                                 break;
                         }
                     }

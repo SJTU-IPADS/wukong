@@ -37,7 +37,7 @@ private:
     int num_servers;
     int num_agents; // #gpu_engine
 
-    // The Wukong's (device) GPU memory layout: kvcache | results buffer | rdma buffer | heap
+    // The Wukong's (device) GPU memory layout: kvcache | result buffer | RDMA buffer | heap
     char *mem_gpu;
     uint64_t mem_gpu_sz;
 
@@ -48,12 +48,12 @@ private:
 
     // (running) result buffer
     // A dual-buffer (in-buf and out-buf), used to store (last and current) history table.
-    // FIXME: rename to irbuf, irbuf_off, orbuf, orbuf_off, and rbuf_sz
-    char *inbuf;
-    uint64_t inbuf_off;
-    char *outbuf;
-    uint64_t outbuf_off;
-    uint64_t history_buf_sz;
+    char *irbuf;
+    uint64_t irbuf_off;
+    char *orbuf;
+    uint64_t orbuf_off;
+    uint64_t rbuf_sz;
+    bool rbuf_reversed = false;
 
     // RDMA buffer (#threads)
     char *buf;
@@ -66,7 +66,7 @@ public:
 
         kvc_sz = GiB2B(global_gpu_kvcache_size_gb);
 
-        history_buf_sz = global_gpu_max_element * sizeof(sid_t);
+        rbuf_sz = MiB2B(global_gpu_rbuf_size_mb);
 
         // only used by RDMA device
         if (RDMA::get_rdma().has_rdma())
@@ -74,7 +74,7 @@ public:
         else
             buf_sz = 0;
 
-        mem_gpu_sz = kvc_sz + history_buf_sz * 2 + buf_sz * num_agents;
+        mem_gpu_sz = kvc_sz + rbuf_sz * 2 + buf_sz * num_agents;
 
         // allocate memory and zeroing
         CUDA_ASSERT(cudaSetDevice(devid));
@@ -86,13 +86,13 @@ public:
         kvc = mem_gpu + kvc_off;
 
         // result (dual) buffer
-        inbuf_off = kvc_off + kvc_sz;
-        inbuf = mem_gpu + inbuf_off;
-        outbuf_off = inbuf_off + history_buf_sz;
-        outbuf = mem_gpu + outbuf_off;
+        irbuf_off = kvc_off + kvc_sz;
+        irbuf = mem_gpu + irbuf_off;
+        orbuf_off = irbuf_off + rbuf_sz;
+        orbuf = mem_gpu + orbuf_off;
 
         // RDMA buffer
-        buf_off = outbuf_off + history_buf_sz;
+        buf_off = orbuf_off + rbuf_sz;
         buf = mem_gpu + buf_off;
 
         logstream(LOG_INFO) << "GPUMem: devid: " << devid
@@ -111,13 +111,15 @@ public:
     inline uint64_t kvcache_size() { return kvc_sz; }
 
     // result buffer
-    inline char *history_inbuf() { return inbuf; }
-    inline uint64_t history_inbuf_offset() { return inbuf_off; }
-    inline uint64_t history_inbuf_size() { return history_buf_sz; }
+    inline void reverse_rbuf() { rbuf_reversed = !rbuf_reversed; }
 
-    inline char *history_outbuf() { return outbuf; }
-    inline uint64_t history_outbuf_offset() { return outbuf_off; }
-    inline uint64_t history_outbuf_size() { return history_buf_sz; }
+    inline char *res_inbuf() { return (rbuf_reversed ? orbuf : irbuf); }
+    inline uint64_t res_inbuf_offset() { return (rbuf_reversed ? orbuf_off : irbuf_off); }
+
+    inline char *res_outbuf() { return (rbuf_reversed ? irbuf : orbuf); }
+    inline uint64_t hes_outbuf_offset() { return (rbuf_reversed ? irbuf_off : orbuf_off); }
+
+    inline uint64_t res_buf_size() { return rbuf_sz; }
 
     // RDMA buffer layout: header | type | body
     inline char *rdma_buf_hdr(int tid) { return buf + buf_sz * (tid % num_agents); }

@@ -121,9 +121,8 @@ private:
 
         // validate: data_sz is not changed; acquire: zeroing the size in header
         // (NOTE: data_sz is read in check())
-        bool success = wukong::atomic::compare_and_swap(head_ptr, data_sz, 0);
-
-        if (!success) return false; // msg has been acquired by another concurrent engine
+        if (wukong::atomic::compare_and_swap(head_ptr, data_sz, 0) != data_sz)
+            return false; // msg has been acquired by another concurrent engine
 
         // 2. wait the entire msg has been written
         uint64_t to_footer = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t));
