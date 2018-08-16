@@ -37,7 +37,7 @@ private:
     int num_servers;
     int num_agents; // #gpu_engine
 
-    // The Wukong's (device) GPU memory layout: kvcache | results buffer | rdma buffer | heap
+    // The Wukong's (device) GPU memory layout: kvcache | result buffer | RDMA buffer | heap
     char *mem_gpu;
     uint64_t mem_gpu_sz;
 

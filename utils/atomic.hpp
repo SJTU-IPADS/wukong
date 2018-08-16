@@ -25,17 +25,17 @@
 
 namespace wukong {
 
-    class atomic {
-    public:
+class atomic {
+public:
 
-        static bool compare_and_swap(uint64_t *ptr, uint64_t old_val, uint64_t new_val) {
-            return __sync_bool_compare_and_swap(ptr, old_val, new_val);
-        }
+	static uint64_t compare_and_swap(uint64_t *ptr, uint64_t old_val, uint64_t new_val) {
+		return __sync_val_compare_and_swap(ptr, old_val, new_val);
+	}
 
-        static uint32_t compare_and_swap(uint32_t *ptr, uint32_t old_val, uint32_t new_val) {
-            return __sync_val_compare_and_swap(ptr, old_val, new_val);
-        }
+	static uint32_t compare_and_swap(uint32_t *ptr, uint32_t old_val, uint32_t new_val) {
+		return __sync_val_compare_and_swap(ptr, old_val, new_val);
+	}
 
-    }; // end of class atomic
+}; // end of class atomic
 
 } // end of namespace wukong

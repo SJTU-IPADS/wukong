@@ -197,7 +197,7 @@ private:
         bucket_t *hashtable;
         uint64_t lease;  // only work when DYNAMIC_GSTORE=on
 
-        public:
+    public:
         RDMA_Cache() {
             // init hashtable
             size_t mem_size = sizeof(bucket_t) * NUM_BUCKETS;
@@ -205,7 +205,7 @@ private:
             logstream(LOG_INFO) << "cache allocate " << mem_size << " memory" << LOG_endl;
         }
 
-        /* Lookup a vertex in cache according to the given key.*/ 
+        /* Lookup a vertex in cache according to the given key.*/
         bool lookup(ikey_t key, vertex_t &ret) {
             if (!global_enable_caching)
                 return false;
@@ -260,7 +260,7 @@ private:
 
             while (true) {
                 for (int i = 0; i < ASSOCIATIVITY; i++) {
-                    if(items[i].v.key == v.key || items[i].v.key.is_empty()) {
+                    if (items[i].v.key == v.key || items[i].v.key.is_empty()) {
                         pos = i;
                         break;
                     }
@@ -273,7 +273,7 @@ private:
                         if (items[i].cnt < min_cnt) {
                             min_cnt = items[i].cnt;
                             pos = i;
-                            if(min_cnt == 0)
+                            if (min_cnt == 0)
                                 break;
                         }
                     }
@@ -298,7 +298,7 @@ private:
                         assert(ret_ver == 0);
                         return;
                     }
-                } 
+                }
             }
         } // end of insert
 
@@ -322,7 +322,7 @@ private:
 
                     /// Version is not checked and set here
                     /// since inconsistent expire time does not cause staleness.
-                    /// The only possible overhead is 
+                    /// The only possible overhead is
                     /// an extra update of vertex and expire time.
                     items[i].expire_time = timer::get_usec();
                     return;

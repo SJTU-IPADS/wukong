@@ -56,9 +56,10 @@ bool global_generate_statistics = true;
 
 bool global_enable_vattr = false;  // for attr
 
+// GPU support
 int global_num_gpus = 1;
-int global_gpu_rdma_buf_size_mb = 64;
-int global_gpu_rbuf_size_mb =  32;
-int global_gpu_kvcache_size_gb = 10;
+int global_gpu_kvcache_size_gb = 10;	// key-value cache
+int global_gpu_rbuf_size_mb =  32;		// result (dual) buffer
+int global_gpu_rdma_buf_size_mb = 64;	// RDMA buffer
 int global_gpu_key_blk_size_mb = 16;
 int global_gpu_value_blk_size_mb = 4;
