@@ -229,62 +229,6 @@ private:
         logstream(LOG_ERROR) << "GPU Cache: evict_value_blocks() could not provide enough free value blocks." << LOG_endl;
     } // end of evict_value_blocks
 
-    // check whether a segment is in cache
-    bool seg_in_cache(segid_t seg) {
-        if (num_key_blocks_seg_using[seg] == num_key_blocks_seg_need[seg]
-        && num_value_blocks_seg_using[seg] == num_value_blocks_seg_need[seg])
-            return true;
-        return false;
-    }
-
-    // return the bucket offset of each key block in a segment
-    vector<uint64_t> get_seg_vertex_headers(segid_t seg) {
-        ASSERT(num_key_blocks_seg_using[seg] == num_key_blocks_seg_need[seg]);
-        vector<uint64_t> headers;
-        for (auto block_id : vertex_allocation[seg]) {
-            headers.push_back(block_id * num_buckets_per_block);
-        }
-        return headers;
-    }
-
-    // return the entry offset of each value block in a segment
-    vector<uint64_t> get_seg_edge_headers(segid_t seg) {
-        ASSERT(num_value_blocks_seg_using[seg] == num_value_blocks_seg_need[seg]);
-        vector<uint64_t> headers;
-        for (auto block_id : edge_allocation[seg]) {
-            headers.push_back(block_id * num_entries_per_block);
-        }
-        return headers;
-    }
-
-    void reset() {
-        for (auto it = rdf_metas.begin(); it != rdf_metas.end(); it++) {
-            segid_t seg = it->first;
-            for (int i = 0; i < num_key_blocks_seg_need[seg]; i++) {
-                int block_id = vertex_allocation[seg][i];
-                if (block_id != BLOCK_ID_ERR) {
-                    vertex_allocation[seg][i] = BLOCK_ID_ERR;
-                    num_key_blocks_seg_using[seg]--;
-                    free_key_blocks.push_back(block_id);
-                }
-            }
-
-            for (int i = 0; i < num_value_blocks_seg_need[seg]; i++) {
-                int block_id = edge_allocation[seg][i];
-                if (block_id != BLOCK_ID_ERR) {
-                    edge_allocation[seg][i] = BLOCK_ID_ERR;
-                    num_value_blocks_seg_using[seg]--;
-                    free_value_blocks.push_back(block_id);
-                }
-            }
-        }
-        segs_in_key_cache.clear();
-        segs_in_value_cache.clear();
-
-        ASSERT(free_key_blocks.size() == cap_gpu_key_blocks);
-        ASSERT(free_value_blocks.size() == cap_gpu_value_blocks);
-    } // end of reset
-
     /* load one key block of a segment to a free block
      * seg: the segment
      * seg_block: the block index of the segment
@@ -386,6 +330,7 @@ private:
                                    cudaMemcpyHostToDevice,
                                    stream_id));
     } // end of load_edge_block
+
 public:
     GPUCache(vertex_t *d_v_a, edge_t *d_e_a, vertex_t *v_a, edge_t *e_a, map<segid_t, rdf_segment_meta_t> &rdf_metas):
             d_vertex_addr(d_v_a), d_edge_addr(d_e_a), vertex_addr(v_a), edge_addr(e_a), rdf_metas(rdf_metas) {
@@ -423,6 +368,62 @@ public:
             num_value_blocks_seg_using.insert(std::make_pair(it->first, 0));
         }
     } // end of constructor
+
+    // check whether a segment is in cache
+    bool seg_in_cache(segid_t seg) {
+        if (num_key_blocks_seg_using[seg] == num_key_blocks_seg_need[seg]
+        && num_value_blocks_seg_using[seg] == num_value_blocks_seg_need[seg])
+            return true;
+        return false;
+    }
+
+    // return the bucket offset of each key block in a segment
+    vector<uint64_t> get_seg_vertex_headers(segid_t seg) {
+        ASSERT(num_key_blocks_seg_using[seg] == num_key_blocks_seg_need[seg]);
+        vector<uint64_t> headers;
+        for (auto block_id : vertex_allocation[seg]) {
+            headers.push_back(block_id * num_buckets_per_block);
+        }
+        return headers;
+    }
+
+    // return the entry offset of each value block in a segment
+    vector<uint64_t> get_seg_edge_headers(segid_t seg) {
+        ASSERT(num_value_blocks_seg_using[seg] == num_value_blocks_seg_need[seg]);
+        vector<uint64_t> headers;
+        for (auto block_id : edge_allocation[seg]) {
+            headers.push_back(block_id * num_entries_per_block);
+        }
+        return headers;
+    }
+
+    void reset() {
+        for (auto it = rdf_metas.begin(); it != rdf_metas.end(); it++) {
+            segid_t seg = it->first;
+            for (int i = 0; i < num_key_blocks_seg_need[seg]; i++) {
+                int block_id = vertex_allocation[seg][i];
+                if (block_id != BLOCK_ID_ERR) {
+                    vertex_allocation[seg][i] = BLOCK_ID_ERR;
+                    num_key_blocks_seg_using[seg]--;
+                    free_key_blocks.push_back(block_id);
+                }
+            }
+
+            for (int i = 0; i < num_value_blocks_seg_need[seg]; i++) {
+                int block_id = edge_allocation[seg][i];
+                if (block_id != BLOCK_ID_ERR) {
+                    edge_allocation[seg][i] = BLOCK_ID_ERR;
+                    num_value_blocks_seg_using[seg]--;
+                    free_value_blocks.push_back(block_id);
+                }
+            }
+        }
+        segs_in_key_cache.clear();
+        segs_in_value_cache.clear();
+
+        ASSERT(free_key_blocks.size() == cap_gpu_key_blocks);
+        ASSERT(free_value_blocks.size() == cap_gpu_value_blocks);
+    } // end of reset
 
     void load_segment(segid_t seg_to_load, segid_t seg_in_pattern, const vector<segid_t> &conflicts, cudaStream_t stream_id, bool preload) {
         // step 1.1: evict key blocks
