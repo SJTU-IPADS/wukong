@@ -104,43 +104,6 @@ private:
     edge_t *edge_addr;
 
     const int BLOCK_ID_ERR = -1;
-public:
-    GPUCache(vertex_t *d_v_a, edge_t *d_e_a, vertex_t *v_a, edge_t *e_a, map<segid_t, rdf_segment_meta_t> &rdf_metas):
-            d_vertex_addr(d_v_a), d_edge_addr(d_e_a), vertex_addr(v_a), edge_addr(e_a), rdf_metas(rdf_metas) {
-        // step 1: calculate capacities
-        seg_num = rdf_metas.size();
-
-        cap_gpu_slots = (GiB2B(global_gpu_kvcache_size_gb) * GStore::HD_RATIO) / (100 * sizeof(vertex_t));
-        cap_gpu_buckets = cap_gpu_slots / GStore::ASSOCIATIVITY;
-        cap_gpu_entries = (GiB2B(global_gpu_kvcache_size_gb) - cap_gpu_slots * sizeof(vertex_t)) / sizeof(edge_t);
-
-        num_buckets_per_block = MiB2B(global_gpu_key_blk_size_mb) / (sizeof(vertex_t) * GStore::ASSOCIATIVITY);
-        num_entries_per_block = MiB2B(global_gpu_value_blk_size_mb) / sizeof(edge_t);
-
-        cap_gpu_key_blocks = cap_gpu_buckets / num_buckets_per_block;
-        cap_gpu_value_blocks = cap_gpu_entries / num_entries_per_block;
-
-        // step 2: init free_key/value blocks
-        for (int i = 0; i < cap_gpu_key_blocks; i++) {
-            free_key_blocks.push_back(i);
-        }
-        for (int i = 0; i < cap_gpu_value_blocks; i++) {
-            free_value_blocks.push_back(i);
-        }
-
-        // step 3: init vertex/edge allocations
-        for (auto it = rdf_metas.begin(); it != rdf_metas.end(); it++) {
-            int key_blocks_need = ceil(((double)it->second.get_total_num_buckets()) / num_buckets_per_block);
-            vertex_allocation.insert(std::make_pair(it->first, vector<int>(key_blocks_need, BLOCK_ID_ERR)));
-            num_key_blocks_seg_need.insert(std::make_pair(it->first, key_blocks_need));
-            num_key_blocks_seg_using.insert(std::make_pair(it->first, 0));
-
-            int value_blocks_need = ceil(((double)it->second.num_edges) / num_entries_per_block);
-            edge_allocation.insert(std::make_pair(it->first, vector<int>(value_blocks_need, BLOCK_ID_ERR)));
-            num_value_blocks_seg_need.insert(std::make_pair(it->first, value_blocks_need));
-            num_value_blocks_seg_using.insert(std::make_pair(it->first, 0));
-        }
-    } // end of constructor
 
     void evict_key_blocks(const vector<segid_t> &conflicts, segid_t seg_to_load, segid_t seg_in_pattern, int num_need_blocks) {
         // step 1: traverse segments in key cache, evict segments that are not in conflicts or not to load/using
@@ -423,6 +386,43 @@ public:
                                    cudaMemcpyHostToDevice,
                                    stream_id));
     } // end of load_edge_block
+public:
+    GPUCache(vertex_t *d_v_a, edge_t *d_e_a, vertex_t *v_a, edge_t *e_a, map<segid_t, rdf_segment_meta_t> &rdf_metas):
+            d_vertex_addr(d_v_a), d_edge_addr(d_e_a), vertex_addr(v_a), edge_addr(e_a), rdf_metas(rdf_metas) {
+        // step 1: calculate capacities
+        seg_num = rdf_metas.size();
+
+        cap_gpu_slots = (GiB2B(global_gpu_kvcache_size_gb) * GStore::HD_RATIO) / (100 * sizeof(vertex_t));
+        cap_gpu_buckets = cap_gpu_slots / GStore::ASSOCIATIVITY;
+        cap_gpu_entries = (GiB2B(global_gpu_kvcache_size_gb) - cap_gpu_slots * sizeof(vertex_t)) / sizeof(edge_t);
+
+        num_buckets_per_block = MiB2B(global_gpu_key_blk_size_mb) / (sizeof(vertex_t) * GStore::ASSOCIATIVITY);
+        num_entries_per_block = MiB2B(global_gpu_value_blk_size_mb) / sizeof(edge_t);
+
+        cap_gpu_key_blocks = cap_gpu_buckets / num_buckets_per_block;
+        cap_gpu_value_blocks = cap_gpu_entries / num_entries_per_block;
+
+        // step 2: init free_key/value blocks
+        for (int i = 0; i < cap_gpu_key_blocks; i++) {
+            free_key_blocks.push_back(i);
+        }
+        for (int i = 0; i < cap_gpu_value_blocks; i++) {
+            free_value_blocks.push_back(i);
+        }
+
+        // step 3: init vertex/edge allocations
+        for (auto it = rdf_metas.begin(); it != rdf_metas.end(); it++) {
+            int key_blocks_need = ceil(((double)it->second.get_total_num_buckets()) / num_buckets_per_block);
+            vertex_allocation.insert(std::make_pair(it->first, vector<int>(key_blocks_need, BLOCK_ID_ERR)));
+            num_key_blocks_seg_need.insert(std::make_pair(it->first, key_blocks_need));
+            num_key_blocks_seg_using.insert(std::make_pair(it->first, 0));
+
+            int value_blocks_need = ceil(((double)it->second.num_edges) / num_entries_per_block);
+            edge_allocation.insert(std::make_pair(it->first, vector<int>(value_blocks_need, BLOCK_ID_ERR)));
+            num_value_blocks_seg_need.insert(std::make_pair(it->first, value_blocks_need));
+            num_value_blocks_seg_using.insert(std::make_pair(it->first, 0));
+        }
+    } // end of constructor
 
     void load_segment(segid_t seg_to_load, segid_t seg_in_pattern, const vector<segid_t> &conflicts, cudaStream_t stream_id, bool preload) {
         // step 1.1: evict key blocks
