@@ -117,13 +117,15 @@ int main(int argc, char *argv[]) {
         GPUCache cache(d_va, d_ea, dgraph.gstore.vertex_addr(), dgraph.gstore.edge_addr(), rsmm);
 
         vector<segid_t> dummy;
-        logstream(LOG_ERROR) << "---rsmm: size(): " << rsmm.size() << ", dir: " << (--rsmm.end())->first.dir << ", pid: " <<  (--rsmm.end())->first.pid << LOG_endl;
 
         cache.load_segment((--rsmm.end())->first, (--rsmm.end())->first, dummy, stream, false);
         CUDA_ASSERT(cudaDeviceSynchronize());
         char v[sizeof(vertex_t)];
         CUDA_ASSERT(cudaMemcpy(v, d_va, sizeof(vertex_t), cudaMemcpyDeviceToHost));
-        logstream(LOG_ERROR) << "---first_vertex: dir: " << ((vertex_t *)v)->key.dir << ", vid: " << ((vertex_t *)v)->key.vid << ", pid: " << ((vertex_t *)v)->key.pid << LOG_endl;
+
+        ASSERT((--rsmm.end())->first.pid == ((vertex_t *)v)->key.pid);
+        ASSERT((--rsmm.end())->first.dir == ((vertex_t *)v)->key.dir);
+        logstream(LOG_EMPH) << "Load segment success." << LOG_endl;
     }
 
     return 0;
