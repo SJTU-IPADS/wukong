@@ -51,6 +51,7 @@
 #include "unit.hpp"
 #include "variant.hpp"
 
+#include "atomic.hpp"
 using namespace std;
 
 enum { NBITS_DIR = 1 };
@@ -169,44 +170,39 @@ private:
     /* Cache remote vertex(location) of the given key, eleminating one RDMA read.
      * This only works when RDMA enabled.
      */
-    
+
     class RDMA_Cache {
-        static const int NUM_BUCKET = 1 << 20;
-        static const int NUM_ENTRY = 8;
+        static const int NUM_BUCKETS = 1 << 20;
+        static const int ASSOCIATIVITY = 8;  // the associativity of items in each bucket
 
         // cache line
-        struct Entry {
+        struct item_t {
             vertex_t v;
             uint64_t expire_time;  // only work when DYNAMIC_GSTORE=on
-            int cnt;  // keep track of visit cnt of v
+            uint32_t cnt;  // keep track of visit cnt of v
 
             /// Each cache line use a version to detect reader-writer conflict.
             /// Version == 0, when an insertion occurs.
             /// Init value is set to 1.
             /// Version always increments after an insertion.
-            unsigned int version;
+            uint32_t version;
 
-            Entry() : expire_time(0), cnt(0), version(1) { }
+            item_t() : expire_time(0), cnt(0), version(1) { }
         };
 
         // bucket whose items share the same index
-        struct Bucket {
-            Entry items[NUM_ENTRY]; // entry list
+        struct bucket_t {
+            item_t items[ASSOCIATIVITY]; // item list
         };
-        Bucket *hashtable;
+        bucket_t *hashtable;
         uint64_t lease;  // only work when DYNAMIC_GSTORE=on
-
-        /*Wrap of built-in atomic memory access in gcc*/
-        unsigned cmp_and_swap(unsigned *ptr, unsigned old_v, unsigned new_v) {
-            return __sync_val_compare_and_swap(ptr, old_v, new_v);
-        }
 
         public:
         RDMA_Cache() {
             // init hashtable
-            size_t mem_size = sizeof(Bucket) * NUM_BUCKET;
-            hashtable = new Bucket[NUM_BUCKET];
-            cout << "cache allocate " << mem_size << " memory" << endl;
+            size_t mem_size = sizeof(bucket_t) * NUM_BUCKETS;
+            hashtable = new bucket_t[NUM_BUCKETS];
+            logstream(LOG_INFO) << "cache allocate " << mem_size << " memory" << LOG_endl;
         }
 
         /* Lookup a vertex in cache according to the given key.*/ 
@@ -214,13 +210,13 @@ private:
             if (!global_enable_caching)
                 return false;
 
-            int idx = key.hash() % NUM_BUCKET; // find bucket
-            Entry *items = hashtable[idx].items;
+            int idx = key.hash() % NUM_BUCKETS; // find bucket
+            item_t *items = hashtable[idx].items;
             bool found = false;
-            unsigned ver;
+            uint32_t ver;
 
-            // lookup vertex in entry list
-            for (int i = 0; i < NUM_ENTRY; i++) {
+            // lookup vertex in item list
+            for (int i = 0; i < ASSOCIATIVITY; i++) {
                 if (items[i].v.key == key) {
                     while (true) {
                         ver = items[i].version;
@@ -256,14 +252,14 @@ private:
             if (!global_enable_caching)
                 return;
 
-            int idx = v.key.hash() % NUM_BUCKET;
-            Entry *items = hashtable[idx].items;
+            int idx = v.key.hash() % NUM_BUCKETS;
+            item_t *items = hashtable[idx].items;
 
             uint64_t min_cnt;
             int pos = -1;  // position to insert v
 
             while (true) {
-                for (int i = 0; i < NUM_ENTRY; i++) {
+                for (int i = 0; i < ASSOCIATIVITY; i++) {
                     if(items[i].v.key == v.key || items[i].v.key.is_empty()) {
                         pos = i;
                         break;
@@ -273,7 +269,7 @@ private:
                 // pick one to replace (LFU)
                 if (pos == -1) {
                     min_cnt = 1ul << 63;
-                    for (int i = 0; i < NUM_ENTRY; i++) {
+                    for (int i = 0; i < ASSOCIATIVITY; i++) {
                         if (items[i].cnt < min_cnt) {
                             min_cnt = items[i].cnt;
                             pos = i;
@@ -283,9 +279,9 @@ private:
                     }
                 }
 
-                volatile unsigned old_ver = items[pos].version;
+                volatile uint32_t old_ver = items[pos].version;
                 if (old_ver != 0) {
-                    unsigned ret_ver = cmp_and_swap(&items[pos].version, old_ver, 0);
+                    uint32_t ret_ver = wukong::atomic::compare_and_swap(&items[pos].version, old_ver, 0);
                     if (ret_ver == old_ver) {
 #if DYNAMIC_GSTORE
                         // Do not reset visit cnt for the same vertex
@@ -298,7 +294,7 @@ private:
 #endif
 
                         asm volatile("" ::: "memory");
-                        ret_ver = cmp_and_swap(&items[pos].version, 0, old_ver + 1);
+                        ret_ver = wukong::atomic::compare_and_swap(&items[pos].version, 0, old_ver + 1);
                         assert(ret_ver == 0);
                         return;
                     }
@@ -319,15 +315,15 @@ private:
             if (!global_enable_caching)
                 return;
 
-            int idx = key.hash() % NUM_BUCKET;
-            Entry *items = hashtable[idx].items;
-            for (int i = 0; i < NUM_ENTRY; i++) {
+            int idx = key.hash() % NUM_BUCKETS;
+            item_t *items = hashtable[idx].items;
+            for (int i = 0; i < ASSOCIATIVITY; i++) {
                 if (items[i].v.key == key) {
 
                     /// Version is not checked and set here
                     /// since inconsistent expire time does not cause staleness.
                     /// The only possible overhead is 
-                    /// one more update of vertex and expire time.
+                    /// an extra update of vertex and expire time.
                     items[i].expire_time = timer::get_usec();
                     return;
                 }
@@ -335,6 +331,7 @@ private:
         }
 #endif
     };
+
 
     static const int NUM_LOCKS = 1024;
 
@@ -416,8 +413,8 @@ private:
                         key.print_key();
                         vertices[slot_id].key.print_key();
                         logstream(LOG_ERROR) << "conflict at slot["
-                                             << slot_id << "] of bucket["
-                                             << bucket_id << "]" << LOG_endl;
+                            << slot_id << "] of bucket["
+                            << bucket_id << "]" << LOG_endl;
                         ASSERT(false);
                     } else {
                         goto done;
