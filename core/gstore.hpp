@@ -413,8 +413,8 @@ private:
                         key.print_key();
                         vertices[slot_id].key.print_key();
                         logstream(LOG_ERROR) << "conflict at slot["
-                            << slot_id << "] of bucket["
-                            << bucket_id << "]" << LOG_endl;
+                                             << slot_id << "] of bucket["
+                                             << bucket_id << "]" << LOG_endl;
                         ASSERT(false);
                     } else {
                         goto done;
