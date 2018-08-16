@@ -22,7 +22,7 @@ global_enable_caching           0
 # GPU
 global_num_gpus                 1
 global_gpu_rdma_buf_size_mb     64
-global_gpu_max_element          20000000
+global_gpu_rbuf_size_mb         32
 global_gpu_kvcache_size_gb      10
 global_gpu_key_blk_size_mb      16
 global_gpu_value_blk_size_mb    4
