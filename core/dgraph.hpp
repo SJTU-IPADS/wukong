@@ -529,7 +529,13 @@ public:
 #ifdef USE_GPU
         sid_t num_preds = count_predicates(dname + "str_index");
         gstore.set_num_predicates(num_preds);
+
+#ifdef VERSATILE
+        logstream(LOG_ERROR) << "GPU support cannot work with VERSATILE now. Please disable VERSATILE and rebuild Wukong." << LOG_endl;
+        exit(-1);
 #endif
+
+#endif  // !USE_GPU
 
         // load_data: load partial input files by each server and exchanges triples
         //            according to graph partitioning
