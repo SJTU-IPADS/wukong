@@ -33,6 +33,8 @@
 #include <vector>
 #include <cstring>
 
+#include "string_server.hpp"
+#include "logger2.hpp"
 #include "type.hpp"
 
 using namespace std;

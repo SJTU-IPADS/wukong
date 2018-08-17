@@ -35,30 +35,40 @@
 
 #include <tbb/concurrent_unordered_map.h>
 
+#include "global.hpp"
+#include "logger2.hpp"
+
 using namespace std;
 
 class TCP_Adaptor {
 private:
-    typedef tbb::concurrent_unordered_map<int, zmq::socket_t *> socket_map;
-    typedef vector<zmq::socket_t *> socket_vector;
+
+    int sid;            // unused in TCP communication
+    int num_servers;    // unused in TCP communication
+    int num_threads;    // unused in TCP communication
 
     int port_base;
 
+    typedef tbb::concurrent_unordered_map<int, zmq::socket_t *> socket_map;
+    typedef vector<zmq::socket_t *> socket_vector;
+
     // The communication over zeromq, a socket library.
-    zmq::context_t context;
     socket_vector receivers;     // static allocation
     socket_map senders;          // dynamic allocation
+
+    zmq::context_t context;
 
     pthread_spinlock_t *send_locks;
     pthread_spinlock_t *receive_locks;
 
     vector<string> ipset;
 
-    inline int port_code(int sid, int tid) { return sid * 200 + tid; }
+    inline int port_code(int dst_sid, int dst_tid) { return dst_sid * 200 + dst_tid; }
 
 public:
-    TCP_Adaptor(int sid, string fname, int num_threads, int port_base)
-        : port_base(port_base), context(1) {
+    TCP_Adaptor(int sid, string fname, int port_base, int num_servers, int num_threads)
+        : sid(sid), port_base(port_base), context(1),
+          num_servers(num_servers), num_threads(num_threads) {
 
         ifstream hostfile(fname);
         string ip;
@@ -94,10 +104,10 @@ public:
         }
     }
 
-    string ip_of(int sid) { return ipset[sid]; }
+    string ip_of(int dst_sid) { return ipset[dst_sid]; }
 
-    bool send(int sid, int tid, const string &str) {
-        int pid = port_code(sid, tid);
+    bool send(int dst_sid, int dst_tid, const string &str) {
+        int pid = port_code(dst_sid, dst_tid);
 
         zmq::message_t msg(str.length());
         memcpy((void *)msg.data(), str.c_str(), str.length());
@@ -105,18 +115,18 @@ public:
         // avoid two contentions
         // 1) add the 'equal' sockets to the set (overwrite)
         // 2) use the same socket by multiple proxy threads simultaneously.
-        pthread_spin_lock(&send_locks[tid]);
+        pthread_spin_lock(&send_locks[dst_tid]);
         if (senders.find(pid) == senders.end()) {
             // new socket on-demand
             char address[32] = "";
-            snprintf(address, 32, "tcp://%s:%d", ipset[sid].c_str(), port_base + pid);
+            snprintf(address, 32, "tcp://%s:%d", ipset[dst_sid].c_str(), port_base + pid);
             senders[pid] = new zmq::socket_t(context, ZMQ_PUSH);
             /// FIXME: check return value
             senders[pid]->connect(address);
         }
 
         bool result = senders[pid]->send(msg, ZMQ_DONTWAIT);
-        pthread_spin_unlock(&send_locks[tid]);
+        pthread_spin_unlock(&send_locks[dst_tid]);
 
         return result;
     }

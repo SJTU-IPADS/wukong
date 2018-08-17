@@ -12,8 +12,8 @@
 #include <boost/serialization/unordered_map.hpp>
 #include <boost/serialization/unordered_set.hpp>
 
+#include "global.hpp"
 #include "tcp_adaptor.hpp"
-#include "config.hpp"
 
 using namespace std;
 

@@ -32,6 +32,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp>
 
+#include "global.hpp"
 #include "config.hpp"
 #include "proxy.hpp"
 #include "monitor.hpp"

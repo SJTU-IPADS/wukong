@@ -832,9 +832,7 @@ public:
         return -1;
     }
 
-    inline bool first_send() {
-        return pendings == 0;
-    }
+    inline bool first_send() { return pendings == 0; }
 
     inline bool need_poll() {
         // whether the post operation need poll completions
@@ -910,8 +908,7 @@ public:
         recv_helpers_(NULL), remote_ud_qp_attrs_(NULL), //qps_(NULL),
         rdma_single_device_(NULL),
         num_rc_qps_(100), num_uc_qps_(1), num_ud_qps_(4),
-        enable_single_thread_mr_(enable_single_thread_mr)
-    {
+        enable_single_thread_mr_(enable_single_thread_mr) {
 
         assert(node_id >= 0);
 
@@ -946,15 +943,52 @@ public:
 
     // XD: why volatile?
     void set_connect_mr(volatile void *conn_buf, uint64_t conn_buf_size) {
-        if (conn_buf == NULL) {
-            conn_buf = (volatile uint8_t *) memalign(4096, conn_buf_size);
-        }
+        if (conn_buf == NULL)
+            conn_buf = (volatile uint8_t *)memalign(4096, conn_buf_size);
+
         assert(conn_buf != NULL);
         memset((char *) conn_buf, 0, conn_buf_size);
 
         conn_buf_ = (volatile uint8_t *)conn_buf;
         conn_buf_size_ = conn_buf_size;
     }
+
+    // register memory buffer to a device, shall be called after the set_connect_mr and open_device
+    void register_connect_mr(int dev_id = 0) {
+        RdmaDevice *rdma_device = get_rdma_device(dev_id);
+        assert(rdma_device->pd != NULL);
+        if (enable_single_thread_mr_ && (rdma_device->conn_buf_mr != NULL)) {
+            assert(false);
+            return;
+        }
+        rdma_device->conn_buf_mr = ibv_reg_mr(rdma_device->pd, (char *)conn_buf_, conn_buf_size_,
+                                              DEFAULT_PROTECTION_FLAG);
+        CE_2(!rdma_device->conn_buf_mr,
+             "[librdma]: Connect Memory Region failed at dev %d, err %s\n", dev_id, strerror(errno));
+    }
+
+#ifdef USE_GPU
+    void set_connect_mr_gpu(volatile void *gpu_buf, uint64_t gpu_buf_size) {
+        assert(gpu_buf != NULL);
+        CUDA_ASSERT(cudaMemset((char *) gpu_buf, 0, gpu_buf_size));
+        conn_buf_gpu_ = (volatile uint8_t *)gpu_buf;
+        conn_buf_size_gpu_ = gpu_buf_size;
+    }
+
+    void register_connect_mr_gpu(int dev_id = 0) {
+        RdmaDevice *rdma_device = get_rdma_device(dev_id);
+        assert(rdma_device->pd != NULL);
+
+        rdma_device->conn_buf_mr_gpu = ibv_reg_mr(
+                                           rdma_device->pd,
+                                           (char *)conn_buf_gpu_,
+                                           conn_buf_size_gpu_,
+                                           DEFAULT_PROTECTION_FLAG);
+        CE_2(!rdma_device->conn_buf_mr_gpu,
+             "[librdma]: Connect Device Memory Region failed at dev %d, err %s\n", dev_id,
+             strerror(errno));
+    }
+#endif
 
     void set_dgram_mr(volatile void *dgram_buf, int dgram_buf_size) {
         if (dgram_buf == NULL) {
@@ -965,6 +999,15 @@ public:
 
         dgram_buf_ = (volatile uint8_t *)dgram_buf;
         dgram_buf_size_ = dgram_buf_size;
+    }
+
+    void register_dgram_mr(int dev_id = 0) {
+        RdmaDevice *rdma_device = get_rdma_device(dev_id);
+        assert(rdma_device->pd != NULL);
+        rdma_device->dgram_buf_mr = ibv_reg_mr(rdma_device->pd, (char *)dgram_buf_, dgram_buf_size_,
+                                               DEFAULT_PROTECTION_FLAG);
+        CE_2(!rdma_device->dgram_buf_mr
+             , "[librdma]: Datagram Memory Region failed at dev %d, err %s\n", dev_id, strerror(errno));
     }
 
     // query methods
@@ -1098,29 +1141,6 @@ public:
         assert(rdma_device->pd != 0);
     }
 
-    // register memory buffer to a device, shall be called after the set_connect_mr and open_device
-
-    void register_connect_mr(int dev_id = 0) {
-        RdmaDevice *rdma_device = get_rdma_device(dev_id);
-        assert(rdma_device->pd != NULL);
-        if (enable_single_thread_mr_ && rdma_device->conn_buf_mr != NULL) {
-            assert(false);
-            return;
-        }
-        rdma_device->conn_buf_mr = ibv_reg_mr(rdma_device->pd, (char *)conn_buf_, conn_buf_size_,
-                                              DEFAULT_PROTECTION_FLAG);
-        CE_2(!rdma_device->conn_buf_mr,
-             "[librdma]: Connect Memory Region failed at dev %d, err %s\n", dev_id, strerror(errno));
-    }
-
-    void register_dgram_mr(int dev_id = 0) {
-        RdmaDevice *rdma_device = get_rdma_device(dev_id);
-        assert(rdma_device->pd != NULL);
-        rdma_device->dgram_buf_mr = ibv_reg_mr(rdma_device->pd, (char *)dgram_buf_, dgram_buf_size_,
-                                               DEFAULT_PROTECTION_FLAG);
-        CE_2(!rdma_device->dgram_buf_mr
-             , "[librdma]: Datagram Memory Region failed at dev %d, err %s\n", dev_id, strerror(errno));
-    }
 
     //-----------------------------------------------
 
@@ -1522,6 +1542,7 @@ public:
             assert(local_qp->dev_->conn_buf_mr != NULL);
             qp_attr.rkey = local_qp->dev_->conn_buf_mr->rkey;
 #endif
+
 #ifdef USE_GPU
             assert(local_qp->dev_ != NULL);
             assert(local_qp->dev_->conn_buf_mr_gpu != NULL);
@@ -1836,37 +1857,16 @@ public:
 
     volatile uint8_t *conn_buf_ = NULL;
     uint64_t conn_buf_size_ = 0;
+#ifdef USE_GPU
+    volatile uint8_t *conn_buf_gpu_ = NULL;
+    uint64_t conn_buf_size_gpu_ = 0;
+#endif
     volatile uint8_t *dgram_buf_ = NULL;
     uint64_t dgram_buf_size_ = 0;
 
     SimpleMap<RdmaQpAttr*> remote_ud_qp_attrs_;
     SimpleMap<RdmaRecvHelper*> recv_helpers_;
 
-#ifdef USE_GPU
-    volatile uint8_t *conn_buf_gpu_;
-    uint64_t conn_buf_size_gpu_;
-
-    void set_connect_mr_gpu(volatile void *gpu_buf, uint64_t gpu_buf_size) {
-        assert(gpu_buf != NULL);
-        CUDA_ASSERT( cudaMemset((char *) gpu_buf, 0, gpu_buf_size) );
-        conn_buf_gpu_ = (volatile uint8_t *)gpu_buf;
-        conn_buf_size_gpu_ = gpu_buf_size;
-    }
-
-    void register_connect_mr_gpu(int dev_id = 0) {
-        RdmaDevice *rdma_device = get_rdma_device(dev_id);
-        assert(rdma_device->pd != NULL);
-
-        rdma_device->conn_buf_mr_gpu = ibv_reg_mr(
-                                           rdma_device->pd,
-                                           (char *)conn_buf_gpu_,
-                                           conn_buf_size_gpu_,
-                                           DEFAULT_PROTECTION_FLAG);
-        CE_2(!rdma_device->conn_buf_mr_gpu,
-             "[librdma]: Connect Device Memory Region failed at dev %d, err %s\n", dev_id,
-             strerror(errno));
-    }
-#endif
 };
 
 bool Qp::get_ud_connect_info_specific(int remote_id, int thread_id, int idx) {

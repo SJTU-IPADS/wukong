@@ -31,46 +31,11 @@
 #include <sstream>
 #include <boost/algorithm/string/predicate.hpp>
 
+#include "global.hpp"
 #include "rdma.hpp"
 #include "assertion.hpp"
 
-
 using namespace std;
-
-int global_num_servers = 1;    // the number of servers
-int global_num_threads = 2;    // the number of threads per server (incl. proxy and engine)
-
-int global_num_proxies = 1;    // the number of proxies
-int global_num_engines = 1;    // the number of engines
-
-string global_input_folder;
-
-int global_data_port_base = 5500;
-int global_ctrl_port_base = 9576;
-
-int global_memstore_size_gb = 20;
-int global_rdma_buf_size_mb = 64;
-int global_rdma_rbf_size_mb = 16;
-
-bool global_use_rdma = true;
-int global_rdma_threshold = 300;
-
-int global_mt_threshold = 16;
-
-bool global_enable_caching = true;
-bool global_enable_workstealing = false;
-
-bool global_silent = true;  // don't take back results by default
-
-bool global_enable_planner = true;  // for planner
-bool global_generate_statistics = true;
-
-bool global_enable_vattr = false;  // for attr
-
-#ifdef USE_GPU
-int global_num_gpus = 1;
-int global_gpu_rdma_buf_size_mb = 64;
-#endif
 
 static bool set_immutable_config(string cfg_name, string value)
 {
@@ -103,22 +68,38 @@ static bool set_immutable_config(string cfg_name, string value)
         global_memstore_size_gb = atoi(value.c_str());
         ASSERT(global_memstore_size_gb > 0);
     } else if (cfg_name == "global_rdma_buf_size_mb") {
-        global_rdma_buf_size_mb = atoi(value.c_str());
-        ASSERT(global_rdma_buf_size_mb > 0);
+        if (RDMA::get_rdma().has_rdma())
+            global_rdma_buf_size_mb = atoi(value.c_str());
+        else
+            global_rdma_buf_size_mb = 0;
+        ASSERT(global_rdma_buf_size_mb >= 0);
     } else if (cfg_name == "global_rdma_rbf_size_mb") {
-        global_rdma_rbf_size_mb = atoi(value.c_str());
-        ASSERT(global_rdma_rbf_size_mb > 0);
+        if (RDMA::get_rdma().has_rdma())
+            global_rdma_rbf_size_mb = atoi(value.c_str());
+        else
+            global_rdma_buf_size_mb = 0;
+        ASSERT(global_rdma_rbf_size_mb >= 0);
     } else if (cfg_name == "global_generate_statistics") {
         global_generate_statistics = atoi(value.c_str());
     }
-#ifdef USE_GPU
+    // GPU support
     else if (cfg_name == "global_num_gpus") {
         global_num_gpus = atoi(value.c_str());
     } else if (cfg_name == "global_gpu_rdma_buf_size_mb") {
-        global_gpu_rdma_buf_size_mb = atoi(value.c_str());
-    }
-#endif
-    else {
+        if (RDMA::get_rdma().has_rdma())
+            global_gpu_rdma_buf_size_mb = atoi(value.c_str());
+        else
+            global_gpu_rdma_buf_size_mb = 0;
+        ASSERT(global_gpu_rdma_buf_size_mb >= 0);
+    } else if (cfg_name == "global_gpu_rbuf_size_mb") {
+        global_gpu_rbuf_size_mb = atoi(value.c_str());
+    } else if (cfg_name == "global_gpu_kvcache_size_gb") {
+        global_gpu_kvcache_size_gb = atoi(value.c_str());
+    } else if (cfg_name == "global_gpu_key_blk_size_mb") {
+        global_gpu_key_blk_size_mb = atoi(value.c_str());
+    } else if (cfg_name == "global_gpu_value_blk_size_mb") {
+        global_gpu_value_blk_size_mb = atoi(value.c_str());
+    } else {
         return false;
     }
 
@@ -264,10 +245,13 @@ void print_config(void)
     logstream(LOG_INFO) << "global_generate_statistics: "   << global_generate_statistics   << LOG_endl;
     logstream(LOG_INFO) << "global_enable_vattr: "      << global_enable_vattr          << LOG_endl;
 
-#ifdef USE_GPU
+    // GPU support
     logstream(LOG_INFO) << "global_num_gpus: "        << global_num_gpus        << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_rdma_buf_size_mb: "  << global_gpu_rdma_buf_size_mb  << LOG_endl;
-#endif
+    logstream(LOG_INFO) << "global_gpu_rbuf_size_mb: "  << global_gpu_rbuf_size_mb  << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_kvcache_size_gb: "  << global_gpu_kvcache_size_gb  << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_key_blk_size_mb: "  << global_gpu_key_blk_size_mb  << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_value_blk_size_mb: "  << global_gpu_value_blk_size_mb  << LOG_endl;
 
     logstream(LOG_INFO) << "--" << LOG_endl;
 

@@ -46,10 +46,15 @@ using namespace std;
 
 class TCP_Adaptor {
 private:
-    typedef tbb::concurrent_unordered_map<int, nng_socket *> socket_map;
-    typedef vector<nng_socket *> socket_vector;
+
+    int sid;            // unused in TCP communication
+    int num_servers;    // unused in TCP communication
+    int num_threads;    // unused in TCP communication
 
     int port_base;
+
+    typedef tbb::concurrent_unordered_map<int, nng_socket *> socket_map;
+    typedef vector<nng_socket *> socket_vector;
 
     // The communication over nng (https://nanomsg.github.io/nng), a socket library.
     socket_vector receivers;  // static allocation
@@ -60,19 +65,19 @@ private:
 
     vector<string> ipset;
 
-    inline int port_code(int sid, int tid) { return sid * 200 + tid; }
+    inline int port_code(int dst_sid, int dst_tid) { return dst_sid * 200 + dst_tid; }
 
 public:
-    TCP_Adaptor(int sid, string fname, int nths, int port_base)
-        : port_base(port_base) {
+    TCP_Adaptor(int sid, string fname, int port_base, int num_servers, int num_threads)
+        : sid(sid), port_base(port_base), num_servers(num_servers), num_threads(num_threads) {
 
         ifstream hostfile(fname);
         string ip;
         while (hostfile >> ip)
             ipset.push_back(ip);
 
-        receivers.resize(nths);
-        for (int tid = 0; tid < nths; tid++) {
+        receivers.resize(num_threads);
+        for (int tid = 0; tid < num_threads; tid++) {
             char address[128] = "";
             snprintf(address, 128, "tcp://*:%d", port_base + port_code(sid, tid));
             receivers[tid] = new nng_socket();
@@ -93,12 +98,12 @@ public:
             }
         }
 
-        send_locks = (pthread_spinlock_t *)malloc(sizeof(pthread_spinlock_t) * nths);
-        for (int i = 0; i < nths; i++)
+        send_locks = (pthread_spinlock_t *)malloc(sizeof(pthread_spinlock_t) * num_threads);
+        for (int i = 0; i < num_threads; i++)
             pthread_spin_init(&send_locks[i], 0);
 
-        receive_locks = (pthread_spinlock_t *)malloc(sizeof(pthread_spinlock_t) * nths);
-        for (int i = 0; i < nths; i++)
+        receive_locks = (pthread_spinlock_t *)malloc(sizeof(pthread_spinlock_t) * num_threads);
+        for (int i = 0; i < num_threads; i++)
             pthread_spin_init(&receive_locks[i], 0);
     }
 
@@ -114,10 +119,10 @@ public:
         }
     }
 
-    string ip_of(int sid) { return ipset[sid]; }
+    string ip_of(int dst_sid) { return ipset[dst_sid]; }
 
-    bool send(int sid, int tid, const string &str) {
-        int pid = port_code(sid, tid);
+    bool send(int dst_sid, int dst_tid, const string &str) {
+        int pid = port_code(dst_sid, dst_tid);
 
         // alloc msg, nng_send is responsible to free it
         nng_msg *msg = NULL ;
@@ -127,11 +132,11 @@ public:
         // avoid two contentions
         // 1) add the 'equal' sockets to the set (overwrite)
         // 2) use the same socket by multiple proxy threads simultaneously.
-        pthread_spin_lock(&send_locks[tid]);
+        pthread_spin_lock(&send_locks[dst_tid]);
         if (senders.find(pid) == senders.end()) {
             // new socket on-demand
             char address[128] = "";
-            snprintf(address, 128, "tcp://%s:%d", ipset[sid].c_str(), port_base + pid);
+            snprintf(address, 128, "tcp://%s:%d", ipset[dst_sid].c_str(), port_base + pid);
 
             senders[pid] = new nng_socket();
             if (nng_push0_open(senders[pid]) != SUCCESS) {
@@ -147,13 +152,14 @@ public:
 
         // if succ, msg will be free by nng_sendmsg
         int n = nng_sendmsg(*(senders[pid]), msg, 0);
-        pthread_spin_unlock(&send_locks[tid]);
+        pthread_spin_unlock(&send_locks[dst_tid]);
 
         if (n != SUCCESS) {
             nng_msg_free(msg);
             logstream(LOG_FATAL) << "Failed to send the msg at send-side " << LOG_endl;
             return false;
         }
+
         return true ;
     }
 
