@@ -45,11 +45,7 @@ constexpr int const_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
 enum req_type { SPARQL_QUERY = 0, DYNAMIC_LOAD = 1, GSTORE_CHECK = 2, SPARQL_HISTORY = 3 };
 
-enum var_type {
-    known_var,
-    unknown_var,
-    const_var
-};
+enum var_type { known_var = 0, unknown_var, const_var };
 
 // EXT = [ TYPE:16 | COL:16 ]
 // EXT combine message about the col of attr_res_table and the col of result_table
@@ -696,6 +692,7 @@ public:
                 }
             }
         }
+
         updated_patterns.insert(updated_patterns.end(),
                                 known_to_unknown_patterns.begin(),
                                 known_to_unknown_patterns.end());
@@ -784,6 +781,7 @@ public:
 class GStoreCheck {
 private:
     friend class boost::serialization::access;
+
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
         ar & pid;
@@ -810,6 +808,7 @@ public:
 class RDFLoad {
 private:
     friend class boost::serialization::access;
+
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
         ar & pid;
@@ -1005,6 +1004,7 @@ BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Filter, boost::serialization::object_ser
 BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Order, boost::serialization::object_serializable);
 BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Result, boost::serialization::object_serializable);
 BOOST_CLASS_IMPLEMENTATION(SPARQLQuery, boost::serialization::object_serializable);
+
 BOOST_CLASS_IMPLEMENTATION(GStoreCheck, boost::serialization::object_serializable);
 BOOST_CLASS_IMPLEMENTATION(RDFLoad, boost::serialization::object_serializable);
 
@@ -1018,6 +1018,7 @@ BOOST_CLASS_TRACKING(SPARQLQuery::PatternGroup, boost::serialization::track_neve
 BOOST_CLASS_TRACKING(SPARQLQuery::Order, boost::serialization::track_never);
 BOOST_CLASS_TRACKING(SPARQLQuery::Result, boost::serialization::track_never);
 BOOST_CLASS_TRACKING(SPARQLQuery, boost::serialization::track_never);
+
 BOOST_CLASS_TRACKING(GStoreCheck, boost::serialization::track_never);
 BOOST_CLASS_TRACKING(RDFLoad, boost::serialization::track_never);
 
@@ -1071,26 +1072,16 @@ public:
         set_data(d);
     }
 
-    req_type get_type() const {
-        return type;
-    }
+    req_type get_type() const { return type; }
 
-    void set_type(req_type t) {
-        type = t;
-    }
+    void set_type(req_type t) { type = t; }
 
-    string get_data() const {
-        return data;
-    }
+    string get_data() const { return data; }
 
-    const char *get_data_c_str() const {
-        return data.c_str();
-    }
+    void set_data(const string &d) { data = d; }
 
-    void set_data(const string &d) {
-        data = d;
-    }
 
+    // SPARQLQuery command
     SPARQLQuery get_sparql_query() const {
         ASSERT(type == SPARQL_QUERY);
 
@@ -1103,6 +1094,7 @@ public:
         return result;
     }
 
+    // RDFLoad command
     RDFLoad get_rdf_load() const {
         ASSERT(type == DYNAMIC_LOAD);
 
@@ -1115,6 +1107,7 @@ public:
         return result;
     }
 
+    // GStoreCheck command
     GStoreCheck get_gstore_check() const {
         ASSERT(type == GSTORE_CHECK);
 
@@ -1127,13 +1120,9 @@ public:
         return result;
     }
 
-    uint64_t bundle_size() const {
-        return sizeof(uint64_t) + data.length();
-    }
+    uint64_t bundle_size() const { return (sizeof(uint64_t) + data.length()); }
 
-    uint64_t data_size() const {
-        return data.length();
-    }
+    uint64_t data_size() const { return data.length(); }
 
     string to_str() const {
         char c_str[bundle_size()] = {0};

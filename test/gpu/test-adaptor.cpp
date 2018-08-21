@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
     } else {
         sid_t *tmp;
         Bundle b = adaptors[0]->recv();
-        tmp = (sid_t *)b.get_data_c_str();
+        tmp = (sid_t *)b.get_data().c_str();
         logstream(LOG_ERROR) << "---type: " << b.get_type() << ", " << tmp[0] << " " << tmp[1] << " " << tmp[2] << LOG_endl;
     }
     return 0;
