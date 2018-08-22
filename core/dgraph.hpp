@@ -527,15 +527,11 @@ public:
         }
 
 #ifdef USE_GPU
+
         sid_t num_preds = count_predicates(dname + "str_index");
         gstore.set_num_predicates(num_preds);
 
-#ifdef VERSATILE
-        logstream(LOG_ERROR) << "GPU support cannot work with VERSATILE now. Please disable VERSATILE and rebuild Wukong." << LOG_endl;
-        exit(-1);
-#endif
-
-#endif  // !USE_GPU
+#endif  // end of USE_GPU
 
         // load_data: load partial input files by each server and exchanges triples
         //            according to graph partitioning
@@ -578,6 +574,7 @@ public:
         gstore.refresh();
 
 #ifdef USE_GPU
+
         start = timer::get_usec();
         // merge triple_pso and triple_pos into a map
         gstore.init_triples_map(triple_pso, triple_pos);
@@ -613,6 +610,7 @@ public:
         gstore.sync_metadata(con_adaptor);
 
 #else   // !USE_GPU
+
         start = timer::get_usec();
         #pragma omp parallel for num_threads(global_num_engines)
         for (int t = 0; t < global_num_engines; t++) {
@@ -643,6 +641,7 @@ public:
         end = timer::get_usec();
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
                             << "for inserting index data into gstore" << LOG_endl;
+
 #endif  // end of USE_GPU
 
         logstream(LOG_INFO) << "#" << sid << ": loading DGraph is finished" << LOG_endl;

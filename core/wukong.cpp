@@ -25,6 +25,7 @@
 #include <iostream>
 
 #include "global.hpp"
+#include "conflict.hpp"
 #include "config.hpp"
 #include "bind.hpp"
 #include "mem.hpp"
@@ -78,6 +79,8 @@ usage(char *fn)
 int
 main(int argc, char *argv[])
 {
+    conflict_detector();
+
     boost::mpi::environment env(argc, argv);
     boost::mpi::communicator world;
     int sid = world.rank(); // server ID
