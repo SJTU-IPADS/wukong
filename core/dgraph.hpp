@@ -47,32 +47,6 @@
 
 using namespace std;
 
-struct triple_sort_by_pso {
-    inline bool operator()(const triple_t &t1, const triple_t &t2) {
-        if (t1.p < t2.p)
-            return true;
-        else if (t1.p == t2.p)
-            if (t1.s < t2.s)
-                return true;
-            else if (t1.s == t2.s && t1.o < t2.o)
-                return true;
-        return false;
-    }
-};
-
-struct triple_sort_by_pos {
-    inline bool operator()(const triple_t &t1, const triple_t &t2) {
-        if (t1.p < t2.p)
-            return true;
-        else if (t1.p == t2.p)
-            if (t1.o < t2.o)
-                return true;
-            else if (t1.o == t2.o && t1.s < t2.s)
-                return true;
-        return false;
-    }
-};
-
 /**
  * Map the RDF model (e.g., triples, predicate) to Graph model (e.g., vertex, edge, index)
  */
@@ -452,10 +426,14 @@ class DGraph {
                 }
             }
 
+#ifdef VERSATILE
+            sort(triple_pso[tid].begin(), triple_pso[tid].end(), triple_sort_by_spo());
+            sort(triple_pos[tid].begin(), triple_pos[tid].end(), triple_sort_by_ops());
+#else
             sort(triple_pso[tid].begin(), triple_pso[tid].end(), triple_sort_by_pso());
-            dedup_triples(triple_pos[tid]);
-
             sort(triple_pos[tid].begin(), triple_pos[tid].end(), triple_sort_by_pos());
+#endif
+            dedup_triples(triple_pos[tid]);
             dedup_triples(triple_pso[tid]);
         }
     }
@@ -551,7 +529,13 @@ public:
 #ifdef USE_GPU
         sid_t num_preds = count_predicates(dname + "str_index");
         gstore.set_num_predicates(num_preds);
+
+#ifdef VERSATILE
+        logstream(LOG_ERROR) << "GPU support cannot work with VERSATILE now. Please disable VERSATILE and rebuild Wukong." << LOG_endl;
+        exit(-1);
 #endif
+
+#endif  // !USE_GPU
 
         // load_data: load partial input files by each server and exchanges triples
         //            according to graph partitioning
