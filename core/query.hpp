@@ -1125,10 +1125,12 @@ public:
     uint64_t data_size() const { return data.length(); }
 
     string to_str() const {
-        char c_str[bundle_size()] = {0};
+        char *c_str = new char[bundle_size()];
         uint64_t t = (uint64_t) type;
         memcpy(c_str, &t, sizeof(uint64_t));
         memcpy(c_str + sizeof(uint64_t), data.c_str(), data.length());
-        return string(c_str, bundle_size());
+        string str(c_str, bundle_size());
+        delete []c_str;
+        return str;
     }
 };
