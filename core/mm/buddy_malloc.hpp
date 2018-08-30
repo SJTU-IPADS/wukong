@@ -1,4 +1,3 @@
-
 /*
  * Copyright (c) 2016 Shanghai Jiao Tong University.
  *     All rights reserved.

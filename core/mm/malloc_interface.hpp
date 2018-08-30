@@ -21,36 +21,49 @@
  */
 
 #pragma once
+
 #include <iostream>
 
-// NOTICE: any implentation of this interface should be *tread-safe*
+// NOTE: any implentation of this interface should be *thread-safe*
 class MAInterface {
 public:
 
-    /* init the memory management system with the memory region which starts
-    from address 'start' and contains 'size' bytes, n is the number of
-    threads which would use the memory management system concurrently
-    Note that all the memory blocks it manages should in that memory region. */
+    /**
+     * init the memory management system with the memory region which starts
+     * from address 'start' and contains 'size' bytes, n is the number of
+     * threads which would use the memory management system concurrently
+     * Note that all the memory blocks it manages should in that memory region.
+     */
     virtual void init(void *start, uint64_t size, uint64_t n) = 0;
 
-    /* malloc a 'size' bytes memory block from the memory management system,and
-    returns the offset to the 'start' which indicate the base address of the
-    allocation. tid is the specific id of current thread which calls this interface
-    Note that the tid should range from 0 to n-1. */
+    /**
+     * malloc a 'size' bytes memory block from the memory management system,and
+     * returns the offset to the 'start' which indicate the base address of the
+     * allocation. tid is the specific id of current thread which calls this interface.
+     * Note that the tid should range from 0 to n-1.
+     */
     virtual uint64_t malloc(uint64_t size, int64_t tid) = 0;
 
-    /* free will cause the memory referenced by 'idx'(the offset return by malloc)
-    to be available for future allocations */
+    /**
+     * free will cause the memory referenced by 'idx' (the offset return by malloc)
+     * to be available for future allocations
+     */
     virtual void free(uint64_t idx) = 0;
 
-    /* this interface is only used by buddy_malloc, you can just return while
-    implementing other memory mangement systems */
+    /**
+     * this interface is only used by buddy_malloc, you can just return while
+     * implementing other memory mangement systems
+     */
     virtual void merge_freelists() = 0;
 
-    /* used for dynamic cache, returns the real size of the allocation
-    that would result from the equivalent malloc(size) function call */
+    /**
+     * used for dynamic cache, returns the real size of the allocation
+     * that would result from the equivalent malloc(size) function call
+     */
     virtual uint64_t sz_to_blksz(uint64_t size) = 0;
 
-    /* print out current memory usage status */
+    /**
+     * print out current memory usage status
+     */
     virtual void print_memory_usage() = 0;
 };
