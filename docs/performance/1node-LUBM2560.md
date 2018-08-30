@@ -1,6 +1,6 @@
 # Performance 
 
-###### Date: Aug. 29, 2018 
+###### Date: Aug. 30, 2018 
 
 ###### Author: Rong Chen
 
@@ -38,7 +38,7 @@
 <a name="sw"></a>
 ## Software configuration
 
-##### Gitlab Version: @4bf49086
+##### Gitlab Version: @d1cfe572
 
 #### Configuration
 
@@ -94,52 +94,52 @@ $./run.sh 1
 
 | Workload | Latency (us) | #Results (lines)  | TH | File               |
 | :------: | -----------: | ----------------: | -: | :----------------- |
-| Q1       | 457,185      | 2528              | 16 | query/lubm/lubm_q1 |
-| Q2       |  75,772      | 2,765,067         | 16 | query/lubm/lubm_q2 |
-| Q3       | 207,471      | 0                 | 16 | query/lubm/lubm_q3 |
-| Q4       |      28      | 10                |  1 | query/lubm/lubm_q4 |
-| Q5       |      20      | 10                |  1 | query/lubm/lubm_q5 |
-| Q6       |      87      | 125               |  1 | query/lubm/lubm_q6 |
-| Q7       | 352,150      | 112,559           | 16 | query/lubm/lubm_q7 |
+| Q1       | 415,420      | 2528              | 16 | query/lubm/lubm_q1 |
+| Q2       |  65,635      | 2,765,067         | 16 | query/lubm/lubm_q2 |
+| Q3       | 192,233      | 0                 | 16 | query/lubm/lubm_q3 |
+| Q4       |      24      | 10                |  1 | query/lubm/lubm_q4 |
+| Q5       |      17      | 10                |  1 | query/lubm/lubm_q5 |
+| Q6       |      80      | 125               |  1 | query/lubm/lubm_q6 |
+| Q7       | 322,475      | 112,559           | 16 | query/lubm/lubm_q7 |
 
 | Workload | Thpt (q/s) | Configuration   | File                           |
 | :------: | ---------: | :-------------- | :----------------------------- |
-| A1-A6    | 51.6123K   | -d 5 -w 1 -p 1  | query/lubm/emulator/mix_config |
-| A1-A6    | 56.0161K   | -d 5 -w 1 -p 5  | query/lubm/emulator/mix_config |
-| A1-A6    | 56.6080K   | -d 5 -w 1 -p 10  | query/lubm/emulator/mix_config |
-| A1-A6    | 56.3037K   | -d 5 -w 1 -p 20  | query/lubm/emulator/mix_config |
-| A1-A6    | 56.8284K   | -d 5 -w 1 -p 30  | query/lubm/emulator/mix_config |
+| A1-A6    | 65.7079K   | -d 5 -w 1 -p 1  | query/lubm/emulator/mix_config |
+| A1-A6    | 71.1509K   | -d 5 -w 1 -p 5  | query/lubm/emulator/mix_config |
+| A1-A6    | 70.6853K   | -d 5 -w 1 -p 10  | query/lubm/emulator/mix_config |
+| A1-A6    | 71.4191K   | -d 5 -w 1 -p 20  | query/lubm/emulator/mix_config |
+| A1-A6    | 70.8027K   | -d 5 -w 1 -p 30  | query/lubm/emulator/mix_config |
 
 #### Detail
 
 ```bash
 wukong> sparql -f query/lubm/lubm_q1 -m 16 -n 10
-INFO:     Parsing time: 80 usec
-INFO:     (average) latency: 457185 usec
+INFO:     Parsing time: 54 usec
+INFO:     (average) latency: 415420 usec
 INFO:     (last) result size: 2528
 wukong> sparql -f query/lubm/lubm_q2 -m 16 -n 10
-INFO:     Parsing time: 46 usec
-INFO:     (average) latency: 75772 usec
+INFO:     Parsing time: 39 usec
+INFO:     (average) latency: 65635 usec
 INFO:     (last) result size: 2765067
 wukong> sparql -f query/lubm/lubm_q3 -m 16 -n 10
-INFO:     Parsing time: 68 usec
-INFO:     (average) latency: 207471 usec
+INFO:     Parsing time: 54 usec
+INFO:     (average) latency: 192233 usec
 INFO:     (last) result size: 0
 wukong> sparql -f query/lubm/lubm_q4 -n 1000
-INFO:     Parsing time: 57 usec
-INFO:     (average) latency: 28 usec
+INFO:     Parsing time: 52 usec
+INFO:     (average) latency: 24 usec
 INFO:     (last) result size: 10
 wukong> sparql -f query/lubm/lubm_q5 -n 1000
-INFO:     Parsing time: 59 usec
-INFO:     (average) latency: 20 usec
+INFO:     Parsing time: 35 usec
+INFO:     (average) latency: 17 usec
 INFO:     (last) result size: 10
 wukong> sparql -f query/lubm/lubm_q6 -n 1000
-INFO:     Parsing time: 46 usec
-INFO:     (average) latency: 86 usec
+INFO:     Parsing time: 38 usec
+INFO:     (average) latency: 80 usec
 INFO:     (last) result size: 125
 wukong> sparql -f query/lubm/lubm_q7 -m 16 -n 10
-INFO:     Parsing time: 66 usec
-INFO:     (average) latency: 352150 usec
+INFO:     Parsing time: 78 usec
+INFO:     (average) latency: 322475 usec
 INFO:     (last) result size: 112559
 wukong> 
 wukong> sparql-emu -f query/lubm/emulator/mix_config -d 5 -w 1 -p 1
@@ -173,129 +173,160 @@ INFO:     99    93  95  408 126 98  554
 INFO:     100   192 258 658 443 303 997 
 INFO:     Throughput: 51.6123K queries/sec
 wukong> 
+wukong> sparql-emu -f query/lubm/emulator/mix_config -d 5 -w 1 -p 1
+INFO:     Per-query CDF graph
+INFO:     CDF Res: 
+INFO:     P    Q1    Q2    Q3    Q4    Q5    Q6
+INFO:     1    19    20    138    38    22    177    
+INFO:     5    25    26    150    46    29    201    
+INFO:     10    31    32    157    51    35    213    
+INFO:     15    35    36    163    54    38    223    
+INFO:     20    37    38    168    56    41    234    
+INFO:     25    39    40    173    58    42    243    
+INFO:     30    41    42    178    60    44    251    
+INFO:     35    42    43    182    62    46    259    
+INFO:     40    44    45    186    63    47    266    
+INFO:     45    45    46    191    65    49    272    
+INFO:     50    47    48    196    66    50    279    
+INFO:     55    48    49    201    68    52    286    
+INFO:     60    50    51    206    69    53    292    
+INFO:     65    51    52    211    71    54    301    
+INFO:     70    53    54    218    73    56    310    
+INFO:     75    54    55    225    75    58    321    
+INFO:     80    56    57    233    77    60    336    
+INFO:     85    59    59    241    80    62    352    
+INFO:     90    61    62    250    84    65    369    
+INFO:     95    66    67    262    89    70    388    
+INFO:     96    67    68    265    90    71    392    
+INFO:     97    69    70    268    92    73    397    
+INFO:     98    70    71    273    94    75    404    
+INFO:     99    73    74    279    97    78    413    
+INFO:     100    375    238    584    215    2196    2146    
+INFO:     Throughput: 65.7079K queries/sec
+wukong> 
 wukong> sparql-emu -f query/lubm/emulator/mix_config -d 5 -w 1 -p 5
 INFO:     Per-query CDF graph
 INFO:     CDF Res: 
-INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
-INFO:     1 72  75  248 101 77  309 
-INFO:     5 114 116 282 142 120 350 
-INFO:     10    136 138 302 162 141 377 
-INFO:     15    150 152 317 174 154 396 
-INFO:     20    160 162 329 183 164 411 
-INFO:     25    169 170 342 192 173 424 
-INFO:     30    177 178 355 200 180 440 
-INFO:     35    184 185 366 207 187 453 
-INFO:     40    190 192 379 215 194 465 
-INFO:     45    197 199 394 223 201 478 
-INFO:     50    204 205 412 232 207 491 
-INFO:     55    211 213 436 241 214 507 
-INFO:     60    218 220 466 252 222 524 
-INFO:     65    227 229 509 264 231 546 
-INFO:     70    237 239 559 279 242 566 
-INFO:     75    249 251 617 297 254 596 
-INFO:     80    263 266 690 320 271 636 
-INFO:     85    285 291 793 351 295 710 
-INFO:     90    329 337 955 399 339 913 
-INFO:     95    441 447 1272    509 444 1413    
-INFO:     96    489 494 1371    557 490 1621    
-INFO:     97    559 561 1491    631 560 1910    
-INFO:     98    697 687 1718    753 687 2216    
-INFO:     99    1059    1024    2099    1126    1044    2706    
-INFO:     100   5740    5260    5014    4652    5562    6148    
-INFO:     Throughput: 56.0161K queries/sec
+INFO:     P    Q1    Q2    Q3    Q4    Q5    Q6
+INFO:     1    41    42    180    59    43    242    
+INFO:     5    99    100    225    115    103    284    
+INFO:     10    123    124    244    135    125    306    
+INFO:     15    134    135    256    144    136    322    
+INFO:     20    142    143    266    151    144    334    
+INFO:     25    148    149    276    157    150    345    
+INFO:     30    154    155    285    163    155    357    
+INFO:     35    159    160    294    167    160    365    
+INFO:     40    164    164    302    172    165    375    
+INFO:     45    168    169    310    178    170    385    
+INFO:     50    173    174    318    183    174    395    
+INFO:     55    178    179    327    188    179    405    
+INFO:     60    183    184    337    194    184    417    
+INFO:     65    189    189    346    199    190    430    
+INFO:     70    194    195    356    206    196    443    
+INFO:     75    201    202    368    214    202    459    
+INFO:     80    208    209    380    225    210    476    
+INFO:     85    219    220    395    240    221    496    
+INFO:     90    235    237    418    266    239    522    
+INFO:     95    289    290    458    321    295    569    
+INFO:     96    312    312    471    337    315    581    
+INFO:     97    343    341    497    365    344    600    
+INFO:     98    384    384    536    402    386    637    
+INFO:     99    448    447    602    465    450    707    
+INFO:     100    1579    1594    1120    1501    1627    1576    
+INFO:     Throughput: 71.1509K queries/sec
 wukong> 
 wukong> sparql-emu -f query/lubm/emulator/mix_config -d 5 -w 1 -p 10
 INFO:     Per-query CDF graph
 INFO:     CDF Res: 
-INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
-INFO:     1 182 183 292 204 185 355 
-INFO:     5 253 253 342 268 255 410 
-INFO:     10    284 285 374 298 286 445 
-INFO:     15    305 306 394 319 306 470 
-INFO:     20    320 322 413 335 322 491 
-INFO:     25    334 335 428 348 336 510 
-INFO:     30    346 347 443 360 348 530 
-INFO:     35    357 358 458 371 359 552 
-INFO:     40    368 369 472 382 370 575 
-INFO:     45    379 380 487 393 381 600 
-INFO:     50    390 391 505 403 392 623 
-INFO:     55    400 402 523 414 403 644 
-INFO:     60    412 413 543 426 414 665 
-INFO:     65    423 425 565 438 426 687 
-INFO:     70    436 438 592 452 439 711 
-INFO:     75    450 452 620 467 454 742 
-INFO:     80    467 468 657 484 470 778 
-INFO:     85    487 488 712 507 490 821 
-INFO:     90    514 517 788 537 518 875 
-INFO:     95    572 575 875 607 576 953 
-INFO:     96    601 607 904 644 606 978 
-INFO:     97    658 665 939 711 666 1015    
-INFO:     98    751 759 998 802 756 1070    
-INFO:     99    912 917 1122    965 916 1252    
-INFO:     100   5119    4602    5037    3032    5121    4835    
-INFO:     Throughput: 56.608K queries/sec
+INFO:     P    Q1    Q2    Q3    Q4    Q5    Q6
+INFO:     1    112    110    232    116    111    282    
+INFO:     5    214    213    276    221    215    333    
+INFO:     10    238    239    303    245    240    365    
+INFO:     15    253    255    321    261    255    386    
+INFO:     20    266    267    336    273    267    404    
+INFO:     25    276    277    348    283    278    419    
+INFO:     30    286    287    359    292    287    436    
+INFO:     35    295    295    370    301    296    453    
+INFO:     40    303    304    380    309    304    473    
+INFO:     45    310    311    391    317    312    495    
+INFO:     50    318    319    401    325    320    514    
+INFO:     55    326    327    413    333    328    532    
+INFO:     60    334    335    428    342    336    550    
+INFO:     65    343    344    443    350    344    568    
+INFO:     70    352    353    461    359    353    590    
+INFO:     75    361    363    480    369    363    613    
+INFO:     80    373    374    502    380    374    642    
+INFO:     85    386    387    535    394    387    669    
+INFO:     90    402    403    591    412    404    702    
+INFO:     95    431    433    658    443    434    751    
+INFO:     96    444    444    675    460    446    763    
+INFO:     97    468    471    699    493    474    783    
+INFO:     98    530    533    732    562    536    806    
+INFO:     99    621    625    799    645    621    865    
+INFO:     100    2008    2024    1844    1090    2030    1373    
+INFO:     Throughput: 70.6853K queries/sec
 wukong> 
 wukong> sparql-emu -f query/lubm/emulator/mix_config -d 5 -w 1 -p 20
 INFO:     Per-query CDF graph
 INFO:     CDF Res: 
-INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
-INFO:     1 297 293 473 344 303 519 
-INFO:     5 470 473 584 498 476 611 
-INFO:     10    534 536 645 559 540 669 
-INFO:     15    574 576 685 596 579 709 
-INFO:     20    605 607 717 626 610 747 
-INFO:     25    632 633 745 652 636 778 
-INFO:     30    655 656 773 677 659 806 
-INFO:     35    677 678 797 697 681 832 
-INFO:     40    698 699 821 719 702 857 
-INFO:     45    718 719 847 739 722 882 
-INFO:     50    738 740 873 759 742 907 
-INFO:     55    758 760 901 780 763 933 
-INFO:     60    779 781 931 801 784 964 
-INFO:     65    801 802 969 824 806 997 
-INFO:     70    824 826 1015    849 829 1039    
-INFO:     75    851 851 1085    875 856 1087    
-INFO:     80    881 882 1179    908 888 1177    
-INFO:     85    921 922 1370    952 928 1358    
-INFO:     90    977 982 1689    1015    989 1747    
-INFO:     95    1128    1144    2090    1271    1165    2468    
-INFO:     96    1284    1328    2244    1548    1370    2665    
-INFO:     97    1623    1648    2525    1793    1678    2918    
-INFO:     98    1989    2022    2918    2230    2049    3180    
-INFO:     99    2749    2757    3408    2881    2790    3861    
-INFO:     100   9922    10052   10264   9356    10171   10208   
-INFO:     Throughput: 56.3037K queries/sec
+INFO:     P    Q1    Q2    Q3    Q4    Q5    Q6
+INFO:     1    161    159    252    169    161    340    
+INFO:     5    393    390    431    401    392    463    
+INFO:     10    443    443    490    452    444    516    
+INFO:     15    475    475    525    481    476    551    
+INFO:     20    499    499    553    505    500    583    
+INFO:     25    521    520    577    527    521    607    
+INFO:     30    539    539    597    546    540    630    
+INFO:     35    557    557    616    564    557    650    
+INFO:     40    573    572    635    580    573    668    
+INFO:     45    588    588    653    596    588    685    
+INFO:     50    603    603    671    611    603    704    
+INFO:     55    618    618    687    625    619    723    
+INFO:     60    633    633    705    640    633    741    
+INFO:     65    649    649    722    656    649    761    
+INFO:     70    665    665    739    671    665    781    
+INFO:     75    683    683    761    689    682    804    
+INFO:     80    702    702    784    708    701    831    
+INFO:     85    723    724    811    730    723    862    
+INFO:     90    751    752    843    758    751    901    
+INFO:     95    792    792    890    797    793    967    
+INFO:     96    804    804    903    810    804    991    
+INFO:     97    820    820    922    828    819    1038    
+INFO:     98    839    842    955    850    839    1144    
+INFO:     99    874    881    1109    891    875    1300    
+INFO:     100    3187    3263    2389    2201    3248    2658    
+INFO:     Throughput: 71.4191K queries/sec
 wukong> 
 wukong> sparql-emu -f query/lubm/emulator/mix_config -d 5 -w 1 -p 30
 INFO:     Per-query CDF graph
 INFO:     CDF Res: 
-INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
-INFO:     1 495 490 653 544 498 676 
-INFO:     5 714 709 811 733 716 846 
-INFO:     10    792 793 895 812 797 929 
-INFO:     15    846 847 945 866 850 986 
-INFO:     20    890 890 985 907 893 1033    
-INFO:     25    928 928 1024    946 931 1075    
-INFO:     30    962 961 1060    980 964 1110    
-INFO:     35    995 993 1093    1013    996 1143    
-INFO:     40    1025    1024    1128    1043    1026    1175    
-INFO:     45    1056    1054    1161    1071    1056    1208    
-INFO:     50    1086    1084    1193    1102    1087    1243    
-INFO:     55    1116    1115    1225    1133    1118    1279    
-INFO:     60    1149    1146    1262    1166    1150    1316    
-INFO:     65    1182    1178    1298    1199    1183    1352    
-INFO:     70    1217    1214    1343    1233    1218    1397    
-INFO:     75    1255    1253    1386    1273    1256    1441    
-INFO:     80    1300    1298    1437    1316    1301    1500    
-INFO:     85    1354    1351    1505    1370    1355    1570    
-INFO:     90    1426    1427    1595    1443    1431    1676    
-INFO:     95    1564    1561    1825    1584    1566    2432    
-INFO:     96    1625    1619    2186    1642    1621    2781    
-INFO:     97    1766    1742    2709    1762    1741    3176    
-INFO:     98    2628    2553    3205    2592    2565    3786    
-INFO:     99    3328    3321    4101    3346    3288    5364    
-INFO:     100   13695   12979   14062   13044   12940   12014   
-INFO:     Throughput: 56.8284K queries/sec
+INFO:     P    Q1    Q2    Q3    Q4    Q5    Q6
+INFO:     1    396    387    505    360    374    555    
+INFO:     5    611    612    671    620    610    684    
+INFO:     10    669    670    735    679    669    749    
+INFO:     15    710    710    778    718    709    795    
+INFO:     20    742    743    808    752    743    831    
+INFO:     25    771    771    838    779    771    864    
+INFO:     30    796    796    866    804    797    894    
+INFO:     35    820    821    890    829    821    920    
+INFO:     40    843    844    913    851    845    946    
+INFO:     45    866    866    937    874    868    972    
+INFO:     50    888    888    961    896    890    998    
+INFO:     55    910    910    984    918    912    1024    
+INFO:     60    933    933    1009    942    935    1048    
+INFO:     65    956    956    1033    965    958    1074    
+INFO:     70    981    981    1058    990    983    1102    
+INFO:     75    1008    1008    1084    1018    1009    1130    
+INFO:     80    1038    1039    1117    1049    1039    1164    
+INFO:     85    1071    1073    1152    1082    1073    1200    
+INFO:     90    1112    1114    1193    1124    1115    1248    
+INFO:     95    1172    1174    1257    1183    1175    1313    
+INFO:     96    1188    1191    1275    1200    1191    1331    
+INFO:     97    1208    1212    1296    1219    1211    1348    
+INFO:     98    1233    1237    1323    1243    1235    1375    
+INFO:     99    1274    1277    1366    1283    1276    1425    
+INFO:     100    2814    2827    2812    2694    2844    2161    
+INFO:     Throughput: 70.8027K queries/sec
 wukong> q 
 ```
 
@@ -308,21 +339,28 @@ wukong> q
 
 | Workload | Latency (us) | #Results (lines)  | TH | File               |
 | :------: | -----------: | ----------------: | -: | :----------------- |
-| Q1       | 466,544      | 2528              | 16 | query/lubm/lubm_q1 |
-| Q2       |  78,764      | 2,765,067         | 16 | query/lubm/lubm_q2 |
-| Q3       | 224,585      | 0                 | 16 | query/lubm/lubm_q3 |
-| Q4       |      63      | 10                |  1 | query/lubm/lubm_q4 |
-| Q5       |      56      | 10                |  1 | query/lubm/lubm_q5 |
-| Q6       |     122      | 125               |  1 | query/lubm/lubm_q6 |
-| Q7       | 353,381      | 112,559           | 16 | query/lubm/lubm_q7 |
+| Q1       | 416,150      | 2528              | 16 | query/lubm/lubm_q1 |
+| Q2       |  66,010      | 2,765,067         | 16 | query/lubm/lubm_q2 |
+| Q3       | 192,333      | 0                 | 16 | query/lubm/lubm_q3 |
+| Q4       |      58      | 10                |  1 | query/lubm/lubm_q4 |
+| Q5       |      51      | 10                |  1 | query/lubm/lubm_q5 |
+| Q6       |     123      | 125               |  1 | query/lubm/lubm_q6 |
+| Q7       | 322,577      | 112,559           | 16 | query/lubm/lubm_q7 |
 
 | Workload | Thpt (q/s) | Configuration   | File                           |
 | :------: | ---------: | :-------------- | :----------------------------- |
-| A1-A6    | 23.2710K   | -d 5 -w 1 -p 1  | query/lubm/emulator/mix_config |
-| A1-A6    | 40.6267K   | -d 5 -w 1 -p 5  | query/lubm/emulator/mix_config |
-| A1-A6    | 44.2526K   | -d 5 -w 1 -p 10  | query/lubm/emulator/mix_config |
-| A1-A6    | 48.0790K   | -d 5 -w 1 -p 20  | query/lubm/emulator/mix_config |
-| A1-A6    | 47.4467K   | -d 5 -w 1 -p 30  | query/lubm/emulator/mix_config |
+| A1-A6    | 20.6493K   | -d 5 -w 1 -p 1  | query/lubm/emulator/mix_config |
+| A1-A6    | 43.7478K   | -d 5 -w 1 -p 5  | query/lubm/emulator/mix_config |
+| A1-A6    | 53.3552K   | -d 5 -w 1 -p 10  | query/lubm/emulator/mix_config |
+| A1-A6    | 60.7887K   | -d 5 -w 1 -p 20  | query/lubm/emulator/mix_config |
+| A1-A6    | 63.8647K   | -d 5 -w 1 -p 30  | query/lubm/emulator/mix_config |
+| A1-A6    | 66.6167K   | -d 5 -w 1 -p 50  | query/lubm/emulator/mix_config |
+| A1-A6    | 67.3030K   | -d 5 -w 1 -p 80  | query/lubm/emulator/mix_config |
+| A1-A6    | 67.9672K   | -d 5 -w 1 -p 100  | query/lubm/emulator/mix_config |
+| A1-A6    | 68.5924K   | -d 5 -w 1 -p 200  | query/lubm/emulator/mix_config |
+| A1-A6    | 69.0850K   | -d 5 -w 1 -p 500  | query/lubm/emulator/mix_config |
+| A1-A6    | 69.0864K   | -d 5 -w 1 -p 1000  | query/lubm/emulator/mix_config |
+
 
 #### Detail
 
@@ -332,187 +370,372 @@ wukong> config -s global_use_rdma=0
 wukong> 
 wukong> sparql -f query/lubm/lubm_q1 -m 16 -n 10
 WARNING:  RDMA is not enabled, skip corun optimization!
-INFO:     Parsing time: 87 usec
-INFO:     (average) latency: 466544 usec
+INFO:     Parsing time: 60 usec
+INFO:     (average) latency: 416150 usec
 INFO:     (last) result size: 2528
 wukong> sparql -f query/lubm/lubm_q2 -m 16 -n 10
-INFO:     Parsing time: 56 usec
-INFO:     (average) latency: 78764 usec
+INFO:     Parsing time: 44 usec
+INFO:     (average) latency: 66010 usec
 INFO:     (last) result size: 2765067
 wukong> sparql -f query/lubm/lubm_q3 -m 16 -n 10
-INFO:     Parsing time: 65 usec
-INFO:     (average) latency: 224585 usec
+INFO:     Parsing time: 56 usec
+INFO:     (average) latency: 192333 usec
 INFO:     (last) result size: 0
 wukong> sparql -f query/lubm/lubm_q4 -n 1000
-INFO:     Parsing time: 60 usec
-INFO:     (average) latency: 63 usec
+INFO:     Parsing time: 41 usec
+INFO:     (average) latency: 58 usec
 INFO:     (last) result size: 10
 wukong> sparql -f query/lubm/lubm_q5 -n 1000
-INFO:     Parsing time: 44 usec
-INFO:     (average) latency: 56 usec
+INFO:     Parsing time: 38 usec
+INFO:     (average) latency: 51 usec
 INFO:     (last) result size: 10
 wukong> sparql -f query/lubm/lubm_q6 -n 1000
-INFO:     Parsing time: 48 usec
-INFO:     (average) latency: 122 usec
+INFO:     Parsing time: 37 usec
+INFO:     (average) latency: 123 usec
 INFO:     (last) result size: 125
 wukong> sparql -f query/lubm/lubm_q7 -m 16 -n 10
-INFO:     Parsing time: 59 usec
-INFO:     (average) latency: 353381 usec
+INFO:     Parsing time: 76 usec
+INFO:     (average) latency: 322577 usec
 INFO:     (last) result size: 112559
 wukong> 
 wukong> sparql-emu -f query/lubm/emulator/mix_config -d 5 -w 1 -p 1
 INFO:     Per-query CDF graph
 INFO:     CDF Res: 
-INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
-INFO:     1 81  83  227 106 86  282 
-INFO:     5 93  94  247 116 97  309 
-INFO:     10    99  101 259 124 103 327 
-INFO:     15    104 105 268 129 108 344 
-INFO:     20    108 109 276 134 112 355 
-INFO:     25    111 113 284 139 116 366 
-INFO:     30    115 116 291 143 120 377 
-INFO:     35    118 120 298 148 123 389 
-INFO:     40    122 124 305 152 127 399 
-INFO:     45    125 127 313 156 131 410 
-INFO:     50    129 131 323 160 135 423 
-INFO:     55    133 135 334 165 139 437 
-INFO:     60    138 140 354 170 144 453 
-INFO:     65    142 144 484 176 148 477 
-INFO:     70    147 149 686 182 153 511 
-INFO:     75    152 154 797 189 158 566 
-INFO:     80    157 160 919 202 165 960 
-INFO:     85    164 167 1058    251 172 1236    
-INFO:     90    171 176 1228    279 182 1517    
-INFO:     95    185 196 1471    346 225 1939    
-INFO:     96    190 211 1535    361 237 2083    
-INFO:     97    201 229 1624    376 248 2242    
-INFO:     98    227 242 1734    426 260 2402    
-INFO:     99    249 258 1912    466 283 2633    
-INFO:     100   2200    2303    2858    1710    2236    3813    
-INFO:     Throughput: 23.271K queries/sec
+INFO:     P    Q1    Q2    Q3    Q4    Q5    Q6
+INFO:     1    75    75    210    96    78    269    
+INFO:     5    99    100    241    124    103    306    
+INFO:     10    114    115    261    139    118    329    
+INFO:     15    125    126    275    149    128    343    
+INFO:     20    133    134    286    157    136    359    
+INFO:     25    139    140    295    165    143    372    
+INFO:     30    145    147    304    171    149    383    
+INFO:     35    151    152    312    177    155    394    
+INFO:     40    156    157    320    182    160    407    
+INFO:     45    161    162    329    187    165    417    
+INFO:     50    166    167    337    192    170    433    
+INFO:     55    170    172    346    196    174    445    
+INFO:     60    175    176    356    201    179    457    
+INFO:     65    179    181    365    205    183    471    
+INFO:     70    184    185    375    210    188    491    
+INFO:     75    189    190    386    215    192    511    
+INFO:     80    194    195    398    221    198    531    
+INFO:     85    200    201    411    228    204    552    
+INFO:     90    208    209    426    237    212    574    
+INFO:     95    223    222    448    250    227    603    
+INFO:     96    228    227    452    255    232    611    
+INFO:     97    235    233    458    263    238    616    
+INFO:     98    245    244    472    273    248    627    
+INFO:     99    263    260    491    294    267    648    
+INFO:     100    5850    3469    1876    1604    5838    1959    
+INFO:     Throughput: 20.6493K queries/sec
 wukong> 
 wukong> sparql-emu -f query/lubm/emulator/mix_config -d 5 -w 1 -p 5
 INFO:     Per-query CDF graph
 INFO:     CDF Res: 
-INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
-INFO:     1 232 230 398 259 234 461 
-INFO:     5 280 281 450 308 285 528 
-INFO:     10    305 307 484 336 311 563 
-INFO:     15    322 325 507 356 329 586 
-INFO:     20    336 339 528 371 343 605 
-INFO:     25    348 351 545 383 355 623 
-INFO:     30    359 362 560 395 366 640 
-INFO:     35    369 372 577 405 376 658 
-INFO:     40    379 381 593 414 386 672 
-INFO:     45    388 391 612 424 395 685 
-INFO:     50    397 399 637 434 404 701 
-INFO:     55    406 408 662 443 413 716 
-INFO:     60    415 417 706 453 422 734 
-INFO:     65    424 426 767 464 431 754 
-INFO:     70    434 436 842 475 441 779 
-INFO:     75    445 447 921 489 452 815 
-INFO:     80    457 460 1006    506 466 868 
-INFO:     85    473 476 1141    528 482 991 
-INFO:     90    497 500 1321    564 507 1351    
-INFO:     95    554 557 1618    665 567 1986    
-INFO:     96    585 588 1751    705 601 2192    
-INFO:     97    653 650 1879    761 662 2475    
-INFO:     98    799 789 2092    859 792 2752    
-INFO:     99    1179    1176    2473    1248    1176    3568    
-INFO:     100   5589    6571    5799    5519    4742    7034    
-INFO:     Throughput: 40.6267K queries/sec
+INFO:     P    Q1    Q2    Q3    Q4    Q5    Q6
+INFO:     1    149    152    302    172    150    379    
+INFO:     5    242    245    379    264    246    455    
+INFO:     10    275    278    417    298    280    496    
+INFO:     15    297    300    440    320    302    524    
+INFO:     20    315    317    458    336    320    545    
+INFO:     25    330    332    476    351    334    566    
+INFO:     30    344    346    492    364    348    585    
+INFO:     35    358    360    506    378    362    606    
+INFO:     40    372    374    522    391    376    623    
+INFO:     45    387    388    537    406    390    640    
+INFO:     50    401    402    554    418    404    656    
+INFO:     55    413    415    569    429    416    671    
+INFO:     60    424    426    586    439    426    688    
+INFO:     65    435    436    601    450    437    705    
+INFO:     70    445    446    618    460    447    722    
+INFO:     75    456    457    634    470    458    741    
+INFO:     80    467    468    653    481    469    764    
+INFO:     85    480    481    673    494    482    794    
+INFO:     90    496    497    698    513    498    827    
+INFO:     95    527    527    737    546    528    876    
+INFO:     96    538    538    749    560    540    891    
+INFO:     97    559    559    768    588    561    905    
+INFO:     98    616    616    800    643    614    930    
+INFO:     99    705    705    879    713    699    1005    
+INFO:     100    12534    12439    12379    3300    12504    5551    
+INFO:     Throughput: 43.7478K queries/sec
 wukong> 
 wukong> sparql-emu -f query/lubm/emulator/mix_config -d 5 -w 1 -p 10
 INFO:     Per-query CDF graph
 INFO:     CDF Res: 
-INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
-INFO:     1 328 334 511 363 335 601 
-INFO:     5 429 431 628 467 435 716 
-INFO:     10    481 483 692 519 487 774 
-INFO:     15    517 519 731 556 523 815 
-INFO:     20    544 547 766 585 552 844 
-INFO:     25    568 571 794 610 576 874 
-INFO:     30    590 593 820 632 598 901 
-INFO:     35    610 613 846 653 618 928 
-INFO:     40    630 633 874 672 638 952 
-INFO:     45    649 651 901 692 657 975 
-INFO:     50    668 670 930 711 677 1003    
-INFO:     55    686 689 962 730 696 1031    
-INFO:     60    706 708 1004    751 716 1064    
-INFO:     65    727 729 1051    772 737 1097    
-INFO:     70    749 752 1118    797 759 1143    
-INFO:     75    775 777 1221    824 785 1204    
-INFO:     80    805 807 1361    858 814 1325    
-INFO:     85    844 847 1523    900 852 1537    
-INFO:     90    901 905 1725    964 909 1945    
-INFO:     95    1061    1064    2079    1145    1057    2706    
-INFO:     96    1171    1164    2212    1276    1161    2828    
-INFO:     97    1371    1352    2474    1522    1366    2986    
-INFO:     98    1797    1737    2831    1954    1780    3138    
-INFO:     99    2594    2575    3222    2689    2567    3579    
-INFO:     100   6044    6340    6834    4758    6748    6770    
-INFO:     Throughput: 44.2526K queries/sec
+INFO:     P    Q1    Q2    Q3    Q4    Q5    Q6
+INFO:     1    230    226    405    251    235    465    
+INFO:     5    363    363    516    386    369    592    
+INFO:     10    426    427    587    448    431    657    
+INFO:     15    467    468    626    489    472    690    
+INFO:     20    501    502    654    521    506    718    
+INFO:     25    530    531    674    551    534    743    
+INFO:     30    555    557    693    576    559    767    
+INFO:     35    577    578    709    597    581    786    
+INFO:     40    596    598    726    616    601    810    
+INFO:     45    615    615    742    634    619    833    
+INFO:     50    631    632    758    650    635    859    
+INFO:     55    647    647    775    665    651    885    
+INFO:     60    662    662    793    680    666    911    
+INFO:     65    677    677    813    694    681    935    
+INFO:     70    693    693    834    709    696    963    
+INFO:     75    709    709    859    725    712    991    
+INFO:     80    728    729    884    745    732    1023    
+INFO:     85    752    754    919    770    756    1061    
+INFO:     90    787    788    964    804    790    1104    
+INFO:     95    852    852    1038    870    855    1175    
+INFO:     96    874    873    1062    892    878    1196    
+INFO:     97    905    901    1101    921    908    1233    
+INFO:     98    944    944    1148    966    954    1277    
+INFO:     99    1032    1029    1223    1054    1036    1358    
+INFO:     100    4681    4682    4478    4680    4665    4405    
+INFO:     Throughput: 53.3552K queries/sec
 wukong> 
 wukong> sparql-emu -f query/lubm/emulator/mix_config -d 5 -w 1 -p 20
 INFO:     Per-query CDF graph
 INFO:     CDF Res: 
-INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
-INFO:     1 433 439 612 476 442 681 
-INFO:     5 598 603 782 636 606 878 
-INFO:     10    702 709 896 739 713 1002    
-INFO:     15    787 796 999 832 799 1102    
-INFO:     20    861 872 1085    906 872 1173    
-INFO:     25    926 937 1152    973 937 1245    
-INFO:     30    984 996 1222    1037    998 1310    
-INFO:     35    1040    1052    1280    1095    1055    1375    
-INFO:     40    1096    1106    1341    1149    1109    1427    
-INFO:     45    1149    1159    1399    1206    1163    1482    
-INFO:     50    1202    1212    1452    1258    1216    1531    
-INFO:     55    1256    1266    1502    1311    1270    1576    
-INFO:     60    1312    1321    1560    1366    1325    1623    
-INFO:     65    1369    1377    1610    1420    1381    1666    
-INFO:     70    1427    1433    1665    1477    1437    1718    
-INFO:     75    1490    1493    1712    1533    1497    1771    
-INFO:     80    1555    1558    1775    1592    1563    1830    
-INFO:     85    1626    1630    1852    1667    1635    1909    
-INFO:     90    1718    1722    1959    1755    1727    2020    
-INFO:     95    1870    1881    2167    1908    1886    2263    
-INFO:     96    1933    1949    2257    1981    1949    2376    
-INFO:     97    2037    2053    2397    2105    2062    2573    
-INFO:     98    2298    2356    2744    2420    2344    3099    
-INFO:     99    3097    3157    3480    3180    3116    3636    
-INFO:     100   8750    8516    8844    8497    8321    8887    
-INFO:     Throughput: 48.079K queries/sec
+INFO:     P    Q1    Q2    Q3    Q4    Q5    Q6
+INFO:     1    364    366    545    397    371    623    
+INFO:     5    541    542    701    564    544    791    
+INFO:     10    632    633    800    655    634    890    
+INFO:     15    695    698    874    720    697    969    
+INFO:     20    747    749    930    769    747    1032    
+INFO:     25    791    792    981    814    791    1081    
+INFO:     30    830    831    1023    853    831    1133    
+INFO:     35    867    868    1069    893    868    1178    
+INFO:     40    904    905    1113    931    906    1220    
+INFO:     45    941    942    1154    968    943    1257    
+INFO:     50    979    981    1191    1009    981    1292    
+INFO:     55    1018    1021    1228    1046    1023    1324    
+INFO:     60    1060    1066    1265    1088    1066    1355    
+INFO:     65    1107    1111    1303    1134    1112    1386    
+INFO:     70    1155    1158    1338    1181    1160    1421    
+INFO:     75    1206    1209    1375    1232    1210    1458    
+INFO:     80    1258    1258    1413    1280    1261    1499    
+INFO:     85    1313    1313    1460    1332    1315    1543    
+INFO:     90    1376    1374    1513    1394    1377    1598    
+INFO:     95    1464    1463    1594    1483    1467    1688    
+INFO:     96    1488    1488    1615    1509    1493    1719    
+INFO:     97    1519    1519    1648    1539    1524    1748    
+INFO:     98    1565    1563    1698    1587    1568    1789    
+INFO:     99    1643    1641    1805    1663    1640    1877    
+INFO:     100    5256    5221    5269    5206    5210    3381    
+INFO:     Throughput: 60.7887K queries/sec
 wukong> 
 wukong> sparql-emu -f query/lubm/emulator/mix_config -d 5 -w 1 -p 30
 INFO:     Per-query CDF graph
 INFO:     CDF Res: 
-INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
-INFO:     1 574 576 780 618 573 827 
-INFO:     5 806 810 980 834 808 1065    
-INFO:     10    955 959 1163    980 956 1264    
-INFO:     15    1084    1085    1320    1109    1084    1430    
-INFO:     20    1200    1199    1468    1223    1197    1583    
-INFO:     25    1304    1307    1602    1346    1303    1713    
-INFO:     30    1401    1405    1724    1460    1402    1824    
-INFO:     35    1496    1499    1831    1560    1500    1939    
-INFO:     40    1592    1594    1923    1658    1595    2030    
-INFO:     45    1682    1685    2011    1752    1690    2113    
-INFO:     50    1769    1775    2094    1838    1778    2186    
-INFO:     55    1854    1858    2171    1915    1865    2260    
-INFO:     60    1939    1942    2245    1993    1950    2327    
-INFO:     65    2020    2024    2317    2069    2032    2392    
-INFO:     70    2098    2105    2399    2148    2112    2475    
-INFO:     75    2180    2191    2490    2231    2194    2583    
-INFO:     80    2271    2281    2617    2315    2283    2745    
-INFO:     85    2384    2394    2843    2427    2394    3064    
-INFO:     90    2592    2601    3331    2648    2602    3674    
-INFO:     95    3405    3442    4099    3531    3443    4316    
-INFO:     96    3629    3684    4292    3723    3665    4526    
-INFO:     97    3856    3904    4481    3977    3892    4804    
-INFO:     98    4166    4180    4840    4265    4173    5137    
-INFO:     99    4716    4693    5495    4750    4705    6079    
-INFO:     100   13273   11994   10249   11707   13365   13078   
-INFO:     Throughput: 47.4467K queries/sec
+INFO:     P    Q1    Q2    Q3    Q4    Q5    Q6
+INFO:     1    434    437    578    458    437    646    
+INFO:     5    653    651    795    682    660    871    
+INFO:     10    792    789    935    818    795    1030    
+INFO:     15    895    897    1048    927    901    1150    
+INFO:     20    982    983    1144    1016    986    1247    
+INFO:     25    1053    1056    1222    1084    1058    1328    
+INFO:     30    1118    1120    1296    1151    1125    1403    
+INFO:     35    1179    1181    1364    1214    1187    1471    
+INFO:     40    1239    1242    1435    1273    1246    1531    
+INFO:     45    1299    1302    1494    1330    1305    1589    
+INFO:     50    1357    1360    1555    1388    1362    1644    
+INFO:     55    1416    1419    1615    1449    1421    1707    
+INFO:     60    1477    1479    1673    1508    1481    1769    
+INFO:     65    1541    1541    1733    1573    1546    1821    
+INFO:     70    1607    1608    1792    1639    1612    1881    
+INFO:     75    1676    1677    1853    1704    1680    1936    
+INFO:     80    1745    1747    1912    1770    1750    1994    
+INFO:     85    1822    1824    1976    1847    1824    2059    
+INFO:     90    1907    1909    2053    1930    1909    2139    
+INFO:     95    2025    2023    2159    2043    2024    2248    
+INFO:     96    2059    2056    2191    2073    2058    2280    
+INFO:     97    2100    2099    2237    2115    2099    2335    
+INFO:     98    2155    2154    2298    2164    2153    2399    
+INFO:     99    2244    2251    2403    2260    2243    2519    
+INFO:     100    5155    5153    3306    5163    5146    5123    
+INFO:     Throughput: 63.8647K queries/sec
+wukong> 
+wukong> sparql-emu -f query/lubm/emulator/mix_config -d 5 -w 1 -p 50
+INFO:     Per-query CDF graph
+INFO:     CDF Res: 
+INFO:     P    Q1    Q2    Q3    Q4    Q5    Q6
+INFO:     1    586    614    758    621    607    862    
+INFO:     5    943    943    1097    981    941    1151    
+INFO:     10    1174    1179    1319    1212    1177    1366    
+INFO:     15    1356    1359    1502    1392    1357    1547    
+INFO:     20    1509    1514    1670    1547    1509    1718    
+INFO:     25    1638    1641    1816    1679    1637    1882    
+INFO:     30    1749    1752    1933    1788    1749    2022    
+INFO:     35    1852    1854    2045    1894    1853    2130    
+INFO:     40    1950    1950    2144    1995    1950    2234    
+INFO:     45    2042    2041    2234    2086    2043    2320    
+INFO:     50    2130    2131    2319    2170    2130    2400    
+INFO:     55    2216    2218    2400    2257    2215    2481    
+INFO:     60    2299    2300    2478    2337    2297    2559    
+INFO:     65    2383    2383    2554    2418    2379    2636    
+INFO:     70    2469    2469    2639    2501    2467    2719    
+INFO:     75    2562    2564    2726    2591    2560    2805    
+INFO:     80    2664    2667    2835    2688    2663    2919    
+INFO:     85    2779    2783    2953    2801    2782    3033    
+INFO:     90    2922    2921    3096    2937    2923    3178    
+INFO:     95    3118    3115    3277    3128    3122    3383    
+INFO:     96    3172    3171    3322    3185    3177    3432    
+INFO:     97    3240    3241    3390    3249    3244    3495    
+INFO:     98    3330    3331    3484    3337    3333    3586    
+INFO:     99    3486    3493    3680    3482    3495    3794    
+INFO:     100    12125    12337    11959    11914    12324    12245    
+INFO:     Throughput: 66.6167K queries/sec
+wukong> 
+wukong> sparql-emu -f query/lubm/emulator/mix_config -d 5 -w 1 -p 80
+INFO:     CDF Res: 
+INFO:     P    Q1    Q2    Q3    Q4    Q5    Q6
+INFO:     1    1145    1160    1276    1185    1153    1357    
+INFO:     5    1504    1517    1668    1525    1520    1741    
+INFO:     10    1828    1843    1970    1843    1851    2064    
+INFO:     15    2107    2123    2266    2135    2127    2343    
+INFO:     20    2356    2369    2519    2379    2367    2598    
+INFO:     25    2572    2581    2756    2596    2582    2828    
+INFO:     30    2759    2763    2939    2778    2768    3025    
+INFO:     35    2922    2926    3111    2937    2928    3222    
+INFO:     40    3067    3074    3264    3078    3074    3371    
+INFO:     45    3201    3208    3399    3215    3211    3497    
+INFO:     50    3328    3332    3524    3338    3335    3616    
+INFO:     55    3451    3452    3641    3466    3457    3728    
+INFO:     60    3568    3571    3752    3586    3573    3834    
+INFO:     65    3681    3686    3862    3708    3687    3932    
+INFO:     70    3798    3803    3964    3825    3803    4033    
+INFO:     75    3920    3924    4079    3948    3925    4144    
+INFO:     80    4050    4058    4202    4074    4058    4274    
+INFO:     85    4195    4206    4363    4215    4203    4433    
+INFO:     90    4385    4397    4567    4401    4392    4631    
+INFO:     95    4654    4657    4825    4663    4656    4908    
+INFO:     96    4730    4732    4901    4735    4729    4977    
+INFO:     97    4822    4821    4991    4820    4821    5075    
+INFO:     98    4934    4931    5115    4916    4936    5202    
+INFO:     99    5115    5109    5333    5080    5119    5401    
+INFO:     100    8285    8049    7118    7098    8342    7082    
+INFO:     Throughput: 67.303K queries/sec
+wukong> 
+wukong> sparql-emu -f query/lubm/emulator/mix_config -d 5 -w 1 -p 100
+INFO:     Per-query CDF graph
+INFO:     CDF Res: 
+INFO:     P    Q1    Q2    Q3    Q4    Q5    Q6
+INFO:     1    1464    1468    1574    1486    1465    1673    
+INFO:     5    1880    1875    2026    1890    1869    2113    
+INFO:     10    2222    2217    2350    2220    2223    2445    
+INFO:     15    2566    2565    2715    2554    2571    2840    
+INFO:     20    2893    2896    3041    2872    2908    3180    
+INFO:     25    3171    3172    3348    3174    3187    3470    
+INFO:     30    3399    3409    3592    3412    3418    3750    
+INFO:     35    3609    3622    3816    3642    3626    3978    
+INFO:     40    3809    3816    4003    3834    3822    4166    
+INFO:     45    3996    4000    4186    4022    3999    4325    
+INFO:     50    4165    4169    4346    4186    4162    4472    
+INFO:     55    4318    4323    4502    4338    4317    4612    
+INFO:     60    4467    4470    4647    4488    4468    4748    
+INFO:     65    4612    4609    4779    4630    4608    4865    
+INFO:     70    4756    4754    4911    4772    4750    4983    
+INFO:     75    4898    4895    5047    4920    4896    5125    
+INFO:     80    5054    5051    5192    5066    5053    5287    
+INFO:     85    5234    5232    5368    5238    5230    5465    
+INFO:     90    5441    5440    5578    5439    5438    5667    
+INFO:     95    5745    5741    5889    5749    5739    5969    
+INFO:     96    5834    5830    5978    5841    5835    6047    
+INFO:     97    5949    5936    6072    5951    5939    6156    
+INFO:     98    6090    6075    6242    6091    6085    6321    
+INFO:     99    6325    6324    6453    6294    6313    6558    
+INFO:     100    9494    9507    9248    9421    9514    9303    
+INFO:     Throughput: 67.9672K queries/sec
+wukong> 
+wukong> sparql-emu -f query/lubm/emulator/mix_config -d 5 -w 1 -p 200
+INFO:     Per-query CDF graph
+INFO:     CDF Res: 
+INFO:     P    Q1    Q2    Q3    Q4    Q5    Q6
+INFO:     1    2831    2824    2963    2820    2821    3048    
+INFO:     5    3696    3670    3928    3683    3691    4054    
+INFO:     10    4463    4452    4695    4460    4470    4741    
+INFO:     15    5240    5219    5460    5228    5243    5455    
+INFO:     20    5914    5905    6156    5925    5920    6184    
+INFO:     25    6460    6438    6678    6475    6470    6774    
+INFO:     30    6901    6896    7147    6924    6914    7292    
+INFO:     35    7320    7311    7594    7342    7326    7727    
+INFO:     40    7693    7697    7975    7732    7705    8091    
+INFO:     45    8043    8043    8290    8081    8047    8402    
+INFO:     50    8336    8334    8568    8357    8335    8685    
+INFO:     55    8592    8588    8814    8608    8596    8930    
+INFO:     60    8817    8816    9022    8843    8831    9143    
+INFO:     65    9039    9040    9236    9067    9053    9328    
+INFO:     70    9255    9256    9450    9274    9266    9521    
+INFO:     75    9469    9474    9665    9503    9489    9716    
+INFO:     80    9705    9703    9866    9730    9715    9939    
+INFO:     85    9970    9958    10134    9989    9973    10190    
+INFO:     90    10313    10305    10478    10330    10310    10535    
+INFO:     95    10807    10807    10964    10852    10822    11023    
+INFO:     96    10953    10950    11106    10976    10960    11152    
+INFO:     97    11117    11116    11262    11139    11119    11296    
+INFO:     98    11313    11311    11442    11333    11307    11540    
+INFO:     99    11633    11612    11761    11648    11609    11883    
+INFO:     100    13887    13986    13218    16089    16920    13946    
+INFO:     Throughput: 68.5924K queries/sec
+wukong> 
+wukong> sparql-emu -f query/lubm/emulator/mix_config -d 5 -w 1 -p 500
+INFO:     Per-query CDF graph
+INFO:     CDF Res: 
+INFO:     P    Q1    Q2    Q3    Q4    Q5    Q6
+INFO:     1    7369    7363    7520    7433    7357    7535    
+INFO:     5    9689    9678    9793    9849    9689    9789    
+INFO:     10    11817    11826    11999    11960    11877    11986    
+INFO:     15    13617    13650    13814    13744    13641    13648    
+INFO:     20    14940    14982    15196    15076    14963    15069    
+INFO:     25    15927    15955    16171    15998    15940    16101    
+INFO:     30    16781    16807    17007    16855    16783    16934    
+INFO:     35    17548    17589    17815    17596    17573    17787    
+INFO:     40    18308    18341    18547    18355    18342    18630    
+INFO:     45    19082    19099    19323    19138    19098    19376    
+INFO:     50    19792    19808    20013    19849    19815    20056    
+INFO:     55    20431    20458    20605    20481    20463    20630    
+INFO:     60    21008    21035    21187    21074    21043    21267    
+INFO:     65    21526    21555    21680    21589    21556    21738    
+INFO:     70    22002    22031    22134    22049    22022    22227    
+INFO:     75    22475    22505    22584    22534    22499    22642    
+INFO:     80    22940    22960    23050    22953    22953    23096    
+INFO:     85    23424    23452    23554    23429    23442    23577    
+INFO:     90    24018    24061    24150    24042    24030    24162    
+INFO:     95    24845    24863    24934    24815    24837    25028    
+INFO:     96    25060    25095    25161    25051    25069    25302    
+INFO:     97    25327    25372    25475    25346    25348    25499    
+INFO:     98    25660    25699    25823    25637    25684    25853    
+INFO:     99    26274    26311    26365    26277    26312    26545    
+INFO:     100    29583    29536    29574    29548    29481    28607    
+INFO:     Throughput: 69.085K queries/sec
+wukong> 
+wukong> sparql-emu -f query/lubm/emulator/mix_config -d 5 -w 1 -p 1000
+INFO:     Per-query CDF graph
+INFO:     CDF Res: 
+INFO:     P    Q1    Q2    Q3    Q4    Q5    Q6
+INFO:     1    13967    14011    14069    14165    14036    13870    
+INFO:     5    19875    19946    20197    20016    19912    20128    
+INFO:     10    23607    23623    23921    23822    23607    23895    
+INFO:     15    25988    25970    26369    26146    25919    26334    
+INFO:     20    28212    28099    28528    28180    28157    28476    
+INFO:     25    30088    29947    30412    30063    29999    30433    
+INFO:     30    31715    31637    32167    31752    31613    32140    
+INFO:     35    33147    33103    33607    33176    33046    33546    
+INFO:     40    34613    34615    35111    34660    34551    34837    
+INFO:     45    36136    36119    36622    36124    36060    36363    
+INFO:     50    37809    37794    38249    37740    37740    37995    
+INFO:     55    39509    39485    39887    39592    39444    39686    
+INFO:     60    41101    41106    41474    41209    41065    41331    
+INFO:     65    42501    42519    42785    42597    42488    42800    
+INFO:     70    43564    43577    43815    43632    43558    43832    
+INFO:     75    44492    44490    44707    44518    44485    44754    
+INFO:     80    45449    45441    45612    45434    45436    45714    
+INFO:     85    46385    46366    46602    46335    46376    46595    
+INFO:     90    47346    47344    47533    47286    47317    47538    
+INFO:     95    48718    48696    48919    48637    48678    49029    
+INFO:     96    49185    49180    49400    49157    49108    49473    
+INFO:     97    49835    49852    50066    49843    49795    50153    
+INFO:     98    50671    50726    50847    50672    50662    50939    
+INFO:     99    51815    51769    51908    51856    51735    52028    
+INFO:     100    56372    56337    55992    56164    56358    55684    
+INFO:     Throughput: 69.0864K queries/sec
 wukong> q 
 ```
