@@ -47,8 +47,9 @@ public:
     implementing other memory mangement systems */
     virtual void merge_freelists() = 0;
 
-    /* used for dynamic cache, return the real size of the allocation at 'idx' */
-    virtual uint64_t block_size(uint64_t idx) = 0;
+    /* used for dynamic cache, returns the real size of the allocation
+    that would result from the equivalent malloc(size) function call */
+    virtual uint64_t sz_to_blksz(uint64_t size) = 0;
 
     /* print out current memory usage status */
     virtual void print_memory_usage() = 0;

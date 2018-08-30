@@ -490,10 +490,8 @@ public:
         }
     }
 
-    // return the actual block_size by the given value index
-    inline uint64_t block_size(uint64_t idx) {
-        header *h = (header*)idx_to_ptr(get_header_idx(idx));
-        return (1 << (h->level)) - size_per_header;
+    uint64_t sz_to_blksz (uint64_t size) {
+        return ((1 << size_to_level(size)) - size_per_header);
     }
 
     //merge all threads' small freelists into one
