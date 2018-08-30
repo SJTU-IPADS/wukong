@@ -210,10 +210,8 @@ public:
         return;
     }
 
-    size_t block_size(uint64_t idx) {
-        void* ptr = (void*)(start_ptr + idx);
-        // get the real size of the allocation at ptr.
-        return sallocx(ptr, 0);
+    uint64_t sz_to_blksz(uint64_t size) {
+        return (uint64_t)nallocx(size, 0);
     }
 
     //to be suited with buddy malloc

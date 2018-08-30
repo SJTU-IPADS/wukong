@@ -479,15 +479,15 @@ done:
     // Convert given edge uints to byte units.
     inline uint64_t e2b(uint64_t sz) { return sz * sizeof(edge_t); }
     // Return exact block size of given size in edge unit.
-    inline uint64_t blksz(uint64_t ptr) { return b2e(edge_allocator->block_size(e2b(ptr))); }
+    inline uint64_t blksz(uint64_t sz) { return b2e(edge_allocator->sz_to_blksz(e2b(sz))); }
 
     /* Insert size flag size flag in edges.
      * @flag: size flag to insert
      * @sz: actual size of edges
      * @off: offset of edges
     */
-    inline void insert_sz(uint64_t flag, uint64_t off) {
-        uint64_t blk_sz = blksz(off);   // reserve one space for flag
+    inline void insert_sz(uint64_t flag, uint64_t sz, uint64_t off) {
+        uint64_t blk_sz = blksz(sz + 1);   // reserve one space for flag
         edges[off + blk_sz - 1].val = flag;
     }
 
@@ -498,7 +498,7 @@ done:
         if (!global_enable_caching)
             return true;
 
-        uint64_t blk_sz = blksz(v.ptr.off);  // reserve one space for flag
+        uint64_t blk_sz = blksz(v.ptr.size + 1);  // reserve one space for flag
         return (edge_ptr[blk_sz - 1].val == v.ptr.size);
     }
 
@@ -605,14 +605,14 @@ done:
             uint64_t need_size = v->ptr.size + 1;
 
             // a new block is needed
-            if (blksz(v->ptr.off) - 1 < need_size) {
+            if (blksz(v->ptr.size + 1) - 1 < need_size) {
                 iptr_t old_ptr = v->ptr;
 
-                uint64_t off = alloc_edges(blksz(v->ptr.off) * 2, tid);
+                uint64_t off = alloc_edges(need_size, tid);
                 memcpy(&edges[off], &edges[old_ptr.off], e2b(old_ptr.size));
                 edges[off + old_ptr.size].val = value;
                 // invalidate the old block
-                insert_sz(INVALID_EDGES, old_ptr.off);
+                insert_sz(INVALID_EDGES, old_ptr.size, old_ptr.off);
                 v->ptr = iptr_t(need_size, off);
 
                 if (global_enable_caching)
@@ -621,7 +621,7 @@ done:
                     edge_allocator->free(e2b(old_ptr.off));
             } else {
                 // update size flag
-                insert_sz(need_size, v->ptr.off);
+                insert_sz(need_size, need_size, v->ptr.off);
                 edges[v->ptr.off + v->ptr.size].val = value;
                 v->ptr.size = need_size;
             }
@@ -638,7 +638,7 @@ done:
             sweep_free(); // collect free space before allocate
         uint64_t sz = e2b(n + 1); // reserve one space for sz
         uint64_t off = b2e(edge_allocator->malloc(sz, tid));
-        insert_sz(n, off);
+        insert_sz(n, n, off);
         return off;
     }
 #else // !DYNAMIC_GSTORE
@@ -895,7 +895,7 @@ done:
 
 #ifdef DYNAMIC_GSTORE
         // the size of entire blk
-        uint64_t r_sz = blksz(v.ptr.off) * sizeof(edge_t);
+        uint64_t r_sz = blksz(v.ptr.size + 1) * sizeof(edge_t);
 #else
         // the size of edges
         uint64_t r_sz = v.ptr.size * sizeof(edge_t);
