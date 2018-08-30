@@ -34,13 +34,14 @@
 #endif
 #include "string_server.hpp"
 #include "dgraph.hpp"
-#include "engine.hpp"
 #include "proxy.hpp"
 #include "console.hpp"
 #include "rdma.hpp"
 #include "adaptor.hpp"
 #include "data_statistic.hpp"
 #include "logger2.hpp"
+
+#include "engine/engine.hpp"
 
 #include "unit.hpp"
 

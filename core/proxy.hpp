@@ -130,8 +130,8 @@ private:
     inline void sweep_msgs() {
         if (!pending_msgs.size()) return;
 
-        logstream(LOG_INFO) << "#" << tid << " " << pending_msgs.size()
-                            << " pending msgs on proxy." << LOG_endl;
+        logstream(LOG_DEBUG) << "#" << tid << " " << pending_msgs.size()
+                             << " pending msgs on proxy." << LOG_endl;
         for (vector<Message>::iterator it = pending_msgs.begin();
                 it != pending_msgs.end();) {
             if (adaptor->send(it->sid, it->tid, it->bundle))
