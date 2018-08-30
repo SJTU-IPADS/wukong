@@ -29,12 +29,13 @@
 #include "global.hpp"
 #include "coder.hpp"
 #include "query.hpp"
-#include "adaptor.hpp"
 #include "parser.hpp"
 #include "planner.hpp"
 #include "data_statistic.hpp"
 #include "string_server.hpp"
 #include "monitor.hpp"
+
+#include "comm/adaptor.hpp"
 
 #include "math.hpp"
 #include "timer.hpp"

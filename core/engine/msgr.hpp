@@ -24,8 +24,10 @@
 
 #include <vector>
 
-#include "adaptor.hpp"
 #include "query.hpp"
+
+#include "comm/adaptor.hpp"
+
 #include "logger2.hpp"
 
 using namespace std;

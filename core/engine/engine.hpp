@@ -29,15 +29,18 @@
 #include "global.hpp"
 #include "type.hpp"
 #include "coder.hpp"
-#include "adaptor.hpp"
 #include "dgraph.hpp"
 #include "query.hpp"
-#include "assertion.hpp"
 #include "timer.hpp"
 
 #include "sparql.hpp"
 #include "rdf.hpp"
 #include "msgr.hpp"
+
+#include "comm/adaptor.hpp"
+
+#include "assertion.hpp"
+
 
 using namespace std;
 

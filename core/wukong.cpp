@@ -37,11 +37,11 @@
 #include "proxy.hpp"
 #include "console.hpp"
 #include "rdma.hpp"
-#include "adaptor.hpp"
 #include "data_statistic.hpp"
 #include "logger2.hpp"
 
 #include "engine/engine.hpp"
+#include "comm/adaptor.hpp"
 
 #include "unit.hpp"
 

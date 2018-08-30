@@ -38,8 +38,8 @@
 #include "assertion.hpp"
 #include "math.hpp"
 #include "timer.hpp"
-#include "rmap.hpp"
 
+#include "rmap.hpp"
 #include "msgr.hpp"
 
 using namespace std;
