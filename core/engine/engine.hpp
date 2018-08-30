@@ -22,8 +22,6 @@
 
 #pragma once
 
-#include <boost/unordered_set.hpp>
-#include <boost/unordered_map.hpp>
 #include <tbb/concurrent_queue.h>
 #include <algorithm> //sort
 #include <regex>
@@ -35,13 +33,14 @@
 #include "dgraph.hpp"
 #include "query.hpp"
 #include "assertion.hpp"
-#include "math.hpp"
 #include "timer.hpp"
 
 #include "sparql.hpp"
+#include "rdf.hpp"
 #include "msgr.hpp"
 
 using namespace std;
+
 
 #define BUSY_POLLING_THRESHOLD 10000000 // busy polling task queue 10s
 #define MIN_SNOOZE_TIME 10 // MIX snooze time
@@ -54,39 +53,18 @@ std::vector<Engine *> engines;
 
 class Engine {
 private:
-    void execute_gstore_check(GStoreCheck &r) {
-        r.check_ret = graph->gstore_check(r.index_check, r.normal_check);
-        Bundle bundle(r);
-        msgr->send_msg(bundle, coder->sid_of(r.pid), coder->tid_of(r.pid));
-    }
-
-#ifdef DYNAMIC_GSTORE
-    void execute_load_data(RDFLoad &r) {
-        // unbind the core from the thread in order to use openmpi to run multithreads
-        cpu_set_t mask = unbind_to_core();
-
-        r.load_ret = graph->dynamic_load_data(r.load_dname, r.check_dup);
-
-        //rebind the thread with the core
-        bind_to_core(mask);
-
-        Bundle bundle(r);
-        msgr->send_msg(bundle, coder->sid_of(r.pid), coder->tid_of(r.pid));
-    }
-#endif
-
     void execute(Bundle &bundle) {
         if (bundle.type == SPARQL_QUERY) {
             SPARQLQuery r = bundle.get_sparql_query();
             sparql->execute_sparql_query(r);
         } else if (bundle.type == GSTORE_CHECK) {
             GStoreCheck r = bundle.get_gstore_check();
-            execute_gstore_check(r);
+            rdf->execute_gstore_check(r);
         }
 #ifdef DYNAMIC_GSTORE
         else if (bundle.type == DYNAMIC_LOAD) {
             RDFLoad r = bundle.get_rdf_load();
-            execute_load_data(r);
+            rdf->execute_load_data(r);
         }
 #endif
         else
@@ -107,6 +85,7 @@ public:
     Coder *coder;
     Messenger *msgr;
     SPARQLEngine *sparql;
+    RDFEngine *rdf;
 
     bool at_work; // whether engine is at work or not
     uint64_t last_time; // busy or not (work-oblige)
@@ -120,6 +99,7 @@ public:
         coder = new Coder(sid, tid);
         msgr = new Messenger(sid, tid, adaptor);
         sparql = new SPARQLEngine(sid, tid, str_server, graph, coder, msgr);
+        rdf = new RDFEngine(sid, tid, graph, coder, msgr);
     }
 
     void run() {
@@ -145,7 +125,7 @@ public:
             // check and send pending messages first
             msgr->sweep_msgs();
 
-            // priority path (FIXME: only for SPARQL queries)
+            // priority path: sparql stage (FIXME: only for SPARQL queries)
             SPARQLQuery req;
             at_work = sparql->prior_stage.try_pop(req);
             if (at_work) {

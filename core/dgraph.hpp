@@ -64,6 +64,7 @@ class DGraph {
     vector<vector<triple_attr_t>> triple_sav;
 
 #ifdef DYNAMIC_GSTORE
+    // FIXME: move mapping code to string_server
     boost::unordered_map<sid_t, sid_t> id2id;
 
     void flush_convertmap() { id2id.clear(); }
@@ -74,11 +75,11 @@ class DGraph {
     }
 
     bool check_sid(const sid_t id) {
-        if (!str_server->exist(id)) {
-            logstream(LOG_WARNING) << "Unknown SID: " << id << LOG_endl;
-            return false;
-        }
-        return true;
+        if (str_server->exist(id))
+            return true;
+
+        logstream(LOG_WARNING) << "Unknown SID: " << id << LOG_endl;
+        return false;
     }
 
     void dynamic_load_mappings(string dname) {

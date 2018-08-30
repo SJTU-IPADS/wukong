@@ -31,6 +31,7 @@
 
 #include "global.hpp"
 #include "type.hpp"
+#include "bind.hpp"
 #include "coder.hpp"
 #include "dgraph.hpp"
 #include "query.hpp"
