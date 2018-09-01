@@ -41,38 +41,38 @@ using namespace std;
 
 class RDFEngine {
 private:
-	int sid;    // server id
-	int tid;    // thread id
+    int sid;    // server id
+    int tid;    // thread id
 
-	DGraph *graph;
-	Coder *coder;
-	Messenger *msgr;
+    DGraph *graph;
+    Coder *coder;
+    Messenger *msgr;
 
 public:
 
-	RDFEngine(int sid, int tid, DGraph *graph, Coder *coder, Messenger *msgr)
-		: sid(sid), tid(tid), graph(graph), coder(coder), msgr(msgr) { }
+    RDFEngine(int sid, int tid, DGraph *graph, Coder *coder, Messenger *msgr)
+        : sid(sid), tid(tid), graph(graph), coder(coder), msgr(msgr) { }
 
-	void execute_gstore_check(GStoreCheck &r) {
-		r.check_ret = graph->gstore_check(r.index_check, r.normal_check);
+    void execute_gstore_check(GStoreCheck &r) {
+        r.check_ret = graph->gstore_check(r.index_check, r.normal_check);
 
-		Bundle bundle(r);
-		msgr->send_msg(bundle, coder->sid_of(r.pid), coder->tid_of(r.pid));
-	}
+        Bundle bundle(r);
+        msgr->send_msg(bundle, coder->sid_of(r.pid), coder->tid_of(r.pid));
+    }
 
 #ifdef DYNAMIC_GSTORE
-	void execute_load_data(RDFLoad &r) {
-		// unbind the core from the thread (enable OpenMPI multithreading)
-		cpu_set_t mask = unbind_to_core();
+    void execute_load_data(RDFLoad &r) {
+        // unbind the core from the thread (enable OpenMPI multithreading)
+        cpu_set_t mask = unbind_to_core();
 
-		r.load_ret = graph->dynamic_load_data(r.load_dname, r.check_dup);
+        r.load_ret = graph->dynamic_load_data(r.load_dname, r.check_dup);
 
-		// rebind the thread with the core
-		bind_to_core(mask);
+        // rebind the thread with the core
+        bind_to_core(mask);
 
-		Bundle bundle(r);
-		msgr->send_msg(bundle, coder->sid_of(r.pid), coder->tid_of(r.pid));
-	}
+        Bundle bundle(r);
+        msgr->send_msg(bundle, coder->sid_of(r.pid), coder->tid_of(r.pid));
+    }
 #endif
 
 };

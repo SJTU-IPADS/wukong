@@ -35,49 +35,49 @@ using namespace std;
 
 class Messenger {
 private:
-	class Message {
-	public:
-		int sid;
-		int tid;
-		Bundle bundle;
+    class Message {
+    public:
+        int sid;
+        int tid;
+        Bundle bundle;
 
-		Message(int sid, int tid, Bundle &bundle)
-			: sid(sid), tid(tid), bundle(bundle) { }
-	};
+        Message(int sid, int tid, Bundle &bundle)
+            : sid(sid), tid(tid), bundle(bundle) { }
+    };
 
-	vector<Message> pending_msgs;
+    vector<Message> pending_msgs;
 
 public:
-	int sid;    // server id
-	int tid;    // thread id
+    int sid;    // server id
+    int tid;    // thread id
 
-	Adaptor *adaptor;
+    Adaptor *adaptor;
 
-	Messenger(int sid, int tid, Adaptor *adaptor) : sid(sid), tid(tid), adaptor(adaptor) { }
+    Messenger(int sid, int tid, Adaptor *adaptor) : sid(sid), tid(tid), adaptor(adaptor) { }
 
-	inline void sweep_msgs() {
-		if (!pending_msgs.size()) return;
+    inline void sweep_msgs() {
+        if (!pending_msgs.size()) return;
 
-		logstream(LOG_DEBUG) << "#" << tid << " "
-		                     << pending_msgs.size() << " pending msgs on engine." << LOG_endl;
-		for (vector<Message>::iterator it = pending_msgs.begin(); it != pending_msgs.end();)
-			if (adaptor->send(it->sid, it->tid, it->bundle))
-				it = pending_msgs.erase(it);
-			else
-				++it;
-	}
+        logstream(LOG_DEBUG) << "#" << tid << " "
+                             << pending_msgs.size() << " pending msgs on engine." << LOG_endl;
+        for (vector<Message>::iterator it = pending_msgs.begin(); it != pending_msgs.end();)
+            if (adaptor->send(it->sid, it->tid, it->bundle))
+                it = pending_msgs.erase(it);
+            else
+                ++it;
+    }
 
-	bool send_msg(Bundle &bundle, int dst_sid, int dst_tid) {
-		if (adaptor->send(dst_sid, dst_tid, bundle))
-			return true;
+    bool send_msg(Bundle &bundle, int dst_sid, int dst_tid) {
+        if (adaptor->send(dst_sid, dst_tid, bundle))
+            return true;
 
-		// failed to send, then stash the msg to avoid deadlock
-		pending_msgs.push_back(Message(dst_sid, dst_tid, bundle));
-		return false;
-	}
+        // failed to send, then stash the msg to avoid deadlock
+        pending_msgs.push_back(Message(dst_sid, dst_tid, bundle));
+        return false;
+    }
 
-	Bundle recv_msg() { return adaptor->recv(); }
+    Bundle recv_msg() { return adaptor->recv(); }
 
-	bool tryrecv_msg(Bundle &bundle) { return adaptor->tryrecv(bundle); }
+    bool tryrecv_msg(Bundle &bundle) { return adaptor->tryrecv(bundle); }
 
 };
