@@ -104,37 +104,41 @@ class Planner {
     Type_table type_table;
     unordered_map<ssid_t, int> var2col;  // convert
     unordered_map<ssid_t, int> var2ptindex;  // find the first appearance for var
-    DGraph *graph;    
+    DGraph *graph;
 
-    // get the type of constant using get_edges_global
-    ssid_t get_type(ssid_t constant){
+    // get the type of constant using get_edges
+    ssid_t get_type(ssid_t constant) {
         uint64_t type_sz = 0;
-        edge_t *res = graph->get_edges_global(0, constant, OUT, TYPE_ID, &type_sz);
-        if(type_sz == 1)    return res[0].val;
-        else if(type_sz > 1){
-            type_t type;
+        edge_t *res = graph->get_triples(0, constant, TYPE_ID, OUT, &type_sz);
+        if (type_sz == 1) {
+            return res[0].val;
+        } else if (type_sz > 1) {
             unordered_set<int> type_composition;
-            for(int i = 0;i < type_sz; i ++){
+
+            for (int i = 0; i < type_sz; i ++)
                 type_composition.insert(res[i].val);
-            }
+
+            type_t type;
             type.set_type_composition(type_composition);
             return statistic->global_type2int[type];
-        }
-        else{
-            type_t type;
-            uint64_t psize1 = 0;
+        } else {
             unordered_set<int> index_composition;
-            edge_t *res1 = graph->get_edges_global(0, constant, OUT, PREDICATE_ID, &psize1);
+
+            uint64_t psize1 = 0;
+            edge_t *res1 = graph->get_triples(0, constant, PREDICATE_ID, OUT, &psize1);
             for (uint64_t k = 0; k < psize1; k++) {
                 ssid_t pre = res1[k].val;
                 index_composition.insert(pre);
             }
+
             uint64_t psize2 = 0;
-            edge_t *res2 = graph->get_edges_global(0, constant, IN, PREDICATE_ID, &psize2);
+            edge_t *res2 = graph->get_triples(0, constant, PREDICATE_ID, IN, &psize2);
             for (uint64_t k = 0; k < psize2; k++) {
                 ssid_t pre = res2[k].val;
                 index_composition.insert(-pre);
             }
+
+            type_t type;
             type.set_index_composition(index_composition);
             return statistic->global_type2int[type];
         }
@@ -153,7 +157,8 @@ class Planner {
                 ctn = false;  // small query
                 //cout << "small query and use heuristic.\n";
             }
-            //cout << "this path cost: " << cost << "-------------------------------------------------------------------" << endl;
+            //cout << "this path cost: " << cost
+            //     << "-------------------------------------" << endl;
             if (cost < min_cost) {
                 min_cost = cost;
                 min_path = path;
@@ -178,7 +183,8 @@ class Planner {
                     //count00++;
                     // use index vertex, find subject first
                     path.push_back(p); path.push_back(0); path.push_back(IN); path.push_back(o1);
-                    //cout << "pick : " << p << " " << "0" << " " << IN << " " << o1 << "-------------------------------------" << endl;
+                    //cout << "pick : " << p << " " << "0" << " " << IN << " " << o1
+                    //     << "-------------------------------------" << endl;
 
                     // initialize
                     add_cost = 0;
@@ -200,18 +206,19 @@ class Planner {
                         correprune_boost_results += updated_result_table[j];
                     }
                     condprune_results = correprune_boost_results;
-                    if (condprune_results == 0){
+                    if (condprune_results == 0) {
                         is_empty = true;
                         return false;
                     }
-                    add_cost = CC_const_known*condprune_results;
+                    add_cost = CC_const_known * condprune_results;
                     //cout << "results: " << condprune_results << endl;
                     //cout << "add cost: " << add_cost << endl;
                     double new_cost = cost + add_cost;
                     if (new_cost > min_cost) {
                         path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
                         updated_result_table.clear();
-                        //cout << "this path dropped " << "-------------------------------------------------------------------" << endl;
+                        //cout << "this path dropped "
+                        //     << "-------------------------------------" << endl;
                         continue;
                     }
 
@@ -222,7 +229,8 @@ class Planner {
 
                     // next iteration
                     bool ctn = plan_enum(pt_bits, new_cost, condprune_results); // next level
-                    //cout << "back : " << p << " " << "0" << " " << IN << " " << o1 << "-------------------------------------" << endl;
+                    //cout << "back : " << p << " " << "0" << " " << IN << " " << o1
+                    //     << "-------------------------------------" << endl;
                     if (!ctn) return ctn;
                     path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
                     var2col[o1] = -1;
@@ -233,7 +241,8 @@ class Planner {
 
                     // different direction, find object first
                     path.push_back(p); path.push_back(0); path.push_back(OUT); path.push_back(o2);
-                    //cout << "pick : " << p << " " << "0" << " " << OUT << " " << o2 << "-------------------------------------" << endl;
+                    //cout << "pick : " << p << " " << "0" << " " << OUT << " " << o2
+                    //     << "-------------------------------------" << endl;
 
                     // initialize
                     add_cost = 0;
@@ -255,18 +264,19 @@ class Planner {
                         correprune_boost_results += updated_result_table[j];
                     }
                     condprune_results = correprune_boost_results;
-                    if (condprune_results == 0){
+                    if (condprune_results == 0) {
                         is_empty = true;
                         return false;
                     }
-                    add_cost = CC_const_known*condprune_results;
+                    add_cost = CC_const_known * condprune_results;
                     //cout << "results: " << condprune_results << endl;
                     //cout << "add cost: " << add_cost << endl;
                     new_cost = cost + add_cost;
                     if (new_cost > min_cost) {
                         path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
                         updated_result_table.clear();
-                        //cout << "this path dropped " << "-------------------------------------------------------------------" << endl;
+                        //cout << "this path dropped "
+                        //     << "-------------------------------------" << endl;
                         continue;
                     }
 
@@ -277,7 +287,8 @@ class Planner {
 
                     // next iteration
                     ctn = plan_enum(pt_bits, new_cost, condprune_results);
-                    //cout << "back : " << p << " " << "0" << " " << OUT << " " << o2 << "-------------------------------------" << endl;
+                    //cout << "back : " << p << " " << "0" << " " << OUT << " " << o2
+                    //     << "-------------------------------------" << endl;
                     if (!ctn) return ctn;
                     path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
                     var2col[o2] = -1;
@@ -289,7 +300,8 @@ class Planner {
                 if (o1 > 0) {
                     //count01++;
                     path.push_back(o1); path.push_back(p); path.push_back(d); path.push_back(o2);
-                    //cout << "pick : " << o1 << " " << p << " " << d << " " << o2 << "-------------------------------------" << endl;
+                    //cout << "pick : " << o1 << " " << p << " " << d << " " << o2
+                    //     << "-------------------------------------" << endl;
 
                     // initialize
                     add_cost = 0;
@@ -316,18 +328,19 @@ class Planner {
                         correprune_boost_results += updated_result_table[j];
                     }
                     condprune_results = correprune_boost_results;
-                    if (condprune_results == 0){
+                    if (condprune_results == 0) {
                         is_empty = true;
                         return false;
                     }
-                    add_cost = CC_const_known*condprune_results;
+                    add_cost = CC_const_known * condprune_results;
                     //cout << "results: " << condprune_results << endl;
                     //cout << "add cost: " << add_cost << endl;
                     double new_cost = cost + add_cost;
                     if (new_cost > min_cost) {
                         path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
                         updated_result_table.clear();
-                        //cout << "this path dropped " << "-------------------------------------------------------------------" << endl;
+                        //cout << "this path dropped "
+                        //     << "-------------------------------------" << endl;
                         continue;
                     }
 
@@ -338,7 +351,8 @@ class Planner {
 
                     // next iteration
                     bool ctn = plan_enum(pt_bits | (1 << pt_pick), new_cost, condprune_results);
-                    //cout << "back : " << o1 << " " << p << " " << d << " " << o2 << "-------------------------------------" << endl;
+                    //cout << "back : " << o1 << " " << p << " " << d << " " << o2
+                    //     << "-------------------------------------" << endl;
                     if (!ctn) return ctn;
                     path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
                     var2col[o2] = -1;
@@ -350,7 +364,8 @@ class Planner {
                 } else if (o2 > 0) {
                     //count01++;
                     path.push_back(o2); path.push_back(p); path.push_back(IN); path.push_back(o1);
-                    //cout << "pick : " << o2 << " " << p << " " << IN << " " << o1 << "-------------------------------------" << endl;
+                    //cout << "pick : " << o2 << " " << p << " " << IN << " " << o1
+                    //     << "-------------------------------------" << endl;
 
                     // initialize
                     add_cost = 0;
@@ -363,22 +378,22 @@ class Planner {
                     // for type triples
                     if (p == TYPE_ID) {
                         // start from ty-index vertex
-                        ssid_t vtype = o2; 
-                        if(statistic->global_single2complex.find(vtype) == statistic->global_single2complex.end()){
+                        ssid_t vtype = o2;
+                        if (statistic->global_single2complex.find(vtype) == statistic->global_single2complex.end()) {
                             double vcount = double(statistic->global_tyscount[o2]) / global_num_servers;
                             updated_result_table.push_back(vcount);
                             updated_result_table.push_back(vtype);
                         }
-                        else{
+                        else {
                             // single type o2 may not exist in muititype situation
-                            if(statistic->global_tyscount.find(vtype) != statistic->global_tyscount.end()){
+                            if (statistic->global_tyscount.find(vtype) != statistic->global_tyscount.end()) {
                                 double vcount = double(statistic->global_tyscount[o2]) / global_num_servers;
                                 updated_result_table.push_back(vcount);
                                 updated_result_table.push_back(vtype);
                             }
                             // single type o2 may be contained in complex type
                             unordered_set<ssid_t> type_set = statistic->global_single2complex[vtype];
-                            for(auto iter = type_set.cbegin(); iter != type_set.cend(); ++iter){
+                            for (auto iter = type_set.cbegin(); iter != type_set.cend(); ++iter) {
                                 double vcount = double(statistic->global_tyscount[*iter]) / global_num_servers;
                                 updated_result_table.push_back(vcount);
                                 updated_result_table.push_back(*iter);
@@ -403,18 +418,19 @@ class Planner {
                         correprune_boost_results += updated_result_table[j];
                     }
                     condprune_results = correprune_boost_results;
-                    if (condprune_results == 0){
+                    if (condprune_results == 0) {
                         is_empty = true;
                         return false;
                     }
-                    add_cost = CC_const_known*condprune_results;
+                    add_cost = CC_const_known * condprune_results;
                     //cout << "results: " << condprune_results << endl;
                     //cout << "add cost: " << add_cost << endl;
                     double new_cost = cost + add_cost;
                     if (new_cost > min_cost) {
                         path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
                         updated_result_table.clear();
-                        //cout << "this path dropped " << "-------------------------------------------------------------------" << endl;
+                        //cout << "this path dropped "
+                        //     << "-------------------------------------" << endl;
                         continue;
                     }
 
@@ -426,7 +442,8 @@ class Planner {
 
                     // next iteration and backtrack
                     bool ctn = plan_enum(pt_bits | (1 << pt_pick), new_cost, condprune_results);
-                    //cout << "back : " << o2 << " " << p << " " << IN << " " << o1 << "-------------------------------------" << endl;
+                    //cout << "back : " << o2 << " " << p << " " << IN << " " << o1
+                    //     << "-------------------------------------" << endl;
                     if (!ctn) return ctn;
                     path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
                     var2col[o1] = -1;
@@ -444,7 +461,8 @@ class Planner {
                     //cout << "var2col[o2]: " << var2col[o2] << endl;
                     //cout << "o1: " << o1 << " var2col[o1]: " << var2col[o1] << endl;
                     path.push_back(o1); path.push_back(p); path.push_back(d); path.push_back(o2);
-                    //cout << "pick : " << o1 << " " << p << " " << d << " " << o2 << "-------------------------------------" << endl;
+                    //cout << "pick : " << o1 << " " << p << " " << d << " " << o2
+                    //     << "-------------------------------------" << endl;
 
                     // initialize
                     add_cost = 0;
@@ -469,13 +487,13 @@ class Planner {
                             correprune_boost_results += pre_count;
                             early_ret += pre_count;
                             // if pre_tyid do not belong to o2, prune it
-                            if(pre_tyid >= 0){
+                            if (pre_tyid >= 0) {
                                 if (pre_tyid != o2) continue;
                             }
-                            else{
-                                if(statistic->global_single2complex.find(o2) != statistic->global_single2complex.end()){
+                            else {
+                                if (statistic->global_single2complex.find(o2) != statistic->global_single2complex.end()) {
                                     unordered_set<ssid_t> type_set = statistic->global_single2complex[o2];
-                                    if(type_set.count(pre_tyid) == 0) continue;
+                                    if (type_set.count(pre_tyid) == 0) continue;
                                 }
                                 else continue;
                             }
@@ -495,12 +513,12 @@ class Planner {
                             ssid_t vtype = tycountv[k].ty;
                             double vcount = double(tycountv[k].count) / tycount * pre_count;
                             correprune_boost_results += vcount;
-                            if (o2 > 0) { 
+                            if (o2 > 0) {
                                 // for constant pruning
                                 ssid_t o2type = get_type(o2);
                                 if (vtype == o2type) match_flag = 1;
                             }
-                            else if (var2col.find(o2) != var2col.end() && var2col[o2] > 0) { 
+                            else if (var2col.find(o2) != var2col.end() && var2col[o2] > 0) {
                                 // for variable pruning
                                 ssid_t pretype = type_table.get_row_col(i, var2col[o2]);
                                 if (vtype == pretype) {
@@ -511,7 +529,7 @@ class Planner {
                                 }
                             } else {
                                 // normal case
-                                type_table.append_newv_row_to(i, updated_result_table, vcount); 
+                                type_table.append_newv_row_to(i, updated_result_table, vcount);
                                 updated_result_table.push_back(vtype);
                                 condprune_results += vcount;
                             }
@@ -522,21 +540,22 @@ class Planner {
                         }
                     }
 
-                    if (condprune_results == 0){
+                    if (condprune_results == 0) {
                         is_empty = true;
                         return false;
                     }
                     // calculate cost
-                    add_cost = AA_full*final_ret + AA_early*early_ret
-                              + BB_ifor * correprune_boost_results
-                              + (prune_flag ? CC_const_known : CC_unknown) * condprune_results;
+                    add_cost = AA_full * final_ret + AA_early * early_ret
+                               + BB_ifor * correprune_boost_results
+                               + (prune_flag ? CC_const_known : CC_unknown) * condprune_results;
                     //cout << "results: " << condprune_results << endl;
                     //cout << "add cost: " << add_cost << endl;
                     double new_cost = cost + add_cost;
                     if (new_cost > min_cost) {
                         path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
                         updated_result_table.clear();
-                        //cout << "this path dropped " << "-------------------------------------------------------------------" << endl;
+                        //cout << "this path dropped "
+                        //     << "-------------------------------------" << endl;
                         continue;
                     }
 
@@ -551,7 +570,8 @@ class Planner {
 
                     // next iteration
                     bool ctn = plan_enum(pt_bits | (1 << pt_pick), new_cost, condprune_results);
-                    //cout << "back : " << o1 << " " << p << " " << d << " " << o2 << "-------------------------------------" << endl;
+                    //cout << "back : " << o1 << " " << p << " " << d << " " << o2
+                    //     << "-------------------------------------" << endl;
                     if (!ctn) return ctn;
                     path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
                     type_table.tytable.swap(updated_result_table);
@@ -565,11 +585,12 @@ class Planner {
                 }
                 // var o2 in the result table
                 if (o2 < 0 && (var2col.find(o2) != var2col.end()) && var2col[o2] > 0) {
-                  //count02++;
+                    //count02++;
                     if (var2col[o2] > type_table.get_col_num()) assert(false);
                     //cout << "o2: " << o2 << " var2col[o2]: " << var2col[o2] << endl;
                     path.push_back(o2); path.push_back(p); path.push_back(IN); path.push_back(o1);
-                    //cout << "pick : " << o2 << " " << p << " " << IN << " " << o1 << "-------------------------------------" << endl;
+                    //cout << "pick : " << o2 << " " << p << " " << IN << " " << o1
+                    //     << "-------------------------------------" << endl;
 
                     // initialize
                     add_cost = 0;
@@ -601,12 +622,12 @@ class Planner {
                             ssid_t vtype = tycountv[k].ty;
                             double vcount = double(tycountv[k].count) / tycount * pre_count;
                             correprune_boost_results += vcount;
-                            if (o1 > 0) { 
+                            if (o1 > 0) {
                                 // for constant pruning
                                 ssid_t o1type = get_type(o1);
                                 if (vtype == o1type) match_flag = 1;
                             }
-                            else if (var2col.find(o1) != var2col.end() && var2col[o1] > 0) { 
+                            else if (var2col.find(o1) != var2col.end() && var2col[o1] > 0) {
                                 // for variable pruning
                                 ssid_t pretype = type_table.get_row_col(i, var2col[o1]);
                                 if (vtype == pretype) {
@@ -617,7 +638,7 @@ class Planner {
                                 }
                             } else {
                                 // normal case
-                                type_table.append_newv_row_to(i, updated_result_table, vcount); 
+                                type_table.append_newv_row_to(i, updated_result_table, vcount);
                                 updated_result_table.push_back(vtype);
                                 condprune_results += vcount;
                             }
@@ -628,21 +649,22 @@ class Planner {
                         }
                     }
 
-                    if (condprune_results == 0){
+                    if (condprune_results == 0) {
                         is_empty = true;
                         return false;
                     }
                     // calculate cost
-                    add_cost = AA_full*final_ret + AA_early*early_ret
-                              + BB_ifor * correprune_boost_results
-                              + (prune_flag ? CC_const_known : CC_unknown) * condprune_results;
+                    add_cost = AA_full * final_ret + AA_early * early_ret
+                               + BB_ifor * correprune_boost_results
+                               + (prune_flag ? CC_const_known : CC_unknown) * condprune_results;
                     //cout << "results: " << condprune_results << endl;
                     //cout << "add cost: " << add_cost << endl;
                     double new_cost = cost + add_cost;
                     if (new_cost > min_cost) {
                         path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
                         updated_result_table.clear();
-                        //cout << "this path dropped " << "-------------------------------------------------------------------" << endl;
+                        //cout << "this path dropped "
+                        //     << "-------------------------------------" << endl;
                         continue;
                     }
 
@@ -657,7 +679,8 @@ class Planner {
 
                     // next iteration
                     bool ctn = plan_enum(pt_bits | (1 << pt_pick), new_cost, condprune_results);
-                    //cout << "back : " << o2 << " " << p << " " << IN << " " << o1 << "-------------------------------------" << endl;
+                    //cout << "back : " << o2 << " " << p << " " << IN << " " << o1
+                    //     << "-------------------------------------" << endl;
                     if (!ctn) return ctn;
                     path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
                     type_table.tytable.swap(updated_result_table);
@@ -679,7 +702,7 @@ class Planner {
     bool score_order_new(unsigned int index, double cost, double pre_results) {
         if (index == _chains_size_div_4 * 4) {
             cout << "this order's cost : " << cost << endl;
-            cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
+            cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
             if (cost < min_cost) {
                 min_cost = cost;
                 min_path = path;
@@ -702,7 +725,8 @@ class Planner {
                     ssid_t o1 = tgt;
                     // use index vertex, find subject first
                     path.push_back(p); path.push_back(0); path.push_back(IN); path.push_back(o1);
-                    cout << "pick : " << p << " " << "0" << " " << IN << " " << o1 << "-------------------------------------" << endl;
+                    cout << "pick : " << p << " " << "0" << " " << IN << " " << o1
+                         << "-------------------------------------" << endl;
 
                     // initialize
                     add_cost = 0;
@@ -725,7 +749,7 @@ class Planner {
                         correprune_boost_results += updated_result_table[j];
                     }
                     condprune_results = correprune_boost_results;
-                    add_cost = CC_const_known*condprune_results;
+                    add_cost = CC_const_known * condprune_results;
                     cout << "results: " << condprune_results << endl;
                     cout << "add cost: " << add_cost << "== " << CC_const_known << " * " << condprune_results << endl;
                     double new_cost = cost + add_cost;
@@ -737,7 +761,7 @@ class Planner {
                     type_table.set_col_num(2);
 
                     // next iteration
-                    bool ctn = score_order_new(index+4, new_cost, condprune_results); // next level
+                    bool ctn = score_order_new(index + 4, new_cost, condprune_results); // next level
                     if (!ctn) return ctn;
                     path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
                     var2col[o1] = -1;
@@ -751,7 +775,8 @@ class Planner {
                     ssid_t o2 = tgt;
                     // different direction, find object first
                     path.push_back(p); path.push_back(0); path.push_back(OUT); path.push_back(o2);
-                    cout << "pick : " << p << " " << "0" << " " << OUT << " " << o2 << "-------------------------------------" << endl;
+                    cout << "pick : " << p << " " << "0" << " " << OUT << " " << o2
+                         << "-------------------------------------" << endl;
 
                     // initialize
                     add_cost = 0;
@@ -774,7 +799,7 @@ class Planner {
                         correprune_boost_results += updated_result_table[j];
                     }
                     condprune_results = correprune_boost_results;
-                    add_cost = CC_const_known*condprune_results;
+                    add_cost = CC_const_known * condprune_results;
                     cout << "results: " << condprune_results << endl;
                     cout << "add cost: " << add_cost << "== " << CC_const_known << " * " << condprune_results << endl;
                     double new_cost = cost + add_cost;
@@ -786,7 +811,7 @@ class Planner {
                     type_table.set_col_num(2);
 
                     // next iteration
-                    bool ctn = score_order_new(index+4, new_cost, condprune_results);
+                    bool ctn = score_order_new(index + 4, new_cost, condprune_results);
                     if (!ctn) return ctn;
                     path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
                     var2col[o2] = -1;
@@ -806,7 +831,8 @@ class Planner {
                     ssid_t o2 = tgt;
 
                     path.push_back(o1); path.push_back(p); path.push_back(d); path.push_back(o2);
-                    cout << "pick : " << o1 << " " << p << " " << d << " " << o2 << "-------------------------------------" << endl;
+                    cout << "pick : " << o1 << " " << p << " " << d << " " << o2
+                         << "-------------------------------------" << endl;
 
                     // initialize
                     add_cost = 0;
@@ -831,7 +857,7 @@ class Planner {
                         correprune_boost_results += updated_result_table[j];
                     }
                     condprune_results = correprune_boost_results;
-                    add_cost = CC_const_known*condprune_results;
+                    add_cost = CC_const_known * condprune_results;
                     cout << "results: " << condprune_results << endl;
                     cout << "add cost: " << add_cost << "== " << CC_const_known << " * " << condprune_results << endl;
                     double new_cost = cost + add_cost;
@@ -843,7 +869,7 @@ class Planner {
                     type_table.set_col_num(2);
 
                     // next iteration
-                    bool ctn = score_order_new(index+4, new_cost, condprune_results);
+                    bool ctn = score_order_new(index + 4, new_cost, condprune_results);
                     if (!ctn) return ctn;
                     path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
                     var2col[o2] = -1;
@@ -859,7 +885,8 @@ class Planner {
                     ssid_t o1 = tgt;
 
                     path.push_back(o2); path.push_back(p); path.push_back(IN); path.push_back(o1);
-                    cout << "pick : " << o2 << " " << p << " " << IN << " " << o1 << "-------------------------------------" << endl;
+                    cout << "pick : " << o2 << " " << p << " " << IN << " " << o1
+                         << "-------------------------------------" << endl;
 
                     // initialize
                     add_cost = 0;
@@ -872,22 +899,22 @@ class Planner {
                     // for type triples
                     if (p == TYPE_ID) {
                         // start from ty-index vertex
-                        ssid_t vtype = o2; 
-                        if(statistic->global_single2complex.find(vtype) == statistic->global_single2complex.end()){
+                        ssid_t vtype = o2;
+                        if (statistic->global_single2complex.find(vtype) == statistic->global_single2complex.end()) {
                             double vcount = double(statistic->global_tyscount[o2]) / global_num_servers;
                             updated_result_table.push_back(vcount);
                             updated_result_table.push_back(vtype);
                         }
-                        else{
+                        else {
                             // single type o2 may not exist in muititype situation
-                            if(statistic->global_tyscount.find(vtype) != statistic->global_tyscount.end()){
+                            if (statistic->global_tyscount.find(vtype) != statistic->global_tyscount.end()) {
                                 double vcount = double(statistic->global_tyscount[o2]) / global_num_servers;
                                 updated_result_table.push_back(vcount);
                                 updated_result_table.push_back(vtype);
                             }
                             // single type o2 may be contained in complex type
                             unordered_set<ssid_t> type_set = statistic->global_single2complex[vtype];
-                            for(auto iter = type_set.cbegin(); iter != type_set.cend(); ++iter){
+                            for (auto iter = type_set.cbegin(); iter != type_set.cend(); ++iter) {
                                 double vcount = double(statistic->global_tyscount[*iter]) / global_num_servers;
                                 updated_result_table.push_back(vcount);
                                 updated_result_table.push_back(*iter);
@@ -911,7 +938,7 @@ class Planner {
                         correprune_boost_results += updated_result_table[j];
                     }
                     condprune_results = correprune_boost_results;
-                    add_cost = CC_const_known*condprune_results;
+                    add_cost = CC_const_known * condprune_results;
                     cout << "results: " << condprune_results << endl;
                     cout << "add cost: " << add_cost << "== " << CC_const_known << " * " << condprune_results << endl;
                     double new_cost = cost + add_cost;
@@ -923,7 +950,7 @@ class Planner {
                     type_table.set_col_num(2);
 
                     // next iteration and backtrack
-                    bool ctn = score_order_new(index+4, new_cost, condprune_results);
+                    bool ctn = score_order_new(index + 4, new_cost, condprune_results);
                     if (!ctn) return ctn;
                     path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
                     var2col[o1] = -1;
@@ -942,7 +969,8 @@ class Planner {
                 ssid_t o2 = tgt;
 
                 path.push_back(o1); path.push_back(p); path.push_back(d); path.push_back(o2);
-                cout << "pick : " << o1 << " " << p << " " << d << " " << o2 << "-------------------------------------" << endl;
+                cout << "pick : " << o1 << " " << p << " " << d << " " << o2
+                     << "-------------------------------------" << endl;
 
                 // initialize
                 add_cost = 0;
@@ -968,13 +996,13 @@ class Planner {
                         early_ret += pre_count;
 
                         // if pre_tyid do not belong to o2, prune it
-                        if(pre_tyid >= 0){
+                        if (pre_tyid >= 0) {
                             if (pre_tyid != o2) continue;
                         }
-                        else{
-                            if(statistic->global_single2complex.find(o2) != statistic->global_single2complex.end()){
+                        else {
+                            if (statistic->global_single2complex.find(o2) != statistic->global_single2complex.end()) {
                                 unordered_set<ssid_t> type_set = statistic->global_single2complex[o2];
-                                if(type_set.count(pre_tyid) == 0) continue;
+                                if (type_set.count(pre_tyid) == 0) continue;
                             }
                             else continue;
                         }
@@ -996,23 +1024,23 @@ class Planner {
                         ssid_t vtype = tycountv[k].ty;
                         double vcount = double(tycountv[k].count) / tycount * pre_count;
                         correprune_boost_results += vcount;
-                        if (o2 > 0) { 
+                        if (o2 > 0) {
                             // for constant pruning
                             ssid_t o2type = get_type(o2);
                             if (vtype == o2type) match_flag = 1;
                         }
-                        else if (var2col.find(o2) != var2col.end() && var2col[o2] > 0) { 
+                        else if (var2col.find(o2) != var2col.end() && var2col[o2] > 0) {
                             // for variable pruning
                             ssid_t pretype = type_table.get_row_col(i, var2col[o2]);
                             if (vtype == pretype) {
                                 int type_num = statistic->global_tyscount[pretype];
                                 vcount = vcount / type_num;
-                                type_table.append_newv_row_to(i, updated_result_table, vcount); 
+                                type_table.append_newv_row_to(i, updated_result_table, vcount);
                                 condprune_results += vcount;
                             }
                         } else {
                             // normal case
-                            type_table.append_newv_row_to(i, updated_result_table, vcount); 
+                            type_table.append_newv_row_to(i, updated_result_table, vcount);
                             updated_result_table.push_back(vtype);
                             condprune_results += vcount;
                         }
@@ -1036,7 +1064,7 @@ class Planner {
                 //     double dup_ratio = 1;
                 //     if (tmpd)
                 //         dup_ratio = double(statistic->global_ptcount[tmpp]) / statistic->global_pscount[tmpp];
-                //     else 
+                //     else
                 //         dup_ratio = double(statistic->global_ptcount[tmpp]) / statistic->global_pocount[tmpp];
                 //     seq_dup *= dup_ratio;
                 // }
@@ -1053,13 +1081,13 @@ class Planner {
                 // add_cost = time_get_edges * miss_ratio + time_get_edges * CACHE_ratio * hit_ratio
                 //     + time_ifor * miss_ratio + time_ifor * CACHE_ratio * hit_ratio + time_push;
 
-                add_cost = AA_full*final_ret + AA_early*early_ret
-                 + BB_ifor * correprune_boost_results
-                 + (prune_flag ? CC_const_known : CC_unknown) * condprune_results;
+                add_cost = AA_full * final_ret + AA_early * early_ret
+                           + BB_ifor * correprune_boost_results
+                           + (prune_flag ? CC_const_known : CC_unknown) * condprune_results;
                 cout << "add_cost: " << add_cost << " == "
-                 << AA_full << "*" << final_ret << " + " << AA_early << "*" << early_ret
-                 << " + " << BB_ifor << "*" << correprune_boost_results << " + "
-                 << (prune_flag ? CC_const_known : CC_unknown) << "*" << condprune_results << endl;
+                     << AA_full << "*" << final_ret << " + " << AA_early << "*" << early_ret
+                     << " + " << BB_ifor << "*" << correprune_boost_results << " + "
+                     << (prune_flag ? CC_const_known : CC_unknown) << "*" << condprune_results << endl;
 
                 // cout << "three time(w/o cache): " << time_get_edges << "  " << time_ifor << "  " << time_push << endl;
                 // cout << "seq_dup: " << seq_dup << endl;
@@ -1084,7 +1112,7 @@ class Planner {
                 }
 
                 // next iteration
-                bool ctn = score_order_new(index+4, new_cost, condprune_results);
+                bool ctn = score_order_new(index + 4, new_cost, condprune_results);
                 if (!ctn) return ctn;
                 path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
                 type_table.tytable.swap(updated_result_table);
@@ -1100,7 +1128,8 @@ class Planner {
                 ssid_t d = dir;
                 ssid_t o1 = tgt;
                 path.push_back(o2); path.push_back(p); path.push_back(IN); path.push_back(o1);
-                cout << "pick : " << o2 << " " << p << " " << IN << " " << o1 << "-------------------------------------" << endl;
+                cout << "pick : " << o2 << " " << p << " " << IN << " " << o1
+                     << "-------------------------------------" << endl;
 
                 // initialize
                 add_cost = 0;
@@ -1133,23 +1162,23 @@ class Planner {
                         ssid_t vtype = tycountv[k].ty;
                         double vcount = double(tycountv[k].count) / tycount * pre_count;
                         correprune_boost_results += vcount;
-                        if (o1 > 0) { 
+                        if (o1 > 0) {
                             // for constant pruning
                             ssid_t o1type = get_type(o1);
                             if (vtype == o1type) match_flag = 1;
                         }
-                        else if (var2col.find(o1) != var2col.end() && var2col[o1] > 0) { 
+                        else if (var2col.find(o1) != var2col.end() && var2col[o1] > 0) {
                             // for variable pruning
                             ssid_t pretype = type_table.get_row_col(i, var2col[o1]);
                             if (vtype == pretype) {
                                 int type_num = statistic->global_tyscount[pretype];
                                 vcount = vcount / type_num;
-                                type_table.append_newv_row_to(i, updated_result_table, vcount); 
+                                type_table.append_newv_row_to(i, updated_result_table, vcount);
                                 condprune_results += vcount;
                             }
                         } else {
                             // normal case
-                            type_table.append_newv_row_to(i, updated_result_table, vcount); 
+                            type_table.append_newv_row_to(i, updated_result_table, vcount);
                             updated_result_table.push_back(vtype);
                             condprune_results += vcount;
                         }
@@ -1174,7 +1203,7 @@ class Planner {
                 //     double dup_ratio = 1;
                 //     if (tmpd)
                 //         dup_ratio = double(statistic->global_ptcount[tmpp]) / statistic->global_pscount[tmpp];
-                //     else 
+                //     else
                 //         dup_ratio = double(statistic->global_ptcount[tmpp]) / statistic->global_pocount[tmpp];
                 //     seq_dup *= dup_ratio;
                 // }
@@ -1191,13 +1220,13 @@ class Planner {
                 // add_cost = time_get_edges * miss_ratio + time_get_edges * CACHE_ratio * hit_ratio
                 //     + time_ifor * miss_ratio + time_ifor * CACHE_ratio * hit_ratio + time_push;
 
-                add_cost = AA_full*final_ret + AA_early*early_ret
-                 + BB_ifor * correprune_boost_results
-                 + (prune_flag ? CC_const_known : CC_unknown) * condprune_results;
-                cout << "add_cost: " << add_cost << " == " 
-                 << AA_full << "*" << final_ret << " + " << AA_early << "*" << early_ret
-                 << " + " << BB_ifor << "*" << correprune_boost_results << " + "
-                 << (prune_flag ? CC_const_known : CC_unknown) << "*" << condprune_results << endl;
+                add_cost = AA_full * final_ret + AA_early * early_ret
+                           + BB_ifor * correprune_boost_results
+                           + (prune_flag ? CC_const_known : CC_unknown) * condprune_results;
+                cout << "add_cost: " << add_cost << " == "
+                     << AA_full << "*" << final_ret << " + " << AA_early << "*" << early_ret
+                     << " + " << BB_ifor << "*" << correprune_boost_results << " + "
+                     << (prune_flag ? CC_const_known : CC_unknown) << "*" << condprune_results << endl;
 
                 // cout << "seq_dup: " << seq_dup << endl;
                 // cout << "three time(w/o cache): " << time_get_edges << "  " << time_ifor << "  " << time_push << endl;
@@ -1221,7 +1250,7 @@ class Planner {
                 }
 
                 // next iteration
-                bool ctn = score_order_new(index+4, new_cost, condprune_results);
+                bool ctn = score_order_new(index + 4, new_cost, condprune_results);
                 if (!ctn) return ctn;
                 path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
                 type_table.tytable.swap(updated_result_table);
@@ -1238,10 +1267,10 @@ class Planner {
 
 public:
     Planner() { }
-    Planner(DGraph *graph):graph(graph) { }
+    Planner(DGraph *graph): graph(graph) { }
 
-    bool generate_for_patterns(vector<SPARQLQuery::Pattern> &patterns){
-        
+    bool generate_for_patterns(vector<SPARQLQuery::Pattern> &patterns) {
+
         //input : patterns
         //transform to : _chains_size_div_4, triples, temp_cmd_chains
         vector<ssid_t> temp_cmd_chains;
@@ -1249,8 +1278,8 @@ public:
         vector<int> attr_pred_chains;
         transfer_to_cmd_chains(patterns, attr_pattern, attr_pred_chains, temp_cmd_chains);
 
-        if(temp_cmd_chains.size() == 0){
-            if(attr_pattern.size() == 0) return false;
+        if (temp_cmd_chains.size() == 0) {
+            if (attr_pattern.size() == 0) return false;
             else return true;
         }
 

@@ -628,7 +628,7 @@ public:
         start = timer::get_usec();
         #pragma omp parallel for num_threads(global_num_engines)
         for (int t = 0; t < global_num_engines; t++) {
-            gstore.insert_attribute(triple_sav[t], t);
+            gstore.insert_attr(triple_sav[t], t);
 
             // release memory
             vector<triple_attr_t>().swap(triple_sav[t]);
@@ -646,6 +646,8 @@ public:
 #endif  // end of USE_GPU
 
         logstream(LOG_INFO) << "#" << sid << ": loading DGraph is finished" << LOG_endl;
+        print_graph_stat();
+
         gstore.print_mem_usage();
     }
 
@@ -761,20 +763,39 @@ public:
         return gstore.gstore_check(index_check, normal_check);
     }
 
-    // FIXME: rename the function by the term of RDF model (e.g., subject/object)
-    edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
-        return gstore.get_edges_global(tid, vid, d, pid, sz);
+    edge_t *get_triples(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t *sz) {
+        return gstore.get_edges(tid, vid, pid, d, sz);
     }
 
-    // FIXME: rename the function by the term of RDF model (e.g., subject/object)
-    edge_t *get_index_edges_local(int tid, sid_t vid, dir_t d, uint64_t *sz) {
-        return gstore.get_index_edges_local(tid, vid, d, sz);
+    edge_t *get_index(int tid, sid_t pid, dir_t d, uint64_t *sz) {
+        return gstore.get_edges(tid, 0, pid, d, sz);
     }
 
-    // FIXME: rename the function by the term of attribute graph model (e.g., value)
-    // return value is the  attr value
-    // if there are not result ,has_value  will be set to false
-    attr_t  get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, bool& has_value) {
-        return gstore.get_vertex_attr_global(tid, vid, d, pid, has_value);
+    // return attribute value (has_value == true)
+    attr_t get_attr(int tid, sid_t vid, sid_t pid, dir_t d, bool &has_value) {
+        return gstore.get_vertex_attr_global(tid, vid, pid, d, has_value);
+    }
+
+    // RDF statistic
+    void generate_statistic(data_statistic &stat) {
+        gstore.generate_statistic(stat);
+    }
+
+    void print_graph_stat() {
+#ifdef VERSATILE
+        /// (*3)  key = [  0 |      TYPE_ID |     IN]  value = [vid0, vid1, ..]  i.e., all local objects/subjects
+        /// (*4)  key = [  0 |      TYPE_ID |    OUT]  value = [pid0, pid1, ..]  i.e., all local types
+        /// (*5)  key = [  0 | PREDICATE_ID |    OUT]  value = [pid0, pid1, ..]  i.e., all local predicates
+        uint64_t sz = 0;
+
+        get_edges(0, 0, TYPE_ID, IN, &sz);
+        logstream(LOG_INFO) << "#vertices: " << sz << LOG_endl;
+
+        get_edges(0, 0, TYPE_ID, OUT, &sz);
+        logstream(LOG_INFO) << "#types: " << sz << LOG_endl;
+
+        get_edges(0, 0, TYPE_ID, OUT, &sz);
+        logstream(LOG_INFO) << "#predicates: " << sz << LOG_endl;
+#endif // end of VERSATILE
     }
 };
