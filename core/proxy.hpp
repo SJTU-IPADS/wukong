@@ -219,11 +219,11 @@ public:
         // Load query format, see detailed description in sample format file
         if(fmt_stream.good()){
             if(global_enable_planner)
-            	logstream(LOG_WARNING) << "Query format will not work since planner is on" << LOG_endl;
+                logstream(LOG_WARNING) << "Query format will not work since planner is on" << LOG_endl;
             else{
-            	//reading format file
-            	vector<string> directions;
-            	vector<int> orders;
+                //reading format file
+                vector<string> directions;
+                vector<int> orders;
                 string line, direction = ">";
                 int order;
                 while (std::getline(fmt_stream, line)) {
@@ -244,30 +244,30 @@ public:
                 else{
                     vector<SPARQLQuery::Pattern> patterns;
                     for(int i = 0; i < orders.size(); i++){
-                    	// number of orders starts from 1
-                    	SPARQLQuery::Pattern pattern = request.pattern_group.patterns[orders[i] - 1];
+                        // number of orders starts from 1
+                        SPARQLQuery::Pattern pattern = request.pattern_group.patterns[orders[i] - 1];
 
-                    	if(directions[i]=="<"){
-                    		pattern.direction = IN;
-                    		ssid_t temp = pattern.subject;
-                    		pattern.subject = pattern.object;
-                    		pattern.object = temp;
-                    	}
-                    	else if(directions[i]==">"){
-                    		pattern.direction = OUT;
-                    	}
-                    	else if(directions[i]=="<<"){
-                    		pattern.direction = IN;
-                    		pattern.object = pattern.subject;
-                    		pattern.subject = pattern.predicate;
-                    		pattern.predicate = PREDICATE_ID;
-                    	}
-                    	else if(directions[i]==">>"){
-                    		pattern.direction = OUT;
-                    		pattern.subject = pattern.predicate;
-                    		pattern.predicate = PREDICATE_ID;
-                    	}
-                    	patterns.push_back(pattern);
+                        if(directions[i]=="<"){
+                            pattern.direction = IN;
+                            ssid_t temp = pattern.subject;
+                            pattern.subject = pattern.object;
+                            pattern.object = temp;
+                        }
+                        else if(directions[i]==">"){
+                            pattern.direction = OUT;
+                        }
+                        else if(directions[i]=="<<"){
+                            pattern.direction = IN;
+                            pattern.object = pattern.subject;
+                            pattern.subject = pattern.predicate;
+                            pattern.predicate = PREDICATE_ID;
+                        }
+                        else if(directions[i]==">>"){
+                            pattern.direction = OUT;
+                            pattern.subject = pattern.predicate;
+                            pattern.predicate = PREDICATE_ID;
+                        }
+                        patterns.push_back(pattern);
                     }
                     request.pattern_group.patterns = patterns;
                 }
