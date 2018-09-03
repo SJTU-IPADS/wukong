@@ -975,7 +975,7 @@ done:
 
     // Get remote edges according to given vid, dir, pid.
     // @sz: size of return edges
-    edge_t *get_edges_remote(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t *sz) {
+    edge_t *get_edges_remote(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t *sz, int* data_type = NULL) {
         ikey_t key = ikey_t(vid, pid, d);
         vertex_t v = get_vertex_remote(tid, key);
 
@@ -998,12 +998,14 @@ done:
 #endif // end of DYNAMIC_GSTORE
 
         *sz = v.ptr.size;
+        if(data_type != NULL)
+            *data_type = v.ptr.type;
         return edge_ptr;
     }
 
     // Get local edges according to given vid, pid, d.
     // @sz: size of return edges
-    edge_t *get_edges_local(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t *sz) {
+    edge_t *get_edges_local(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t *sz, int* data_type = NULL) {
         ikey_t key = ikey_t(vid, pid, d);
         vertex_t v = get_vertex_local(tid, key);
 
@@ -1013,89 +1015,11 @@ done:
         }
 
         *sz = v.ptr.size;
+        if(data_type != NULL)
+            *data_type = v.ptr.type;
         return &(edges[v.ptr.off]);
     }
 
-    // FIXME: move the logical of attribute to dgraph.hpp.
-    //        gstore should only porvide get_edges().
-    // get the attribute value from remote
-    attr_t get_vertex_attr_remote(int tid, sid_t vid, sid_t pid, dir_t d, bool &has_value) {
-        ikey_t key = ikey_t(vid, pid, d);
-        vertex_t v = get_vertex_remote(tid, key);
-        attr_t r;
-
-        if (v.key.is_empty()) {
-            has_value = false; // not found
-            return r;
-        }
-
-        // remote attribute
-        int dst_sid = wukong::math::hash_mod(vid, global_num_servers);
-        edge_t *edge_ptr = rdma_get_edges(tid, dst_sid, v);
-#ifdef DYNAMIC_GSTORE
-        // check the validation of edges
-        // if not, invalidate the cache and try again
-        while (!edge_is_valid(v, edge_ptr)) { // edge is not valid
-            rdma_cache.invalidate(key);
-            v = get_vertex_remote(tid, key);
-            edge_ptr = rdma_get_edges(tid, dst_sid, v);
-        }
-#endif // end of DYNAMIC_GSTORE
-
-        // get attributed
-        uint64_t off = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
-        switch (v.ptr.type) {
-        case INT_t:
-            r = *((int *)(&(edge_ptr[off])));
-            break;
-        case FLOAT_t:
-            r = *((float *)(&(edge_ptr[off])));
-            break;
-        case DOUBLE_t:
-            r = *((double *)(&(edge_ptr[off])));
-            break;
-        default:
-            logstream(LOG_ERROR) << "Not support value type" << LOG_endl;
-            break;
-        }
-
-        has_value = true;
-        return r;
-    }
-
-    // FIXME: move the logical of attribute to dgraph.hpp.
-    //        gstore should only porvide get_edges().
-    // get the attribute value from local
-    attr_t get_vertex_attr_local(int tid, sid_t vid, sid_t pid, dir_t d, bool &has_value) {
-        ikey_t key = ikey_t(vid, pid, d);
-        vertex_t v = get_vertex_local(tid, key);
-        attr_t r;
-
-        if (v.key.is_empty()) {
-            has_value = false; // not found
-            return r;
-        }
-
-        // get attributed
-        uint64_t off = v.ptr.off;
-        switch (v.ptr.type) {
-        case INT_t:
-            r = *((int *)(&(edges[off])));
-            break;
-        case FLOAT_t:
-            r = *((float *)(&(edges[off])));
-            break;
-        case DOUBLE_t:
-            r = *((double *)(&(edges[off])));
-            break;
-        default:
-            logstream(LOG_ERROR) << "Not support value type" << LOG_endl;
-            break;
-        }
-
-        has_value = true;
-        return r;
-    }
 
 public:
     /// encoding rules of GStore
@@ -1910,26 +1834,16 @@ public:
 
 
     // FIXME: refine return value with type of subject/object
-    edge_t *get_edges(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t *sz) {
+    edge_t *get_edges(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t *sz, int* data_type= NULL) {
         // index vertex should be 0 and always local
         if (vid == 0)
-            return get_edges_local(tid, 0, pid, d, sz);
+            return get_edges_local(tid, 0, pid, d, sz, data_type);
 
         // normal vertex
         if (wukong::math::hash_mod(vid, global_num_servers) == sid)
-            return get_edges_local(tid, vid, pid, d, sz);
+            return get_edges_local(tid, vid, pid, d, sz, data_type);
         else
-            return get_edges_remote(tid, vid, pid, d, sz);
-    }
-
-    // get vertex attributes global
-    // return the attr result
-    // if not found has_value will be set to false
-    attr_t get_vertex_attr_global(int tid, sid_t vid, sid_t pid, dir_t d, bool &has_value) {
-        if (sid == wukong::math::hash_mod(vid, global_num_servers))
-            return get_vertex_attr_local(tid, vid, pid, d, has_value);
-        else
-            return get_vertex_attr_remote(tid, vid, pid, d, has_value);
+            return get_edges_remote(tid, vid, pid, d, sz, data_type);
     }
 
 

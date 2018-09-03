@@ -773,7 +773,37 @@ public:
 
     // return attribute value (has_value == true)
     attr_t get_attr(int tid, sid_t vid, sid_t pid, dir_t d, bool &has_value) {
-        return gstore.get_vertex_attr_global(tid, vid, pid, d, has_value);
+        uint64_t sz = 0;
+        int data_type = 0;
+        attr_t r;
+
+        //get the pointer of edge
+        edge_t* edge_ptr = gstore.get_edges(tid, vid, pid, d, &sz, &data_type);
+
+        // value of attribute does not exist
+        if (edge_ptr == NULL) {
+            has_value = false;
+            return r;
+        }
+
+        // get the value of attribute by type
+        switch (data_type) {
+            case INT_t:
+                r = *((int *)(edge_ptr));
+                break;
+            case FLOAT_t:
+                r = *((float *)(edge_ptr));
+                break;
+            case DOUBLE_t:
+                r = *((double *)(edge_ptr));
+                break;
+            default:
+                logstream(LOG_ERROR) << "Not support value type" << LOG_endl;
+                break;
+        }
+
+        has_value = true;
+        return r;
     }
 
     // RDF statistic
