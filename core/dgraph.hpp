@@ -816,13 +816,13 @@ public:
         /// (*5)  key = [  0 | PREDICATE_ID |    OUT]  value = [pid0, pid1, ..]  i.e., all local predicates
         uint64_t sz = 0;
 
-        get_edges(0, 0, TYPE_ID, IN, &sz);
+        gstore.get_edges(0, 0, TYPE_ID, IN, &sz);
         logstream(LOG_INFO) << "#vertices: " << sz << LOG_endl;
 
-        get_edges(0, 0, TYPE_ID, OUT, &sz);
+        gstore.get_edges(0, 0, TYPE_ID, OUT, &sz);
         logstream(LOG_INFO) << "#types: " << sz << LOG_endl;
 
-        get_edges(0, 0, TYPE_ID, OUT, &sz);
+        gstore.get_edges(0, 0, TYPE_ID, OUT, &sz);
         logstream(LOG_INFO) << "#predicates: " << sz << LOG_endl;
 #endif // end of VERSATILE
     }
