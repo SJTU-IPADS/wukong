@@ -86,7 +86,7 @@ private:
         vector<sid_t> updated_result_table;
 
         uint64_t sz = 0;
-        edge_t *edges = graph->get_index(tid, tpid, d, &sz);
+        edge_t *edges = graph->get_index(tid, tpid, d, sz);
         int start = req.tid % req.mt_factor;
         int length = sz / req.mt_factor;
 
@@ -134,7 +134,7 @@ private:
         vector<sid_t> updated_result_table;
 
         uint64_t sz = 0;
-        edge_t *edges = graph->get_index(tid, tpid, d, &sz);
+        edge_t *edges = graph->get_index(tid, tpid, d, sz);
         int start = req.tid % req.mt_factor;
         int length = sz / req.mt_factor;
 
@@ -168,7 +168,7 @@ private:
         ASSERT(col != NO_RESULT);
 
         uint64_t sz = 0;
-        edge_t *edges = graph->get_triples(tid, start, pid, d, &sz);
+        edge_t *edges = graph->get_triples(tid, start, pid, d, sz);
 
         boost::unordered_set<sid_t> unique_set;
         for (uint64_t k = 0; k < sz; k++)
@@ -208,7 +208,7 @@ private:
 
         ASSERT(res.get_col_num() == 0);
         uint64_t sz = 0;
-        edge_t *edges = graph->get_triples(tid, start, pid, d, &sz);
+        edge_t *edges = graph->get_triples(tid, start, pid, d, sz);
         for (uint64_t k = 0; k < sz; k++)
             updated_result_table.push_back(edges[k].val);
 
@@ -282,7 +282,7 @@ private:
             }
             if (cur != cached) {  // a new vertex
                 cached = cur;
-                edges = graph->get_triples(tid, cur, pid, d, &sz);
+                edges = graph->get_triples(tid, cur, pid, d, sz);
             }
 
             // append a new intermediate result (row)
@@ -382,7 +382,7 @@ private:
             sid_t cur = res.get_row_col(i, res.var2col(start));
             if (cur != cached) {  // a new vertex
                 cached = cur;
-                edges = graph->get_triples(tid, cur, pid, d, &sz);
+                edges = graph->get_triples(tid, cur, pid, d, sz);
             }
 
             sid_t known = res.get_row_col(i, res.var2col(end));
@@ -442,7 +442,7 @@ private:
             if (cur != cached) {  // a new vertex
                 exist = false;
                 cached = cur;
-                edges = graph->get_triples(tid, cur, pid, d, &sz);
+                edges = graph->get_triples(tid, cur, pid, d, sz);
 
                 for (uint64_t k = 0; k < sz; k++) {
                     if (edges[k].val == end) {
@@ -495,7 +495,7 @@ private:
         vector<sid_t> updated_result_table;
 
         uint64_t npids = 0;
-        edge_t *pids = graph->get_triples(tid, start, PREDICATE_ID, d, &npids);
+        edge_t *pids = graph->get_triples(tid, start, PREDICATE_ID, d, npids);
 
         // use a local buffer to store "known" predicates
         edge_t *tpids = (edge_t *)malloc(npids * sizeof(edge_t));
@@ -503,7 +503,7 @@ private:
 
         for (uint64_t p = 0; p < npids; p++) {
             uint64_t sz = 0;
-            edge_t *res = graph->get_triples(tid, start, tpids[p].val, d, &sz);
+            edge_t *res = graph->get_triples(tid, start, tpids[p].val, d, sz);
             for (uint64_t k = 0; k < sz; k++) {
                 updated_result_table.push_back(tpids[p].val);
                 updated_result_table.push_back(res[k].val);
@@ -535,7 +535,7 @@ private:
         for (int i = 0; i < res.get_row_num(); i++) {
             sid_t cur = res.get_row_col(i, res.var2col(start));
             uint64_t npids = 0;
-            edge_t *pids = graph->get_triples(tid, cur, PREDICATE_ID, d, &npids);
+            edge_t *pids = graph->get_triples(tid, cur, PREDICATE_ID, d, npids);
 
             // use a local buffer to store "known" predicates
             edge_t *tpids = (edge_t *)malloc(npids * sizeof(edge_t));
@@ -543,7 +543,7 @@ private:
 
             for (uint64_t p = 0; p < npids; p++) {
                 uint64_t sz = 0;
-                edge_t *edges = graph->get_triples(tid, cur, tpids[p].val, d, &sz);
+                edge_t *edges = graph->get_triples(tid, cur, tpids[p].val, d, sz);
                 for (uint64_t k = 0; k < sz; k++) {
                     res.append_row_to(i, updated_result_table);
                     updated_result_table.push_back(tpids[p].val);
@@ -578,7 +578,7 @@ private:
         for (int i = 0; i < result.get_row_num(); i++) {
             sid_t prev_id = result.get_row_col(i, result.var2col(start));
             uint64_t npids = 0;
-            edge_t *pids = graph->get_triples(tid, prev_id, PREDICATE_ID, d, &npids);
+            edge_t *pids = graph->get_triples(tid, prev_id, PREDICATE_ID, d, npids);
 
             // use a local buffer to store "known" predicates
             edge_t *tpids = (edge_t *)malloc(npids * sizeof(edge_t));
@@ -586,7 +586,7 @@ private:
 
             for (uint64_t p = 0; p < npids; p++) {
                 uint64_t sz = 0;
-                edge_t *res = graph->get_triples(tid, prev_id, tpids[p].val, d, &sz);
+                edge_t *res = graph->get_triples(tid, prev_id, tpids[p].val, d, sz);
                 for (uint64_t k = 0; k < sz; k++) {
                     if (res[k].val == end) {
                         result.append_row_to(i, updated_result_table);
@@ -621,7 +621,7 @@ private:
         ASSERT(result.get_col_num() == 0);
 
         uint64_t npids = 0;
-        edge_t *pids = graph->get_triples(tid, start, PREDICATE_ID, d, &npids);
+        edge_t *pids = graph->get_triples(tid, start, PREDICATE_ID, d, npids);
 
         // use a local buffer to store "known" predicates
         edge_t *tpids = (edge_t *)malloc(npids * sizeof(edge_t));
@@ -629,7 +629,7 @@ private:
 
         for (uint64_t p = 0; p < npids; p++) {
             uint64_t sz = 0;
-            edge_t *res = graph->get_triples(tid, start, tpids[p].val, d, &sz);
+            edge_t *res = graph->get_triples(tid, start, tpids[p].val, d, sz);
             for (uint64_t k = 0; k < sz; k++) {
                 if (res[k].val == end) {
                     updated_result_table.push_back(tpids[p].val);

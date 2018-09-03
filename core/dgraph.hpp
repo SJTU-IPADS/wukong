@@ -763,11 +763,11 @@ public:
         return gstore.gstore_check(index_check, normal_check);
     }
 
-    edge_t *get_triples(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t *sz) {
+    edge_t *get_triples(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t &sz) {
         return gstore.get_edges(tid, vid, pid, d, sz);
     }
 
-    edge_t *get_index(int tid, sid_t pid, dir_t d, uint64_t *sz) {
+    edge_t *get_index(int tid, sid_t pid, dir_t d, uint64_t &sz) {
         return gstore.get_edges(tid, 0, pid, d, sz);
     }
 
@@ -778,7 +778,7 @@ public:
         attr_t r;
 
         // get the pointer of edge
-        edge_t *edge_ptr = gstore.get_edges(tid, vid, pid, d, &sz, &type);
+        edge_t *edge_ptr = gstore.get_edges(tid, vid, pid, d, sz, type);
         if (edge_ptr == NULL) {
             has_value = false; // not found
             return r;
@@ -816,13 +816,13 @@ public:
         /// (*5)  key = [  0 | PREDICATE_ID |    OUT]  value = [pid0, pid1, ..]  i.e., all local predicates
         uint64_t sz = 0;
 
-        gstore.get_edges(0, 0, TYPE_ID, IN, &sz);
+        gstore.get_edges(0, 0, TYPE_ID, IN, sz);
         logstream(LOG_INFO) << "#vertices: " << sz << LOG_endl;
 
-        gstore.get_edges(0, 0, TYPE_ID, OUT, &sz);
+        gstore.get_edges(0, 0, TYPE_ID, OUT, sz);
         logstream(LOG_INFO) << "#types: " << sz << LOG_endl;
 
-        gstore.get_edges(0, 0, TYPE_ID, OUT, &sz);
+        gstore.get_edges(0, 0, TYPE_ID, OUT, sz);
         logstream(LOG_INFO) << "#predicates: " << sz << LOG_endl;
 #endif // end of VERSATILE
     }

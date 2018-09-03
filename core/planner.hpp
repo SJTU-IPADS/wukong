@@ -109,7 +109,7 @@ class Planner {
     // get the type of constant using get_edges
     ssid_t get_type(ssid_t constant) {
         uint64_t type_sz = 0;
-        edge_t *res = graph->get_triples(0, constant, TYPE_ID, OUT, &type_sz);
+        edge_t *res = graph->get_triples(0, constant, TYPE_ID, OUT, type_sz);
         if (type_sz == 1) {
             return res[0].val;
         } else if (type_sz > 1) {
@@ -125,14 +125,14 @@ class Planner {
             unordered_set<int> index_composition;
 
             uint64_t psize1 = 0;
-            edge_t *res1 = graph->get_triples(0, constant, PREDICATE_ID, OUT, &psize1);
+            edge_t *res1 = graph->get_triples(0, constant, PREDICATE_ID, OUT, psize1);
             for (uint64_t k = 0; k < psize1; k++) {
                 ssid_t pre = res1[k].val;
                 index_composition.insert(pre);
             }
 
             uint64_t psize2 = 0;
-            edge_t *res2 = graph->get_triples(0, constant, PREDICATE_ID, IN, &psize2);
+            edge_t *res2 = graph->get_triples(0, constant, PREDICATE_ID, IN, psize2);
             for (uint64_t k = 0; k < psize2; k++) {
                 ssid_t pre = res2[k].val;
                 index_composition.insert(-pre);
