@@ -217,10 +217,10 @@ public:
         logstream(LOG_INFO) << "Parsing time: " << (end - start) << " usec" << LOG_endl;
 
         // Load query format, see detailed description in sample format file
-        if(fmt_stream.good()){
-            if(global_enable_planner)
+        if (fmt_stream.good()) {
+            if (global_enable_planner) {
                 logstream(LOG_WARNING) << "Query format will not work since planner is on" << LOG_endl;
-            else{
+            } else {
                 //reading format file
                 vector<string> directions;
                 vector<int> orders;
@@ -237,32 +237,28 @@ public:
                 }
 
                 // correctness check
-                if(orders.size() < request.pattern_group.patterns.size()){
+                if (orders.size() < request.pattern_group.patterns.size()) {
                     logstream(LOG_ERROR) << "wrong format file content!" << LOG_endl;
-                }
-                // reset orders and directions according to format file
-                else{
+                } else {
+                    // reset orders and directions according to format file
                     vector<SPARQLQuery::Pattern> patterns;
-                    for(int i = 0; i < orders.size(); i++){
+                    for (int i = 0; i < orders.size(); i++) {
                         // number of orders starts from 1
                         SPARQLQuery::Pattern pattern = request.pattern_group.patterns[orders[i] - 1];
 
-                        if(directions[i]=="<"){
+                        if (directions[i] == "<") {
                             pattern.direction = IN;
                             ssid_t temp = pattern.subject;
                             pattern.subject = pattern.object;
                             pattern.object = temp;
-                        }
-                        else if(directions[i]==">"){
+                        } else if (directions[i] == ">") {
                             pattern.direction = OUT;
-                        }
-                        else if(directions[i]=="<<"){
+                        } else if (directions[i] == "<<") {
                             pattern.direction = IN;
                             pattern.object = pattern.subject;
                             pattern.subject = pattern.predicate;
                             pattern.predicate = PREDICATE_ID;
-                        }
-                        else if(directions[i]==">>"){
+                        } else if (directions[i] == ">>") {
                             pattern.direction = OUT;
                             pattern.subject = pattern.predicate;
                             pattern.predicate = PREDICATE_ID;
@@ -272,7 +268,7 @@ public:
                     request.pattern_group.patterns = patterns;
                 }
             }
-         }
+        }
 
         // Generate plans for the query if our SPARQL planner is enabled.
         // NOTE: it only works for standard SPARQL query.
