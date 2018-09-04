@@ -21,7 +21,7 @@
 #
 
 #
-# Plan1
+# Plan 
 #
 # SELECT ?X ?Y ?Z WHERE {
 #	?Y  rdf:type  ub:University  <-
@@ -32,12 +32,12 @@
 #	?Z  rdf:type  ub:Department  .
 # }
 #
-1 <
-2 <
-3 >
-4 >
-5 >
-6 >
+# 1 <
+# 2 <
+# 3 >
+# 4 >
+# 5 >
+# 6 >
 
 
 #
@@ -48,24 +48,26 @@
 # 5 > means : ?Z ub:subOrganizationOf ?Y, OUT
 #
 #
-# Plan2
+# Plan
+#
 # SELECT ?X ?Y ?Z WHERE {
 #	?Z	__PREDICATE__  ub:subOrganizationOf  <-
+#	?Z  ub:subOrganizationOf  ?Y  .
 #	?Y  rdf:type  ub:University  ->
 #	?X  ub:undergraduateDegreeFrom  ?Y  <-
-#	?X  ub:memberOf  ?Z  .
-#	?Z  ub:subOrganizationOf  ?Y  .
 #	?X  rdf:type  ub:GraduateStudent  .
+#	?X  ub:memberOf  ?Z  .
 #	?Z  rdf:type  ub:Department  .
 # }
 #
-# 5 <<
-# 1 >
-# 2 <
-# 4 >
-# 5 >
-# 3 >
-# 6 >
+5 <<
+5 >
+1 >
+2 <
+3 >
+4 >
+6 >
+
 
 #
 # Plan3 (OSDI16)
