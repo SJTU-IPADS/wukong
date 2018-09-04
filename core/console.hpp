@@ -131,6 +131,7 @@ void init_options_desc()
     // e.g., wukong> sparql <args>
     sparql_desc.add_options()
     (",f", value<string>()->value_name("<fname>"), "run a single query from <fname>")
+    (",F", value<string>()->value_name("<fname>"), "set format from <fname> of the single query")
     (",m", value<int>()->default_value(1)->value_name("<factor>"), "set multi-threading <factor> for heavy query")
     (",n", value<int>()->default_value(1)->value_name("<num>"), "run <num> times")
     (",v", value<int>()->default_value(0)->value_name("<lines>"), "print at most <lines> of results")
@@ -373,6 +374,22 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
             return;
         }
 
+        string fmt_name = "";
+        if (sparql_vm.count("-F"))
+            fmt_name = sparql_vm["-F"].as<string>();
+        ifstream fmt_stream(fmt_name);
+
+        // no format file path is given
+        if (fmt_name == ""){
+            fmt_stream.setstate(std::ios::failbit);
+        }
+        // format file path is given but read error occurs
+        else if(!fmt_stream.good()){
+            logstream(LOG_ERROR) << "Format file not found: " << fmt_name << LOG_endl;
+            fail_to_parse(proxy, argc, argv); // invalid cmd
+            return;
+        }
+
         // NOTE: the option with default_value is always available
         // default value: mfactor(1), cnt(1), nlines(0)
         int mfactor = sparql_vm["-m"].as<int>(); // the number of multithreading
@@ -396,7 +413,7 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         SPARQLQuery reply;
         SPARQLQuery::Result &result = reply.result;
         Monitor monitor;
-        int ret = proxy->run_single_query(ifs, mfactor, cnt, reply, monitor);
+        int ret = proxy->run_single_query(ifs, fmt_stream, mfactor, cnt, reply, monitor);
         if (ret != 0) {
             logstream(LOG_ERROR) << "Failed to run the query (ERRNO: " << ret << ")!" << LOG_endl;
             fail_to_parse(proxy, argc, argv); // invalid cmd

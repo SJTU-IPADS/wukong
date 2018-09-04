@@ -199,7 +199,7 @@ public:
     // Run a single query for @cnt times. Command is "-f"
     // @is: input
     // @reply: result
-    int run_single_query(istream &is, int mt_factor, int cnt,
+    int run_single_query(istream &is, istream &fmt_stream, int mt_factor, int cnt,
                          SPARQLQuery &reply, Monitor &monitor) {
         uint64_t start, end;
         SPARQLQuery request;
@@ -215,6 +215,64 @@ public:
         }
         end = timer::get_usec();
         logstream(LOG_INFO) << "Parsing time: " << (end - start) << " usec" << LOG_endl;
+
+        // Load query format, see detailed description in sample format file
+        if(fmt_stream.good()){
+            if(global_enable_planner)
+                logstream(LOG_WARNING) << "Query format will not work since planner is on" << LOG_endl;
+            else{
+                //reading format file
+                vector<string> directions;
+                vector<int> orders;
+                string line, direction = ">";
+                int order;
+                while (std::getline(fmt_stream, line)) {
+                    if (boost::starts_with(line, "#") || line.empty())
+                        continue; // skip comments and blank lines
+
+                    istringstream iss(line);
+                    iss >> order >> direction;
+                    directions.push_back(direction);
+                    orders.push_back(order);
+                }
+
+                // correctness check
+                if(orders.size() < request.pattern_group.patterns.size()){
+                    logstream(LOG_ERROR) << "wrong format file content!" << LOG_endl;
+                }
+                // reset orders and directions according to format file
+                else{
+                    vector<SPARQLQuery::Pattern> patterns;
+                    for(int i = 0; i < orders.size(); i++){
+                        // number of orders starts from 1
+                        SPARQLQuery::Pattern pattern = request.pattern_group.patterns[orders[i] - 1];
+
+                        if(directions[i]=="<"){
+                            pattern.direction = IN;
+                            ssid_t temp = pattern.subject;
+                            pattern.subject = pattern.object;
+                            pattern.object = temp;
+                        }
+                        else if(directions[i]==">"){
+                            pattern.direction = OUT;
+                        }
+                        else if(directions[i]=="<<"){
+                            pattern.direction = IN;
+                            pattern.object = pattern.subject;
+                            pattern.subject = pattern.predicate;
+                            pattern.predicate = PREDICATE_ID;
+                        }
+                        else if(directions[i]==">>"){
+                            pattern.direction = OUT;
+                            pattern.subject = pattern.predicate;
+                            pattern.predicate = PREDICATE_ID;
+                        }
+                        patterns.push_back(pattern);
+                    }
+                    request.pattern_group.patterns = patterns;
+                }
+            }
+         }
 
         // Generate plans for the query if our SPARQL planner is enabled.
         // NOTE: it only works for standard SPARQL query.
