@@ -156,18 +156,16 @@ main(int argc, char *argv[])
 
     // prepare statistics for SPARQL optimizer
     data_statistic stat(sid);
-    if (global_enable_planner) {
-        if (global_generate_statistics) {
-            uint64_t t0 = timer::get_usec();
-            dgraph.generate_statistic(stat);
-            uint64_t t1 = timer::get_usec();
-            logstream(LOG_EMPH)  << "generate_statistic using time: " << t1 - t0 << "usec" << LOG_endl;
-            stat.gather_stat(con_adaptor);
-        } else {
-            // use the dataset name by default
-            string fname = global_input_folder + "/statfile";
-            stat.load_stat_from_file(fname, con_adaptor);
-        }
+    if (global_generate_statistics) {
+        uint64_t t0 = timer::get_usec();
+        dgraph.generate_statistic(stat);
+        uint64_t t1 = timer::get_usec();
+        logstream(LOG_EMPH)  << "generate_statistic using time: " << t1 - t0 << "usec" << LOG_endl;
+        stat.gather_stat(con_adaptor);
+    } else {
+        // use the dataset name by default
+        string fname = global_input_folder + "/statfile";
+        stat.load_stat_from_file(fname, con_adaptor);
     }
 
     // create proxies and engines
