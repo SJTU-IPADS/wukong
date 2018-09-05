@@ -1,0 +1,7 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT ?var2 ?var4 WHERE {
+	?var2  <http://www.w3.org/2000/01/rdf-schema#label>  "SuperPatriot"@en  .
+	?var2  rdf:type  <http://dbpedia.org/ontology/Person>  .
+	?var2  <http://xmlns.com/foaf/0.1/page>  ?var4  .
+}
