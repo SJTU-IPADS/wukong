@@ -117,7 +117,7 @@ public:
     inline uint64_t res_inbuf_offset() { return (rbuf_reversed ? orbuf_off : irbuf_off); }
 
     inline char *res_outbuf() { return (rbuf_reversed ? irbuf : orbuf); }
-    inline uint64_t hes_outbuf_offset() { return (rbuf_reversed ? irbuf_off : orbuf_off); }
+    inline uint64_t res_outbuf_offset() { return (rbuf_reversed ? irbuf_off : orbuf_off); }
 
     inline uint64_t res_buf_size() { return rbuf_sz; }
 
