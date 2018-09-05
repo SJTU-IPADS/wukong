@@ -22,8 +22,9 @@
 
 #pragma once
 
-#include "config.hpp"
+#include "global.hpp"
 #include "query.hpp"
+
 #include "tcp_adaptor.hpp"
 #include "rdma_adaptor.hpp"
 
@@ -40,11 +41,31 @@ public:
 
     ~Adaptor() { }
 
-    bool send(int dst_sid, int dst_tid, Bundle &bundle) {
+    bool send(int dst_sid, int dst_tid, const string &str) {
         if (global_use_rdma && rdma->init)
-            return rdma->send(tid, dst_sid, dst_tid, bundle.get_type() + bundle.data);
+            return rdma->send(tid, dst_sid, dst_tid, str);
         else
-            return tcp->send(dst_sid, dst_tid, bundle.get_type() + bundle.data);
+            return tcp->send(dst_sid, dst_tid, str);
+    }
+
+    bool send(int dst_sid, int dst_tid, const Bundle &b) {
+        string str = b.to_str();
+        return send(dst_sid, dst_tid, str);
+    }
+
+    // gpu-direct send, from gpu mem to remote ring buffer
+    bool send_dev2host(int dst_sid, int dst_tid, char *data, uint64_t sz) {
+#ifdef USE_GPU
+        if (global_use_rdma && rdma->init)
+            return rdma->send_dev2host(tid, dst_sid, dst_tid, data, sz);
+
+        // TODO: support dev2host w/o RDMA
+        logstream(LOG_ERROR) << "RDMA is required for send_dev2host." << LOG_endl;
+        ASSERT (false);
+#else
+        logstream(LOG_ERROR) << "USE_GPU is not defined." << LOG_endl;
+        ASSERT (false);
+#endif
     }
 
     Bundle recv() {
@@ -53,21 +74,20 @@ public:
             str = rdma->recv(tid);
         else
             str = tcp->recv(tid);
-
-        Bundle bundle(str);
-        return bundle;
+        return Bundle(str);
     }
 
-    bool tryrecv(Bundle &bundle) {
-        std::string str;
-        if (global_use_rdma && rdma->init) {
-            if (!rdma->tryrecv(tid, str)) return false;
-        } else {
-            if (!tcp->tryrecv(tid, str)) return false;
-        }
+    bool tryrecv(string &str) {
+        if (global_use_rdma && rdma->init)
+            return rdma->tryrecv(tid, str);
+        else
+            return tcp->tryrecv(tid, str);
+    }
 
-        bundle.set_type(str.at(0));
-        bundle.data = str.substr(1);
+    bool tryrecv(Bundle &b) {
+        string str;
+        if (!tryrecv(str)) return false;
+        b.init(str);
         return true;
     }
 };

@@ -26,17 +26,18 @@
 #include <boost/unordered_map.hpp>
 #include <unistd.h>
 
-#include "config.hpp"
+#include "global.hpp"
 #include "coder.hpp"
 #include "query.hpp"
-#include "adaptor.hpp"
 #include "parser.hpp"
 #include "planner.hpp"
 #include "data_statistic.hpp"
 #include "string_server.hpp"
 #include "monitor.hpp"
 
-#include "mymath.hpp"
+#include "comm/adaptor.hpp"
+
+#include "math.hpp"
 #include "timer.hpp"
 
 using namespace std;
@@ -130,8 +131,8 @@ private:
     inline void sweep_msgs() {
         if (!pending_msgs.size()) return;
 
-        logstream(LOG_INFO) << "#" << tid << " " << pending_msgs.size()
-                            << " pending msgs on proxy." << LOG_endl;
+        logstream(LOG_DEBUG) << "#" << tid << " " << pending_msgs.size()
+                             << " pending msgs on proxy." << LOG_endl;
         for (vector<Message>::iterator it = pending_msgs.begin();
                 it != pending_msgs.end();) {
             if (adaptor->send(it->sid, it->tid, it->bundle))
@@ -170,7 +171,7 @@ public:
         ASSERT(r.pid != -1);
 
         // submit the request to a certain server
-        int start_sid = mymath::hash_mod(r.pattern_group.get_start(), global_num_servers);
+        int start_sid = wukong::math::hash_mod(r.pattern_group.get_start(), global_num_servers);
         Bundle bundle(r);
         send(bundle, start_sid);
     }
@@ -198,7 +199,7 @@ public:
     // Run a single query for @cnt times. Command is "-f"
     // @is: input
     // @reply: result
-    int run_single_query(istream &is, int mt_factor, int cnt,
+    int run_single_query(istream &is, istream &fmt_stream, int mt_factor, int cnt,
                          SPARQLQuery &reply, Monitor &monitor) {
         uint64_t start, end;
         SPARQLQuery request;
@@ -214,6 +215,60 @@ public:
         }
         end = timer::get_usec();
         logstream(LOG_INFO) << "Parsing time: " << (end - start) << " usec" << LOG_endl;
+
+        // Load query format, see detailed description in sample format file
+        if (fmt_stream.good()) {
+            if (global_enable_planner) {
+                logstream(LOG_WARNING) << "Query format will not work since planner is on" << LOG_endl;
+            } else {
+                //reading format file
+                vector<string> directions;
+                vector<int> orders;
+                string line, direction = ">";
+                int order;
+                while (std::getline(fmt_stream, line)) {
+                    if (boost::starts_with(line, "#") || line.empty())
+                        continue; // skip comments and blank lines
+
+                    istringstream iss(line);
+                    iss >> order >> direction;
+                    directions.push_back(direction);
+                    orders.push_back(order);
+                }
+
+                // correctness check
+                if (orders.size() < request.pattern_group.patterns.size()) {
+                    logstream(LOG_ERROR) << "wrong format file content!" << LOG_endl;
+                } else {
+                    // reset orders and directions according to format file
+                    vector<SPARQLQuery::Pattern> patterns;
+                    for (int i = 0; i < orders.size(); i++) {
+                        // number of orders starts from 1
+                        SPARQLQuery::Pattern pattern = request.pattern_group.patterns[orders[i] - 1];
+
+                        if (directions[i] == "<") {
+                            pattern.direction = IN;
+                            ssid_t temp = pattern.subject;
+                            pattern.subject = pattern.object;
+                            pattern.object = temp;
+                        } else if (directions[i] == ">") {
+                            pattern.direction = OUT;
+                        } else if (directions[i] == "<<") {
+                            pattern.direction = IN;
+                            pattern.object = pattern.subject;
+                            pattern.subject = pattern.predicate;
+                            pattern.predicate = PREDICATE_ID;
+                        } else if (directions[i] == ">>") {
+                            pattern.direction = OUT;
+                            pattern.subject = pattern.predicate;
+                            pattern.predicate = PREDICATE_ID;
+                        }
+                        patterns.push_back(pattern);
+                    }
+                    request.pattern_group.patterns = patterns;
+                }
+            }
+        }
 
         // Generate plans for the query if our SPARQL planner is enabled.
         // NOTE: it only works for standard SPARQL query.
@@ -323,7 +378,7 @@ public:
             for (int i = 0; i < parallel_factor - flying_cnt; i++) {
                 sweep_msgs(); // sweep pending msgs first
 
-                int idx = mymath::get_distribution(coder.get_random(), loads);
+                int idx = wukong::math::get_distribution(coder.get_random(), loads);
                 SPARQLQuery request = idx < nlights ?
                                       tpls[idx].instantiate(coder.get_random()) : // light query
                                       heavy_reqs[idx - nlights]; // heavy query

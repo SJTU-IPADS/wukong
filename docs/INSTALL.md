@@ -41,7 +41,7 @@ export WUKONG_ROOT=[/path/to/wukong]
 
 We provide a shell script (i.e., `$WUKONG_ROOT/deps/deps.sh`) to download and install most of required dependencies automatically within the local sub-directory (i.e., `$WUKONG_ROOT/deps/`).
 
-> Currently, we requires OpenMPI v1.6.5, Boost v1.67.0, Intel TBB v4.4.2, nanomsg v1.1.4, HWLOC v1.11.7, and LibRDMA v1.0.0 (optional).
+> Currently, we requires OpenMPI v1.6.5, Boost v1.67.0, Intel TBB v4.4.2, zeromq v4.0.5, hwloc v1.11.7, and Jemalloc v5.1.0.
 
 ```bash
 $cd deps
@@ -49,20 +49,17 @@ $cd deps
 $source deps.sh
 
 # install specified dependencies
-# option: all, mpi, boost, tbb, nanomsg, hwloc, librdma
+# option: all, mpi, boost, tbb, zeromq, hwloc, jemalloc
 $source deps.sh install option
 ```
-
-> If you run Wukong on non-RDMA networks, you could skip LibRDMA by running `source deps.sh no-rdma`
 
 You can also use the same shell script to uninstall dependencies.
 
 ```bash
 $cd deps
-# option: all, mpi, boost, tbb, nanomsg, hwloc, librdma
+# option: all, mpi, boost, tbb, nanomsg, hwloc, jemalloc
 $source deps.sh clean option
 ```
-
 
 BTW, if you want to do it manually, [deps/INSTALL.md](deps/INSTALL.md) provides step-by-step instruction.
 
@@ -119,7 +116,7 @@ $./build.sh
 
 + **Enable/disable 64-bit ID** (default: OFF): The 32-bit ID is enough to support the dataset with more than 2 billion unified strings. If you want to support more large dataset (like LUBM-102400), you need to add a parameter `-DUSE_DTYPE_64BIT=ON` for cmake (i.e., `cmake .. -DUSE_DTYPE_64BIT=ON` or `./build.sh -DUSE_DTYPE_64BIT=ON`). Note that it will consume more memory and slightly increase the query latency.
 
-+ **Enable/disable dynamic data loading support** (default: OFF): To support data loading after Wukong has been initialized, you need to add a parameter `-USE_DYNAMIC_GSTORE=ON` for cmake (i.e., `cmake .. -USE_DYNAMIC_GSTORE=ON` or `./build.sh -USE_DYNAMIC_GSTORE=ON`). Noted that this feature will cost a bit more time on initialization.
++ **Enable/disable dynamic data loading support** (default: OFF): To support data loading after Wukong has been initialized, you need to add a parameter `-DUSE_DYNAMIC_GSTORE=ON` for cmake (i.e., `cmake .. -DUSE_DYNAMIC_GSTORE=ON` or `./build.sh -DUSE_DYNAMIC_GSTORE=ON`). Noted that this feature will cost a bit more time on initialization.
 
 > CMake will automatically cache the latest parameters.
 

@@ -303,17 +303,17 @@ public:
 
     //return true if the connection is succesfull
     bool connect_rc() {
-        if(inited_) {
+        if (inited_) {
             return true;
         } else {
-            //			fprintf(stdout,"qp %d %d not connected\n",tid,nid);
+            //          fprintf(stdout,"qp %d %d not connected\n",tid,nid);
         }
 
-        int remote_qid = _QP_ENCODE_ID(node_id,RC_ID_BASE + tid * num_rc_qps + idx_);
+        int remote_qid = _QP_ENCODE_ID(node_id, RC_ID_BASE + tid * num_rc_qps + idx_);
 
         char address[30];
 
-        QPConnArg arg; memset((char *)(&arg),0,sizeof(QPConnArg));
+        QPConnArg arg; memset((char *)(&arg), 0, sizeof(QPConnArg));
         arg.qid = remote_qid;
         arg.sign = MAGIC_NUM;
         arg.tid  = tid;
@@ -321,19 +321,19 @@ public:
         arg.calculate_checksum();
 
         // prepare socket to remote
-        auto socket = PreConnector::get_send_socket(network[nid],tcp_base_port);
-        if(socket < 0) {
+        auto socket = PreConnector::get_send_socket(network[nid], tcp_base_port);
+        if (socket < 0) {
             // cannot establish the connection, shall retry
             return false;
         }
-        auto n = send(socket,(char *)(&arg),sizeof(QPConnArg),0);
-        if(n != sizeof(QPConnArg)) {
+        auto n = send(socket, (char *)(&arg), sizeof(QPConnArg), 0);
+        if (n != sizeof(QPConnArg)) {
             close(socket);
             return false;
         }
 
         // receive reply
-        if(!PreConnector::wait_recv(socket)) {
+        if (!PreConnector::wait_recv(socket)) {
             close(socket);
             return false;
         }
@@ -341,9 +341,9 @@ public:
         int buf_size = sizeof(QPReplyHeader) + sizeof(RdmaQpAttr); // format: header | QP attr
         char *reply_buf = new char[buf_size];
 
-        n = recv(socket,reply_buf,buf_size, MSG_WAITALL);
+        n = recv(socket, reply_buf, buf_size, MSG_WAITALL);
 
-        if(n != sizeof(RdmaQpAttr) + sizeof(QPReplyHeader)) {
+        if (n != sizeof(RdmaQpAttr) + sizeof(QPReplyHeader)) {
             close(socket);
             delete reply_buf;
             usleep(1000);
@@ -355,24 +355,24 @@ public:
 
         QPReplyHeader *hdr = (QPReplyHeader *)(reply_buf);
 
-        if(hdr->status == TCPSUCC) {
+        if (hdr->status == TCPSUCC) {
 
-        } else if(hdr->status == TCPFAIL) {
+        } else if (hdr->status == TCPFAIL) {
             delete reply_buf;
             return false;
         } else {
-            fprintf(stdout,"QP connect fail!, val %d\n",((char *)reply_buf)[0]);
+            fprintf(stdout, "QP connect fail!, val %d\n", ((char *)reply_buf)[0]);
             assert(false);
         }
 
         RdmaQpAttr qp_attr;
-        memcpy(&qp_attr,(char *)reply_buf + sizeof(QPReplyHeader),sizeof(RdmaQpAttr));
+        memcpy(&qp_attr, (char *)reply_buf + sizeof(QPReplyHeader), sizeof(RdmaQpAttr));
 
         // verify the checksum
-        uint64_t checksum = ip_checksum((void *)(&(qp_attr.buf)),sizeof(RdmaQpAttr) - sizeof(uint64_t));
+        uint64_t checksum = ip_checksum((void *)(&(qp_attr.buf)), sizeof(RdmaQpAttr) - sizeof(uint64_t));
         assert(checksum == qp_attr.checksum);
 
-        change_qp_states(&qp_attr,port_idx);
+        change_qp_states(&qp_attr, port_idx);
         inited_ = true;
 
         delete reply_buf;
@@ -381,16 +381,16 @@ public:
     }
 
     bool connect_uc() {
-        if(inited_) {
+        if (inited_) {
             return true;
         } else {
-            //			fprintf(stdout,"qp %d %d not connected\n",tid,nid);
+            //          fprintf(stdout,"qp %d %d not connected\n",tid,nid);
         }
 
-        int remote_qid = _QP_ENCODE_ID(node_id,UC_ID_BASE + tid * num_uc_qps + idx_);
+        int remote_qid = _QP_ENCODE_ID(node_id, UC_ID_BASE + tid * num_uc_qps + idx_);
 
         char address[30];
-        int address_len = snprintf(address,30,"tcp://%s:%d",network[nid].c_str(),tcp_base_port);
+        int address_len = snprintf(address, 30, "tcp://%s:%d", network[nid].c_str(), tcp_base_port);
         assert(address_len < 30);
 
         QPConnArg arg;
@@ -398,19 +398,19 @@ public:
         arg.sign = MAGIC_NUM;
         arg.calculate_checksum();
 
-        auto socket = PreConnector::get_send_socket(network[nid],tcp_base_port);
-        if(socket < 0) {
+        auto socket = PreConnector::get_send_socket(network[nid], tcp_base_port);
+        if (socket < 0) {
             // cannot establish the connection, shall retry
             return false;
         }
 
-        auto n = PreConnector::send_to(socket,(char *)(&arg),sizeof(QPConnArg));
-        if(n != sizeof(QPConnArg)) {
+        auto n = PreConnector::send_to(socket, (char *)(&arg), sizeof(QPConnArg));
+        if (n != sizeof(QPConnArg)) {
             close(socket);
             return false;
         }
 
-        if(!PreConnector::wait_recv(socket)) {
+        if (!PreConnector::wait_recv(socket)) {
             close(socket);
             return false;
         }
@@ -418,8 +418,8 @@ public:
         int buf_size = sizeof(QPReplyHeader) + sizeof(RdmaQpAttr); // format: header | QP attr
         char *reply_buf = new char[buf_size];
 
-        n = recv(socket,reply_buf,buf_size, MSG_WAITALL);
-        if(n != sizeof(RdmaQpAttr) + sizeof(QPReplyHeader)) {
+        n = recv(socket, reply_buf, buf_size, MSG_WAITALL);
+        if (n != sizeof(RdmaQpAttr) + sizeof(QPReplyHeader)) {
             close(socket);
             delete reply_buf;
             usleep(1000);
@@ -431,9 +431,9 @@ public:
 
         QPReplyHeader *hdr = (QPReplyHeader *)(reply_buf);
 
-        if(hdr->status == TCPSUCC) {
+        if (hdr->status == TCPSUCC) {
 
-        } else if(hdr->status == TCPFAIL) {
+        } else if (hdr->status == TCPFAIL) {
             delete reply_buf;
             return false;
         } else {
@@ -441,13 +441,13 @@ public:
         }
 
         RdmaQpAttr qp_attr;
-        memcpy(&qp_attr,(char *)reply_buf + sizeof(QPReplyHeader),sizeof(RdmaQpAttr));
+        memcpy(&qp_attr, (char *)reply_buf + sizeof(QPReplyHeader), sizeof(RdmaQpAttr));
 
         // verify thise checksum
-        uint64_t checksum = ip_checksum((void *)(&(qp_attr.buf)),sizeof(RdmaQpAttr) - sizeof(uint64_t));
+        uint64_t checksum = ip_checksum((void *)(&(qp_attr.buf)), sizeof(RdmaQpAttr) - sizeof(uint64_t));
         assert(checksum == qp_attr.checksum);
 
-        change_qp_states(&qp_attr,port_idx);
+        change_qp_states(&qp_attr, port_idx);
 
         inited_ = true;
 
@@ -740,8 +740,7 @@ public:
 
             gettimeofday (&cur_time, NULL);
             cur_time_msec = (cur_time.tv_sec * 1000) + (cur_time.tv_usec / 1000);
-        }
-        while ((poll_result == 0));
+        } while (poll_result == 0);
         // && ((cur_time_msec - start_time_msec) < MAX_POLL_CQ_TIMEOUT));
 
         if (unlikely(rid != NULL))
@@ -833,9 +832,7 @@ public:
         return -1;
     }
 
-    inline bool first_send() {
-        return pendings == 0;
-    }
+    inline bool first_send() { return pendings == 0; }
 
     inline bool need_poll() {
         // whether the post operation need poll completions
@@ -855,7 +852,7 @@ public:
     // if to_gpu is true, send to remote gpu mem
     // else send to cpu mem
     IOStatus rc_post_send_gpu(ibv_wr_opcode op, char *local_gpu_buf,
-        int len, uint64_t off, int flags, bool to_gpu, int wr_id = 0) {
+                              int len, uint64_t off, int flags, bool to_gpu, int wr_id = 0) {
         IOStatus rc = IO_SUCC;
         struct ibv_send_wr sr, *bad_sr;
         struct ibv_sge sge;
@@ -911,8 +908,7 @@ public:
         recv_helpers_(NULL), remote_ud_qp_attrs_(NULL), //qps_(NULL),
         rdma_single_device_(NULL),
         num_rc_qps_(100), num_uc_qps_(1), num_ud_qps_(4),
-        enable_single_thread_mr_(enable_single_thread_mr)
-    {
+        enable_single_thread_mr_(enable_single_thread_mr) {
 
         assert(node_id >= 0);
 
@@ -947,15 +943,52 @@ public:
 
     // XD: why volatile?
     void set_connect_mr(volatile void *conn_buf, uint64_t conn_buf_size) {
-        if (conn_buf == NULL) {
-            conn_buf = (volatile uint8_t *) memalign(4096, conn_buf_size);
-        }
+        if (conn_buf == NULL)
+            conn_buf = (volatile uint8_t *)memalign(4096, conn_buf_size);
+
         assert(conn_buf != NULL);
         memset((char *) conn_buf, 0, conn_buf_size);
 
         conn_buf_ = (volatile uint8_t *)conn_buf;
         conn_buf_size_ = conn_buf_size;
     }
+
+    // register memory buffer to a device, shall be called after the set_connect_mr and open_device
+    void register_connect_mr(int dev_id = 0) {
+        RdmaDevice *rdma_device = get_rdma_device(dev_id);
+        assert(rdma_device->pd != NULL);
+        if (enable_single_thread_mr_ && (rdma_device->conn_buf_mr != NULL)) {
+            assert(false);
+            return;
+        }
+        rdma_device->conn_buf_mr = ibv_reg_mr(rdma_device->pd, (char *)conn_buf_, conn_buf_size_,
+                                              DEFAULT_PROTECTION_FLAG);
+        CE_2(!rdma_device->conn_buf_mr,
+             "[librdma]: Connect Memory Region failed at dev %d, err %s\n", dev_id, strerror(errno));
+    }
+
+#ifdef USE_GPU
+    void set_connect_mr_gpu(volatile void *gpu_buf, uint64_t gpu_buf_size) {
+        assert(gpu_buf != NULL);
+        CUDA_ASSERT(cudaMemset((char *) gpu_buf, 0, gpu_buf_size));
+        conn_buf_gpu_ = (volatile uint8_t *)gpu_buf;
+        conn_buf_size_gpu_ = gpu_buf_size;
+    }
+
+    void register_connect_mr_gpu(int dev_id = 0) {
+        RdmaDevice *rdma_device = get_rdma_device(dev_id);
+        assert(rdma_device->pd != NULL);
+
+        rdma_device->conn_buf_mr_gpu = ibv_reg_mr(
+                                           rdma_device->pd,
+                                           (char *)conn_buf_gpu_,
+                                           conn_buf_size_gpu_,
+                                           DEFAULT_PROTECTION_FLAG);
+        CE_2(!rdma_device->conn_buf_mr_gpu,
+             "[librdma]: Connect Device Memory Region failed at dev %d, err %s\n", dev_id,
+             strerror(errno));
+    }
+#endif
 
     void set_dgram_mr(volatile void *dgram_buf, int dgram_buf_size) {
         if (dgram_buf == NULL) {
@@ -966,6 +999,15 @@ public:
 
         dgram_buf_ = (volatile uint8_t *)dgram_buf;
         dgram_buf_size_ = dgram_buf_size;
+    }
+
+    void register_dgram_mr(int dev_id = 0) {
+        RdmaDevice *rdma_device = get_rdma_device(dev_id);
+        assert(rdma_device->pd != NULL);
+        rdma_device->dgram_buf_mr = ibv_reg_mr(rdma_device->pd, (char *)dgram_buf_, dgram_buf_size_,
+                                               DEFAULT_PROTECTION_FLAG);
+        CE_2(!rdma_device->dgram_buf_mr
+             , "[librdma]: Datagram Memory Region failed at dev %d, err %s\n", dev_id, strerror(errno));
     }
 
     // query methods
@@ -1099,29 +1141,6 @@ public:
         assert(rdma_device->pd != 0);
     }
 
-    // register memory buffer to a device, shall be called after the set_connect_mr and open_device
-
-    void register_connect_mr(int dev_id = 0) {
-        RdmaDevice *rdma_device = get_rdma_device(dev_id);
-        assert(rdma_device->pd != NULL);
-        if (enable_single_thread_mr_ && rdma_device->conn_buf_mr != NULL) {
-            assert(false);
-            return;
-        }
-        rdma_device->conn_buf_mr = ibv_reg_mr(rdma_device->pd, (char *)conn_buf_, conn_buf_size_,
-                                              DEFAULT_PROTECTION_FLAG);
-        CE_2(!rdma_device->conn_buf_mr,
-             "[librdma]: Connect Memory Region failed at dev %d, err %s\n", dev_id, strerror(errno));
-    }
-
-    void register_dgram_mr(int dev_id = 0) {
-        RdmaDevice *rdma_device = get_rdma_device(dev_id);
-        assert(rdma_device->pd != NULL);
-        rdma_device->dgram_buf_mr = ibv_reg_mr(rdma_device->pd, (char *)dgram_buf_, dgram_buf_size_,
-                                               DEFAULT_PROTECTION_FLAG);
-        CE_2(!rdma_device->dgram_buf_mr
-             , "[librdma]: Datagram Memory Region failed at dev %d, err %s\n", dev_id, strerror(errno));
-    }
 
     //-----------------------------------------------
 
@@ -1133,31 +1152,31 @@ public:
 
         int port = rdma->tcp_base_port_;
 
-        auto listenfd = PreConnector::get_listen_socket(rdma->network_[rdma->node_id_],port);
+        auto listenfd = PreConnector::get_listen_socket(rdma->network_[rdma->node_id_], port);
 
         int opt = 1;
-        CE(setsockopt(listenfd,SOL_SOCKET,SO_REUSEADDR,&opt,sizeof(int)) != 0,
+        CE(setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int)) != 0,
            "[RDMA pre connector] set reused socket error!");
 
-        CE(listen(listenfd,rdma->network_.size() * 24) < 0,"[RDMA pre connector] bind TCP port error.");
+        CE(listen(listenfd, rdma->network_.size() * 24) < 0, "[RDMA pre connector] bind TCP port error.");
 
         int num = 0;
 
         try {
-            while(running) {
+            while (running) {
                 // accept a request
                 struct sockaddr_in cli_addr;
                 socklen_t clilen;
-                auto csfd = accept(listenfd,(struct sockaddr *) &cli_addr, &clilen);
+                auto csfd = accept(listenfd, (struct sockaddr *) &cli_addr, &clilen);
                 QPConnArg arg;
 
-                if(!PreConnector::wait_recv(csfd)) { // timeout
+                if (!PreConnector::wait_recv(csfd)) { // timeout
                     close(csfd);
                     continue;
                 }
-                auto n = recv(csfd,(char *)(&arg),sizeof(QPConnArg), MSG_WAITALL);
+                auto n = recv(csfd, (char *)(&arg), sizeof(QPConnArg), MSG_WAITALL);
 
-                if(n != sizeof(QPConnArg)) { // an invalid message
+                if (n != sizeof(QPConnArg)) { // an invalid message
                     close(csfd);
                     continue;
                 }
@@ -1171,36 +1190,36 @@ public:
                 uint64_t idx = _QP_DECODE_INDEX(qid);
 
                 char *reply_buf = new char[sizeof(QPReplyHeader) + sizeof(RdmaQpAttr)];
-                memset(reply_buf,0,sizeof(QPReplyHeader) + sizeof(RdmaQpAttr));
+                memset(reply_buf, 0, sizeof(QPReplyHeader) + sizeof(RdmaQpAttr));
 
                 rdma->mtx_->lock();
-                if(rdma->qps_.find(qid) == rdma->qps_.end()) {
+                if (rdma->qps_.find(qid) == rdma->qps_.end()) {
                     (*(QPReplyHeader *)(reply_buf)).status = TCPFAIL;
                 } else {
-                    if(IS_UD(qid)) {
+                    if (IS_UD(qid)) {
                         (*(QPReplyHeader *)(reply_buf)).qid = qid;
                         // further check whether QPs are initilized or not
                         Qp *ud_qp = rdma->qps_[qid];
-                        if(ud_qp->inited_ == false) {
+                        if (ud_qp->inited_ == false) {
                             (*(QPReplyHeader *)(reply_buf)).status = TCPFAIL;
                         } else {
                             (*(QPReplyHeader *)(reply_buf)).status = TCPSUCC;
                             num++;
                             RdmaQpAttr qp_attr = rdma->get_local_qp_attr(qid);
                             memcpy((char *)(reply_buf) + sizeof(QPReplyHeader),
-                                   (char *)(&qp_attr),sizeof(RdmaQpAttr));
+                                   (char *)(&qp_attr), sizeof(RdmaQpAttr));
                         }
                     } else {
                         RdmaQpAttr qp_attr = rdma->get_local_qp_attr(qid);
                         (*(QPReplyHeader *)(reply_buf)).status = TCPSUCC;
-                        memcpy((char *)(reply_buf) + sizeof(QPReplyHeader),(char *)(&qp_attr),sizeof(RdmaQpAttr));
+                        memcpy((char *)(reply_buf) + sizeof(QPReplyHeader), (char *)(&qp_attr), sizeof(RdmaQpAttr));
                     }
                 }
 
                 rdma->mtx_->unlock();
 
                 // reply with the QP attribute
-                PreConnector::send_to(csfd,reply_buf,sizeof(RdmaQpAttr) + sizeof(QPReplyHeader));
+                PreConnector::send_to(csfd, reply_buf, sizeof(RdmaQpAttr) + sizeof(QPReplyHeader));
                 PreConnector::wait_close(csfd); // wait for the client to close the connection
                 delete reply_buf;
             }   // while receiving reqests
@@ -1523,6 +1542,7 @@ public:
             assert(local_qp->dev_->conn_buf_mr != NULL);
             qp_attr.rkey = local_qp->dev_->conn_buf_mr->rkey;
 #endif
+
 #ifdef USE_GPU
             assert(local_qp->dev_ != NULL);
             assert(local_qp->dev_->conn_buf_mr_gpu != NULL);
@@ -1837,115 +1857,94 @@ public:
 
     volatile uint8_t *conn_buf_ = NULL;
     uint64_t conn_buf_size_ = 0;
+#ifdef USE_GPU
+    volatile uint8_t *conn_buf_gpu_ = NULL;
+    uint64_t conn_buf_size_gpu_ = 0;
+#endif
     volatile uint8_t *dgram_buf_ = NULL;
     uint64_t dgram_buf_size_ = 0;
 
     SimpleMap<RdmaQpAttr*> remote_ud_qp_attrs_;
     SimpleMap<RdmaRecvHelper*> recv_helpers_;
 
-#ifdef USE_GPU
-    volatile uint8_t *conn_buf_gpu_;
-    uint64_t conn_buf_size_gpu_;
-
-    void set_connect_mr_gpu(volatile void *gpu_buf, uint64_t gpu_buf_size){
-        assert(gpu_buf != NULL);
-        CUDA_ASSERT( cudaMemset((char *) gpu_buf, 0, gpu_buf_size) );
-        conn_buf_gpu_ = (volatile uint8_t *)gpu_buf;
-        conn_buf_size_gpu_ = gpu_buf_size;
-    }
-
-    void register_connect_mr_gpu(int dev_id = 0) {
-        RdmaDevice *rdma_device = get_rdma_device(dev_id);
-        assert(rdma_device->pd != NULL);
-
-        rdma_device->conn_buf_mr_gpu = ibv_reg_mr(
-            rdma_device->pd,
-            (char *)conn_buf_gpu_,
-            conn_buf_size_gpu_,
-            DEFAULT_PROTECTION_FLAG);
-        CE_2(!rdma_device->conn_buf_mr_gpu,
-            "[librdma]: Connect Device Memory Region failed at dev %d, err %s\n",dev_id,
-            strerror(errno));
-    }
-#endif
 };
 
 bool Qp::get_ud_connect_info_specific(int remote_id, int thread_id, int idx) {
 
-  auto key = _UD_ENCODE_ID(remote_id,thread_id);
-  if(ahs_[key] != NULL) return true;
+    auto key = _UD_ENCODE_ID(remote_id, thread_id);
+    if (ahs_[key] != NULL) return true;
 
-  uint64_t qid = _QP_ENCODE_ID(thread_id + UD_ID_BASE,UD_ID_BASE + idx);
+    uint64_t qid = _QP_ENCODE_ID(thread_id + UD_ID_BASE, UD_ID_BASE + idx);
 
-  QPConnArg arg; memset((char *)(&arg),0,sizeof(QPConnArg));
-  arg.qid = qid;
-  arg.sign = MAGIC_NUM;
-  arg.tid  = thread_id;
-  arg.nid  = node_id;
-  arg.calculate_checksum();
+    QPConnArg arg; memset((char *)(&arg), 0, sizeof(QPConnArg));
+    arg.qid = qid;
+    arg.sign = MAGIC_NUM;
+    arg.tid  = thread_id;
+    arg.nid  = node_id;
+    arg.calculate_checksum();
 
-  auto socket = PreConnector::get_send_socket(network[remote_id],tcp_base_port);
+    auto socket = PreConnector::get_send_socket(network[remote_id], tcp_base_port);
 
-  if(socket < 0) {
-      // cannot establish the connection, shall retry
-      return false;
-  }
+    if (socket < 0) {
+        // cannot establish the connection, shall retry
+        return false;
+    }
 
-  auto n = PreConnector::send_to(socket,(char *)(&arg),sizeof(QPConnArg));
-  if(n != sizeof(QPConnArg)) {
-      close(socket);
-      return false;
-  }
+    auto n = PreConnector::send_to(socket, (char *)(&arg), sizeof(QPConnArg));
+    if (n != sizeof(QPConnArg)) {
+        close(socket);
+        return false;
+    }
 
-  if(!PreConnector::wait_recv(socket)) {
-      close(socket);
-      return false;
-  }
+    if (!PreConnector::wait_recv(socket)) {
+        close(socket);
+        return false;
+    }
 
-  int buf_size = sizeof(QPReplyHeader) + sizeof(RdmaQpAttr);
-  char *reply_buf = new char[buf_size];
+    int buf_size = sizeof(QPReplyHeader) + sizeof(RdmaQpAttr);
+    char *reply_buf = new char[buf_size];
 
-  n = recv(socket,reply_buf,buf_size, MSG_WAITALL);
-  if(n != sizeof(RdmaQpAttr) + sizeof(QPReplyHeader)) {
-      fprintf(stdout,"Receive ud connection content %d by %s\n",n,network[remote_id].c_str());
-      close(socket);
-      delete reply_buf;
-      usleep(1000);
-      return false;
-  }
+    n = recv(socket, reply_buf, buf_size, MSG_WAITALL);
+    if (n != sizeof(RdmaQpAttr) + sizeof(QPReplyHeader)) {
+        fprintf(stdout, "Receive ud connection content %d by %s\n", n, network[remote_id].c_str());
+        close(socket);
+        delete reply_buf;
+        usleep(1000);
+        return false;
+    }
 
-  // close connection
-  close(socket);
+    // close connection
+    close(socket);
 
-  QPReplyHeader *hdr = (QPReplyHeader *)(reply_buf);
+    QPReplyHeader *hdr = (QPReplyHeader *)(reply_buf);
 
-  // the first byte of the message is used to identify the status of the request
-  if(hdr->status == TCPSUCC) {
+    // the first byte of the message is used to identify the status of the request
+    if (hdr->status == TCPSUCC) {
 
-      if(hdr->qid != qid){ // sanity checks
-          assert(false);
-      }
+        if (hdr->qid != qid) { // sanity checks
+            assert(false);
+        }
 
-  } else if(hdr->status == TCPFAIL) {
-      delete reply_buf;
-      return false;
-  } else {
-      fprintf(stdout,"QP connect fail!, val %d\n",reply_buf[0]);
-      assert(false);
-  }
-  RdmaQpAttr qp_attr;
-  memcpy(&qp_attr,reply_buf + sizeof(QPReplyHeader),sizeof(RdmaQpAttr));
+    } else if (hdr->status == TCPFAIL) {
+        delete reply_buf;
+        return false;
+    } else {
+        fprintf(stdout, "QP connect fail!, val %d\n", reply_buf[0]);
+        assert(false);
+    }
+    RdmaQpAttr qp_attr;
+    memcpy(&qp_attr, reply_buf + sizeof(QPReplyHeader), sizeof(RdmaQpAttr));
 
-  // verify the checksum
-  uint64_t checksum = ip_checksum((void *)(&(qp_attr.buf)),sizeof(RdmaQpAttr) - sizeof(uint64_t));
-  assert(checksum == qp_attr.checksum);
-  int dlid = qp_attr.lid;
+    // verify the checksum
+    uint64_t checksum = ip_checksum((void *)(&(qp_attr.buf)), sizeof(RdmaQpAttr) - sizeof(uint64_t));
+    assert(checksum == qp_attr.checksum);
+    int dlid = qp_attr.lid;
 
-  ahs_[key] = RdmaCtrl::create_ah(dlid,port_idx,dev_);
-  memcpy(&(ud_attrs_[key]),reply_buf + sizeof(QPReplyHeader),sizeof(RdmaQpAttr));
+    ahs_[key] = RdmaCtrl::create_ah(dlid, port_idx, dev_);
+    memcpy(&(ud_attrs_[key]), reply_buf + sizeof(QPReplyHeader), sizeof(RdmaQpAttr));
 
-  delete reply_buf;
-  return true;
+    delete reply_buf;
+    return true;
 }
 
 } // end namespace rdmaio

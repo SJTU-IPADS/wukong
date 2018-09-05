@@ -34,7 +34,7 @@
 #include <boost/unordered_map.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
-#include "config.hpp"
+#include "global.hpp"
 #include "hdfs.hpp"
 #include "type.hpp"
 

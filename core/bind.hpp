@@ -25,6 +25,10 @@
 #include <hwloc.h>
 #include <boost/algorithm/string/predicate.hpp>
 
+#include "global.hpp"
+#include "config.hpp"
+#include "logger2.hpp"
+
 using namespace std;
 
 /*

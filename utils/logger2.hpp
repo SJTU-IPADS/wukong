@@ -118,7 +118,7 @@ void reset_color(FILE *handle) {
 #define LOG_DEBUG 1
 #define LOG_EVERYTHING 0
 
-const char *messages[] = {
+const char *prefixes[] = {
     "DEBUG:    ", "DEBUG:    ", "INFO:     ", "INFO:     ",
     "WARNING:  ", "ERROR:    ", "FATAL:    ", ""
 };
@@ -183,6 +183,7 @@ public:
             fout.close();
             log_file = "";
         }
+
         // if file != "", then open a new file
         if (file.length() > 0) {
             fout.open(file.c_str());
@@ -220,9 +221,8 @@ public:
             std::stringstream &sstream = streambufentry->streambuffer;
             bool &streamactive = streambufentry->streamactive;
 
-            if (streamactive) {
+            if (streamactive)
                 sstream << a;
-            }
         }
         return *this;
     }
@@ -257,22 +257,22 @@ public:
             fout.write(buf, len);
             pthread_mutex_unlock(&mut);
         }
+
         if (log_to_console) {
 #ifdef COLOROUTPUT
             pthread_mutex_lock(&mut);
 
             // set color
-            if (loglevel == LOG_FATAL) {
+            if (loglevel == LOG_FATAL)
                 textcolor(stdout, BRIGHT, RED);
-            } else if (loglevel == LOG_ERROR) {
+            else if (loglevel == LOG_ERROR)
                 textcolor(stdout, BRIGHT, RED);
-            } else if (loglevel == LOG_WARNING) {
+            else if (loglevel == LOG_WARNING)
                 textcolor(stdout, BRIGHT, MAGENTA);
-            } else if (loglevel == LOG_DEBUG) {
+            else if (loglevel == LOG_DEBUG)
                 textcolor(stdout, BRIGHT, YELLOW);
-            } else if (loglevel == LOG_EMPH) {
+            else if (loglevel == LOG_EMPH)
                 textcolor(stdout, BRIGHT, GREEN);
-            }
 #endif
             // in case conflict with cout
             // std::cerr.write(buf, len);
@@ -312,9 +312,8 @@ public:
 
             if (streamactive) {
                 sstream << a;
-                if (a[strlen(a) - 1] == '\n') {
+                if (a[strlen(a) - 1] == '\n')
                     stream_flush();
-                }
             }
         }
         return *this;
@@ -360,11 +359,11 @@ public:
             // print header to the streambuffer
             if (streambuffer.str().length() == 0) {
 #ifndef PRINTFILEINFO
-                streambuffer << messages[lineloglevel];
+                streambuffer << prefixes[lineloglevel];
                 if (lineloglevel == LOG_DEBUG)
                     streambuffer << file << "(" << function << ":" << line << "):";
 #else
-                streambuffer << messages[lineloglevel] << file << "(" << function << ":"
+                streambuffer << prefixes[lineloglevel] << file << "(" << function << ":"
                              << line << "):";
 #endif
             }
@@ -400,15 +399,14 @@ public:
 
 #ifndef PRINTFILEINFO
             // print loglevel
-            if (loglevel == LOG_DEBUG) {
-                byteswritten = snprintf(str, 1024, "%s%s(%s:%d): ", messages[loglevel],
+            if (loglevel == LOG_DEBUG)
+                byteswritten = snprintf(str, 1024, "%s%s(%s:%d): ", prefixes[loglevel],
                                         file, function, line);
-            } else {
-                byteswritten = snprintf(str, 1024, "%s", messages[loglevel]);
-            }
+            else
+                byteswritten = snprintf(str, 1024, "%s", prefixes[loglevel]);
 #else
             // the actual header
-            byteswritten = snprintf(str, 1024, "%s%s(%s:%d): ", messages[loglevel],
+            byteswritten = snprintf(str, 1024, "%s%s(%s:%d): ", prefixes[loglevel],
                                     file, function, line);
 #endif
             // the actual logger
@@ -429,17 +427,16 @@ public:
             if (log_to_console) {
 #ifdef COLOROUTPUT
                 pthread_mutex_lock(&mut);
-                if (loglevel == LOG_FATAL) {
+                if (loglevel == LOG_FATAL)
                     textcolor(stdout, BRIGHT, RED);
-                } else if (loglevel == LOG_ERROR) {
+                else if (loglevel == LOG_ERROR)
                     textcolor(stdout, BRIGHT, RED);
-                } else if (loglevel == LOG_WARNING) {
+                else if (loglevel == LOG_WARNING)
                     textcolor(stdout, BRIGHT, MAGENTA);
-                } else if (loglevel == LOG_DEBUG) {
+                else if (loglevel == LOG_DEBUG)
                     textcolor(stdout, BRIGHT, YELLOW);
-                } else if (loglevel == LOG_EMPH) {
+                else if (loglevel == LOG_EMPH)
                     textcolor(stdout, BRIGHT, GREEN);
-                }
 #endif
                 // in case conflict with cout
                 // std::cerr << str;
