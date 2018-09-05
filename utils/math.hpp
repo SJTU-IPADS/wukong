@@ -22,11 +22,16 @@
 
 #pragma once
 
+#include <iostream>
 #include <vector>
+#include <stdint.h>
 #include <assert.h>
 
-/* NOTE: math will conflict with other lib; so it's named mymath */
-class mymath {
+#include "type.hpp"
+
+namespace wukong {
+
+class math {
 public:
     uint64_t static get_distribution(int r, std::vector<int>& distribution) {
         int sum = 0;
@@ -99,8 +104,8 @@ public:
 
     static uint64_t hash_prime_u64(uint64_t upper) {
         if (upper >= (1l << 31)) {
-            cout << "WARNING: " << upper << " is too large!"
-                 << std::endl;
+            std::cout << "WARNING: " << upper << " is too large!"
+                      << std::endl;
             return upper;
         }
 
@@ -120,13 +125,13 @@ public:
         else if (upper >= 196613l) return 196613l;        // 2^17 ~ 2^18
         else if (upper >= 98317l) return 98317l;          // 2^16 ~ 2^17
 
-        cout << "WARNING: " << upper << " is too small!"
-             << std::endl;
+        std::cout << "WARNING: " << upper << " is too small!"
+                  << std::endl;
         return upper;
     }
-};
+}; // end of class math
 
-class mytuple {
+class tuple {
     int static compare_tuple(int N, std::vector<sid_t>& vec,
                              int i, std::vector<sid_t>& vec2, int j) {
         // ture means less or equal
@@ -189,4 +194,6 @@ public:
     void static qsort_tuple(int N, std::vector<sid_t>& vec) {
         qsort_tuple_recursive(N, vec, 0, vec.size() / N);
     }
-};
+}; // end of class tuple
+
+} // end of namespace wukong

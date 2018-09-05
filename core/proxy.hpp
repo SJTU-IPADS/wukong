@@ -26,17 +26,18 @@
 #include <boost/unordered_map.hpp>
 #include <unistd.h>
 
-#include "config.hpp"
+#include "global.hpp"
 #include "coder.hpp"
 #include "query.hpp"
-#include "adaptor.hpp"
 #include "parser.hpp"
 #include "planner.hpp"
 #include "data_statistic.hpp"
 #include "string_server.hpp"
 #include "monitor.hpp"
 
-#include "mymath.hpp"
+#include "comm/adaptor.hpp"
+
+#include "math.hpp"
 #include "timer.hpp"
 
 using namespace std;
@@ -130,8 +131,8 @@ private:
     inline void sweep_msgs() {
         if (!pending_msgs.size()) return;
 
-        logstream(LOG_INFO) << "#" << tid << " " << pending_msgs.size()
-                            << " pending msgs on proxy." << LOG_endl;
+        logstream(LOG_DEBUG) << "#" << tid << " " << pending_msgs.size()
+                             << " pending msgs on proxy." << LOG_endl;
         for (vector<Message>::iterator it = pending_msgs.begin();
                 it != pending_msgs.end();) {
             if (adaptor->send(it->sid, it->tid, it->bundle))
@@ -170,7 +171,7 @@ public:
         ASSERT(r.pid != -1);
 
         // submit the request to a certain server
-        int start_sid = mymath::hash_mod(r.pattern_group.get_start(), global_num_servers);
+        int start_sid = wukong::math::hash_mod(r.pattern_group.get_start(), global_num_servers);
         Bundle bundle(r);
         send(bundle, start_sid);
     }
@@ -323,7 +324,7 @@ public:
             for (int i = 0; i < parallel_factor - flying_cnt; i++) {
                 sweep_msgs(); // sweep pending msgs first
 
-                int idx = mymath::get_distribution(coder.get_random(), loads);
+                int idx = wukong::math::get_distribution(coder.get_random(), loads);
                 SPARQLQuery request = idx < nlights ?
                                       tpls[idx].instantiate(coder.get_random()) : // light query
                                       heavy_reqs[idx - nlights]; // heavy query

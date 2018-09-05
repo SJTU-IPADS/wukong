@@ -20,29 +20,30 @@
  *
  */
 
+
 #pragma once
 
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
-#include <algorithm>//sort
+#include <tbb/concurrent_queue.h>
+#include <algorithm> // sort
 #include <regex>
 
-#include "config.hpp"
+#include "global.hpp"
 #include "type.hpp"
+#include "bind.hpp"
 #include "coder.hpp"
-#include "adaptor.hpp"
 #include "dgraph.hpp"
 #include "query.hpp"
 #include "assertion.hpp"
-#include "mymath.hpp"
+#include "math.hpp"
 #include "timer.hpp"
+
 #include "rmap.hpp"
+#include "msgr.hpp"
 
 using namespace std;
 
-#define BUSY_POLLING_THRESHOLD 10000000 // busy polling task queue 10s
-#define MIN_SNOOZE_TIME 10 // MIX snooze time
-#define MAX_SNOOZE_TIME 80 // MAX snooze time
 
 #define QUERY_FROM_PROXY(tid) ((tid) < global_num_proxies)
 
@@ -52,55 +53,22 @@ int64_t hash_pair(const int64_pair &x) {
     int64_t r = x.first;
     r = r << 32;
     r += x.second;
-    return hash<int64_t>()(r);
+    return std::hash<int64_t>()(r);
 }
 
-// a vector of pointers of all local engines
-class Engine;
-std::vector<Engine *> engines;
 
-
-class Engine {
+class SPARQLEngine {
 private:
-    class Message {
-    public:
-        int sid;
-        int tid;
-        Bundle bundle;
+    int sid;    // server id
+    int tid;    // thread id
 
-        Message(int sid, int tid, Bundle &bundle)
-            : sid(sid), tid(tid), bundle(bundle) { }
-    };
-
-    pthread_spinlock_t recv_lock;
-    std::vector<SPARQLQuery> msg_fast_path;
-    std::vector<SPARQLQuery> runqueue;
+    String_Server *str_server;
+    DGraph *graph;
+    Coder *coder;
+    Messenger *msgr;
 
     RMap rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
-
-    vector<Message> pending_msgs;
-
-    inline void sweep_msgs() {
-        if (!pending_msgs.size()) return;
-
-        logstream(LOG_INFO) << "#" << tid << " "
-                            << pending_msgs.size() << " pending msgs on engine." << LOG_endl;
-        for (vector<Message>::iterator it = pending_msgs.begin(); it != pending_msgs.end();)
-            if (adaptor->send(it->sid, it->tid, it->bundle))
-                it = pending_msgs.erase(it);
-            else
-                ++it;
-    }
-
-    bool send_request(Bundle &bundle, int dst_sid, int dst_tid) {
-        if (adaptor->send(dst_sid, dst_tid, bundle))
-            return true;
-
-        // failed to send, then stash the msg to avoid deadlock
-        pending_msgs.push_back(Message(dst_sid, dst_tid, bundle));
-        return false;
-    }
 
     /// A query whose parent's PGType is UNION may call this pattern
     void index_to_known(SPARQLQuery &req) {
@@ -118,7 +86,7 @@ private:
         vector<sid_t> updated_result_table;
 
         uint64_t sz = 0;
-        edge_t *edges = graph->get_index_edges_local(tid, tpid, d, &sz);
+        edge_t *edges = graph->get_index(tid, tpid, d, sz);
         int start = req.tid % req.mt_factor;
         int length = sz / req.mt_factor;
 
@@ -166,7 +134,7 @@ private:
         vector<sid_t> updated_result_table;
 
         uint64_t sz = 0;
-        edge_t *edges = graph->get_index_edges_local(tid, tpid, d, &sz);
+        edge_t *edges = graph->get_index(tid, tpid, d, sz);
         int start = req.tid % req.mt_factor;
         int length = sz / req.mt_factor;
 
@@ -200,7 +168,7 @@ private:
         ASSERT(col != NO_RESULT);
 
         uint64_t sz = 0;
-        edge_t *edges = graph->get_edges_global(tid, start, d, pid, &sz);
+        edge_t *edges = graph->get_triples(tid, start, pid, d, sz);
 
         boost::unordered_set<sid_t> unique_set;
         for (uint64_t k = 0; k < sz; k++)
@@ -240,7 +208,7 @@ private:
 
         ASSERT(res.get_col_num() == 0);
         uint64_t sz = 0;
-        edge_t *edges = graph->get_edges_global(tid, start, d, pid, &sz);
+        edge_t *edges = graph->get_triples(tid, start, pid, d, sz);
         for (uint64_t k = 0; k < sz; k++)
             updated_result_table.push_back(edges[k].val);
 
@@ -269,7 +237,7 @@ private:
         int type = INT_t;
         // get the reusult
         bool has_value;
-        attr_t v = graph->get_vertex_attr_global(tid, start, d, aid, has_value);
+        attr_t v = graph->get_attr(tid, start, aid, d, has_value);
         if (has_value) {
             updated_attr_table.push_back(v);
             type = boost::apply_visitor(get_type, v);
@@ -314,7 +282,7 @@ private:
             }
             if (cur != cached) {  // a new vertex
                 cached = cur;
-                edges = graph->get_edges_global(tid, cur, d, pid, &sz);
+                edges = graph->get_triples(tid, cur, pid, d, sz);
             }
 
             // append a new intermediate result (row)
@@ -373,7 +341,7 @@ private:
         for (int i = 0; i < res.get_row_num(); i++) {
             sid_t prev_id = res.get_row_col(i, res.var2col(start));
             bool has_value;
-            attr_t v = graph->get_vertex_attr_global(tid, prev_id, d, pid, has_value);
+            attr_t v = graph->get_attr(tid, prev_id, pid, d, has_value);
             if (has_value ) {
                 res.append_row_to(i, updated_result_table);
                 res.append_attr_row_to(i, updated_attr_table);
@@ -414,7 +382,7 @@ private:
             sid_t cur = res.get_row_col(i, res.var2col(start));
             if (cur != cached) {  // a new vertex
                 cached = cur;
-                edges = graph->get_edges_global(tid, cur, d, pid, &sz);
+                edges = graph->get_triples(tid, cur, pid, d, sz);
             }
 
             sid_t known = res.get_row_col(i, res.var2col(end));
@@ -474,7 +442,7 @@ private:
             if (cur != cached) {  // a new vertex
                 exist = false;
                 cached = cur;
-                edges = graph->get_edges_global(tid, cur, d, pid, &sz);
+                edges = graph->get_triples(tid, cur, pid, d, sz);
 
                 for (uint64_t k = 0; k < sz; k++) {
                     if (edges[k].val == end) {
@@ -527,7 +495,7 @@ private:
         vector<sid_t> updated_result_table;
 
         uint64_t npids = 0;
-        edge_t *pids = graph->get_edges_global(tid, start, d, PREDICATE_ID, &npids);
+        edge_t *pids = graph->get_triples(tid, start, PREDICATE_ID, d, npids);
 
         // use a local buffer to store "known" predicates
         edge_t *tpids = (edge_t *)malloc(npids * sizeof(edge_t));
@@ -535,7 +503,7 @@ private:
 
         for (uint64_t p = 0; p < npids; p++) {
             uint64_t sz = 0;
-            edge_t *res = graph->get_edges_global(tid, start, d, tpids[p].val, &sz);
+            edge_t *res = graph->get_triples(tid, start, tpids[p].val, d, sz);
             for (uint64_t k = 0; k < sz; k++) {
                 updated_result_table.push_back(tpids[p].val);
                 updated_result_table.push_back(res[k].val);
@@ -567,7 +535,7 @@ private:
         for (int i = 0; i < res.get_row_num(); i++) {
             sid_t cur = res.get_row_col(i, res.var2col(start));
             uint64_t npids = 0;
-            edge_t *pids = graph->get_edges_global(tid, cur, d, PREDICATE_ID, &npids);
+            edge_t *pids = graph->get_triples(tid, cur, PREDICATE_ID, d, npids);
 
             // use a local buffer to store "known" predicates
             edge_t *tpids = (edge_t *)malloc(npids * sizeof(edge_t));
@@ -575,7 +543,7 @@ private:
 
             for (uint64_t p = 0; p < npids; p++) {
                 uint64_t sz = 0;
-                edge_t *edges = graph->get_edges_global(tid, cur, d, tpids[p].val, &sz);
+                edge_t *edges = graph->get_triples(tid, cur, tpids[p].val, d, sz);
                 for (uint64_t k = 0; k < sz; k++) {
                     res.append_row_to(i, updated_result_table);
                     updated_result_table.push_back(tpids[p].val);
@@ -610,7 +578,7 @@ private:
         for (int i = 0; i < result.get_row_num(); i++) {
             sid_t prev_id = result.get_row_col(i, result.var2col(start));
             uint64_t npids = 0;
-            edge_t *pids = graph->get_edges_global(tid, prev_id, d, PREDICATE_ID, &npids);
+            edge_t *pids = graph->get_triples(tid, prev_id, PREDICATE_ID, d, npids);
 
             // use a local buffer to store "known" predicates
             edge_t *tpids = (edge_t *)malloc(npids * sizeof(edge_t));
@@ -618,7 +586,7 @@ private:
 
             for (uint64_t p = 0; p < npids; p++) {
                 uint64_t sz = 0;
-                edge_t *res = graph->get_edges_global(tid, prev_id, d, tpids[p].val, &sz);
+                edge_t *res = graph->get_triples(tid, prev_id, tpids[p].val, d, sz);
                 for (uint64_t k = 0; k < sz; k++) {
                     if (res[k].val == end) {
                         result.append_row_to(i, updated_result_table);
@@ -653,7 +621,7 @@ private:
         ASSERT(result.get_col_num() == 0);
 
         uint64_t npids = 0;
-        edge_t *pids = graph->get_edges_global(tid, start, d, PREDICATE_ID, &npids);
+        edge_t *pids = graph->get_triples(tid, start, PREDICATE_ID, d, npids);
 
         // use a local buffer to store "known" predicates
         edge_t *tpids = (edge_t *)malloc(npids * sizeof(edge_t));
@@ -661,7 +629,7 @@ private:
 
         for (uint64_t p = 0; p < npids; p++) {
             uint64_t sz = 0;
-            edge_t *res = graph->get_edges_global(tid, start, d, tpids[p].val, &sz);
+            edge_t *res = graph->get_triples(tid, start, tpids[p].val, d, sz);
             for (uint64_t k = 0; k < sz; k++) {
                 if (res[k].val == end) {
                     updated_result_table.push_back(tpids[p].val);
@@ -705,8 +673,8 @@ private:
 
         // group intermediate results to servers
         for (int i = 0; i < req.result.get_row_num(); i++) {
-            int dst_sid = mymath::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
-                                           global_num_servers);
+            int dst_sid = wukong::math::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
+                                                 global_num_servers);
             req.result.append_row_to(i, sub_reqs[dst_sid].result.result_table);
             if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
                 sub_reqs[dst_sid].result.optional_matched_rows.push_back(req.result.optional_matched_rows[i]);
@@ -791,7 +759,7 @@ private:
             sub_result.result_table.push_back(*iter);
         sub_result.col_num = 1;
 
-        //init var_map
+        // init var_map
         sub_result.add_var2col(sub_pvars[vid], 0);
 
         sub_result.blind = false; // must take back results
@@ -809,7 +777,7 @@ private:
         vector<sid_t> updated_result_table;
 
         if (sub_result.get_col_num() > 2) { // qsort
-            mytuple::qsort_tuple(sub_result.get_col_num(), sub_result.result_table);
+            wukong::tuple::qsort_tuple(sub_result.get_col_num(), sub_result.result_table);
 
             t3 = timer::get_usec();
             vector<sid_t> tmp_vec;
@@ -818,8 +786,8 @@ private:
                 for (int c = 0; c < pvars_map.size(); c++)
                     tmp_vec[c] = req_result.get_row_col(i, pvars_map[c]);
 
-                if (mytuple::binary_search_tuple(sub_result.get_col_num(),
-                                                 sub_result.result_table, tmp_vec))
+                if (wukong::tuple::binary_search_tuple(sub_result.get_col_num(),
+                                                       sub_result.result_table, tmp_vec))
                     req_result.append_row_to(i, updated_result_table);
             }
             t4 = timer::get_usec();
@@ -1307,12 +1275,12 @@ private:
 out:
                 new_size = p + 1;
             }
-            // ORDER BY
-            if (r.orders.size() > 0) {
-                sort(table, table + new_size, Compare(r, str_server));
-            }
 
-            //write back data and delete **table
+            // ORDER BY
+            if (r.orders.size() > 0)
+                sort(table, table + new_size, Compare(r, str_server));
+
+            // write back data and delete **table
             for (int i = 0; i < new_size; i ++)
                 for (int j = 0; j < r.result.col_num; j ++)
                     r.result.result_table[r.result.col_num * i + j] = table[i][j];
@@ -1338,10 +1306,10 @@ out:
             r.result.result_table.erase(min(r.result.result_table.begin()
                                             + r.limit * r.result.col_num,
                                             r.result.result_table.end()),
-                                        r.result.result_table.end() );
+                                        r.result.result_table.end());
 
         // remove unrequested variables
-        //separate var to normal and attribute
+        // separate var to normal and attribute
         // need to think about attribute result table
         vector<ssid_t> normal_var;
         vector<ssid_t> attr_var;
@@ -1353,6 +1321,7 @@ out:
                 normal_var.push_back(vid);
             }
         }
+
         int new_row_num = r.result.get_row_num();
         int new_col_num = normal_var.size();
         int new_attr_col_num = attr_var.size();
@@ -1370,7 +1339,7 @@ out:
         r.result.col_num = new_col_num;
         r.result.row_num = r.result.get_row_num();
 
-        //update attribute result table
+        // update attribute result table
         vector<attr_t> new_attr_result_table(new_row_num * new_attr_col_num);
         for (int i = 0; i < new_row_num; i ++) {
             for (int j = 0; j < new_attr_col_num; j++) {
@@ -1398,7 +1367,6 @@ out:
             SPARQLQuery sub_query = r;
             for (int i = 0; i < global_num_servers; i++) {
                 for (int j = 0; j < r.mt_factor; j++) {
-                    //SPARQLQuery sub_query;
                     sub_query.id = -1;
                     sub_query.pid = r.id;
                     // start from the next engine thread
@@ -1409,7 +1377,7 @@ out:
                     sub_query.pattern_group.parallel = true;
 
                     Bundle bundle(sub_query);
-                    send_request(bundle, i, dst_tid);
+                    msgr->send_msg(bundle, i, dst_tid);
                 }
             }
 
@@ -1435,11 +1403,9 @@ out:
                 for (int i = 0; i < sub_reqs.size(); i++) {
                     if (i != sid) {
                         Bundle bundle(sub_reqs[i]);
-                        send_request(bundle, i, tid);
+                        msgr->send_msg(bundle, i, tid);
                     } else {
-                        pthread_spin_lock(&recv_lock);
-                        msg_fast_path.push_back(sub_reqs[i]);
-                        pthread_spin_unlock(&recv_lock);
+                        prior_stage.push(sub_reqs[i]);
                     }
                 }
                 return false;
@@ -1447,22 +1413,33 @@ out:
         } while (true);
     }
 
-    void execute_sparql_query(SPARQLQuery &r, Engine *engine) {
+public:
+    tbb::concurrent_queue<SPARQLQuery> prior_stage;
+
+    SPARQLEngine(int sid, int tid, String_Server *str_server,
+                 DGraph *graph, Coder *coder, Messenger *msgr)
+        : sid(sid), tid(tid), str_server(str_server),
+          graph(graph), coder(coder), msgr(msgr) {
+
+        pthread_spin_init(&rmap_lock, 0);
+    }
+
+    void execute_sparql_query(SPARQLQuery &r) {
         // encode the lineage of the query (server & thread)
-        if (r.id == -1) r.id = coder.get_and_inc_qid();
+        if (r.id == -1) r.id = coder->get_and_inc_qid();
 
         if (r.state == SPARQLQuery::SQState::SQ_REPLY) {
-            pthread_spin_lock(&engine->rmap_lock);
-            engine->rmap.put_reply(r);
+            pthread_spin_lock(&rmap_lock);
+            rmap.put_reply(r);
 
-            if (!engine->rmap.is_ready(r.pid)) {
-                pthread_spin_unlock(&engine->rmap_lock);
+            if (!rmap.is_ready(r.pid)) {
+                pthread_spin_unlock(&rmap_lock);
                 return; // not ready (waiting for the rest)
             }
 
             // all sub-queries have done, continue to execute
-            r = engine->rmap.get_merged_reply(r.pid);
-            pthread_spin_unlock(&engine->rmap_lock);
+            r = rmap.get_merged_reply(r.pid);
+            pthread_spin_unlock(&rmap_lock);
         }
 
         // 1. Pattern
@@ -1476,19 +1453,17 @@ out:
             r.state = SPARQLQuery::SQState::SQ_UNION;
             int size = r.pattern_group.unions.size();
             r.union_done = true;
-            engine->rmap.put_parent_request(r, size);
+            rmap.put_parent_request(r, size);
             for (int i = 0; i < size; i++) {
                 SPARQLQuery union_req;
                 union_req.inherit_union(r, i);
-                int dst_sid = mymath::hash_mod(union_req.pattern_group.get_start(),
-                                               global_num_servers);
+                int dst_sid = wukong::math::hash_mod(union_req.pattern_group.get_start(),
+                                                     global_num_servers);
                 if (dst_sid != sid) {
                     Bundle bundle(union_req);
-                    send_request(bundle, dst_sid, tid);
+                    msgr->send_msg(bundle, dst_sid, tid);
                 } else {
-                    pthread_spin_lock(&recv_lock);
-                    msg_fast_path.push_back(union_req);
-                    pthread_spin_unlock(&recv_lock);
+                    prior_stage.push(union_req);
                 }
             }
             return;
@@ -1507,24 +1482,20 @@ out:
                 for (int i = 0; i < sub_reqs.size(); i++) {
                     if (i != sid) {
                         Bundle bundle(sub_reqs[i]);
-                        send_request(bundle, i, tid);
+                        msgr->send_msg(bundle, i, tid);
                     } else {
-                        pthread_spin_lock(&recv_lock);
-                        msg_fast_path.push_back(sub_reqs[i]);
-                        pthread_spin_unlock(&recv_lock);
+                        prior_stage.push(sub_reqs[i]);
                     }
                 }
             } else {
-                engine->rmap.put_parent_request(r, 1);
-                int dst_sid = mymath::hash_mod(optional_req.pattern_group.get_start(),
-                                               global_num_servers);
+                rmap.put_parent_request(r, 1);
+                int dst_sid = wukong::math::hash_mod(optional_req.pattern_group.get_start(),
+                                                     global_num_servers);
                 if (dst_sid != sid) {
                     Bundle bundle(optional_req);
-                    send_request(bundle, dst_sid, tid);
+                    msgr->send_msg(bundle, dst_sid, tid);
                 } else {
-                    pthread_spin_lock(&recv_lock);
-                    msg_fast_path.push_back(optional_req);
-                    pthread_spin_unlock(&recv_lock);
+                    prior_stage.push(optional_req);
                 }
             }
             return;
@@ -1537,7 +1508,7 @@ out:
         }
 
         // 5. Final
-        if (QUERY_FROM_PROXY(coder.tid_of(r.pid))) {
+        if (QUERY_FROM_PROXY(coder->tid_of(r.pid))) {
             r.state = SPARQLQuery::SQState::SQ_FINAL;
             final_process(r);
         }
@@ -1546,159 +1517,8 @@ out:
         r.shrink_query();
         r.state = SPARQLQuery::SQState::SQ_REPLY;
         Bundle bundle(r);
-        send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
+        msgr->send_msg(bundle, coder->sid_of(r.pid), coder->tid_of(r.pid));
     }
 
-#ifdef DYNAMIC_GSTORE
-    void execute_load_data(RDFLoad & r) {
-        // unbind the core from the thread in order to use openmpi to run multithreads
-        cpu_set_t mask = unbind_to_core();
-
-        r.load_ret = graph->dynamic_load_data(r.load_dname, r.check_dup);
-
-        //rebind the thread with the core
-        bind_to_core(mask);
-
-        Bundle bundle(r);
-        send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
-    }
-#endif
-
-    void execute_gstore_check(GStoreCheck &r) {
-        r.check_ret = graph->gstore_check(r.index_check, r.normal_check);
-        Bundle bundle(r);
-        send_request(bundle, coder.sid_of(r.pid), coder.tid_of(r.pid));
-    }
-
-    void execute(Bundle &bundle, Engine *engine) {
-        if (bundle.type == SPARQL_QUERY) {
-            SPARQLQuery r = bundle.get_sparql_query();
-            execute_sparql_query(r, engine);
-        }
-#ifdef DYNAMIC_GSTORE
-        else if (bundle.type == DYNAMIC_LOAD) {
-            RDFLoad r = bundle.get_rdf_load();
-            execute_load_data(r);
-        }
-#endif
-        else if (bundle.type == GSTORE_CHECK) {
-            GStoreCheck r = bundle.get_gstore_check();
-            execute_gstore_check(r);
-        }
-    }
-
-public:
-    const static uint64_t TIMEOUT_THRESHOLD = 10000; // 10 msec
-
-    int sid;    // server id
-    int tid;    // thread id
-
-    String_Server *str_server;
-    DGraph *graph;
-    Adaptor *adaptor;
-
-    Coder coder;
-
-    bool at_work; // whether engine is at work or not
-    uint64_t last_time; // busy or not (work-oblige)
-
-    Engine(int sid, int tid, String_Server * str_server, DGraph * graph, Adaptor * adaptor)
-        : sid(sid), tid(tid), str_server(str_server), graph(graph), adaptor(adaptor),
-          coder(sid, tid), last_time(timer::get_usec()) {
-        pthread_spin_init(&recv_lock, 0);
-        pthread_spin_init(&rmap_lock, 0);
-    }
-
-    void run() {
-        // NOTE: the 'tid' of engine is not start from 0,
-        // which can not be used by engines[] directly
-        int own_id = tid - global_num_proxies;
-        // TODO: replace pair to ring
-        int nbr_id = (global_num_engines - 1) - own_id;
-
-        uint64_t snooze_interval = MIN_SNOOZE_TIME;
-
-        // reset snooze
-        auto reset_snooze = [&snooze_interval](bool & at_work, uint64_t &last_time) {
-            at_work = true; // keep calm (no snooze)
-            last_time = timer::get_usec();
-            snooze_interval = MIN_SNOOZE_TIME;
-        };
-
-        while (true) {
-            at_work = false;
-
-            // check and send pending messages first
-            sweep_msgs();
-
-            // fast path (priority)
-            SPARQLQuery request; // FIXME: only sparql query use fast-path now
-            pthread_spin_lock(&recv_lock);
-            if (msg_fast_path.size() > 0) {
-                request = msg_fast_path[0];
-                msg_fast_path.erase(msg_fast_path.begin());
-                at_work = true;
-            }
-            pthread_spin_unlock(&recv_lock);
-
-            if (at_work) {
-                reset_snooze(at_work, last_time);
-                execute_sparql_query(request, engines[own_id]);
-                continue; // exhaust all queries
-            }
-
-            // normal path: own runqueue
-            Bundle bundle;
-            while (adaptor->tryrecv(bundle)) {
-                if (bundle.type == SPARQL_QUERY) {
-                    // to be fair, engine will handle sub-queries priority
-                    // instead of processing a new query.
-                    SPARQLQuery req = bundle.get_sparql_query();
-                    if (req.priority != 0) {
-                        reset_snooze(at_work, last_time);
-                        execute_sparql_query(req, engines[own_id]);
-                        break;
-                    }
-
-                    runqueue.push_back(req);
-                } else {
-                    // FIXME: Jump a queue!
-                    reset_snooze(at_work, last_time);
-                    execute(bundle, engines[own_id]);
-                    break;
-                }
-            }
-
-            if (!at_work && runqueue.size() > 0) {
-                // get new task
-                SPARQLQuery req = runqueue[0];
-                runqueue.erase(runqueue.begin());
-
-                reset_snooze(at_work, last_time);
-                execute_sparql_query(req, engines[own_id]);
-            }
-
-            // normal path: neighboring runqueue
-            if (global_enable_workstealing)  { // work-oblige is enabled
-                // if neighboring engine is not self-sufficient, try to steal a task
-                // FIXME: only steal a task from normal runqueue (not incl. runqueue)
-                if (engines[nbr_id]->at_work // not snooze
-                        && ((timer::get_usec() - engines[nbr_id]->last_time) >= TIMEOUT_THRESHOLD)
-                        && engines[nbr_id]->adaptor->tryrecv(bundle)) { // FIXME: reuse bundle
-                    reset_snooze(at_work, last_time);
-                    execute(bundle, engines[nbr_id]);
-                }
-            }
-
-            if (at_work) continue; // keep calm (no snooze)
-
-            // busy polling a little while (BUSY_POLLING_THRESHOLD) before snooze
-            if ((timer::get_usec() - last_time) >= BUSY_POLLING_THRESHOLD) {
-                timer::cpu_relax(snooze_interval); // relax CPU (snooze)
-
-                // double snooze time till MAX_SNOOZE_TIME
-                snooze_interval *= snooze_interval < MAX_SNOOZE_TIME ? 2 : 1;
-            }
-        }
-    }
 };
+

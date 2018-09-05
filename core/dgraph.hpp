@@ -36,40 +36,16 @@
 #include <boost/algorithm/string/predicate.hpp>
 
 #include "omp.h"
-#include "config.hpp"
+
+#include "global.hpp"
 #include "type.hpp"
 #include "rdma.hpp"
 #include "gstore.hpp"
 #include "timer.hpp"
 #include "assertion.hpp"
+#include "math.hpp"
 
 using namespace std;
-
-struct triple_sort_by_pso {
-    inline bool operator()(const triple_t &t1, const triple_t &t2) {
-        if (t1.p < t2.p)
-            return true;
-        else if (t1.p == t2.p)
-            if (t1.s < t2.s)
-                return true;
-            else if (t1.s == t2.s && t1.o < t2.o)
-                return true;
-        return false;
-    }
-};
-
-struct triple_sort_by_pos {
-    inline bool operator()(const triple_t &t1, const triple_t &t2) {
-        if (t1.p < t2.p)
-            return true;
-        else if (t1.p == t2.p)
-            if (t1.o < t2.o)
-                return true;
-            else if (t1.o == t2.o && t1.s < t2.s)
-                return true;
-        return false;
-    }
-};
 
 /**
  * Map the RDF model (e.g., triples, predicate) to Graph model (e.g., vertex, edge, index)
@@ -88,6 +64,7 @@ class DGraph {
     vector<vector<triple_attr_t>> triple_sav;
 
 #ifdef DYNAMIC_GSTORE
+    // FIXME: move mapping code to string_server
     boost::unordered_map<sid_t, sid_t> id2id;
 
     void flush_convertmap() { id2id.clear(); }
@@ -98,11 +75,11 @@ class DGraph {
     }
 
     bool check_sid(const sid_t id) {
-        if (!str_server->exist(id)) {
-            logstream(LOG_WARNING) << "Unknown SID: " << id << LOG_endl;
-            return false;
-        }
-        return true;
+        if (str_server->exist(id))
+            return true;
+
+        logstream(LOG_WARNING) << "Unknown SID: " << id << LOG_endl;
+        return false;
     }
 
     void dynamic_load_mappings(string dname) {
@@ -241,8 +218,8 @@ class DGraph {
             auto lambda = [&](istream & file) {
                 sid_t s, p, o;
                 while (file >> s >> p >> o) {
-                    int s_sid = mymath::hash_mod(s, global_num_servers);
-                    int o_sid = mymath::hash_mod(o, global_num_servers);
+                    int s_sid = wukong::math::hash_mod(s, global_num_servers);
+                    int o_sid = wukong::math::hash_mod(o, global_num_servers);
                     if (s_sid == o_sid) {
                         send_triple(localtid, s_sid, s, p, o);
                     } else {
@@ -308,8 +285,8 @@ class DGraph {
             auto lambda = [&](istream & file) {
                 sid_t s, p, o;
                 while (file >> s >> p >> o) {
-                    int s_sid = mymath::hash_mod(s, global_num_servers);
-                    int o_sid = mymath::hash_mod(o, global_num_servers);
+                    int s_sid = wukong::math::hash_mod(s, global_num_servers);
+                    int o_sid = wukong::math::hash_mod(o, global_num_servers);
                     if ((s_sid == sid) || (o_sid == sid)) {
                         ASSERT((n * 3 + 3) * sizeof(sid_t) <= kvs_sz);
                         // buffer the triple and update the counter
@@ -375,7 +352,7 @@ class DGraph {
                         logstream(LOG_ERROR) << "Unsupported value type" << LOG_endl;
                         break;
                     }
-                    if (sid == mymath::hash_mod(s, global_num_servers))
+                    if (sid == wukong::math::hash_mod(s, global_num_servers))
                         triple_sav[localtid].push_back(triple_attr_t(s, a, v));
                 }
             };
@@ -429,12 +406,12 @@ class DGraph {
                     sid_t o = kvs[i * 3 + 2];
 
                     // out-edges
-                    if (mymath::hash_mod(s, global_num_servers) == sid)
+                    if (wukong::math::hash_mod(s, global_num_servers) == sid)
                         if ((s % global_num_engines) == tid)
                             triple_pso[tid].push_back(triple_t(s, p, o));
 
                     // in-edges
-                    if (mymath::hash_mod(o, global_num_servers) == sid)
+                    if (wukong::math::hash_mod(o, global_num_servers) == sid)
                         if ((o % global_num_engines) == tid)
                             triple_pos[tid].push_back(triple_t(s, p, o));
 
@@ -450,10 +427,14 @@ class DGraph {
                 }
             }
 
+#ifdef VERSATILE
+            sort(triple_pso[tid].begin(), triple_pso[tid].end(), triple_sort_by_spo());
+            sort(triple_pos[tid].begin(), triple_pos[tid].end(), triple_sort_by_ops());
+#else
             sort(triple_pso[tid].begin(), triple_pso[tid].end(), triple_sort_by_pso());
-            dedup_triples(triple_pos[tid]);
-
             sort(triple_pos[tid].begin(), triple_pos[tid].end(), triple_sort_by_pos());
+#endif
+            dedup_triples(triple_pos[tid]);
             dedup_triples(triple_pso[tid]);
         }
     }
@@ -547,9 +528,11 @@ public:
         }
 
 #ifdef USE_GPU
+
         sid_t num_preds = count_predicates(dname + "str_index");
         gstore.set_num_predicates(num_preds);
-#endif
+
+#endif  // end of USE_GPU
 
         // load_data: load partial input files by each server and exchanges triples
         //            according to graph partitioning
@@ -592,6 +575,7 @@ public:
         gstore.refresh();
 
 #ifdef USE_GPU
+
         start = timer::get_usec();
         // merge triple_pso and triple_pos into a map
         gstore.init_triples_map(triple_pso, triple_pos);
@@ -626,7 +610,8 @@ public:
         extern TCP_Adaptor *con_adaptor;
         gstore.sync_metadata(con_adaptor);
 
-#else   // without GPU
+#else   // !USE_GPU
+
         start = timer::get_usec();
         #pragma omp parallel for num_threads(global_num_engines)
         for (int t = 0; t < global_num_engines; t++) {
@@ -643,7 +628,8 @@ public:
         start = timer::get_usec();
         #pragma omp parallel for num_threads(global_num_engines)
         for (int t = 0; t < global_num_engines; t++) {
-            gstore.insert_vertex_attr(triple_sav[t], t);
+            gstore.insert_attr(triple_sav[t], t);
+
             // release memory
             vector<triple_attr_t>().swap(triple_sav[t]);
         }
@@ -656,9 +642,12 @@ public:
         end = timer::get_usec();
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
                             << "for inserting index data into gstore" << LOG_endl;
-#endif  // USE_GPU
+
+#endif  // end of USE_GPU
 
         logstream(LOG_INFO) << "#" << sid << ": loading DGraph is finished" << LOG_endl;
+        print_graph_stat();
+
         gstore.print_mem_usage();
     }
 
@@ -697,12 +686,12 @@ public:
                 /// FIXME: just check and print warning
                 check_sid(s); check_sid(p); check_sid(o);
 
-                if (sid == mymath::hash_mod(s, global_num_servers)) {
+                if (sid == wukong::math::hash_mod(s, global_num_servers)) {
                     gstore.insert_triple_out(triple_t(s, p, o), check_dup, tid);
                     cnt ++;
                 }
 
-                if (sid == mymath::hash_mod(o, global_num_servers)) {
+                if (sid == wukong::math::hash_mod(o, global_num_servers)) {
                     gstore.insert_triple_in(triple_t(s, p, o), check_dup, tid);
                     cnt ++;
                 }
@@ -754,7 +743,7 @@ public:
                     break;
                 }
 
-                if (sid == mymath::hash_mod(s, global_num_servers)) {
+                if (sid == wukong::math::hash_mod(s, global_num_servers)) {
                     /// Support attribute files
                     // gstore.insert_triple_attribute(triple_sav_t(s, a, v));
                     cnt ++;
@@ -774,20 +763,67 @@ public:
         return gstore.gstore_check(index_check, normal_check);
     }
 
-    // FIXME: rename the function by the term of RDF model (e.g., subject/object)
-    edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
-        return gstore.get_edges_global(tid, vid, d, pid, sz);
+    edge_t *get_triples(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t &sz) {
+        return gstore.get_edges(tid, vid, pid, d, sz);
     }
 
-    // FIXME: rename the function by the term of RDF model (e.g., subject/object)
-    edge_t *get_index_edges_local(int tid, sid_t vid, dir_t d, uint64_t *sz) {
-        return gstore.get_index_edges_local(tid, vid, d, sz);
+    edge_t *get_index(int tid, sid_t pid, dir_t d, uint64_t &sz) {
+        return gstore.get_edges(tid, 0, pid, d, sz);
     }
 
-    // FIXME: rename the function by the term of attribute graph model (e.g., value)
-    // return value is the  attr value
-    // if there are not result ,has_value  will be set to false
-    attr_t  get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, bool& has_value) {
-        return gstore.get_vertex_attr_global(tid, vid, d, pid, has_value);
+    // return attribute value (has_value == true)
+    attr_t get_attr(int tid, sid_t vid, sid_t pid, dir_t d, bool &has_value) {
+        uint64_t sz = 0;
+        int type = 0;
+        attr_t r;
+
+        // get the pointer of edge
+        edge_t *edge_ptr = gstore.get_edges(tid, vid, pid, d, sz, type);
+        if (edge_ptr == NULL) {
+            has_value = false; // not found
+            return r;
+        }
+
+        // get the value of attribute by type
+        switch (type) {
+        case INT_t:
+            r = *((int *)(edge_ptr));
+            break;
+        case FLOAT_t:
+            r = *((float *)(edge_ptr));
+            break;
+        case DOUBLE_t:
+            r = *((double *)(edge_ptr));
+            break;
+        default:
+            logstream(LOG_ERROR) << "Unsupported value type." << LOG_endl;
+            break;
+        }
+
+        has_value = true;
+        return r;
+    }
+
+    // RDF statistic
+    void generate_statistic(data_statistic &stat) {
+        gstore.generate_statistic(stat);
+    }
+
+    void print_graph_stat() {
+#ifdef VERSATILE
+        /// (*3)  key = [  0 |      TYPE_ID |     IN]  value = [vid0, vid1, ..]  i.e., all local objects/subjects
+        /// (*4)  key = [  0 |      TYPE_ID |    OUT]  value = [pid0, pid1, ..]  i.e., all local types
+        /// (*5)  key = [  0 | PREDICATE_ID |    OUT]  value = [pid0, pid1, ..]  i.e., all local predicates
+        uint64_t sz = 0;
+
+        gstore.get_edges(0, 0, TYPE_ID, IN, sz);
+        logstream(LOG_INFO) << "#vertices: " << sz << LOG_endl;
+
+        gstore.get_edges(0, 0, TYPE_ID, OUT, sz);
+        logstream(LOG_INFO) << "#types: " << sz << LOG_endl;
+
+        gstore.get_edges(0, 0, TYPE_ID, OUT, sz);
+        logstream(LOG_INFO) << "#predicates: " << sz << LOG_endl;
+#endif // end of VERSATILE
     }
 };

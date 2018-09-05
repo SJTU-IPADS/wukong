@@ -22,14 +22,21 @@
 
 #pragma once
 
-#define KiB2B(_x)   ((_x) * 1024ul)
-#define MiB2B(_x)   (KiB2B((_x)) * 1024ul)
-#define GiB2B(_x)   (MiB2B((_x)) * 1024ul)
+#include <stdint.h> // include this header for uint64_t
 
-#define B2KiB(_x)   ((_x) / 1024.0)
-#define B2MiB(_x)   (B2KiB((_x)) / 1024.0)
-#define B2GiB(_x)   (B2MiB((_x)) / 1024.0)
+namespace wukong {
 
-#define USEC(_x)    ((_x) * 1ul)
-#define MSEC(_x)    (USEC((_x)) * 1000ul)
-#define SEC(_x)     (MSEC((_x)) * 1000ul)
+class atomic {
+public:
+
+    static uint64_t compare_and_swap(uint64_t *ptr, uint64_t old_val, uint64_t new_val) {
+        return __sync_val_compare_and_swap(ptr, old_val, new_val);
+    }
+
+    static uint32_t compare_and_swap(uint32_t *ptr, uint32_t old_val, uint32_t new_val) {
+        return __sync_val_compare_and_swap(ptr, old_val, new_val);
+    }
+
+}; // end of class atomic
+
+} // end of namespace wukong

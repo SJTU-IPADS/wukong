@@ -19,23 +19,28 @@
  *      http://ipads.se.sjtu.edu.cn/projects/wukong
  *
  */
-#include "logger2.hpp"
+
 #include <map>
 #include <boost/mpi.hpp>
 #include <iostream>
 
+#include "global.hpp"
+#include "conflict.hpp"
 #include "config.hpp"
 #include "bind.hpp"
 #include "mem.hpp"
 #include "string_server.hpp"
 #include "dgraph.hpp"
-#include "engine.hpp"
 #include "proxy.hpp"
 #include "console.hpp"
 #include "rdma.hpp"
-#include "adaptor.hpp"
-#include "unit.hpp"
 #include "data_statistic.hpp"
+#include "logger2.hpp"
+
+#include "engine/engine.hpp"
+#include "comm/adaptor.hpp"
+
+#include "unit.hpp"
 #ifdef USE_GPU
 #include "gpu_mem.hpp"
 #include "gpu_agent.hpp"
@@ -76,6 +81,8 @@ usage(char *fn)
 int
 main(int argc, char *argv[])
 {
+    conflict_detector();
+
     boost::mpi::environment env(argc, argv);
     boost::mpi::communicator world;
     int sid = world.rank(); // server ID
@@ -116,16 +123,16 @@ main(int argc, char *argv[])
 
     // CPU (host) memory
     Mem *mem = new Mem(global_num_servers, global_num_threads);
-    logstream(LOG_INFO)  << "#" << sid << ": allocate " << B2GiB(mem->memory_size()) << "GB memory" << LOG_endl;
-    RDMA::MemoryRegion mr_cpu = { RDMA::MemType::CPU, mem->memory(), mem->memory_size() };
+    logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(mem->size()) << "GB memory" << LOG_endl;
+    RDMA::MemoryRegion mr_cpu = { RDMA::MemType::CPU, mem->address(), mem->size(), mem };
     mrs.push_back(mr_cpu);
 
 #ifdef USE_GPU
     // GPU (device) memory
     int devid = 0; // FIXME: it means one GPU device?
     GPUMem *gpu_mem = new GPUMem(devid, global_num_servers, global_num_gpus);
-    logstream(LOG_INFO)  << "#" << sid << ": allocate " << B2GiB(gpu_mem->memory_size()) << "GB GPU memory" << LOG_endl;
-    RDMA::MemoryRegion mr_gpu = { RDMA::MemType::GPU, gpu_mem->memory(), gpu_mem->memory_size() };
+    logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(gpu_mem->size()) << "GB GPU memory" << LOG_endl;
+    RDMA::MemoryRegion mr_gpu = { RDMA::MemType::GPU, gpu_mem->address(), gpu_mem->size(), gpu_mem };
     mrs.push_back(mr_gpu);
 #endif
 
@@ -133,11 +140,14 @@ main(int argc, char *argv[])
     RDMA_init(global_num_servers, global_num_threads, sid, mrs, host_fname);
 
     // init communication
-    RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mem, global_num_servers, global_num_threads);
-    TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_num_threads, global_data_port_base);
+    RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mrs,
+            global_num_servers, global_num_threads);
+    TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_data_port_base,
+            global_num_servers, global_num_threads);
 
     // init control communicaiton
-    con_adaptor = new TCP_Adaptor(sid, host_fname, global_num_proxies, global_ctrl_port_base);
+    con_adaptor = new TCP_Adaptor(sid, host_fname, global_ctrl_port_base,
+                                  global_num_servers, global_num_proxies);
 
     // load string server (read-only, shared by all proxies and all engines)
     String_Server str_server(global_input_folder);
@@ -150,7 +160,7 @@ main(int argc, char *argv[])
     if (global_enable_planner) {
         if (global_generate_statistics) {
             uint64_t t0 = timer::get_usec();
-            dgraph.gstore.generate_statistic(stat);
+            dgraph.generate_statistic(stat);
             uint64_t t1 = timer::get_usec();
             logstream(LOG_EMPH)  << "generate_statistic using time: " << t1 - t0 << "usec" << LOG_endl;
             stat.gather_stat(con_adaptor);

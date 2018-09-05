@@ -40,44 +40,49 @@
 
 using namespace std;
 
-#define SUCC (0)
+#define SUCCESS (0)
 
 #define RECVBUF_NUM (10)    // number of message received
 
 class TCP_Adaptor {
 private:
-    typedef tbb::concurrent_unordered_map<int, nng_socket *> socket_map;
-    typedef vector<nng_socket *> socket_vector;
+
+    int sid;            // unused in TCP communication
+    int num_servers;    // unused in TCP communication
+    int num_threads;    // unused in TCP communication
 
     int port_base;
+
+    typedef tbb::concurrent_unordered_map<int, nng_socket *> socket_map;
+    typedef vector<nng_socket *> socket_vector;
 
     // The communication over nng (https://nanomsg.github.io/nng), a socket library.
     socket_vector receivers;  // static allocation
     socket_map senders;       // dynamic allocation
 
-    pthread_spinlock_t *locks;
+    pthread_spinlock_t *send_locks;
+    pthread_spinlock_t *receive_locks;
 
     vector<string> ipset;
 
-    inline int port_code(int sid, int tid) { return sid * 200 + tid; }
+    inline int port_code(int dst_sid, int dst_tid) { return dst_sid * 200 + dst_tid; }
 
 public:
-
-    TCP_Adaptor(int sid, string fname, int nths, int port_base)
-        : port_base(port_base) {
+    TCP_Adaptor(int sid, string fname, int port_base, int num_servers, int num_threads)
+        : sid(sid), port_base(port_base), num_servers(num_servers), num_threads(num_threads) {
 
         ifstream hostfile(fname);
         string ip;
         while (hostfile >> ip)
             ipset.push_back(ip);
 
-        receivers.resize(nths);
-        for (int tid = 0; tid < nths; tid++) {
+        receivers.resize(num_threads);
+        for (int tid = 0; tid < num_threads; tid++) {
             char address[128] = "";
             snprintf(address, 128, "tcp://*:%d", port_base + port_code(sid, tid));
             receivers[tid] = new nng_socket();
             int rv = 0;
-            if ((rv = nng_pull0_open(receivers[tid])) != SUCC) {
+            if ((rv = nng_pull0_open(receivers[tid])) != SUCCESS) {
                 logstream(LOG_FATAL) << "Failed to init a recv-side socket on " << address << LOG_endl;
                 assert(false);
             }
@@ -87,15 +92,19 @@ public:
             // so set it to RECVBUF_NUM
             nng_setopt_int(*(receivers[tid]), NNG_OPT_RECVBUF, RECVBUF_NUM);
 
-            if ((rv = nng_listen(*(receivers[tid]), address, NULL, 0)) != SUCC) {
+            if ((rv = nng_listen(*(receivers[tid]), address, NULL, 0)) != SUCCESS) {
                 logstream(LOG_FATAL) << "Failed to bind  a recv-side socket on " << address << LOG_endl;
                 assert(false);
             }
         }
 
-        locks = (pthread_spinlock_t *)malloc(sizeof(pthread_spinlock_t) * nths);
-        for (int i = 0; i < nths; i++)
-            pthread_spin_init(&locks[i], 0);
+        send_locks = (pthread_spinlock_t *)malloc(sizeof(pthread_spinlock_t) * num_threads);
+        for (int i = 0; i < num_threads; i++)
+            pthread_spin_init(&send_locks[i], 0);
+
+        receive_locks = (pthread_spinlock_t *)malloc(sizeof(pthread_spinlock_t) * num_threads);
+        for (int i = 0; i < num_threads; i++)
+            pthread_spin_init(&receive_locks[i], 0);
     }
 
     ~TCP_Adaptor() {
@@ -110,41 +119,42 @@ public:
         }
     }
 
-    string ip_of(int sid) { return ipset[sid]; }
+    string ip_of(int dst_sid) { return ipset[dst_sid]; }
 
-    bool send(int sid, int tid, string str) {
-        int pid = port_code(sid, tid);
+    bool send(int dst_sid, int dst_tid, const string &str) {
+        int pid = port_code(dst_sid, dst_tid);
 
         // alloc msg, nng_send is responsible to free it
-        nng_msg* msg = NULL ;
+        nng_msg *msg = NULL ;
         nng_msg_alloc(&msg, str.length());
         memcpy((nng_msg_body(msg)), str.c_str(), str.length());
 
-        int rv = 0;
-        // FIXME: need lock or not? what to protect?
-        pthread_spin_lock(&locks[tid]);
+        // avoid two contentions
+        // 1) add the 'equal' sockets to the set (overwrite)
+        // 2) use the same socket by multiple proxy threads simultaneously.
+        pthread_spin_lock(&send_locks[dst_tid]);
         if (senders.find(pid) == senders.end()) {
             // new socket on-demand
             char address[128] = "";
-            snprintf(address, 128, "tcp://%s:%d", ipset[sid].c_str(), port_base + pid);
+            snprintf(address, 128, "tcp://%s:%d", ipset[dst_sid].c_str(), port_base + pid);
 
             senders[pid] = new nng_socket();
-            if ((rv = nng_push0_open(senders[pid])) != SUCC) {
+            if (nng_push0_open(senders[pid]) != SUCCESS) {
                 logstream(LOG_FATAL) << "Failed to new a send-side socket on " << address << LOG_endl;
                 assert(false);
             }
-            if ((rv = nng_dial(*(senders[pid]), address,  NULL, 0)) != SUCC) {
+
+            if (nng_dial(*(senders[pid]), address,  NULL, 0) != SUCCESS) {
                 logstream(LOG_FATAL) << "Failed to dial at send-side socket on " << address << LOG_endl;
                 assert(false);
             }
         }
-        int n = 0;
-        pthread_spin_unlock(&locks[tid]);
 
         // if succ, msg will be free by nng_sendmsg
-        n = nng_sendmsg(*(senders[pid]), msg, 0);
+        int n = nng_sendmsg(*(senders[pid]), msg, 0);
+        pthread_spin_unlock(&send_locks[dst_tid]);
 
-        if (n != SUCC) {
+        if (n != SUCCESS) {
             nng_msg_free(msg);
             logstream(LOG_FATAL) << "Failed to send the msg at send-side " << LOG_endl;
             return false;
@@ -154,27 +164,33 @@ public:
     }
 
     string recv(int tid) {
-        nng_msg* msg = NULL;
-        int n = nng_recvmsg(*(receivers[tid]), &msg, 0);
+        nng_msg *msg = NULL;
 
-        if (n != SUCC ) {
+        // multiple engine threads may recv the same msg simultaneously (no case)
+        pthread_spin_lock(&receive_locks[tid]);
+        if (nng_recvmsg(*(receivers[tid]), &msg, 0) != SUCCESS) {
             logstream(LOG_FATAL) << "Failed to recv msg " << LOG_endl;
             assert(false);
         }
-        string s((char *)(nng_msg_body(msg)), nng_msg_len(msg));
+        pthread_spin_unlock(&receive_locks[tid]);
+
+        string s((char *)nng_msg_body(msg), nng_msg_len(msg));
         nng_msg_free(msg);
         return s;
     }
 
     bool tryrecv(int tid, string &s) {
-        nng_msg* msg = NULL;
+        nng_ms *msg = NULL;
 
+        // multiple engine threads may recv the same msg simultaneously (no case)
+        pthread_spin_lock(&receive_locks[tid]);
         int n = nng_recvmsg(*(receivers[tid]), &msg, NNG_FLAG_NONBLOCK);
+        pthread_spin_unlock(&receive_locks[tid]);
 
-        if (n != SUCC ) {
+        if (n != SUCCESS)
             return false;
-        }
-        s = string((char *)(nng_msg_body(msg)), nng_msg_len(msg));
+
+        s = string((char *)nng_msg_body(msg), nng_msg_len(msg));
         nng_msg_free(msg);
         return true;
     }

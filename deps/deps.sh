@@ -7,6 +7,7 @@ tbb="tbb44_20151115oss"
 zeromq="zeromq-4.0.5"
 nanomsg="nanomsg-1.1.4"
 hwloc="hwloc-1.11.7"
+jemalloc="jemalloc-5.1.0"
 
 write_log(){
     divider='-----------------------------'
@@ -191,6 +192,38 @@ install_hwloc(){
     fi
 }
 
+install_jemalloc(){
+    trap "return" ERR
+    echo "Installing ${jemalloc}..."
+    write_log "${jemalloc}"
+    cd "$WUKONG_ROOT/deps"
+    if [ ! -d "${jemalloc}-install" ]; then
+        mkdir "${jemalloc}-install"
+        if [ ! -d "${jemalloc}" ]; then
+            if [ ! -f "${jemalloc}.tar.gz" ]; then
+                wget "https://github.com/jemalloc/jemalloc/releases/download/5.1.0/${jemalloc}.tar.bz2"
+            fi
+            tar jxf "${jemalloc}.tar.bz2"
+        fi
+        cd "$WUKONG_ROOT/deps/${jemalloc}"
+        trap - ERR
+        ./configure --prefix="$WUKONG_ROOT/deps/${jemalloc}-install/" 2>>install_deps.log
+        make 2>>install_deps.log
+        make install 2>>install_deps.log
+    else
+        trap - ERR
+        echo "found ${jemalloc}."
+    fi
+    if [ $( echo "${PATH}" | grep "${jemalloc}-install" | wc -l ) -eq 0 ]; then
+        echo '# jemalloc configuration' >> ~/.bashrc
+        echo "export PATH=\$WUKONG_ROOT/deps/${jemalloc}-install/bin:\$PATH" >> ~/.bashrc
+        echo "export CPATH=\$WUKONG_ROOT/deps/${jemalloc}-install/include:\$CPATH" >> ~/.bashrc
+        echo "export LIBRARY_PATH=\$WUKONG_ROOT/deps/${jemalloc}-install/lib:\$LIBRARY_PATH" >> ~/.bashrc
+        echo "export LD_LIBRARY_PATH=\$WUKONG_ROOT/deps/${jemalloc}-install/lib:\$LD_LIBRARY_PATH" >> ~/.bashrc
+        source ~/.bashrc
+    fi
+}
+
 del_mpi(){
     echo 'removing mpi...'
     rm -rf "$WUKONG_ROOT/deps/${openmpi}-install" "$WUKONG_ROOT/deps/${openmpi}"
@@ -252,6 +285,22 @@ del_hwloc(){
     export LD_LIBRARY_PATH=$NEW_LD_LIBRARY_PATH
 }
 
+del_jemalloc(){
+    echo 'removing jemalloc...'
+    rm -rf "$WUKONG_ROOT/deps/${jemalloc}-install" "$WUKONG_ROOT/deps/${jemalloc}"
+    sed -i '/\(jemalloc configuration\)\|\(PATH.*jemalloc\)\|\(CPATH.*jemalloc\)\|\(LIBRARY_PATH.*jemalloc\)\|\(LD_LIBRARY_PATH.*jemalloc\)/d' ~/.bashrc
+
+    pattern=":$WUKONG_ROOT/deps/jemalloc[^:]*"
+    NEW_PATH=`echo $PATH | sed 's%'"$pattern"'%%g'`
+    NEW_CPATH=`echo $CPATH | sed 's%'"$pattern"'%%g'`
+    NEW_LIBRARY_PATH=`echo $LIBRARY_PATH | sed 's%'"$pattern"'%%g'`
+    NEW_LD_LIBRARY_PATH=`echo $LD_LIBRARY_PATH | sed 's%'"$pattern"'%%g'`
+    export PATH=$NEW_PATH
+    export CPATH=$NEW_CPATH
+    export LIBRARY_PATH=$NEW_LIBRARY_PATH
+    export LD_LIBRARY_PATH=$NEW_LD_LIBRARY_PATH
+}
+
 clean_deps(){
     echo 'compressed packages will not be removed.'
     if [[ "$#" == "1" || "$2" == "all" ]]; then
@@ -259,8 +308,10 @@ clean_deps(){
         del_mpi
         del_boost
         del_tbb
-        del_nanomsg
+        del_zeromq
+        #del_nanomsg
         del_hwloc
+        del_jemalloc
     else
         for ((i=2;i<=$#;i++)); do
             item=${!i}
@@ -271,6 +322,7 @@ clean_deps(){
                 "zeromq") del_zeromq ;;
                 "nanomsg") del_nanomsg ;;
                 "hwloc") del_hwloc ;;
+                "jemalloc") del_jemalloc ;;
                 *) echo "cannot clean $item" ;;
             esac
         done
@@ -290,6 +342,7 @@ install_deps(){
                 "zeromq") install_zeromq;;
                 "nanomsg") install_nanomsg ;;
                 "hwloc") install_hwloc ;;
+                "jemalloc") install_jemalloc ;;
                 *) echo "cannot install $item" ;;
             esac
         done
@@ -301,8 +354,9 @@ install_all_deps(){
     install_boost
     install_tbb
     install_zeromq
-    install_nanomsg
+    #install_nanomsg
     install_hwloc
+    install_jemalloc
 }
 
 # handle options

@@ -27,27 +27,31 @@
 #include <iostream>     // std::cout
 #include <fstream>      // std::ifstream
 #include <vector>
+
 using namespace std;
 
+#include "global.hpp"
 #include "timer.hpp"
 #include "assertion.hpp"
 
 #ifdef HAS_RDMA
 
 #include "rdmaio.hpp"
+
 using namespace rdmaio;
 
 class RDMA {
-    
+
 public:
     enum MemType { CPU, GPU };
 
     struct MemoryRegion {
         MemType type;
-        char *mem;
+        char *addr;
         uint64_t sz;
+        void *mem;
     };
-    
+
     class RDMA_Device {
         static const uint64_t RDMA_CTRL_PORT = 19344;
     public:
@@ -73,18 +77,20 @@ public:
             for (auto mr : mrs) {
                 switch (mr.type) {
                 case RDMA::MemType::CPU:
-                    ctrl->set_connect_mr(mr.mem, mr.sz);
-                    ctrl->register_connect_mr();//single
+                    ctrl->set_connect_mr(mr.addr, mr.sz);
+                    ctrl->register_connect_mr();
                     break;
                 case RDMA::MemType::GPU:
 #ifdef USE_GPU
-                    ctrl->set_connect_mr_gpu(mr.mem, mr.sz);
+                    ctrl->set_connect_mr_gpu(mr.addr, mr.sz);
                     ctrl->register_connect_mr_gpu();
                     break;
 #else
-                    logstream(LOG_ERROR) << "GPU mode is not enabled." << LOG_endl;
+                    logstream(LOG_ERROR) << "Build wukong w/o GPU support." << LOG_endl;
                     ASSERT(false);
 #endif
+                default:
+                    logstream(LOG_ERROR) << "Unkown memory region." << LOG_endl;
                 }
             }
 
@@ -207,7 +213,7 @@ void RDMA_init(int nnodes, int nthds, int nid, vector<RDMA::MemoryRegion> &mrs, 
 #else
 
 class RDMA {
-    
+
 public:
     enum MemType { CPU, GPU };
 
