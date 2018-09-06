@@ -347,7 +347,7 @@ public:
     // Warm up for @w firstly, then measure throughput.
     // Latency is evaluated for @d seconds.
     // Proxy keeps @p queries in flight.
-    int run_query_emu(istream &is, int d, int w, int p, Monitor &monitor) {
+    int run_query_emu(istream &is, istream &fmt_stream, int d, int w, int p, Monitor &monitor) {
         uint64_t duration = SEC(d);
         uint64_t warmup = SEC(w);
         int parallel_factor = p;
@@ -363,6 +363,15 @@ public:
             logstream(LOG_ERROR) << "Invalid #lights (" << nlights << " < 0)"
                                  << " or #heavies (" << nheavies << " < 0)!" << LOG_endl;
             return -2; // parsing failed
+        }
+
+        // read format file
+        vector<string> fmt_file_names;
+        if (fmt_stream.good()){
+        	fmt_file_names.resize(ntypes);
+        	for(int i = 0;i < ntypes; i ++){
+        		fmt_stream >> fmt_file_names[i];
+        	}
         }
 
         vector<SPARQLQuery_Template> tpls(nlights);
@@ -421,6 +430,16 @@ public:
 
                 if (global_enable_planner)
                     planner.generate_plan(request, statistic);
+                else if (fmt_file_names.size() > 0){
+                    // adapt user defined plan according to format directory file
+                	ifstream fs(fmt_file_names[idx]);
+                	if (!fs.good()){
+                		logstream(LOG_ERROR) << "Fail to read file: " << fmt_file_names[idx] << LOG_endl;
+                		return -2;
+                	}
+                    set_query_format(request.pattern_group, fs);
+                }
+
                 setpid(request);
                 request.result.blind = true; // always not take back results for emulator
 
