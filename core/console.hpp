@@ -144,8 +144,8 @@ void init_options_desc()
     // e.g., wukong> sparql-emu <args>
     sparql_emu_desc.add_options()
     (",f", value<string>()->value_name("<fname>"), "run queries generated from temples configured by <fname>")
-    (",F", value<string>()->value_name("<fname>"), "adopt user-defined query plans from <fname> to generate queries")
-	(",d", value<int>()->default_value(10)->value_name("<sec>"), "eval <sec> seconds (default: 10)")
+    (",F", value<string>()->value_name("<fname>"), "adopt user-defined query plans from <fname> for running queries")
+    (",d", value<int>()->default_value(10)->value_name("<sec>"), "eval <sec> seconds (default: 10)")
     (",w", value<int>()->default_value(5)->value_name("<sec>"), "warmup <sec> seconds (default: 5)")
     (",p", value<int>()->default_value(20)->value_name("<num>"), "send <num> queries in parallel (default: 20)")
     ("help,h", "help message about sparql-emu")
@@ -506,7 +506,7 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
 
     string fmt_name;
     if (sparql_emu_vm.count("-F"))
-    	fmt_name = sparql_emu_vm["-F"].as<string>();
+        fmt_name = sparql_emu_vm["-F"].as<string>();
 
     ifstream fmt_stream(fmt_name);
     if (fmt_name == "") {

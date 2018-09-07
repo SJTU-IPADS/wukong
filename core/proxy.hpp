@@ -142,34 +142,6 @@ private:
         }
     }
 
-    void set_BGP_format(SPARQLQuery::PatternGroup &group, vector<int> orders, vector<string> directions){
-		vector<SPARQLQuery::Pattern> patterns;
-		for (int i = 0; i < orders.size(); i++) {
-			// number of orders starts from 1
-			SPARQLQuery::Pattern pattern = group.patterns[orders[i] - 1];
-
-			if (directions[i] == "<") {
-				pattern.direction = IN;
-				ssid_t temp = pattern.subject;
-				pattern.subject = pattern.object;
-				pattern.object = temp;
-			} else if (directions[i] == ">") {
-				pattern.direction = OUT;
-			} else if (directions[i] == "<<") {
-				pattern.direction = IN;
-				pattern.object = pattern.subject;
-				pattern.subject = pattern.predicate;
-				pattern.predicate = PREDICATE_ID;
-			} else if (directions[i] == ">>") {
-				pattern.direction = OUT;
-				pattern.subject = pattern.predicate;
-				pattern.predicate = PREDICATE_ID;
-			}
-			patterns.push_back(pattern);
-		}
-		group.patterns = patterns;
-    }
-
 public:
     int sid;    // server id
     int tid;    // thread id
@@ -224,63 +196,6 @@ public:
         return success;
     }
 
-    // Set orders and directions of patterns in query according to the format file
-    // return false if no format is set
-    bool set_query_format(SPARQLQuery::PatternGroup &group, istream &fmt_stream){
-        if (fmt_stream.good()) {
-            if (global_enable_planner) {
-                logstream(LOG_WARNING) << "Query format will not work since planner is on" << LOG_endl;
-                return false;
-            }
-
-            //reading format file
-            vector<int> orders;
-			vector<string> directions;
-			string line, direction = ">";
-			int order;
-			int num_union = 0;
-			int num_optional = 0;
-			while (std::getline(fmt_stream, line)) {
-				boost::trim(line);
-				if (boost::starts_with(line, "#") || line.empty())
-					continue; // skip comments and blank lines
-
-				else if (line == "{")
-					continue;
-
-				else if (line == "}")
-					break;
-
-				else if (boost::starts_with(boost::to_lower_copy(line), "union")){
-					set_query_format(group.unions[num_union], fmt_stream);
-					num_union ++;
-					continue;
-				}
-
-				else if (boost::starts_with(boost::to_lower_copy(line), "optional")){
-					set_query_format(group.optional[num_optional], fmt_stream);
-					num_optional ++;
-					continue;
-				}
-
-				istringstream iss(line);
-				iss >> order >> direction;
-				directions.push_back(direction);
-				orders.push_back(order);
-			}
-
-			// correctness check
-			if (orders.size() < group.patterns.size()) {
-				logstream(LOG_ERROR) << "wrong format file content!" << LOG_endl;
-				return false;
-			}
-
-			set_BGP_format(group, orders, directions);
-			return true;
-        }
-        return false;
-    }
-
     // Run a single query for @cnt times. Command is "-f"
     // @is: input
     // @reply: result
@@ -301,10 +216,10 @@ public:
         end = timer::get_usec();
         logstream(LOG_INFO) << "Parsing time: " << (end - start) << " usec" << LOG_endl;
 
-        if(set_query_format(request.pattern_group, fmt_stream))
-        	logstream(LOG_INFO) << "Query format is successfully set" << LOG_endl;
+        if (planner.set_query_plan(request.pattern_group, fmt_stream))
+            logstream(LOG_INFO) << "Query plan is successfully set" << LOG_endl;
         else
-        	logstream(LOG_INFO) << "No query format is set" << LOG_endl;
+            logstream(LOG_INFO) << "No query plan is set" << LOG_endl;
 
         // Generate plans for the query if our SPARQL planner is enabled.
         // NOTE: it only works for standard SPARQL query.
@@ -365,13 +280,12 @@ public:
             return -2; // parsing failed
         }
 
-        // read format file
+        // read query-plan config file
         vector<string> fmt_file_names;
-        if (fmt_stream.good()){
-        	fmt_file_names.resize(ntypes);
-        	for(int i = 0;i < ntypes; i ++){
-        		fmt_stream >> fmt_file_names[i];
-        	}
+        if (fmt_stream.good()) {
+            fmt_file_names.resize(ntypes);
+            for (int i = 0; i < ntypes; i ++)
+                fmt_stream >> fmt_file_names[i];
         }
 
         vector<SPARQLQuery_Template> tpls(nlights);
@@ -428,16 +342,16 @@ public:
                                       tpls[idx].instantiate(coder.get_random()) : // light query
                                       heavy_reqs[idx - nlights]; // heavy query
 
-                if (global_enable_planner)
+                if (global_enable_planner) {
                     planner.generate_plan(request, statistic);
-                else if (fmt_file_names.size() > 0){
+                } else if (fmt_file_names.size() > 0) {
                     // adapt user defined plan according to format directory file
-                	ifstream fs(fmt_file_names[idx]);
-                	if (!fs.good()){
-                		logstream(LOG_ERROR) << "Fail to read file: " << fmt_file_names[idx] << LOG_endl;
-                		return -2;
-                	}
-                    set_query_format(request.pattern_group, fs);
+                    ifstream fs(fmt_file_names[idx]);
+                    if (!fs.good()) {
+                        logstream(LOG_ERROR) << "Fail to read file: " << fmt_file_names[idx] << LOG_endl;
+                        return -2;
+                    }
+                    planner.set_query_plan(request.pattern_group, fs);
                 }
 
                 setpid(request);

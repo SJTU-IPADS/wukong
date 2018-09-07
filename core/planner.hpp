@@ -1382,7 +1382,6 @@ public:
         }
 
         return true;
-
     }
 
     bool generate_for_group(SPARQLQuery::PatternGroup &group) {
@@ -1397,5 +1396,86 @@ public:
     bool generate_plan(SPARQLQuery &r, data_statistic *statistic) {
         this->statistic = statistic;
         return generate_for_group(r.pattern_group);
+    }
+
+    void set_direction(SPARQLQuery::PatternGroup &group, vector<int> orders, vector<string> dirs) {
+        vector<SPARQLQuery::Pattern> patterns;
+        for (int i = 0; i < orders.size(); i++) {
+            // number of orders starts from 1
+            SPARQLQuery::Pattern pattern = group.patterns[orders[i] - 1];
+
+            if (dirs[i] == "<") {
+                pattern.direction = IN;
+                ssid_t t = pattern.subject;
+                pattern.subject = pattern.object;
+                pattern.object = t;
+            } else if (dirs[i] == ">") {
+                pattern.direction = OUT;
+            } else if (dirs[i] == "<<") {
+                pattern.direction = IN;
+                pattern.object = pattern.subject;
+                pattern.subject = pattern.predicate;
+                pattern.predicate = PREDICATE_ID;
+            } else if (dirs[i] == ">>") {
+                pattern.direction = OUT;
+                pattern.subject = pattern.predicate;
+                pattern.predicate = PREDICATE_ID;
+            }
+            patterns.push_back(pattern);
+        }
+        group.patterns = patterns;
+    }
+
+    // Set orders and directions of patterns in SPARQL query according to the query plan file
+    // return false if no plan is set
+    bool set_query_plan(SPARQLQuery::PatternGroup &group, istream &fmt_stream) {
+        if (fmt_stream.good()) {
+            if (global_enable_planner) {
+                logstream(LOG_WARNING) << "Query plan will not work since planner is on" << LOG_endl;
+                return false;
+            }
+
+            // read query plan file
+            vector<int> orders;
+            int order;
+            vector<string> dirs;
+            string dir = ">";
+            int nunions = 0, noptionals = 0;
+
+            string line;
+            while (std::getline(fmt_stream, line)) {
+                boost::trim(line);
+                if (boost::starts_with(line, "#") || line.empty()) {
+                    continue; // skip comments and blank lines
+                } else if (line == "{") {
+                    continue;
+                } else if (line == "}") {
+                    break;
+                } else if (boost::starts_with(boost::to_lower_copy(line), "union")) {
+                    set_query_plan(group.unions[nunions], fmt_stream);
+                    nunions ++;
+                    continue;
+                } else if (boost::starts_with(boost::to_lower_copy(line), "optional")) {
+                    set_query_plan(group.optional[noptionals], fmt_stream);
+                    noptionals ++;
+                    continue;
+                }
+
+                istringstream iss(line);
+                iss >> order >> dir;
+                dirs.push_back(dir);
+                orders.push_back(order);
+            }
+
+            // correctness check
+            if (orders.size() < group.patterns.size()) {
+                logstream(LOG_ERROR) << "wrong format file content!" << LOG_endl;
+                return false;
+            }
+
+            set_direction(group, orders, dirs);
+            return true;
+        }
+        return false;
     }
 };
