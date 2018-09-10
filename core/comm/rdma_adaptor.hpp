@@ -409,6 +409,41 @@ public:
         }
     }
 
+
+    std::string recv_from(int tid, int dst_sid) {
+        ASSERT(init);
+
+        while (true) {
+            // each thread has a logical-queue (#servers physical-queues)
+            uint64_t data_sz = check(tid, dst_sid);
+            if (data_sz != 0) {
+                std::string data;
+                if (fetch(tid, dst_sid, data, data_sz))
+                    return data;
+            }
+        }
+    }
+
+
+#ifdef USE_GPU
+    // Try to recv data of given thread
+    bool tryrecv(int tid, std::string &data, int& sender) {
+        ASSERT(init);
+
+        // check all physical-queues of tid once
+        for (int dst_sid = 0; dst_sid < num_servers; dst_sid++) {
+            uint64_t data_sz = check(tid, dst_sid);
+            if (data_sz != 0) {
+                sender = dst_sid;
+                if (fetch(tid, dst_sid, data, data_sz))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+#endif
+
     // Try to recv data of given thread
     bool tryrecv(int tid, std::string &data) {
         ASSERT(init);

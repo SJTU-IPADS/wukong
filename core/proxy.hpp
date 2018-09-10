@@ -42,8 +42,6 @@
 
 using namespace std;
 
-#define WUKONG_GPU_AGENT_TID (global_num_proxies + global_num_engines)
-
 
 // a vector of pointers of all local proxies
 class Proxy;
@@ -175,9 +173,9 @@ public:
         // submit the request to a certain server
         int start_sid = wukong::math::hash_mod(r.pattern_group.get_start(), global_num_servers);
         Bundle bundle(r);
-        if (r.dev_type == CPU) {
+        if (r.dev_type == SPARQLQuery::DeviceType::CPU) {
             send(bundle, start_sid);
-        } else if (r.dev_type == GPU) {
+        } else if (r.dev_type == SPARQLQuery::DeviceType::GPU) {
             send(bundle, start_sid, WUKONG_GPU_AGENT_TID);
         }
     }
@@ -248,7 +246,7 @@ public:
                                         << LOG_endl;
 
                 request.mt_factor = min(mt_factor, global_mt_threshold);
-                request.dev_type = GPU;
+                request.dev_type = SPARQLQuery::DeviceType::GPU;
             }
 
             // only take back results of the last request if not silent

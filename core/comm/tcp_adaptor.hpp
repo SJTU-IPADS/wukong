@@ -146,6 +146,22 @@ public:
         return string((char *)msg.data(), msg.size());
     }
 
+#ifdef USE_GPU
+
+    string recv_from(int tid, int dst_sid) {
+        ASSERT_MSG(false, "not implemented");
+
+        return nullptr;
+    }
+
+    bool tryrecv(int tid, string &str, int &sender) {
+        ASSERT_MSG(false, "not implemented");
+
+        return false;
+    }
+
+#endif
+
     bool tryrecv(int tid, string &str) {
         zmq::message_t msg;
         bool success = false;
