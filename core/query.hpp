@@ -78,6 +78,13 @@ public:
      */
     enum PGType { BASIC, UNION, OPTIONAL };
 
+    /**
+     * Indicating what device will be used to handle the query.
+     */
+    enum DeviceType {CPU, GPU};
+
+    enum SubJobType { FULL_JOB, SPLIT_JOB };
+
     class Pattern {
     private:
         friend class boost::serialization::access;
@@ -488,6 +495,15 @@ public:
 
     PGType pg_type = BASIC;
     SQState state = SQ_PATTERN;
+    DeviceType dev_type = CPU;
+
+    struct {
+        char *origin_result_buf_dp;
+        char *result_buf_dp;
+        uint64_t result_buf_size;
+        SubJobType job_type;
+    } gpu_state;
+
     int mt_factor = 1;  // use a single engine (thread) by default
     int priority = 0;
 
@@ -556,6 +572,16 @@ public:
     bool has_optional() { return pattern_group.optional.size() > 0; }
 
     bool has_filter() { return pattern_group.filters.size() > 0; }
+
+    void clear_result_buf() {
+        gpu_state.result_buf_dp = nullptr;
+        gpu_state.result_buf_size = 0;
+    }
+
+    void set_result_buf(char *rbuf, uint64_t size) {
+        gpu_state.result_buf_dp = rbuf;
+        gpu_state.result_buf_size = size;
+    }
 
     bool done(SQState state) {
         switch (state) {

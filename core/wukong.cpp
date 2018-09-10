@@ -43,8 +43,20 @@
 #include "unit.hpp"
 #ifdef USE_GPU
 #include "gpu_mem.hpp"
-#include "gpu_agent.hpp"
-#endif
+#include "engine/gpu_agent.hpp"
+#include "engine/gpu_engine.hpp"
+
+void *agent_thread(void *arg)
+{
+    GPUAgent *agent = (GPUAgent *)arg;
+    if (enable_binding && core_bindings.count(agent->tid) != 0)
+        bind_to_core(core_bindings[agent->tid]);
+    else
+        bind_to_core(default_bindings[agent->tid % num_cores]);
+
+    agent->run();
+}
+#endif  // end of USE_GPU
 
 void *engine_thread(void *arg)
 {
@@ -171,12 +183,8 @@ main(int argc, char *argv[])
         }
     }
 
-#ifndef USE_GPU
-    ASSERT(global_num_threads == global_num_proxies + global_num_engines);
-#endif // USE_GPU
-
     // create proxies and engines
-    for (int tid = 0; tid < global_num_threads; tid++) {
+    for (int tid = 0; tid < global_num_proxies + global_num_engines; tid++) {
         Adaptor *adaptor = new Adaptor(tid, tcp_adaptor, rdma_adaptor);
 
         // TID: proxy = [0, #proxies), engine = [#proxies, #proxies + #engines)
@@ -189,24 +197,23 @@ main(int argc, char *argv[])
         }
     }
 
-#ifdef USE_GPU
-    ASSERT(global_num_threads == global_num_proxies + global_num_engines + global_num_gpus);
-    for (int tid = global_num_proxies + global_num_engines; tid < global_num_threads; tid++) {
-        Adaptor *adaptor = new Adaptor(tid, tcp_adaptor, rdma_adaptor);
-        GPU_Agent *agent = new GPU_Agent(sid, tid, &str_server, &dgraph, adaptor);
-        gpu_agents.push_back(agent);
-    }
-#endif
-
     // launch all proxies and engines
     pthread_t *threads  = new pthread_t[global_num_threads];
-    for (int tid = 0; tid < global_num_threads; tid++) {
+    for (int tid = 0; tid < global_num_proxies + global_num_engines; tid++) {
         // TID: proxy = [0, #proxies), engine = [#proxies, #proxies + #engines)
         if (tid < global_num_proxies)
             pthread_create(&(threads[tid]), NULL, proxy_thread, (void *)proxies[tid]);
         else
             pthread_create(&(threads[tid]), NULL, engine_thread, (void *)engines[tid - global_num_proxies]);
     }
+
+#ifdef USE_GPU
+    // create GPU agent
+    GPUEngine gpu_engine(sid, WUKONG_GPU_AGENT_TID, &dgraph);
+    GPUAgent agent(sid, WUKONG_GPU_AGENT_TID, new Adaptor(WUKONG_GPU_AGENT_TID,
+                tcp_adaptor, rdma_adaptor), &gpu_engine);
+    pthread_create(&(threads[WUKONG_GPU_AGENT_TID]), NULL, agent_thread, (void *)&agent);
+#endif
 
     // wait to all threads termination
     for (size_t t = 0; t < global_num_threads; t++) {

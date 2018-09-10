@@ -661,8 +661,6 @@ done:
     }
 #endif // end of DYNAMIC_GSTORE
 
-#endif // DYNAMIC_GSTORE
-
     // Allocate extended buckets
     // @n number of extended buckets to allocate
     // @return start offset of allocated extended buckets
