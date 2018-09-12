@@ -1270,7 +1270,6 @@ public:
     Planner(DGraph *graph): graph(graph) { }
 
     bool generate_for_patterns(vector<SPARQLQuery::Pattern> &patterns) {
-
         //input : patterns
         //transform to : _chains_size_div_4, triples, temp_cmd_chains
         vector<ssid_t> temp_cmd_chains;
@@ -1336,7 +1335,17 @@ public:
                 }
             }
         }
-
+        // convert the attr_pattern 
+        for (int j = 0, size = attr_pattern.size(); j < size; j++) {
+            if(attr_pattern[j] < 0) {
+                if(convert.find(attr_pattern[j]) == convert.end()) {
+                    int value = -1 - convert.size();
+                    attr_pattern[j] = value;
+                } else {
+                    attr_pattern[j] = convert[attr_pattern[j]];
+                }
+            }
+        }
         // for (int i = 0, ilimit = min_path.size(); i < ilimit; i = i + 4)
         //   cout << "min_path " << " : " << min_path[i] << " "
         //     << min_path[i+1] << " "
