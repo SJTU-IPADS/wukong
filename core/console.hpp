@@ -131,6 +131,7 @@ void init_options_desc()
     // e.g., wukong> sparql <args>
     sparql_desc.add_options()
     (",f", value<string>()->value_name("<fname>"), "run a single query from <fname>")
+    (",p", value<string>()->value_name("<fname>"), "adopt user-defined query plan from <fname> for running a single query")
     (",m", value<int>()->default_value(1)->value_name("<factor>"), "set multi-threading <factor> for heavy query")
     (",n", value<int>()->default_value(1)->value_name("<num>"), "run <num> times")
     (",v", value<int>()->default_value(0)->value_name("<lines>"), "print at most <lines> of results")
@@ -143,6 +144,7 @@ void init_options_desc()
     // e.g., wukong> sparql-emu <args>
     sparql_emu_desc.add_options()
     (",f", value<string>()->value_name("<fname>"), "run queries generated from temples configured by <fname>")
+    (",F", value<string>()->value_name("<fname>"), "adopt user-defined query plans from <fname> for running queries")
     (",d", value<int>()->default_value(10)->value_name("<sec>"), "eval <sec> seconds (default: 10)")
     (",w", value<int>()->default_value(5)->value_name("<sec>"), "warmup <sec> seconds (default: 5)")
     (",p", value<int>()->default_value(20)->value_name("<num>"), "send <num> queries in parallel (default: 20)")
@@ -373,6 +375,21 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
             return;
         }
 
+        string fmt_name = "";
+        if (sparql_vm.count("-p"))
+            fmt_name = sparql_vm["-p"].as<string>();
+
+        ifstream fmt_stream(fmt_name);
+        if (fmt_name == "") {
+            // no format file path is given
+            fmt_stream.setstate(std::ios::failbit);
+        } else if (!fmt_stream.good()) {
+            // format file path is given but read error occurs
+            logstream(LOG_ERROR) << "Format file not found: " << fmt_name << LOG_endl;
+            fail_to_parse(proxy, argc, argv); // invalid cmd
+            return;
+        }
+
         // NOTE: the option with default_value is always available
         // default value: mfactor(1), cnt(1), nlines(0)
         int mfactor = sparql_vm["-m"].as<int>(); // the number of multithreading
@@ -396,7 +413,7 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         SPARQLQuery reply;
         SPARQLQuery::Result &result = reply.result;
         Monitor monitor;
-        int ret = proxy->run_single_query(ifs, mfactor, cnt, reply, monitor);
+        int ret = proxy->run_single_query(ifs, fmt_stream, mfactor, cnt, reply, monitor);
         if (ret != 0) {
             logstream(LOG_ERROR) << "Failed to run the query (ERRNO: " << ret << ")!" << LOG_endl;
             fail_to_parse(proxy, argc, argv); // invalid cmd
@@ -487,6 +504,21 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
         fname = sparql_emu_vm["-f"].as<string>();
     }
 
+    string fmt_name;
+    if (sparql_emu_vm.count("-F"))
+        fmt_name = sparql_emu_vm["-F"].as<string>();
+
+    ifstream fmt_stream(fmt_name);
+    if (fmt_name == "") {
+        // no format file path is given
+        fmt_stream.setstate(std::ios::failbit);
+    } else if (!fmt_stream.good()) {
+        // format file path is given but read error occurs
+        logstream(LOG_ERROR) << "Format directory file not found: " << fmt_name << LOG_endl;
+        fail_to_parse(proxy, argc, argv); // invalid cmd
+        return;
+    }
+
     // config file for the SPARQL emulator
     ifstream ifs(fname);
     if (!ifs.good()) {
@@ -520,7 +552,7 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
 
     /// do sparql-emu
     Monitor monitor;
-    proxy->run_query_emu(ifs, duration, warmup, pfactor, monitor);
+    proxy->run_query_emu(ifs, fmt_stream, duration, warmup, pfactor, monitor);
 
     // FIXME: maybe hang in here if the input file misses in some machines
     //        or inconsistent global variables (e.g., global_enable_planner)

@@ -29,12 +29,13 @@
 #include "global.hpp"
 #include "coder.hpp"
 #include "query.hpp"
-#include "adaptor.hpp"
 #include "parser.hpp"
 #include "planner.hpp"
 #include "data_statistic.hpp"
 #include "string_server.hpp"
 #include "monitor.hpp"
+
+#include "comm/adaptor.hpp"
 
 #include "math.hpp"
 #include "timer.hpp"
@@ -130,8 +131,8 @@ private:
     inline void sweep_msgs() {
         if (!pending_msgs.size()) return;
 
-        logstream(LOG_INFO) << "#" << tid << " " << pending_msgs.size()
-                            << " pending msgs on proxy." << LOG_endl;
+        logstream(LOG_DEBUG) << "#" << tid << " " << pending_msgs.size()
+                             << " pending msgs on proxy." << LOG_endl;
         for (vector<Message>::iterator it = pending_msgs.begin();
                 it != pending_msgs.end();) {
             if (adaptor->send(it->sid, it->tid, it->bundle))
@@ -178,7 +179,7 @@ public:
     // Recv reply from engines.
     SPARQLQuery recv_reply(void) {
         Bundle bundle = adaptor->recv();
-        ASSERT(bundle.get_type() == SPARQL_QUERY);
+        ASSERT(bundle.type == SPARQL_QUERY);
         SPARQLQuery r = bundle.get_sparql_query();
         return r;
     }
@@ -188,7 +189,7 @@ public:
         Bundle bundle;
         bool success = adaptor->tryrecv(bundle);
         if (success) {
-            ASSERT(bundle.get_type() == SPARQL_QUERY);
+            ASSERT(bundle.type == SPARQL_QUERY);
             r = bundle.get_sparql_query();
         }
 
@@ -198,7 +199,7 @@ public:
     // Run a single query for @cnt times. Command is "-f"
     // @is: input
     // @reply: result
-    int run_single_query(istream &is, int mt_factor, int cnt,
+    int run_single_query(istream &is, istream &fmt_stream, int mt_factor, int cnt,
                          SPARQLQuery &reply, Monitor &monitor) {
         uint64_t start, end;
         SPARQLQuery request;
@@ -214,6 +215,11 @@ public:
         }
         end = timer::get_usec();
         logstream(LOG_INFO) << "Parsing time: " << (end - start) << " usec" << LOG_endl;
+
+        if (planner.set_query_plan(request.pattern_group, fmt_stream))
+            logstream(LOG_INFO) << "Query plan is successfully set" << LOG_endl;
+        else
+            logstream(LOG_INFO) << "No query plan is set" << LOG_endl;
 
         // Generate plans for the query if our SPARQL planner is enabled.
         // NOTE: it only works for standard SPARQL query.
@@ -256,7 +262,7 @@ public:
     // Warm up for @w firstly, then measure throughput.
     // Latency is evaluated for @d seconds.
     // Proxy keeps @p queries in flight.
-    int run_query_emu(istream &is, int d, int w, int p, Monitor &monitor) {
+    int run_query_emu(istream &is, istream &fmt_stream, int d, int w, int p, Monitor &monitor) {
         uint64_t duration = SEC(d);
         uint64_t warmup = SEC(w);
         int parallel_factor = p;
@@ -272,6 +278,14 @@ public:
             logstream(LOG_ERROR) << "Invalid #lights (" << nlights << " < 0)"
                                  << " or #heavies (" << nheavies << " < 0)!" << LOG_endl;
             return -2; // parsing failed
+        }
+
+        // read query-plan config file
+        vector<string> fmt_file_names;
+        if (fmt_stream.good()) {
+            fmt_file_names.resize(ntypes);
+            for (int i = 0; i < ntypes; i ++)
+                fmt_stream >> fmt_file_names[i];
         }
 
         vector<SPARQLQuery_Template> tpls(nlights);
@@ -328,8 +342,18 @@ public:
                                       tpls[idx].instantiate(coder.get_random()) : // light query
                                       heavy_reqs[idx - nlights]; // heavy query
 
-                if (global_enable_planner)
+                if (global_enable_planner) {
                     planner.generate_plan(request, statistic);
+                } else if (fmt_file_names.size() > 0) {
+                    // adapt user defined plan according to format directory file
+                    ifstream fs(fmt_file_names[idx]);
+                    if (!fs.good()) {
+                        logstream(LOG_ERROR) << "Fail to read file: " << fmt_file_names[idx] << LOG_endl;
+                        return -2;
+                    }
+                    planner.set_query_plan(request.pattern_group, fs);
+                }
+
                 setpid(request);
                 request.result.blind = true; // always not take back results for emulator
 
@@ -393,7 +417,7 @@ public:
         int ret = 0;
         for (int i = 0; i < global_num_servers; i++) {
             Bundle bundle = adaptor->recv();
-            ASSERT(bundle.get_type() == DYNAMIC_LOAD);
+            ASSERT(bundle.type == DYNAMIC_LOAD);
 
             reply = bundle.get_rdf_load();
             if (reply.load_ret < 0)
@@ -419,7 +443,7 @@ public:
         int ret = 0;
         for (int i = 0; i < global_num_servers; i++) {
             Bundle bundle = adaptor->recv();
-            ASSERT(bundle.get_type() == GSTORE_CHECK);
+            ASSERT(bundle.type == GSTORE_CHECK);
 
             reply = bundle.get_gstore_check();
             if (reply.check_ret < 0)

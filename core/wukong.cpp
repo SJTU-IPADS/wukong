@@ -25,6 +25,7 @@
 #include <iostream>
 
 #include "global.hpp"
+#include "conflict.hpp"
 #include "config.hpp"
 #include "bind.hpp"
 #include "mem.hpp"
@@ -33,13 +34,14 @@
 #endif
 #include "string_server.hpp"
 #include "dgraph.hpp"
-#include "engine.hpp"
 #include "proxy.hpp"
 #include "console.hpp"
 #include "rdma.hpp"
-#include "adaptor.hpp"
 #include "data_statistic.hpp"
 #include "logger2.hpp"
+
+#include "engine/engine.hpp"
+#include "comm/adaptor.hpp"
 
 #include "unit.hpp"
 
@@ -78,6 +80,8 @@ usage(char *fn)
 int
 main(int argc, char *argv[])
 {
+    conflict_detector();
+
     boost::mpi::environment env(argc, argv);
     boost::mpi::communicator world;
     int sid = world.rank(); // server ID
@@ -152,18 +156,16 @@ main(int argc, char *argv[])
 
     // prepare statistics for SPARQL optimizer
     data_statistic stat(sid);
-    if (global_enable_planner) {
-        if (global_generate_statistics) {
-            uint64_t t0 = timer::get_usec();
-            dgraph.gstore.generate_statistic(stat);
-            uint64_t t1 = timer::get_usec();
-            logstream(LOG_EMPH)  << "generate_statistic using time: " << t1 - t0 << "usec" << LOG_endl;
-            stat.gather_stat(con_adaptor);
-        } else {
-            // use the dataset name by default
-            string fname = global_input_folder + "/statfile";
-            stat.load_stat_from_file(fname, con_adaptor);
-        }
+    if (global_generate_statistics) {
+        uint64_t t0 = timer::get_usec();
+        dgraph.generate_statistic(stat);
+        uint64_t t1 = timer::get_usec();
+        logstream(LOG_EMPH)  << "generate_statistic using time: " << t1 - t0 << "usec" << LOG_endl;
+        stat.gather_stat(con_adaptor);
+    } else {
+        // use the dataset name by default
+        string fname = global_input_folder + "/statfile";
+        stat.load_stat_from_file(fname, con_adaptor);
     }
 
     // create proxies and engines

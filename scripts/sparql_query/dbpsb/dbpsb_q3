@@ -1,0 +1,7 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT * where {
+	?var2  <http://dbpedia.org/ontology/foundationPlace>  <http://dbpedia.org/resource/Hasbro_Interactive>  .
+	?var4  <http://dbpedia.org/ontology/developer>  ?var2  .
+	?var4  rdf:type  <http://dbpedia.org/ontology/Software>  .
+}

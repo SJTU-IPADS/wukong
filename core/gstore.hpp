@@ -222,7 +222,7 @@ private:
                         ver = items[i].version;
                         // re-check
                         if (items[i].v.key == key) {
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
                             if (timer::get_usec() < items[i].expire_time) {
                                 ret = items[i].v;
                                 items[i].cnt++;
@@ -283,7 +283,7 @@ private:
                 if (old_ver != 0) {
                     uint32_t ret_ver = wukong::atomic::compare_and_swap(&items[pos].version, old_ver, 0);
                     if (ret_ver == old_ver) {
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
                         // Do not reset visit cnt for the same vertex
                         items[pos].cnt = (items[pos].v.key == v.key) ? items[pos].cnt : 0;
                         items[pos].v = v;
@@ -302,13 +302,12 @@ private:
             }
         } // end of insert
 
-#if DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
         /* Set lease.*/
-        void set_lease(uint64_t lease) {
-            this->lease = lease;
-        }
+        void set_lease(uint64_t lease) { this->lease = lease; }
 
-        /* Invalidate cache item of the given key.
+        /**
+         * Invalidate cache item of the given key.
          * Only work when the corresponding vertex exists.
          */
         void invalidate(ikey_t key) {
@@ -463,15 +462,15 @@ done:
     // Convert given edge uints to byte units.
     inline uint64_t e2b(uint64_t sz) { return sz * sizeof(edge_t); }
     // Return exact block size of given size in edge unit.
-    inline uint64_t blksz(uint64_t ptr) { return b2e(edge_allocator->block_size(e2b(ptr))); }
+    inline uint64_t blksz(uint64_t sz) { return b2e(edge_allocator->sz_to_blksz(e2b(sz))); }
 
     /* Insert size flag size flag in edges.
      * @flag: size flag to insert
      * @sz: actual size of edges
      * @off: offset of edges
     */
-    inline void insert_sz(uint64_t flag, uint64_t off) {
-        uint64_t blk_sz = blksz(off);   // reserve one space for flag
+    inline void insert_sz(uint64_t flag, uint64_t sz, uint64_t off) {
+        uint64_t blk_sz = blksz(sz + 1);   // reserve one space for flag
         edges[off + blk_sz - 1].val = flag;
     }
 
@@ -482,7 +481,7 @@ done:
         if (!global_enable_caching)
             return true;
 
-        uint64_t blk_sz = blksz(v.ptr.off);  // reserve one space for flag
+        uint64_t blk_sz = blksz(v.ptr.size + 1);  // reserve one space for flag
         return (edge_ptr[blk_sz - 1].val == v.ptr.size);
     }
 
@@ -589,14 +588,14 @@ done:
             uint64_t need_size = v->ptr.size + 1;
 
             // a new block is needed
-            if (blksz(v->ptr.off) - 1 < need_size) {
+            if (blksz(v->ptr.size + 1) - 1 < need_size) {
                 iptr_t old_ptr = v->ptr;
 
-                uint64_t off = alloc_edges(blksz(v->ptr.off) * 2, tid);
+                uint64_t off = alloc_edges(need_size, tid);
                 memcpy(&edges[off], &edges[old_ptr.off], e2b(old_ptr.size));
                 edges[off + old_ptr.size].val = value;
                 // invalidate the old block
-                insert_sz(INVALID_EDGES, old_ptr.off);
+                insert_sz(INVALID_EDGES, old_ptr.size, old_ptr.off);
                 v->ptr = iptr_t(need_size, off);
 
                 if (global_enable_caching)
@@ -605,7 +604,7 @@ done:
                     edge_allocator->free(e2b(old_ptr.off));
             } else {
                 // update size flag
-                insert_sz(need_size, v->ptr.off);
+                insert_sz(need_size, need_size, v->ptr.off);
                 edges[v->ptr.off + v->ptr.size].val = value;
                 v->ptr.size = need_size;
             }
@@ -622,7 +621,7 @@ done:
             sweep_free(); // collect free space before allocate
         uint64_t sz = e2b(n + 1); // reserve one space for sz
         uint64_t off = b2e(edge_allocator->malloc(sz, tid));
-        insert_sz(n, off);
+        insert_sz(n, n, off);
         return off;
     }
 #else // !DYNAMIC_GSTORE
@@ -879,7 +878,7 @@ done:
 
 #ifdef DYNAMIC_GSTORE
         // the size of entire blk
-        uint64_t r_sz = blksz(v.ptr.off) * sizeof(edge_t);
+        uint64_t r_sz = blksz(v.ptr.size + 1) * sizeof(edge_t);
 #else
         // the size of edges
         uint64_t r_sz = v.ptr.size * sizeof(edge_t);
@@ -959,134 +958,51 @@ done:
 
     // Get remote edges according to given vid, dir, pid.
     // @sz: size of return edges
-    edge_t *get_edges_remote(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
-        int dst_sid = wukong::math::hash_mod(vid, global_num_servers);
+    edge_t *get_edges_remote(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t &sz, int &type = *(int *)NULL) {
         ikey_t key = ikey_t(vid, pid, d);
-        edge_t *edge_ptr;
         vertex_t v = get_vertex_remote(tid, key);
+
         if (v.key.is_empty()) {
-            *sz = 0;
+            sz = 0;
             return NULL; // not found
         }
 
-        edge_ptr = rdma_get_edges(tid, dst_sid, v);
+        // remote edges
+        int dst_sid = wukong::math::hash_mod(vid, global_num_servers);
+        edge_t *edge_ptr = rdma_get_edges(tid, dst_sid, v);
 #ifdef DYNAMIC_GSTORE
-        // check the validation of edges
-        // if not, invalidate the cache and try again
+        // check the validation of remote edges
         while (!edge_is_valid(v, edge_ptr)) {
+            // invalidate local cache and try again
             rdma_cache.invalidate(key);
             v = get_vertex_remote(tid, key);
             edge_ptr = rdma_get_edges(tid, dst_sid, v);
         }
-#endif
+#endif // end of DYNAMIC_GSTORE
 
-        *sz = v.ptr.size;
+        sz = v.ptr.size;
+        if (&type != NULL)
+            type = v.ptr.type;
         return edge_ptr;
     }
 
-    // Get local edges according to given vid, dir, pid.
+    // Get local edges according to given vid, pid, d.
     // @sz: size of return edges
-    edge_t *get_edges_local(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
+    edge_t *get_edges_local(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t &sz, int &type = *(int *)NULL) {
         ikey_t key = ikey_t(vid, pid, d);
         vertex_t v = get_vertex_local(tid, key);
 
         if (v.key.is_empty()) {
-            *sz = 0;
-            return NULL;
+            sz = 0;
+            return NULL; // not found
         }
 
-        *sz = v.ptr.size;
+        sz = v.ptr.size;
+        if (&type != NULL)
+            type = v.ptr.type;
         return &(edges[v.ptr.off]);
     }
 
-    // get the attribute value from remote
-    attr_t get_vertex_attr_remote(int tid, sid_t vid, dir_t d, sid_t pid, bool &has_value) {
-        //struct the key
-        int dst_sid = wukong::math::hash_mod(vid, global_num_servers);
-        ikey_t key = ikey_t(vid, pid, d);
-        edge_t *edge_ptr;
-        vertex_t v;
-        attr_t r;
-
-        //get the vertex from DYNAMIC_GSTORE or normal
-#ifdef DYNAMIC_GSTORE
-        v = get_vertex_remote(tid, key);
-        if (v.key.is_empty()) {
-            has_value = false; // not found
-            return r;
-        }
-
-        edge_ptr = rdma_get_edges(tid, dst_sid, v);
-
-        while (!edge_is_valid(v, edge_ptr)) { // edge is not valid
-            rdma_cache.invalidate(key);
-            v = get_vertex_remote(tid, key);
-            edge_ptr = rdma_get_edges(tid, dst_sid, v);
-        }
-#else // NOT DYNAMIC_GSTORE
-        v = get_vertex_remote(tid, key);
-        if (v.key.is_empty()) {
-            has_value = false; // not found
-            return r;
-        }
-
-        edge_ptr = rdma_get_edges(tid, dst_sid, v);
-#endif // end of DYNAMIC_GSTORE
-
-        // get the edge
-        uint64_t r_off  = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
-        // get the attribute value from its type
-        switch (v.ptr.type) {
-        case INT_t:
-            r = *((int *)(&(edges[r_off])));
-            break;
-        case FLOAT_t:
-            r = *((float *)(&(edges[r_off])));
-            break;
-        case DOUBLE_t:
-            r = *((double *)(&(edges[r_off])));
-            break;
-        default:
-            logstream(LOG_ERROR) << "Not support value type" << LOG_endl;
-            break;
-        }
-
-        has_value = true;
-        return r;
-    }
-
-    // get the attribute value from local
-    attr_t get_vertex_attr_local(int tid, sid_t vid, dir_t d, sid_t pid, bool &has_value) {
-        // struct the key
-        ikey_t key = ikey_t(vid, pid, d);
-        // get the vertex
-        vertex_t v = get_vertex_local(tid, key);
-
-        attr_t r;
-        if (v.key.is_empty()) {
-            has_value = false; // not found
-            return r;
-        }
-        // get the edge
-        uint64_t off = v.ptr.off;
-        // get the attribute with its type
-        switch (v.ptr.type) {
-        case INT_t:
-            r = *((int *)(&(edges[off])));
-            break;
-        case FLOAT_t:
-            r = *((float *)(&(edges[off])));
-            break;
-        case DOUBLE_t:
-            r = *((double *)(&(edges[off])));
-            break;
-        default:
-            logstream(LOG_ERROR) << "Not support value type" << LOG_endl;
-            break;
-        }
-        has_value = true;
-        return r;
-    }
 
 public:
     static const int ASSOCIATIVITY = 8;  // the associativity of slots in each bucket
@@ -1685,7 +1601,7 @@ public:
     }
 
     // insert attributes
-    void insert_attribute(vector<triple_attr_t> &attrs, int64_t tid) {
+    void insert_attr(vector<triple_attr_t> &attrs, int64_t tid) {
         for (auto const &attr : attrs) {
             // allocate a vertex and edges
             ikey_t key = ikey_t(attr.s, attr.a, OUT);
@@ -1917,27 +1833,18 @@ public:
 #endif // DYNAMIC_GSTORE
 
 
-    // FIXME: refine parameters with vertex_t
-    edge_t *get_edges_global(int tid, sid_t vid, dir_t d, sid_t pid, uint64_t *sz) {
+    // FIXME: refine return value with type of subject/object
+    edge_t *get_edges(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t &sz,
+                      int &type = *(int *)NULL) {
+        // index vertex should be 0 and always local
+        if (vid == 0)
+            return get_edges_local(tid, 0, pid, d, sz);
+
+        // normal vertex
         if (wukong::math::hash_mod(vid, global_num_servers) == sid)
-            return get_edges_local(tid, vid, d, pid, sz);
+            return get_edges_local(tid, vid, pid, d, sz, type);
         else
-            return get_edges_remote(tid, vid, d, pid, sz);
-    }
-
-    edge_t *get_index_edges_local(int tid, sid_t pid, dir_t d, uint64_t *sz) {
-        // the vid of index vertex should be 0
-        return get_edges_local(tid, 0, d, pid, sz);
-    }
-
-    // get vertex attributes global
-    // return the attr result
-    // if not found has_value will be set to false
-    attr_t get_vertex_attr_global(int tid, sid_t vid, dir_t d, sid_t pid, bool &has_value) {
-        if (sid == wukong::math::hash_mod(vid, global_num_servers))
-            return get_vertex_attr_local(tid, vid, d, pid, has_value);
-        else
-            return get_vertex_attr_remote(tid, vid, d, pid, has_value);
+            return get_edges_remote(tid, vid, pid, d, sz, type);
     }
 
 
@@ -1951,11 +1858,11 @@ public:
         ivertex_num ++;
         uint64_t vsz = 0;
         // get the vids which refered by index
-        edge_t *vres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &vsz);
+        edge_t *vres = get_edges_local(0, key.vid, key.pid, (dir_t)key.dir, vsz);
         for (int i = 0; i < vsz; i++) {
             uint64_t tsz = 0;
             // get the vids's type
-            edge_t *tres = get_edges_local(0, vres[i].val, OUT, TYPE_ID, &tsz);
+            edge_t *tres = get_edges_local(0, vres[i].val, TYPE_ID, OUT, tsz);
             bool found = false;
             for (int j = 0; j < tsz; j++) {
                 if (tres[j].val == key.pid && !found)
@@ -1992,14 +1899,12 @@ public:
         ivertex_num ++;
         uint64_t vsz = 0;
         // get the vids which refered by predicate index
-        edge_t *vres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &vsz);
-        for (int i = 0; i < vsz; i++) {
+        edge_t *vres = get_edges_local(0, key.vid, key.pid, (dir_t)key.dir, vsz);
+        for (int i = 0; i < vsz; i++)
             // check if the key generated by vid and pid exists
-            if (get_vertex_local(0, ikey_t(vres[i].val, key.pid, IN)).key.is_empty()) {
+            if (get_vertex_local(0, ikey_t(vres[i].val, key.pid, IN)).key.is_empty())
                 logstream(LOG_ERROR) << "The key " << " [ " << vres[i].val << " | "
                                      << key.pid << " | " << " IN ] does not exist." << LOG_endl;
-            }
-        }
 
         // VERSATILE is enabled
         ver_idx_check_outdir(key, check);
@@ -2007,31 +1912,31 @@ public:
 
     // check on normal types (7)
     void nt_check(ikey_t key, bool check) {
-        if (!check)
-            return;
+        if (!check) return;
+
         nvertex_num ++;
         uint64_t tsz = 0;
         // get the vid's all type
-        edge_t *tres = get_edges_local(0, key.vid, (dir_t)key.dir, key.pid, &tsz);
+        edge_t *tres = get_edges_local(0, key.vid, key.pid, (dir_t)key.dir, tsz);
         for (int i = 0; i < tsz; i++) {
             uint64_t vsz = 0;
             // get the vids which refered by the type
-            edge_t *vres = get_edges_local(0, 0, IN, tres[i].val, &vsz);
+            edge_t *vres = get_edges_local(0, 0, tres[i].val, IN, vsz);
             bool found = false;
             for (int j = 0; j < vsz; j++) {
-                if (vres[j].val == key.vid && !found)
+                if (vres[j].val == key.vid && !found) {
                     found = true;
-                else if (vres[j].val == key.vid && found) { // duplicate vid
+                } else if (vres[j].val == key.vid && found) { // duplicate vid
                     logstream(LOG_ERROR) << "In the value part of type index "
                                          << "[ 0 | " << tres[i].val << " | IN ], "
                                          << "there is duplicate value " << key.vid << LOG_endl;
                 }
             }
-            if (!found) { // vid miss
+
+            if (!found) // vid miss
                 logstream(LOG_ERROR) << "In the value part of type index "
                                      << "[ 0 | " << tres[i].val << " | IN ], "
                                      << "there is no value " << key.vid << LOG_endl;
-            }
         }
 
         // VERSATILE is enabled
@@ -2040,17 +1945,17 @@ public:
 
     // check vid's ngbrs w/ predicate
     void np_check(ikey_t key, dir_t dir, bool check) {
-        if (!check)
-            return;
+        if (!check) return;
+
         nvertex_num ++;
         uint64_t vsz = 0;
         // get the vids which refered by the predicated
-        edge_t *vres = get_edges_local(0, 0, dir, key.pid, &vsz);
+        edge_t *vres = get_edges_local(0, 0, key.pid, dir, vsz);
         bool found = false;
         for (int i = 0; i < vsz; i++) {
-            if (vres[i].val == key.vid && !found)
+            if (vres[i].val == key.vid && !found) {
                 found = true;
-            else if (vres[i].val == key.vid && found) { //duplicate vid
+            } else if (vres[i].val == key.vid && found) { //duplicate vid
                 logstream(LOG_ERROR) << "In the value part of predicate index "
                                      << "[ 0 | " << key.pid << " | " << dir << " ], "
                                      << "there is duplicate value " << key.vid << LOG_endl;
@@ -2067,165 +1972,172 @@ public:
 #ifdef VERSATILE
     // check on in-dir predicate-index or type-index
     void ver_idx_check_indir(ikey_t key, bool check) {
-        if (!check)
-            return;
+        if (!check) return;
+
         uint64_t vsz = 0;
         // get all local types
-        edge_t *vres = get_edges_local(0, 0, OUT, TYPE_ID, &vsz);
+        edge_t *vres = get_edges_local(0, 0, TYPE_ID, OUT, vsz);
         bool found = false;
         // check whether the pid exists or duplicate
         for (int i = 0; i < vsz; i++) {
-            if (vres[i].val == key.pid && !found)
+            if (vres[i].val == key.pid && !found) {
                 found = true;
-            else if (vres[i].val == key.pid && found) {
+            } else if (vres[i].val == key.pid && found) {
                 logstream(LOG_ERROR) << "In the value part of all local types [ 0 | TYPE_ID | OUT ]"
                                      << " there is duplicate value " << key.pid << LOG_endl;
             }
         }
+
         // pid does not exist in local types, maybe it is predicate
         if (!found) {
             uint64_t psz = 0;
             // get all local predicates
-            edge_t *pres = get_edges_local(0, 0, OUT, PREDICATE_ID, &psz);
+            edge_t *pres = get_edges_local(0, 0, PREDICATE_ID, OUT, psz);
             bool found = false;
             // check whether the pid exists or duplicate
             for (int i = 0; i < psz; i++) {
-                if (pres[i].val == key.pid && !found)
+                if (pres[i].val == key.pid && !found) {
                     found = true;
-                else if (pres[i].val == key.pid && found) {
+                } else if (pres[i].val == key.pid && found) {
                     logstream(LOG_ERROR) << "In the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
                                          << " there is duplicate value " << key.pid << LOG_endl;
                     break;
                 }
             }
+
             if (!found) {
                 logstream(LOG_ERROR) << "if " << key.pid << "is predicate, in the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
                                      << " there is NO value " << key.pid << LOG_endl;
                 logstream(LOG_ERROR) << "if " << key.pid << " is type, in the value part of all local types [ 0 | TYPE_ID | OUT ]"
                                      << " there is NO value " << key.pid << LOG_endl;
             }
+
             uint64_t vsz = 0;
             // get the vid refered which refered by the type/predicate
-            edge_t *vres = get_edges_local(0, 0, IN, key.pid, &vsz);
+            edge_t *vres = get_edges_local(0, 0, key.pid, IN, vsz);
             if (vsz == 0) {
                 logstream(LOG_ERROR) << "if " << key.pid << " is type, in the value part of all local types [ 0 | TYPE_ID | OUT ]"
                                      << " there is NO value " << key.pid << LOG_endl;
                 return;
             }
+
             for (int i = 0; i < vsz; i++) {
                 found = false;
                 uint64_t sosz = 0;
                 // get all local objects/subjects
-                edge_t *sores = get_edges_local(0, 0, IN, TYPE_ID, &sosz);
+                edge_t *sores = get_edges_local(0, 0, TYPE_ID, IN, sosz);
                 for (int j = 0; j < sosz; j++) {
-                    if (sores[j].val == vres[i].val && !found)
+                    if (sores[j].val == vres[i].val && !found) {
                         found = true;
-                    else if (sores[j].val == vres[i].val && found) {
+                    } else if (sores[j].val == vres[i].val && found) {
                         logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
                                              << " there is duplicate value " << vres[i].val << LOG_endl;
                         break;
                     }
                 }
-                if (!found) {
+
+                if (!found)
                     logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
                                          << " there is no value " << vres[i].val << LOG_endl;
-                }
+
                 found = false;
                 uint64_t p2sz = 0;
                 // get vid's all predicate
-                edge_t *p2res = get_edges_local(0, vres[i].val, OUT, PREDICATE_ID, &p2sz);
+                edge_t *p2res = get_edges_local(0, vres[i].val, PREDICATE_ID, OUT, p2sz);
                 for (int j = 0; j < p2sz; j++) {
-                    if (p2res[j].val == key.pid && !found)
+                    if (p2res[j].val == key.pid && !found) {
                         found = true;
-                    else if (p2res[j].val == key.pid && found) {
+                    } else if (p2res[j].val == key.pid && found) {
                         logstream(LOG_ERROR) << "In the value part of " << vres[i].val << "'s all predicates [ "
                                              << vres[i].val << " | PREDICATE_ID | OUT ], there is duplicate value "
                                              << key.pid << LOG_endl;
                         break;
                     }
                 }
-                if (!found) {
+
+                if (!found)
                     logstream(LOG_ERROR) << "In the value part of " << vres[i].val << "'s all predicates [ "
                                          << vres[i].val << " | PREDICATE_ID | OUT ], there is no value "
                                          << key.pid << LOG_endl;
-                }
             }
         }
     }
 
     // check on out-dir predicate-index
     void ver_idx_check_outdir(ikey_t key, bool check) {
-        if (!check)
-            return;
+        if (!check) return;
+
         uint64_t psz = 0;
         // get all local predicates
-        edge_t *pres = get_edges_local(0, 0, OUT, PREDICATE_ID, &psz);
+        edge_t *pres = get_edges_local(0, 0, PREDICATE_ID, OUT, psz);
         bool found = false;
         // check whether the pid exists or duplicate
         for (int i = 0; i < psz; i++) {
-            if (pres[i].val == key.pid && !found)
+            if (pres[i].val == key.pid && !found) {
                 found = true;
-            else if (pres[i].val == key.pid && found) {
+            } else if (pres[i].val == key.pid && found) {
                 logstream(LOG_ERROR) << "In the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
                                      << " there is duplicate value " << key.pid << LOG_endl;
                 break;
             }
         }
-        if (!found) {
+
+        if (!found)
             logstream(LOG_ERROR) << "In the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
                                  << " there is no value " << key.pid << LOG_endl;
-        }
+
         uint64_t vsz = 0;
         // get the vid refered which refered by the predicate
-        edge_t *vres = get_edges_local(0, 0, OUT, key.pid, &vsz);
+        edge_t *vres = get_edges_local(0, 0, key.pid, OUT, vsz);
         for (int i = 0; i < vsz; i++) {
             found = false;
             uint64_t sosz = 0;
             // get all local objects/subjects
-            edge_t *sores = get_edges_local(0, 0, IN, TYPE_ID, &sosz);
+            edge_t *sores = get_edges_local(0, 0, TYPE_ID, IN, sosz);
             for (int j = 0; j < sosz; j++) {
-                if (sores[j].val == vres[i].val && !found)
+                if (sores[j].val == vres[i].val && !found) {
                     found = true;
-                else if (sores[j].val == vres[i].val && found) {
+                } else if (sores[j].val == vres[i].val && found) {
                     logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
                                          << " there is duplicate value " << vres[i].val << LOG_endl;
                     break;
                 }
             }
-            if (!found) {
+
+            if (!found)
                 logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
                                      << " there is no value " << vres[i].val << LOG_endl;
-            }
+
             found = false;
             uint64_t psz = 0;
             // get vid's all predicate
-            edge_t *pres = get_edges_local(0, vres[i].val, IN, PREDICATE_ID, &psz);
+            edge_t *pres = get_edges_local(0, vres[i].val, PREDICATE_ID, IN, psz);
             for (int j = 0; j < psz; j++) {
-                if (pres[j].val == key.pid && !found)
+                if (pres[j].val == key.pid && !found) {
                     found = true;
-                else if (pres[j].val == key.pid && found) {
+                } else if (pres[j].val == key.pid && found) {
                     logstream(LOG_ERROR) << "In the value part of " << vres[i].val << "'s all predicates [ "
                                          << vres[i].val << "PREDICATE_ID | IN ], there is duplicate value "
                                          << key.pid << LOG_endl;
                     break;
                 }
             }
-            if (!found) {
+
+            if (!found)
                 logstream(LOG_ERROR) << "In the value part of " << vres[i].val << "'s all predicates [ "
                                      << vres[i].val << "PREDICATE_ID | IN ], there is no value "
                                      << key.pid << LOG_endl;
-            }
         }
     }
 
     // check on normal types (7)
     void ver_nt_check(ikey_t key, bool check) {
-        if (!check)
-            return;
+        if (!check) return;
+
         bool found = false;
         uint64_t psz = 0;
         // get vid' all predicates
-        edge_t *pres = get_edges_local(0, key.vid, OUT, PREDICATE_ID, &psz);
+        edge_t *pres = get_edges_local(0, key.vid, PREDICATE_ID, OUT, psz);
         // check if there is TYPE_ID in vid's predicates
         for (int i = 0; i < psz; i++) {
             if (pres[i].val == key.pid && !found)
@@ -2238,16 +2150,17 @@ public:
                 break;
             }
         }
-        if (!found) {
+
+        if (!found)
             logstream(LOG_ERROR) << "In the value part of "
                                  << key.vid << "'s all predicates [ "
                                  << key.vid << "PREDICATE_ID | OUT ], there is NO value "
                                  << key.pid << LOG_endl;
-        }
+
         found = false;
         uint64_t ossz = 0;
         // get all local subjects/objects
-        edge_t *osres = get_edges_local(0, 0, IN, key.pid, &ossz);
+        edge_t *osres = get_edges_local(0, 0, key.pid, IN, ossz);
         for (int i = 0; i < ossz; i++) {
             if (osres[i].val == key.vid && !found)
                 found = true;
@@ -2257,10 +2170,10 @@ public:
                 break;
             }
         }
-        if (!found) {
+
+        if (!found)
             logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
                                  << " there is NO value " << key.vid << LOG_endl;
-        }
     }
 #else // !VERSATILE
     void ver_idx_check_indir(ikey_t key, bool check) { }
@@ -2304,8 +2217,9 @@ public:
     void generate_statistic(data_statistic &stat) {
 #ifndef VERSATILE
         logstream(LOG_ERROR) << "please turn off generate_statistics in config "
-                             << "and use stat file cache instead OR turn on VERSATILE option "
-                             << "in CMakefiles to generate_statistic." << LOG_endl;
+                             << "and use stat file cache instead"
+                             << " OR "
+                             << "turn on VERSATILE option in CMakefiles to generate_statistic." << LOG_endl;
         exit(-1);
 #endif
 
@@ -2320,14 +2234,14 @@ public:
             uint64_t psize1 = 0;
             unordered_set<int> index_composition;
 
-            edge_t *res1 = get_edges_global(0, id, OUT, PREDICATE_ID, &psize1);
+            edge_t *res1 = get_edges(0, id, PREDICATE_ID, OUT, psize1);
             for (uint64_t k = 0; k < psize1; k++) {
                 ssid_t pre = res1[k].val;
                 index_composition.insert(pre);
             }
 
             uint64_t psize2 = 0;
-            edge_t *res2 = get_edges_global(0, id, IN, PREDICATE_ID, &psize2);
+            edge_t *res2 = get_edges(0, id, PREDICATE_ID, IN, psize2);
             for (uint64_t k = 0; k < psize2; k++) {
                 ssid_t pre = res2[k].val;
                 index_composition.insert(-pre);
@@ -2390,7 +2304,7 @@ public:
                     for (uint64_t k = 0; k < sz; k++) {
                         ssid_t sbid = edges[off + k].val;
                         uint64_t type_sz = 0;
-                        edge_t *res = get_edges_global(0, sbid, OUT, TYPE_ID, &type_sz);
+                        edge_t *res = get_edges(0, sbid, TYPE_ID, OUT, type_sz);
                         if (type_sz > 1) {
                             ssid_t type = generate_multi_type(res, type_sz);
                             res_type.push_back(type); //10 for 10240, 19 for 2560, 23 for 40, 2 for 640
@@ -2408,7 +2322,7 @@ public:
                     // type for objects
                     // get type of vid (Object)
                     uint64_t type_sz = 0;
-                    edge_t *res = get_edges_local(0, vid, OUT, TYPE_ID, &type_sz);
+                    edge_t *res = get_edges_local(0, vid, TYPE_ID, OUT, type_sz);
                     ssid_t type;
                     if (type_sz > 1) {
                         type = generate_multi_type(res, type_sz);
@@ -2432,7 +2346,7 @@ public:
                     for (uint64_t k = 0; k < sz; k++) {
                         ssid_t obid = edges[off + k].val;
                         uint64_t type_sz = 0;
-                        edge_t *res = get_edges_global(0, obid, OUT, TYPE_ID, &type_sz);
+                        edge_t *res = get_edges(0, obid, TYPE_ID, OUT, type_sz);
 
                         if (type_sz > 1) {
                             ssid_t type = generate_multi_type(res, type_sz);
@@ -2454,7 +2368,7 @@ public:
                     // type for subjects
                     // get type of vid (Subject)
                     uint64_t type_sz = 0;
-                    edge_t *res = get_edges_local(0, vid, OUT, TYPE_ID, &type_sz);
+                    edge_t *res = get_edges_local(0, vid, TYPE_ID, OUT, type_sz);
                     ssid_t type;
                     if (type_sz > 1) {
                         type = generate_multi_type(res, type_sz);
@@ -2501,7 +2415,7 @@ public:
             }
         }
 
-        cout << "INFO#" << sid << ": generating stats is finished." << endl;
+        logstream(LOG_INFO) << "server#" << sid << ": generating stats is finished." << endl;
     }
 
     // analysis and debuging
@@ -2542,18 +2456,13 @@ public:
 
         logstream(LOG_INFO) << "entry: " << B2MiB(num_entries * sizeof(edge_t))
                             << " MB (" << num_entries << " entries)" << LOG_endl;
+
 #ifdef DYNAMIC_GSTORE
         edge_allocator->print_memory_usage();
 #else
         logstream(LOG_INFO) << "\tused: " << 100.0 * last_entry / num_entries
                             << " % (" << last_entry << " entries)" << LOG_endl;
 #endif
-
-        // uint64_t sz = 0;
-        // get_edges_local(0, 0, IN, TYPE_ID, &sz);
-        // logstream(LOG_INFO) << "#vertices: " << sz << LOG_endl;
-        // get_edges_local(0, 0, OUT, TYPE_ID, &sz);
-        // logstream(LOG_INFO) << "#predicates: " << sz << LOG_endl;
     }
 
     vertex_t *vertex_addr() { return vertices; }

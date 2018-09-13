@@ -105,7 +105,7 @@ public:
     static uint64_t hash_prime_u64(uint64_t upper) {
         if (upper >= (1l << 31)) {
             std::cout << "WARNING: " << upper << " is too large!"
-                 << std::endl;
+                      << std::endl;
             return upper;
         }
 
@@ -126,7 +126,7 @@ public:
         else if (upper >= 98317l) return 98317l;          // 2^16 ~ 2^17
 
         std::cout << "WARNING: " << upper << " is too small!"
-             << std::endl;
+                  << std::endl;
         return upper;
     }
 }; // end of class math

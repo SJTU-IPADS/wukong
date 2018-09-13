@@ -24,6 +24,7 @@
 
 #include "global.hpp"
 #include "query.hpp"
+
 #include "tcp_adaptor.hpp"
 #include "rdma_adaptor.hpp"
 
@@ -73,7 +74,7 @@ public:
             str = rdma->recv(tid);
         else
             str = tcp->recv(tid);
-        return Bundle(str.c_str(), str.length());
+        return Bundle(str);
     }
 
     bool tryrecv(string &str) {
@@ -86,7 +87,7 @@ public:
     bool tryrecv(Bundle &b) {
         string str;
         if (!tryrecv(str)) return false;
-        b.init(str.c_str(), str.length());
+        b.init(str);
         return true;
     }
 };
