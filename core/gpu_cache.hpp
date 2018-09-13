@@ -94,6 +94,8 @@ private:
     std::list<segid_t> segs_in_key_cache;
     std::list<segid_t> segs_in_value_cache;
 
+    // gpu mem
+    GPUMem *gmem;
     // pointing to key area of gpu mem kvstore
     vertex_t *d_vertex_addr;
     // pointing to value area of gpu mem kvstore
@@ -332,8 +334,8 @@ private:
     } // end of load_edge_block
 
 public:
-    GPUCache(vertex_t *d_v_a, edge_t *d_e_a, vertex_t *v_a, edge_t *e_a, map<segid_t, rdf_segment_meta_t> &rdf_metas):
-            d_vertex_addr(d_v_a), d_edge_addr(d_e_a), vertex_addr(v_a), edge_addr(e_a), rdf_metas(rdf_metas) {
+    GPUCache(GPUMem *gmem, vertex_t *v_a, edge_t *e_a, map<segid_t, rdf_segment_meta_t> &rdf_metas):
+            gmem(gmem), vertex_addr(v_a), edge_addr(e_a), rdf_metas(rdf_metas) {
         // step 1: calculate capacities
         seg_num = rdf_metas.size();
 
@@ -346,6 +348,9 @@ public:
 
         cap_gpu_key_blocks = cap_gpu_buckets / num_buckets_per_block;
         cap_gpu_value_blocks = cap_gpu_entries / num_entries_per_block;
+
+        d_vertex_addr = (vertex_t *)gmem->kvcache();
+        d_edge_addr = (edge_t *)(gmem->kvcache() + cap_gpu_slots * sizeof(vertex_t));
 
         // step 2: init free_key/value blocks
         for (int i = 0; i < cap_gpu_key_blocks; i++) {
@@ -490,5 +495,9 @@ public:
             num_value_blocks_seg_using[seg_to_load]++;
         }
     } // end of load_segment
+
+    vertex_t *dev_vertex_addr() { return d_vertex_addr; }
+
+    edge_t *dev_edge_addr() { return d_edge_addr; }
 };
 #endif
