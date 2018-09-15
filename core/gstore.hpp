@@ -49,8 +49,6 @@
 #include "math.hpp"
 #include "timer.hpp"
 #include "unit.hpp"
-#include "variant.hpp"
-
 #include "atomic.hpp"
 using namespace std;
 
@@ -333,21 +331,6 @@ private:
 
 
     static const int NUM_LOCKS = 1024;
-
-    static const int ASSOCIATIVITY = 8;  // the associativity of slots in each bucket
-
-    // Memory Usage (estimation):
-    //   header region: |vertex| = 128-bit; #verts = (#S + #O) * AVG(#P) ～= #T
-    //   entry region:    |edge| =  32-bit; #edges = #T * 2 + (#S + #O) * AVG(#P) ～= #T * 3
-    //
-    //                                      (+VERSATILE)
-    //                                      #verts += #S + #O
-    //                                      #edges += (#S + #O) * AVG(#P) ~= #T
-    //
-    // main-header / (main-header + indirect-header)
-    static const int MHD_RATIO = 80;
-    // header * 100 / (header + entry)
-    static const int HD_RATIO = (128 * 100 / (128 + 3 * std::numeric_limits<sid_t>::digits));
 
     int sid;
     Mem *mem;
@@ -1021,6 +1004,21 @@ done:
 
 
 public:
+    static const int ASSOCIATIVITY = 8;  // the associativity of slots in each bucket
+
+    // Memory Usage (estimation):
+    //   header region: |vertex| = 128-bit; #verts = (#S + #O) * AVG(#P) ～= #T
+    //   entry region:    |edge| =  32-bit; #edges = #T * 2 + (#S + #O) * AVG(#P) ～= #T * 3
+    //
+    //                                      (+VERSATILE)
+    //                                      #verts += #S + #O
+    //                                      #edges += (#S + #O) * AVG(#P) ~= #T
+    //
+    // main-header / (main-header + indirect-header)
+    static const int MHD_RATIO = 80;
+    // header * 100 / (header + entry)
+    static const int HD_RATIO = (128 * 100 / (128 + 3 * std::numeric_limits<sid_t>::digits));
+
     /// encoding rules of GStore
     /// subject/object (vid) >= 2^NBITS_IDX, 2^NBITS_IDX > predicate/type (p/tid) >= 2^1,
     /// TYPE_ID = 1, PREDICATE_ID = 0, OUT = 1, IN = 0
@@ -1120,6 +1118,14 @@ public:
 
 
 #ifdef USE_GPU
+    inline vertex_t *vertex_addr() const {
+        return vertices;
+    }
+
+    inline edge_t *edge_addr() const {
+        return edges;
+    }
+
     inline void set_num_predicates(sid_t n) {
         num_predicates = n;
     }
@@ -1180,6 +1186,7 @@ public:
         ext.num_ext_buckets = nbuckets;
         ext.start = start_off;
     }
+
 
     uint64_t main_hdr_off = 0;
 
@@ -1480,6 +1487,8 @@ public:
         }
     }
 
+    inline const std::map<segid_t, rdf_segment_meta_t> &get_rdf_segment_metas() { return rdf_segment_meta_map; }
+
 #endif  // end of USE_GPU
 
     /// skip all TYPE triples (e.g., <http://www.Department0.University0.edu> rdf:type ub:University)
@@ -1604,7 +1613,7 @@ public:
         for (auto const &attr : attrs) {
             // allocate a vertex and edges
             ikey_t key = ikey_t(attr.s, attr.a, OUT);
-            int type = boost::apply_visitor(get_type, attr.v);
+            int type = boost::apply_visitor(global_get_type, attr.v);
             uint64_t sz = (get_sizeof(type) - 1) / sizeof(edge_t) + 1;   // get the ceil size;
             uint64_t off = alloc_edges(sz, tid);
 

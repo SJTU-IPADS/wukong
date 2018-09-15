@@ -240,7 +240,7 @@ private:
         attr_t v = graph->get_attr(tid, start, aid, d, has_value);
         if (has_value) {
             updated_attr_table.push_back(v);
-            type = boost::apply_visitor(get_type, v);
+            type = boost::apply_visitor(global_get_type, v);
         }
 
         // update the result table and metadata
@@ -346,7 +346,7 @@ private:
                 res.append_row_to(i, updated_result_table);
                 res.append_attr_row_to(i, updated_attr_table);
                 updated_attr_table.push_back(v);
-                type = boost::apply_visitor(get_type, v);
+                type = boost::apply_visitor(global_get_type, v);
             }
         }
 
