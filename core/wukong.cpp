@@ -24,7 +24,6 @@
 #include <boost/mpi.hpp>
 #include <iostream>
 
-#include "global.hpp"
 #include "conflict.hpp"
 #include "config.hpp"
 #include "bind.hpp"
@@ -45,6 +44,8 @@
 #include "gpu_mem.hpp"
 #include "engine/gpu_agent.hpp"
 #include "engine/gpu_engine.hpp"
+#include "gpu_cache.hpp"
+#include "gpu_stream.hpp"
 
 void *agent_thread(void *arg)
 {
@@ -209,10 +210,13 @@ main(int argc, char *argv[])
 
 #ifdef USE_GPU
     // create GPU agent
-    GPUEngine gpu_engine(sid, WUKONG_GPU_AGENT_TID, &dgraph);
+    GPUStreamPool stream_pool(32);
+    GPUCache gpu_cache(gpu_mem, &dgraph.gstore, dgraph.gstore.get_rdf_segment_metas());
+    GPUEngine gpu_engine(sid, WUKONG_GPU_AGENT_TID, gpu_mem, &gpu_cache, &stream_pool, &dgraph);
     GPUAgent agent(sid, WUKONG_GPU_AGENT_TID, new Adaptor(WUKONG_GPU_AGENT_TID,
                 tcp_adaptor, rdma_adaptor), &gpu_engine);
     pthread_create(&(threads[WUKONG_GPU_AGENT_TID]), NULL, agent_thread, (void *)&agent);
+    logstream(LOG_EMPH) << "created GPUAgent" << LOG_endl;
 #endif
 
     // wait to all threads termination

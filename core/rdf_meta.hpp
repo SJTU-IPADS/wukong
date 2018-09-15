@@ -20,8 +20,9 @@
  *
  */
 
-#ifdef USE_GPU
 #pragma once
+
+#ifdef USE_GPU
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
@@ -29,8 +30,11 @@
 #include <boost/serialization/map.hpp>
 #include <map>
 #include <sstream>
+#include "type.hpp"
+
 using namespace std;
 using namespace boost::archive;
+
 
 #define EXT_LIST_MAX_LEN 4
 #define EXT_BUCKET_EXTENT_LEN(num_buckets) (num_buckets * 15 / 100 + 1)
@@ -93,6 +97,26 @@ struct rdf_segment_meta_t {
         ext_bucket_list[ext_list_sz++] = ext;
     }
 
+    uint64_t get_total_num_buckets() const {
+        uint64_t total = num_buckets;
+        for (int i = 0; i < ext_list_sz; ++i) {
+            const auto &ext = ext_bucket_list[i];
+            total += ext.num_ext_buckets;
+        }
+        return total;
+    }
+
+    int num_key_blocks() const {
+        extern int global_block_num_buckets;
+        static uint64_t n = get_total_num_buckets();
+        return ceil(((double) n) / global_block_num_buckets);
+    }
+
+    int num_value_blocks() const {
+        extern int global_block_num_edges;
+        return ceil(((double) num_edges) / global_block_num_edges);
+    }
+
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
         ar & num_buckets;
@@ -111,7 +135,7 @@ struct segid_t {
     int index;  // normal or index segment
     int dir;  // direction of triples in the segment
     sid_t pid;  // predicate id
-    segid_t(): index(0), dir(0), pid(0) { }
+    segid_t(): index(0), pid(0), dir(0) { }
     segid_t(int idx, sid_t p, int d) : index(idx), pid(p), dir(d) { }
 
     bool operator == (const segid_t &s) const {

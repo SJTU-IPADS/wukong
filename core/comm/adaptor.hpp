@@ -105,14 +105,9 @@ public:
 
     bool tryrecv(Bundle &b) {
         string str;
-        // if (!tryrecv(str)) return false;
-        int sender = 0;
-        if (!tryrecv(str, sender)) return false;
-
-
-
-
-
+        if (!tryrecv(str)) return false;
+        // int sender = 0;
+        // if (!tryrecv(str, sender)) return false;
 
         b.init(str);
         return true;

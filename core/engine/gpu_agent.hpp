@@ -150,6 +150,10 @@ public:
         // execute_patterns
         while (true) {
             ASSERT(req.dev_type == SPARQLQuery::DeviceType::GPU);
+
+            if (!gpu_engine->result_buf_ready(req))
+                gpu_engine->load_result_buf(req);
+
             gpu_engine->execute_one_pattern(req);
 
             if (req.done(SPARQLQuery::SQState::SQ_PATTERN)) {
@@ -200,6 +204,8 @@ public:
                 if (bundle.type == SPARQL_QUERY) {
                     // To be fair, agent will handle sub-queries first, instead of a new job.
                     SPARQLQuery req = bundle.get_sparql_query();
+                    ASSERT(req.dev_type == SPARQLQuery::DeviceType::GPU);
+
                     if (req.priority != 0) {
                         execute_sparql_query(req);
                         break;

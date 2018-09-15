@@ -497,12 +497,24 @@ public:
     SQState state = SQ_PATTERN;
     DeviceType dev_type = CPU;
 
-    struct {
+    struct GPUState {
         char *origin_result_buf_dp;
         char *result_buf_dp;
         uint64_t result_buf_size;
         SubJobType job_type;
-    } gpu_state;
+
+        template <typename Archive>
+        void serialize(Archive &ar, const unsigned int version) {
+            // ar & origin_result_buf_dp;
+            // ar & result_buf_dp;
+            ar & result_buf_size;
+            ar & job_type;
+        }
+
+    };
+
+
+    GPUState gpu_state;
 
     int mt_factor = 1;  // use a single engine (thread) by default
     int priority = 0;
@@ -969,6 +981,8 @@ void save(Archive & ar, const SPARQLQuery &t, unsigned int version) {
     ar << t.distinct;
     ar << t.pg_type;
     ar << t.pattern_step;
+    ar << t.dev_type;
+    ar << t.gpu_state;
     ar << t.union_done;
     ar << t.optional_step;
     ar << t.corun_step;
@@ -998,6 +1012,8 @@ void load(Archive & ar, SPARQLQuery &t, unsigned int version) {
     ar >> t.distinct;
     ar >> t.pg_type;
     ar >> t.pattern_step;
+    ar >> t.dev_type;
+    ar >> t.gpu_state;
     ar >> t.union_done;
     ar >> t.optional_step;
     ar >> t.corun_step;

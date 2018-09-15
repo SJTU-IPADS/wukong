@@ -23,9 +23,7 @@
 #pragma once
 
 #ifdef USE_GPU
-
 #include <cuda_runtime.h>
-#include "global.hpp"
 
 #define CUDA_ASSERT(ans) { check_cuda_result((ans), __FILE__, __LINE__); }
 
@@ -42,19 +40,20 @@ inline void check_cuda_result(cudaError_t code, const char *file, int line, bool
 #define CUDA_DEVICE_SYNC (CUDA_ASSERT( cudaDeviceSynchronize() ))
 
 
-const int blocksize = 16;
-const int ASSOCIATIVITY = 8;
+extern int global_gpu_rbuf_size_mb;
+extern int global_num_proxies;
 
 #define WUKONG_GPU_AGENT_TID (global_num_proxies + global_num_engines)
 
 #define WUKONG_CUDA_NUM_THREADS 512
 
-// TODO: 使用1D grid和 1D block
 inline int WUKONG_GET_BLOCKS(const int n) {
     return (n + WUKONG_CUDA_NUM_THREADS - 1) / WUKONG_CUDA_NUM_THREADS;
 }
 
 
 #define GPU_MAX_ELEM(type) (global_gpu_rbuf_size_mb * 1024 * 1024 / sizeof(type))
+
+#define WUKONG_NUM_GPU_BUFS 5
 
 #endif

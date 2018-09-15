@@ -38,13 +38,12 @@
 #include "timer.hpp"
 #include "rmap.hpp"
 
-// #include "gpu_engine_impl.hpp"
+#include "gpu_engine_impl.hpp"
 
 using namespace std;
 
 class GPUEngine {
 private:
-
     int sid;    // server id
     int tid;    // thread id
 
@@ -53,7 +52,8 @@ private:
     Messenger *msgr;
     RMap rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
-    // GPUEngineImpl *impl
+
+    GPUEngineImpl impl;
 
     tbb::concurrent_queue<SPARQLQuery> sub_queries;
 
@@ -116,8 +116,8 @@ private:
 
     void known_to_unknown(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ssid_t start = pattern.subject;
-        ssid_t pid   = pattern.predicate;
+        sid_t start = pattern.subject;
+        sid_t pid   = pattern.predicate;
         dir_t d      = pattern.direction;
         ssid_t end   = pattern.object;
         SPARQLQuery::Result &res = req.result;
@@ -127,7 +127,7 @@ private:
         if (req.result.get_row_num() != 0) {
             ASSERT(nullptr != req.gpu_state.result_buf_dp);
             // TODO
-            // impl->known_to_unknown(req, start, pid, d, updated_result_table);
+            impl.known_to_unknown(req, start, pid, d, updated_result_table);
         }
 
         res.result_table.swap(updated_result_table);
@@ -143,8 +143,8 @@ private:
     /// 2) Match [?Y]'s X within above neighbors
     void known_to_known(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ssid_t start = pattern.subject;
-        ssid_t pid   = pattern.predicate;
+        sid_t start = pattern.subject;
+        sid_t pid   = pattern.predicate;
         dir_t d      = pattern.direction;
         ssid_t end   = pattern.object;
         SPARQLQuery::Result &res = req.result;
@@ -152,7 +152,7 @@ private:
         vector<sid_t> updated_result_table;
 
         // TODO
-        // updated_result_table = impl->known_to_known(req, start, pid, end, d);
+        // updated_result_table = impl.known_to_known(req, start, pid, end, d);
 
         res.result_table.swap(updated_result_table);
         req.pattern_step++;
@@ -165,8 +165,8 @@ private:
     /// 2) Match E1 within above neighbors
     void known_to_const(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ssid_t start = pattern.subject;
-        ssid_t pid   = pattern.predicate;
+        sid_t start = pattern.subject;
+        sid_t pid   = pattern.predicate;
         dir_t d      = pattern.direction;
         ssid_t end   = pattern.object;
         SPARQLQuery::Result &res = req.result;
@@ -174,7 +174,7 @@ private:
         vector<sid_t> updated_result_table;
 
         // TODO
-        // updated_result_table = impl->known_to_const(req, start, pid, end, d);
+        // updated_result_table = impl.known_to_const(req, start, pid, end, d);
 
         res.result_table.swap(updated_result_table);
         req.pattern_step++;
@@ -201,27 +201,35 @@ private:
     }
 
 
-
-
 public:
-    GPUEngine(int sid, int tid, DGraph *graph)
-        : sid(sid), tid(tid), graph(graph) {
-        // impl = new GPUEngineImpl();
+    GPUEngine(int sid, int tid, GPUMem *gmem, GPUCache *gcache, GPUStreamPool *stream_pool, DGraph *graph)
+        : sid(sid), tid(tid), impl(gcache, gmem, stream_pool), graph(graph) {
 
     }
 
     ~GPUEngine() { }
 
+    bool result_buf_ready(const SPARQLQuery &req) {
+        return req.gpu_state.result_buf_dp != nullptr;
+    }
+
+    void load_result_buf(SPARQLQuery &req) {
+        uint64_t size;
+        req.gpu_state.result_buf_dp = impl.load_result_buf(req.result, size);
+        req.gpu_state.result_buf_size = size;
+    }
+
 
     bool execute_one_pattern(SPARQLQuery &req) {
+        ASSERT(result_buf_ready(req));
         ASSERT(!req.done(SPARQLQuery::SQState::SQ_PATTERN));
 
-        logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "]"
+        logstream(LOG_DEBUG) << "GPUEngine: " << "[" << sid << "-" << tid << "]"
                              << " step=" << req.pattern_step << LOG_endl;
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ssid_t start     = pattern.subject;
-        ssid_t predicate = pattern.predicate;
+        sid_t start     = pattern.subject;
+        sid_t predicate = pattern.predicate;
         dir_t direction  = pattern.direction;
         ssid_t end       = pattern.object;
 
@@ -294,7 +302,7 @@ public:
     // TODO
     vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ssid_t start = pattern.subject;
+        sid_t start = pattern.subject;
 
         // generate sub requests for all servers
         vector<SPARQLQuery> sub_reqs(global_num_servers);
@@ -321,20 +329,20 @@ public:
             sub_reqs[0].gpu_state.result_buf_dp = req.gpu_state.result_buf_dp;
             sub_reqs[0].gpu_state.result_buf_size = req.gpu_state.result_buf_size;
         } else {
-            std::vector<int*> result_buf_dps(global_num_servers);
-            std::vector<int> result_buf_sizes(global_num_servers);
+            std::vector<int*> res_buf_ptrs(global_num_servers);
+            std::vector<int> res_buf_rows(global_num_servers);
 
-            // impl->generate_sub_query(req, start, global_num_servers, result_buf_dps, result_buf_sizes);
-
-            logstream(LOG_EMPH) << "impl->generate_sub_query" << LOG_endl;
+            impl.generate_sub_query(req, start, global_num_servers, res_buf_ptrs, res_buf_rows);
 
             for (int i = 0; i < global_num_servers; ++i) {
                 SPARQLQuery &r = sub_reqs[i];
-                r.gpu_state.result_buf_dp = (char*) result_buf_dps[i];
-                r.gpu_state.result_buf_size = result_buf_sizes[i];
-                r.gpu_state.origin_result_buf_dp = (char*) result_buf_dps.front();
+                r.gpu_state.result_buf_dp = (char*) res_buf_ptrs[i];
+                r.gpu_state.result_buf_size = res_buf_rows[i] * req.result.get_col_num();
+                r.gpu_state.origin_result_buf_dp = (char*) res_buf_ptrs.front();
 
-                if (i != sid && r.gpu_state.result_buf_size == 0) {
+                // if gpu history table is empty, set it to FULL_QUERY, which
+                // will be sent by native RDMA
+                if (r.gpu_state.result_buf_size == 0) {
                     r.gpu_state.job_type = SPARQLQuery::SubJobType::FULL_JOB;
                     r.clear_result_buf();
                 } else {
