@@ -5,6 +5,7 @@
 // #include <cuda_runtime.h>
 // #include <vector>
 
+// #include <stdio.h>
 // #include <thrust/functional.h>
 #include <thrust/device_ptr.h>
 // Siyuan: useless device_vector for Wukong+G
@@ -28,13 +29,12 @@ extern int global_gpu_rbuf_size_mb;
 
 struct GPUEngineParam {
     struct {
-        int start_vid = 0;
-        int pid = 0;
+        ssid_t start_vid = 0;
+        ssid_t pid = 0;
         int dir = -1;
         int end_vid = 0;
         int col_num;
         int row_num = -1;
-        // Siyuan: 这个是每个segment的value region起始偏移
         uint64_t segment_edge_start = 0;
     } query;
 
@@ -43,12 +43,12 @@ struct GPUEngineParam {
 
         // device_vector<ikey_t> key_dv;
         ikey_t *d_key_list = nullptr;
-        vertex_t* d_vertex_addr = nullptr;   // Siyuan: 这个是GPU上的vertex头指针
-        edge_t *d_edge_addr = nullptr;       // Siyuan: 这个是GPU上的edge头指针
+        vertex_t* d_vertex_addr = nullptr;
+        edge_t *d_edge_addr = nullptr;
 
         // device_vector<uint64_t> slots_dv;
         uint64_t* d_slot_id_list = nullptr;
-        // pred_meta_t* d_pred_metas = nullptr; Siyuan: 这个是rdf_segment_meta数值
+        // pred_meta_t* d_pred_metas = nullptr;
 
         // device_vector<uint64_t> vertex_mapping_dv;
         // uint64_t*  d_vertex_headers = nullptr;
@@ -76,11 +76,9 @@ struct GPUEngineParam {
         // device_ptr<sid_t*> in_rbuf_dp;
         // device_ptr<sid_t*> out_rbuf_dp;
 
-        // Siyuan: 分别对应GPUMem中的in_rbuf和out_rbuf
         int* d_in_rbuf;
         int* d_out_rbuf;
 
-        GPUMem *gmem;
         rdf_segment_meta_t *d_segment_meta;
     } gpu;
 
@@ -89,8 +87,6 @@ struct GPUEngineParam {
         gpu.d_vertex_addr = d_vertices;
         gpu.d_edge_addr = d_edges;
 
-        // CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_vertex_addr, sizeof(vertex_t) * num_gpu_slots ));
-        // CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_edge_addr, sizeof(edge_t) * num_gpu_entries ));
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_in_rbuf, MiB2B(global_gpu_rbuf_size_mb) ));
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_out_rbuf, MiB2B(global_gpu_rbuf_size_mb) ));
 
@@ -99,6 +95,7 @@ struct GPUEngineParam {
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_prefix_sum_list, MiB2B(global_gpu_rbuf_size_mb) ));
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_edge_size_list, MiB2B(global_gpu_rbuf_size_mb) ));
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_offset_list, MiB2B(global_gpu_rbuf_size_mb) ));
+        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_edge_off_list, MiB2B(global_gpu_rbuf_size_mb) ));
 
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_vertex_mapping, sizeof(uint64_t) * nkey_blks));
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_edge_mapping, sizeof(uint64_t) * nvalue_blks));
@@ -109,25 +106,29 @@ struct GPUEngineParam {
 
     void load_segment_mappings(const std::vector<uint64_t>& vertex_mapping,
             const std::vector<uint64_t>& edge_mapping, const rdf_segment_meta_t &seg, cudaStream_t stream = 0) {
-        CUDA_ASSERT(cudaMemcpyAsync(gpu.d_vertex_mapping,
+
+        printf("load_segment_mappings: segment: #key_blks=%d, #value_blks=%d\n", seg.num_key_blocks(), seg.num_value_blocks());
+
+
+        CUDA_ASSERT(cudaMemcpy(gpu.d_vertex_mapping,
                           &(vertex_mapping[0]),
                           sizeof(uint64_t) * seg.num_key_blocks(),
-                          cudaMemcpyHostToDevice,
-                          stream));
+                          cudaMemcpyHostToDevice));
+                          // stream));
 
-        CUDA_ASSERT(cudaMemcpyAsync(gpu.d_edge_mapping,
+        CUDA_ASSERT(cudaMemcpy(gpu.d_edge_mapping,
                           &(edge_mapping[0]),
                           sizeof(uint64_t) * seg.num_value_blocks(),
-                          cudaMemcpyHostToDevice,
-                          stream));
+                          cudaMemcpyHostToDevice));
+                          // stream));
     }
 
-    void load_segment_meta(const rdf_segment_meta_t &seg_meta, cudaStream_t stream = 0) {
-        CUDA_ASSERT(cudaMemcpyAsync(gpu.d_segment_meta,
+    void load_segment_meta(rdf_segment_meta_t seg_meta, cudaStream_t stream = 0) {
+        CUDA_ASSERT(cudaMemcpy(gpu.d_segment_meta,
                           &seg_meta,
                           sizeof(seg_meta),
-                          cudaMemcpyHostToDevice,
-                          stream));
+                          cudaMemcpyHostToDevice));
+                          // stream));
     }
 
     void set_result_bufs(char *d_in_rbuf, char *d_out_rbuf) {
@@ -143,52 +144,19 @@ struct GPUEngineParam {
 };
 
 
-#define CHECK_HANDLER_ARG(arg) do {    \
-        assert(arg.start_vertex != 0); \
-        assert(arg.predicate >= 0); \
-        assert(arg.direction >= 0 && arg.direction <= 1); \
-        assert(arg.d_result_table != nullptr);  \
-        assert(arg.d_key_list != nullptr);   \
-        assert(arg.d_vertex_addr != nullptr);   \
-        assert(arg.d_slot_id_list != nullptr);  \
-        assert(arg.d_pred_metas != nullptr);    \
-        assert(arg.d_vertex_headers != nullptr);    \
-        assert(arg.index_list != nullptr);  \
-        assert(arg.index_list_mirror != nullptr);   \
-        assert(arg.d_edge_off_list != nullptr); \
-        assert(arg.vertex_block_sz > 0);    \
-        assert(arg.edge_block_sz > 0);  \
-        assert(arg.pid_edge_segment_start >= 0); \
-        assert(arg.d_updated_result_table != nullptr);  \
-        assert(arg.d_edge_addr != nullptr); \
-        assert(arg.d_edge_headers != nullptr);  \
-} while(0)
-
-
-void gpu_lookup_hashtable_k2u(GPUEngineParam& param, cudaStream_t stream);
-
-void gpu_shuffle_result_buf(GPUEngineParam& param, std::vector<int>& buf_sizes, cudaStream_t stream);
-void gpu_split_result_buf(GPUEngineParam &param, int num_servers, cudaStream_t stream);
-
-void gpu_calc_prefix_sum(GPUEngineParam& param, cudaStream_t stream);
-int gpu_update_result_buf_k2u(GPUEngineParam& param, cudaStream_t stream);
-
+void gpu_lookup_hashtable_k2u(GPUEngineParam& param, cudaStream_t stream = 0);
+void gpu_shuffle_result_buf(GPUEngineParam& param, std::vector<int>& buf_sizes, cudaStream_t stream = 0);
+void gpu_split_result_buf(GPUEngineParam &param, int num_servers, cudaStream_t stream = 0);
+void gpu_calc_prefix_sum(GPUEngineParam& param, cudaStream_t stream = 0);
 void gpu_get_slot_id_list(GPUEngineParam &param, cudaStream_t stream = 0);
 
 
 void gpu_get_edge_list(GPUEngineParam &param, cudaStream_t stream = 0);
 void gpu_get_edge_list_k2k(GPUEngineParam &param, cudaStream_t stream = 0);
-
 void gpu_get_edge_list_k2c(GPUEngineParam &param, cudaStream_t stream = 0);
-
 int gpu_update_result_buf_i2u(GPUEngineParam& param, cudaStream_t stream = 0);
-
 int gpu_update_result_buf_k2k(GPUEngineParam& param, cudaStream_t stream = 0);
-
-
 int gpu_update_result_buf_k2u(GPUEngineParam& param, cudaStream_t stream = 0);
-
-
 int gpu_update_result_buf_i2u(GPUEngineParam& param, cudaStream_t stream);
 
 

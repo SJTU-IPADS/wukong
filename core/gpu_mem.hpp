@@ -109,10 +109,6 @@ public:
     inline char *kvcache() { return kvc; }
     inline uint64_t kvcache_offset() { return kvc_off; }
     inline uint64_t kvcache_size() { return kvc_sz; }
-    inline vertex_t *vertex_addr() { return (vertex_t*) mem_gpu; }
-    inline edge_t *edge_addr() {
-        return (edge_t*)(mem_gpu + GiB2B(global_gpu_kvcache_size_gb) * GStore::HD_RATIO);
-    }
 
     // result buffer
     inline void reverse_rbuf() { rbuf_reversed = !rbuf_reversed; }

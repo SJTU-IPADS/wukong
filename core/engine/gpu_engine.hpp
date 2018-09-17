@@ -116,8 +116,8 @@ private:
 
     void known_to_unknown(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        sid_t start = pattern.subject;
-        sid_t pid   = pattern.predicate;
+        ssid_t start = pattern.subject;
+        ssid_t pid   = pattern.predicate;
         dir_t d      = pattern.direction;
         ssid_t end   = pattern.object;
         SPARQLQuery::Result &res = req.result;
@@ -126,7 +126,6 @@ private:
 
         if (req.result.get_row_num() != 0) {
             ASSERT(nullptr != req.gpu_state.result_buf_dp);
-            // TODO
             impl.known_to_unknown(req, start, pid, d, updated_result_table);
         }
 
@@ -210,13 +209,16 @@ public:
     ~GPUEngine() { }
 
     bool result_buf_ready(const SPARQLQuery &req) {
-        return req.gpu_state.result_buf_dp != nullptr;
+        if (req.result.result_table.empty()) {
+            return true;
+        } else {
+            return req.gpu_state.result_buf_dp != nullptr;
+        }
     }
 
     void load_result_buf(SPARQLQuery &req) {
-        uint64_t size;
-        req.gpu_state.result_buf_dp = impl.load_result_buf(req.result, size);
-        req.gpu_state.result_buf_size = size;
+        char *rbuf = impl.load_result_buf(req.result);
+        req.set_result_buf(rbuf, req.result.result_table.size());
     }
 
 
@@ -326,8 +328,7 @@ public:
         ASSERT(req.pg_type != SPARQLQuery::PGType::OPTIONAL);
 
         if (global_num_servers == 1) {
-            sub_reqs[0].gpu_state.result_buf_dp = req.gpu_state.result_buf_dp;
-            sub_reqs[0].gpu_state.result_buf_size = req.gpu_state.result_buf_size;
+            sub_reqs[0].set_result_buf(req.gpu_state.result_buf_dp, req.gpu_state.result_buf_num_elems);
         } else {
             std::vector<int*> res_buf_ptrs(global_num_servers);
             std::vector<int> res_buf_rows(global_num_servers);
@@ -336,13 +337,12 @@ public:
 
             for (int i = 0; i < global_num_servers; ++i) {
                 SPARQLQuery &r = sub_reqs[i];
-                r.gpu_state.result_buf_dp = (char*) res_buf_ptrs[i];
-                r.gpu_state.result_buf_size = res_buf_rows[i] * req.result.get_col_num();
+                r.set_result_buf((char*)res_buf_ptrs[i], res_buf_rows[i] * req.result.get_col_num());
                 r.gpu_state.origin_result_buf_dp = (char*) res_buf_ptrs.front();
 
                 // if gpu history table is empty, set it to FULL_QUERY, which
                 // will be sent by native RDMA
-                if (r.gpu_state.result_buf_size == 0) {
+                if (r.gpu_state.result_buf_empty()) {
                     r.gpu_state.job_type = SPARQLQuery::SubJobType::FULL_JOB;
                     r.clear_result_buf();
                 } else {
@@ -351,14 +351,6 @@ public:
 
             }
         }
-
-        // group intermediate results to servers
-        // for (int i = 0; i < req.result.get_row_num(); i++) {
-            // int dst_sid = wukong::math::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
-                                           // global_num_servers);
-            // req.result.append_row_to(i, sub_reqs[dst_sid].result.result_table);
-            // req.result.append_attr_row_to(i, sub_reqs[dst_sid].result.attr_res_table);
-        // }
 
         return sub_reqs;
     }

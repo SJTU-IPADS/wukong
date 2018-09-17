@@ -34,6 +34,7 @@ enum { NBITS_IDX = 17 }; // equal to the size of t/pid
 enum { NBITS_VID = (64 - NBITS_IDX - NBITS_DIR) }; // 0: index vertex, ID: normal vertex
 
 #define ASSOCIATIVITY 8
+#define blocksize 16
 
 
 struct ikey_t {
@@ -160,6 +161,8 @@ void d_generate_key_list_k2u(int index,
     int prev_id = result_table[index * col_num - start - 1];
     ikey_t r = ikey_t(prev_id,predict,direction);
     key_list[index] = r;
+    // if (index < 10)
+        // printf("gen_key_list: key[%d|%d|%d]\n", prev_id, predict, direction);
 }
 
 
@@ -680,9 +683,10 @@ int gpu_update_result_buf_k2k(GPUEngineParam& param, cudaStream_t stream)
 void gpu_calc_prefix_sum(GPUEngineParam& param,
                      cudaStream_t stream)
 {
-    thrust::device_ptr<int> d_in_ptr(param.gpu.d_prefix_sum_list);
-    thrust::device_ptr<int> d_out_ptr(param.gpu.d_edge_size_list);
-    thrust::inclusive_scan(thrust::cuda::par.on(stream), d_in_ptr, d_in_ptr + param.query.row_num, d_out_ptr);
+    thrust::device_ptr<int> d_in_ptr(param.gpu.d_edge_size_list);
+    thrust::device_ptr<int> d_out_ptr(param.gpu.d_prefix_sum_list);
+    // thrust::inclusive_scan(thrust::cuda::par.on(stream), d_in_ptr, d_in_ptr + param.query.row_num, d_out_ptr);
+    thrust::inclusive_scan(d_in_ptr, d_in_ptr + param.query.row_num, d_out_ptr);
 }
 
 
@@ -834,7 +838,7 @@ void gpu_shuffle_result_buf(GPUEngineParam& param, vector<int>& buf_sizes, cudaS
 
     int num_jobs = buf_sizes.size();
 
-    // Siyuan: 计算每条record将要被发送到的server id
+    // calculate destination server for each record
     hash_dispatched_server_id(param.gpu.d_in_rbuf,
                                   d_server_id_list,
                                   param.query.start_vid,
@@ -843,8 +847,6 @@ void gpu_shuffle_result_buf(GPUEngineParam& param, vector<int>& buf_sizes, cudaS
                                   param.query.row_num,
                                   stream);
 
-    // TODO
-    // Siyuan: 此处是把parent history table切分成child history table
     history_dispatch(param.gpu.d_in_rbuf,
                      d_position_list,
                          d_server_id_list,
@@ -855,7 +857,6 @@ void gpu_shuffle_result_buf(GPUEngineParam& param, vector<int>& buf_sizes, cudaS
                          param.query.row_num,
                          stream);
 
-    // Siyuan: gpu_sub_table_size_list中存的是每个sub table的
     CUDA_ASSERT(cudaMemcpyAsync(&buf_sizes[0],
                                   d_server_sum_list,
                                   sizeof(int) * num_jobs,
@@ -864,30 +865,31 @@ void gpu_shuffle_result_buf(GPUEngineParam& param, vector<int>& buf_sizes, cudaS
 
     CUDA_ASSERT(cudaStreamSynchronize(stream));
 
-    // Siyuan: 对d_server_sum_list计算exclusive的前置和
+    // calculate exclusive prefix sum for d_server_sum_list
     thrust::device_ptr<int> d_server_sum_list_ptr(d_server_sum_list);
     thrust::exclusive_scan(thrust::cuda::par.on(stream), d_server_sum_list_ptr, d_server_sum_list_ptr + num_jobs, d_server_sum_list_ptr);
-    // 函数返回之后d_server_sum_list中就是[0,5,12]这样的前值和
 }
+
+
+
+
 
 
 __global__
 void lookup_hashtable_k2u(GPUEngineParam param)
 {
 
-    // int index = blockIdx.x * blockDim.x * blockDim.y
-                // + threadIdx.y * blockDim.x + threadIdx.x;
     int index = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (index >= param.query.row_num)
         return;
 
     d_generate_key_list_k2u(index,
-            param.gpu.d_in_rbuf, //result_table,
+            param.gpu.d_in_rbuf,
             param.gpu.d_key_list,
-            param.query.start_vid, // start,
-            param.query.dir,// direction,
-            param.query.pid,// predict,
+            param.query.start_vid,
+            param.query.dir,
+            param.query.pid,
             param.query.col_num,
             param.query.row_num);
 
@@ -899,7 +901,7 @@ void lookup_hashtable_k2u(GPUEngineParam param)
             param.gpu.d_key_list,
             param.gpu.d_slot_id_list,
             empty_key,
-            param.gpu.d_segment_meta, // pred_metas,
+            param.gpu.d_segment_meta,
             param.gpu.d_vertex_mapping,
             param.gpu.vertex_block_sz,
             param.query.row_num);
@@ -912,23 +914,14 @@ void lookup_hashtable_k2u(GPUEngineParam param)
             param.gpu.d_prefix_sum_list,
             param.gpu.d_edge_size_list,
             param.gpu.d_edge_off_list,
-            param.query.segment_edge_start, // pred_orin_edge_start,
-            param.gpu.d_edge_mapping,// edge_headers,
-            param.gpu.edge_block_sz, // pred_edge_shard_size,
-            param.query.row_num); // query_size);
+            param.query.segment_edge_start,
+            param.gpu.d_edge_mapping,
+            param.gpu.edge_block_sz,
+            param.query.row_num);
 }
 
-
-
-void gpu_lookup_hashtable_k2u(GPUEngineParam& param, cudaStream_t stream = 0)
+void gpu_lookup_hashtable_k2u(GPUEngineParam& param, cudaStream_t stream)
 {
-
-    // CHECK_HANDLER_ARG(arg);
-
-    // int gridsize = (int) (ceil((double)arg.query_size / (blocksize * blocksize)));
-    // dim3 dimBlock = dim3(blocksize, blocksize, 1);
-    // dim3 dimGrid= dim3(gridsize, 1, 1);
-
     lookup_hashtable_k2u<<<WUKONG_GET_BLOCKS(param.query.row_num),
         WUKONG_CUDA_NUM_THREADS, 0, stream>>>(param);
 }
@@ -947,13 +940,9 @@ void d_update_result_table_k2u(int *result_table,
                                   int column_num,
                                   int query_size)
 {
-    // int index = blockIdx.x * blockDim.x * blockDim.y
-                // + threadIdx.y * blockDim.x + threadIdx.x;
     int index = blockIdx.x * blockDim.x + threadIdx.x;
 
-    //int index = full_index/200/(column_num+1);
     if(index<query_size) {
-        //extern __shared__ int result_matrix[];
 
         int edge_num = 0,start=0;
         if(index==0) {
@@ -971,11 +960,11 @@ void d_update_result_table_k2u(int *result_table,
         }
 
         for(int k=0;k<edge_num;k++){
-            // #1 把原有的列放到new history table中
+            // put original columns to table
             for(int c=0;c<column_num;c++){
-                updated_result_table[start+k*(column_num+1)+c] = buff[c];//result_table[column_num*index+c];
+                updated_result_table[start+k*(column_num+1)+c] = buff[c];
             }
-            // #2 把新的列放到new history table里
+            // put the new column to table
             uint64_t ptr = map_location_on_shards(off_list[index]+k,
                                                   edge_headers,
                                                   pred_edge_shard_size);
@@ -991,21 +980,19 @@ int gpu_update_result_buf_k2u(GPUEngineParam& param, cudaStream_t stream)
 {
 
     int table_size = 0;//index_list[query_size-1];
-    CUDA_ASSERT( cudaMemcpyAsync(&table_size,
+    CUDA_ASSERT( cudaMemcpy(&table_size,
                param.gpu.d_prefix_sum_list + param.query.row_num - 1,
                sizeof(int),
-               cudaMemcpyDeviceToHost, stream) );
+               cudaMemcpyDeviceToHost) );
 
-    //query_size = query_size*200*(column_num+1);
-    // int gridsize = (int) (ceil((double)query_size / (blocksize * blocksize)));
+    // int gridsize = (int) (ceil((double)param.query.row_num / (blocksize * blocksize)));
     // dim3 dimBlock = dim3(blocksize, blocksize, 1);
     // dim3 dimGrid= dim3(gridsize, 1, 1);
 
-    // auto d_vertex_mapping = thrust::raw_pointer_cast( &(param.gpu.vertex_mapping_dv[0]) );
-    // auto d_edge_mapping = thrust::raw_pointer_cast( &(param.gpu.edge_mapping_dv[0]) );
 
     d_update_result_table_k2u<<<WUKONG_GET_BLOCKS(param.query.row_num),
         WUKONG_CUDA_NUM_THREADS, 0, stream>>>(
+    // d_update_result_table_k2u<<<dimGrid, dimBlock>>>(
                 param.gpu.d_in_rbuf,
                 param.gpu.d_out_rbuf,
                 param.gpu.d_prefix_sum_list,
@@ -1017,7 +1004,7 @@ int gpu_update_result_buf_k2u(GPUEngineParam& param, cudaStream_t stream)
                 param.query.row_num//query_size
          );
 
-    CUDA_ASSERT( cudaStreamSynchronize(stream) );
+    // CUDA_ASSERT( cudaStreamSynchronize(stream) );
     return table_size*(param.query.col_num + 1);
 
 }

@@ -499,15 +499,19 @@ public:
 
     struct GPUState {
         char *origin_result_buf_dp;
+        SubJobType job_type = FULL_JOB;
         char *result_buf_dp;
-        uint64_t result_buf_size;
-        SubJobType job_type;
+        uint64_t result_buf_num_elems;
+
+        bool result_buf_empty() {
+            return result_buf_num_elems == 0;
+        }
 
         template <typename Archive>
         void serialize(Archive &ar, const unsigned int version) {
             // ar & origin_result_buf_dp;
             // ar & result_buf_dp;
-            ar & result_buf_size;
+            ar & result_buf_num_elems;
             ar & job_type;
         }
 
@@ -587,12 +591,12 @@ public:
 
     void clear_result_buf() {
         gpu_state.result_buf_dp = nullptr;
-        gpu_state.result_buf_size = 0;
+        gpu_state.result_buf_num_elems = 0;
     }
 
-    void set_result_buf(char *rbuf, uint64_t size) {
+    void set_result_buf(char *rbuf, uint64_t n) {
         gpu_state.result_buf_dp = rbuf;
-        gpu_state.result_buf_size = size;
+        gpu_state.result_buf_num_elems = n;
     }
 
     bool done(SQState state) {
