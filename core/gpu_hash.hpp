@@ -18,11 +18,11 @@
 #include "gpu_utils.hpp"
 #include "unit.hpp"
 #include "rdf_meta.hpp"
-//
+#include "vertex.hpp"
 
-struct ikey_t;
-struct vertex_t;
-struct edge_t;
+// struct ikey_t;
+// struct vertex_t;
+// struct edge_t;
 struct GPUMem;
 // struct rdf_segment_meta_t;
 extern int global_gpu_rbuf_size_mb;
@@ -32,10 +32,13 @@ struct GPUEngineParam {
         ssid_t start_vid = 0;
         ssid_t pid = 0;
         int dir = -1;
-        int end_vid = 0;
+        ssid_t end_vid = 0;
         int col_num;
         int row_num = -1;
         uint64_t segment_edge_start = 0;
+
+        int var2col = -1;
+
     } query;
 
     struct {
@@ -43,6 +46,7 @@ struct GPUEngineParam {
 
         // device_vector<ikey_t> key_dv;
         ikey_t *d_key_list = nullptr;
+        vertex_t *d_vertex_list = nullptr;
         vertex_t* d_vertex_addr = nullptr;
         edge_t *d_edge_addr = nullptr;
 
@@ -73,6 +77,10 @@ struct GPUEngineParam {
         uint64_t *d_offset_list = nullptr;
         // device_vector<uint64_t> edge_off_dv;
         uint64_t *d_edge_off_list = nullptr;
+        uint64_t *d_bucket_id_list = nullptr;
+
+
+
         // device_ptr<sid_t*> in_rbuf_dp;
         // device_ptr<sid_t*> out_rbuf_dp;
 
@@ -87,10 +95,18 @@ struct GPUEngineParam {
         gpu.d_vertex_addr = d_vertices;
         gpu.d_edge_addr = d_edges;
 
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_in_rbuf, MiB2B(global_gpu_rbuf_size_mb) ));
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_out_rbuf, MiB2B(global_gpu_rbuf_size_mb) ));
+        // CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_in_rbuf, MiB2B(global_gpu_rbuf_size_mb) ));
+        // CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_out_rbuf, MiB2B(global_gpu_rbuf_size_mb) ));
 
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_key_list, MiB2B(global_gpu_rbuf_size_mb) ));
+        // for debug
+        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_vertex_list, MiB2B(global_gpu_rbuf_size_mb) ));
+        CUDA_ASSERT(cudaMemset((void*)gpu.d_vertex_list, 0, MiB2B(global_gpu_rbuf_size_mb)));
+        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_bucket_id_list, MiB2B(global_gpu_rbuf_size_mb) ));
+
+        // end for debug
+
+
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_slot_id_list, MiB2B(global_gpu_rbuf_size_mb) ));
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_prefix_sum_list, MiB2B(global_gpu_rbuf_size_mb) ));
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_edge_size_list, MiB2B(global_gpu_rbuf_size_mb) ));
@@ -106,9 +122,6 @@ struct GPUEngineParam {
 
     void load_segment_mappings(const std::vector<uint64_t>& vertex_mapping,
             const std::vector<uint64_t>& edge_mapping, const rdf_segment_meta_t &seg, cudaStream_t stream = 0) {
-
-        printf("load_segment_mappings: segment: #key_blks=%d, #value_blks=%d\n", seg.num_key_blocks(), seg.num_value_blocks());
-
 
         CUDA_ASSERT(cudaMemcpy(gpu.d_vertex_mapping,
                           &(vertex_mapping[0]),
@@ -145,20 +158,40 @@ struct GPUEngineParam {
 
 
 void gpu_lookup_hashtable_k2u(GPUEngineParam& param, cudaStream_t stream = 0);
+void gpu_lookup_hashtable_k2c(GPUEngineParam& param, cudaStream_t stream = 0);
 void gpu_shuffle_result_buf(GPUEngineParam& param, std::vector<int>& buf_sizes, cudaStream_t stream = 0);
 void gpu_split_result_buf(GPUEngineParam &param, int num_servers, cudaStream_t stream = 0);
 void gpu_calc_prefix_sum(GPUEngineParam& param, cudaStream_t stream = 0);
+
 void gpu_get_slot_id_list(GPUEngineParam &param, cudaStream_t stream = 0);
 
 
 void gpu_get_edge_list(GPUEngineParam &param, cudaStream_t stream = 0);
 void gpu_get_edge_list_k2k(GPUEngineParam &param, cudaStream_t stream = 0);
 void gpu_get_edge_list_k2c(GPUEngineParam &param, cudaStream_t stream = 0);
+
 int gpu_update_result_buf_i2u(GPUEngineParam& param, cudaStream_t stream = 0);
 int gpu_update_result_buf_k2k(GPUEngineParam& param, cudaStream_t stream = 0);
 int gpu_update_result_buf_k2u(GPUEngineParam& param, cudaStream_t stream = 0);
+int gpu_update_result_buf_k2c(GPUEngineParam& param, cudaStream_t stream = 0);
 int gpu_update_result_buf_i2u(GPUEngineParam& param, cudaStream_t stream);
 
+
+/*** for debuging ***/
+void gpu_generate_key_list_k2u(GPUEngineParam &param, cudaStream_t stream = 0);
+
+
+// __global__
+// void get_edge_list_kernel(uint64_t *slot_id_list,
+                    // vertex_t *d_vertex_addr,
+                    // vertex_t *d_vertex_list,
+                    // int *index_list,
+                    // int *index_list_mirror,
+                    // uint64_t *off_list,
+                    // uint64_t pred_orin_edge_start,
+                    // uint64_t* edge_headers,
+                    // uint64_t pred_edge_shard_size,
+                    // int query_size);
 
 
 /*****  Following is old interfaces *****/

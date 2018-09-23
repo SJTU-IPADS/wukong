@@ -194,6 +194,10 @@ public:
         Bundle bundle = adaptor->recv();
         ASSERT(bundle.type == SPARQL_QUERY);
         SPARQLQuery r = bundle.get_sparql_query();
+        logstream(LOG_INFO) << "Proxy recv_reply: got reply id="<< r.id << ", r.pid=" << r.pid
+            << ", dev_type=" << (r.dev_type == SPARQLQuery::DeviceType::GPU ? "GPU" : "CPU")
+            << ", #rows=" << r.result.get_row_num() << ", step=" << r.pattern_step
+            << ", done: " << r.done(SPARQLQuery::SQState::SQ_PATTERN) << LOG_endl;
         return r;
     }
 

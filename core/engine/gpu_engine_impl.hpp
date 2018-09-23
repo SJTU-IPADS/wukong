@@ -25,6 +25,7 @@
 #ifdef USE_GPU
 
 #include <vector>
+#include <utility>
 
 #include "global.hpp"
 #include "assertion.hpp"
@@ -42,7 +43,7 @@ private:
     GPUMem *gmem;
     GPUCache *gcache;
     GPUStreamPool *stream_pool;
-    GPUEngineParam engine_param;
+    GPUEngineParam param;
 
     void reverse_result_buf() {
         gmem->reverse_rbuf();
@@ -68,16 +69,16 @@ private:
 public:
     GPUEngineImpl(GPUCache *gcache, GPUMem *gmem, GPUStreamPool *stream_pool)
         : gcache(gcache), gmem(gmem), stream_pool(stream_pool),
-          engine_param(gcache->dev_vertex_addr(), gcache->dev_edge_addr(),
+          param(gcache->dev_vertex_addr(), gcache->dev_edge_addr(),
                   gcache->num_key_blocks(), gcache->num_value_blocks()) {
-        // init engine_param
+        // init param
     }
 
     ~GPUEngineImpl() { }
 
 
     char* load_result_buf(const SPARQLQuery::Result &r) {
-        logstream(LOG_EMPH) << "load_result_buf: table_size=> " << r.result_table.size() << LOG_endl;
+        logstream(LOG_INFO) << "load_result_buf: table_size=> " << r.result_table.size() << LOG_endl;
         CUDA_ASSERT( cudaMemcpy((void**)gmem->res_inbuf(),
                     &r.result_table[0],
                     sizeof(r.result_table[0]) * r.result_table.size(),
@@ -98,12 +99,18 @@ public:
         segid_t current_seg = pattern_to_segid(req, req.pattern_step);
         rdf_segment_meta_t seg_meta = gcache->get_segment_meta(current_seg);
 
-        engine_param.query.start_vid = start;
-        engine_param.query.pid = pid;
-        engine_param.query.dir = d;
-        engine_param.query.col_num = req.result.get_col_num(),
-        engine_param.query.row_num = req.result.get_row_num(),
-        engine_param.query.segment_edge_start = seg_meta.edge_start;
+        logstream(LOG_INFO) << "known_to_unknown: segment: #buckets: " << seg_meta.num_buckets
+            << ", #edges: " << seg_meta.num_edges << "." << LOG_endl;
+
+        param.query.start_vid = start;
+        param.query.pid = pid;
+        param.query.dir = d;
+        param.query.col_num = req.result.get_col_num(),
+        param.query.row_num = req.result.get_row_num(),
+        param.query.segment_edge_start = seg_meta.edge_start;
+        param.query.var2col = req.result.var2col(start);
+
+        logstream(LOG_INFO) << "known_to_unknown: #ext_buckets: " << seg_meta.ext_list_sz << LOG_endl;
 
         // not the first pattern
         // if (req.pattern_step != 0) {
@@ -135,47 +142,47 @@ public:
 
         vector<uint64_t> vertex_mapping = gcache->get_vertex_mapping(current_seg);
         vector<uint64_t> edge_mapping = gcache->get_edge_mapping(current_seg);
-        // TODO 把segment的metadata 拷贝到GPU memory上
 
-        // uint64_t pred_vertex_shard_size = gcache->shard_bucket_num;
-        // uint64_t pred_edge_shard_size = gcache->shard_entry_num;
+        // copy metadata of segment to GPU memory
+        // rdf_segment_meta_t segment = gcache->get_segment_meta(current_seg);
 
+        logstream(LOG_ERROR) << "known_to_unknown: segment: " << current_seg.stringify() << ", #key_blocks: "
+            << seg_meta.num_key_blocks() << ", #value_blocks: " << seg_meta.num_value_blocks() << LOG_endl;
+
+
+        param.load_segment_mappings(vertex_mapping, edge_mapping, seg_meta);
+        param.load_segment_meta(seg_meta);
         // setup GPU engine parameters
-        rdf_segment_meta_t segment = gcache->get_segment_meta(current_seg);
-        engine_param.load_segment_mappings(vertex_mapping, edge_mapping, segment);
-        engine_param.load_segment_meta(seg_meta);
-        engine_param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
-        engine_param.set_cache_param(global_block_num_buckets, global_block_num_edges);
-        logstream(LOG_EMPH) << "cache: #buckets: " << global_block_num_buckets << ", #edges: " <<  global_block_num_edges << LOG_endl;
+        param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
+        param.set_cache_param(global_block_num_buckets, global_block_num_edges);
 
-        // CUDA_DEVICE_SYNC;
+        gpu_generate_key_list_k2u(param);
 
-        // process query on GPU
-        gpu_lookup_hashtable_k2u(engine_param);
-        logstream(LOG_EMPH) << "GPU_lookup_hash_k2u done. row_num=>" << engine_param.query.row_num << LOG_endl;
+        gpu_get_slot_id_list(param);
 
-        gpu_calc_prefix_sum(engine_param);
-        logstream(LOG_EMPH) << "GPU_calc_prefix_sum done. row_num=>" << engine_param.query.row_num << LOG_endl;
+        gpu_get_edge_list(param);
 
-        int table_size = gpu_update_result_buf_k2u(engine_param);
-        logstream(LOG_EMPH) << "GPU_update_result_buf_k2u done. table_size=" << table_size << ", col_num=" << engine_param.query.col_num << LOG_endl;
+        gpu_calc_prefix_sum(param);
 
-        // CUDA_STREAM_SYNC(stream);
+        int table_size = gpu_update_result_buf_k2u(param);
 
-        // CUDA_DEVICE_SYNC;
+        logstream(LOG_DEBUG) << "GPU_update_result_buf_k2u done. table_size=" << table_size << ", col_num=" << param.query.col_num << LOG_endl;
+
+        req.result.row_num = table_size / (param.query.col_num + 1);
+
 
         // copy the result on GPU to CPU if we come to the last pattern
         if (req.pattern_step + 1 == req.pattern_group.patterns.size()) {
             new_table.resize(table_size);
-            thrust::device_ptr<int> dptr(engine_param.gpu.d_out_rbuf);
+            thrust::device_ptr<int> dptr(param.gpu.d_out_rbuf);
             thrust::copy(dptr, dptr + table_size, new_table.begin());
-            logstream(LOG_EMPH) << "new_table.size()=" << new_table.size() << LOG_endl;
+            logstream(LOG_INFO) << "new_table.size()=" << new_table.size() << LOG_endl;
 
             // TODO: Do we need to clear result buf?
             // req.clear_result_buf();
 
         } else {
-            req.set_result_buf((char*)engine_param.gpu.d_out_rbuf, table_size);
+            req.set_result_buf((char*)param.gpu.d_out_rbuf, table_size);
 
             // TODO: when to reverse in_rbuf & out_rbuf
             /* if (req.gpu_state.origin_result_buf_dp != nullptr) {
@@ -191,19 +198,114 @@ public:
     }
 
     // TODO
-    vector<sid_t> known_to_known(const SPARQLQuery &req, sid_t start, sid_t pid,
-            sid_t end, dir_t d) {
-    
-        ASSERT_MSG(false, "not implemented");
+    void known_to_known(SPARQLQuery &req, sid_t start, sid_t pid,
+            sid_t end, dir_t d, vector<sid_t> &new_table) {
+
+        logstream(LOG_INFO) << "known_to_known not implemented yet" << LOG_endl;
+        // ASSERT_MSG(false, "not implemented");
         return vector<sid_t>();
     }
 
     // TODO
-    vector<sid_t> known_to_const(const SPARQLQuery &req, sid_t start, sid_t pid,
-            sid_t end, dir_t d) {
-    
-        ASSERT_MSG(false, "not implemented");
-        return vector<sid_t>();
+    void known_to_const(SPARQLQuery &req, ssid_t start, ssid_t pid,
+            sid_t end, dir_t d, vector<sid_t> &new_table) {
+        cudaStream_t stream = stream_pool->get_stream(pid);
+        segid_t current_seg = pattern_to_segid(req, req.pattern_step);
+        rdf_segment_meta_t seg_meta = gcache->get_segment_meta(current_seg);
+
+        logstream(LOG_DEBUG) << "known_to_const: segment: #buckets: " << seg_meta.num_buckets
+            << ", #edges: " << seg_meta.num_edges << "." << LOG_endl;
+
+        logstream(LOG_DEBUG) << "known_to_const: GPUEngine start:" << start << ", var2col: "
+            << req.result.var2col(start) << ", row_num: " << req.result.get_row_num()
+            << ", col_num: " << req.result.get_col_num() << LOG_endl;
+
+        param.query.start_vid = start;
+        param.query.pid = pid;
+        param.query.dir = d;
+        param.query.end_vid = end;
+        param.query.col_num = req.result.get_col_num(),
+        param.query.row_num = req.result.get_row_num(),
+        param.query.segment_edge_start = seg_meta.edge_start;
+        param.query.var2col = req.result.var2col(start);
+
+        // not the first pattern
+        // if (req.pattern_step != 0) {
+            // d_result_table = (int*)req.gpu_history_ptr;
+        // } else {
+            // ASSERT(false);
+        // }
+
+        ASSERT(gmem->res_inbuf() != gmem->res_outbuf());
+        ASSERT(nullptr != gmem->res_inbuf());
+
+
+        // before processing the query, we should ensure the data of required predicates is loaded.
+        vector<segid_t> required_segs = pattgrp_to_segids(req.pattern_group);
+
+        if (!gcache->seg_in_cache(current_seg))
+            gcache->load_segment(current_seg, required_segs, stream);
+
+
+        // preload next predicate
+        if (global_gpu_enable_pipeline) {
+            auto next_seg = pattern_to_segid(req, req.pattern_step + 1);
+            auto stream2 = stream_pool->get_stream(next_seg.pid);
+
+            if (!gcache->seg_in_cache(next_seg)) {
+                gcache->prefetch_segment(next_seg, current_seg, required_segs, stream2);
+            }
+        }
+
+        vector<uint64_t> vertex_mapping = gcache->get_vertex_mapping(current_seg);
+        vector<uint64_t> edge_mapping = gcache->get_edge_mapping(current_seg);
+
+        // copy metadata of segment to GPU memory
+        param.load_segment_mappings(vertex_mapping, edge_mapping, seg_meta);
+        param.load_segment_meta(seg_meta);
+        // setup GPU engine parameters
+        param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
+        param.set_cache_param(global_block_num_buckets, global_block_num_edges);
+
+        gpu_generate_key_list_k2u(param);
+
+        gpu_get_slot_id_list(param);
+
+        gpu_get_edge_list_k2c(param);
+
+        gpu_calc_prefix_sum(param);
+
+
+        int table_size = gpu_update_result_buf_k2c(param);
+
+        logstream(LOG_INFO) << "GPU_update_result_buf_k2c done. table_size=" << table_size << LOG_endl;
+
+        req.result.row_num = table_size / param.query.col_num;
+
+        // copy the result on GPU to CPU if we come to the last pattern
+        if (req.pattern_step + 1 == req.pattern_group.patterns.size()) {
+            new_table.resize(table_size);
+            thrust::device_ptr<int> dptr(param.gpu.d_out_rbuf);
+            thrust::copy(dptr, dptr + table_size, new_table.begin());
+            logstream(LOG_DEBUG) << "new_table.size()=" << new_table.size() << LOG_endl;
+
+            // TODO: Do we need to clear result buf?
+            // req.clear_result_buf();
+
+        } else {
+            req.set_result_buf((char*)param.gpu.d_out_rbuf, table_size);
+
+            // TODO: when to reverse in_rbuf & out_rbuf
+            /* if (req.gpu_state.origin_result_buf_dp != nullptr) {
+             *     d_updated_result_table = (int*)req.gpu_state.origin_result_buf_dp;
+             *     req.gpu_origin_buffer_head = nullptr;
+             * }
+             * else {
+             *     d_updated_result_table = d_result_table;
+             * } */
+            reverse_result_buf();
+        }
+
     }
 
     // TODO
@@ -220,10 +322,10 @@ public:
         }
 
         // calc_dispatched_position
-        gpu_shuffle_result_buf(engine_param, buf_sizes, stream);
+        gpu_shuffle_result_buf(param, buf_sizes, stream);
 
         // update_result_table_sub
-        gpu_split_result_buf(engine_param, num_jobs, stream);
+        gpu_split_result_buf(param, num_jobs, stream);
 
         for (int i = 0; i < num_jobs; ++i) {
             // buf_sizes[i] *= req.result.get_col_num();

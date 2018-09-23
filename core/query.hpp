@@ -275,6 +275,7 @@ public:
         vector<sid_t> result_table; // result table for string IDs
         vector<attr_t> attr_res_table; // result table for others
 
+
         // OPTIONAL
         vector<bool> optional_matched_rows; // mark which rows are matched in optional block
 
@@ -360,7 +361,11 @@ public:
                 else
                     return 0;
             }
-            return result_table.size() / col_num;
+
+            if (row_num != 0)
+                return row_num;
+            else
+                return result_table.size() / col_num;
         }
 
         sid_t get_row_col(int r, int c) {
@@ -501,17 +506,17 @@ public:
         char *origin_result_buf_dp;
         SubJobType job_type = FULL_JOB;
         char *result_buf_dp;
-        uint64_t result_buf_num_elems;
+        uint64_t result_buf_nelems;
 
         bool result_buf_empty() {
-            return result_buf_num_elems == 0;
+            return result_buf_nelems == 0;
         }
 
         template <typename Archive>
         void serialize(Archive &ar, const unsigned int version) {
             // ar & origin_result_buf_dp;
             // ar & result_buf_dp;
-            ar & result_buf_num_elems;
+            ar & result_buf_nelems;
             ar & job_type;
         }
 
@@ -591,12 +596,12 @@ public:
 
     void clear_result_buf() {
         gpu_state.result_buf_dp = nullptr;
-        gpu_state.result_buf_num_elems = 0;
+        gpu_state.result_buf_nelems = 0;
     }
 
     void set_result_buf(char *rbuf, uint64_t n) {
         gpu_state.result_buf_dp = rbuf;
-        gpu_state.result_buf_num_elems = n;
+        gpu_state.result_buf_nelems = n;
     }
 
     bool done(SQState state) {

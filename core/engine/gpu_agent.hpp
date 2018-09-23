@@ -50,6 +50,16 @@ using namespace std;
  */
 class GPUAgent {
 private:
+    class Message {
+    public:
+        int sid;
+        int tid;
+        Bundle bundle;
+
+        Message(int sid, int tid, Bundle &bundle)
+            : sid(sid), tid(tid), bundle(bundle) { }
+    };
+
 
     GPUEngine *gpu_engine;
     Adaptor *adaptor;
@@ -59,6 +69,8 @@ private:
     pthread_spinlock_t rmap_lock;
 
     tbb::concurrent_queue<SPARQLQuery> runqueue;
+    vector<Message> pending_msgs;
+
 
 public:
     int sid;    // server id
@@ -71,7 +83,14 @@ public:
 
     ~GPUAgent() { }
 
-    void send_request(Bundle& bundle, int dst_sid, int dst_tid) {
+    bool send_request(Bundle& bundle, int dst_sid, int dst_tid) {
+        if (adaptor->send(dst_sid, dst_tid, bundle)) {
+            return true;
+        }
+
+        // failed to send, then stash the msg to avoid deadlock
+        pending_msgs.push_back(Message(dst_sid, dst_tid, bundle));
+        return false;
     }
 
     void sweep_msgs() {
@@ -143,6 +162,11 @@ public:
         // encode the lineage of the query (server & thread)
         if (req.id == -1) req.id = coder.get_and_inc_qid();
 
+
+        logstream(LOG_DEBUG) << "GPUAgent: " << "[" << sid << "-" << tid << "]"
+                             << " got a req: r.id=" << req.id << ", r.state="
+                             << (req.state == SPARQLQuery::SQState::SQ_REPLY ? "SQ_REPLY" : "Request") << LOG_endl;
+
         if (req.state == SPARQLQuery::SQState::SQ_REPLY) {
             collect_reply(req);
         }
@@ -159,10 +183,16 @@ public:
             if (req.done(SPARQLQuery::SQState::SQ_PATTERN)) {
                 // only send back row_num in blind mode
                 req.result.row_num = req.result.get_row_num();
-                return true;
+                logstream(LOG_DEBUG) << "GPUAgent: finished query r.id=" << req.id << LOG_endl;
+                req.state = SPARQLQuery::SQState::SQ_REPLY;
+                Bundle bundle(req);
+                send_request(bundle, coder.sid_of(req.pid), coder.tid_of(req.pid));
+                break;
             }
 
+            // TODO
             if (need_fork_join(req)) {
+                ASSERT_MSG(false, "doesn't support fork-join mode now");
                 vector<SPARQLQuery> sub_reqs = gpu_engine->generate_sub_query(req);
                 rmap.put_parent_request(req, sub_reqs.size());
                 for (int i = 0; i < sub_reqs.size(); i++) {
@@ -189,8 +219,7 @@ public:
 
             // priority path: sparql stage (FIXME: only for SPARQL queries)
             SPARQLQuery req;
-            has_job = runqueue.try_pop(req);
-            if (has_job) {
+            if (runqueue.try_pop(req)) {
                 if (need_parallel(req)) {
                     send_to_workers(req);
                     continue; // exhaust all queries
@@ -217,10 +246,10 @@ public:
                 }
             }
 
-            if (runqueue.try_pop(req)) {
-                // process a new SPARQL query
-                execute_sparql_query(req);
-            }
+            // if (runqueue.try_pop(req)) {
+                // // process a new SPARQL query
+                // execute_sparql_query(req);
+            // }
         }
     }
 

@@ -124,6 +124,7 @@ private:
 
         std::vector<sid_t> updated_result_table;
 
+        logstream(LOG_INFO) << "[begin] known_to_unknown: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
         if (req.result.get_row_num() != 0) {
             ASSERT(nullptr != req.gpu_state.result_buf_dp);
             impl.known_to_unknown(req, start, pid, d, updated_result_table);
@@ -133,7 +134,11 @@ private:
         res.add_var2col(end, res.get_col_num());
         res.set_col_num(res.get_col_num() + 1);
         req.pattern_step++;
+        logstream(LOG_INFO) << "[end] known_to_unknown: GPU row_num=" << res.get_row_num() <<
+            ", col_num=" << res.get_col_num() << LOG_endl;
+
     }
+
 
     /// ?Y P ?X . (?Y and ?X are KNOWN)
     /// e.g.,
@@ -142,19 +147,24 @@ private:
     /// 2) Match [?Y]'s X within above neighbors
     void known_to_known(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        sid_t start = pattern.subject;
-        sid_t pid   = pattern.predicate;
+        ssid_t start = pattern.subject;
+        ssid_t pid   = pattern.predicate;
         dir_t d      = pattern.direction;
         ssid_t end   = pattern.object;
         SPARQLQuery::Result &res = req.result;
 
-        vector<sid_t> updated_result_table;
+        std::vector<sid_t> updated_result_table;
 
-        // TODO
-        // updated_result_table = impl.known_to_known(req, start, pid, end, d);
+        logstream(LOG_DEBUG) << "[begin] known_to_known: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
+        if (req.result.get_row_num() != 0) {
+            ASSERT(nullptr != req.gpu_state.result_buf_dp);
+            // TODO
+            impl.known_to_known(req, start, pid, end, d, updated_result_table);
+        }
 
         res.result_table.swap(updated_result_table);
         req.pattern_step++;
+        logstream(LOG_DEBUG) << "[end] known_to_known: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
     }
 
     /// ?X P C . (?X is KNOWN)
@@ -163,20 +173,26 @@ private:
     /// 1) Use [?X]+P1 to retrieve all of neighbors
     /// 2) Match E1 within above neighbors
     void known_to_const(SPARQLQuery &req) {
+
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        sid_t start = pattern.subject;
-        sid_t pid   = pattern.predicate;
+        ssid_t start = pattern.subject;
+        ssid_t pid   = pattern.predicate;
         dir_t d      = pattern.direction;
         ssid_t end   = pattern.object;
         SPARQLQuery::Result &res = req.result;
 
-        vector<sid_t> updated_result_table;
+        std::vector<sid_t> updated_result_table;
 
-        // TODO
-        // updated_result_table = impl.known_to_const(req, start, pid, end, d);
+        logstream(LOG_INFO) << "[begin] known_to_const: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
+        if (req.result.get_row_num() != 0) {
+            ASSERT(nullptr != req.gpu_state.result_buf_dp);
+            // TODO
+            impl.known_to_const(req, start, pid, end, d, updated_result_table);
+        }
 
         res.result_table.swap(updated_result_table);
         req.pattern_step++;
+        logstream(LOG_INFO) << "[end] known_to_const: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
     }
 
     // fork-join or in-place execution
@@ -226,12 +242,12 @@ public:
         ASSERT(result_buf_ready(req));
         ASSERT(!req.done(SPARQLQuery::SQState::SQ_PATTERN));
 
-        logstream(LOG_DEBUG) << "GPUEngine: " << "[" << sid << "-" << tid << "]"
+        logstream(LOG_INFO) << "GPUEngine: " << "[" << sid << "-" << tid << "]"
                              << " step=" << req.pattern_step << LOG_endl;
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        sid_t start     = pattern.subject;
-        sid_t predicate = pattern.predicate;
+        ssid_t start     = pattern.subject;
+        ssid_t predicate = pattern.predicate;
         dir_t direction  = pattern.direction;
         ssid_t end       = pattern.object;
 
@@ -328,7 +344,7 @@ public:
         ASSERT(req.pg_type != SPARQLQuery::PGType::OPTIONAL);
 
         if (global_num_servers == 1) {
-            sub_reqs[0].set_result_buf(req.gpu_state.result_buf_dp, req.gpu_state.result_buf_num_elems);
+            sub_reqs[0].set_result_buf(req.gpu_state.result_buf_dp, req.gpu_state.result_buf_nelems);
         } else {
             std::vector<int*> res_buf_ptrs(global_num_servers);
             std::vector<int> res_buf_rows(global_num_servers);
