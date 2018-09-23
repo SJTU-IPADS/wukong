@@ -36,7 +36,7 @@ using namespace std;
 using namespace boost::archive;
 
 
-#define EXT_LIST_MAX_LEN 4
+#define EXT_LIST_MAX_LEN 1
 #define EXT_BUCKET_EXTENT_LEN(num_buckets) (num_buckets * 15 / 100 + 1)
 #define PREDICATE_NSEGS 4
 
@@ -97,7 +97,7 @@ struct rdf_segment_meta_t {
         ext_bucket_list[ext_list_sz++] = ext;
     }
 
-    uint64_t get_total_num_buckets() const {
+    inline uint64_t get_total_num_buckets() const {
         uint64_t total = num_buckets;
         for (int i = 0; i < ext_list_sz; ++i) {
             const auto &ext = ext_bucket_list[i];
@@ -108,8 +108,7 @@ struct rdf_segment_meta_t {
 
     int num_key_blocks() const {
         extern int global_block_num_buckets;
-        static uint64_t n = get_total_num_buckets();
-        return ceil(((double) n) / global_block_num_buckets);
+        return ceil(((double) get_total_num_buckets()) / global_block_num_buckets);
     }
 
     int num_value_blocks() const {
