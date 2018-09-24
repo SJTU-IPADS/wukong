@@ -49,10 +49,6 @@ public:
         }
     }
 
-    // TODO: 用RR方式分配stream，那么如何synchronize呢？
-    // 我分配了s1, s2两个stream，s1给pattern1用，s2给
-    // 下一条pattern2用，那么我如何保证在处理完pattern1之后，
-    // pattern2的数据也加载上去了？
     cudaStream_t get_stream() {
         // select Stream in a round-robin way
         int idx = (rr_cnt++) % num_streams;
@@ -66,4 +62,4 @@ public:
 
 };
 
-#endif USE_GPU
+#endif

@@ -118,7 +118,7 @@ void gpu_generate_key_list_k2u(GPUEngineParam &param, cudaStream_t stream)
     assert(param.query.var2col_start >= 0);
 
     generate_key_list_k2u_kernel<<<WUKONG_GET_BLOCKS(param.query.row_num),
-        WUKONG_CUDA_NUM_THREADS>>>(
+        WUKONG_CUDA_NUM_THREADS, 0, stream>>>(
                 param.gpu.d_in_rbuf,
                 param.gpu.d_key_list,
                 param.query.var2col_start, // param.query.start_vid,
@@ -259,17 +259,13 @@ void d_get_slot_id_list(int index,
 // done
 void gpu_get_slot_id_list(GPUEngineParam &param, cudaStream_t stream)
 {
-    // int gridsize = (int) (ceil((double)param.query.row_num / (blocksize * blocksize)));
-    // dim3 dimBlock = dim3(blocksize, blocksize, 1);
-    // dim3 dimGrid = dim3(gridsize, 1, 1);
-
     assert(param.query.row_num > 0);
     assert(param.query.var2col_start >= 0);
 
     ikey_t empty_key = ikey_t();
 
     get_slot_id_list_kernel<<<WUKONG_GET_BLOCKS(param.query.row_num),
-        WUKONG_CUDA_NUM_THREADS>>>(
+        WUKONG_CUDA_NUM_THREADS, 0, stream>>>(
             param.gpu.d_vertex_addr,
             param.gpu.d_key_list,   // (ikey_t*)d_key_list,
             param.gpu.d_slot_id_list,  // d_slot_id_list,
@@ -337,13 +333,13 @@ void d_get_edge_list(int index,
 }
 
 // done
-void gpu_get_edge_list(GPUEngineParam &param, cudaStream_t stream_id)
+void gpu_get_edge_list(GPUEngineParam &param, cudaStream_t stream)
 {
 
     assert(param.query.row_num > 0);
 
     get_edge_list_kernel<<<WUKONG_GET_BLOCKS(param.query.row_num),
-        WUKONG_CUDA_NUM_THREADS>>>(
+        WUKONG_CUDA_NUM_THREADS, 0, stream>>>(
                     param.gpu.d_slot_id_list,
                     param.gpu.d_vertex_addr, // (vertex_t*)d_vertex_addr,
                     param.gpu.d_edge_addr, // for debug
@@ -395,13 +391,13 @@ void get_edge_list_k2c_kernel(
 }
 
 // Siyuan: 2018.9.23 added
-void gpu_get_edge_list_k2c(GPUEngineParam &param, cudaStream_t stream_id)
+void gpu_get_edge_list_k2c(GPUEngineParam &param, cudaStream_t stream)
 {
 
     assert(param.query.row_num > 0);
 
     get_edge_list_k2c_kernel<<<WUKONG_GET_BLOCKS(param.query.row_num),
-        WUKONG_CUDA_NUM_THREADS>>>(
+        WUKONG_CUDA_NUM_THREADS, 0, stream>>>(
                     param.gpu.d_slot_id_list,
                     param.gpu.d_vertex_addr, // (vertex_t*)d_vertex_addr,
                     param.gpu.d_prefix_sum_list, // index_list,
@@ -467,7 +463,7 @@ void gpu_get_edge_list_k2k(GPUEngineParam &param, cudaStream_t stream)
     assert(param.query.var2col_end >= 0);
 
     get_edge_list_k2k_kernel<<<WUKONG_GET_BLOCKS(param.query.row_num),
-        WUKONG_CUDA_NUM_THREADS>>>(
+        WUKONG_CUDA_NUM_THREADS, 0, stream>>>(
                     param.gpu.d_slot_id_list, // slot_id_list,
                     param.gpu.d_vertex_addr, // (vertex_t*)d_vertex_addr,
                     param.gpu.d_prefix_sum_list, // index_list,
@@ -639,8 +635,7 @@ void gpu_calc_prefix_sum(GPUEngineParam& param,
 {
     thrust::device_ptr<int> d_in_ptr(param.gpu.d_edge_size_list);
     thrust::device_ptr<int> d_out_ptr(param.gpu.d_prefix_sum_list);
-    // thrust::inclusive_scan(thrust::cuda::par.on(stream), d_in_ptr, d_in_ptr + param.query.row_num, d_out_ptr);
-    thrust::inclusive_scan(d_in_ptr, d_in_ptr + param.query.row_num, d_out_ptr);
+    thrust::inclusive_scan(thrust::cuda::par.on(stream), d_in_ptr, d_in_ptr + param.query.row_num, d_out_ptr);
 }
 
 

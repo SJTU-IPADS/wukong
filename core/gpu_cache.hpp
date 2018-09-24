@@ -239,8 +239,8 @@ private:
      */
     void load_vertex_block(segid_t seg, int seg_block_idx, int block_id, cudaStream_t stream_id) {
         // step 1: calculate direct size
-        int end_main_block_idx = ceil(((double)rdf_metas[seg].num_buckets) / num_buckets_per_block) - 1;
-        int end_indirect_block_idx = ceil(((double)rdf_metas[seg].get_total_num_buckets()) / num_buckets_per_block) - 1;
+        int end_main_block_idx = ceil((double)(rdf_metas[seg].num_buckets) / num_buckets_per_block) - 1;
+        int end_indirect_block_idx = ceil((double)(rdf_metas[seg].get_total_num_buckets()) / num_buckets_per_block) - 1;
 
         uint64_t main_size = 0;
         uint64_t indirect_size = 0;
@@ -267,12 +267,12 @@ private:
         }
         // step 3: load direct
         if (main_size != 0) {
-            CUDA_ASSERT(cudaMemcpy(
+            CUDA_ASSERT(cudaMemcpyAsync(
                 d_vertex_addr + block_id * num_buckets_per_block * GStore::ASSOCIATIVITY,
                 vertex_addr + (rdf_metas[seg].bucket_start + seg_block_idx * num_buckets_per_block) * GStore::ASSOCIATIVITY,
                 sizeof(vertex_t) * main_size * GStore::ASSOCIATIVITY,
-                cudaMemcpyHostToDevice));
-                // stream_id));
+                cudaMemcpyHostToDevice,
+                stream_id));
         }
         // step 4: load indirect
         if (indirect_size != 0) {
@@ -299,9 +299,9 @@ private:
                     if (inside_load > remain) inside_load = remain;
                     uint64_t dst_off = (block_id * num_buckets_per_block + indirect_start + indirect_size - remain) * GStore::ASSOCIATIVITY;
                     uint64_t src_off = (ext.start + inside_off) * GStore::ASSOCIATIVITY;
-                    CUDA_ASSERT(cudaMemcpy(d_vertex_addr + dst_off, vertex_addr + src_off,
+                    CUDA_ASSERT(cudaMemcpyAsync(d_vertex_addr + dst_off, vertex_addr + src_off,
                         sizeof(vertex_t) * inside_load * GStore::ASSOCIATIVITY,
-                        cudaMemcpyHostToDevice)); //, stream_id));
+                        cudaMemcpyHostToDevice, stream_id));
                     remain -= inside_load;
                     start_bucket_idx += inside_load;
                     // load complete
@@ -326,18 +326,22 @@ private:
             data_size = rdf_metas[seg].num_edges % num_entries_per_block;
         else
             data_size = num_entries_per_block;
-        CUDA_ASSERT(cudaMemcpy(d_edge_addr + block_id * num_entries_per_block,
+        CUDA_ASSERT(cudaMemcpyAsync(d_edge_addr + block_id * num_entries_per_block,
                                    edge_addr + rdf_metas[seg].edge_start + seg_block_idx * num_entries_per_block,
                                    sizeof(edge_t) * data_size,
-                                   cudaMemcpyHostToDevice));
-                                   //stream_id));
+                                   cudaMemcpyHostToDevice,
+                                   stream_id));
     } // end of load_edge_block
 
 
     void _load_segment(segid_t seg_to_load, segid_t seg_in_use, const vector<segid_t> &conflicts, cudaStream_t stream_id, bool preload) {
         // step 1.1: evict key blocks
         int num_need_key_blocks = num_key_blocks_seg_need[seg_to_load] - num_key_blocks_seg_using[seg_to_load];
+
+        logstream(LOG_EMPH) << "load_segment: segment: " << seg_to_load.stringify() << ", #need_key_blks: " << num_need_key_blocks << LOG_endl;
+
         if (free_key_blocks.size() < num_need_key_blocks) {
+            logstream(LOG_ERROR) << "load_segment: evict_key_blocks" << LOG_endl;
             evict_key_blocks(conflicts, seg_to_load, seg_in_use, num_need_key_blocks);
         }
         // step 1.2: load key blocks
@@ -428,6 +432,9 @@ public:
         // FIXME
         global_block_num_buckets = num_buckets_per_block;
         global_block_num_edges = num_entries_per_block;
+
+        logstream(LOG_EMPH) << "#key_blocks: " << cap_gpu_key_blocks << ", #value_blocks: " << cap_gpu_value_blocks
+                            << ", #buckets_per_block: " << global_block_num_buckets << ", #edges_per_block: " << global_block_num_edges << LOG_endl;
 
         // step 2: init free_key/value blocks
         for (int i = 0; i < cap_gpu_key_blocks; i++) {
@@ -532,7 +539,6 @@ public:
     } // end of reset
 
     void load_segment(segid_t seg_to_load, const vector<segid_t> &conflicts, cudaStream_t stream_id) {
-        logstream(LOG_INFO) << "load_segment: segment=> " << seg_to_load.stringify() << LOG_endl;
         _load_segment(seg_to_load, seg_to_load, conflicts, stream_id, false);
     }
 

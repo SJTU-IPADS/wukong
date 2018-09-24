@@ -66,7 +66,7 @@ int global_gpu_key_blk_size_mb = 16;
 int global_gpu_value_blk_size_mb = 4;
 int global_block_num_buckets = 0;
 int global_block_num_edges = 0;
-bool global_gpu_enable_pipeline = false;
+bool global_gpu_enable_pipeline = true;
 
 variant_type global_get_type;
 

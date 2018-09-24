@@ -49,7 +49,7 @@ private:
         gmem->reverse_rbuf();
     }
 
-    segid_t pattern_to_segid(const SPARQLQuery& req, int pattern_id) {
+    segid_t pattern_to_segid(const SPARQLQuery &req, int pattern_id) {
         SPARQLQuery::Pattern patt = req.pattern_group.patterns[pattern_id];
         segid_t segid(0, patt.predicate, patt.direction);
         // rdf_segment_meta_t seg = gcache->get_segment_meta(segid);
@@ -63,6 +63,10 @@ private:
             segids.push_back(segid);
         }
         return segids;
+    }
+
+    bool has_next_pattern(const SPARQLQuery &req) {
+        return req.pattern_step + 1 < req.pattern_group.patterns.size();
     }
 
 
@@ -131,7 +135,7 @@ public:
 
 
         // prefetch segment of next pattern
-        if (global_gpu_enable_pipeline) {
+        if (global_gpu_enable_pipeline && has_next_pattern(req)) {
             auto next_seg = pattern_to_segid(req, req.pattern_step + 1);
             auto stream2 = stream_pool->get_stream(next_seg.pid);
 
@@ -156,13 +160,13 @@ public:
         param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
         param.set_cache_param(global_block_num_buckets, global_block_num_edges);
 
-        gpu_generate_key_list_k2u(param);
+        gpu_generate_key_list_k2u(param, stream);
 
-        gpu_get_slot_id_list(param);
+        gpu_get_slot_id_list(param, stream);
 
-        gpu_get_edge_list(param);
+        gpu_get_edge_list(param, stream);
 
-        gpu_calc_prefix_sum(param);
+        gpu_calc_prefix_sum(param, stream);
 
         int table_size = gpu_update_result_buf_k2u(param);
 
@@ -241,7 +245,7 @@ public:
 
 
         // preload next predicate
-        if (global_gpu_enable_pipeline) {
+        if (global_gpu_enable_pipeline && has_next_pattern(req)) {
             auto next_seg = pattern_to_segid(req, req.pattern_step + 1);
             auto stream2 = stream_pool->get_stream(next_seg.pid);
 
@@ -260,13 +264,13 @@ public:
         param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
         param.set_cache_param(global_block_num_buckets, global_block_num_edges);
 
-        gpu_generate_key_list_k2u(param);
+        gpu_generate_key_list_k2u(param, stream);
 
-        gpu_get_slot_id_list(param);
+        gpu_get_slot_id_list(param, stream);
 
-        gpu_get_edge_list_k2k(param);
+        gpu_get_edge_list_k2k(param, stream);
 
-        gpu_calc_prefix_sum(param);
+        gpu_calc_prefix_sum(param, stream);
 
         int table_size = gpu_update_result_buf_k2k(param);
 
@@ -342,7 +346,7 @@ public:
 
 
         // preload next predicate
-        if (global_gpu_enable_pipeline) {
+        if (global_gpu_enable_pipeline && has_next_pattern(req)) {
             auto next_seg = pattern_to_segid(req, req.pattern_step + 1);
             auto stream2 = stream_pool->get_stream(next_seg.pid);
 
@@ -361,13 +365,13 @@ public:
         param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
         param.set_cache_param(global_block_num_buckets, global_block_num_edges);
 
-        gpu_generate_key_list_k2u(param);
+        gpu_generate_key_list_k2u(param, stream);
 
-        gpu_get_slot_id_list(param);
+        gpu_get_slot_id_list(param, stream);
 
-        gpu_get_edge_list_k2c(param);
+        gpu_get_edge_list_k2c(param, stream);
 
-        gpu_calc_prefix_sum(param);
+        gpu_calc_prefix_sum(param, stream);
 
 
         int table_size = gpu_update_result_buf_k2c(param);

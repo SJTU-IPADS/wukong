@@ -136,6 +136,8 @@ static bool set_mutable_config(string cfg_name, string value)
         global_enable_planner = atoi(value.c_str());
     } else if (cfg_name == "global_enable_vattr") {
         global_enable_vattr = atoi(value.c_str());
+    } else if (cfg_name == "global_gpu_enable_pipeline") {
+        global_gpu_enable_pipeline = atoi(value.c_str());
     } else {
         return false;
     }
