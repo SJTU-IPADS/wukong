@@ -139,7 +139,6 @@ private:
 
     }
 
-
     /// ?Y P ?X . (?Y and ?X are KNOWN)
     /// e.g.,
     ///
@@ -155,16 +154,15 @@ private:
 
         std::vector<sid_t> updated_result_table;
 
-        logstream(LOG_DEBUG) << "[begin] known_to_known: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
+        logstream(LOG_INFO) << "[begin] known_to_known: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
         if (req.result.get_row_num() != 0) {
             ASSERT(nullptr != req.gpu_state.result_buf_dp);
-            // TODO
             impl.known_to_known(req, start, pid, end, d, updated_result_table);
         }
 
         res.result_table.swap(updated_result_table);
         req.pattern_step++;
-        logstream(LOG_DEBUG) << "[end] known_to_known: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
+        logstream(LOG_INFO) << "[end] known_to_known: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
     }
 
     /// ?X P C . (?X is KNOWN)

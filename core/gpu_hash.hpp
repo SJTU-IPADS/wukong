@@ -37,7 +37,8 @@ struct GPUEngineParam {
         int row_num = -1;
         uint64_t segment_edge_start = 0;
 
-        int var2col = -1;
+        int var2col_start = -1;
+        int var2col_end = -1;
 
     } query;
 
