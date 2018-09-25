@@ -324,6 +324,60 @@ static void run_config(Proxy *proxy, int argc, char **argv)
     }
 }
 
+/**
+ * output result of current query
+ */
+static void output_result(ostream &stream, SPARQLQuery::Result &result, int size, String_Server *str_server)
+{
+    for (int i = 0; i < size; i++) {
+        stream << i + 1 << ": ";
+        for (int j = 0; j < result.col_num; j++) {
+            int id = result.get_row_col(i, j);
+            if (str_server->exist(id))
+                stream << str_server->id2str[id] << "\t";
+            else
+                stream << id << "\t";
+        }
+
+        for (int c = 0; c < result.get_attr_col_num(); c++) {
+            attr_t tmp = result.get_attr_row_col(i, c);
+            stream << tmp << "\t";
+        }
+
+        stream << endl;
+    }
+}
+
+/**
+ * print result of current query to console
+ */
+static void print_result(SPARQLQuery::Result &result, int row2print, String_Server *str_server)
+{
+    logstream(LOG_INFO) << "The first " << row2print << " rows of results: " << LOG_endl;
+    output_result(cout, result, row2print, str_server);
+}
+
+/**
+ * dump result of current query to specific file
+ */
+static void dump_result(string path, SPARQLQuery::Result &result, int row2print, String_Server *str_server)
+{
+    if (boost::starts_with(path, "hdfs:")) {
+        wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
+        wukong::hdfs::fstream ofs(hdfs, path, true);
+        output_result(ofs, result, row2print, str_server);
+        ofs.close();
+    } else {
+        ofstream ofs(path);
+        if (!ofs.good()) {
+            logstream(LOG_INFO) << "Can't open/create output file: " << path << LOG_endl;
+        } else {
+            output_result(ofs, result, row2print, str_server);
+            ofs.close();
+        }
+    }
+}
+
 
 /**
  * run the 'sparql' command
@@ -425,10 +479,10 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         // print or dump results
         if (!global_silent && !result.blind) {
             if (nlines > 0)
-                result.print_result(min(nlines, result.get_row_num()), proxy->str_server);
+                print_result(result, min(nlines, result.get_row_num()), proxy->str_server);
 
             if (sparql_vm.count("-o"))
-                result.dump_result(ofname, result.get_row_num(), proxy->str_server);
+                dump_result(ofname, result, result.get_row_num(), proxy->str_server);
         }
     }
 
