@@ -97,8 +97,8 @@ private:
     int tid;
     int port_base;
 
-    zmq::socket_t * receiver;
-    zmq::socket_t * sender;
+    zmq::socket_t * receiver;    // static allocation, only one receiver
+    zmq::socket_t * sender;      // static allocation, only one sender
 
     zmq::context_t context;
 
@@ -114,10 +114,12 @@ public:
         while (hostfile >> ip)
             ipset.push_back(ip);
 
+        //sender should be connected to string server
         sender = new zmq::socket_t(context, ZMQ_PUSH);
         int pid = port_code(m_sid, m_tid);
         char sender_address[32] = "";
         snprintf(sender_address, 32, "tcp://%s:%d", ipset[m_sid].c_str(), port_base + pid);
+        /// FIXME: check return value
         sender->connect(sender_address);
 
         receiver = new zmq::socket_t(context, ZMQ_PULL);

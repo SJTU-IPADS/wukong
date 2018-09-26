@@ -21,13 +21,15 @@
  */
 
 #pragma once
+
 #include "tcp_broadcast.hpp"
 #include "rdma_broadcast.hpp"
 
 class Broadcast_Master {
-    public:
-    TCP_Broadcast_Master *tcp;
-    RDMA_Broadcast_Master *rdma;
+public:
+    TCP_Broadcast_Master *tcp;   // communicaiton by TCP/IP
+    RDMA_Broadcast_Master *rdma; // communicaiton by RDMA
+
     Broadcast_Master(TCP_Broadcast_Master* tcp, RDMA_Broadcast_Master* rdma)
         : tcp(tcp), rdma(rdma) { }
 
@@ -56,9 +58,10 @@ class Broadcast_Master {
 };
 
 class Broadcast_Slave {
-    public:
-    TCP_Broadcast_Slave *tcp;
-    RDMA_Broadcast_Slave *rdma;
+public:
+    TCP_Broadcast_Slave *tcp;    // communicaiton by TCP/IP
+    RDMA_Broadcast_Slave *rdma;  // communicaiton by RDMA
+
     Broadcast_Slave(TCP_Broadcast_Slave* tcp, RDMA_Broadcast_Slave* rdma)
         : tcp(tcp), rdma(rdma) { }
 
