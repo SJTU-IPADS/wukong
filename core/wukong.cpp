@@ -120,8 +120,12 @@ main(int argc, char *argv[])
     // allocate memory regions
     vector<RDMA::MemoryRegion> mrs;
 
+    // rdma broadcast memory
+    vector<Broadcast_Mem *> bc_mems;
+    Broadcast_Mem *mb_mem = new Broadcast_Mem(global_num_servers, global_num_threads);
+    bc_mems.push_back(mb_mem);
     // CPU (host) memory
-    Mem *mem = new Mem(global_num_servers, global_num_threads);
+    Mem *mem = new Mem(global_num_servers, global_num_threads, bc_mems);
     logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(mem->size()) << "GB memory" << LOG_endl;
     RDMA::MemoryRegion mr_cpu = { RDMA::MemType::CPU, mem->address(), mem->size(), mem };
     mrs.push_back(mr_cpu);
@@ -136,7 +140,7 @@ main(int argc, char *argv[])
 #endif
 
     // init RDMA devices and connections
-    RDMA_init(global_num_servers, global_num_threads, sid, mrs, host_fname);
+    RDMA_init(global_num_servers, global_num_threads + 2, sid, mrs, host_fname);
 
     // init communication
     RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mrs,
