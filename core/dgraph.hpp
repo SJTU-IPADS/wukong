@@ -822,8 +822,8 @@ public:
         gstore.get_edges(0, 0, TYPE_ID, OUT, sz);
         logstream(LOG_INFO) << "#types: " << sz << LOG_endl;
 
-        gstore.get_edges(0, 0, TYPE_ID, OUT, sz);
-        logstream(LOG_INFO) << "#predicates: " << sz << LOG_endl;
+        gstore.get_edges(0, 0, PREDICATE_ID, OUT, sz);
+        logstream(LOG_INFO) << "#predicates: " << sz << " (not including types)" << LOG_endl;
 #endif // end of VERSATILE
     }
 };
