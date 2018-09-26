@@ -216,59 +216,10 @@ public:
         end = timer::get_usec();
         logstream(LOG_INFO) << "Parsing time: " << (end - start) << " usec" << LOG_endl;
 
-        // Load query format, see detailed description in sample format file
-        if (fmt_stream.good()) {
-            if (global_enable_planner) {
-                logstream(LOG_WARNING) << "Query format will not work since planner is on" << LOG_endl;
-            } else {
-                //reading format file
-                vector<string> directions;
-                vector<int> orders;
-                string line, direction = ">";
-                int order;
-                while (std::getline(fmt_stream, line)) {
-                    if (boost::starts_with(line, "#") || line.empty())
-                        continue; // skip comments and blank lines
-
-                    istringstream iss(line);
-                    iss >> order >> direction;
-                    directions.push_back(direction);
-                    orders.push_back(order);
-                }
-
-                // correctness check
-                if (orders.size() < request.pattern_group.patterns.size()) {
-                    logstream(LOG_ERROR) << "wrong format file content!" << LOG_endl;
-                } else {
-                    // reset orders and directions according to format file
-                    vector<SPARQLQuery::Pattern> patterns;
-                    for (int i = 0; i < orders.size(); i++) {
-                        // number of orders starts from 1
-                        SPARQLQuery::Pattern pattern = request.pattern_group.patterns[orders[i] - 1];
-
-                        if (directions[i] == "<") {
-                            pattern.direction = IN;
-                            ssid_t temp = pattern.subject;
-                            pattern.subject = pattern.object;
-                            pattern.object = temp;
-                        } else if (directions[i] == ">") {
-                            pattern.direction = OUT;
-                        } else if (directions[i] == "<<") {
-                            pattern.direction = IN;
-                            pattern.object = pattern.subject;
-                            pattern.subject = pattern.predicate;
-                            pattern.predicate = PREDICATE_ID;
-                        } else if (directions[i] == ">>") {
-                            pattern.direction = OUT;
-                            pattern.subject = pattern.predicate;
-                            pattern.predicate = PREDICATE_ID;
-                        }
-                        patterns.push_back(pattern);
-                    }
-                    request.pattern_group.patterns = patterns;
-                }
-            }
-        }
+        if (planner.set_query_plan(request.pattern_group, fmt_stream))
+            logstream(LOG_INFO) << "Query plan is successfully set" << LOG_endl;
+        else
+            logstream(LOG_INFO) << "No query plan is set" << LOG_endl;
 
         // Generate plans for the query if our SPARQL planner is enabled.
         // NOTE: it only works for standard SPARQL query.
@@ -311,7 +262,7 @@ public:
     // Warm up for @w firstly, then measure throughput.
     // Latency is evaluated for @d seconds.
     // Proxy keeps @p queries in flight.
-    int run_query_emu(istream &is, int d, int w, int p, Monitor &monitor) {
+    int run_query_emu(istream &is, istream &fmt_stream, int d, int w, int p, Monitor &monitor) {
         uint64_t duration = SEC(d);
         uint64_t warmup = SEC(w);
         int parallel_factor = p;
@@ -327,6 +278,14 @@ public:
             logstream(LOG_ERROR) << "Invalid #lights (" << nlights << " < 0)"
                                  << " or #heavies (" << nheavies << " < 0)!" << LOG_endl;
             return -2; // parsing failed
+        }
+
+        // read query-plan config file
+        vector<string> fmt_file_names;
+        if (fmt_stream.good()) {
+            fmt_file_names.resize(ntypes);
+            for (int i = 0; i < ntypes; i ++)
+                fmt_stream >> fmt_file_names[i];
         }
 
         vector<SPARQLQuery_Template> tpls(nlights);
@@ -383,8 +342,18 @@ public:
                                       tpls[idx].instantiate(coder.get_random()) : // light query
                                       heavy_reqs[idx - nlights]; // heavy query
 
-                if (global_enable_planner)
+                if (global_enable_planner) {
                     planner.generate_plan(request, statistic);
+                } else if (fmt_file_names.size() > 0) {
+                    // adapt user defined plan according to format directory file
+                    ifstream fs(fmt_file_names[idx]);
+                    if (!fs.good()) {
+                        logstream(LOG_ERROR) << "Fail to read file: " << fmt_file_names[idx] << LOG_endl;
+                        return -2;
+                    }
+                    planner.set_query_plan(request.pattern_group, fs);
+                }
+
                 setpid(request);
                 request.result.blind = true; // always not take back results for emulator
 

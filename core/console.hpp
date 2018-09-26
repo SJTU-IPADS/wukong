@@ -144,6 +144,7 @@ void init_options_desc()
     // e.g., wukong> sparql-emu <args>
     sparql_emu_desc.add_options()
     (",f", value<string>()->value_name("<fname>"), "run queries generated from temples configured by <fname>")
+    (",F", value<string>()->value_name("<fname>"), "adopt user-defined query plans from <fname> for running queries")
     (",d", value<int>()->default_value(10)->value_name("<sec>"), "eval <sec> seconds (default: 10)")
     (",w", value<int>()->default_value(5)->value_name("<sec>"), "warmup <sec> seconds (default: 5)")
     (",p", value<int>()->default_value(20)->value_name("<num>"), "send <num> queries in parallel (default: 20)")
@@ -323,6 +324,60 @@ static void run_config(Proxy *proxy, int argc, char **argv)
     }
 }
 
+/**
+ * output result of current query
+ */
+static void output_result(ostream &stream, SPARQLQuery::Result &result, int size, String_Server *str_server)
+{
+    for (int i = 0; i < size; i++) {
+        stream << i + 1 << ": ";
+        for (int j = 0; j < result.col_num; j++) {
+            int id = result.get_row_col(i, j);
+            if (str_server->exist(id))
+                stream << str_server->id2str[id] << "\t";
+            else
+                stream << id << "\t";
+        }
+
+        for (int c = 0; c < result.get_attr_col_num(); c++) {
+            attr_t tmp = result.get_attr_row_col(i, c);
+            stream << tmp << "\t";
+        }
+
+        stream << endl;
+    }
+}
+
+/**
+ * print result of current query to console
+ */
+static void print_result(SPARQLQuery::Result &result, int row2print, String_Server *str_server)
+{
+    logstream(LOG_INFO) << "The first " << row2print << " rows of results: " << LOG_endl;
+    output_result(cout, result, row2print, str_server);
+}
+
+/**
+ * dump result of current query to specific file
+ */
+static void dump_result(string path, SPARQLQuery::Result &result, int row2print, String_Server *str_server)
+{
+    if (boost::starts_with(path, "hdfs:")) {
+        wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
+        wukong::hdfs::fstream ofs(hdfs, path, true);
+        output_result(ofs, result, row2print, str_server);
+        ofs.close();
+    } else {
+        ofstream ofs(path);
+        if (!ofs.good()) {
+            logstream(LOG_INFO) << "Can't open/create output file: " << path << LOG_endl;
+        } else {
+            output_result(ofs, result, row2print, str_server);
+            ofs.close();
+        }
+    }
+}
+
 
 /**
  * run the 'sparql' command
@@ -424,10 +479,10 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         // print or dump results
         if (!global_silent && !result.blind) {
             if (nlines > 0)
-                result.print_result(min(nlines, result.get_row_num()), proxy->str_server);
+                print_result(result, min(nlines, result.get_row_num()), proxy->str_server);
 
             if (sparql_vm.count("-o"))
-                result.dump_result(ofname, result.get_row_num(), proxy->str_server);
+                dump_result(ofname, result, result.get_row_num(), proxy->str_server);
         }
     }
 
@@ -503,6 +558,21 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
         fname = sparql_emu_vm["-f"].as<string>();
     }
 
+    string fmt_name;
+    if (sparql_emu_vm.count("-F"))
+        fmt_name = sparql_emu_vm["-F"].as<string>();
+
+    ifstream fmt_stream(fmt_name);
+    if (fmt_name == "") {
+        // no format file path is given
+        fmt_stream.setstate(std::ios::failbit);
+    } else if (!fmt_stream.good()) {
+        // format file path is given but read error occurs
+        logstream(LOG_ERROR) << "Format directory file not found: " << fmt_name << LOG_endl;
+        fail_to_parse(proxy, argc, argv); // invalid cmd
+        return;
+    }
+
     // config file for the SPARQL emulator
     ifstream ifs(fname);
     if (!ifs.good()) {
@@ -536,7 +606,7 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
 
     /// do sparql-emu
     Monitor monitor;
-    proxy->run_query_emu(ifs, duration, warmup, pfactor, monitor);
+    proxy->run_query_emu(ifs, fmt_stream, duration, warmup, pfactor, monitor);
 
     // FIXME: maybe hang in here if the input file misses in some machines
     //        or inconsistent global variables (e.g., global_enable_planner)

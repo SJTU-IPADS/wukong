@@ -34,7 +34,6 @@
 #include <cstring>
 #include <string>
 
-#include "string_server.hpp"
 #include "logger2.hpp"
 #include "type.hpp"
 
@@ -234,26 +233,6 @@ public:
     class Result {
     private:
         friend class boost::serialization::access;
-
-        void output_result(ostream &stream, int size, String_Server *str_server) {
-            for (int i = 0; i < size; i++) {
-                stream << i + 1 << ": ";
-                for (int j = 0; j < col_num; j++) {
-                    int id = this->get_row_col(i, j);
-                    if (str_server->exist(id))
-                        stream << str_server->id2str[id] << "\t";
-                    else
-                        stream << id << "\t";
-                }
-
-                for (int c = 0; c < this->get_attr_col_num(); c++) {
-                    attr_t tmp = this->get_attr_row_col(i, c);
-                    stream << tmp << "\t";
-                }
-
-                stream << endl;
-            }
-        }
 
     public:
         int col_num = 0;
@@ -455,28 +434,6 @@ public:
                 this->attr_res_table.insert(this->attr_res_table.end(),
                                             result.attr_res_table.begin(),
                                             result.attr_res_table.end());
-            }
-        }
-
-        void print_result(int row2print, String_Server *str_server) {
-            logstream(LOG_INFO) << "The first " << row2print << " rows of results: " << LOG_endl;
-            output_result(cout, row2print, str_server);
-        }
-
-        void dump_result(string path, int row2print, String_Server *str_server) {
-            if (boost::starts_with(path, "hdfs:")) {
-                wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
-                wukong::hdfs::fstream ofs(hdfs, path, true);
-                output_result(ofs, row2print, str_server);
-                ofs.close();
-            } else {
-                ofstream ofs(path);
-                if (!ofs.good()) {
-                    logstream(LOG_INFO) << "Can't open/create output file: " << path << LOG_endl;
-                } else {
-                    output_result(ofs, row2print, str_server);
-                    ofs.close();
-                }
             }
         }
     };

@@ -1,0 +1,9 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT ?var0 ?var1 ?var2 ?var3 where {
+	?var6  rdf:type  <http://www.w3.org/2002/07/owl#Thing>  .
+	?var6  <http://dbpedia.org/property/pages>  ?var1  .
+	?var6  <http://dbpedia.org/property/isbn>  ?var2  .
+	?var6  <http://dbpedia.org/property/author>  ?var3  .
+	?var6  <http://dbpedia.org/property/name>  ?var0  .
+}
