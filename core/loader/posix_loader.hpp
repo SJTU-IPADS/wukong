@@ -22,9 +22,9 @@
 
 #pragma once
 
-#include "default_loader.hpp"
+#include "base_loader.hpp"
 
-class PosixLoader : public DefaultLoader {
+class PosixLoader : public BaseLoader {
 protected:
     istream *init_istream(const string &src) {
         return new ifstream(src.c_str());
@@ -58,5 +58,5 @@ protected:
     }
 
 public:
-    PosixLoader(int sid, Mem *mem, String_Server *str_server, GStore *gstore): DefaultLoader(sid, mem, str_server, gstore) {}
+    PosixLoader(int sid, Mem *mem, String_Server *str_server, GStore *gstore): BaseLoader(sid, mem, str_server, gstore) {}
 };

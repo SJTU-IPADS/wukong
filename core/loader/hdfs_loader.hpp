@@ -23,9 +23,9 @@
 #pragma once
 
 #include "hdfs.hpp"
-#include "default_loader.hpp"
+#include "base_loader.hpp"
 
-class HDFSLoader : public DefaultLoader {
+class HDFSLoader : public BaseLoader {
 protected:
     istream *init_istream(const string &src) {
         wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
@@ -47,5 +47,5 @@ protected:
     }
 
 public:
-    HDFSLoader(int sid, Mem *mem, String_Server *str_server, GStore *gstore): DefaultLoader(sid, mem, str_server, gstore) {}
+    HDFSLoader(int sid, Mem *mem, String_Server *str_server, GStore *gstore): BaseLoader(sid, mem, str_server, gstore) {}
 };

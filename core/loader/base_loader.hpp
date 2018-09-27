@@ -44,11 +44,11 @@
 #include "timer.hpp"
 #include "assertion.hpp"
 #include "math.hpp"
-#include "abstract_loader.hpp"
+#include "loader_interface.hpp"
 
 using namespace std;
 
-class DefaultLoader : public AbstractLoader {
+class BaseLoader : public LoaderInterface {
 protected:
     int sid;
     Mem *mem;
@@ -385,7 +385,7 @@ protected:
 #endif  // USE_GPU
 
 public:
-    DefaultLoader(int sid, Mem *mem, String_Server *str_server, GStore *gstore): sid(sid), mem(mem), str_server(str_server), gstore(gstore) {}
+    BaseLoader(int sid, Mem *mem, String_Server *str_server, GStore *gstore): sid(sid), mem(mem), str_server(str_server), gstore(gstore) {}
 
     void load(const string &src, vector<vector<triple_t>> &triple_pso, vector<vector<triple_t>> &triple_pos, vector<vector<triple_attr_t>> &triple_sav) {
         uint64_t start, end;

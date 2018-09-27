@@ -37,7 +37,7 @@ using namespace std;
 class DGraph {
 private:
     int sid;
-    DefaultLoader *loader;
+    BaseLoader *loader;
 
 
 public:
