@@ -75,6 +75,20 @@ private:
             logstream(LOG_ERROR) << "Unsupported type of request." << LOG_endl;
     }
 
+    int next_to_oblige(int own_id, int offset) {
+        // pair stealing
+        if (global_stealing_pattern == 0) { 
+            if (offset == 1)
+                return ((global_num_engines - 1) - own_id);
+            else
+                return -1;
+        // ring stealing
+        } else if (global_stealing_pattern == 1) {
+            return ((own_id + offset) % global_num_engines);
+        }
+        return -1;
+    }
+
 public:
     const static uint64_t TIMEOUT_THRESHOLD = 10000; // 10 msec
 
@@ -109,8 +123,6 @@ public:
         // NOTE: the 'tid' of engine is not start from 0,
         // which can not be used by engines[] directly
         int own_id = tid - global_num_proxies;
-        // TODO: replace pair to ring
-        int nbr_id = (global_num_engines - 1) - own_id;
 
         uint64_t snooze_interval = MIN_SNOOZE_TIME;
 
@@ -168,17 +180,31 @@ public:
                 }
             }
 
-            // normal path: neighboring runqueue
-            if (global_enable_workstealing)  { // worker-obliger is enabled
-                // if neighboring engine is not self-sufficient, try to steal a task
-                // FIXME: only steal SPARQL queries from runqueue
+            // if work stealing is enabled
+            // FIXME: only steal SPARQL queries from runqueue,
+            //        steal adaptor as well will significantly improve stealing effect
+            //        the problem is, what if a work stealed from adaptor is not SPARQL query ?
+            if (global_enable_workstealing) {
+                bool success;
+                int offset = 1;
+                int next_engine;
                 SPARQLQuery req;
-                if (engines[nbr_id]->at_work // not snooze
-                        && ((timer::get_usec() - engines[nbr_id]->last_time) >= TIMEOUT_THRESHOLD)
-                        && engines[nbr_id]->runqueue.try_pop(req)) {
-                    reset_snooze(at_work, last_time);
-                    sparql->execute_sparql_query(req);
-                }
+                
+                do {
+                    success = false;
+                    next_engine = next_to_oblige(own_id, offset);
+                    if (next_engine == -1)
+                        break;
+                    
+                    if (engines[next_engine]->at_work
+                            && ((timer::get_usec() - engines[next_engine]->last_time) >= TIMEOUT_THRESHOLD)
+                            && (engines[next_engine]->runqueue.try_pop(req))) {
+                        reset_snooze(at_work, last_time);
+                        sparql->execute_sparql_query(req);
+                        success = true;
+                        offset++;
+                    }
+                } while (success);
             }
 
             if (at_work) continue; // keep calm (no snooze)
