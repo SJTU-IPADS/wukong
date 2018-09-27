@@ -199,11 +199,6 @@ public:
         return r;
     }
 
-    // RDF statistic
-    void generate_statistic(data_statistic &stat) {
-        gstore->generate_statistic(stat);
-    }
-
     void print_graph_stat() {
 #ifdef VERSATILE
         /// (*3)  key = [  0 |      TYPE_ID |     IN]  value = [vid0, vid1, ..]  i.e., all local objects/subjects
