@@ -126,7 +126,7 @@ private:
 
         logstream(LOG_INFO) << "[begin] known_to_unknown: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
         if (req.result.get_row_num() != 0) {
-            ASSERT(nullptr != req.gpu_state.result_buf_dp);
+            ASSERT(nullptr != req.result.gpu.result_buf_dp);
             impl.known_to_unknown(req, start, pid, d, updated_result_table);
         }
 
@@ -156,7 +156,7 @@ private:
 
         logstream(LOG_INFO) << "[begin] known_to_known: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
         if (req.result.get_row_num() != 0) {
-            ASSERT(nullptr != req.gpu_state.result_buf_dp);
+            ASSERT(nullptr != req.result.gpu.result_buf_dp);
             impl.known_to_known(req, start, pid, end, d, updated_result_table);
         }
 
@@ -183,7 +183,7 @@ private:
 
         logstream(LOG_INFO) << "[begin] known_to_const: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
         if (req.result.get_row_num() != 0) {
-            ASSERT(nullptr != req.gpu_state.result_buf_dp);
+            ASSERT(nullptr != req.result.gpu.result_buf_dp);
             // TODO
             impl.known_to_const(req, start, pid, end, d, updated_result_table);
         }
@@ -226,15 +226,18 @@ public:
         if (req.result.result_table.empty()) {
             return true;
         } else {
-            return req.gpu_state.result_buf_dp != nullptr;
+            return req.result.gpu.result_buf_dp != nullptr;
         }
     }
 
     void load_result_buf(SPARQLQuery &req) {
         char *rbuf = impl.load_result_buf(req.result);
-        req.set_result_buf(rbuf, req.result.result_table.size());
+        req.result.set_gpu_result_buf(rbuf, req.result.result_table.size());
     }
 
+    char* load_result_buf(SPARQLQuery &req, const string &rbuf_str) {
+        return impl.load_result_buf(rbuf_str.c_str(), rbuf_str.size());
+    }
 
     bool execute_one_pattern(SPARQLQuery &req) {
         ASSERT(result_buf_ready(req));
@@ -342,7 +345,7 @@ public:
         ASSERT(req.pg_type != SPARQLQuery::PGType::OPTIONAL);
 
         if (global_num_servers == 1) {
-            sub_reqs[0].set_result_buf(req.gpu_state.result_buf_dp, req.gpu_state.result_buf_nelems);
+            sub_reqs[0].result.set_gpu_result_buf(req.result.gpu.result_buf_dp, req.result.gpu.result_buf_nelems);
         } else {
             std::vector<int*> res_buf_ptrs(global_num_servers);
             std::vector<int> res_buf_rows(global_num_servers);
@@ -351,16 +354,16 @@ public:
 
             for (int i = 0; i < global_num_servers; ++i) {
                 SPARQLQuery &r = sub_reqs[i];
-                r.set_result_buf((char*)res_buf_ptrs[i], res_buf_rows[i] * req.result.get_col_num());
-                r.gpu_state.origin_result_buf_dp = (char*) res_buf_ptrs.front();
+                r.result.set_gpu_result_buf((char*)res_buf_ptrs[i], res_buf_rows[i] * req.result.get_col_num());
+                r.result.gpu.origin_result_buf_dp = (char*) res_buf_ptrs.front();
 
                 // if gpu history table is empty, set it to FULL_QUERY, which
                 // will be sent by native RDMA
-                if (r.gpu_state.result_buf_empty()) {
-                    r.gpu_state.job_type = SPARQLQuery::SubJobType::FULL_JOB;
-                    r.clear_result_buf();
+                if (r.result.gpu_result_buf_empty()) {
+                    r.job_type = SPARQLQuery::SubJobType::FULL_JOB;
+                    r.result.clear_gpu_result_buf();
                 } else {
-                    r.gpu_state.job_type = SPARQLQuery::SubJobType::SPLIT_JOB;
+                    r.job_type = SPARQLQuery::SubJobType::SPLIT_JOB;
                 }
 
             }

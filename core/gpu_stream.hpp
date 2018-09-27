@@ -32,6 +32,7 @@ private:
     vector<cudaStream_t> streams;
     uint64_t rr_cnt;
     int num_streams;
+    cudaStream_t split_stream;
 
 
 public:
@@ -41,12 +42,16 @@ public:
         for (int i = 0; i < num_streams; ++i) {
             cudaStreamCreate(&streams[i]);
         }
+
+        cudaStreamCreate(&split_stream);
     }
 
     ~GPUStreamPool() {
         for (auto s : streams) {
             cudaStreamDestroy(s);
         }
+
+        cudaStreamDestroy(split_stream);
     }
 
     cudaStream_t get_stream() {
@@ -58,6 +63,10 @@ public:
     cudaStream_t get_stream(int pid) {
         assert(pid > 0);
         return streams[pid % num_streams];
+    }
+
+    cudaStream_t get_split_query_stream() {
+        return split_stream;
     }
 
 };

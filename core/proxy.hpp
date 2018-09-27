@@ -260,6 +260,7 @@ public:
 
                 request.mt_factor = min(mt_factor, global_mt_threshold);
                 request.dev_type = SPARQLQuery::DeviceType::GPU;
+                request.result.dev_type = SPARQLQuery::DeviceType::GPU;
             }
 
             // only take back results of the last request if not silent

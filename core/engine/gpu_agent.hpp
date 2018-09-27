@@ -79,6 +79,7 @@ public:
     GPUAgent(int sid, int tid, Adaptor* adaptor, GPUEngine* gpu_engine)
         : sid(sid), tid(tid), adaptor(adaptor), gpu_engine(gpu_engine), coder(sid, tid) {
 
+        pthread_spin_init(&rmap_lock, 0);
     }
 
     ~GPUAgent() { }
@@ -92,6 +93,24 @@ public:
         pending_msgs.push_back(Message(dst_sid, dst_tid, bundle));
         return false;
     }
+
+    bool send_sub_query(SPARQLQuery &req, int dst_sid, int dst_tid) {
+        // #1 send query
+        Bundle b(req);
+        if (adaptor->send(dst_sid, dst_tid, b)) {
+
+            // #2 send result buffer
+            adaptor->send_dev2host(dst_sid, dst_tid, req.result.gpu.result_buf_dp,
+                    WUKONG_GPU_ELEM_SIZE * req.result.gpu.result_buf_nelems);
+
+            return true;
+        }
+
+
+        return false;
+        // TODO if send fail, copy history to CPU and save to a staging area
+    }
+
 
     void sweep_msgs() {
     }
@@ -114,7 +133,9 @@ public:
         return (r.pattern_step == 0
                 && r.pattern_group.parallel == false
                 && r.start_from_index()
-                && (global_num_servers * r.mt_factor > 1));
+                // && (global_num_servers * r.mt_factor > 1)
+                && (global_num_servers > 1)
+                && (r.job_type != SPARQLQuery::SubJobType::SPLIT_JOB));
     }
 
     void send_to_workers(SPARQLQuery& req) {
@@ -124,6 +145,7 @@ public:
         int sub_reqs_size = global_num_servers * req.mt_factor;
         rmap.put_parent_request(req, sub_reqs_size);
         SPARQLQuery sub_query = req;
+        ASSERT(req.mt_factor == 1);
         for (int i = 0; i < global_num_servers; i++) {
             for (int j = 0; j < req.mt_factor; j++) {
                 sub_query.id = -1;
@@ -135,8 +157,11 @@ public:
                 sub_query.mt_factor = 1;
                 sub_query.pattern_group.parallel = true;
 
+                ASSERT(sub_query.job_type != SPARQLQuery::SubJobType::SPLIT_JOB);
                 Bundle bundle(sub_query);
                 send_request(bundle, i, dst_tid);
+                logstream(LOG_EMPH) << "GPUAgent: " << "[" << sid << ":" << tid << "]"
+                                     << "send_to_workers: send to server #" << i << LOG_endl;
             }
         }
     }
@@ -155,17 +180,25 @@ public:
         //ssid_t start = pattern.subject;
         //return ((req.local_var != start)
         //        && (req.result.get_row_num() >= global_rdma_threshold));
-        return (req.result.get_row_num() >= 0); // FIXME: not consider dedup
+        ssid_t start = req.get_pattern().subject;
+        // logstream(LOG_INFO) << "local_var: " << req.local_var << ", start: " << start << LOG_endl;
+
+        return ((req.local_var != start)
+               && (req.result.get_row_num() >= 0));
     }
 
     void execute_sparql_query(SPARQLQuery &req) {
         // encode the lineage of the query (server & thread)
         if (req.id == -1) req.id = coder.get_and_inc_qid();
 
-
-        logstream(LOG_DEBUG) << "GPUAgent: " << "[" << sid << "-" << tid << "]"
-                             << " got a req: r.id=" << req.id << ", r.state="
+        logstream(LOG_EMPH) << "GPUAgent: " << "[" << sid << "-" << tid << "]"
+                             << " got a req: r.id=" << req.id << ", parent=" << req.pid << ", r.state="
                              << (req.state == SPARQLQuery::SQState::SQ_REPLY ? "SQ_REPLY" : "Request") << LOG_endl;
+
+        if (need_parallel(req)) {
+            send_to_workers(req);
+            return;
+        }
 
         if (req.state == SPARQLQuery::SQState::SQ_REPLY) {
             collect_reply(req);
@@ -174,31 +207,40 @@ public:
         // execute_patterns
         while (true) {
             ASSERT(req.dev_type == SPARQLQuery::DeviceType::GPU);
+            ASSERT(req.has_pattern());
 
-            if (!gpu_engine->result_buf_ready(req))
-                gpu_engine->load_result_buf(req);
+            if (!req.done(SPARQLQuery::SQState::SQ_PATTERN)) {
+                if (!gpu_engine->result_buf_ready(req))
+                    gpu_engine->load_result_buf(req);
 
-            gpu_engine->execute_one_pattern(req);
+                gpu_engine->execute_one_pattern(req);
+            }
 
             if (req.done(SPARQLQuery::SQState::SQ_PATTERN)) {
                 // only send back row_num in blind mode
                 req.result.row_num = req.result.get_row_num();
-                logstream(LOG_DEBUG) << "GPUAgent: finished query r.id=" << req.id << LOG_endl;
                 req.state = SPARQLQuery::SQState::SQ_REPLY;
                 Bundle bundle(req);
-                send_request(bundle, coder.sid_of(req.pid), coder.tid_of(req.pid));
+                int psid, ptid;
+                psid = coder.sid_of(req.pid);
+                ptid = coder.tid_of(req.pid);
+                logstream(LOG_EMPH) << "GPUAgent: finished query r.id: " << req.id << ", sent back to sid: "
+                    << psid << ", tid: " << ptid << LOG_endl;
+                send_request(bundle, psid, ptid);
                 break;
             }
 
             // TODO
             if (need_fork_join(req)) {
-                ASSERT_MSG(false, "doesn't support fork-join mode now");
+                // ASSERT_MSG(false, "doesn't support fork-join mode now");
                 vector<SPARQLQuery> sub_reqs = gpu_engine->generate_sub_query(req);
+                ASSERT(sub_reqs.size() == global_num_servers);
                 rmap.put_parent_request(req, sub_reqs.size());
                 for (int i = 0; i < sub_reqs.size(); i++) {
                     if (i != sid) {
-                        Bundle bundle(sub_reqs[i]);
-                        send_request(bundle, i, tid);
+                        // Bundle bundle(sub_reqs[i]);
+                        // send_request(bundle, i, tid);
+                        send_sub_query(sub_reqs[i], i, tid);
                     } else {
                         runqueue.push(sub_reqs[i]);
                     }
@@ -220,20 +262,27 @@ public:
             // priority path: sparql stage (FIXME: only for SPARQL queries)
             SPARQLQuery req;
             if (runqueue.try_pop(req)) {
-                if (need_parallel(req)) {
-                    send_to_workers(req);
-                    continue; // exhaust all queries
-                }
                 execute_sparql_query(req);
                 continue; // exhaust all queries
             }
 
             Bundle bundle;
-            while (adaptor->tryrecv(bundle)) {
+            int sender = 0;
+            while (adaptor->tryrecv(bundle, sender)) {
                 if (bundle.type == SPARQL_QUERY) {
                     // To be fair, agent will handle sub-queries first, instead of a new job.
                     SPARQLQuery req = bundle.get_sparql_query();
                     ASSERT(req.dev_type == SPARQLQuery::DeviceType::GPU);
+
+                    if (req.job_type == SPARQLQuery::SubJobType::SPLIT_JOB
+                            && req.result.gpu.result_buf_nelems > 0) {
+                        // recv result buffer
+                        std::string rbuf_str;
+                        rbuf_str = adaptor->recv_from(sender);
+                        ASSERT(rbuf_str.size() > 0);
+                        ASSERT(rbuf_str.empty() == false);
+                        gpu_engine->load_result_buf(req, rbuf_str);
+                    }
 
                     if (req.priority != 0) {
                         execute_sparql_query(req);

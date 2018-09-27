@@ -80,13 +80,8 @@ struct GPUEngineParam {
         uint64_t *d_edge_off_list = nullptr;
         uint64_t *d_bucket_id_list = nullptr;
 
-
-
-        // device_ptr<sid_t*> in_rbuf_dp;
-        // device_ptr<sid_t*> out_rbuf_dp;
-
-        int* d_in_rbuf;
-        int* d_out_rbuf;
+        sid_t* d_in_rbuf;
+        sid_t* d_out_rbuf;
 
         rdf_segment_meta_t *d_segment_meta;
     } gpu;
@@ -146,8 +141,8 @@ struct GPUEngineParam {
     }
 
     void set_result_bufs(char *d_in_rbuf, char *d_out_rbuf) {
-        gpu.d_in_rbuf = (int*) d_in_rbuf;
-        gpu.d_out_rbuf = (int*) d_out_rbuf;
+        gpu.d_in_rbuf = (sid_t*) d_in_rbuf;
+        gpu.d_out_rbuf = (sid_t*) d_out_rbuf;
     }
 
     void set_cache_param(uint64_t block_num_buckets, uint64_t block_num_edges ) {
@@ -160,7 +155,8 @@ struct GPUEngineParam {
 
 void gpu_lookup_hashtable_k2u(GPUEngineParam& param, cudaStream_t stream = 0);
 void gpu_lookup_hashtable_k2c(GPUEngineParam& param, cudaStream_t stream = 0);
-void gpu_shuffle_result_buf(GPUEngineParam& param, std::vector<int>& buf_sizes, cudaStream_t stream = 0);
+void gpu_shuffle_result_buf(GPUEngineParam& param, int num_servers, std::vector<int>& buf_sizes,
+        std::vector<int>& buf_heads, cudaStream_t stream = 0);
 void gpu_split_result_buf(GPUEngineParam &param, int num_servers, cudaStream_t stream = 0);
 void gpu_calc_prefix_sum(GPUEngineParam& param, cudaStream_t stream = 0);
 

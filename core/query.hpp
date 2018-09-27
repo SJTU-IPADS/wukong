@@ -242,6 +242,21 @@ public:
     private:
         friend class boost::serialization::access;
 
+        struct GPUState {
+            char *origin_result_buf_dp = nullptr;
+            char *result_buf_dp = nullptr;
+            uint64_t result_buf_nelems = 0;
+
+            template <typename Archive>
+            void serialize(Archive &ar, const unsigned int version) {
+                // ar & origin_result_buf_dp;
+                // ar & result_buf_dp;
+                ar & result_buf_nelems;
+                // ar & job_type;
+            }
+
+        };
+
         void output_result(ostream &stream, int size, String_Server *str_server) {
             for (int i = 0; i < size; i++) {
                 stream << i + 1 << ": ";
@@ -263,6 +278,14 @@ public:
         }
 
     public:
+        Result() { }
+        Result(DeviceType dev_type) : dev_type(dev_type) {
+        }
+
+        DeviceType dev_type;
+        GPUState gpu;
+
+
         int col_num = 0;
         int row_num = 0;  // FIXME: vs. get_row_num()
         int attr_col_num = 0; // FIXME: why not no attr_row_num
@@ -352,6 +375,7 @@ public:
 
         int get_col_num() { return col_num; }
 
+         // TODO I think we should return size in gpu_state
         int get_row_num() {
             if (col_num == 0) {
                 // FIXME: impl get_attr_row_num()
@@ -364,8 +388,8 @@ public:
 
             if (row_num != 0)
                 return row_num;
-            else
-                return result_table.size() / col_num;
+
+            return (dev_type == GPU) ? gpu.result_buf_nelems / col_num : result_table.size() / col_num;
         }
 
         sid_t get_row_col(int r, int c) {
@@ -470,6 +494,21 @@ public:
             }
         }
 
+        bool gpu_result_buf_empty() {
+            return gpu.result_buf_nelems == 0;
+        }
+
+        void clear_gpu_result_buf() {
+            gpu.result_buf_dp = nullptr;
+            gpu.result_buf_nelems = 0;
+        }
+
+        void set_gpu_result_buf(char *rbuf, uint64_t n) {
+            gpu.result_buf_dp = rbuf;
+            gpu.result_buf_nelems = n;
+        }
+
+
         void print_result(int row2print, String_Server *str_server) {
             logstream(LOG_INFO) << "The first " << row2print << " rows of results: " << LOG_endl;
             output_result(cout, row2print, str_server);
@@ -500,30 +539,9 @@ public:
 
     PGType pg_type = BASIC;
     SQState state = SQ_PATTERN;
+
     DeviceType dev_type = CPU;
-
-    struct GPUState {
-        char *origin_result_buf_dp;
-        SubJobType job_type = FULL_JOB;
-        char *result_buf_dp;
-        uint64_t result_buf_nelems;
-
-        bool result_buf_empty() {
-            return result_buf_nelems == 0;
-        }
-
-        template <typename Archive>
-        void serialize(Archive &ar, const unsigned int version) {
-            // ar & origin_result_buf_dp;
-            // ar & result_buf_dp;
-            ar & result_buf_nelems;
-            ar & job_type;
-        }
-
-    };
-
-
-    GPUState gpu_state;
+    SubJobType job_type = FULL_JOB;
 
     int mt_factor = 1;  // use a single engine (thread) by default
     int priority = 0;
@@ -593,16 +611,6 @@ public:
     bool has_optional() { return pattern_group.optional.size() > 0; }
 
     bool has_filter() { return pattern_group.filters.size() > 0; }
-
-    void clear_result_buf() {
-        gpu_state.result_buf_dp = nullptr;
-        gpu_state.result_buf_nelems = 0;
-    }
-
-    void set_result_buf(char *rbuf, uint64_t n) {
-        gpu_state.result_buf_dp = rbuf;
-        gpu_state.result_buf_nelems = n;
-    }
 
     bool done(SQState state) {
         switch (state) {
@@ -951,6 +959,8 @@ void save(Archive &ar, const SPARQLQuery::Result &t, unsigned int version) {
     ar << t.nvars;
     ar << t.v2c_map;
     ar << t.optional_matched_rows;
+    ar << t.dev_type;
+    ar << t.gpu;
     if (!t.blind) ar << t.required_vars;
     // attr_res_table may not be empty if result_table is empty
     if (t.result_table.size() > 0 || t.attr_res_table.size() > 0) {
@@ -972,6 +982,8 @@ void load(Archive & ar, SPARQLQuery::Result &t, unsigned int version) {
     ar >> t.nvars;
     ar >> t.v2c_map;
     ar >> t.optional_matched_rows;
+    ar >> t.dev_type;
+    ar >> t.gpu;
     if (!t.blind) ar >> t.required_vars;
     ar >> temp;
     if (temp == occupied) {
@@ -991,7 +1003,7 @@ void save(Archive & ar, const SPARQLQuery &t, unsigned int version) {
     ar << t.pg_type;
     ar << t.pattern_step;
     ar << t.dev_type;
-    ar << t.gpu_state;
+    ar << t.job_type;
     ar << t.union_done;
     ar << t.optional_step;
     ar << t.corun_step;
@@ -1022,7 +1034,7 @@ void load(Archive & ar, SPARQLQuery &t, unsigned int version) {
     ar >> t.pg_type;
     ar >> t.pattern_step;
     ar >> t.dev_type;
-    ar >> t.gpu_state;
+    ar >> t.job_type;
     ar >> t.union_done;
     ar >> t.optional_step;
     ar >> t.corun_step;
@@ -1182,4 +1194,20 @@ public:
         return string(std::to_string((uint64_t)type) + data);
 #endif
     }
+
+#ifdef USE_GPU
+    // void get_row_num() const {
+        // if (dev_type == GPU) {
+            // return gpu_state.result_buf_nelems / result.get_col_num();
+        // } else {
+            // return result.get_row_num();
+        // }
+    // }
+
+    // void get_col_num() const {
+        // return result.get_col_num();
+    // }
+
+#endif
+
 };

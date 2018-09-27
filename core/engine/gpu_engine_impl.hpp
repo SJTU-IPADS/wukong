@@ -91,6 +91,15 @@ public:
         return gmem->res_inbuf();
     }
 
+    char* load_result_buf(const char *rbuf, uint64_t size) {
+        // logstream(LOG_INFO) << "load_result_buf: table_size=> " << r.result_table.size() << LOG_endl;
+        CUDA_ASSERT( cudaMemcpy((void**)gmem->res_inbuf(),
+                    rbuf,
+                    size,
+                    cudaMemcpyHostToDevice) );
+
+        return gmem->res_inbuf();
+    }
 
     // TODO
     vector<sid_t> index_to_unknown(SPARQLQuery &req, sid_t tpid, dir_t d) {
@@ -186,7 +195,7 @@ public:
             // req.clear_result_buf();
 
         } else {
-            req.set_result_buf((char*)param.gpu.d_out_rbuf, table_size);
+            req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
 
             // TODO: when to reverse in_rbuf & out_rbuf
             /* if (req.gpu_state.origin_result_buf_dp != nullptr) {
@@ -289,7 +298,7 @@ public:
             // req.clear_result_buf();
 
         } else {
-            req.set_result_buf((char*)param.gpu.d_out_rbuf, table_size);
+            req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
 
             // TODO: when to reverse in_rbuf & out_rbuf
             /* if (req.gpu_state.origin_result_buf_dp != nullptr) {
@@ -391,7 +400,7 @@ public:
             // req.clear_result_buf();
 
         } else {
-            req.set_result_buf((char*)param.gpu.d_out_rbuf, table_size);
+            req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
 
             // TODO: when to reverse in_rbuf & out_rbuf
             /* if (req.gpu_state.origin_result_buf_dp != nullptr) {
@@ -419,8 +428,9 @@ public:
             ASSERT(false);
         }
 
+        vector<int> buf_heads(num_jobs);
         // calc_dispatched_position
-        gpu_shuffle_result_buf(param, buf_sizes, stream);
+        gpu_shuffle_result_buf(param, num_jobs, buf_sizes, buf_heads, stream);
 
         // update_result_table_sub
         gpu_split_result_buf(param, num_jobs, stream);
