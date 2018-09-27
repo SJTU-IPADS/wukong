@@ -65,7 +65,7 @@ public:
         // unbind the core from the thread (enable OpenMPI multithreading)
         cpu_set_t mask = unbind_to_core();
 
-        r.load_ret = graph->dynamic_load_data(r.load_dname, r.check_dup);
+        r.load_ret = graph->dynamic_loader->dynamic_load_data(r.load_dname, r.check_dup);
 
         // rebind the thread with the core
         bind_to_core(mask);
