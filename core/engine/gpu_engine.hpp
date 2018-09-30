@@ -88,7 +88,7 @@ private:
         res.set_col_num(1);
         res.add_var2col(var, 0);
         req.pattern_step++;
-        req.local_var = -1;
+        req.local_var = var;
     }
 
     // TODO
@@ -124,7 +124,7 @@ private:
 
         std::vector<sid_t> updated_result_table;
 
-        logstream(LOG_INFO) << "[begin] known_to_unknown: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
+        logstream(LOG_INFO) << "#" << sid << " [begin] known_to_unknown: row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
         if (req.result.get_row_num() != 0) {
             ASSERT(nullptr != req.result.gpu.result_buf_dp);
             impl.known_to_unknown(req, start, pid, d, updated_result_table);
@@ -134,9 +134,11 @@ private:
         res.add_var2col(end, res.get_col_num());
         res.set_col_num(res.get_col_num() + 1);
         req.pattern_step++;
-        logstream(LOG_INFO) << "[end] known_to_unknown: GPU row_num=" << res.get_row_num() <<
-            ", col_num=" << res.get_col_num() << LOG_endl;
+        // logstream(LOG_INFO) << "[end] known_to_unknown: GPU row_num=" << res.get_row_num() <<
+            // ", col_num=" << res.get_col_num() << LOG_endl;
 
+        logstream(LOG_INFO) << "#" << sid << "[end] GPU known_to_unknown: table_size=" << res.gpu.result_buf_nelems
+            << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
     }
 
     /// ?Y P ?X . (?Y and ?X are KNOWN)
@@ -154,7 +156,7 @@ private:
 
         std::vector<sid_t> updated_result_table;
 
-        logstream(LOG_INFO) << "[begin] known_to_known: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
+        logstream(LOG_INFO) << "#" << sid << " [begin] known_to_known: row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
         if (req.result.get_row_num() != 0) {
             ASSERT(nullptr != req.result.gpu.result_buf_dp);
             impl.known_to_known(req, start, pid, end, d, updated_result_table);
@@ -162,7 +164,8 @@ private:
 
         res.result_table.swap(updated_result_table);
         req.pattern_step++;
-        logstream(LOG_INFO) << "[end] known_to_known: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
+        logstream(LOG_INFO) << "#" << sid << "[end] GPU known_to_known: table_size=" << res.gpu.result_buf_nelems
+            << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
     }
 
     /// ?X P C . (?X is KNOWN)
@@ -181,16 +184,17 @@ private:
 
         std::vector<sid_t> updated_result_table;
 
-        logstream(LOG_INFO) << "[begin] known_to_const: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
+        logstream(LOG_INFO) << "#" << sid << " [begin] known_to_const: row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
         if (req.result.get_row_num() != 0) {
             ASSERT(nullptr != req.result.gpu.result_buf_dp);
-            // TODO
             impl.known_to_const(req, start, pid, end, d, updated_result_table);
         }
 
         res.result_table.swap(updated_result_table);
         req.pattern_step++;
-        logstream(LOG_INFO) << "[end] known_to_const: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
+        // logstream(LOG_INFO) << "[end] known_to_const: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
+        logstream(LOG_INFO) << "#" << sid << "[end] GPU known_to_const: table_size=" << res.gpu.result_buf_nelems
+            << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
     }
 
     // fork-join or in-place execution
@@ -216,7 +220,7 @@ private:
 
 public:
     GPUEngine(int sid, int tid, GPUMem *gmem, GPUCache *gcache, GPUStreamPool *stream_pool, DGraph *graph)
-        : sid(sid), tid(tid), impl(gcache, gmem, stream_pool), graph(graph) {
+        : sid(sid), tid(tid), impl(sid, gcache, gmem, stream_pool), graph(graph) {
 
     }
 
@@ -236,15 +240,13 @@ public:
     }
 
     char* load_result_buf(SPARQLQuery &req, const string &rbuf_str) {
-        return impl.load_result_buf(rbuf_str.c_str(), rbuf_str.size());
+        char *rbuf = impl.load_result_buf(rbuf_str.c_str(), rbuf_str.size());
+        req.result.set_gpu_result_buf(rbuf, rbuf_str.size() / WUKONG_GPU_ELEM_SIZE);
     }
 
     bool execute_one_pattern(SPARQLQuery &req) {
         ASSERT(result_buf_ready(req));
         ASSERT(!req.done(SPARQLQuery::SQState::SQ_PATTERN));
-
-        logstream(LOG_INFO) << "GPUEngine: " << "[" << sid << "-" << tid << "]"
-                             << " step=" << req.pattern_step << LOG_endl;
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start     = pattern.subject;
@@ -317,7 +319,6 @@ public:
         return true;
     }
 
-
     // TODO
     vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
@@ -327,13 +328,17 @@ public:
         vector<SPARQLQuery> sub_reqs(global_num_servers);
         for (int i = 0; i < global_num_servers; i++) {
             sub_reqs[i].pid = req.id;
-            sub_reqs[i].pg_type = req.pg_type = req.pg_type;
+            sub_reqs[i].pg_type = req.pg_type == SPARQLQuery::PGType::UNION ?
+                                  SPARQLQuery::PGType::BASIC : req.pg_type;
             sub_reqs[i].pattern_group = req.pattern_group;
             sub_reqs[i].pattern_step = req.pattern_step;
             sub_reqs[i].corun_step = req.corun_step;
             sub_reqs[i].fetch_step = req.fetch_step;
             sub_reqs[i].local_var = start;
             sub_reqs[i].priority = req.priority + 1;
+
+            sub_reqs[i].job_type = SPARQLQuery::SubJobType::SPLIT_JOB;
+            sub_reqs[i].result.dev_type = sub_reqs[i].dev_type = SPARQLQuery::DeviceType::GPU;
 
             sub_reqs[i].result.col_num = req.result.col_num;
             sub_reqs[i].result.attr_col_num = req.result.attr_col_num;
@@ -347,26 +352,31 @@ public:
         if (global_num_servers == 1) {
             sub_reqs[0].result.set_gpu_result_buf(req.result.gpu.result_buf_dp, req.result.gpu.result_buf_nelems);
         } else {
-            std::vector<int*> res_buf_ptrs(global_num_servers);
-            std::vector<int> res_buf_rows(global_num_servers);
+            std::vector<sid_t*> buf_ptrs(global_num_servers);
+            std::vector<int> buf_sizes(global_num_servers);
 
-            impl.generate_sub_query(req, start, global_num_servers, res_buf_ptrs, res_buf_rows);
+            impl.generate_sub_query(req, start, global_num_servers, buf_ptrs, buf_sizes);
+
+            logstream(LOG_INFO) << "#" << sid << " generate_sub_query for req#" << req.id << ", parent: " << req.pid
+                << ", step: " << req.pattern_step << LOG_endl;
 
             for (int i = 0; i < global_num_servers; ++i) {
                 SPARQLQuery &r = sub_reqs[i];
-                r.result.set_gpu_result_buf((char*)res_buf_ptrs[i], res_buf_rows[i] * req.result.get_col_num());
-                r.result.gpu.origin_result_buf_dp = (char*) res_buf_ptrs.front();
+                // r.result.set_gpu_result_buf((char*)buf_ptrs[i], buf_sizes[i] * req.result.get_col_num());
+                r.result.set_gpu_result_buf((char*)buf_ptrs[i], buf_sizes[i]);
+                r.result.gpu.origin_result_buf_dp = (char*) buf_ptrs.front();
+
+                logstream(LOG_INFO) << "#" << sid << " sub-query[" << i << "]" <<  ": buf_size: " << buf_sizes[i] << LOG_endl;
 
                 // if gpu history table is empty, set it to FULL_QUERY, which
                 // will be sent by native RDMA
                 if (r.result.gpu_result_buf_empty()) {
                     r.job_type = SPARQLQuery::SubJobType::FULL_JOB;
                     r.result.clear_gpu_result_buf();
-                } else {
-                    r.job_type = SPARQLQuery::SubJobType::SPLIT_JOB;
                 }
-
             }
+
+            logstream(LOG_INFO) << "#" << sid << "-- end dump sub-queries table size --" << LOG_endl;
         }
 
         return sub_reqs;

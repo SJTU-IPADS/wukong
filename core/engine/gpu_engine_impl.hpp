@@ -40,6 +40,7 @@ using namespace std;
 
 class GPUEngineImpl final {
 private:
+    int sid;
     GPUMem *gmem;
     GPUCache *gcache;
     GPUStreamPool *stream_pool;
@@ -71,8 +72,8 @@ private:
 
 
 public:
-    GPUEngineImpl(GPUCache *gcache, GPUMem *gmem, GPUStreamPool *stream_pool)
-        : gcache(gcache), gmem(gmem), stream_pool(stream_pool),
+    GPUEngineImpl(int sid, GPUCache *gcache, GPUMem *gmem, GPUStreamPool *stream_pool)
+        : sid(sid), gcache(gcache), gmem(gmem), stream_pool(stream_pool),
           param(gcache->dev_vertex_addr(), gcache->dev_edge_addr(),
                   gcache->num_key_blocks(), gcache->num_value_blocks()) {
         // init param
@@ -80,9 +81,7 @@ public:
 
     ~GPUEngineImpl() { }
 
-
     char* load_result_buf(const SPARQLQuery::Result &r) {
-        logstream(LOG_INFO) << "load_result_buf: table_size=> " << r.result_table.size() << LOG_endl;
         CUDA_ASSERT( cudaMemcpy((void**)gmem->res_inbuf(),
                     &r.result_table[0],
                     sizeof(r.result_table[0]) * r.result_table.size(),
@@ -92,7 +91,6 @@ public:
     }
 
     char* load_result_buf(const char *rbuf, uint64_t size) {
-        // logstream(LOG_INFO) << "load_result_buf: table_size=> " << r.result_table.size() << LOG_endl;
         CUDA_ASSERT( cudaMemcpy((void**)gmem->res_inbuf(),
                     rbuf,
                     size,
@@ -112,7 +110,7 @@ public:
         segid_t current_seg = pattern_to_segid(req, req.pattern_step);
         rdf_segment_meta_t seg_meta = gcache->get_segment_meta(current_seg);
 
-        logstream(LOG_INFO) << "known_to_unknown: segment: #buckets: " << seg_meta.num_buckets
+        logstream(LOG_DEBUG) << "known_to_unknown: segment: #buckets: " << seg_meta.num_buckets
             << ", #edges: " << seg_meta.num_edges << "." << LOG_endl;
 
         param.query.start_vid = start;
@@ -123,7 +121,7 @@ public:
         param.query.segment_edge_start = seg_meta.edge_start;
         param.query.var2col_start = req.result.var2col(start);
 
-        logstream(LOG_INFO) << "known_to_unknown: #ext_buckets: " << seg_meta.ext_list_sz << LOG_endl;
+        logstream(LOG_DEBUG) << "known_to_unknown: #ext_buckets: " << seg_meta.ext_list_sz << LOG_endl;
 
         // not the first pattern
         // if (req.pattern_step != 0) {
@@ -159,15 +157,22 @@ public:
         // copy metadata of segment to GPU memory
         // rdf_segment_meta_t segment = gcache->get_segment_meta(current_seg);
 
-        logstream(LOG_ERROR) << "known_to_unknown: segment: " << current_seg.stringify() << ", #key_blocks: "
+        logstream(LOG_DEBUG) << "known_to_unknown: segment: " << current_seg.stringify() << ", #key_blocks: "
             << seg_meta.num_key_blocks() << ", #value_blocks: " << seg_meta.num_value_blocks() << LOG_endl;
 
 
         param.load_segment_mappings(vertex_mapping, edge_mapping, seg_meta);
         param.load_segment_meta(seg_meta);
-        // setup GPU engine parameters
-        param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
         param.set_cache_param(global_block_num_buckets, global_block_num_edges);
+        // setup GPU engine parameters
+        // param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
+
+        if (req.pattern_step == 0) {
+            param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
+        } else {
+            param.set_result_bufs(req.result.gpu.result_buf_dp, gmem->res_outbuf());
+        }
+
 
         gpu_generate_key_list_k2u(param, stream);
 
@@ -179,9 +184,12 @@ public:
 
         int table_size = gpu_update_result_buf_k2u(param);
 
-        logstream(LOG_DEBUG) << "GPU_update_result_buf_k2u done. table_size=" << table_size << ", col_num=" << param.query.col_num << LOG_endl;
+#ifdef GPU_DEBUG
+        logstream(LOG_INFO) << "#" << sid << " GPU_update_result_buf_k2u done. table_size=" << table_size << ", col_num=" << param.query.col_num << LOG_endl;
+#endif
 
         req.result.row_num = table_size / (param.query.col_num + 1);
+        req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
 
 
         // copy the result on GPU to CPU if we come to the last pattern
@@ -189,7 +197,6 @@ public:
             new_table.resize(table_size);
             thrust::device_ptr<int> dptr(param.gpu.d_out_rbuf);
             thrust::copy(dptr, dptr + table_size, new_table.begin());
-            logstream(LOG_INFO) << "new_table.size()=" << new_table.size() << LOG_endl;
 
             // TODO: Do we need to clear result buf?
             // req.clear_result_buf();
@@ -245,7 +252,6 @@ public:
         ASSERT(gmem->res_inbuf() != gmem->res_outbuf());
         ASSERT(nullptr != gmem->res_inbuf());
 
-
         // before processing the query, we should ensure the data of required predicates is loaded.
         vector<segid_t> required_segs = pattgrp_to_segids(req.pattern_group);
 
@@ -269,9 +275,17 @@ public:
         // copy metadata of segment to GPU memory
         param.load_segment_mappings(vertex_mapping, edge_mapping, seg_meta);
         param.load_segment_meta(seg_meta);
-        // setup GPU engine parameters
-        param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
         param.set_cache_param(global_block_num_buckets, global_block_num_edges);
+        // setup GPU engine parameters
+        // param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
+
+        if (req.pattern_step == 0) {
+            param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
+        } else {
+            param.set_result_bufs(req.result.gpu.result_buf_dp, gmem->res_outbuf());
+        }
+
+
 
         gpu_generate_key_list_k2u(param, stream);
 
@@ -283,22 +297,25 @@ public:
 
         int table_size = gpu_update_result_buf_k2k(param);
 
-        logstream(LOG_INFO) << "GPU_update_result_buf_k2k done. table_size=" << table_size << LOG_endl;
+#ifdef GPU_DEBUG
+        logstream(LOG_INFO) << "#" << sid << " GPU_update_result_buf_k2k done. table_size=" << table_size << LOG_endl;
+#endif
 
         req.result.row_num = table_size / param.query.col_num;
+        req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
 
         // copy the result on GPU to CPU if we come to the last pattern
         if (req.pattern_step + 1 == req.pattern_group.patterns.size()) {
             new_table.resize(table_size);
             thrust::device_ptr<int> dptr(param.gpu.d_out_rbuf);
             thrust::copy(dptr, dptr + table_size, new_table.begin());
-            logstream(LOG_EMPH) << "k2k: new_table.size(): " << new_table.size() << LOG_endl;
+            // logstream(LOG_EMPH) << "k2k: new_table.size(): " << new_table.size() << LOG_endl;
 
             // TODO: Do we need to clear result buf?
             // req.clear_result_buf();
 
         } else {
-            req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
+            // req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
 
             // TODO: when to reverse in_rbuf & out_rbuf
             /* if (req.gpu_state.origin_result_buf_dp != nullptr) {
@@ -327,7 +344,7 @@ public:
             << req.result.var2col(start) << ", row_num: " << req.result.get_row_num()
             << ", col_num: " << req.result.get_col_num() << LOG_endl;
 
-        param.query.start_vid = start;
+        // param.query.start_vid = start;
         param.query.pid = pid;
         param.query.dir = d;
         param.query.end_vid = end;
@@ -370,9 +387,13 @@ public:
         // copy metadata of segment to GPU memory
         param.load_segment_mappings(vertex_mapping, edge_mapping, seg_meta);
         param.load_segment_meta(seg_meta);
-        // setup GPU engine parameters
-        param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
         param.set_cache_param(global_block_num_buckets, global_block_num_edges);
+        // setup GPU engine parameters
+        if (req.pattern_step == 0) {
+            param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
+        } else {
+            param.set_result_bufs(req.result.gpu.result_buf_dp, gmem->res_outbuf());
+        }
 
         gpu_generate_key_list_k2u(param, stream);
 
@@ -382,12 +403,14 @@ public:
 
         gpu_calc_prefix_sum(param, stream);
 
-
         int table_size = gpu_update_result_buf_k2c(param);
 
-        logstream(LOG_INFO) << "GPU_update_result_buf_k2c done. table_size=" << table_size << LOG_endl;
+#ifdef GPU_DEBUG
+            logstream(LOG_INFO) << "#" << sid << " GPU_update_result_buf_k2c done. table_size=" << table_size << LOG_endl;
+#endif
 
         req.result.row_num = table_size / param.query.col_num;
+        req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
 
         // copy the result on GPU to CPU if we come to the last pattern
         if (req.pattern_step + 1 == req.pattern_group.patterns.size()) {
@@ -400,7 +423,7 @@ public:
             // req.clear_result_buf();
 
         } else {
-            req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
+            // req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
 
             // TODO: when to reverse in_rbuf & out_rbuf
             /* if (req.gpu_state.origin_result_buf_dp != nullptr) {
@@ -417,27 +440,45 @@ public:
 
     // TODO
     void generate_sub_query(const SPARQLQuery &req, sid_t start, int num_jobs,
-            vector<int*>& buf_dps, vector<int>& buf_sizes) {
+            vector<sid_t*>& buf_ptrs, vector<int>& buf_sizes) {
         int query_size = req.result.get_row_num();
+        // cudaStream_t stream = stream_pool->get_split_query_stream();
         cudaStream_t stream = 0;
 
         ASSERT(req.pattern_step > 0);
 
-        if (!req.pattern_step == 0) {
+        param.query.start_vid = start;
+        param.query.col_num = req.result.get_col_num(),
+        param.query.row_num = req.result.get_row_num(),
+        param.query.var2col_start = req.result.var2col(start);
+        // param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
+
+        if (req.pattern_step == 0) {
+            param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
         } else {
-            ASSERT(false);
+            param.set_result_bufs(req.result.gpu.result_buf_dp, gmem->res_outbuf());
         }
 
         vector<int> buf_heads(num_jobs);
+
         // calc_dispatched_position
         gpu_shuffle_result_buf(param, num_jobs, buf_sizes, buf_heads, stream);
 
         // update_result_table_sub
         gpu_split_result_buf(param, num_jobs, stream);
 
+        // CUDA_STREAM_SYNC(stream);
+
         for (int i = 0; i < num_jobs; ++i) {
             // buf_sizes[i] *= req.result.get_col_num();
-            buf_dps[i] = (int*) gmem->res_outbuf() + buf_sizes[i];
+            buf_sizes[i] *= req.result.get_col_num();
+            buf_heads[i] *= req.result.get_col_num();
+            buf_ptrs[i] = ((sid_t*) gmem->res_outbuf()) + buf_heads[i];
+
+#ifdef GPU_DEBUG
+            logstream(LOG_INFO) << "#" << sid << " i=" << i << " sub_table_size=" << buf_sizes[i]
+                << ", sub_table_head=" << buf_heads[i] << LOG_endl;
+#endif
         }
 
         // TODO: Do we need to reverse rbuf here?

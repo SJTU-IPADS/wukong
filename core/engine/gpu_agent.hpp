@@ -106,27 +106,14 @@ public:
             return true;
         }
 
+        ASSERT(false);
 
-        return false;
         // TODO if send fail, copy history to CPU and save to a staging area
+        return false;
     }
 
 
     void sweep_msgs() {
-    }
-
-    void collect_reply(SPARQLQuery& r) {
-        pthread_spin_lock(&rmap_lock);
-        rmap.put_reply(r);
-
-        if (!rmap.is_ready(r.pid)) {
-            pthread_spin_unlock(&rmap_lock);
-            return; // not ready (waiting for the rest)
-        }
-
-        // all sub-queries have done, continue to execute
-        r = rmap.get_merged_reply(r.pid);
-        pthread_spin_unlock(&rmap_lock);
     }
 
     bool need_parallel(const SPARQLQuery& r) {
@@ -139,30 +126,25 @@ public:
     }
 
     void send_to_workers(SPARQLQuery& req) {
-        // The mt_factor can be set on proxy side before sending to engine,
-        // but must smaller than global_mt_threshold (Default: mt_factor == 1)
-        // Normally, we will NOT let global_mt_threshold == #gpu, which will cause HANG
-        int sub_reqs_size = global_num_servers * req.mt_factor;
-        rmap.put_parent_request(req, sub_reqs_size);
+
+        rmap.put_parent_request(req, global_num_servers);
         SPARQLQuery sub_query = req;
         ASSERT(req.mt_factor == 1);
         for (int i = 0; i < global_num_servers; i++) {
-            for (int j = 0; j < req.mt_factor; j++) {
-                sub_query.id = -1;
-                sub_query.pid = req.id;
-                // start from the next engine thread
-                int dst_tid = (tid + j + 1 - WUKONG_GPU_AGENT_TID) % global_num_gpus
-                              + WUKONG_GPU_AGENT_TID;
-                sub_query.tid = j;
-                sub_query.mt_factor = 1;
-                sub_query.pattern_group.parallel = true;
+            sub_query.id = -1;
+            sub_query.pid = req.id;
+            // start from the next engine thread
+            int dst_tid = (tid + 1 - WUKONG_GPU_AGENT_TID) % global_num_gpus
+                          + WUKONG_GPU_AGENT_TID;
+            sub_query.tid = 0;
+            sub_query.mt_factor = 1;
+            sub_query.pattern_group.parallel = true;
 
-                ASSERT(sub_query.job_type != SPARQLQuery::SubJobType::SPLIT_JOB);
-                Bundle bundle(sub_query);
-                send_request(bundle, i, dst_tid);
-                logstream(LOG_EMPH) << "GPUAgent: " << "[" << sid << ":" << tid << "]"
-                                     << "send_to_workers: send to server #" << i << LOG_endl;
-            }
+            ASSERT(sub_query.job_type != SPARQLQuery::SubJobType::SPLIT_JOB);
+            Bundle bundle(sub_query);
+            send_request(bundle, i, dst_tid);
+            logstream(LOG_INFO) << "GPUAgent: " << "[" << sid << ":" << tid << "]"
+                                 << "send_to_workers: send to sid=" << i << ", tid=" << dst_tid << LOG_endl;
         }
     }
 
@@ -191,22 +173,34 @@ public:
         // encode the lineage of the query (server & thread)
         if (req.id == -1) req.id = coder.get_and_inc_qid();
 
-        logstream(LOG_EMPH) << "GPUAgent: " << "[" << sid << "-" << tid << "]"
-                             << " got a req: r.id=" << req.id << ", parent=" << req.pid << ", r.state="
-                             << (req.state == SPARQLQuery::SQState::SQ_REPLY ? "SQ_REPLY" : "Request") << LOG_endl;
+        logstream(LOG_INFO) << "#" << sid << " GPUAgent: " << "[" << sid << "-" << tid << "]"
+                         << " got a req: r.id=" << req.id << ", pid=" << req.pid << ", r.state="
+                         << (req.state == SPARQLQuery::SQState::SQ_REPLY ? "REPLY" : "REQUEST") << LOG_endl;
 
         if (need_parallel(req)) {
             send_to_workers(req);
             return;
         }
 
+        // if req is a reply
         if (req.state == SPARQLQuery::SQState::SQ_REPLY) {
-            collect_reply(req);
+            pthread_spin_lock(&rmap_lock);
+            rmap.put_reply(req);
+
+            if (!rmap.is_ready(req.pid)) {
+                pthread_spin_unlock(&rmap_lock);
+                return; // not ready (waiting for the rest)
+            }
+
+            // all sub-queries have done, continue to execute
+            req = rmap.get_merged_reply(req.pid);
+            pthread_spin_unlock(&rmap_lock);
         }
 
         // execute_patterns
         while (true) {
             ASSERT(req.dev_type == SPARQLQuery::DeviceType::GPU);
+            ASSERT(req.result.dev_type == SPARQLQuery::DeviceType::GPU);
             ASSERT(req.has_pattern());
 
             if (!req.done(SPARQLQuery::SQState::SQ_PATTERN)) {
@@ -216,30 +210,32 @@ public:
                 gpu_engine->execute_one_pattern(req);
             }
 
+            // if req has been finished
             if (req.done(SPARQLQuery::SQState::SQ_PATTERN)) {
                 // only send back row_num in blind mode
                 req.result.row_num = req.result.get_row_num();
                 req.state = SPARQLQuery::SQState::SQ_REPLY;
+                // TODO
+                req.job_type = SPARQLQuery::SubJobType::FULL_JOB;
                 Bundle bundle(req);
                 int psid, ptid;
                 psid = coder.sid_of(req.pid);
                 ptid = coder.tid_of(req.pid);
-                logstream(LOG_EMPH) << "GPUAgent: finished query r.id: " << req.id << ", sent back to sid: "
-                    << psid << ", tid: " << ptid << LOG_endl;
+                logstream(LOG_INFO) << "#" << sid << " GPUAgent: finished query r.id=" << req.id << ", pid="
+                    << req.pid << ", sent back to sid="
+                    << psid << ", tid=" << ptid << LOG_endl;
                 send_request(bundle, psid, ptid);
                 break;
             }
 
             // TODO
             if (need_fork_join(req)) {
-                // ASSERT_MSG(false, "doesn't support fork-join mode now");
+                // TODO
                 vector<SPARQLQuery> sub_reqs = gpu_engine->generate_sub_query(req);
                 ASSERT(sub_reqs.size() == global_num_servers);
                 rmap.put_parent_request(req, sub_reqs.size());
                 for (int i = 0; i < sub_reqs.size(); i++) {
                     if (i != sid) {
-                        // Bundle bundle(sub_reqs[i]);
-                        // send_request(bundle, i, tid);
                         send_sub_query(sub_reqs[i], i, tid);
                     } else {
                         runqueue.push(sub_reqs[i]);
@@ -295,10 +291,6 @@ public:
                 }
             }
 
-            // if (runqueue.try_pop(req)) {
-                // // process a new SPARQL query
-                // execute_sparql_query(req);
-            // }
         }
     }
 

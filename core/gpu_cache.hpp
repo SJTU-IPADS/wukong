@@ -338,7 +338,9 @@ private:
         // step 1.1: evict key blocks
         int num_need_key_blocks = num_key_blocks_seg_need[seg_to_load] - num_key_blocks_seg_using[seg_to_load];
 
+#ifdef GPU_DEBUG
         logstream(LOG_EMPH) << "load_segment: segment: " << seg_to_load.stringify() << ", #need_key_blks: " << num_need_key_blocks << LOG_endl;
+#endif
 
         if (free_key_blocks.size() < num_need_key_blocks) {
             logstream(LOG_ERROR) << "load_segment: evict_key_blocks" << LOG_endl;

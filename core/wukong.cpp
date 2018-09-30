@@ -209,6 +209,9 @@ main(int argc, char *argv[])
     }
 
 #ifdef USE_GPU
+    logstream(LOG_INFO) << "#threads:" << global_num_threads << ", #proxies:"
+        << global_num_proxies << ", #engines:" << global_num_engines << ", #agent:" << global_num_gpus << LOG_endl;
+
     // create GPU agent
     GPUStreamPool stream_pool(32);
     GPUCache gpu_cache(gpu_mem, dgraph.gstore.vertex_addr(), dgraph.gstore.edge_addr(), dgraph.gstore.get_rdf_segment_metas());

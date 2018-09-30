@@ -593,10 +593,10 @@ int gpu_update_result_buf_k2k(GPUEngineParam& param, cudaStream_t stream)
     CUDA_ASSERT( cudaMemcpy(&table_size,
                param.gpu.d_prefix_sum_list + param.query.row_num - 1,
                sizeof(int),
-               cudaMemcpyDeviceToHost) );//, stream));
+               cudaMemcpyDeviceToHost) );
 
     k_update_result_buf_k2k<<<WUKONG_GET_BLOCKS(param.query.row_num),
-        WUKONG_CUDA_NUM_THREADS>>>(
+        WUKONG_CUDA_NUM_THREADS, 0, stream>>>(
          param.gpu.d_in_rbuf,
          param.gpu.d_out_rbuf,
          param.gpu.d_prefix_sum_list,
@@ -606,7 +606,7 @@ int gpu_update_result_buf_k2k(GPUEngineParam& param, cudaStream_t stream)
          param.query.end_vid,
          param.query.row_num);
 
-    // CUDA_ASSERT( cudaStreamSynchronize(stream) );
+    CUDA_STREAM_SYNC(stream);
     return table_size * param.query.col_num;
 }
 
@@ -710,7 +710,7 @@ void k_split_result_buf(sid_t *d_in_result_buf,
                                   sid_t *d_out_result_buf,
                                   int *d_position_list,
                                   int *server_id_list,
-                                  int *sub_table_hdr_list,
+                                  int *server_sum_list,
                                   int column_num,
                                   int num_sub_request,
                                   int query_size)
@@ -718,7 +718,7 @@ void k_split_result_buf(sid_t *d_in_result_buf,
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index < query_size) {
         int dst_sid = server_id_list[index];
-        int mapped_index = sub_table_hdr_list[dst_sid] + d_position_list[index];
+        int mapped_index = server_sum_list[dst_sid] + d_position_list[index];
         for (int c = 0; c < column_num; c++) {
             d_out_result_buf[column_num * mapped_index + c] = d_in_result_buf[column_num * index + c];
         }
@@ -755,6 +755,10 @@ void gpu_shuffle_result_buf(GPUEngineParam& param, int num_jobs, vector<int>& bu
     int *d_server_id_list = param.gpu.d_prefix_sum_list;
     int *d_server_sum_list = param.gpu.d_edge_size_list;
 
+
+    // CUDA_ASSERT(cudaMemsetAsync(d_server_sum_list, 0, num_jobs * sizeof(int), stream) );
+    CUDA_ASSERT(cudaMemset(d_server_sum_list, 0, num_jobs * sizeof(int)) );
+
     // int num_jobs = buf_sizes.size();
 
     // calculate destination server for each record
@@ -776,26 +780,29 @@ void gpu_shuffle_result_buf(GPUEngineParam& param, int num_jobs, vector<int>& bu
                          param.query.row_num,
                          stream);
 
-    CUDA_ASSERT(cudaMemcpyAsync(&buf_sizes[0],
+    CUDA_ASSERT(cudaMemcpy(&buf_sizes[0],
                                   d_server_sum_list,
                                   sizeof(int) * num_jobs,
-                                  cudaMemcpyDeviceToHost,
-                                  stream));
+                                  cudaMemcpyDeviceToHost));
+                                  // stream));
 
-    CUDA_STREAM_SYNC(stream);
+    // CUDA_STREAM_SYNC(stream);
+    CUDA_DEVICE_SYNC;
+
 
     // calculate exclusive prefix sum for d_server_sum_list
     thrust::device_ptr<int> dptr(d_server_sum_list);
-    thrust::exclusive_scan(thrust::cuda::par.on(stream), dptr, dptr + num_jobs, dptr);
+    // thrust::exclusive_scan(thrust::cuda::par.on(stream), dptr, dptr + num_jobs, dptr);
+    thrust::exclusive_scan(dptr, dptr + num_jobs, dptr);
 
 
-    CUDA_STREAM_SYNC(stream);
+    // CUDA_STREAM_SYNC(stream);
 
-    CUDA_ASSERT(cudaMemcpyAsync(&buf_heads[0],
+    CUDA_ASSERT(cudaMemcpy(&buf_heads[0],
                               d_server_sum_list,
                               sizeof(int) * num_jobs,
-                              cudaMemcpyDeviceToHost,
-                              stream));
+                              cudaMemcpyDeviceToHost));
+                              // stream));
 
 }
 

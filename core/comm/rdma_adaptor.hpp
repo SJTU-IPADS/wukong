@@ -248,20 +248,23 @@ private:
         ASSERT(sid != dst_sid);
 
         // msg: header + bundle + footer (use bundle_sz as header and footer)
-        uint64_t bundle_sz = sizeof(uint64_t) + data_sz;
-        uint64_t sz = sizeof(uint64_t) + ceil(bundle_sz, sizeof(uint64_t)) + sizeof(uint64_t);
+        // uint64_t bundle_sz = sizeof(uint64_t) + data_sz;
+        uint64_t sz = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
 
         // prepare RDMA buffer for RDMA-WRITE
-        char *rdma_buf = gmem->rdma_buf_body(tid);
         // copy header(bundle_sz) to rdma_buf(on local GPU mem)
-        CUDA_ASSERT( cudaMemcpy(gmem->rdma_buf_hdr(tid), &bundle_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );
+        CUDA_ASSERT( cudaMemcpy(gmem->rdma_buf_hdr(tid), &data_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );
 
+        char *rdma_buf = gmem->rdma_buf_body(tid);
         // copy data(on local GPU mem) to rdma_buf_body(on local GPU mem)
         CUDA_ASSERT( cudaMemcpy(rdma_buf, data, data_sz, cudaMemcpyDeviceToDevice) );    // data
         rdma_buf += ceil(data_sz, sizeof(uint64_t));
 
         // copy footer(bundle_sz) to rdma_buf(on local GPU mem)
-        CUDA_ASSERT( cudaMemcpy(rdma_buf, &bundle_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );  // footer
+        CUDA_ASSERT( cudaMemcpy(rdma_buf, &data_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );  // footer
+
+        // for safety
+        CUDA_DEVICE_SYNC;
 
         // write msg to remote ring buffer (CPU)
         uint64_t rbf_sz = mem->ring_size();
@@ -337,7 +340,8 @@ public:
 
         // 1. calculate msg size
         // struct of msg: [data_sz | data | data_sz] (use size of data as header and footer)
-        uint64_t msg_sz = sizeof(uint64_t) + sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
+        // uint64_t msg_sz = sizeof(uint64_t) + sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
+        uint64_t msg_sz = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
 
 
         // 2. reserve space in ring-buffer

@@ -46,6 +46,7 @@ extern int global_num_proxies;
 #define WUKONG_GPU_AGENT_TID (global_num_proxies + global_num_engines)
 
 #define WUKONG_CUDA_NUM_THREADS 512
+#define WUKONG_GPU_ELEM_SIZE sizeof(sid_t)
 
 inline int WUKONG_GET_BLOCKS(const int n) {
     return (n + WUKONG_CUDA_NUM_THREADS - 1) / WUKONG_CUDA_NUM_THREADS;
