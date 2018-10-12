@@ -134,6 +134,7 @@ void init_options_desc()
     (",p", value<string>()->value_name("<fname>"), "adopt user-defined query plan from <fname> for running a single query")
     (",m", value<int>()->default_value(1)->value_name("<factor>"), "set multi-threading <factor> for heavy query")
     (",n", value<int>()->default_value(1)->value_name("<num>"), "run <num> times")
+    (",N", value<int>()->default_value(1)->value_name("<num>"), "run planner <num> times")
     (",v", value<int>()->default_value(0)->value_name("<lines>"), "print at most <lines> of results")
     (",o", value<string>()->value_name("<fname>"), "output results into <fname>")
     (",b", value<string>()->value_name("<fname>"), "run a batch of queries configured by <fname>")
@@ -445,9 +446,10 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         }
 
         // NOTE: the option with default_value is always available
-        // default value: mfactor(1), cnt(1), nlines(0)
+        // default value: mfactor(1), cnt(1), cnt_planner(1), nlines(0)
         int mfactor = sparql_vm["-m"].as<int>(); // the number of multithreading
         int cnt = sparql_vm["-n"].as<int>();
+        int cnt_planner = sparql_vm["-n"].as<int>();
         int nlines = sparql_vm["-v"].as<int>();
 
         string ofname;
@@ -467,7 +469,7 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         SPARQLQuery reply;
         SPARQLQuery::Result &result = reply.result;
         Monitor monitor;
-        int ret = proxy->run_single_query(ifs, fmt_stream, mfactor, cnt, reply, monitor);
+        int ret = proxy->run_single_query(ifs, fmt_stream, mfactor, cnt, cnt_planner, reply, monitor);
         if (ret != 0) {
             logstream(LOG_ERROR) << "Failed to run the query (ERRNO: " << ret << ")!" << LOG_endl;
             fail_to_parse(proxy, argc, argv); // invalid cmd

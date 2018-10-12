@@ -74,6 +74,7 @@ class Planner {
     double min_cost;
     vector<ssid_t> path;
     bool is_empty;            // help identify empty queries
+    long start_time;
 
     // for dfs
     vector<ssid_t> min_path;
@@ -105,6 +106,63 @@ class Planner {
     unordered_map<ssid_t, int> var2col;  // convert
     unordered_map<ssid_t, int> var2ptindex;  // find the first appearance for var
     DGraph *graph;
+
+    // test whether the variable is an end point of the graph
+    inline bool is_end_point(ssid_t var){
+    	int num = 0;
+    	for(auto token: triples){
+    		if(token == var){
+    			num ++;
+    		}
+    	}
+
+    	return num == 1;
+    }
+
+    // remove the col'th column, merge the rest
+    void merge(int col){
+    	int row_num = type_table.get_row_num();
+    	int col_num = type_table.get_col_num();
+
+    	//cout << "merge: " << col << endl;
+    	long start = timer::get_usec();
+
+    	vector<double> tytable;
+
+		unordered_set<ssid_t> hashset;
+    	// put type_table to tytable
+    	for(int i = 0; i < row_num; i++){
+
+    		// test if tytable.contains type_table.row(i)
+    		bool flag = false;
+    		for(int j = 0;j < tytable.size() / col_num;j ++){
+    			bool flag2 = true;
+    			for(int m = 1;m < col_num; m ++){
+    				if(m != col && tytable[col_num * j + m] != type_table.get_row_col(i,m)){
+    					flag2 = false;
+    					break;
+    				}
+    			}
+    			if(flag2){
+    				flag = true;
+    				tytable[col_num * j + 0] += type_table.get_row_col(i,0);
+    				break;
+    			}
+    		}
+
+    		if(!flag){
+    			type_table.append_row_to(i, tytable);
+    			tytable[tytable.size() - col_num + col] = 0;
+    		}
+    	}
+
+
+
+    	type_table.tytable.swap(tytable);
+    	long end = timer::get_usec();
+    	//cout << "using time: " << ( end -start ) << endl;
+
+    }
 
     // get the type of constant using get_edges
     ssid_t get_type(ssid_t constant) {
@@ -162,6 +220,12 @@ class Planner {
             if (cost < min_cost) {
                 min_cost = cost;
                 min_path = path;
+                //cout << "type_table.size(): " << type_table.tytable.size() << endl;
+                //cout << "type_table.row: " << type_table.get_row_num() << " col: " << type_table.get_col_num() << endl;
+                long end = timer::get_usec();
+                //cout << "one iteration using time: " << end - start_time << endl;
+                start_time = end;
+                //return false;
             }
             return ctn;
         }
@@ -181,121 +245,127 @@ class Planner {
             if (path.size() == 0) {
                 if (o1 < 0 && o2 < 0) {
                     //count00++;
-                    // use index vertex, find subject first
-                    path.push_back(p); path.push_back(0); path.push_back(IN); path.push_back(o1);
-                    //cout << "pick : " << p << " " << "0" << " " << IN << " " << o1
-                    //     << "-------------------------------------" << endl;
 
-                    // initialize
-                    add_cost = 0;
-                    correprune_boost_results = 0;
-                    condprune_results = 0;
-
-                    // selectivity and cost estimation
-                    // find all types, push into result table
-                    vector<ty_count> tycountv = statistic->global_tystat.pstype[p];
-                    for (size_t k = 0; k < tycountv.size(); k++) {
-                        ssid_t vtype = tycountv[k].ty;
-                        double vcount = double(tycountv[k].count) / global_num_servers;
-                        updated_result_table.push_back(vcount);
-                        updated_result_table.push_back(vtype);
-                    }
-
-                    // calculate cost
-                    for (size_t j = 0; j < updated_result_table.size(); j += 2) {
-                        correprune_boost_results += updated_result_table[j];
-                    }
-                    condprune_results = correprune_boost_results;
-                    if (condprune_results == 0) {
-                        is_empty = true;
-                        return false;
-                    }
-                    add_cost = CC_const_known * condprune_results;
-                    //cout << "results: " << condprune_results << endl;
-                    //cout << "add cost: " << add_cost << endl;
-                    double new_cost = cost + add_cost;
-                    if (new_cost > min_cost) {
-                        path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
-                        updated_result_table.clear();
-                        //cout << "this path dropped "
+                	if(!is_end_point(o1) || (is_end_point(o1) && is_end_point(o2))){
+                        // use index vertex, find subject first
+                        path.push_back(p); path.push_back(0); path.push_back(IN); path.push_back(o1);
+                        //cout << "pick : " << p << " " << "0" << " " << IN << " " << o1
                         //     << "-------------------------------------" << endl;
-                        continue;
-                    }
 
-                    // store to type table
-                    var2col[o1] = 1;
-                    type_table.tytable.swap(updated_result_table);
-                    type_table.set_col_num(2);
+                        // initialize
+                        add_cost = 0;
+                        correprune_boost_results = 0;
+                        condprune_results = 0;
 
-                    // next iteration
-                    bool ctn = plan_enum(pt_bits, new_cost, condprune_results); // next level
-                    //cout << "back : " << p << " " << "0" << " " << IN << " " << o1
-                    //     << "-------------------------------------" << endl;
-                    if (!ctn) return ctn;
-                    path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
-                    var2col[o1] = -1;
-                    //cout << "change var2col[o1] to: " << var2col[o1] << endl;
-                    type_table.tytable.swap(updated_result_table);
-                    type_table.set_col_num(0);
-                    updated_result_table.clear();
+                        // selectivity and cost estimation
+                        // find all types, push into result table
+                        vector<ty_count> tycountv = statistic->global_tystat.pstype[p];
+                        for (size_t k = 0; k < tycountv.size(); k++) {
+                            ssid_t vtype = tycountv[k].ty;
+                            double vcount = double(tycountv[k].count) / global_num_servers;
+                            updated_result_table.push_back(vcount);
+                            updated_result_table.push_back(vtype);
+                        }
 
-                    // different direction, find object first
-                    path.push_back(p); path.push_back(0); path.push_back(OUT); path.push_back(o2);
-                    //cout << "pick : " << p << " " << "0" << " " << OUT << " " << o2
-                    //     << "-------------------------------------" << endl;
+                        // calculate cost
+                        for (size_t j = 0; j < updated_result_table.size(); j += 2) {
+                            correprune_boost_results += updated_result_table[j];
+                        }
+                        condprune_results = correprune_boost_results;
+                        if (condprune_results == 0) {
+                            is_empty = true;
+                            return false;
+                        }
+                        add_cost = CC_const_known * condprune_results;
+                        //cout << "results: " << condprune_results << endl;
+                        //cout << "add cost: " << add_cost << endl;
+                        double new_cost = cost + add_cost;
+                        if (new_cost > min_cost) {
+                            path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
+                            updated_result_table.clear();
+                            //cout << "this path dropped "
+                            //     << "-------------------------------------" << endl;
+                            continue;
+                        }
 
-                    // initialize
-                    add_cost = 0;
-                    correprune_boost_results = 0;
-                    condprune_results = 0;
+                        // store to type table
+                        var2col[o1] = 1;
+                        type_table.tytable.swap(updated_result_table);
+                        type_table.set_col_num(2);
 
-                    // selectivity and cost estimation
-                    // find all types, push into result table
-                    tycountv = statistic->global_tystat.potype[p];
-                    for (size_t k = 0; k < tycountv.size(); k++) {
-                        ssid_t vtype = tycountv[k].ty;
-                        double vcount = double(tycountv[k].count) / global_num_servers;
-                        updated_result_table.push_back(vcount);
-                        updated_result_table.push_back(vtype);
-                    }
-
-                    // calculate cost
-                    for (size_t j = 0; j < updated_result_table.size(); j += 2) {
-                        correprune_boost_results += updated_result_table[j];
-                    }
-                    condprune_results = correprune_boost_results;
-                    if (condprune_results == 0) {
-                        is_empty = true;
-                        return false;
-                    }
-                    add_cost = CC_const_known * condprune_results;
-                    //cout << "results: " << condprune_results << endl;
-                    //cout << "add cost: " << add_cost << endl;
-                    new_cost = cost + add_cost;
-                    if (new_cost > min_cost) {
-                        path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
-                        updated_result_table.clear();
-                        //cout << "this path dropped "
+                        // next iteration
+                        bool ctn = plan_enum(pt_bits, new_cost, condprune_results); // next level
+                        //cout << "back : " << p << " " << "0" << " " << IN << " " << o1
                         //     << "-------------------------------------" << endl;
-                        continue;
-                    }
+                        if (!ctn) return ctn;
+                        path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
+                        var2col[o1] = -1;
+                        //cout << "change var2col[o1] to: " << var2col[o1] << endl;
+                        type_table.tytable.swap(updated_result_table);
+                        type_table.set_col_num(0);
+                        updated_result_table.clear();
+                	}
 
-                    // store to type table
-                    var2col[o2] = 1;
-                    type_table.tytable.swap(updated_result_table);
-                    type_table.set_col_num(2);
+                	if(!is_end_point(o2)){
+                        // different direction, find object first
+                        path.push_back(p); path.push_back(0); path.push_back(OUT); path.push_back(o2);
+                        //cout << "pick : " << p << " " << "0" << " " << OUT << " " << o2
+                        //     << "-------------------------------------" << endl;
 
-                    // next iteration
-                    ctn = plan_enum(pt_bits, new_cost, condprune_results);
-                    //cout << "back : " << p << " " << "0" << " " << OUT << " " << o2
-                    //     << "-------------------------------------" << endl;
-                    if (!ctn) return ctn;
-                    path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
-                    var2col[o2] = -1;
-                    //cout << "change var2col[o2] to: " << var2col[o2] << endl;
-                    type_table.tytable.swap(updated_result_table);
-                    type_table.set_col_num(0);
-                    updated_result_table.clear();
+                        // initialize
+                        add_cost = 0;
+                        correprune_boost_results = 0;
+                        condprune_results = 0;
+
+                        // selectivity and cost estimation
+                        // find all types, push into result table
+                        vector<ty_count> tycountv = statistic->global_tystat.potype[p];
+                        for (size_t k = 0; k < tycountv.size(); k++) {
+                            ssid_t vtype = tycountv[k].ty;
+                            double vcount = double(tycountv[k].count) / global_num_servers;
+                            updated_result_table.push_back(vcount);
+                            updated_result_table.push_back(vtype);
+                        }
+
+                        // calculate cost
+                        for (size_t j = 0; j < updated_result_table.size(); j += 2) {
+                            correprune_boost_results += updated_result_table[j];
+                        }
+                        condprune_results = correprune_boost_results;
+                        if (condprune_results == 0) {
+                            is_empty = true;
+                            return false;
+                        }
+                        add_cost = CC_const_known * condprune_results;
+                        //cout << "results: " << condprune_results << endl;
+                        //cout << "add cost: " << add_cost << endl;
+                        double new_cost = cost + add_cost;
+                        if (new_cost > min_cost) {
+                            path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
+                            updated_result_table.clear();
+                            //cout << "this path dropped "
+                            //     << "-------------------------------------" << endl;
+                            continue;
+                        }
+
+                        // store to type table
+                        var2col[o2] = 1;
+                        type_table.tytable.swap(updated_result_table);
+                        type_table.set_col_num(2);
+
+                        // next iteration
+                        bool ctn = plan_enum(pt_bits, new_cost, condprune_results);
+                        //cout << "back : " << p << " " << "0" << " " << OUT << " " << o2
+                        //     << "-------------------------------------" << endl;
+                        if (!ctn) return ctn;
+                        path.pop_back(); path.pop_back(); path.pop_back(); path.pop_back();
+                        var2col[o2] = -1;
+                        //cout << "change var2col[o2] to: " << var2col[o2] << endl;
+                        type_table.tytable.swap(updated_result_table);
+                        type_table.set_col_num(0);
+                        updated_result_table.clear();
+                	}
+
                 }
                 if (o1 > 0) {
                     //count01++;
@@ -527,6 +597,16 @@ class Planner {
                                     type_table.append_newv_row_to(i, updated_result_table, vcount);
                                     condprune_results += vcount;
                                 }
+                            } else if (is_end_point(o2)){
+                            	// we don't care the type of o2 if it's an end point, so add it up to one whole item to save storage and speed up
+                            	double vcount_sum = 0;
+                            	for (size_t m = 0; m < tycountv.size(); m++)
+                            		vcount_sum += double(tycountv[m].count) / tycount * pre_count;
+
+                                type_table.append_newv_row_to(i, updated_result_table, vcount_sum);
+                                updated_result_table.push_back(0);
+                                condprune_results += vcount_sum;
+                            	break;
                             } else {
                                 // normal case
                                 type_table.append_newv_row_to(i, updated_result_table, vcount);
@@ -566,6 +646,26 @@ class Planner {
                         //cout << o2 << "is pushed\n";
                         //cout << "in ! prune flag o2: " << o2 << " var2col[o2]: " << var2col[o2] << endl;
                         type_table.set_col_num(type_table.get_col_num() + 1);
+                    }
+
+                    // if no access to o1 any more, we can merge entries about o1 in type table
+                    bool hasO1 = false;
+                    unsigned int curr_bits = (pt_bits | (1 << pt_pick));
+                    // if not end of plan
+                    if(curr_bits != ( 1 << _chains_size_div_4 ) - 1){
+                    	for(int i = 0; i < _chains_size_div_4; i ++){
+                    		// if i'th pattern is not picked
+                    		if(!(curr_bits & (1 << i))){
+                    			if(triples[4 * i] == o1 || triples[4 * i + 3] == o1){
+                    				hasO1 = true;
+                    				break;
+                    			}
+                    		}
+                    	}
+                    }
+                    if(!hasO1 && !is_end_point(o1)){
+                    	merge(var2col[o1]);
+                    	//cout << "merge var_: " << o1 << endl;
                     }
 
                     // next iteration
@@ -636,7 +736,17 @@ class Planner {
                                     type_table.append_newv_row_to(i, updated_result_table, vcount);
                                     condprune_results += vcount;
                                 }
-                            } else {
+                            } else if (is_end_point(o1)){
+                            	// we don't care the type of o1 if it's an end point, so add it up to one whole item to save storage and speed up
+                            	double vcount_sum = 0;
+                            	for (size_t m = 0; m < tycountv.size(); m++)
+                            		vcount_sum += double(tycountv[m].count) / tycount * pre_count;
+
+                                type_table.append_newv_row_to(i, updated_result_table, vcount_sum);
+                                updated_result_table.push_back(0);
+                                condprune_results += vcount_sum;
+                            	break;
+                            } else{
                                 // normal case
                                 type_table.append_newv_row_to(i, updated_result_table, vcount);
                                 updated_result_table.push_back(vtype);
@@ -675,6 +785,26 @@ class Planner {
                         //cout << o1 << "is pushed\n";
                         //cout << "in prune flag o1: " << o1 << " var2col[o1]: " << var2col[o1] << endl;
                         type_table.set_col_num(type_table.get_col_num() + 1);
+                    }
+
+                    // if no access to o2 any more, we can merge entries about o2 in type table
+                    bool hasO2 = false;
+                    unsigned int curr_bits = (pt_bits | (1 << pt_pick));
+                    // if not end of plan
+                    if(curr_bits != ( 1 << _chains_size_div_4 ) - 1){
+                    	for(int i = 0; i < _chains_size_div_4; i ++){
+                    		// if i'th pattern is not picked
+                    		if(!(curr_bits & (1 << i))){
+                    			if(triples[4 * i] == o2 || triples[4 * i + 3] == o2){
+                    				hasO2 = true;
+                    				break;
+                    			}
+                    		}
+                    	}
+                    }
+                    if(!hasO2 & !is_end_point(o2)){
+                    	merge(var2col[o2]);
+                    	//cout << "merge var: " << o2 << endl;
                     }
 
                     // next iteration
@@ -1266,6 +1396,7 @@ class Planner {
     }
 
 public:
+    bool test;
     Planner() { }
     Planner(DGraph *graph): graph(graph) { }
 
@@ -1365,6 +1496,8 @@ public:
         // score_order_new(0,0,0);
         // min_path = triples;
 
+        if(test) return true;
+
         // output: min_path
         // transform min_path to patterns
         patterns.clear();
@@ -1404,6 +1537,7 @@ public:
 
     bool generate_plan(SPARQLQuery &r, data_statistic *statistic) {
         this->statistic = statistic;
+        this->start_time = timer::get_usec();
         return generate_for_group(r.pattern_group);
     }
 

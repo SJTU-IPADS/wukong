@@ -199,7 +199,7 @@ public:
     // Run a single query for @cnt times. Command is "-f"
     // @is: input
     // @reply: result
-    int run_single_query(istream &is, istream &fmt_stream, int mt_factor, int cnt,
+    int run_single_query(istream &is, istream &fmt_stream, int mt_factor, int cnt, int cnt_planner,
                          SPARQLQuery &reply, Monitor &monitor) {
         uint64_t start, end;
         SPARQLQuery request;
@@ -225,10 +225,16 @@ public:
         // NOTE: it only works for standard SPARQL query.
         if (global_enable_planner) {
             start = timer::get_usec();
-            bool exec = planner.generate_plan(request, statistic);
-            end = timer::get_usec();
-            logstream(LOG_INFO) << "Planning time: " << (end - start) << " usec" << LOG_endl;
 
+            for(int i = 0;i < cnt_planner;i ++){
+            	planner.test = true;
+                planner.generate_plan(request, statistic);
+                end = timer::get_usec();
+            }
+            logstream(LOG_INFO) << "Planning time: " << (end - start) / cnt_planner << " usec" << LOG_endl;
+
+            planner.test = false;
+            bool exec = planner.generate_plan(request, statistic);
             // A shortcut for contradictory queries (e.g., empty result)
             if (exec == false)
                 return 0; // skip the real execution
