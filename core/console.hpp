@@ -449,7 +449,7 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         // default value: mfactor(1), cnt(1), cnt_planner(1), nlines(0)
         int mfactor = sparql_vm["-m"].as<int>(); // the number of multithreading
         int cnt = sparql_vm["-n"].as<int>();
-        int cnt_planner = sparql_vm["-n"].as<int>();
+        int cnt_planner = sparql_vm["-N"].as<int>();
         int nlines = sparql_vm["-v"].as<int>();
 
         string ofname;
