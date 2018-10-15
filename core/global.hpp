@@ -49,6 +49,7 @@ int global_mt_threshold = 16;
 
 bool global_enable_caching = true;
 bool global_enable_workstealing = false;
+int global_stealing_pattern = 0;  // 0 = pair stealing,  1 = ring stealing
 
 bool global_silent = true;  // don't take back results by default
 

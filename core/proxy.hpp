@@ -216,7 +216,7 @@ public:
     // Run a single query for @cnt times. Command is "-f"
     // @is: input
     // @reply: result
-    int run_single_query(istream &is, int mt_factor, int cnt, bool gpu,
+    int run_single_query(istream &is, istream &fmt_stream, int mt_factor, int cnt, bool gpu,
                          SPARQLQuery &reply, Monitor &monitor) {
         uint64_t start, end;
         SPARQLQuery request;
@@ -232,6 +232,11 @@ public:
         }
         end = timer::get_usec();
         logstream(LOG_INFO) << "Parsing time: " << (end - start) << " usec" << LOG_endl;
+
+        if (planner.set_query_plan(request.pattern_group, fmt_stream))
+            logstream(LOG_INFO) << "Query plan is successfully set" << LOG_endl;
+        else
+            logstream(LOG_INFO) << "No query plan is set" << LOG_endl;
 
         // Generate plans for the query if our SPARQL planner is enabled.
         // NOTE: it only works for standard SPARQL query.
@@ -260,7 +265,7 @@ public:
 
             // set the multi-threading factor for queries start from index
             if (request.start_from_index()) {
-                if (mt_factor == 1 && global_mt_threshold > 1)
+                if (!gpu && mt_factor == 1 && global_mt_threshold > 1)
                     logstream(LOG_EMPH) << "The query starts from an index vertex, "
                                         << "you could use option -m to accelerate it."
                                         << LOG_endl;
@@ -281,7 +286,7 @@ public:
     // Warm up for @w firstly, then measure throughput.
     // Latency is evaluated for @d seconds.
     // Proxy keeps @p queries in flight.
-    int run_query_emu(istream &is, int d, int w, int p, Monitor &monitor) {
+    int run_query_emu(istream &is, istream &fmt_stream, int d, int w, int p, Monitor &monitor) {
         uint64_t duration = SEC(d);
         uint64_t warmup = SEC(w);
         int parallel_factor = p;
@@ -297,6 +302,14 @@ public:
             logstream(LOG_ERROR) << "Invalid #lights (" << nlights << " < 0)"
                                  << " or #heavies (" << nheavies << " < 0)!" << LOG_endl;
             return -2; // parsing failed
+        }
+
+        // read query-plan config file
+        vector<string> fmt_file_names;
+        if (fmt_stream.good()) {
+            fmt_file_names.resize(ntypes);
+            for (int i = 0; i < ntypes; i ++)
+                fmt_stream >> fmt_file_names[i];
         }
 
         vector<SPARQLQuery_Template> tpls(nlights);
@@ -353,8 +366,18 @@ public:
                                       tpls[idx].instantiate(coder.get_random()) : // light query
                                       heavy_reqs[idx - nlights]; // heavy query
 
-                if (global_enable_planner)
+                if (global_enable_planner) {
                     planner.generate_plan(request, statistic);
+                } else if (fmt_file_names.size() > 0) {
+                    // adapt user defined plan according to format directory file
+                    ifstream fs(fmt_file_names[idx]);
+                    if (!fs.good()) {
+                        logstream(LOG_ERROR) << "Fail to read file: " << fmt_file_names[idx] << LOG_endl;
+                        return -2;
+                    }
+                    planner.set_query_plan(request.pattern_group, fs);
+                }
+
                 setpid(request);
                 request.result.blind = true; // always not take back results for emulator
 

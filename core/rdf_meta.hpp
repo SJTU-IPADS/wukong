@@ -100,8 +100,7 @@ struct rdf_segment_meta_t {
     inline uint64_t get_total_num_buckets() const {
         uint64_t total = num_buckets;
         for (int i = 0; i < ext_list_sz; ++i) {
-            const auto &ext = ext_bucket_list[i];
-            total += ext.num_ext_buckets;
+            total += ext_bucket_list[i].num_ext_buckets;
         }
         return total;
     }

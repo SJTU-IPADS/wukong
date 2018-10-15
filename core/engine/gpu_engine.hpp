@@ -362,9 +362,7 @@ public:
 
             for (int i = 0; i < global_num_servers; ++i) {
                 SPARQLQuery &r = sub_reqs[i];
-                // r.result.set_gpu_result_buf((char*)buf_ptrs[i], buf_sizes[i] * req.result.get_col_num());
                 r.result.set_gpu_result_buf((char*)buf_ptrs[i], buf_sizes[i]);
-                r.result.gpu.origin_result_buf_dp = (char*) buf_ptrs.front();
 
                 // if gpu history table is empty, set it to FULL_QUERY, which
                 // will be sent by native RDMA

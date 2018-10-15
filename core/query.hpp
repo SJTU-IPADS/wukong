@@ -34,7 +34,6 @@
 #include <cstring>
 #include <string>
 
-#include "string_server.hpp"
 #include "logger2.hpp"
 #include "type.hpp"
 
@@ -243,48 +242,21 @@ public:
         friend class boost::serialization::access;
 
         struct GPUState {
-            char *origin_result_buf_dp = nullptr;
             char *result_buf_dp = nullptr;
             uint64_t result_buf_nelems = 0;
 
             template <typename Archive>
             void serialize(Archive &ar, const unsigned int version) {
-                // ar & origin_result_buf_dp;
-                // ar & result_buf_dp;
                 ar & result_buf_nelems;
-                // ar & job_type;
             }
-
         };
-
-        void output_result(ostream &stream, int size, String_Server *str_server) {
-            for (int i = 0; i < size; i++) {
-                stream << i + 1 << ": ";
-                for (int j = 0; j < col_num; j++) {
-                    int id = this->get_row_col(i, j);
-                    if (str_server->exist(id))
-                        stream << str_server->id2str[id] << "\t";
-                    else
-                        stream << id << "\t";
-                }
-
-                for (int c = 0; c < this->get_attr_col_num(); c++) {
-                    attr_t tmp = this->get_attr_row_col(i, c);
-                    stream << tmp << "\t";
-                }
-
-                stream << endl;
-            }
-        }
 
     public:
         Result() { }
-        Result(DeviceType dev_type) : dev_type(dev_type) {
-        }
 
+        Result(DeviceType dev_type) : dev_type(dev_type) { }
         DeviceType dev_type;
         GPUState gpu;
-
 
         int col_num = 0;
         int row_num = 0;  // FIXME: vs. get_row_num()
@@ -507,28 +479,6 @@ public:
             gpu.result_buf_nelems = n;
         }
 
-
-        void print_result(int row2print, String_Server *str_server) {
-            logstream(LOG_INFO) << "The first " << row2print << " rows of results: " << LOG_endl;
-            output_result(cout, row2print, str_server);
-        }
-
-        void dump_result(string path, int row2print, String_Server *str_server) {
-            if (boost::starts_with(path, "hdfs:")) {
-                wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
-                wukong::hdfs::fstream ofs(hdfs, path, true);
-                output_result(ofs, row2print, str_server);
-                ofs.close();
-            } else {
-                ofstream ofs(path);
-                if (!ofs.good()) {
-                    logstream(LOG_INFO) << "Can't open/create output file: " << path << LOG_endl;
-                } else {
-                    output_result(ofs, row2print, str_server);
-                    ofs.close();
-                }
-            }
-        }
     };
 
     int id = -1;     // query id

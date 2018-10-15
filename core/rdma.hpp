@@ -219,8 +219,9 @@ public:
 
     struct MemoryRegion {
         MemType type;
-        char *mem;
+        char *addr;
         uint64_t sz;
+        void *mem;
     };
 
     class RDMA_Device {

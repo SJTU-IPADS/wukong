@@ -333,7 +333,6 @@ private:
                                    stream_id));
     } // end of load_edge_block
 
-
     void _load_segment(segid_t seg_to_load, segid_t seg_in_use, const vector<segid_t> &conflicts, cudaStream_t stream_id, bool preload) {
         // step 1.1: evict key blocks
         int num_need_key_blocks = num_key_blocks_seg_need[seg_to_load] - num_key_blocks_seg_using[seg_to_load];
@@ -411,8 +410,6 @@ private:
     } // end of _load_segment
 
 public:
-    // GPUCache(vertex_t *d_v_a, edge_t *d_e_a, vertex_t *v_a, edge_t *e_a, const map<segid_t, rdf_segment_meta_t> &rdf_metas):
-    //
     GPUCache(GPUMem *gmem, vertex_t *v_a, edge_t *e_a, const map<segid_t, rdf_segment_meta_t> &rdf_metas):
             gmem(gmem), vertex_addr(v_a), edge_addr(e_a), rdf_metas(rdf_metas) {
         // step 1: calculate capacities
@@ -498,7 +495,6 @@ public:
         }
         return headers;
     }
-
 
     uint64_t num_key_blocks() {
         return cap_gpu_key_blocks;
