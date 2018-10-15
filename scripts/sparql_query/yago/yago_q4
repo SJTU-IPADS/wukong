@@ -1,0 +1,5 @@
+SELECT * WHERE {
+	?p  y:hasExternalWikipediaLinkTo  ?e  .
+	?p  y:hasInternalWikipediaLinkTo  ?p1  .
+	?p1  y:hasExternalWikipediaLinkTo  ?e1  .
+}

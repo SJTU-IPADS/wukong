@@ -7,6 +7,7 @@ global_ctrl_port_base           9576
 global_memstore_size_gb         20
 global_mt_threshold             8
 global_enable_workstealing      0
+global_stealing_pattern         0
 global_enable_planner           0
 global_generate_statistics      0
 global_enable_vattr             1

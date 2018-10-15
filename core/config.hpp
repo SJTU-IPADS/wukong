@@ -130,6 +130,8 @@ static bool set_mutable_config(string cfg_name, string value)
         global_enable_caching = atoi(value.c_str());
     } else if (cfg_name == "global_enable_workstealing") {
         global_enable_workstealing = atoi(value.c_str());
+    } else if (cfg_name == "global_stealing_pattern") {
+        global_stealing_pattern = atoi(value.c_str());
     } else if (cfg_name == "global_silent") {
         global_silent = atoi(value.c_str());
     } else if (cfg_name == "global_enable_planner") {
@@ -238,6 +240,7 @@ void print_config(void)
     logstream(LOG_INFO) << "global_use_rdma: "          << global_use_rdma              << LOG_endl;
     logstream(LOG_INFO) << "global_enable_caching: "        << global_enable_caching        << LOG_endl;
     logstream(LOG_INFO) << "global_enable_workstealing: "   << global_enable_workstealing   << LOG_endl;
+    logstream(LOG_INFO) << "global_stealing_pattern: "      << global_stealing_pattern      << LOG_endl;
     logstream(LOG_INFO) << "global_rdma_threshold: "        << global_rdma_threshold        << LOG_endl;
     logstream(LOG_INFO) << "global_mt_threshold: "      << global_mt_threshold          << LOG_endl;
     logstream(LOG_INFO) << "global_silent: "                << global_silent                << LOG_endl;
