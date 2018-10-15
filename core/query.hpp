@@ -1144,19 +1144,4 @@ public:
 #endif
     }
 
-#ifdef USE_GPU
-    // void get_row_num() const {
-        // if (dev_type == GPU) {
-            // return gpu_state.result_buf_nelems / result.get_col_num();
-        // } else {
-            // return result.get_row_num();
-        // }
-    // }
-
-    // void get_col_num() const {
-        // return result.get_col_num();
-    // }
-
-#endif
-
 };
