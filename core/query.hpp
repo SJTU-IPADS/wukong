@@ -375,7 +375,6 @@ public:
 
         int get_col_num() { return col_num; }
 
-         // TODO I think we should return size in gpu_state
         int get_row_num() {
             if (col_num == 0) {
                 // FIXME: impl get_attr_row_num()

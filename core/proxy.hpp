@@ -216,7 +216,7 @@ public:
     // Run a single query for @cnt times. Command is "-f"
     // @is: input
     // @reply: result
-    int run_single_query(istream &is, int mt_factor, int cnt,
+    int run_single_query(istream &is, int mt_factor, int cnt, bool gpu,
                          SPARQLQuery &reply, Monitor &monitor) {
         uint64_t start, end;
         SPARQLQuery request;
@@ -246,6 +246,13 @@ public:
                 return 0; // skip the real execution
         }
 
+#ifdef USE_GPU
+        if (gpu) {
+            request.dev_type = SPARQLQuery::DeviceType::GPU;
+            request.result.dev_type = SPARQLQuery::DeviceType::GPU;
+        }
+#endif
+
         // Execute the SPARQL query
         monitor.init();
         for (int i = 0; i < cnt; i++) {
@@ -259,8 +266,6 @@ public:
                                         << LOG_endl;
 
                 request.mt_factor = min(mt_factor, global_mt_threshold);
-                request.dev_type = SPARQLQuery::DeviceType::GPU;
-                request.result.dev_type = SPARQLQuery::DeviceType::GPU;
             }
 
             // only take back results of the last request if not silent

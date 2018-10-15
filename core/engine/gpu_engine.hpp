@@ -124,7 +124,7 @@ private:
 
         std::vector<sid_t> updated_result_table;
 
-        logstream(LOG_INFO) << "#" << sid << " [begin] known_to_unknown: row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
+        logstream(LOG_DEBUG) << "#" << sid << " [begin] known_to_unknown: row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
         if (req.result.get_row_num() != 0) {
             ASSERT(nullptr != req.result.gpu.result_buf_dp);
             impl.known_to_unknown(req, start, pid, d, updated_result_table);
@@ -134,10 +134,10 @@ private:
         res.add_var2col(end, res.get_col_num());
         res.set_col_num(res.get_col_num() + 1);
         req.pattern_step++;
-        // logstream(LOG_INFO) << "[end] known_to_unknown: GPU row_num=" << res.get_row_num() <<
+        // logstream(LOG_DEBUG) << "[end] known_to_unknown: GPU row_num=" << res.get_row_num() <<
             // ", col_num=" << res.get_col_num() << LOG_endl;
 
-        logstream(LOG_INFO) << "#" << sid << "[end] GPU known_to_unknown: table_size=" << res.gpu.result_buf_nelems
+        logstream(LOG_DEBUG) << "#" << sid << "[end] GPU known_to_unknown: table_size=" << res.gpu.result_buf_nelems
             << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
     }
 
@@ -156,7 +156,7 @@ private:
 
         std::vector<sid_t> updated_result_table;
 
-        logstream(LOG_INFO) << "#" << sid << " [begin] known_to_known: row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
+        logstream(LOG_DEBUG) << "#" << sid << " [begin] known_to_known: row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
         if (req.result.get_row_num() != 0) {
             ASSERT(nullptr != req.result.gpu.result_buf_dp);
             impl.known_to_known(req, start, pid, end, d, updated_result_table);
@@ -164,7 +164,7 @@ private:
 
         res.result_table.swap(updated_result_table);
         req.pattern_step++;
-        logstream(LOG_INFO) << "#" << sid << "[end] GPU known_to_known: table_size=" << res.gpu.result_buf_nelems
+        logstream(LOG_DEBUG) << "#" << sid << "[end] GPU known_to_known: table_size=" << res.gpu.result_buf_nelems
             << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
     }
 
@@ -184,7 +184,7 @@ private:
 
         std::vector<sid_t> updated_result_table;
 
-        logstream(LOG_INFO) << "#" << sid << " [begin] known_to_const: row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
+        logstream(LOG_DEBUG) << "#" << sid << " [begin] known_to_const: row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
         if (req.result.get_row_num() != 0) {
             ASSERT(nullptr != req.result.gpu.result_buf_dp);
             impl.known_to_const(req, start, pid, end, d, updated_result_table);
@@ -192,8 +192,8 @@ private:
 
         res.result_table.swap(updated_result_table);
         req.pattern_step++;
-        // logstream(LOG_INFO) << "[end] known_to_const: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
-        logstream(LOG_INFO) << "#" << sid << "[end] GPU known_to_const: table_size=" << res.gpu.result_buf_nelems
+        // logstream(LOG_DEBUG) << "[end] known_to_const: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
+        logstream(LOG_DEBUG) << "#" << sid << "[end] GPU known_to_const: table_size=" << res.gpu.result_buf_nelems
             << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
     }
 
@@ -357,7 +357,7 @@ public:
 
             impl.generate_sub_query(req, start, global_num_servers, buf_ptrs, buf_sizes);
 
-            logstream(LOG_INFO) << "#" << sid << " generate_sub_query for req#" << req.id << ", parent: " << req.pid
+            logstream(LOG_DEBUG) << "#" << sid << " generate_sub_query for req#" << req.id << ", parent: " << req.pid
                 << ", step: " << req.pattern_step << LOG_endl;
 
             for (int i = 0; i < global_num_servers; ++i) {
@@ -365,8 +365,6 @@ public:
                 // r.result.set_gpu_result_buf((char*)buf_ptrs[i], buf_sizes[i] * req.result.get_col_num());
                 r.result.set_gpu_result_buf((char*)buf_ptrs[i], buf_sizes[i]);
                 r.result.gpu.origin_result_buf_dp = (char*) buf_ptrs.front();
-
-                logstream(LOG_INFO) << "#" << sid << " sub-query[" << i << "]" <<  ": buf_size: " << buf_sizes[i] << LOG_endl;
 
                 // if gpu history table is empty, set it to FULL_QUERY, which
                 // will be sent by native RDMA
@@ -376,7 +374,6 @@ public:
                 }
             }
 
-            logstream(LOG_INFO) << "#" << sid << "-- end dump sub-queries table size --" << LOG_endl;
         }
 
         return sub_reqs;

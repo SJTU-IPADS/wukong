@@ -46,6 +46,8 @@ private:
     GPUStreamPool *stream_pool;
     GPUEngineParam param;
 
+    // Since the result of current pattern will be the input of next pattern,
+    // we need to reverse the pointers of result buffer to avoid memory copy.
     void reverse_result_buf() {
         gmem->reverse_rbuf();
     }
@@ -53,7 +55,6 @@ private:
     segid_t pattern_to_segid(const SPARQLQuery &req, int pattern_id) {
         SPARQLQuery::Pattern patt = req.pattern_group.patterns[pattern_id];
         segid_t segid(0, patt.predicate, patt.direction);
-        // rdf_segment_meta_t seg = gcache->get_segment_meta(segid);
         return segid;
     }
 
@@ -123,16 +124,8 @@ public:
 
         logstream(LOG_DEBUG) << "known_to_unknown: #ext_buckets: " << seg_meta.ext_list_sz << LOG_endl;
 
-        // not the first pattern
-        // if (req.pattern_step != 0) {
-            // d_result_table = (int*)req.gpu_history_ptr;
-        // } else {
-            // ASSERT(false);
-        // }
-
         ASSERT(gmem->res_inbuf() != gmem->res_outbuf());
         ASSERT(nullptr != gmem->res_inbuf());
-
 
         // before processing the query, we should ensure the data of required predicates is loaded.
         vector<segid_t> required_segs = pattgrp_to_segids(req.pattern_group);
@@ -154,25 +147,23 @@ public:
         vector<uint64_t> vertex_mapping = gcache->get_vertex_mapping(current_seg);
         vector<uint64_t> edge_mapping = gcache->get_edge_mapping(current_seg);
 
-        // copy metadata of segment to GPU memory
         // rdf_segment_meta_t segment = gcache->get_segment_meta(current_seg);
 
         logstream(LOG_DEBUG) << "known_to_unknown: segment: " << current_seg.stringify() << ", #key_blocks: "
             << seg_meta.num_key_blocks() << ", #value_blocks: " << seg_meta.num_value_blocks() << LOG_endl;
 
 
+        // load mapping tables and metadata of segment to GPU memory
         param.load_segment_mappings(vertex_mapping, edge_mapping, seg_meta);
         param.load_segment_meta(seg_meta);
         param.set_cache_param(global_block_num_buckets, global_block_num_edges);
-        // setup GPU engine parameters
-        // param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
 
+        // setup result buffers on GPU
         if (req.pattern_step == 0) {
             param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
-        } else {
+        } else {    // for sub-query
             param.set_result_bufs(req.result.gpu.result_buf_dp, gmem->res_outbuf());
         }
-
 
         gpu_generate_key_list_k2u(param, stream);
 
@@ -193,7 +184,7 @@ public:
 
 
         // copy the result on GPU to CPU if we come to the last pattern
-        if (req.pattern_step + 1 == req.pattern_group.patterns.size()) {
+        if (!has_next_pattern(req)) {
             new_table.resize(table_size);
             thrust::device_ptr<int> dptr(param.gpu.d_out_rbuf);
             thrust::copy(dptr, dptr + table_size, new_table.begin());
@@ -204,14 +195,6 @@ public:
         } else {
             req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
 
-            // TODO: when to reverse in_rbuf & out_rbuf
-            /* if (req.gpu_state.origin_result_buf_dp != nullptr) {
-             *     d_updated_result_table = (int*)req.gpu_state.origin_result_buf_dp;
-             *     req.gpu_origin_buffer_head = nullptr;
-             * }
-             * else {
-             *     d_updated_result_table = d_result_table;
-             * } */
             reverse_result_buf();
         }
 
@@ -241,13 +224,6 @@ public:
         param.query.segment_edge_start = seg_meta.edge_start;
         param.query.var2col_start = req.result.var2col(start);
         param.query.var2col_end = req.result.var2col(end);
-
-        // not the first pattern
-        // if (req.pattern_step != 0) {
-            // d_result_table = (int*)req.gpu_history_ptr;
-        // } else {
-            // ASSERT(false);
-        // }
 
         ASSERT(gmem->res_inbuf() != gmem->res_outbuf());
         ASSERT(nullptr != gmem->res_inbuf());
@@ -285,8 +261,6 @@ public:
             param.set_result_bufs(req.result.gpu.result_buf_dp, gmem->res_outbuf());
         }
 
-
-
         gpu_generate_key_list_k2u(param, stream);
 
         gpu_get_slot_id_list(param, stream);
@@ -305,11 +279,10 @@ public:
         req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
 
         // copy the result on GPU to CPU if we come to the last pattern
-        if (req.pattern_step + 1 == req.pattern_group.patterns.size()) {
+        if (!has_next_pattern(req)) {
             new_table.resize(table_size);
             thrust::device_ptr<int> dptr(param.gpu.d_out_rbuf);
             thrust::copy(dptr, dptr + table_size, new_table.begin());
-            // logstream(LOG_EMPH) << "k2k: new_table.size(): " << new_table.size() << LOG_endl;
 
             // TODO: Do we need to clear result buf?
             // req.clear_result_buf();
@@ -317,14 +290,6 @@ public:
         } else {
             // req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
 
-            // TODO: when to reverse in_rbuf & out_rbuf
-            /* if (req.gpu_state.origin_result_buf_dp != nullptr) {
-             *     d_updated_result_table = (int*)req.gpu_state.origin_result_buf_dp;
-             *     req.gpu_origin_buffer_head = nullptr;
-             * }
-             * else {
-             *     d_updated_result_table = d_result_table;
-             * } */
             reverse_result_buf();
         }
 
@@ -413,7 +378,7 @@ public:
         req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
 
         // copy the result on GPU to CPU if we come to the last pattern
-        if (req.pattern_step + 1 == req.pattern_group.patterns.size()) {
+        if (!has_next_pattern(req)) {
             new_table.resize(table_size);
             thrust::device_ptr<int> dptr(param.gpu.d_out_rbuf);
             thrust::copy(dptr, dptr + table_size, new_table.begin());
@@ -425,14 +390,6 @@ public:
         } else {
             // req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
 
-            // TODO: when to reverse in_rbuf & out_rbuf
-            /* if (req.gpu_state.origin_result_buf_dp != nullptr) {
-             *     d_updated_result_table = (int*)req.gpu_state.origin_result_buf_dp;
-             *     req.gpu_origin_buffer_head = nullptr;
-             * }
-             * else {
-             *     d_updated_result_table = d_result_table;
-             * } */
             reverse_result_buf();
         }
 

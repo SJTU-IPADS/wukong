@@ -166,14 +166,14 @@ public:
         // logstream(LOG_INFO) << "local_var: " << req.local_var << ", start: " << start << LOG_endl;
 
         return ((req.local_var != start)
-               && (req.result.get_row_num() >= 0));
+               && (req.result.get_row_num() > 0));
     }
 
     void execute_sparql_query(SPARQLQuery &req) {
         // encode the lineage of the query (server & thread)
         if (req.id == -1) req.id = coder.get_and_inc_qid();
 
-        logstream(LOG_INFO) << "#" << sid << " GPUAgent: " << "[" << sid << "-" << tid << "]"
+        logstream(LOG_DEBUG) << "#" << sid << " GPUAgent: " << "[" << sid << "-" << tid << "]"
                          << " got a req: r.id=" << req.id << ", pid=" << req.pid << ", r.state="
                          << (req.state == SPARQLQuery::SQState::SQ_REPLY ? "REPLY" : "REQUEST") << LOG_endl;
 
@@ -221,16 +221,16 @@ public:
                 int psid, ptid;
                 psid = coder.sid_of(req.pid);
                 ptid = coder.tid_of(req.pid);
-                logstream(LOG_INFO) << "#" << sid << " GPUAgent: finished query r.id=" << req.id << ", pid="
+                logstream(LOG_DEBUG) << "#" << sid << " GPUAgent: finished query r.id=" << req.id << ", pid="
                     << req.pid << ", sent back to sid="
                     << psid << ", tid=" << ptid << LOG_endl;
                 send_request(bundle, psid, ptid);
                 break;
             }
 
-            // TODO
             if (need_fork_join(req)) {
-                // TODO
+                logstream(LOG_DEBUG) << "#" << sid << " GPUAgent: fork query r.id=" << req.id << ", r.pid="
+                    << req.pid << LOG_endl;
                 vector<SPARQLQuery> sub_reqs = gpu_engine->generate_sub_query(req);
                 ASSERT(sub_reqs.size() == global_num_servers);
                 rmap.put_parent_request(req, sub_reqs.size());
