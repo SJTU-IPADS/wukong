@@ -432,7 +432,7 @@ public:
         global_block_num_buckets = num_buckets_per_block;
         global_block_num_edges = num_entries_per_block;
 
-        logstream(LOG_EMPH) << "#key_blocks: " << cap_gpu_key_blocks << ", #value_blocks: " << cap_gpu_value_blocks
+        logstream(LOG_INFO) << "GPU_Cache: #key_blocks: " << cap_gpu_key_blocks << ", #value_blocks: " << cap_gpu_value_blocks
                             << ", #buckets_per_block: " << global_block_num_buckets << ", #edges_per_block: " << global_block_num_edges << LOG_endl;
 
         // step 2: init free_key/value blocks

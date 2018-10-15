@@ -217,7 +217,6 @@ main(int argc, char *argv[])
     GPUAgent agent(sid, WUKONG_GPU_AGENT_TID, new Adaptor(WUKONG_GPU_AGENT_TID,
                 tcp_adaptor, rdma_adaptor), &gpu_engine);
     pthread_create(&(threads[WUKONG_GPU_AGENT_TID]), NULL, agent_thread, (void *)&agent);
-    logstream(LOG_EMPH) << "created GPUAgent" << LOG_endl;
 #endif
 
     // wait to all threads termination
