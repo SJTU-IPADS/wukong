@@ -102,6 +102,7 @@ public:
         return str;
     }
 
+    // Receive msg and return the sender
     bool tryrecv(Bundle &b, int& sender) {
         string str;
         bool success = false;

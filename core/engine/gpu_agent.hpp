@@ -41,10 +41,6 @@
 
 using namespace std;
 
-// a vector of pointers of all local GPU agents
-// class GPUEngine;
-// std::vector<GPUAgent *> gpu_agents;
-
 /**
  * An agent thread will assist the GPU with query handling
  */
