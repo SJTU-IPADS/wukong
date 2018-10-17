@@ -70,20 +70,45 @@ private:
             string type = sqt.ptypes_str[i]; // the Types of random-constant
 
             // create a TYPE query to collect constants with the certain type
-            SPARQLQuery type_request = SPARQLQuery();
-            SPARQLQuery::Pattern pattern(str_server->str2id[type], TYPE_ID, IN, -1);
-            pattern.pred_type = 0;
-            type_request.pattern_group.patterns.push_back(pattern);
+            SPARQLQuery request = SPARQLQuery();
+            if (type.find("fromPredicate") != string::npos) {
+                // template types are defined by predicate
+                // for example, %fromPredicate takeCourse ?X .
+                // create a PREDICATE query to collect constants with the certain predicate
+                int pos = sqt.ptypes_pos[i];
+                ssid_t p = sqt.pattern_group.patterns[pos / 4].predicate;
+                dir_t d;
+                switch (pos % 4) {
+                    case 0:
+                        d = (sqt.pattern_group.patterns[pos / 4].direction == OUT) ? IN : OUT;
+                        break;
+                    case 3:
+                        d = (sqt.pattern_group.patterns[pos / 4].direction == OUT) ? OUT : IN;
+                        break;
+                    default:
+                        ASSERT(false);
+                }
+                SPARQLQuery::Pattern pattern(p, PREDICATE_ID, d, -1);
+                pattern.pred_type = 0;
+                request.pattern_group.patterns.push_back(pattern);
+            } else {
+                // templates are defined by type
+                // for example, %GraduateStudent takeCourse ?X .
+                // create a TYPE query to collect constants with the certain type
+                SPARQLQuery::Pattern pattern(str_server->str2id[type], TYPE_ID, IN, -1);
+                pattern.pred_type = 0;
+                request.pattern_group.patterns.push_back(pattern);
+            }
 
-            type_request.result.nvars = 1;
-            type_request.result.required_vars.push_back(-1);
-            type_request.result.blind = false; // must take back the results
+            request.result.nvars = 1;
+            request.result.required_vars.push_back(-1);
+            request.result.blind = false; // must take back the results
 
-            setpid(type_request);
-            send_request(type_request);
+            setpid(request);
+            send_request(request);
 
-            SPARQLQuery type_reply = recv_reply();
-            vector<sid_t> candidates(type_reply.result.result_table);
+            SPARQLQuery reply = recv_reply();
+            vector<sid_t> candidates(reply.result.result_table);
 
             // There is no candidate with the Type for a random-constant in the template
             // TODO: it should report empty for all queries of the template
