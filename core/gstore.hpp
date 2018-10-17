@@ -455,7 +455,7 @@ done:
     /// NOTE: the (remote) edges accessed by (local) RDMA cache are valid
     ///       if and only if the size flag of edges is consistent with the size within the pointer.
 
-    static const uint64_t INVALID_EDGES = 1 << NBITS_SIZE; // flag indicates invalidate edges
+    static const sid_t INVALID_EDGES = 1 << NBITS_SIZE; // flag indicates invalidate edges
 
     // Convert given byte units to edge units.
     inline uint64_t b2e(uint64_t sz) { return sz / sizeof(edge_t); }
@@ -469,7 +469,7 @@ done:
      * @sz: actual size of edges
      * @off: offset of edges
     */
-    inline void insert_sz(uint64_t flag, uint64_t sz, uint64_t off) {
+    inline void insert_sz(sid_t flag, uint64_t sz, uint64_t off) {
         uint64_t blk_sz = blksz(sz + 1);   // reserve one space for flag
         edges[off + blk_sz - 1].val = flag;
     }
@@ -565,7 +565,7 @@ done:
         }
     }
 
-    bool insert_vertex_edge(ikey_t key, uint64_t value, bool &dedup_or_isdup, int tid) {
+    bool insert_vertex_edge(ikey_t key, sid_t value, bool &dedup_or_isdup, int tid) {
         uint64_t bucket_id = key.hash() % num_buckets;
         uint64_t lock_id = bucket_id % NUM_LOCKS;
         uint64_t v_ptr = insert_key(key, false);
