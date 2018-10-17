@@ -2,14 +2,7 @@
 
 #ifdef USE_GPU
 
-// #include <cuda_runtime.h>
-// #include <vector>
-
-// #include <stdio.h>
-// #include <thrust/functional.h>
 #include <thrust/device_ptr.h>
-// Siyuan: useless device_vector for Wukong+G
-// #include <thrust/device_vector.h>
 #include <thrust/sort.h>
 #include <thrust/reduce.h>
 #include <thrust/system/cuda/execution_policy.h>
@@ -41,16 +34,15 @@ struct GPUEngineParam {
     struct {
         ikey_t *d_key_list = nullptr;
         vertex_t *d_vertex_list = nullptr;
-        vertex_t* d_vertex_addr = nullptr;
-        edge_t *d_edge_addr = nullptr;
+        vertex_t* vertex_gaddr = nullptr;
+        edge_t *edge_gaddr = nullptr;
 
         uint64_t* d_slot_id_list = nullptr;
-
         uint64_t* d_vertex_mapping = nullptr;
         uint64_t* d_edge_mapping = nullptr;
 
-        uint64_t vertex_block_sz;
-        uint64_t edge_block_sz;
+        uint64_t vertex_blk_sz;
+        uint64_t edge_blk_sz;
 
         int *d_prefix_sum_list = nullptr;
         int *d_edge_size_list = nullptr;
@@ -65,17 +57,18 @@ struct GPUEngineParam {
         rdf_segment_meta_t *d_segment_meta;
     } gpu;
 
-    GPUEngineParam(vertex_t *d_vertices, edge_t *d_edges, uint64_t nkey_blks, uint64_t nvalue_blks) {
-        gpu.d_vertex_addr = d_vertices;
-        gpu.d_edge_addr = d_edges;
+    GPUEngineParam(vertex_t *d_vertices, edge_t *d_edges, uint64_t nkey_blks,
+            uint64_t nvalue_blks, uint64_t nbuckets, uint64_t nentries) {
+        gpu.vertex_gaddr = d_vertices;
+        gpu.edge_gaddr = d_edges;
+        gpu.vertex_blk_sz = nbuckets;
+        gpu.edge_blk_sz = nentries;
 
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_key_list, MiB2B(global_gpu_rbuf_size_mb) ));
-        // for debug
+        // for inspecting GPU execution
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_vertex_list, MiB2B(global_gpu_rbuf_size_mb) ));
         CUDA_ASSERT(cudaMemset((void*)gpu.d_vertex_list, 0, MiB2B(global_gpu_rbuf_size_mb)));
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_bucket_id_list, MiB2B(global_gpu_rbuf_size_mb) ));
-        // end for debug
-
 
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_slot_id_list, MiB2B(global_gpu_rbuf_size_mb) ));
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_prefix_sum_list, MiB2B(global_gpu_rbuf_size_mb) ));
@@ -94,13 +87,13 @@ struct GPUEngineParam {
 
         CUDA_ASSERT(cudaMemcpy(gpu.d_vertex_mapping,
                           &(vertex_mapping[0]),
-                          sizeof(uint64_t) * seg.num_key_blocks(),
+                          sizeof(uint64_t) * seg.num_key_blks,
                           cudaMemcpyHostToDevice));
                           // stream));
 
         CUDA_ASSERT(cudaMemcpy(gpu.d_edge_mapping,
                           &(edge_mapping[0]),
-                          sizeof(uint64_t) * seg.num_value_blocks(),
+                          sizeof(uint64_t) * seg.num_value_blks,
                           cudaMemcpyHostToDevice));
                           // stream));
     }
@@ -116,11 +109,6 @@ struct GPUEngineParam {
     void set_result_bufs(char *d_in_rbuf, char *d_out_rbuf) {
         gpu.d_in_rbuf = (sid_t*) d_in_rbuf;
         gpu.d_out_rbuf = (sid_t*) d_out_rbuf;
-    }
-
-    void set_cache_param(uint64_t block_num_buckets, uint64_t block_num_edges ) {
-        gpu.vertex_block_sz = block_num_buckets;
-        gpu.edge_block_sz = block_num_edges;
     }
 
 };
@@ -142,7 +130,6 @@ int gpu_update_result_buf_k2k(GPUEngineParam& param, cudaStream_t stream = 0);
 int gpu_update_result_buf_k2u(GPUEngineParam& param, cudaStream_t stream = 0);
 int gpu_update_result_buf_k2c(GPUEngineParam& param, cudaStream_t stream = 0);
 int gpu_update_result_buf_i2u(GPUEngineParam& param, cudaStream_t stream);
-
 
 
 #endif // end of USE_GPU

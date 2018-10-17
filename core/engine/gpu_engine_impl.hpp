@@ -27,7 +27,6 @@
 #include <vector>
 #include <utility>
 
-#include "global.hpp"
 #include "assertion.hpp"
 #include "query.hpp"
 #include "gpu_hash.hpp"
@@ -75,9 +74,9 @@ private:
 public:
     GPUEngineImpl(int sid, GPUCache *gcache, GPUMem *gmem, GPUStreamPool *stream_pool)
         : sid(sid), gcache(gcache), gmem(gmem), stream_pool(stream_pool),
-          param(gcache->dev_vertex_addr(), gcache->dev_edge_addr(),
-                  gcache->num_key_blocks(), gcache->num_value_blocks()) {
-        // init param
+          param(gcache->get_vertex_gaddr(), gcache->get_edge_gaddr(),
+                  gcache->get_num_key_blks(), gcache->get_num_value_blks(),
+                  gcache->get_nbuckets_kblk(), gcache->get_nentries_vblk()) {
     }
 
     ~GPUEngineImpl() { }
@@ -147,16 +146,9 @@ public:
         vector<uint64_t> vertex_mapping = gcache->get_vertex_mapping(current_seg);
         vector<uint64_t> edge_mapping = gcache->get_edge_mapping(current_seg);
 
-        // rdf_segment_meta_t segment = gcache->get_segment_meta(current_seg);
-
-        logstream(LOG_DEBUG) << "known_to_unknown: segment: " << current_seg.stringify() << ", #key_blocks: "
-            << seg_meta.num_key_blocks() << ", #value_blocks: " << seg_meta.num_value_blocks() << LOG_endl;
-
-
         // load mapping tables and metadata of segment to GPU memory
         param.load_segment_mappings(vertex_mapping, edge_mapping, seg_meta);
         param.load_segment_meta(seg_meta);
-        param.set_cache_param(global_block_num_buckets, global_block_num_edges);
 
         // setup result buffers on GPU
         if (req.pattern_step == 0) {
@@ -251,7 +243,6 @@ public:
         // copy metadata of segment to GPU memory
         param.load_segment_mappings(vertex_mapping, edge_mapping, seg_meta);
         param.load_segment_meta(seg_meta);
-        param.set_cache_param(global_block_num_buckets, global_block_num_edges);
         // setup GPU engine parameters
         // param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
 
@@ -352,7 +343,6 @@ public:
         // copy metadata of segment to GPU memory
         param.load_segment_mappings(vertex_mapping, edge_mapping, seg_meta);
         param.load_segment_meta(seg_meta);
-        param.set_cache_param(global_block_num_buckets, global_block_num_edges);
         // setup GPU engine parameters
         if (req.pattern_step == 0) {
             param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());

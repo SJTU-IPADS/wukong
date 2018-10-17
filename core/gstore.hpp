@@ -51,6 +51,7 @@
 #include "timer.hpp"
 #include "unit.hpp"
 #include "atomic.hpp"
+#include "variant.hpp"
 #include "vertex.hpp"
 using namespace std;
 
@@ -1202,10 +1203,8 @@ public:
             }
         }
 
-        uint64_t bucket_off = 0;
-        uint64_t edge_off = 0;
+        uint64_t bucket_off = 0, edge_off = 0;
         for (sid_t pid = 1; pid <= num_predicates; ++pid) {
-
             rdf_segment_meta_t &seg_normal_out = rdf_segment_meta_map[segid_t(0, pid, OUT)];
             rdf_segment_meta_t &seg_normal_in = rdf_segment_meta_map[segid_t(0, pid, IN)];
             rdf_segment_meta_t &seg_index_out = rdf_segment_meta_map[segid_t(1, pid, OUT)];
@@ -1255,15 +1254,15 @@ public:
         logger(LOG_DEBUG, "#total_keys: %lu, bucket_off: %lu, #total_entries: %lu", total_num_keys, main_hdr_off, this->last_entry);
     }
 
-    // re-adjust offset of indirect header
+    // re-adjust attributes of segments
     void finalize_segment_metas() {
+        uint64_t nbuckets_per_blk = MiB2B(global_gpu_key_blk_size_mb) / (sizeof(vertex_t) * GStore::ASSOCIATIVITY);
+        uint64_t nentries_per_blk = MiB2B(global_gpu_value_blk_size_mb) / sizeof(edge_t);
+
+        // set the number of cache blocks needed by each segment
         for (auto &e : rdf_segment_meta_map) {
-            for (int i = 0; i < e.second.ext_list_sz; ++i) {
-                auto &ext = e.second.ext_bucket_list[i];
-                // TODO: actually we can use ext.off to represent the exact size
-                // ext.num_ext_buckets = ext.off;
-                // logger(LOG_INFO, "segment[%s]: #ext_buckets: %lu, ext_offset: %lu", e.first.stringify().c_str(), ext.num_ext_buckets, ext.off);
-            }
+            e.second.num_key_blks = ceil(((double) e.second.get_total_num_buckets()) / nbuckets_per_blk);
+            e.second.num_value_blks = ceil(((double) e.second.num_edges) / nentries_per_blk);
         }
     }
 
@@ -1498,10 +1497,11 @@ public:
 
     // insert attributes
     void insert_attr(vector<triple_attr_t> &attrs, int64_t tid) {
+        variant_type get_type;
         for (auto const &attr : attrs) {
             // allocate a vertex and edges
             ikey_t key = ikey_t(attr.s, attr.a, OUT);
-            int type = boost::apply_visitor(global_get_type, attr.v);
+            int type = boost::apply_visitor(get_type, attr.v);
             uint64_t sz = (get_sizeof(type) - 1) / sizeof(edge_t) + 1;   // get the ceil size;
             uint64_t off = alloc_edges(sz, tid);
 

@@ -52,9 +52,4 @@ inline int WUKONG_GET_BLOCKS(const int n) {
     return (n + WUKONG_CUDA_NUM_THREADS - 1) / WUKONG_CUDA_NUM_THREADS;
 }
 
-
-#define GPU_MAX_ELEM(type) (global_gpu_rbuf_size_mb * 1024 * 1024 / sizeof(type))
-
-#define WUKONG_NUM_GPU_BUFS 5
-
 #endif

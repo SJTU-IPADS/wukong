@@ -129,9 +129,6 @@ void gpu_generate_key_list_k2u(GPUEngineParam &param, cudaStream_t stream)
                 );
 }
 
-
-
-
 __device__
 void d_generate_key_list_k2u(int index,
                                 sid_t *result_table,
@@ -147,9 +144,8 @@ void d_generate_key_list_k2u(int index,
     key_list[index] = r;
 }
 
-
 __global__
-void k_get_slot_id_list(vertex_t* d_vertex_addr,
+void k_get_slot_id_list(vertex_t* vertex_gaddr,
                  ikey_t* d_key_list,
                  uint64_t* d_slot_id_list,
                  uint64_t* d_bucket_id_list,
@@ -157,7 +153,7 @@ void k_get_slot_id_list(vertex_t* d_vertex_addr,
                  ikey_t empty_key,
                  rdf_segment_meta_t *seg_meta,
                  uint64_t* vertex_headers,
-                 uint64_t pred_vertex_shard_size,
+                 uint64_t vertex_blk_sz,
                  int query_size)
 
 {
@@ -168,28 +164,28 @@ void k_get_slot_id_list(vertex_t* d_vertex_addr,
         ikey_t key =  d_key_list[index];
         uint64_t bucket_id=map_location_on_shards(myhash(key) % seg_meta->num_buckets,
                                                   vertex_headers,
-                                                  pred_vertex_shard_size);
+                                                  vertex_blk_sz);
         while (true) {
             for (uint64_t i=0;i<ASSOCIATIVITY;i++) {
                 uint64_t slot_id = bucket_id * ASSOCIATIVITY + i;
                 if (i < ASSOCIATIVITY - 1) {
                     // data part
-                    if (d_vertex_addr[slot_id].key == key) {
+                    if (vertex_gaddr[slot_id].key == key) {
                         // we found it
                         d_slot_id_list[index] = slot_id;
                         // TODO debug
-                        d_vertex_list[index] = d_vertex_addr[slot_id];
+                        d_vertex_list[index] = vertex_gaddr[slot_id];
                         d_bucket_id_list[index] = bucket_id;
                         return;
                     }
                 } else {
-                    if (!(d_vertex_addr[slot_id].key == empty_key)) {
+                    if (!(vertex_gaddr[slot_id].key == empty_key)) {
                         // next pointer
-                        // uint64_t next_bucket_id = d_vertex_addr[slot_id].key.vid-pred_metas[key.pid].indrct_hdr_start+pred_metas[key.pid].partition_sz;
-                        uint64_t next_bucket_id = d_vertex_addr[slot_id].key.vid - seg_meta->ext_bucket_list[0].start + seg_meta->num_buckets;
+                        // uint64_t next_bucket_id = vertex_gaddr[slot_id].key.vid-pred_metas[key.pid].indrct_hdr_start+pred_metas[key.pid].partition_sz;
+                        uint64_t next_bucket_id = vertex_gaddr[slot_id].key.vid - seg_meta->ext_bucket_list[0].start + seg_meta->num_buckets;
                         bucket_id = map_location_on_shards(next_bucket_id,
                                                          vertex_headers,
-                                                         pred_vertex_shard_size);
+                                                         vertex_blk_sz);
                         break;
                     } else {
                         d_slot_id_list[index] = (uint64_t)(-1);
@@ -204,36 +200,36 @@ void k_get_slot_id_list(vertex_t* d_vertex_addr,
 
 __device__
 void d_get_slot_id_list(int index,
-                vertex_t* d_vertex_addr,
+                vertex_t* vertex_gaddr,
                 ikey_t* d_key_list,
                 uint64_t* d_slot_id_list,
                 ikey_t empty_key,
                 rdf_segment_meta_t *seg_meta,
                 uint64_t* vertex_headers,
-                uint64_t pred_vertex_shard_size,
+                uint64_t vertex_blk_sz,
                 int query_size)
 {
     ikey_t key =  d_key_list[index];
     uint64_t bucket_id=map_location_on_shards(myhash(key) % seg_meta->num_buckets,
                                               vertex_headers,
-                                              pred_vertex_shard_size);
+                                              vertex_blk_sz);
     while (true) {
         for (uint64_t i=0;i<ASSOCIATIVITY;i++) {
             uint64_t slot_id = bucket_id * ASSOCIATIVITY + i;
             if (i < ASSOCIATIVITY - 1) {
                 // data part
-                if (d_vertex_addr[slot_id].key == d_key_list[index]) {
+                if (vertex_gaddr[slot_id].key == d_key_list[index]) {
                     // we found it
                     d_slot_id_list[index] = slot_id;
                     return;
                 }
             } else {
-                if (!(d_vertex_addr[slot_id].key == empty_key)) {
+                if (!(vertex_gaddr[slot_id].key == empty_key)) {
                     // next pointer
-                    uint64_t next_bucket_id = d_vertex_addr[slot_id].key.vid - seg_meta->ext_bucket_list[0].start + seg_meta->num_buckets;
+                    uint64_t next_bucket_id = vertex_gaddr[slot_id].key.vid - seg_meta->ext_bucket_list[0].start + seg_meta->num_buckets;
                     bucket_id = map_location_on_shards(next_bucket_id,
                                                      vertex_headers,
-                                                     pred_vertex_shard_size);
+                                                     vertex_blk_sz);
                     break;
                 } else {
                     d_slot_id_list[index] = (uint64_t)(-1);
@@ -254,7 +250,7 @@ void gpu_get_slot_id_list(GPUEngineParam &param, cudaStream_t stream)
 
     k_get_slot_id_list<<<WUKONG_GET_BLOCKS(param.query.row_num),
         WUKONG_CUDA_NUM_THREADS, 0, stream>>>(
-            param.gpu.d_vertex_addr,
+            param.gpu.vertex_gaddr,
             param.gpu.d_key_list,
             param.gpu.d_slot_id_list,
             param.gpu.d_bucket_id_list,
@@ -262,59 +258,48 @@ void gpu_get_slot_id_list(GPUEngineParam &param, cudaStream_t stream)
             empty_key,
             param.gpu.d_segment_meta,
             param.gpu.d_vertex_mapping,
-            param.gpu.vertex_block_sz,
+            param.gpu.vertex_blk_sz,
             param.query.row_num);
 }
 
 __global__
 void k_get_edge_list(uint64_t *slot_id_list,
-                    vertex_t *d_vertex_addr,
-                    edge_t *d_edge_addr,
+                    vertex_t *vertex_gaddr,
+                    edge_t *edge_gaddr,
                     int *index_list,
                     int *index_list_mirror,
                     uint64_t *off_list,
-                    uint64_t pred_orin_edge_start,
+                    uint64_t seg_edge_start,
                     uint64_t* edge_headers,
-                    uint64_t pred_edge_shard_size,
+                    uint64_t edge_blk_sz,
                     int query_size)
 {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     if(index<query_size)
     {
         uint64_t id = slot_id_list[index];
-        iptr_t r = d_vertex_addr[id].ptr;
-        //if (index<10)
-        //printf("r.size:%d\n",r.size);
+        iptr_t r = vertex_gaddr[id].ptr;
         index_list_mirror[index] = r.size;
-        //off_list[index] = map_location_on_shards(r.off-pred_orin_edge_start,
-        //                                         edge_headers,
-        //                                         pred_edge_shard_size);
-        off_list[index] = r.off-pred_orin_edge_start;
+        off_list[index] = r.off-seg_edge_start;
    }
 }
-
 
 __device__
 void d_get_edge_list(int index,
                     uint64_t *slot_id_list,
-                    vertex_t *d_vertex_addr,
+                    vertex_t *vertex_gaddr,
                     int *index_list,
                     int *index_list_mirror,
                     uint64_t *off_list,
-                    uint64_t pred_orin_edge_start,
+                    uint64_t seg_edge_start,
                     uint64_t* edge_headers,
-                    uint64_t pred_edge_shard_size,
+                    uint64_t edge_blk_sz,
                     int query_size)
 {
     uint64_t id = slot_id_list[index];
-    iptr_t r = d_vertex_addr[id].ptr;
-    //if (index<10)
-    //printf("r.size:%d\n",r.size);
+    iptr_t r = vertex_gaddr[id].ptr;
     index_list_mirror[index] = r.size;
-    //off_list[index] = map_location_on_shards(r.off-pred_orin_edge_start,
-    //                                         edge_headers,
-    //                                         pred_edge_shard_size);
-    off_list[index] = r.off-pred_orin_edge_start;
+    off_list[index] = r.off-seg_edge_start;
 
 }
 
@@ -327,48 +312,45 @@ void gpu_get_edge_list(GPUEngineParam &param, cudaStream_t stream)
     k_get_edge_list<<<WUKONG_GET_BLOCKS(param.query.row_num),
         WUKONG_CUDA_NUM_THREADS, 0, stream>>>(
                     param.gpu.d_slot_id_list,
-                    param.gpu.d_vertex_addr, // (vertex_t*)d_vertex_addr,
-                    param.gpu.d_edge_addr, // for debug
-                    param.gpu.d_prefix_sum_list, // index_list,
-                    param.gpu.d_edge_size_list, // index_list_mirror,
-                    param.gpu.d_offset_list, // ptr_list,
-                    param.query.segment_edge_start, // pred_orin_edge_start,
-                    param.gpu.d_edge_mapping, // edge_headers,
-                    param.gpu.edge_block_sz, // pred_edge_shard_size,
-                    param.query.row_num); // query_size);
-
-} 
-
-
-
+                    param.gpu.vertex_gaddr,
+                    param.gpu.edge_gaddr,
+                    param.gpu.d_prefix_sum_list,
+                    param.gpu.d_edge_size_list,
+                    param.gpu.d_offset_list,
+                    param.query.segment_edge_start,
+                    param.gpu.d_edge_mapping,
+                    param.gpu.edge_blk_sz,
+                    param.query.row_num);
+}
 
 __global__
 void k_get_edge_list_k2c(
                     uint64_t *slot_id_list,
-                    vertex_t *d_vertex_addr,
+                    vertex_t *vertex_gaddr,
                     int *index_list,
                     int *index_list_mirror,
                     uint64_t *offset_list,
-                    edge_t *edge_addr,
+                    edge_t *edge_gaddr,
                     int64_t end,
-                    uint64_t pred_orin_edge_start,
+                    uint64_t seg_edge_start,
                     uint64_t* edge_headers,
-                    uint64_t pred_edge_shard_size,
+                    uint64_t edge_blk_sz,
                     int query_size)
 {
 
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     if(index<query_size) {
         uint64_t id = slot_id_list[index];
-        iptr_t r = d_vertex_addr[id].ptr;
+        iptr_t r = vertex_gaddr[id].ptr;
 
         index_list_mirror[index] = 0;
-        offset_list[index] =r.off-pred_orin_edge_start;
-        for (int k=0;k<r.size;k++){
-            uint64_t ptr = map_location_on_shards(r.off-pred_orin_edge_start+k,
+        offset_list[index] = r.off - seg_edge_start;
+
+        for (int k=0; k<r.size; k++) {
+            uint64_t ptr = map_location_on_shards(r.off-seg_edge_start+k,
                                                   edge_headers,
-                                                  pred_edge_shard_size);
-            if (edge_addr[ptr].val==end) {
+                                                  edge_blk_sz);
+            if (edge_gaddr[ptr].val==end) {
                 index_list_mirror[index] = 1;
                 break;
             }
@@ -376,69 +358,61 @@ void k_get_edge_list_k2c(
     }
 }
 
-// Siyuan: 2018.9.23 added
 void gpu_get_edge_list_k2c(GPUEngineParam &param, cudaStream_t stream)
 {
-
     assert(param.query.row_num > 0);
 
     k_get_edge_list_k2c<<<WUKONG_GET_BLOCKS(param.query.row_num),
         WUKONG_CUDA_NUM_THREADS, 0, stream>>>(
                     param.gpu.d_slot_id_list,
-                    param.gpu.d_vertex_addr,
+                    param.gpu.vertex_gaddr,
                     param.gpu.d_prefix_sum_list,
                     param.gpu.d_edge_size_list,
                     param.gpu.d_offset_list,
-                    param.gpu.d_edge_addr,
+                    param.gpu.edge_gaddr,
                     param.query.end_vid,
                     param.query.segment_edge_start,
                     param.gpu.d_edge_mapping,
-                    param.gpu.edge_block_sz,
+                    param.gpu.edge_blk_sz,
                     param.query.row_num);
 }
 
-
-
-
-
-
 __global__
 void k_get_edge_list_k2k(uint64_t *slot_id_list,
-                    vertex_t *d_vertex_addr,
+                    vertex_t *vertex_gaddr,
                     int *index_list,
                     int *index_list_mirror,
                     uint64_t *ptr_list,
                     int query_size,
-                    edge_t *edge_addr,
+                    edge_t *edge_gaddr,
                     sid_t *result_table,
                     int col_num,
                     int var2col_end,
-                    uint64_t pred_orin_edge_start,
+                    uint64_t seg_edge_start,
                     uint64_t* edge_headers,
-                    uint64_t pred_edge_shard_size)
+                    uint64_t edge_blk_sz)
 {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     if(index<query_size)
     {
         uint64_t id = slot_id_list[index];
-        iptr_t r = d_vertex_addr[id].ptr;
+        iptr_t r = vertex_gaddr[id].ptr;
 
         index_list_mirror[index] = 0;
 
         sid_t end_id = result_table[index * col_num + var2col_end];
-        ptr_list[index] = r.off-pred_orin_edge_start;
+        ptr_list[index] = r.off-seg_edge_start;
         for(int k=0;k<r.size;k++){
-            uint64_t ptr = map_location_on_shards(r.off-pred_orin_edge_start+k,
+            uint64_t ptr = map_location_on_shards(r.off-seg_edge_start+k,
                                                   edge_headers,
-                                                  pred_edge_shard_size);
+                                                  edge_blk_sz);
 
-            if (edge_addr[ptr].val == end_id) {
+            if (edge_gaddr[ptr].val == end_id) {
                 index_list_mirror[index] = 1;
                 break;
             }
         }
    }
-
 
 }
 
@@ -451,18 +425,18 @@ void gpu_get_edge_list_k2k(GPUEngineParam &param, cudaStream_t stream)
     k_get_edge_list_k2k<<<WUKONG_GET_BLOCKS(param.query.row_num),
         WUKONG_CUDA_NUM_THREADS, 0, stream>>>(
                     param.gpu.d_slot_id_list,
-                    param.gpu.d_vertex_addr,
+                    param.gpu.vertex_gaddr,
                     param.gpu.d_prefix_sum_list,
                     param.gpu.d_edge_size_list,
                     param.gpu.d_offset_list,
                     param.query.row_num,
-                    param.gpu.d_edge_addr,
+                    param.gpu.edge_gaddr,
                     param.gpu.d_in_rbuf,
                     param.query.col_num,
                     param.query.var2col_end,
                     param.query.segment_edge_start,
                     param.gpu.d_edge_mapping,
-                    param.gpu.edge_block_sz);
+                    param.gpu.edge_blk_sz);
 
 }
 
@@ -470,42 +444,41 @@ void gpu_get_edge_list_k2k(GPUEngineParam &param, cudaStream_t stream)
 __device__
 void d_get_edge_list_k2c(int index,
                     uint64_t *slot_id_list,
-                    vertex_t *d_vertex_addr,
+                    vertex_t *vertex_gaddr,
                     int *index_list,
                     int *index_list_mirror,
                     uint64_t *ptr_list,
-                    edge_t *edge_addr,
+                    edge_t *edge_gaddr,
                     int64_t end,
-                    uint64_t pred_orin_edge_start,
+                    uint64_t seg_edge_start,
                     uint64_t* edge_headers,
-                    uint64_t pred_edge_shard_size,
+                    uint64_t edge_blk_sz,
                     int query_size)
 {
     uint64_t id = slot_id_list[index];
-    iptr_t r = d_vertex_addr[id].ptr;
+    iptr_t r = vertex_gaddr[id].ptr;
 
     index_list_mirror[index] = 0;
-    ptr_list[index] =r.off-pred_orin_edge_start;
+    ptr_list[index] =r.off-seg_edge_start;
     for (int k=0;k<r.size;k++){
-        uint64_t ptr = map_location_on_shards(r.off-pred_orin_edge_start+k,
+        uint64_t ptr = map_location_on_shards(r.off-seg_edge_start+k,
                                               edge_headers,
-                                              pred_edge_shard_size);
-        if (edge_addr[ptr].val==end) {
+                                              edge_blk_sz);
+        if (edge_gaddr[ptr].val==end) {
             index_list_mirror[index] = 1;
             break;
         }
     }
 }
 
-// done
 __global__
 void k_update_result_buf_i2u(sid_t *result_table,
                                   sid_t *updated_result_table,
                                   int *index_list,
                                   uint64_t *ptr_list,
-                                  edge_t *edge_addr,
+                                  edge_t *edge_gaddr,
                                   uint64_t* edge_headers,
-                                  uint64_t pred_edge_shard_size)
+                                  uint64_t edge_blk_sz)
 {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -515,13 +488,12 @@ void k_update_result_buf_i2u(sid_t *result_table,
     if(index<edge_num) {
             uint64_t ptr = map_location_on_shards(ptr_list[0]+index,
                                                   edge_headers,
-                                                  pred_edge_shard_size);
-            updated_result_table[index] = edge_addr[ptr].val;
+                                                  edge_blk_sz);
+            updated_result_table[index] = edge_gaddr[ptr].val;
     }
 
 }
 
-// done
 int gpu_update_result_buf_i2u(GPUEngineParam& param, cudaStream_t stream)
 {
     int table_size = 0;//index_list[query_size-1];
@@ -536,26 +508,21 @@ int gpu_update_result_buf_i2u(GPUEngineParam& param, cudaStream_t stream)
          param.gpu.d_out_rbuf,
          param.gpu.d_prefix_sum_list,
          param.gpu.d_offset_list,
-         param.gpu.d_edge_addr,
+         param.gpu.edge_gaddr,
          param.gpu.d_edge_mapping,
-         param.gpu.edge_block_sz);
+         param.gpu.edge_blk_sz);
 
     CUDA_ASSERT( cudaStreamSynchronize(stream) );
     return table_size;
 }
 
-
-
-
-
-// done
 __global__
 void k_update_result_buf_k2k(sid_t *result_table,
                                   sid_t *updated_result_table,
                                   int *index_list,
                                   uint64_t *ptr_list,
                                   int column_num,
-                                  edge_t *edge_addr,
+                                  edge_t *edge_gaddr,
                                   int end,
                                   int query_size)
 {
@@ -586,7 +553,7 @@ void k_update_result_buf_k2k(sid_t *result_table,
 // done
 int gpu_update_result_buf_k2k(GPUEngineParam& param, cudaStream_t stream)
 {
-    int table_size = 0;//index_list[query_size-1];
+    int table_size = 0;
     CUDA_ASSERT( cudaMemcpy(&table_size,
                param.gpu.d_prefix_sum_list + param.query.row_num - 1,
                sizeof(int),
@@ -599,7 +566,7 @@ int gpu_update_result_buf_k2k(GPUEngineParam& param, cudaStream_t stream)
          param.gpu.d_prefix_sum_list,
          param.gpu.d_offset_list,
          param.query.col_num,
-         param.gpu.d_edge_addr,
+         param.gpu.edge_gaddr,
          param.query.end_vid,
          param.query.row_num);
 
@@ -612,9 +579,6 @@ int gpu_update_result_buf_k2c(GPUEngineParam& param, cudaStream_t stream)
     return gpu_update_result_buf_k2k(param, stream);
 }
 
-
-
-// done
 void gpu_calc_prefix_sum(GPUEngineParam& param,
                      cudaStream_t stream)
 {
@@ -639,7 +603,6 @@ void k_hash_tuples_to_server(sid_t *result_table,
     }
 }
 
-// done
 void hash_dispatched_server_id(sid_t *result_table,
                                   int *server_id_list,
                                   int var2col,
@@ -675,7 +638,6 @@ void k_history_dispatch(sid_t *result_table,
 
 }
 
-// done
 void history_dispatch(sid_t *result_table,
                         int* position_list,
                         int* server_id_list,
@@ -719,7 +681,6 @@ void k_split_result_buf(sid_t *d_in_result_buf,
     }
 }
 
-// done
 void gpu_split_result_buf(GPUEngineParam &param, int num_servers, cudaStream_t stream)
 {
     // bowrrow other buffers for temporary use
@@ -739,8 +700,6 @@ void gpu_split_result_buf(GPUEngineParam &param, int num_servers, cudaStream_t s
             param.query.row_num);
 }
 
-
-// done
 void gpu_shuffle_result_buf(GPUEngineParam& param, int num_jobs, vector<int>& buf_sizes,
         vector<int>& buf_heads, cudaStream_t stream)
 {
@@ -795,19 +754,17 @@ void gpu_shuffle_result_buf(GPUEngineParam& param, int num_jobs, vector<int>& bu
                               // stream));
 }
 
-// done
 __global__
 void k_update_result_table_k2u(sid_t *result_table,
                                   sid_t *updated_result_table,
                                   int *index_list,
                                   uint64_t *off_list,
-                                  edge_t *edge_addr,
+                                  edge_t *edge_gaddr,
                                   uint64_t* edge_headers,
-                                  uint64_t pred_edge_shard_size,
+                                  uint64_t edge_blk_sz,
                                   int col_num,
                                   int query_size)
 {
-    // 1D
     int index = blockIdx.x * blockDim.x + threadIdx.x;
 
     if(index<query_size) {
@@ -835,19 +792,19 @@ void k_update_result_table_k2u(sid_t *result_table,
             // put the new column to table
             uint64_t ptr = map_location_on_shards(off_list[index]+k,
                                                   edge_headers,
-                                                  pred_edge_shard_size);
+                                                  edge_blk_sz);
 
-            updated_result_table[start+k*(col_num+1)+col_num] = edge_addr[ptr].val;
+            updated_result_table[start+k*(col_num+1)+col_num] = edge_gaddr[ptr].val;
         }
     }
 
 }
 
-// update_result_table_k2u
 int gpu_update_result_buf_k2u(GPUEngineParam& param, cudaStream_t stream)
 {
 
-    int table_size = 0;//index_list[query_size-1];
+    int table_size = 0;
+    // the elem in index_list[query_size-1] is the #rows of new table
     CUDA_ASSERT( cudaMemcpy(&table_size,
                param.gpu.d_prefix_sum_list + param.query.row_num - 1,
                sizeof(int),
@@ -860,9 +817,9 @@ int gpu_update_result_buf_k2u(GPUEngineParam& param, cudaStream_t stream)
                 param.gpu.d_out_rbuf,
                 param.gpu.d_prefix_sum_list,
                 param.gpu.d_offset_list,
-                param.gpu.d_edge_addr,
+                param.gpu.edge_gaddr,
                 param.gpu.d_edge_mapping,
-                param.gpu.edge_block_sz,
+                param.gpu.edge_blk_sz,
                 param.query.col_num,
                 param.query.row_num
          );
