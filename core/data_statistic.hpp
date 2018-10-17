@@ -11,6 +11,7 @@
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/serialization/unordered_map.hpp>
 #include <boost/serialization/unordered_set.hpp>
+#include <tbb/concurrent_hash_map.h>
 
 #include "global.hpp"
 #include "comm/tcp_adaptor.hpp"
@@ -36,6 +37,11 @@ struct type_t {
         return this->composition == other.composition;
     }
 
+    bool equal(const type_t &other) const{
+        if (data_type != other.data_type) return false;
+        return this->composition == other.composition;
+    }
+
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
         ar & data_type;
@@ -45,10 +51,20 @@ struct type_t {
 
 struct type_t_hasher {
     size_t operator()( const type_t& type ) const {
+    	return hash(type);
+    }
+
+    // for tbb hashcompare
+    size_t hash( const type_t& type ) const{
         size_t res = 17;
         for (auto it = type.composition.cbegin(); it != type.composition.cend(); ++it)
-            res = (res + *it) << 1;
+            res += *it + 17;
         return res;
+    }
+
+    // for tbb hashcompare
+    bool equal(const type_t& type1, const type_t& type2) const{
+    	return type1.equal(type2);
     }
 };
 
@@ -141,6 +157,9 @@ struct type_stat {
     }
 };
 
+typedef tbb::concurrent_unordered_set<ssid_t> tbb_set;
+typedef tbb::concurrent_hash_map<type_t, ssid_t, type_t_hasher> tbb_map;
+
 class data_statistic {
 private:
     // after the master server get whole statistics,
@@ -182,6 +201,8 @@ private:
     }
 
 public:
+    const double TYPE_REMOVE_RATE = 0.1;
+
     unordered_map<ssid_t, int> local_tyscount;
     unordered_map<ssid_t, int> global_tyscount;
 
@@ -192,16 +213,189 @@ public:
     // (type_composition and index_composition)
     unordered_map<ssid_t, type_t> local_int2type;
     unordered_map<type_t, ssid_t, type_t_hasher> local_type2int;
+    unordered_map<ssid_t, type_t> global_int2type;	//not used in plan currently
     unordered_map<type_t, ssid_t, type_t_hasher> global_type2int;
 
     // single type may be contained by several multitype
     unordered_map<ssid_t, unordered_set<ssid_t>> global_single2complex;
+
+    unordered_set<ssid_t> global_useful_type;
 
     int sid;
 
     data_statistic(int _sid) : sid(_sid) { }
 
     data_statistic() { }
+
+    // for debug usage
+    void show_stat_info(){
+    	int number_of_notype = 0;
+    	int number_of_multitype = 0;
+    	int number_of_singletype = 0;
+    	for(auto const &token:global_type2int){
+    		if(token.first.data_type)
+    			number_of_multitype ++;
+    		else
+    			number_of_notype ++;
+    	}
+    	for(auto const &token:global_tyscount){
+    		if(token.first > 0)
+    			number_of_singletype++;
+    	}
+
+    	cout << "number_of_multitype: " << number_of_multitype << endl;
+    	cout << "number_of_notype: " << number_of_notype << endl;
+    	cout << "number_of_singletype: " << number_of_singletype << endl;
+
+    	const int NUMBER = 10;
+    	int temp[NUMBER];
+    	int temp2[NUMBER];
+    	for(int i = 0; i < NUMBER; i ++){
+    		temp[i] = 0;
+    		temp2[i] = 0;
+    	}
+    	for(auto const &token:global_tyscount){
+    		if(token.second <= NUMBER){
+    			temp[token.second - 1] ++;
+    			if(token.first > 0){
+    				temp2[token.second - 1] ++;
+    			}
+    		}
+    	}
+
+    	cout << "useless type number: " << endl;
+    	for(int i = 0;i < NUMBER;i ++){
+    		cout << temp[i] << "\t" << temp2[i] << endl;
+    	}
+    }
+
+    // reduce number of types to speed up planning procedure
+    // sacrifice accuracy in change for speed
+    // MODIFICATIONS:
+    // global_tyscount: useful_type count
+    // global_type2int: all type to its type_No
+    // global_single2complex: single to useful_multipletype
+    void merge_type(){
+
+    	//show_stat_info();
+
+//    	auto similarity = [&](type_t t1,type_t t2) -> int{
+//    		if(t1.data_type != t2.data_type) return 0;
+//    		for(auto &token: t2.composition){
+//    			if(t1.composition.find(token) == t1.composition.end())
+//    				return 0;
+//    		}
+//    		return t2.composition.size();
+//    	};
+
+    	uint64_t total_number = 0;
+    	map<int, ssid_t> tys;
+    	int minimum_count = 0;
+    	for(auto const &token:global_tyscount){
+    		total_number += token.second;
+    		if(tys.find(token.second) == tys.end())
+    			tys[token.second] = 1;
+    		else
+    			tys[token.second] ++;
+    	}
+
+    	uint64_t sum = 0;
+
+    	for(auto const &token: tys){
+    		sum += token.first * token.second;
+    		if(sum >= total_number * TYPE_REMOVE_RATE){
+    			minimum_count = token.first;
+    			break;
+    		}
+    	}
+
+    	//cout << "minimum_count: " << minimum_count << endl;
+
+    	tbb_map new_type2int;
+    	// type of which has too few vertices (among notype & multitype)
+    	unordered_set<ssid_t> global_useless_type;
+    	for(auto const &token:global_tyscount){
+    		//global_useless_type.insert(token.first);
+
+    		// generated type && vertices of this type less than threshold
+    		if(token.first < 0 && token.second < minimum_count)
+    			global_useless_type.insert(token.first);
+    		else
+    			global_useful_type.insert(token.first);
+    	}
+
+    	// get useful type2int
+		#pragma omp parallel
+    	for(auto const &token: global_useless_type){
+//			#pragma omp single nowait
+//			{
+//				type_t useless_type_No = global_int2type[token];
+//				// take it as the closest useful type or 0-type
+//				ssid_t result = 0;
+//				int max_similarity = 0;
+//				for(auto const &token2: global_useful_type){
+//					type_t useful_type = global_int2type[token2];
+//					int sim = similarity(useless_type_No,useful_type);
+//					if(sim > 0 && sim > max_similarity){
+//						result = token2;
+//					}
+//				}
+//				tbb_map::accessor a;
+//				new_type2int.insert(a, useless_type_No);
+//				a->second = result;
+//			}
+    	}
+
+    	// useful type2int
+    	unordered_map<type_t, ssid_t, type_t_hasher> type2int_new;
+//    	for(auto const &token: new_type2int){
+//    		type2int_new[token.first] = token.second;
+//    	}
+
+    	// set all useless types to 0-type
+    	for(auto const &token: global_useless_type){
+    		type2int_new[global_int2type[token]] = 0;
+    	}
+    	for(auto const &token: global_useful_type){
+    		type2int_new[global_int2type[token]] = token;
+    	}
+
+    	// update global_tyscount
+    	unordered_map<ssid_t, int> tyscount;
+    	for(auto const &token: global_useful_type){
+    		tyscount[token] = global_tyscount[token];
+    	}
+    	for(auto const &token: type2int_new){
+    		if(tyscount.find(token.second) != tyscount.end()){
+    			tyscount[token.second] += global_tyscount[global_type2int[token.first]];
+    		}
+    		else{
+    			tyscount[token.second] = global_tyscount[global_type2int[token.first]];
+    		}
+    	}
+    	global_tyscount.swap(tyscount);
+
+    	// add global_single2complex info
+    	for(auto const &type_No: global_useful_type){
+    		type_t type = global_int2type[type_No];
+    		if(type.data_type){
+    			for(auto const &single_type: type.composition){
+                    if (global_single2complex.find(single_type) != global_single2complex.end()) {
+                        global_single2complex[single_type].insert(type_No);
+                    } else {
+                        unordered_set<ssid_t> multi_type_set;
+                        // set will automatically ensure no duplicated element exist
+                        multi_type_set.insert(type_No);
+                        global_single2complex[single_type] = multi_type_set;
+                    }
+    			}
+    		}
+    	}
+
+    	// update global_type2int
+    	global_type2int.swap(type2int_new);
+
+    }
 
     void gather_stat(TCP_Adaptor *tcp_ad) {
         std::stringstream ss;
@@ -211,53 +405,25 @@ public:
 
         if (sid == 0) {
             vector<data_statistic> all_gather;
-            unordered_map<ssid_t, type_t> global_int2type;
-
             // complex type have different corresponding number on different machine
             // assume type < 0 here
-            auto type_transform = [&](ssid_t type, data_statistic & stat) -> ssid_t{
-                // type may not occur in local_int2type
+            auto type_transform = [&](ssid_t type_No, data_statistic & stat) -> ssid_t{
 
                 type_t complex_type;
-                if (local_int2type.find(type) != stat.local_int2type.end())
-                    complex_type = stat.local_int2type[type];
+                if (stat.local_int2type.find(type_No) != stat.local_int2type.end())
+                    complex_type = stat.local_int2type[type_No];
                 else
-                    logstream(LOG_ERROR) << "type: " << type << " is not in local_int2type" << LOG_endl;
+                    logstream(LOG_ERROR) << "type_No: " << type_No << " is not in local_int2type" << LOG_endl;
 
                 if (global_type2int.find(complex_type) != global_type2int.end())
                     return global_type2int[complex_type];
                 else {
-                    ssid_t number = global_type2int.size();
-                    number ++;
-                    number = -number;
-                    global_type2int[complex_type] = number;
-                    global_int2type[number] = complex_type;
-
-                    // debug
-                    // cout << "number: " << number << endl;
-                    // cout << "data_type: " << complex_type.data_type << endl;
-                    // cout << "size: " << complex_type.composition.size() << endl;
-                    // for ( auto it = complex_type.composition.cbegin(); it != complex_type.composition.cend(); ++it )
-                    //     cout << *it << " ";
-                    // cout << endl;
-
-                    // add single2complex index
-                    if (complex_type.data_type) {
-                        for (auto iter = complex_type.composition.cbegin(); iter != complex_type.composition.cend(); ++iter) {
-                            if (global_single2complex.find(*iter) != global_single2complex.end()) {
-                                global_single2complex[*iter].insert(number);
-                            } else {
-                                unordered_set<ssid_t> multi_type_set;
-                                // set will automatically ensure no duplicated element exist
-                                multi_type_set.insert(number);
-                                global_single2complex[*iter] = multi_type_set;
-                            }
-                        }
-                    }
-                    return number;
+                	logstream(LOG_ERROR) << "type not found" << LOG_endl;
+                	return 0;
                 }
             };
 
+            // receive from all proxies
             for (int i = 0; i < global_num_servers; i++) {
                 std::string str;
                 str = tcp_ad->recv(0);
@@ -269,18 +435,45 @@ public:
                 all_gather.push_back(tmp_data);
             }
 
+            // register all types in global_tyscount
             for (int i = 0; i < all_gather.size(); i++) {
-                //for type predicate
-                for (unordered_map<ssid_t, int>::iterator it = all_gather[i].local_tyscount.begin();
-                        it != all_gather[i].local_tyscount.end(); it++) {
-                    ssid_t key = it->first;
-                    int number = it->second;
-                    if (key < 0) key = type_transform(key, all_gather[i]);
-                    if (global_tyscount.find(key) == global_tyscount.end())
-                        global_tyscount[key] = number;
+                for(auto const & token: all_gather[i].local_tyscount){
+                    ssid_t raw_type_No = token.first;
+                    int number = token.second;
+                    ssid_t new_type_No = raw_type_No;
+                    if(raw_type_No < 0){
+                        type_t complex_type;
+
+                        if (all_gather[i].local_int2type.find(raw_type_No) != all_gather[i].local_int2type.end())
+                            complex_type = all_gather[i].local_int2type[raw_type_No];
+                        else
+                            logstream(LOG_ERROR) << "type: " << raw_type_No << " is not in local_int2type" << LOG_endl;
+
+                        if (global_type2int.find(complex_type) == global_type2int.end()){
+                            ssid_t number = global_type2int.size();
+                            number ++;
+                            number = -number;
+                            global_type2int[complex_type] = number;
+                            global_int2type[number] = complex_type;
+                            new_type_No = number;
+                        }
+                        else
+                        	new_type_No = global_type2int[complex_type];
+                    }
+
+                    if(global_tyscount.find(new_type_No) == global_tyscount.end())
+                    	global_tyscount[new_type_No] = number;
                     else
-                        global_tyscount[key] += number;
+                    	global_tyscount[new_type_No] += number;
+
                 }
+            }
+
+            // merge
+            if(global_tyscount.size() > 100)
+            	merge_type();
+
+            for (int i = 0; i < all_gather.size(); i++) {
 
                 for (unordered_map<ssid_t, vector<ty_count>>::iterator it = all_gather[i].local_tystat.pstype.begin();
                         it != all_gather[i].local_tystat.pstype.end(); it++ ) {
@@ -288,6 +481,7 @@ public:
                     vector<ty_count>& types = it->second;
                     for (size_t k = 0; k < types.size(); k++)
                         global_tystat.insert_stype(key,
+                        		//0,
                                                    types[k].ty < 0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
                                                    types[k].count);
                 }
@@ -298,7 +492,8 @@ public:
                     vector<ty_count>& types = it->second;
                     for (size_t k = 0; k < types.size(); k++)
                         global_tystat.insert_otype(key,
-                                                   types[k].ty < 0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
+                                  //0,
+                        		types[k].ty < 0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
                                                    types[k].count);
                 }
 
@@ -308,38 +503,29 @@ public:
                     pair<ssid_t, ssid_t> key = it->first;
                     vector<ty_count>& types = it->second;
                     for (size_t k = 0; k < types.size(); k++)
-                        global_tystat.insert_finetype(key.first < 0 ? type_transform(key.first, all_gather[i]) : key.first,
+                        global_tystat.insert_finetype(
+                        								key.first < 0 ? type_transform(key.first, all_gather[i]) : key.first,
                                                       key.second < 0 ? type_transform(key.second, all_gather[i]) : key.second,
-                                                      types[k].ty < 0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
-                                                      types[k].count);
+                                                      //(key.first < 0 || key.first > (1 << 17)) ? 0 : key.first ,
+                                                       //(key.second < 0 || key.second > (1 << 17)) ? 0 : key.second ,
+                                                    		  types[k].ty < 0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
+                                                      //0,
+                                                    		  types[k].count);
                 }
             }
+
+            // clear useless type in global_type2int
+            unordered_map<type_t, ssid_t, type_t_hasher> type2int;
+            for(auto const &token: global_useful_type){
+            	type2int[global_int2type[token]] = token;
+            }
+            global_type2int.swap(type2int);
 
             logstream(LOG_INFO) << "global_tyscount size: " << global_tyscount.size() << LOG_endl;
             logstream(LOG_INFO) << "global_tystat.pstype.size: " << global_tystat.pstype.size() << LOG_endl;
             logstream(LOG_INFO) << "global_tystat.potype.size: " << global_tystat.potype.size() << LOG_endl;
             logstream(LOG_INFO) << "global_tystat.fine_type.size: " << global_tystat.fine_type.size() << LOG_endl;
-
-            //debug single2complex
-            // for ( auto iter = global_single2complex.cbegin(); iter != global_single2complex.cend(); ++iter ){
-            //     cout << iter->first ;
-            //     const unordered_set<ssid_t> set = iter->second;
-            //     for(auto it = set.cbegin(); it != set.cend(); ++it){
-            //         cout << " " << *it;
-            //     }
-            //     cout << endl;
-            // }
-
-            //debug tyscount
-            // cout << "local................." << endl;
-            // for ( auto iter = local_tyscount.cbegin(); iter != local_tyscount.cend(); ++iter ){
-            //     cout << iter->first << ": " << iter -> second << endl;;
-            // }
-
-            // cout << "global................." << endl;
-            // for ( auto iter = global_tyscount.cbegin(); iter != global_tyscount.cend(); ++iter ){
-            //     cout << iter->first << ": " << iter -> second << endl;;
-            // }
+            logstream(LOG_INFO) << "global_tyscount[0]: " << global_tyscount[0] << LOG_endl;
         }
 
         send_stat_to_all_machines(tcp_ad);

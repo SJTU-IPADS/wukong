@@ -77,6 +77,7 @@ class Planner {
     bool is_empty;            // help identify empty queries
     long start_time;
     //bool enable_merge;		// if non endpoint variable > 3, we enable merge
+    int mt_factor;
 
     // for dfs
     vector<ssid_t> min_path;
@@ -221,14 +222,12 @@ class Planner {
             if (cost < min_cost) {
                 min_cost = cost;
                 min_path = path;
-                //cout << "type_table.size(): " << type_table.tytable.size() << endl;
-                //cout << "type_table.row: " << type_table.get_row_num() << " col: " << type_table.get_col_num() << endl;
+//                cout << "cost: " << cost << endl;
 //                long end = timer::get_usec();
 //                cout << "one iteration using time: " << end - start_time << endl;
-//                cout << "cost: " << cost << endl;
 //                cout << endl;
 //                start_time = end;
-                //return false;
+//                return false;
             }
             return ctn;
         }
@@ -264,7 +263,7 @@ class Planner {
                     vector<ty_count> tycountv = statistic->global_tystat.pstype[p];
                     for (size_t k = 0; k < tycountv.size(); k++) {
                         ssid_t vtype = tycountv[k].ty;
-                        double vcount = double(tycountv[k].count) / global_num_servers;
+                        double vcount = double(tycountv[k].count) / global_num_servers / mt_factor;
                         updated_result_table.push_back(vcount);
                         updated_result_table.push_back(vtype);
                     }
@@ -322,7 +321,7 @@ class Planner {
                     tycountv = statistic->global_tystat.potype[p];
                     for (size_t k = 0; k < tycountv.size(); k++) {
                         ssid_t vtype = tycountv[k].ty;
-                        double vcount = double(tycountv[k].count) / global_num_servers;
+                        double vcount = double(tycountv[k].count) / global_num_servers / mt_factor;
                         updated_result_table.push_back(vcount);
                         updated_result_table.push_back(vtype);
                     }
@@ -457,21 +456,21 @@ class Planner {
                         // start from ty-index vertex
                         ssid_t vtype = o2;
                         if (statistic->global_single2complex.find(vtype) == statistic->global_single2complex.end()) {
-                            double vcount = double(statistic->global_tyscount[o2]) / global_num_servers;
+                            double vcount = double(statistic->global_tyscount[o2]) / global_num_servers / mt_factor;
                             updated_result_table.push_back(vcount);
                             updated_result_table.push_back(vtype);
                         }
                         else {
                             // single type o2 may not exist in muititype situation
                             if (statistic->global_tyscount.find(vtype) != statistic->global_tyscount.end()) {
-                                double vcount = double(statistic->global_tyscount[o2]) / global_num_servers;
+                                double vcount = double(statistic->global_tyscount[o2]) / global_num_servers / mt_factor;
                                 updated_result_table.push_back(vcount);
                                 updated_result_table.push_back(vtype);
                             }
                             // single type o2 may be contained in complex type
                             unordered_set<ssid_t> type_set = statistic->global_single2complex[vtype];
                             for (auto iter = type_set.cbegin(); iter != type_set.cend(); ++iter) {
-                                double vcount = double(statistic->global_tyscount[*iter]) / global_num_servers;
+                                double vcount = double(statistic->global_tyscount[*iter]) / global_num_servers / mt_factor;
                                 updated_result_table.push_back(vcount);
                                 updated_result_table.push_back(*iter);
                             }
@@ -1578,6 +1577,7 @@ public:
     bool generate_plan(SPARQLQuery &r, data_statistic *statistic) {
         this->statistic = statistic;
         this->start_time = timer::get_usec();
+        this->mt_factor = min(r.mt_factor, global_mt_threshold);
         return generate_for_group(r.pattern_group, r.result.nvars);
     }
 

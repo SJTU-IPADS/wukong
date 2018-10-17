@@ -727,16 +727,26 @@ private:
             if (prefix == "a") {
                 result.type = Element::IRI;
                 result.value = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
-            } else {
+            } else if(prefixes.count(prefix)){
                 // prefix:suffix
                 if (lexer.getNext() != SPARQLLexer::Colon)
                     throw ParserException("':' expected after '" + prefix + "'");
-                if (!prefixes.count(prefix))
-                    throw ParserException("unknown prefix '" + prefix + "'");
+//                if (!prefixes.count(prefix))
+//                    throw ParserException("unknown prefix '" + prefix + "'");
                 if (lexer.getNext() != SPARQLLexer::Identifier)
                     throw ParserException("identifier expected after ':'");
                 result.type = Element::IRI;
                 result.value = prefixes[prefix] + lexer.getIRIValue();
+            } else {
+            	// if prefix is not registered, the whole item is taken as a Literal
+            	result.type = Element::Literal;
+            	result.subType = Element::CustomType;
+            	result.subTypeValue = "yago_predicate";
+            	result.value = prefix;
+            	lexer.getNext();	// :
+            	result.value += lexer.getTokenValue();
+            	lexer.getNext();	// Identifier after :
+            	result.value += lexer.getTokenValue();
             }
         } else if (token == SPARQLLexer::Percent) {
             usingCustomGrammar = true;

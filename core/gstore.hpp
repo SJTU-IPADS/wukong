@@ -2318,9 +2318,8 @@ public:
                         edge_t *res = get_edges(0, sbid, TYPE_ID, OUT, type_sz);
                         if (type_sz > 1) {
                             ssid_t type = generate_multi_type(res, type_sz);
-                            res_type.push_back(type); //10 for 10240, 19 for 2560, 23 for 40, 2 for 640
+                            res_type.push_back(type);
                         } else if (type_sz == 0) {
-                            //cout << "no type: " << sbid << endl;
                             ssid_t type = generate_no_type(sbid);
                             res_type.push_back(type);
                         } else if (type_sz == 1) {
@@ -2339,7 +2338,6 @@ public:
                         type = generate_multi_type(res, type_sz);
                     } else {
                         if (type_sz == 0) {
-                            //cout << "no type: " << vid << endl;
                             type = generate_no_type(vid);
                             insert_no_type_count(vid, type);
                         } else {
@@ -2365,7 +2363,6 @@ public:
                         } else if (type_sz == 0) {
                             // in this situation, obid may be some TYPE
                             if (pid != 1) {
-                                logstream(LOG_DEBUG) << "[DEBUG] no type: " << obid << LOG_endl;
                                 ssid_t type = generate_no_type(obid);
                                 res_type.push_back(type);
                             }
@@ -2385,7 +2382,6 @@ public:
                         type = generate_multi_type(res, type_sz);
                     } else {
                         if (type_sz == 0) {
-                            // cout << "no type: " << vid << endl;
                             type = generate_no_type(vid);
                             insert_no_type_count(vid, type);
                         } else {
@@ -2420,64 +2416,11 @@ public:
                                 tyscount[obid] = 1;
                             else
                                 tyscount[obid]++;
-
-                            //record predicates of vid, to find if the same raw type have similar predicates
-//                            type_t predicates_combination;
-//                            uint64_t psize1 = 0;
-//                            unordered_set<int> index_composition;
-//                            edge_t *res1 = get_edges_global(0, vid, OUT, PREDICATE_ID, &psize1);
-//                            for (uint64_t k = 0; k < psize1; k++) {
-//                                ssid_t pre = res1[k].val;
-//                                index_composition.insert(pre);
-//                            }
-//                            uint64_t psize2 = 0;
-//                            edge_t *res2 = get_edges_global(0, vid, IN, PREDICATE_ID, &psize2);
-//                            for (uint64_t k = 0; k < psize2; k++) {
-//                                ssid_t pre = res2[k].val;
-//                                index_composition.insert(-pre);
-//                            }
-//                            predicates_combination.set_index_composition(index_composition);
-//
-//                            if (rawType_to_predicates.find(obid) != rawType_to_predicates.end()){
-//                            	rawType_to_predicates[obid].insert(predicates_combination);
-//                            }
-//                            else{
-//                                unordered_set<type_t,type_t_hasher> all_predicates_combination;
-//                                all_predicates_combination.insert(predicates_combination);
-//                                rawType_to_predicates[obid] = all_predicates_combination;
-//                            }
-//
-//                            if(each_predicate_number.find(predicates_combination) != each_predicate_number.end()){
-//                            	each_predicate_number[predicates_combination]++;
-//                            }
-//                            else{
-//                            	each_predicate_number[predicates_combination] = 1;
-//                            }
                         }
                     }
                 }
             }
         }
-
-        //print info of rawType_to_predicates, to find if the same raw type have similar predicates
-//        unordered_set<type_t,type_t_hasher> all_types;
-//        cout << "total size: " << rawType_to_predicates.size() << endl;
-//        for(auto iter = rawType_to_predicates.cbegin(); iter != rawType_to_predicates.cend(); ++iter){
-//        	cout << "rawType: " << iter->first << endl;
-//        	cout << "predicates size: ";
-//        	const unordered_set<type_t,type_t_hasher> &all_predicates_combination = iter->second;
-//        	cout << all_predicates_combination.size() << endl;
-//        	for(auto set_iter = all_predicates_combination.cbegin(); set_iter != all_predicates_combination.cend(); ++set_iter){
-//        		all_types.insert(*set_iter);
-//        		const unordered_set<int> &set = set_iter->composition;
-//        		for(auto index_iter = set.cbegin(); index_iter != set.cend(); ++index_iter){
-//        			cout << *index_iter << " ";
-//        		}
-//        		cout << "  number: " << each_predicate_number[*set_iter];
-//        		cout << endl;
-//        	}
-//        	cout << endl;
-//        }
 
         logstream(LOG_INFO) << "server#" << sid << ": generating stats is finished." << endl;
     }

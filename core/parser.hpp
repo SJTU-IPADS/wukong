@@ -85,7 +85,14 @@ private:
             return e.id;
         case SPARQLParser::Element::Literal:
         {
-            string str = "\"" + e.value + "\"";
+        	string str = "";
+        	if(e.subType == SPARQLParser::Element::CustomType && e.subTypeValue == "yago_predicate")
+        		str = e.value;
+        	else if(e.subType == SPARQLParser::Element::CustomLanguage)
+        		str = "\"" + e.value + "\"" + "@" + e.subTypeValue;
+        	else
+        		str = "\"" + e.value + "\"";
+
             if (!str_server->exist(str)) {
                 logstream(LOG_ERROR) << "Unknown Literal: " + str << LOG_endl;
                 return DUMMY_ID;

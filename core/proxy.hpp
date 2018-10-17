@@ -221,6 +221,8 @@ public:
         else
             logstream(LOG_INFO) << "No query plan is set" << LOG_endl;
 
+        request.mt_factor = min(mt_factor, global_mt_threshold);
+
         // Generate plans for the query if our SPARQL planner is enabled.
         // NOTE: it only works for standard SPARQL query.
         if (global_enable_planner) {
@@ -240,21 +242,19 @@ public:
                 return 0; // skip the real execution
         }
 
+        // set the multi-threading factor for queries start from index
+        if (request.start_from_index()) {
+            if (mt_factor == 1 && global_mt_threshold > 1)
+                logstream(LOG_EMPH) << "The query starts from an index vertex, "
+                                    << "you could use option -m to accelerate it."
+                                    << LOG_endl;
+            //request.mt_factor = min(mt_factor, global_mt_threshold);
+        }
+
         // Execute the SPARQL query
         monitor.init();
         for (int i = 0; i < cnt; i++) {
             setpid(request);
-
-            // set the multi-threading factor for queries start from index
-            if (request.start_from_index()) {
-                if (mt_factor == 1 && global_mt_threshold > 1)
-                    logstream(LOG_EMPH) << "The query starts from an index vertex, "
-                                        << "you could use option -m to accelerate it."
-                                        << LOG_endl;
-
-                request.mt_factor = min(mt_factor, global_mt_threshold);
-            }
-
             // only take back results of the last request if not silent
             request.result.blind = i < (cnt - 1) ? true : global_silent;
             send_request(request);
