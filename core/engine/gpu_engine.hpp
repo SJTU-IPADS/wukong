@@ -91,7 +91,6 @@ private:
         req.local_var = var;
     }
 
-    // TODO
     void const_to_unknown(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
@@ -104,7 +103,7 @@ private:
         ASSERT(res.get_col_num() == 0);
 
         uint64_t sz = 0;
-        edge_t *edges = graph->get_triples(tid, start, d, pid, sz);
+        edge_t *edges = graph->get_triples(tid, start,pid, d, sz);
         for (uint64_t k = 0; k < sz; k++)
             updated_result_table.push_back(edges[k].val);
 

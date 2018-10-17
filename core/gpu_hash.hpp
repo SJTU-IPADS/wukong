@@ -129,7 +129,6 @@ int gpu_update_result_buf_i2u(GPUEngineParam& param, cudaStream_t stream = 0);
 int gpu_update_result_buf_k2k(GPUEngineParam& param, cudaStream_t stream = 0);
 int gpu_update_result_buf_k2u(GPUEngineParam& param, cudaStream_t stream = 0);
 int gpu_update_result_buf_k2c(GPUEngineParam& param, cudaStream_t stream = 0);
-int gpu_update_result_buf_i2u(GPUEngineParam& param, cudaStream_t stream);
 
 
 #endif // end of USE_GPU
