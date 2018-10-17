@@ -158,7 +158,7 @@ main(int argc, char *argv[])
     data_statistic stat(sid);
     if (global_generate_statistics) {
         uint64_t t0 = timer::get_usec();
-        dgraph.generate_statistic(stat);
+        stat.generate_statistic(dgraph.gstore);
         uint64_t t1 = timer::get_usec();
         logstream(LOG_EMPH)  << "generate_statistic using time: " << t1 - t0 << "usec" << LOG_endl;
         stat.gather_stat(con_adaptor);
