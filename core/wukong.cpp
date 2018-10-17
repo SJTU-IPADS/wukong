@@ -207,7 +207,7 @@ main(int argc, char *argv[])
     }
 
 #ifdef USE_GPU
-    logstream(LOG_INFO) << "#threads:" << global_num_threads << ", #proxies:"
+    logstream(LOG_INFO) << "#" << sid << " #threads:" << global_num_threads << ", #proxies:"
         << global_num_proxies << ", #engines:" << global_num_engines << ", #agent:" << global_num_gpus << LOG_endl;
 
     // create GPU agent

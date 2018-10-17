@@ -147,8 +147,7 @@ public:
     }
 
 #ifdef USE_GPU
-
-    string recv_from(int tid, int dst_sid) {
+    string recv(int tid, int dst_sid) {
         ASSERT_MSG(false, "not implemented");
 
         return nullptr;
@@ -159,7 +158,6 @@ public:
 
         return false;
     }
-
 #endif
 
     bool tryrecv(int tid, string &str) {

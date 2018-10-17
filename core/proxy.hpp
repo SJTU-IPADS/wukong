@@ -175,10 +175,10 @@ public:
         Bundle bundle(r);
 #ifdef USE_GPU
         if (r.dev_type == SPARQLQuery::DeviceType::CPU) {
-            logstream(LOG_INFO) << "dev_type is CPU, send to engine. r.pid=" << r.pid << LOG_endl;
+            logstream(LOG_DEBUG) << "dev_type is CPU, send to engine. r.pid=" << r.pid << LOG_endl;
             send(bundle, start_sid);
         } else if (r.dev_type == SPARQLQuery::DeviceType::GPU) {
-            logstream(LOG_INFO) << "dev_type is GPU, send to GPU agent. r.pid=" << r.pid << LOG_endl;
+            logstream(LOG_DEBUG) << "dev_type is GPU, send to GPU agent. r.pid=" << r.pid << LOG_endl;
             send(bundle, start_sid, WUKONG_GPU_AGENT_TID);
         } else {
             ASSERT_MSG(false, "Unknown device type");

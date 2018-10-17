@@ -218,6 +218,7 @@ void load_config(string fname, int num_servers)
 #ifndef USE_GPU
     global_num_threads = global_num_engines + global_num_proxies;
 #else
+    // each GPU needs a dedicated agent thread, and engines and proxies are worker threads
     global_num_threads = global_num_engines + global_num_proxies + global_num_gpus;
 #endif // USE_GPU
 

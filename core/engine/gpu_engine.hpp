@@ -197,7 +197,7 @@ private:
             << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
     }
 
-    // fork-join or in-place execution
+    // when need to access neighbors of a remote vertex, we need to fork the query
     bool need_fork_join(SPARQLQuery &req) {
         // always need NOT fork-join when executing on single machine
         if (global_num_servers == 1) return false;
@@ -207,12 +207,9 @@ private:
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ASSERT(req.result.variable_type(pattern.subject) == known_var);
-        //ssid_t start = pattern.subject;
-        //return ((req.local_var != start)
-        //        && (req.result.get_row_num() >= global_rdma_threshold));
-        // GPUEngine only supports fork-join mode now
         sid_t start = req.get_pattern().subject;
 
+        // GPUEngine only supports fork-join mode now
         return ((req.local_var != start)
                && (req.result.get_row_num() >= 0));
     }
@@ -319,7 +316,6 @@ public:
         return true;
     }
 
-    // TODO
     vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         sid_t start = pattern.subject;
@@ -371,7 +367,6 @@ public:
                     r.result.clear_gpu_result_buf();
                 }
             }
-
         }
 
         return sub_reqs;

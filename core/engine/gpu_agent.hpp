@@ -122,7 +122,6 @@ public:
     }
 
     void send_to_workers(SPARQLQuery& req) {
-
         rmap.put_parent_request(req, global_num_servers);
         SPARQLQuery sub_query = req;
         ASSERT(req.mt_factor == 1);
@@ -139,8 +138,6 @@ public:
             ASSERT(sub_query.job_type != SPARQLQuery::SubJobType::SPLIT_JOB);
             Bundle bundle(sub_query);
             send_request(bundle, i, dst_tid);
-            logstream(LOG_INFO) << "GPUAgent: " << "[" << sid << ":" << tid << "]"
-                                 << "send_to_workers: send to sid=" << i << ", tid=" << dst_tid << LOG_endl;
         }
     }
 
@@ -270,7 +267,7 @@ public:
                             && req.result.gpu.result_buf_nelems > 0) {
                         // recv result buffer
                         std::string rbuf_str;
-                        rbuf_str = adaptor->recv_from(sender);
+                        rbuf_str = adaptor->recv(sender);
                         ASSERT(rbuf_str.size() > 0);
                         ASSERT(rbuf_str.empty() == false);
                         gpu_engine->load_result_buf(req, rbuf_str);

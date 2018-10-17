@@ -247,12 +247,11 @@ private:
         // TODO: only support send local data (GPU) to ring buffer on remote host (CPU)
         ASSERT(sid != dst_sid);
 
-        // msg: header + bundle + footer (use bundle_sz as header and footer)
-        // uint64_t bundle_sz = sizeof(uint64_t) + data_sz;
+        // msg: header + data + footer (use data_sz as header and footer)
         uint64_t sz = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
 
         // prepare RDMA buffer for RDMA-WRITE
-        // copy header(bundle_sz) to rdma_buf(on local GPU mem)
+        // copy header(data_sz) to rdma_buf(on local GPU mem)
         CUDA_ASSERT( cudaMemcpy(gmem->rdma_buf_hdr(tid), &data_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );
 
         char *rdma_buf = gmem->rdma_buf_body(tid);
@@ -260,7 +259,7 @@ private:
         CUDA_ASSERT( cudaMemcpy(rdma_buf, data, data_sz, cudaMemcpyDeviceToDevice) );    // data
         rdma_buf += ceil(data_sz, sizeof(uint64_t));
 
-        // copy footer(bundle_sz) to rdma_buf(on local GPU mem)
+        // copy footer(data_sz) to rdma_buf(on local GPU mem)
         CUDA_ASSERT( cudaMemcpy(rdma_buf, &data_sz, sizeof(uint64_t), cudaMemcpyHostToDevice) );  // footer
 
         // for safety
@@ -340,9 +339,7 @@ public:
 
         // 1. calculate msg size
         // struct of msg: [data_sz | data | data_sz] (use size of data as header and footer)
-        // uint64_t msg_sz = sizeof(uint64_t) + sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
         uint64_t msg_sz = sizeof(uint64_t) + ceil(data_sz, sizeof(uint64_t)) + sizeof(uint64_t);
-
 
         // 2. reserve space in ring-buffer
         rbf_rmeta_t *rmeta = &rmetas[dst_sid * num_threads + dst_tid];
@@ -413,8 +410,7 @@ public:
         }
     }
 
-
-    std::string recv_from(int tid, int dst_sid) {
+    std::string recv(int tid, int dst_sid) {
         ASSERT(init);
 
         while (true) {
@@ -427,7 +423,6 @@ public:
             }
         }
     }
-
 
 #ifdef USE_GPU
     // Try to recv data of given thread
