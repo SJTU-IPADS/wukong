@@ -85,25 +85,25 @@ struct GPUEngineParam {
     void load_segment_mappings(const std::vector<uint64_t>& vertex_mapping,
             const std::vector<uint64_t>& edge_mapping, const rdf_segment_meta_t &seg, cudaStream_t stream = 0) {
 
-        CUDA_ASSERT(cudaMemcpy(gpu.d_vertex_mapping,
+        CUDA_ASSERT(cudaMemcpyAsync(gpu.d_vertex_mapping,
                           &(vertex_mapping[0]),
                           sizeof(uint64_t) * seg.num_key_blks,
-                          cudaMemcpyHostToDevice));
-                          // stream));
+                          cudaMemcpyHostToDevice,
+                          stream));
 
-        CUDA_ASSERT(cudaMemcpy(gpu.d_edge_mapping,
+        CUDA_ASSERT(cudaMemcpyAsync(gpu.d_edge_mapping,
                           &(edge_mapping[0]),
                           sizeof(uint64_t) * seg.num_value_blks,
-                          cudaMemcpyHostToDevice));
-                          // stream));
+                          cudaMemcpyHostToDevice,
+                          stream));
     }
 
     void load_segment_meta(rdf_segment_meta_t seg_meta, cudaStream_t stream = 0) {
-        CUDA_ASSERT(cudaMemcpy(gpu.d_segment_meta,
+        CUDA_ASSERT(cudaMemcpyAsync(gpu.d_segment_meta,
                           &seg_meta,
                           sizeof(seg_meta),
-                          cudaMemcpyHostToDevice));
-                          // stream));
+                          cudaMemcpyHostToDevice,
+                          stream));
     }
 
     void set_result_bufs(char *d_in_rbuf, char *d_out_rbuf) {

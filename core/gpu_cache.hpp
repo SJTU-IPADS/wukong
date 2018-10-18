@@ -227,7 +227,7 @@ private:
      * block_id: the free block on GPU cache
      * vertex blocks layout: main | main | ... | main (+ indirect) | indirect | ... | indirect
      */
-    void load_vertex_block(segid_t seg, int seg_block_idx, int block_id, cudaStream_t stream_id) {
+    void load_vertex_block(segid_t seg, int seg_block_idx, int block_id, cudaStream_t stream) {
         // step 1: calculate direct size
         int end_main_block_idx = ceil((double)(rdf_metas[seg].num_buckets) / nbuckets_kblk) - 1;
         int end_indirect_block_idx = ceil((double)(rdf_metas[seg].get_total_num_buckets()) / nbuckets_kblk) - 1;
@@ -262,7 +262,7 @@ private:
                 vertex_addr + (rdf_metas[seg].bucket_start + seg_block_idx * nbuckets_kblk) * GStore::ASSOCIATIVITY,
                 sizeof(vertex_t) * main_size * GStore::ASSOCIATIVITY,
                 cudaMemcpyHostToDevice,
-                stream_id));
+                stream));
         }
         // step 4: load indirect
         if (indirect_size != 0) {
@@ -291,7 +291,7 @@ private:
                     uint64_t src_off = (ext.start + inside_off) * GStore::ASSOCIATIVITY;
                     CUDA_ASSERT(cudaMemcpyAsync(vertex_gaddr + dst_off, vertex_addr + src_off,
                         sizeof(vertex_t) * inside_load * GStore::ASSOCIATIVITY,
-                        cudaMemcpyHostToDevice, stream_id));
+                        cudaMemcpyHostToDevice, stream));
                     remain -= inside_load;
                     start_bucket_idx += inside_load;
                     // load complete
@@ -309,7 +309,7 @@ private:
      * seg_block: the block index of the segment
      * block_id: the free block on GPU cache
      */
-    void load_edge_block(segid_t seg, int seg_block_idx, int block_id, cudaStream_t stream_id) {
+    void load_edge_block(segid_t seg, int seg_block_idx, int block_id, cudaStream_t stream) {
         // the number of entries in this seg block
         uint64_t data_size = 0;
         if (seg_block_idx == (num_value_blocks_seg_need[seg] - 1))
@@ -320,7 +320,7 @@ private:
                                    edge_addr + rdf_metas[seg].edge_start + seg_block_idx * nentries_vblk,
                                    sizeof(edge_t) * data_size,
                                    cudaMemcpyHostToDevice,
-                                   stream_id));
+                                   stream));
     } // end of load_edge_block
 
     void _load_segment(segid_t seg_to_load, segid_t seg_in_use, const vector<segid_t> &conflicts, cudaStream_t stream_id, bool preload) {

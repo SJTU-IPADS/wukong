@@ -27,3 +27,4 @@ global_gpu_rbuf_size_mb         32
 global_gpu_kvcache_size_gb      10
 global_gpu_key_blk_size_mb      16
 global_gpu_value_blk_size_mb    4
+global_gpu_enable_pipeline      1

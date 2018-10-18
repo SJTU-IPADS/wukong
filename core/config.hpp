@@ -262,6 +262,7 @@ void print_config(void)
     logstream(LOG_INFO) << "global_gpu_kvcache_size_gb: "  << global_gpu_kvcache_size_gb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_key_blk_size_mb: "  << global_gpu_key_blk_size_mb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_value_blk_size_mb: "  << global_gpu_value_blk_size_mb  << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_enable_pipeline: "  << global_gpu_enable_pipeline  << LOG_endl;
 
     logstream(LOG_INFO) << "--" << LOG_endl;
 

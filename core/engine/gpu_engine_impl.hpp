@@ -147,8 +147,8 @@ public:
         vector<uint64_t> edge_mapping = gcache->get_edge_mapping(current_seg);
 
         // load mapping tables and metadata of segment to GPU memory
-        param.load_segment_mappings(vertex_mapping, edge_mapping, seg_meta);
-        param.load_segment_meta(seg_meta);
+        param.load_segment_mappings(vertex_mapping, edge_mapping, seg_meta, stream);
+        param.load_segment_meta(seg_meta, stream);
 
         // setup result buffers on GPU
         if (req.pattern_step == 0) {
@@ -156,6 +156,8 @@ public:
         } else {    // for sub-query
             param.set_result_bufs(req.result.gpu.result_buf_dp, gmem->res_outbuf());
         }
+
+        CUDA_STREAM_SYNC(stream);
 
         gpu_generate_key_list_k2u(param, stream);
 
@@ -173,7 +175,6 @@ public:
 
         req.result.row_num = table_size / (param.query.col_num + 1);
         req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
-
 
         // copy the result on GPU to CPU if we come to the last pattern
         if (!has_next_pattern(req)) {
@@ -243,8 +244,6 @@ public:
         // copy metadata of segment to GPU memory
         param.load_segment_mappings(vertex_mapping, edge_mapping, seg_meta);
         param.load_segment_meta(seg_meta);
-        // setup GPU engine parameters
-        // param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
 
         if (req.pattern_step == 0) {
             param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
@@ -286,7 +285,6 @@ public:
 
     }
 
-    // TODO
     void known_to_const(SPARQLQuery &req, ssid_t start, ssid_t pid,
             sid_t end, dir_t d, vector<sid_t> &new_table) {
         cudaStream_t stream = stream_pool->get_stream(pid);
@@ -308,13 +306,6 @@ public:
         param.query.row_num = req.result.get_row_num(),
         param.query.segment_edge_start = seg_meta.edge_start;
         param.query.var2col_start = req.result.var2col(start);
-
-        // not the first pattern
-        // if (req.pattern_step != 0) {
-            // d_result_table = (int*)req.gpu_history_ptr;
-        // } else {
-            // ASSERT(false);
-        // }
 
         ASSERT(gmem->res_inbuf() != gmem->res_outbuf());
         ASSERT(nullptr != gmem->res_inbuf());
@@ -374,8 +365,6 @@ public:
             thrust::copy(dptr, dptr + table_size, new_table.begin());
             logstream(LOG_DEBUG) << "new_table.size()=" << new_table.size() << LOG_endl;
 
-            // TODO: Do we need to clear result buf?
-            // req.clear_result_buf();
 
         } else {
             // req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
@@ -389,8 +378,7 @@ public:
     void generate_sub_query(const SPARQLQuery &req, sid_t start, int num_jobs,
             vector<sid_t*>& buf_ptrs, vector<int>& buf_sizes) {
         int query_size = req.result.get_row_num();
-        // cudaStream_t stream = stream_pool->get_split_query_stream();
-        cudaStream_t stream = 0;
+        cudaStream_t stream = stream_pool->get_split_query_stream();
 
         ASSERT(req.pattern_step > 0);
 
@@ -398,7 +386,6 @@ public:
         param.query.col_num = req.result.get_col_num(),
         param.query.row_num = req.result.get_row_num(),
         param.query.var2col_start = req.result.var2col(start);
-        // param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
 
         if (req.pattern_step == 0) {
             param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
@@ -414,7 +401,7 @@ public:
         // update_result_table_sub
         gpu_split_result_buf(param, num_jobs, stream);
 
-        // CUDA_STREAM_SYNC(stream);
+        CUDA_STREAM_SYNC(stream);
 
         for (int i = 0; i < num_jobs; ++i) {
             // buf_sizes[i] *= req.result.get_col_num();
