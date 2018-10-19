@@ -387,6 +387,8 @@ protected:
 public:
     BaseLoader(int sid, Mem *mem, String_Server *str_server, GStore *gstore): sid(sid), mem(mem), str_server(str_server), gstore(gstore) {}
 
+    virtual ~BaseLoader() {}
+
     void load(const string &src, vector<vector<triple_t>> &triple_pso, vector<vector<triple_t>> &triple_pos, vector<vector<triple_attr_t>> &triple_sav) {
         uint64_t start, end;
 
