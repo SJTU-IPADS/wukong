@@ -466,17 +466,16 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
             }
         }
 
-        bool gpu = false;
+        bool send_to_gpu = false;
         if (sparql_vm.count("-g")) {
-            logstream(LOG_INFO) << "The query will be sent to GPU" << LOG_endl;
-            gpu = true;
+            send_to_gpu = true;
         }
 
         /// do sparql
         SPARQLQuery reply;
         SPARQLQuery::Result &result = reply.result;
         Monitor monitor;
-        int ret = proxy->run_single_query(ifs, fmt_stream, mfactor, cnt, gpu, reply, monitor);
+        int ret = proxy->run_single_query(ifs, fmt_stream, mfactor, cnt, send_to_gpu, reply, monitor);
         if (ret != 0) {
             logstream(LOG_ERROR) << "Failed to run the query (ERRNO: " << ret << ")!" << LOG_endl;
             fail_to_parse(proxy, argc, argv); // invalid cmd

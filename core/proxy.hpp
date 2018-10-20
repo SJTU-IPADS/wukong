@@ -216,7 +216,7 @@ public:
     // Run a single query for @cnt times. Command is "-f"
     // @is: input
     // @reply: result
-    int run_single_query(istream &is, istream &fmt_stream, int mt_factor, int cnt, bool gpu,
+    int run_single_query(istream &is, istream &fmt_stream, int mt_factor, int cnt, bool send_to_gpu,
                          SPARQLQuery &reply, Monitor &monitor) {
         uint64_t start, end;
         SPARQLQuery request;
@@ -252,11 +252,19 @@ public:
         }
 
 #ifdef USE_GPU
-        if (gpu) {
+        if (send_to_gpu) {
             request.dev_type = SPARQLQuery::DeviceType::GPU;
             request.result.dev_type = SPARQLQuery::DeviceType::GPU;
+            logstream(LOG_INFO) << "The query will be sent to GPU" << LOG_endl;
+        }
+#else
+        if (send_to_gpu) {
+            logstream(LOG_WARNING) << "You need to build Wukong with GPU support to use the \"-g\" option." << LOG_endl;
+            send_to_gpu = false;
         }
 #endif
+
+
 
         // Execute the SPARQL query
         monitor.init();
@@ -265,7 +273,7 @@ public:
 
             // set the multi-threading factor for queries start from index
             if (request.start_from_index()) {
-                if (!gpu && mt_factor == 1 && global_mt_threshold > 1)
+                if (!send_to_gpu && mt_factor == 1 && global_mt_threshold > 1)
                     logstream(LOG_EMPH) << "The query starts from an index vertex, "
                                         << "you could use option -m to accelerate it."
                                         << LOG_endl;
