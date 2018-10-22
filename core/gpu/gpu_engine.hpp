@@ -36,7 +36,7 @@
 #include "assertion.hpp"
 #include "math.hpp"
 #include "timer.hpp"
-#include "rmap.hpp"
+#include "engine/rmap.hpp"
 
 #include "gpu_engine_impl.hpp"
 

@@ -32,7 +32,7 @@
 #include "query.hpp"
 #include "coder.hpp"
 #include "assertion.hpp"
-#include "rmap.hpp"
+#include "engine/rmap.hpp"
 #include "gpu_utils.hpp"
 
 #ifdef USE_GPU

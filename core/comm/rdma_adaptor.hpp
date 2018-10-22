@@ -38,7 +38,7 @@
 #include "atomic.hpp"
 
 #ifdef USE_GPU
-#include "gpu_mem.hpp"
+#include "gpu/gpu_mem.hpp"
 #include "gpu_utils.hpp"
 #endif
 

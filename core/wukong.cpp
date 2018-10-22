@@ -41,11 +41,11 @@
 
 #include "unit.hpp"
 #ifdef USE_GPU
-#include "gpu_mem.hpp"
-#include "engine/gpu_agent.hpp"
-#include "engine/gpu_engine.hpp"
-#include "gpu_cache.hpp"
-#include "gpu_stream.hpp"
+#include "gpu/gpu_mem.hpp"
+#include "gpu/gpu_agent.hpp"
+#include "gpu/gpu_engine.hpp"
+#include "gpu/gpu_cache.hpp"
+#include "gpu/gpu_stream.hpp"
 
 void *agent_thread(void *arg)
 {
