@@ -42,124 +42,18 @@
 #include "mm/buddy_malloc.hpp"
 
 #ifdef USE_GPU
+#include <tbb/concurrent_unordered_map.h>
 #include "rdf_meta.hpp"
+#include "comm/tcp_adaptor.hpp"
 #endif // USE_GPU
 
 #include "math.hpp"
 #include "timer.hpp"
 #include "unit.hpp"
-#include "variant.hpp"
-
 #include "atomic.hpp"
+#include "variant.hpp"
+#include "vertex.hpp"
 using namespace std;
-
-enum { NBITS_DIR = 1 };
-enum { NBITS_IDX = 17 }; // equal to the size of t/pid
-enum { NBITS_VID = (64 - NBITS_IDX - NBITS_DIR) }; // 0: index vertex, ID: normal vertex
-
-// reserve two special index IDs (predicate and type)
-enum { PREDICATE_ID = 0, TYPE_ID = 1 };
-
-static inline bool is_tpid(ssid_t id) { return (id > 1) && (id < (1 << NBITS_IDX)); }
-
-static inline bool is_vid(ssid_t id) { return id >= (1 << NBITS_IDX); }
-
-/**
- * predicate-base key/value store
- * key: vid | t/pid | direction
- * value: v/t/pid list
- */
-struct ikey_t {
-uint64_t dir : NBITS_DIR; // direction
-uint64_t pid : NBITS_IDX; // predicate
-uint64_t vid : NBITS_VID; // vertex
-
-    ikey_t(): vid(0), pid(0), dir(0) { }
-
-    ikey_t(sid_t v, sid_t p, dir_t d): vid(v), pid(p), dir(d) {
-        ASSERT((vid == v) && (dir == d) && (pid == p)); // no key truncate
-    }
-
-    bool operator == (const ikey_t &key) const {
-        if ((vid == key.vid) && (pid == key.pid) && (dir == key.dir))
-            return true;
-        return false;
-    }
-
-    bool operator != (const ikey_t &key) const { return !(operator == (key)); }
-
-    bool is_empty() { return ((vid == 0) && (pid == 0) && (dir == 0)); }
-
-    void print_key() { cout << "[" << vid << "|" << pid << "|" << dir << "]" << endl; }
-
-    uint64_t hash() const {
-        uint64_t r = 0;
-        r += vid;
-        r <<= NBITS_IDX;
-        r += pid;
-        r <<= NBITS_DIR;
-        r += dir;
-        return wukong::math::hash_u64(r); // the standard hash is too slow (i.e., std::hash<uint64_t>()(r))
-    }
-};
-
-struct ikey_Hasher {
-    static size_t hash(const ikey_t &k) {
-        return k.hash();
-    }
-
-    static bool equal(const ikey_t &x, const ikey_t &y) {
-        return x.operator == (y);
-    }
-};
-
-// 64-bit internal pointer
-//   NBITS_SIZE: the max number of edges (edge_t) for a single vertex (256M)
-//   NBITS_PTR: the max number of edges (edge_t) for the entire gstore (16GB)
-//   NBITS_TYPE: the type of edge, used for attribute triple, sid(0), int(1), float(2), double(4)
-enum { NBITS_SIZE = 28 };
-enum { NBITS_PTR  = 34 };
-enum { NBITS_TYPE =  2 };
-
-struct iptr_t {
-uint64_t size: NBITS_SIZE;
-uint64_t off: NBITS_PTR;
-uint64_t type: NBITS_TYPE;
-
-    iptr_t(): size(0), off(0), type(0) { }
-
-    // the default type is sid(type = 0)
-    iptr_t(uint64_t s, uint64_t o, uint64_t t = 0): size(s), off(o), type(t) {
-        // no truncated
-        ASSERT ((size == s) && (off == o) && (type == t));
-    }
-
-    bool operator == (const iptr_t &ptr) {
-        if ((size == ptr.size) && (off == ptr.off) && (type == ptr.type))
-            return true;
-        return false;
-    }
-
-    bool operator != (const iptr_t &ptr) {
-        return !(operator == (ptr));
-    }
-};
-
-// 128-bit vertex (key)
-struct vertex_t {
-    ikey_t key; // 64-bit: vertex | predicate | direction
-    iptr_t ptr; // 64-bit: size | offset
-};
-
-// 32-bit edge (value)
-struct edge_t {
-    sid_t val;  // vertex ID
-
-    edge_t &operator = (const edge_t &e) {
-        if (this != &e) val = e.val;
-        return *this;
-    }
-};
 
 /**
  * Map the Graph model (e.g., vertex, edge, index) to KVS model (e.g., key, value)
@@ -455,7 +349,7 @@ done:
     /// NOTE: the (remote) edges accessed by (local) RDMA cache are valid
     ///       if and only if the size flag of edges is consistent with the size within the pointer.
 
-    static const uint64_t INVALID_EDGES = 1 << NBITS_SIZE; // flag indicates invalidate edges
+    static const sid_t INVALID_EDGES = 1 << NBITS_SIZE; // flag indicates invalidate edges
 
     // Convert given byte units to edge units.
     inline uint64_t b2e(uint64_t sz) { return sz / sizeof(edge_t); }
@@ -469,7 +363,7 @@ done:
      * @sz: actual size of edges
      * @off: offset of edges
     */
-    inline void insert_sz(uint64_t flag, uint64_t sz, uint64_t off) {
+    inline void insert_sz(sid_t flag, uint64_t sz, uint64_t off) {
         uint64_t blk_sz = blksz(sz + 1);   // reserve one space for flag
         edges[off + blk_sz - 1].val = flag;
     }
@@ -565,7 +459,7 @@ done:
         }
     }
 
-    bool insert_vertex_edge(ikey_t key, uint64_t value, bool &dedup_or_isdup, int tid) {
+    bool insert_vertex_edge(ikey_t key, sid_t value, bool &dedup_or_isdup, int tid) {
         uint64_t bucket_id = key.hash() % num_buckets;
         uint64_t lock_id = bucket_id % NUM_LOCKS;
         uint64_t v_ptr = insert_key(key, false);
@@ -644,8 +538,6 @@ done:
         return orig;
     }
 #endif // end of DYNAMIC_GSTORE
-
-#endif // DYNAMIC_GSTORE
 
     // Allocate extended buckets
     // @n number of extended buckets to allocate
@@ -1121,6 +1013,14 @@ public:
 
 
 #ifdef USE_GPU
+    inline vertex_t *vertex_addr() const {
+        return vertices;
+    }
+
+    inline edge_t *edge_addr() const {
+        return edges;
+    }
+
     inline void set_num_predicates(sid_t n) {
         num_predicates = n;
     }
@@ -1174,12 +1074,6 @@ public:
 
     void free_triples_map() {
         triples_map.clear();
-    }
-
-    ext_bucket_extent_t ext_bucket_extent(uint64_t nbuckets, uint64_t start_off) {
-        ext_bucket_extent_t ext;
-        ext.num_ext_buckets = nbuckets;
-        ext.start = start_off;
     }
 
     uint64_t main_hdr_off = 0;
@@ -1309,10 +1203,8 @@ public:
             }
         }
 
-        uint64_t bucket_off = 0;
-        uint64_t edge_off = 0;
+        uint64_t bucket_off = 0, edge_off = 0;
         for (sid_t pid = 1; pid <= num_predicates; ++pid) {
-
             rdf_segment_meta_t &seg_normal_out = rdf_segment_meta_map[segid_t(0, pid, OUT)];
             rdf_segment_meta_t &seg_normal_in = rdf_segment_meta_map[segid_t(0, pid, IN)];
             rdf_segment_meta_t &seg_index_out = rdf_segment_meta_map[segid_t(1, pid, OUT)];
@@ -1362,14 +1254,15 @@ public:
         logger(LOG_DEBUG, "#total_keys: %lu, bucket_off: %lu, #total_entries: %lu", total_num_keys, main_hdr_off, this->last_entry);
     }
 
-    // re-adjust offset of indirect header
+    // re-adjust attributes of segments
     void finalize_segment_metas() {
+        uint64_t nbuckets_per_blk = MiB2B(global_gpu_key_blk_size_mb) / (sizeof(vertex_t) * GStore::ASSOCIATIVITY);
+        uint64_t nentries_per_blk = MiB2B(global_gpu_value_blk_size_mb) / sizeof(edge_t);
+
+        // set the number of cache blocks needed by each segment
         for (auto &e : rdf_segment_meta_map) {
-            for (int i = 0; i < e.second.ext_list_sz; ++i) {
-                auto &ext = e.second.ext_bucket_list[i];
-                // TODO: actually we can use ext.off to represent the exact size
-                ext.num_ext_buckets = ext.off;
-            }
+            e.second.num_key_blks = ceil(((double) e.second.get_total_num_buckets()) / nbuckets_per_blk);
+            e.second.num_value_blks = ceil(((double) e.second.num_edges) / nentries_per_blk);
         }
     }
 
@@ -1481,7 +1374,7 @@ public:
         }
     }
 
-    inline std::map<segid_t, rdf_segment_meta_t> &get_rdf_segment_meta_map() { return rdf_segment_meta_map; }
+    inline const std::map<segid_t, rdf_segment_meta_t> &get_rdf_segment_metas() { return rdf_segment_meta_map; }
 
 #endif  // end of USE_GPU
 
@@ -1604,6 +1497,7 @@ public:
 
     // insert attributes
     void insert_attr(vector<triple_attr_t> &attrs, int64_t tid) {
+        variant_type get_type;
         for (auto const &attr : attrs) {
             // allocate a vertex and edges
             ikey_t key = ikey_t(attr.s, attr.a, OUT);
@@ -2262,7 +2156,4 @@ public:
 #endif
     }
 
-    vertex_t *vertex_addr() { return vertices; }
-
-    edge_t *edge_addr() { return edges; }
 };
