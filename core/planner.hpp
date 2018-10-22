@@ -222,12 +222,6 @@ class Planner {
             if (cost < min_cost) {
                 min_cost = cost;
                 min_path = path;
-//                cout << "cost: " << cost << endl;
-//                long end = timer::get_usec();
-//                cout << "one iteration using time: " << end - start_time << endl;
-//                cout << endl;
-//                start_time = end;
-//                return false;
             }
             return ctn;
         }
@@ -364,14 +358,16 @@ class Planner {
                     type_table.set_col_num(0);
                     updated_result_table.clear();
 
-//                	if(!is_end_point(o1) || (is_end_point(o1) && is_end_point(o2))){
-//
-//                	}
-//
-//                	if(!is_end_point(o2)){
-//
-//                	}
+#if 0
+                    // TODO this is a strategy for fewer iteration but with possible worse plan order.
+                	if(!is_end_point(o1) || (is_end_point(o1) && is_end_point(o2))){
 
+                	}
+
+                	if(!is_end_point(o2)){
+
+                	}
+#endif
                 }
                 if (o1 > 0) {
                     //count01++;
@@ -663,26 +659,30 @@ class Planner {
                     }
 
                     // if no access to o1 any more, we can merge entries about o1 in type table
-//                    if(enable_merge){
-//                        bool hasO1 = false;
-//                        unsigned int curr_bits = (pt_bits | (1 << pt_pick));
-//                        // if not end of plan
-//                        if(curr_bits != ( 1 << _chains_size_div_4 ) - 1){
-//                        	for(int i = 0; i < _chains_size_div_4; i ++){
-//                        		// if i'th pattern is not picked
-//                        		if(!(curr_bits & (1 << i))){
-//                        			if(triples[4 * i] == o1 || triples[4 * i + 3] == o1){
-//                        				hasO1 = true;
-//                        				break;
-//                        			}
-//                        		}
-//                        	}
-//                        }
-//                        if(!hasO1 && !is_end_point(o1)){
-//                        	//merge(var2col[o1]);
-//                        	//cout << "merge var_: " << o1 << endl;
-//                        }
-//                    }
+#if 0
+                    // TODO merge typetable to speed up the plan process, but with extreme large typetable, this strategy
+                    // may make the situation worse.
+                    if(enable_merge){
+                        bool hasO1 = false;
+                        unsigned int curr_bits = (pt_bits | (1 << pt_pick));
+                        // if not end of plan
+                        if(curr_bits != ( 1 << _chains_size_div_4 ) - 1){
+                        	for(int i = 0; i < _chains_size_div_4; i ++){
+                        		// if i'th pattern is not picked
+                        		if(!(curr_bits & (1 << i))){
+                        			if(triples[4 * i] == o1 || triples[4 * i + 3] == o1){
+                        				hasO1 = true;
+                        				break;
+                        			}
+                        		}
+                        	}
+                        }
+                        if(!hasO1 && !is_end_point(o1)){
+                        	//merge(var2col[o1]);
+                        	//cout << "merge var_: " << o1 << endl;
+                        }
+                    }
+#endif
 
                     // next iteration
                     bool ctn = plan_enum(pt_bits | (1 << pt_pick), new_cost, condprune_results);
@@ -811,27 +811,29 @@ class Planner {
                         type_table.set_col_num(type_table.get_col_num() + 1);
                     }
 
+#if 0
                     // if no access to o2 any more, we can merge entries about o2 in type table
-//                    if(enable_merge){
-//                        bool hasO2 = false;
-//                        unsigned int curr_bits = (pt_bits | (1 << pt_pick));
-//                        // if not end of plan
-//                        if(curr_bits != ( 1 << _chains_size_div_4 ) - 1){
-//                        	for(int i = 0; i < _chains_size_div_4; i ++){
-//                        		// if i'th pattern is not picked
-//                        		if(!(curr_bits & (1 << i))){
-//                        			if(triples[4 * i] == o2 || triples[4 * i + 3] == o2){
-//                        				hasO2 = true;
-//                        				break;
-//                        			}
-//                        		}
-//                        	}
-//                        }
-//                        if(!hasO2 & !is_end_point(o2)){
-//                        	//merge(var2col[o2]);
-//                        	//cout << "merge var: " << o2 << endl;
-//                        }
-//                    }
+                    if(enable_merge){
+                        bool hasO2 = false;
+                        unsigned int curr_bits = (pt_bits | (1 << pt_pick));
+                        // if not end of plan
+                        if(curr_bits != ( 1 << _chains_size_div_4 ) - 1){
+                        	for(int i = 0; i < _chains_size_div_4; i ++){
+                        		// if i'th pattern is not picked
+                        		if(!(curr_bits & (1 << i))){
+                        			if(triples[4 * i] == o2 || triples[4 * i + 3] == o2){
+                        				hasO2 = true;
+                        				break;
+                        			}
+                        		}
+                        	}
+                        }
+                        if(!hasO2 & !is_end_point(o2)){
+                        	//merge(var2col[o2]);
+                        	//cout << "merge var: " << o2 << endl;
+                        }
+                    }
+#endif
 
                     // next iteration
                     bool ctn = plan_enum(pt_bits | (1 << pt_pick), new_cost, condprune_results);
@@ -1474,15 +1476,17 @@ public:
         _chains_size_div_4 = temp_cmd_chains.size() / 4 ;
 
         // test if merge should be enabled
+#if 0
         //cout << "nvars: " << nvars << endl;
-//        int num_no_endpoint = 0;
-//        for(int i = 1;i <= nvars; i ++){
-//        	if(!is_end_point(-i)){
-//        		num_no_endpoint ++;
-//        	}
-//        }
+        int num_no_endpoint = 0;
+        for(int i = 1;i <= nvars; i ++){
+        	if(!is_end_point(-i)){
+        		num_no_endpoint ++;
+        	}
+        }
         //cout << "num_no_endpoint: " << num_no_endpoint << endl;
-        //if(num_no_endpoint > 3) enable_merge = true;
+        if(num_no_endpoint > 3) enable_merge = true;
+#endif
 
         plan_enum(0, 0, 0); // the traverse function
 
@@ -1516,11 +1520,6 @@ public:
                 }
             }
         }
-        // for (int i = 0, ilimit = min_path.size(); i < ilimit; i = i + 4)
-        //   cout << "min_path " << " : " << min_path[i] << " "
-        //     << min_path[i+1] << " "
-        //     << min_path[i+2] << " "
-        //     << min_path[i+3] << endl;
 
         // debug single order
         // triples = min_path;

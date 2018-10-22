@@ -280,15 +280,6 @@ public:
 
     	//show_stat_info();
 
-//    	auto similarity = [&](type_t t1,type_t t2) -> int{
-//    		if(t1.data_type != t2.data_type) return 0;
-//    		for(auto &token: t2.composition){
-//    			if(t1.composition.find(token) == t1.composition.end())
-//    				return 0;
-//    		}
-//    		return t2.composition.size();
-//    	};
-
     	uint64_t total_number = 0;
     	map<int, ssid_t> tys;
     	int minimum_count = 0;
@@ -325,27 +316,39 @@ public:
     			global_useful_type.insert(token.first);
     	}
 
+# if 0
+    	// TODO: Using similarity may have better performance for some queries. This strategy may be useful in future.
+		auto similarity = [&](type_t t1,type_t t2) -> int{
+			if(t1.data_type != t2.data_type) return 0;
+			for(auto &token: t2.composition){
+				if(t1.composition.find(token) == t1.composition.end())
+					return 0;
+			}
+			return t2.composition.size();
+		};
+
     	// get useful type2int
-//		#pragma omp parallel
-//    	for(auto const &token: global_useless_type){
-//			#pragma omp single nowait
-//			{
-//				type_t useless_type_No = global_int2type[token];
-//				// take it as the closest useful type or 0-type
-//				ssid_t result = 0;
-//				int max_similarity = 0;
-//				for(auto const &token2: global_useful_type){
-//					type_t useful_type = global_int2type[token2];
-//					int sim = similarity(useless_type_No,useful_type);
-//					if(sim > 0 && sim > max_similarity){
-//						result = token2;
-//					}
-//				}
-//				tbb_map::accessor a;
-//				new_type2int.insert(a, useless_type_No);
-//				a->second = result;
-//			}
-//    	}
+		#pragma omp parallel
+    	for(auto const &token: global_useless_type){
+			#pragma omp single nowait
+			{
+				type_t useless_type_No = global_int2type[token];
+				// take it as the closest useful type or 0-type
+				ssid_t result = 0;
+				int max_similarity = 0;
+				for(auto const &token2: global_useful_type){
+					type_t useful_type = global_int2type[token2];
+					int sim = similarity(useless_type_No,useful_type);
+					if(sim > 0 && sim > max_similarity){
+						result = token2;
+					}
+				}
+				tbb_map::accessor a;
+				new_type2int.insert(a, useless_type_No);
+				a->second = result;
+			}
+    	}
+# endif
 
     	// useful type2int
     	unordered_map<type_t, ssid_t, type_t_hasher> type2int_new;
