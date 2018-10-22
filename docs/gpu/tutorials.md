@@ -11,7 +11,7 @@
 
 ## Build Wukong with GPU support
 
-To use Wukong with GPU support (Wukong+G), you need a [CUDA-enabled GPU](https://developer.nvidia.com/cuda-gpus) and with [CUDA toolkit](https://developer.nvidia.com/cuda-toolkit) installed. Edit the `.bashrc` in your home directory to add `/usr/local/cuda-8.0/bin` to `PATH ` and `/usr/local/cuda-8.0/include` to the `CPATH`.
+To use Wukong with GPU support (Wukong+G), you need a [CUDA-enabled GPU](https://developer.nvidia.com/cuda-gpus) with [CUDA toolkit](https://developer.nvidia.com/cuda-toolkit) installed, and the GPU needs to support GPUDirect RDMA (at least Kepler-class). Edit the `.bashrc` in your home directory to add `/usr/local/cuda-8.0/bin` to `PATH ` and `/usr/local/cuda-8.0/include` to the `CPATH`.
 
 ```bash
 export CUDA_HOME=/usr/local/cuda-8.0
@@ -19,7 +19,27 @@ export PATH=$CUDA_HOME/bin:$PATH
 export CPATH=${CUDA_HOME}/include:$CPATH
 ```
 
-And edit the **CMakeLists.txt** in the `$WUKONG_ROOT` to enable the `USE_GPU` option. Then go to `$WUKONG_ROOT/scripts` and run `./build.sh`. Or you can just run `./build.sh -DUSE_GPU=ON` to build with GPU support. We have tested Wukong+G in a machine with NVIDIA Tesla K40m and CUDA 8.0.
+And edit the **CMakeLists.txt** in the `$WUKONG_ROOT` to enable the `USE_GPU` option. Then go to `$WUKONG_ROOT/scripts` and run `./build.sh` to build Wukong+G. Or you can just run `./build.sh -DUSE_GPU=ON` to build with GPU support. Currently, the `USE_GPU` option **conflicts with** `USE_JEMALLOC`, `USE_DYNAMIC_GSTORE` and  `USE_VERSATILE`.
+
+Next, we need to install the [kernel module for GPUDirect RDMA](http://www.mellanox.com/page/products_dyn?product_family=295&mtag=gpudirect). Download it from the web and install it to **each server** in the cluster.
+
+```bash
+tar xzf nvidia-peer-memory-1.0-3.tar.gz
+cd nvidia-peer-memory-1.0
+tar xzf nvidia-peer-memory_1.0.orig.tar.gz
+cd nvidia-peer-memory-1.0
+dpkg-buildpackage -us -uc
+cd ..
+sudo dpkg -i nvidia-peer-memory_1.0-3_all.deb
+sudo dpkg -i nvidia-peer-memory-dkms_1.0-3_all.deb
+```
+
+You should manually load it after the installation, and make sure the module is loaded successfully.
+
+```bash
+sudo modprobe nv_peer_mem
+lsmod | grep nv_peer_mem
+```
 
 
 
@@ -119,6 +139,7 @@ wukong>
 ## Caveat
 Although Wukong+G can notably speed up query processing, there is still plenty of room for improvement:
 
+- We only tested Wukong+G in a RDMA-capable cluster with NVIDIA Tesla K40m and CUDA 8.0.
 - Wukong+G assumes the predicate of triple patterns in a query is known, queries with unknown predicates cannot be handled.
 - If a query produces huge intermediate result that exceeds the size of result buffer on GPU (``global_gpu_rbuf_size_mb``), Wukong+G cannot handle it.
 - If the size of triples of a predicate cannot fit into the key-value cache on GPU, Wukong+G cannot handle it.

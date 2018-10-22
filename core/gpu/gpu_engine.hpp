@@ -36,7 +36,7 @@
 #include "assertion.hpp"
 #include "math.hpp"
 #include "timer.hpp"
-#include "rmap.hpp"
+#include "engine/rmap.hpp"
 
 #include "gpu_engine_impl.hpp"
 
@@ -133,8 +133,6 @@ private:
         res.add_var2col(end, res.get_col_num());
         res.set_col_num(res.get_col_num() + 1);
         req.pattern_step++;
-        // logstream(LOG_DEBUG) << "[end] known_to_unknown: GPU row_num=" << res.get_row_num() <<
-        // ", col_num=" << res.get_col_num() << LOG_endl;
 
         logstream(LOG_DEBUG) << "#" << sid << "[end] GPU known_to_unknown: table_size=" << res.gpu.result_buf_nelems
                              << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
@@ -192,7 +190,6 @@ private:
 
         res.result_table.swap(updated_result_table);
         req.pattern_step++;
-        // logstream(LOG_DEBUG) << "[end] known_to_const: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
         logstream(LOG_DEBUG) << "#" << sid << "[end] GPU known_to_const: table_size=" << res.gpu.result_buf_nelems
                              << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
     }

@@ -48,7 +48,7 @@ if(USE_GPU)
   set(CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
   set(CUDA_SEPARABLE_COMPILATION ON)
   set(WUKONG_LIBS ${WUKONG_LIBS} cudart)
-  cuda_add_executable(wukong ${SOURCES} "core/wukong.cpp" core/gpu_hash.cu)
+  cuda_add_executable(wukong ${SOURCES} "core/wukong.cpp" "core/gpu/gpu_hash.cu")
 
 else(USE_GPU)
   add_executable(wukong ${SOURCES} "core/wukong.cpp")
