@@ -39,18 +39,14 @@ public:
     GPUStreamPool(int num_streams) : num_streams(num_streams) {
         rr_cnt = 0;
         streams.reserve(num_streams);
-        for (int i = 0; i < num_streams; ++i) {
+        for (int i = 0; i < num_streams; ++i)
             cudaStreamCreate(&streams[i]);
-        }
-
         cudaStreamCreate(&split_stream);
     }
 
     ~GPUStreamPool() {
-        for (auto s : streams) {
+        for (auto s : streams)
             cudaStreamDestroy(s);
-        }
-
         cudaStreamDestroy(split_stream);
     }
 
@@ -65,9 +61,7 @@ public:
         return streams[pid % num_streams];
     }
 
-    cudaStream_t get_split_query_stream() {
-        return split_stream;
-    }
+    cudaStream_t get_split_query_stream() { return split_stream; }
 
 };
 

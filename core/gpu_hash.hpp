@@ -80,7 +80,7 @@ struct GPUEngineParam {
     } gpu;
 
     GPUEngineParam(vertex_t *d_vertices, edge_t *d_edges, uint64_t nkey_blks,
-            uint64_t nvalue_blks, uint64_t nbuckets, uint64_t nentries) {
+                   uint64_t nvalue_blks, uint64_t nbuckets, uint64_t nentries) {
         gpu.vertex_gaddr = d_vertices;
         gpu.edge_gaddr = d_edges;
         gpu.vertex_blk_sz = nbuckets;
@@ -105,27 +105,28 @@ struct GPUEngineParam {
 
 
     void load_segment_mappings(const std::vector<uint64_t>& vertex_mapping,
-            const std::vector<uint64_t>& edge_mapping, const rdf_segment_meta_t &seg, cudaStream_t stream = 0) {
+                               const std::vector<uint64_t>& edge_mapping,
+                               const rdf_segment_meta_t &seg, cudaStream_t stream = 0) {
 
         CUDA_ASSERT(cudaMemcpyAsync(gpu.d_vertex_mapping,
-                          &(vertex_mapping[0]),
-                          sizeof(uint64_t) * seg.num_key_blks,
-                          cudaMemcpyHostToDevice,
-                          stream));
+                                    &(vertex_mapping[0]),
+                                    sizeof(uint64_t) * seg.num_key_blks,
+                                    cudaMemcpyHostToDevice,
+                                    stream));
 
         CUDA_ASSERT(cudaMemcpyAsync(gpu.d_edge_mapping,
-                          &(edge_mapping[0]),
-                          sizeof(uint64_t) * seg.num_value_blks,
-                          cudaMemcpyHostToDevice,
-                          stream));
+                                    &(edge_mapping[0]),
+                                    sizeof(uint64_t) * seg.num_value_blks,
+                                    cudaMemcpyHostToDevice,
+                                    stream));
     }
 
     void load_segment_meta(rdf_segment_meta_t seg_meta, cudaStream_t stream = 0) {
         CUDA_ASSERT(cudaMemcpyAsync(gpu.d_segment_meta,
-                          &seg_meta,
-                          sizeof(seg_meta),
-                          cudaMemcpyHostToDevice,
-                          stream));
+                                    &seg_meta,
+                                    sizeof(seg_meta),
+                                    cudaMemcpyHostToDevice,
+                                    stream));
     }
 
     void set_result_bufs(char *d_in_rbuf, char *d_out_rbuf) {
@@ -136,7 +137,7 @@ struct GPUEngineParam {
 };
 
 void gpu_shuffle_result_buf(GPUEngineParam& param, int num_servers, std::vector<int>& buf_sizes,
-        std::vector<int>& buf_heads, cudaStream_t stream = 0);
+                            std::vector<int>& buf_heads, cudaStream_t stream = 0);
 void gpu_split_result_buf(GPUEngineParam &param, int num_servers, cudaStream_t stream = 0);
 void gpu_calc_prefix_sum(GPUEngineParam& param, cudaStream_t stream = 0);
 

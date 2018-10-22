@@ -77,12 +77,12 @@ private:
 
     int next_to_oblige(int own_id, int offset) {
         // pair stealing
-        if (global_stealing_pattern == 0) { 
+        if (global_stealing_pattern == 0) {
             if (offset == 1)
                 return ((global_num_engines - 1) - own_id);
             else
                 return -1;
-        // ring stealing
+            // ring stealing
         } else if (global_stealing_pattern == 1) {
             return ((own_id + offset) % global_num_engines);
         }
@@ -189,13 +189,13 @@ public:
                 int offset = 1;
                 int next_engine;
                 SPARQLQuery req;
-                
+
                 do {
                     success = false;
                     next_engine = next_to_oblige(own_id, offset);
                     if (next_engine == -1)
                         break;
-                    
+
                     if (engines[next_engine]->at_work
                             && ((timer::get_usec() - engines[next_engine]->last_time) >= TIMEOUT_THRESHOLD)
                             && (engines[next_engine]->runqueue.try_pop(req))) {

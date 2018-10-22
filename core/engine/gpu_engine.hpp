@@ -103,7 +103,7 @@ private:
         ASSERT(res.get_col_num() == 0);
 
         uint64_t sz = 0;
-        edge_t *edges = graph->get_triples(tid, start,pid, d, sz);
+        edge_t *edges = graph->get_triples(tid, start, pid, d, sz);
         for (uint64_t k = 0; k < sz; k++)
             updated_result_table.push_back(edges[k].val);
 
@@ -134,10 +134,10 @@ private:
         res.set_col_num(res.get_col_num() + 1);
         req.pattern_step++;
         // logstream(LOG_DEBUG) << "[end] known_to_unknown: GPU row_num=" << res.get_row_num() <<
-            // ", col_num=" << res.get_col_num() << LOG_endl;
+        // ", col_num=" << res.get_col_num() << LOG_endl;
 
         logstream(LOG_DEBUG) << "#" << sid << "[end] GPU known_to_unknown: table_size=" << res.gpu.result_buf_nelems
-            << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
+                             << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
     }
 
     /// ?Y P ?X . (?Y and ?X are KNOWN)
@@ -164,7 +164,7 @@ private:
         res.result_table.swap(updated_result_table);
         req.pattern_step++;
         logstream(LOG_DEBUG) << "#" << sid << "[end] GPU known_to_known: table_size=" << res.gpu.result_buf_nelems
-            << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
+                             << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
     }
 
     /// ?X P C . (?X is KNOWN)
@@ -183,7 +183,8 @@ private:
 
         std::vector<sid_t> updated_result_table;
 
-        logstream(LOG_DEBUG) << "#" << sid << " [begin] known_to_const: row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
+        logstream(LOG_DEBUG) << "#" << sid << " [begin] known_to_const: row_num=" << res.get_row_num()
+                             << ", step=" << req.pattern_step << LOG_endl;
         if (req.result.get_row_num() != 0) {
             ASSERT(nullptr != req.result.gpu.result_buf_dp);
             impl.known_to_const(req, start, pid, end, d, updated_result_table);
@@ -193,7 +194,7 @@ private:
         req.pattern_step++;
         // logstream(LOG_DEBUG) << "[end] known_to_const: row_num=" << res.get_row_num() << ", col_num=" << res.get_col_num() << LOG_endl;
         logstream(LOG_DEBUG) << "#" << sid << "[end] GPU known_to_const: table_size=" << res.gpu.result_buf_nelems
-            << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
+                             << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
     }
 
     // when need to access neighbors of a remote vertex, we need to fork the query
@@ -210,7 +211,7 @@ private:
 
         // GPUEngine only supports fork-join mode now
         return ((req.local_var != start)
-               && (req.result.get_row_num() >= 0));
+                && (req.result.get_row_num() >= 0));
     }
 
 
@@ -353,7 +354,7 @@ public:
             impl.generate_sub_query(req, start, global_num_servers, buf_ptrs, buf_sizes);
 
             logstream(LOG_DEBUG) << "#" << sid << " generate_sub_query for req#" << req.id << ", parent: " << req.pid
-                << ", step: " << req.pattern_step << LOG_endl;
+                                 << ", step: " << req.pattern_step << LOG_endl;
 
             for (int i = 0; i < global_num_servers; ++i) {
                 SPARQLQuery &r = sub_reqs[i];

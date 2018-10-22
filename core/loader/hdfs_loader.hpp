@@ -48,4 +48,6 @@ protected:
 
 public:
     HDFSLoader(int sid, Mem *mem, String_Server *str_server, GStore *gstore): BaseLoader(sid, mem, str_server, gstore) {}
+
+    ~HDFSLoader() {}
 };

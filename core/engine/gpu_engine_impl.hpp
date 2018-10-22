@@ -75,26 +75,26 @@ public:
     GPUEngineImpl(int sid, GPUCache *gcache, GPUMem *gmem, GPUStreamPool *stream_pool)
         : sid(sid), gcache(gcache), gmem(gmem), stream_pool(stream_pool),
           param(gcache->get_vertex_gaddr(), gcache->get_edge_gaddr(),
-                  gcache->get_num_key_blks(), gcache->get_num_value_blks(),
-                  gcache->get_nbuckets_kblk(), gcache->get_nentries_vblk()) {
+                gcache->get_num_key_blks(), gcache->get_num_value_blks(),
+                gcache->get_nbuckets_kblk(), gcache->get_nentries_vblk()) {
     }
 
     ~GPUEngineImpl() { }
 
     char* load_result_buf(const SPARQLQuery::Result &r) {
         CUDA_ASSERT( cudaMemcpy((void**)gmem->res_inbuf(),
-                    &r.result_table[0],
-                    sizeof(r.result_table[0]) * r.result_table.size(),
-                    cudaMemcpyHostToDevice) );
+                                &r.result_table[0],
+                                sizeof(r.result_table[0]) * r.result_table.size(),
+                                cudaMemcpyHostToDevice) );
 
         return gmem->res_inbuf();
     }
 
     char* load_result_buf(const char *rbuf, uint64_t size) {
         CUDA_ASSERT( cudaMemcpy((void**)gmem->res_inbuf(),
-                    rbuf,
-                    size,
-                    cudaMemcpyHostToDevice) );
+                                rbuf,
+                                size,
+                                cudaMemcpyHostToDevice) );
 
         return gmem->res_inbuf();
     }
@@ -111,14 +111,14 @@ public:
         rdf_segment_meta_t seg_meta = gcache->get_segment_meta(current_seg);
 
         logstream(LOG_DEBUG) << "known_to_unknown: segment: #buckets: " << seg_meta.num_buckets
-            << ", #edges: " << seg_meta.num_edges << "." << LOG_endl;
+                             << ", #edges: " << seg_meta.num_edges << "." << LOG_endl;
 
         param.query.start_vid = start;
         param.query.pid = pid;
         param.query.dir = d;
         param.query.col_num = req.result.get_col_num(),
-        param.query.row_num = req.result.get_row_num(),
-        param.query.segment_edge_start = seg_meta.edge_start;
+                    param.query.row_num = req.result.get_row_num(),
+                                param.query.segment_edge_start = seg_meta.edge_start;
         param.query.var2col_start = req.result.var2col(start);
 
         logstream(LOG_DEBUG) << "known_to_unknown: #ext_buckets: " << seg_meta.ext_list_sz << LOG_endl;
@@ -195,26 +195,26 @@ public:
 
     // TODO
     void known_to_known(SPARQLQuery &req, sid_t start, sid_t pid,
-            sid_t end, dir_t d, vector<sid_t> &new_table) {
+                        sid_t end, dir_t d, vector<sid_t> &new_table) {
 
         cudaStream_t stream = stream_pool->get_stream(pid);
         segid_t current_seg = pattern_to_segid(req, req.pattern_step);
         rdf_segment_meta_t seg_meta = gcache->get_segment_meta(current_seg);
 
         logstream(LOG_DEBUG) << "known_to_known: segment: #buckets: " << seg_meta.num_buckets
-            << ", #edges: " << seg_meta.num_edges << "." << LOG_endl;
+                             << ", #edges: " << seg_meta.num_edges << "." << LOG_endl;
 
         logstream(LOG_DEBUG) << "known_to_known: GPUEngine start:" << start << ", var2col: "
-            << req.result.var2col(start) << ", row_num: " << req.result.get_row_num()
-            << ", col_num: " << req.result.get_col_num() << LOG_endl;
+                             << req.result.var2col(start) << ", row_num: " << req.result.get_row_num()
+                             << ", col_num: " << req.result.get_col_num() << LOG_endl;
 
         param.query.start_vid = start;
         param.query.pid = pid;
         param.query.dir = d;
         param.query.end_vid = end;
         param.query.col_num = req.result.get_col_num(),
-        param.query.row_num = req.result.get_row_num(),
-        param.query.segment_edge_start = seg_meta.edge_start;
+                    param.query.row_num = req.result.get_row_num(),
+                                param.query.segment_edge_start = seg_meta.edge_start;
         param.query.var2col_start = req.result.var2col(start);
         param.query.var2col_end = req.result.var2col(end);
 
@@ -286,25 +286,25 @@ public:
     }
 
     void known_to_const(SPARQLQuery &req, ssid_t start, ssid_t pid,
-            sid_t end, dir_t d, vector<sid_t> &new_table) {
+                        sid_t end, dir_t d, vector<sid_t> &new_table) {
         cudaStream_t stream = stream_pool->get_stream(pid);
         segid_t current_seg = pattern_to_segid(req, req.pattern_step);
         rdf_segment_meta_t seg_meta = gcache->get_segment_meta(current_seg);
 
         logstream(LOG_DEBUG) << "known_to_const: segment: #buckets: " << seg_meta.num_buckets
-            << ", #edges: " << seg_meta.num_edges << "." << LOG_endl;
+                             << ", #edges: " << seg_meta.num_edges << "." << LOG_endl;
 
         logstream(LOG_DEBUG) << "known_to_const: GPUEngine start:" << start << ", var2col: "
-            << req.result.var2col(start) << ", row_num: " << req.result.get_row_num()
-            << ", col_num: " << req.result.get_col_num() << LOG_endl;
+                             << req.result.var2col(start) << ", row_num: " << req.result.get_row_num()
+                             << ", col_num: " << req.result.get_col_num() << LOG_endl;
 
         // param.query.start_vid = start;
         param.query.pid = pid;
         param.query.dir = d;
         param.query.end_vid = end;
         param.query.col_num = req.result.get_col_num(),
-        param.query.row_num = req.result.get_row_num(),
-        param.query.segment_edge_start = seg_meta.edge_start;
+                    param.query.row_num = req.result.get_row_num(),
+                                param.query.segment_edge_start = seg_meta.edge_start;
         param.query.var2col_start = req.result.var2col(start);
 
         ASSERT(gmem->res_inbuf() != gmem->res_outbuf());
@@ -352,7 +352,7 @@ public:
         int table_size = gpu_update_result_buf_k2c(param);
 
 #ifdef GPU_DEBUG
-            logstream(LOG_INFO) << "#" << sid << " GPU_update_result_buf_k2c done. table_size=" << table_size << LOG_endl;
+        logstream(LOG_INFO) << "#" << sid << " GPU_update_result_buf_k2c done. table_size=" << table_size << LOG_endl;
 #endif
 
         req.result.row_num = table_size / param.query.col_num;
@@ -376,7 +376,7 @@ public:
 
     // TODO
     void generate_sub_query(const SPARQLQuery &req, sid_t start, int num_jobs,
-            vector<sid_t*>& buf_ptrs, vector<int>& buf_sizes) {
+                            vector<sid_t*>& buf_ptrs, vector<int>& buf_sizes) {
         int query_size = req.result.get_row_num();
         cudaStream_t stream = stream_pool->get_split_query_stream();
 
@@ -384,8 +384,8 @@ public:
 
         param.query.start_vid = start;
         param.query.col_num = req.result.get_col_num(),
-        param.query.row_num = req.result.get_row_num(),
-        param.query.var2col_start = req.result.var2col(start);
+                    param.query.row_num = req.result.get_row_num(),
+                                param.query.var2col_start = req.result.var2col(start);
 
         if (req.pattern_step == 0) {
             param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
@@ -411,7 +411,7 @@ public:
 
 #ifdef GPU_DEBUG
             logstream(LOG_INFO) << "#" << sid << " i=" << i << " sub_table_size=" << buf_sizes[i]
-                << ", sub_table_head=" << buf_heads[i] << LOG_endl;
+                                << ", sub_table_head=" << buf_heads[i] << LOG_endl;
 #endif
         }
 

@@ -97,7 +97,8 @@ private:
 
     const int BLOCK_ID_ERR = -1;
 
-    void evict_key_blocks(const vector<segid_t> &conflicts, segid_t seg_to_load, segid_t seg_in_pattern, int num_need_blocks) {
+    void evict_key_blocks(const vector<segid_t> &conflicts, segid_t seg_to_load,
+                          segid_t seg_in_pattern, int num_need_blocks) {
         // step 1: traverse segments in key cache, evict segments that are not in conflicts or not to load/using
         for (auto it = segs_in_key_cache.begin(); it != segs_in_key_cache.end(); ) {
             segid_t seg = *it;
@@ -156,6 +157,7 @@ private:
                 }
             }
         } // end of worst case
+
         logstream(LOG_ERROR) << "GPU Cache: evict_key_blocks() could not provide enough free key blocks." << LOG_endl;
     } // end of evict_key_blocks
 
@@ -218,6 +220,7 @@ private:
                 }
             }
         } // end of worst case
+
         logstream(LOG_ERROR) << "GPU Cache: evict_value_blocks() could not provide enough free value blocks." << LOG_endl;
     } // end of evict_value_blocks
 
@@ -258,11 +261,11 @@ private:
         // step 3: load direct
         if (main_size != 0) {
             CUDA_ASSERT(cudaMemcpyAsync(
-                vertex_gaddr + block_id * nbuckets_kblk * GStore::ASSOCIATIVITY,
-                vertex_addr + (rdf_metas[seg].bucket_start + seg_block_idx * nbuckets_kblk) * GStore::ASSOCIATIVITY,
-                sizeof(vertex_t) * main_size * GStore::ASSOCIATIVITY,
-                cudaMemcpyHostToDevice,
-                stream));
+                            vertex_gaddr + block_id * nbuckets_kblk * GStore::ASSOCIATIVITY,
+                            vertex_addr + (rdf_metas[seg].bucket_start + seg_block_idx * nbuckets_kblk) * GStore::ASSOCIATIVITY,
+                            sizeof(vertex_t) * main_size * GStore::ASSOCIATIVITY,
+                            cudaMemcpyHostToDevice,
+                            stream));
         }
         // step 4: load indirect
         if (indirect_size != 0) {
@@ -287,11 +290,12 @@ private:
                     uint64_t inside_off = start_bucket_idx - passed_buckets;
                     uint64_t inside_load = ext.num_ext_buckets - inside_off;
                     if (inside_load > remain) inside_load = remain;
-                    uint64_t dst_off = (block_id * nbuckets_kblk + indirect_start + indirect_size - remain) * GStore::ASSOCIATIVITY;
+                    uint64_t dst_off = (block_id * nbuckets_kblk + indirect_start + indirect_size - remain)
+                                       * GStore::ASSOCIATIVITY;
                     uint64_t src_off = (ext.start + inside_off) * GStore::ASSOCIATIVITY;
                     CUDA_ASSERT(cudaMemcpyAsync(vertex_gaddr + dst_off, vertex_addr + src_off,
-                        sizeof(vertex_t) * inside_load * GStore::ASSOCIATIVITY,
-                        cudaMemcpyHostToDevice, stream));
+                                                sizeof(vertex_t) * inside_load * GStore::ASSOCIATIVITY,
+                                                cudaMemcpyHostToDevice, stream));
                     remain -= inside_load;
                     start_bucket_idx += inside_load;
                     // load complete
@@ -317,18 +321,21 @@ private:
         else
             data_size = nentries_vblk;
         CUDA_ASSERT(cudaMemcpyAsync(edge_gaddr + block_id * nentries_vblk,
-                                   edge_addr + rdf_metas[seg].edge_start + seg_block_idx * nentries_vblk,
-                                   sizeof(edge_t) * data_size,
-                                   cudaMemcpyHostToDevice,
-                                   stream));
+                                    edge_addr + rdf_metas[seg].edge_start + seg_block_idx * nentries_vblk,
+                                    sizeof(edge_t) * data_size,
+                                    cudaMemcpyHostToDevice,
+                                    stream));
     } // end of load_edge_block
 
-    void _load_segment(segid_t seg_to_load, segid_t seg_in_use, const vector<segid_t> &conflicts, cudaStream_t stream_id, bool preload) {
+    void _load_segment(segid_t seg_to_load, segid_t seg_in_use,
+                       const vector<segid_t> &conflicts, cudaStream_t stream_id, bool preload) {
         // step 1.1: evict key blocks
-        int num_need_key_blocks = num_key_blocks_seg_need[seg_to_load] - num_key_blocks_seg_using[seg_to_load];
+        int num_need_key_blocks = num_key_blocks_seg_need[seg_to_load]
+                                  - num_key_blocks_seg_using[seg_to_load];
 
 #ifdef GPU_DEBUG
-        logstream(LOG_EMPH) << "load_segment: segment: " << seg_to_load.to_string() << ", #need_key_blks: " << num_need_key_blocks << LOG_endl;
+        logstream(LOG_EMPH) << "load_segment: segment: " << seg_to_load.to_string()
+                            << ", #need_key_blks: " << num_need_key_blocks << LOG_endl;
 #endif
 
         if (free_key_blocks.size() < num_need_key_blocks) {
@@ -344,13 +351,16 @@ private:
             if (free_key_blocks.empty()) {
                 // abort preload
                 if (preload) {
-                    logstream(LOG_WARNING) << "GPU Cache: No enough free key blocks. Preload is not complete. segment_to_load: "
-                        << seg_to_load.to_string() << ", seg_in_use: " << seg_in_use.to_string() << LOG_endl;
+                    logstream(LOG_WARNING) << "GPU Cache: No enough free key blocks. "
+                                           << "Preload is not complete. segment_to_load: "
+                                           << seg_to_load.to_string() << ", seg_in_use: "
+                                           << seg_in_use.to_string() << LOG_endl;
                     break;
                 }
                 // crash if it is not preload
-                logstream(LOG_ERROR) << "GPU Cache: No enough free key blocks. segment_to_load: "
-                    << seg_to_load.to_string() << ", seg_in_use: " << seg_in_use.to_string() << LOG_endl;
+                logstream(LOG_ERROR) << "GPU Cache: No enough free key blocks. "
+                                     << "segment_to_load: " << seg_to_load.to_string()
+                                     << ", seg_in_use: " << seg_in_use.to_string() << LOG_endl;
                 ASSERT(false);
             }
             // load one block
@@ -365,7 +375,8 @@ private:
         }
 
         //step 2.1: evict value blocks
-        int num_need_value_blocks = num_value_blocks_seg_need[seg_to_load] - num_value_blocks_seg_using[seg_to_load];
+        int num_need_value_blocks = num_value_blocks_seg_need[seg_to_load]
+                                    - num_value_blocks_seg_using[seg_to_load];
         if (free_value_blocks.size() < num_need_value_blocks) {
             evict_value_blocks(conflicts, seg_to_load, seg_in_use, num_need_value_blocks);
         }
@@ -378,13 +389,16 @@ private:
             if (free_value_blocks.empty()) {
                 // abort preload
                 if (preload) {
-                    logstream(LOG_WARNING) << "GPU Cache: No enough free value blocks. Preload is not complete. segment_to_load: "
-                        << seg_to_load.to_string() << ", seg_in_use: " << seg_in_use.to_string() << LOG_endl;
+                    logstream(LOG_WARNING) << "GPU Cache: No enough free value blocks. "
+                                           << "Preload is not complete. segment_to_load: "
+                                           << seg_to_load.to_string() << ", seg_in_use: "
+                                           << seg_in_use.to_string() << LOG_endl;
                     break;
                 }
                 // crash if it is not preload
-                logstream(LOG_ERROR) << "GPU Cache: No enough free value blocks. segment_to_load: " << seg_to_load.to_string()
-                    << ", seg_in_use: " << seg_in_use.to_string() << LOG_endl;
+                logstream(LOG_ERROR) << "GPU Cache: No enough free value blocks. "
+                                     << "segment_to_load: " << seg_to_load.to_string()
+                                     << ", seg_in_use: " << seg_in_use.to_string() << LOG_endl;
                 ASSERT(false);
             }
             // load one block
@@ -392,16 +406,17 @@ private:
             free_value_blocks.pop_front();
             load_edge_block(seg_to_load, i, block_id, stream_id);
             edge_allocation[seg_to_load][i] = block_id;
-            if (num_value_blocks_seg_using[seg_to_load] == 0) {
+            if (num_value_blocks_seg_using[seg_to_load] == 0)
                 segs_in_value_cache.push_back(seg_to_load);
-            }
+
             num_value_blocks_seg_using[seg_to_load]++;
         }
     } // end of _load_segment
 
 public:
-    GPUCache(GPUMem *gmem, vertex_t *v_a, edge_t *e_a, const map<segid_t, rdf_segment_meta_t> &rdf_metas):
-            gmem(gmem), vertex_addr(v_a), edge_addr(e_a), rdf_metas(rdf_metas) {
+    GPUCache(GPUMem * gmem, vertex_t *v_a, edge_t *e_a, const map<segid_t, rdf_segment_meta_t> &rdf_metas):
+        gmem(gmem), vertex_addr(v_a), edge_addr(e_a), rdf_metas(rdf_metas) {
+
         // step 1: calculate #slots, #buckets, #entries
         uint64_t num_slots = (GiB2B(global_gpu_kvcache_size_gb) * GStore::HD_RATIO) / (100 * sizeof(vertex_t));
         uint64_t num_buckets = num_slots / GStore::ASSOCIATIVITY;
@@ -416,8 +431,10 @@ public:
         vertex_gaddr = (vertex_t *)gmem->kvcache();
         edge_gaddr = (edge_t *)(gmem->kvcache() + num_slots * sizeof(vertex_t));
 
-        logstream(LOG_INFO) << "GPU_Cache: #key_blocks: " << num_key_blks << ", #value_blocks: " << num_value_blks
-                            << ", #buckets_per_block: " << nbuckets_kblk << ", #edges_per_block: " << nentries_vblk << LOG_endl;
+        logstream(LOG_INFO) << "GPU_Cache: #key_blocks: " << num_key_blks
+                            << ", #value_blocks: " << num_value_blks
+                            << ", #buckets_per_block: " << nbuckets_kblk
+                            << ", #edges_per_block: " << nentries_vblk << LOG_endl;
 
         // step 2: init free_key/value blocks
         for (int i = 0; i < num_key_blks; i++) {
@@ -444,28 +461,28 @@ public:
     // check whether a segment is in cache
     bool seg_in_cache(segid_t seg) {
         if (num_key_blocks_seg_using[seg] == num_key_blocks_seg_need[seg]
-        && num_value_blocks_seg_using[seg] == num_value_blocks_seg_need[seg])
+                && num_value_blocks_seg_using[seg] == num_value_blocks_seg_need[seg])
             return true;
         return false;
     }
 
     rdf_segment_meta_t get_segment_meta(segid_t seg) {
         auto it = rdf_metas.find(seg);
-        if (it != rdf_metas.end()) {
+        if (it != rdf_metas.end())
             return rdf_metas[seg];
-        } else {
-            ASSERT_MSG(false, "segment not found");
-        }
+
+        ASSERT_MSG(false, "segment not found");
     }
 
     // return the bucket offset of each key block in a segment
     vector<uint64_t> get_vertex_mapping(segid_t seg) {
         ASSERT(num_key_blocks_seg_using[seg] == num_key_blocks_seg_need[seg]);
         ASSERT(vertex_allocation[seg].size() == num_key_blocks_seg_need[seg]);
+
         vector<uint64_t> headers;
-        for (auto block_id : vertex_allocation[seg]) {
+        for (auto block_id : vertex_allocation[seg])
             headers.push_back(block_id * nbuckets_kblk);
-        }
+
         return headers;
     }
 
@@ -480,23 +497,16 @@ public:
         return headers;
     }
 
-    uint64_t get_num_key_blks() {
-        return num_key_blks;
-    }
+    uint64_t get_num_key_blks() { return num_key_blks; }
 
-    uint64_t get_num_value_blks() {
-        return num_value_blks;
-    }
+    uint64_t get_num_value_blks() { return num_value_blks; }
 
-    uint64_t get_nbuckets_kblk() {
-        return nbuckets_kblk;
-    }
+    uint64_t get_nbuckets_kblk() { return nbuckets_kblk; }
 
-    uint64_t get_nentries_vblk() {
-        return nentries_vblk;
-    }
+    uint64_t get_nentries_vblk() { return nentries_vblk; }
 
     vertex_t *get_vertex_gaddr() { return vertex_gaddr; }
+
     edge_t *get_edge_gaddr() { return edge_gaddr; }
 
     void reset() {
@@ -527,11 +537,13 @@ public:
         ASSERT(free_value_blocks.size() == num_value_blks);
     } // end of reset
 
-    void load_segment(segid_t seg_to_load, const vector<segid_t> &conflicts, cudaStream_t stream_id) {
+    void load_segment(segid_t seg_to_load,
+                      const vector<segid_t> &conflicts, cudaStream_t stream_id) {
         _load_segment(seg_to_load, seg_to_load, conflicts, stream_id, false);
     }
 
-    void prefetch_segment(segid_t seg_to_load, segid_t seg_in_use, const vector<segid_t> &conflicts, cudaStream_t stream_id) {
+    void prefetch_segment(segid_t seg_to_load, segid_t seg_in_use,
+                          const vector<segid_t> &conflicts, cudaStream_t stream_id) {
         _load_segment(seg_to_load, seg_in_use, conflicts, stream_id, true);
     }
 
