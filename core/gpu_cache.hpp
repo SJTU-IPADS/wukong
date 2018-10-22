@@ -268,11 +268,11 @@ private:
         // step 3: load direct
         if (main_size != 0) {
             CUDA_ASSERT(cudaMemcpyAsync(
-                d_vertex_addr + block_id * num_buckets_per_block * GStore::ASSOCIATIVITY,
-                vertex_addr + (rdf_metas[seg].bucket_start + seg_block_idx * num_buckets_per_block) * GStore::ASSOCIATIVITY,
-                sizeof(vertex_t) * main_size * GStore::ASSOCIATIVITY,
-                cudaMemcpyHostToDevice,
-                stream_id));
+                            d_vertex_addr + block_id * num_buckets_per_block * GStore::ASSOCIATIVITY,
+                            vertex_addr + (rdf_metas[seg].bucket_start + seg_block_idx * num_buckets_per_block) * GStore::ASSOCIATIVITY,
+                            sizeof(vertex_t) * main_size * GStore::ASSOCIATIVITY,
+                            cudaMemcpyHostToDevice,
+                            stream_id));
         }
         // step 4: load indirect
         if (indirect_size != 0) {
@@ -300,8 +300,8 @@ private:
                     uint64_t dst_off = (block_id * num_buckets_per_block + indirect_start + indirect_size - remain) * GStore::ASSOCIATIVITY;
                     uint64_t src_off = (ext.start + inside_off) * GStore::ASSOCIATIVITY;
                     CUDA_ASSERT(cudaMemcpyAsync(d_vertex_addr + dst_off, vertex_addr + src_off,
-                        sizeof(vertex_t) * inside_load * GStore::ASSOCIATIVITY,
-                        cudaMemcpyHostToDevice, stream_id));
+                                                sizeof(vertex_t) * inside_load * GStore::ASSOCIATIVITY,
+                                                cudaMemcpyHostToDevice, stream_id));
                     remain -= inside_load;
                     start_bucket_idx += inside_load;
                     // load complete
@@ -327,15 +327,15 @@ private:
         else
             data_size = num_entries_per_block;
         CUDA_ASSERT(cudaMemcpyAsync(d_edge_addr + block_id * num_entries_per_block,
-                                   edge_addr + rdf_metas[seg].edge_start + seg_block_idx * num_entries_per_block,
-                                   sizeof(edge_t) * data_size,
-                                   cudaMemcpyHostToDevice,
-                                   stream_id));
+                                    edge_addr + rdf_metas[seg].edge_start + seg_block_idx * num_entries_per_block,
+                                    sizeof(edge_t) * data_size,
+                                    cudaMemcpyHostToDevice,
+                                    stream_id));
     } // end of load_edge_block
 
 public:
     GPUCache(GPUMem *gmem, vertex_t *v_a, edge_t *e_a, map<segid_t, rdf_segment_meta_t> &rdf_metas):
-            gmem(gmem), vertex_addr(v_a), edge_addr(e_a), rdf_metas(rdf_metas) {
+        gmem(gmem), vertex_addr(v_a), edge_addr(e_a), rdf_metas(rdf_metas) {
         // step 1: calculate capacities
         seg_num = rdf_metas.size();
 
@@ -377,7 +377,7 @@ public:
     // check whether a segment is in cache
     bool seg_in_cache(segid_t seg) {
         if (num_key_blocks_seg_using[seg] == num_key_blocks_seg_need[seg]
-        && num_value_blocks_seg_using[seg] == num_value_blocks_seg_need[seg])
+                && num_value_blocks_seg_using[seg] == num_value_blocks_seg_need[seg])
             return true;
         return false;
     }
