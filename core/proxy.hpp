@@ -71,7 +71,9 @@ private:
 
             // create a TYPE query to collect constants with the certain type
             SPARQLQuery request = SPARQLQuery();
-            if (type.find("fromPredicate") != string::npos) {
+            bool from_predicate = (type.find("fromPredicate") != string::npos);
+
+            if (from_predicate) {
                 // template types are defined by predicate
                 // for example, %fromPredicate takeCourse ?X .
                 // create a PREDICATE query to collect constants with the certain predicate
@@ -91,6 +93,9 @@ private:
                 SPARQLQuery::Pattern pattern(p, PREDICATE_ID, d, -1);
                 pattern.pred_type = 0;
                 request.pattern_group.patterns.push_back(pattern);
+
+                string dir_str = (d == OUT) ? "->" : "<-";
+                type = "#Predicate [" + str_server->id2str[p] + " | " + dir_str + "]";
             } else {
                 // templates are defined by type
                 // for example, %GraduateStudent takeCourse ?X .
