@@ -34,7 +34,7 @@ sudo dpkg -i nvidia-peer-memory_1.0-3_all.deb
 sudo dpkg -i nvidia-peer-memory-dkms_1.0-3_all.deb
 ```
 
-You should manually load it after the installation. and make sure the module is loaded successfully.
+You should manually load it after the installation, and make sure the module is loaded successfully.
 
 ```bash
 sudo modprobe nv_peer_mem
