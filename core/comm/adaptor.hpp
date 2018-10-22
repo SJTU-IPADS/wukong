@@ -90,4 +90,32 @@ public:
         b.init(str);
         return true;
     }
+
+#ifdef USE_GPU
+    // Receive msg from a designated server
+    string recv(int sender) {
+        std::string str;
+        if (global_use_rdma && rdma->init)
+            str = rdma->recv(tid, sender);
+        else
+            str = tcp->recv(tid, sender);
+        return str;
+    }
+
+    // Receive msg and return the sender
+    bool tryrecv(Bundle &b, int &sender) {
+        string str;
+        bool success = false;
+        if (global_use_rdma && rdma->init)
+            success = rdma->tryrecv(tid, str, sender);
+        else
+            success = tcp->tryrecv(tid, str, sender);
+
+        if (success)
+            b.init(str);
+
+        return success;
+    }
+#endif
+
 };

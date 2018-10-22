@@ -20,8 +20,9 @@
  *
  */
 
-#ifdef USE_GPU
 #pragma once
+
+#ifdef USE_GPU
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
@@ -29,12 +30,16 @@
 #include <boost/serialization/map.hpp>
 #include <map>
 #include <sstream>
+#include "type.hpp"
+
 using namespace std;
 using namespace boost::archive;
 
-#define EXT_LIST_MAX_LEN 4
+
+#define EXT_LIST_MAX_LEN 1
 #define EXT_BUCKET_EXTENT_LEN(num_buckets) (num_buckets * 15 / 100 + 1)
 #define PREDICATE_NSEGS 4
+
 
 /**
  * A contiguous space in the indirect-header region
@@ -65,16 +70,18 @@ struct ext_bucket_extent_t {
  * And the IN/OUT indicates the direction of triples in the segment.
  */
 struct rdf_segment_meta_t {
-    uint64_t num_keys;      // #key of the segment
-    uint64_t num_buckets;   // allocated main headers (hash space)
-    uint64_t bucket_start;  // start offset of main-header region
+    uint64_t num_keys = 0;      // #keys of the segment
+    uint64_t num_buckets = 0;   // allocated main headers (hash space)
+    uint64_t bucket_start = 0;  // start offset of main-header region of gstore
     ext_bucket_extent_t ext_bucket_list[EXT_LIST_MAX_LEN];
-    int ext_list_sz;        // the length of ext_bucket_list
-    uint64_t num_edges;     // #edge of the segment
-    uint64_t edge_start;    // start offset in the entry region
+    int ext_list_sz = 0;        // the length of ext_bucket_list
+    uint64_t num_edges = 0;     // #edges of the segment
+    uint64_t edge_start = 0;    // start offset in the entry region of gstore
 
-    rdf_segment_meta_t() : num_keys(0), num_buckets(0), bucket_start(0),
-        ext_list_sz(0), edge_start(0), num_edges(0) {
+    int num_key_blks = 0;       // #key-blocks needed in gcache
+    int num_value_blks = 0;     // #value-blocks needed in gcache
+
+    rdf_segment_meta_t() {
         memset(&ext_bucket_list, 0, sizeof(ext_bucket_list));
     }
 
@@ -85,7 +92,6 @@ struct rdf_segment_meta_t {
                 return ext.start + ext.off++;
             }
         }
-
         return 0;
     }
 
@@ -93,11 +99,12 @@ struct rdf_segment_meta_t {
         ext_bucket_list[ext_list_sz++] = ext;
     }
 
-    uint64_t get_total_num_buckets() const {
-        uint64_t res = num_buckets;
-        for (int i = 0; i < ext_list_sz; i++)
-            res += ext_bucket_list[i].num_ext_buckets;
-        return res;
+    inline uint64_t get_total_num_buckets() const {
+        uint64_t total = num_buckets;
+        for (int i = 0; i < ext_list_sz; ++i) {
+            total += ext_bucket_list[i].num_ext_buckets;
+        }
+        return total;
     }
 
     template <typename Archive>
@@ -118,7 +125,7 @@ struct segid_t {
     int index;  // normal or index segment
     int dir;  // direction of triples in the segment
     sid_t pid;  // predicate id
-    segid_t(): index(0), dir(0), pid(0) { }
+    segid_t(): index(0), pid(0), dir(0) { }
     segid_t(int idx, sid_t p, int d) : index(idx), pid(p), dir(d) { }
 
     bool operator == (const segid_t &s) const {
@@ -137,7 +144,7 @@ struct segid_t {
         return false;
     }
 
-    string stringify() {
+    string to_string() {
         ostringstream ss;
         ss << "[" << index << "|" << pid << "|" << dir << "]";
         return ss.str();
