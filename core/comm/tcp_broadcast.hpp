@@ -89,6 +89,15 @@ public:
         }
         return string((char *)msg.data(), msg.size());
     }
+
+    bool tryrecv(string &str) {
+        zmq::message_t msg;
+        bool success = false;
+        if (success = receiver->recv(&msg, ZMQ_NOBLOCK))
+            str = string((char *)msg.data(), msg.size());
+
+        return success;
+    }
 };
 
 class TCP_Broadcast_Slave {
@@ -144,5 +153,13 @@ public:
             assert(false);
         }
         return string((char *)msg.data(), msg.size());
+    }
+
+    bool tryrecv(string &str) {
+        zmq::message_t msg;
+        bool success = false;
+        if (success = receiver->recv(&msg, ZMQ_NOBLOCK))
+            str = string((char *)msg.data(), msg.size());
+        return success;
     }
 };

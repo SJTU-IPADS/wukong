@@ -139,8 +139,11 @@ main(int argc, char *argv[])
     mrs.push_back(mr_gpu);
 #endif
 
+    // two additional threads,
+    // one for broadcast master, another for broadcast slave
+    int rdma_init_nthreads = global_num_threads + 2;
     // init RDMA devices and connections
-    RDMA_init(global_num_servers, global_num_threads + 2, sid, mrs, host_fname);
+    RDMA_init(global_num_servers, rdma_init_nthreads, sid, mrs, host_fname);
 
     // init communication
     RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mrs,

@@ -55,6 +55,20 @@ public:
             str = tcp->recv();
         return Bundle(str);
     }
+
+    bool tryrecv(string &str) {
+        if (global_use_rdma && rdma->init)
+            return rdma->tryrecv(str);
+        else
+            return tcp->tryrecv(str);
+    }
+
+    bool tryrecv(Bundle &b) {
+        string str;
+        if (!tryrecv(str)) return false;
+        b.init(str);
+        return true;
+    }
 };
 
 class Broadcast_Slave {
@@ -86,5 +100,19 @@ public:
         else
             str = tcp->recv();
         return Bundle(str);
+    }
+
+    bool tryrecv(string &str) {
+        if (global_use_rdma && rdma->init)
+            return rdma->tryrecv(str);
+        else
+            return tcp->tryrecv(str);
+    }
+
+    bool tryrecv(Bundle &b) {
+        string str;
+        if (!tryrecv(str)) return false;
+        b.init(str);
+        return true;
     }
 };
