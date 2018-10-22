@@ -214,7 +214,7 @@ public:
     // (type_composition and index_composition)
     unordered_map<ssid_t, type_t> local_int2type;
     unordered_map<type_t, ssid_t, type_t_hasher> local_type2int;
-    unordered_map<ssid_t, type_t> global_int2type;	//not used in plan currently
+    unordered_map<ssid_t, type_t> global_int2type;	//not used in planner.hpp currently
     unordered_map<type_t, ssid_t, type_t_hasher> global_type2int;
 
     // single type may be contained by several multitype
@@ -326,8 +326,8 @@ public:
     	}
 
     	// get useful type2int
-		#pragma omp parallel
-    	for(auto const &token: global_useless_type){
+//		#pragma omp parallel
+//    	for(auto const &token: global_useless_type){
 //			#pragma omp single nowait
 //			{
 //				type_t useless_type_No = global_int2type[token];
@@ -345,7 +345,7 @@ public:
 //				new_type2int.insert(a, useless_type_No);
 //				a->second = result;
 //			}
-    	}
+//    	}
 
     	// useful type2int
     	unordered_map<type_t, ssid_t, type_t_hasher> type2int_new;
@@ -473,6 +473,26 @@ public:
             // merge
             if(global_tyscount.size() > 100)
             	merge_type();
+            else{
+            	// add global_single2complex info
+            	for(auto const &token: global_tyscount){
+            		ssid_t type_No = token.first;
+            		if (type_No>= 0) continue;
+            		type_t type = global_int2type[type_No];
+            		if(type.data_type){
+            			for(auto const &single_type: type.composition){
+                            if (global_single2complex.find(single_type) != global_single2complex.end()) {
+                                global_single2complex[single_type].insert(type_No);
+                            } else {
+                                unordered_set<ssid_t> multi_type_set;
+                                // set will automatically ensure no duplicated element exist
+                                multi_type_set.insert(type_No);
+                                global_single2complex[single_type] = multi_type_set;
+                            }
+            			}
+            		}
+            	}
+            }
 
             for (int i = 0; i < all_gather.size(); i++) {
 
