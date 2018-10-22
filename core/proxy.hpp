@@ -173,7 +173,20 @@ public:
         // submit the request to a certain server
         int start_sid = wukong::math::hash_mod(r.pattern_group.get_start(), global_num_servers);
         Bundle bundle(r);
+#ifdef USE_GPU
+        if (r.dev_type == SPARQLQuery::DeviceType::CPU) {
+            logstream(LOG_DEBUG) << "dev_type is CPU, send to engine. r.pid=" << r.pid << LOG_endl;
+            send(bundle, start_sid);
+        } else if (r.dev_type == SPARQLQuery::DeviceType::GPU) {
+            logstream(LOG_DEBUG) << "dev_type is GPU, send to GPU agent. r.pid=" << r.pid << LOG_endl;
+            send(bundle, start_sid, WUKONG_GPU_AGENT_TID);
+        } else {
+            ASSERT_MSG(false, "Unknown device type");
+        }
+#else
         send(bundle, start_sid);
+
+#endif  // end of USE_GPU
     }
 
     // Recv reply from engines.
@@ -181,6 +194,10 @@ public:
         Bundle bundle = adaptor->recv();
         ASSERT(bundle.type == SPARQL_QUERY);
         SPARQLQuery r = bundle.get_sparql_query();
+        logstream(LOG_DEBUG) << "Proxy recv_reply: got reply id="<< r.id << ", r.pid=" << r.pid
+            << ", dev_type=" << (r.dev_type == SPARQLQuery::DeviceType::GPU ? "GPU" : "CPU")
+            << ", #rows=" << r.result.get_row_num() << ", step=" << r.pattern_step
+            << ", done: " << r.done(SPARQLQuery::SQState::SQ_PATTERN) << LOG_endl;
         return r;
     }
 
@@ -199,7 +216,7 @@ public:
     // Run a single query for @cnt times. Command is "-f"
     // @is: input
     // @reply: result
-    int run_single_query(istream &is, istream &fmt_stream, int mt_factor, int cnt,
+    int run_single_query(istream &is, istream &fmt_stream, int mt_factor, int cnt, bool send_to_gpu,
                          SPARQLQuery &reply, Monitor &monitor) {
         uint64_t start, end;
         SPARQLQuery request;
@@ -234,6 +251,21 @@ public:
                 return 0; // skip the real execution
         }
 
+#ifdef USE_GPU
+        if (send_to_gpu) {
+            request.dev_type = SPARQLQuery::DeviceType::GPU;
+            request.result.dev_type = SPARQLQuery::DeviceType::GPU;
+            logstream(LOG_INFO) << "The query will be sent to GPU" << LOG_endl;
+        }
+#else
+        if (send_to_gpu) {
+            logstream(LOG_WARNING) << "You need to build Wukong with GPU support to use the \"-g\" option." << LOG_endl;
+            send_to_gpu = false;
+        }
+#endif
+
+
+
         // Execute the SPARQL query
         monitor.init();
         for (int i = 0; i < cnt; i++) {
@@ -241,7 +273,7 @@ public:
 
             // set the multi-threading factor for queries start from index
             if (request.start_from_index()) {
-                if (mt_factor == 1 && global_mt_threshold > 1)
+                if (!send_to_gpu && mt_factor == 1 && global_mt_threshold > 1)
                     logstream(LOG_EMPH) << "The query starts from an index vertex, "
                                         << "you could use option -m to accelerate it."
                                         << LOG_endl;

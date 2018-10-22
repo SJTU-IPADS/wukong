@@ -138,6 +138,8 @@ static bool set_mutable_config(string cfg_name, string value)
         global_enable_planner = atoi(value.c_str());
     } else if (cfg_name == "global_enable_vattr") {
         global_enable_vattr = atoi(value.c_str());
+    } else if (cfg_name == "global_gpu_enable_pipeline") {
+        global_gpu_enable_pipeline = atoi(value.c_str());
     } else {
         return false;
     }
@@ -213,7 +215,12 @@ void load_config(string fname, int num_servers)
     }
 
     // set the total number of threads
+#ifndef USE_GPU
     global_num_threads = global_num_engines + global_num_proxies;
+#else
+    // each GPU needs a dedicated agent thread, and engines and proxies are worker threads
+    global_num_threads = global_num_engines + global_num_proxies + global_num_gpus;
+#endif // USE_GPU
 
     // limited the number of engines
     global_mt_threshold = max(1, min(global_mt_threshold, global_num_engines));
@@ -255,6 +262,7 @@ void print_config(void)
     logstream(LOG_INFO) << "global_gpu_kvcache_size_gb: "  << global_gpu_kvcache_size_gb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_key_blk_size_mb: "  << global_gpu_key_blk_size_mb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_value_blk_size_mb: "  << global_gpu_value_blk_size_mb  << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_enable_pipeline: "  << global_gpu_enable_pipeline  << LOG_endl;
 
     logstream(LOG_INFO) << "--" << LOG_endl;
 

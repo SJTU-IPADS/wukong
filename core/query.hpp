@@ -77,6 +77,13 @@ public:
      */
     enum PGType { BASIC, UNION, OPTIONAL };
 
+    /**
+     * Indicating what device will be used to handle the query.
+     */
+    enum DeviceType {CPU, GPU};
+
+    enum SubJobType { FULL_JOB, SPLIT_JOB };
+
     class Pattern {
     private:
         friend class boost::serialization::access;
@@ -234,7 +241,23 @@ public:
     private:
         friend class boost::serialization::access;
 
+        struct GPUState {
+            char *result_buf_dp = nullptr;
+            uint64_t result_buf_nelems = 0;
+
+            template <typename Archive>
+            void serialize(Archive &ar, const unsigned int version) {
+                ar & result_buf_nelems;
+            }
+        };
+
     public:
+        Result() { }
+
+        Result(DeviceType dev_type) : dev_type(dev_type) { }
+        DeviceType dev_type;
+        GPUState gpu;
+
         int col_num = 0;
         int row_num = 0;  // FIXME: vs. get_row_num()
         int attr_col_num = 0; // FIXME: why not no attr_row_num
@@ -246,6 +269,7 @@ public:
 
         vector<sid_t> result_table; // result table for string IDs
         vector<attr_t> attr_res_table; // result table for others
+
 
         // OPTIONAL
         vector<bool> optional_matched_rows; // mark which rows are matched in optional block
@@ -332,7 +356,11 @@ public:
                 else
                     return 0;
             }
-            return result_table.size() / col_num;
+
+            if (row_num != 0)
+                return row_num;
+
+            return (dev_type == GPU) ? gpu.result_buf_nelems / col_num : result_table.size() / col_num;
         }
 
         sid_t get_row_col(int r, int c) {
@@ -436,6 +464,21 @@ public:
                                             result.attr_res_table.end());
             }
         }
+
+        bool gpu_result_buf_empty() {
+            return gpu.result_buf_nelems == 0;
+        }
+
+        void clear_gpu_result_buf() {
+            gpu.result_buf_dp = nullptr;
+            gpu.result_buf_nelems = 0;
+        }
+
+        void set_gpu_result_buf(char *rbuf, uint64_t n) {
+            gpu.result_buf_dp = rbuf;
+            gpu.result_buf_nelems = n;
+        }
+
     };
 
     int id = -1;     // query id
@@ -445,6 +488,10 @@ public:
 
     PGType pg_type = BASIC;
     SQState state = SQ_PATTERN;
+
+    DeviceType dev_type = CPU;
+    SubJobType job_type = FULL_JOB;
+
     int mt_factor = 1;  // use a single engine (thread) by default
     int priority = 0;
 
@@ -861,6 +908,8 @@ void save(Archive &ar, const SPARQLQuery::Result &t, unsigned int version) {
     ar << t.nvars;
     ar << t.v2c_map;
     ar << t.optional_matched_rows;
+    ar << t.dev_type;
+    ar << t.gpu;
     if (!t.blind) ar << t.required_vars;
     // attr_res_table may not be empty if result_table is empty
     if (t.result_table.size() > 0 || t.attr_res_table.size() > 0) {
@@ -882,6 +931,8 @@ void load(Archive & ar, SPARQLQuery::Result &t, unsigned int version) {
     ar >> t.nvars;
     ar >> t.v2c_map;
     ar >> t.optional_matched_rows;
+    ar >> t.dev_type;
+    ar >> t.gpu;
     if (!t.blind) ar >> t.required_vars;
     ar >> temp;
     if (temp == occupied) {
@@ -900,6 +951,8 @@ void save(Archive & ar, const SPARQLQuery &t, unsigned int version) {
     ar << t.distinct;
     ar << t.pg_type;
     ar << t.pattern_step;
+    ar << t.dev_type;
+    ar << t.job_type;
     ar << t.union_done;
     ar << t.optional_step;
     ar << t.corun_step;
@@ -929,6 +982,8 @@ void load(Archive & ar, SPARQLQuery &t, unsigned int version) {
     ar >> t.distinct;
     ar >> t.pg_type;
     ar >> t.pattern_step;
+    ar >> t.dev_type;
+    ar >> t.job_type;
     ar >> t.union_done;
     ar >> t.optional_step;
     ar >> t.corun_step;
@@ -1088,4 +1143,5 @@ public:
         return string(std::to_string((uint64_t)type) + data);
 #endif
     }
+
 };
