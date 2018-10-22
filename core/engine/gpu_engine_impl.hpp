@@ -99,7 +99,6 @@ public:
         return gmem->res_inbuf();
     }
 
-    // TODO
     vector<sid_t> index_to_unknown(SPARQLQuery &req, sid_t tpid, dir_t d) {
         ASSERT_MSG(false, "not implemented");
         return vector<sid_t>();
@@ -181,19 +180,12 @@ public:
             new_table.resize(table_size);
             thrust::device_ptr<int> dptr(param.gpu.d_out_rbuf);
             thrust::copy(dptr, dptr + table_size, new_table.begin());
-
-            // TODO: Do we need to clear result buf?
-            // req.clear_result_buf();
-
         } else {
-            req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
-
             reverse_result_buf();
         }
 
     }
 
-    // TODO
     void known_to_known(SPARQLQuery &req, sid_t start, sid_t pid,
                         sid_t end, dir_t d, vector<sid_t> &new_table) {
 
@@ -273,13 +265,7 @@ public:
             new_table.resize(table_size);
             thrust::device_ptr<int> dptr(param.gpu.d_out_rbuf);
             thrust::copy(dptr, dptr + table_size, new_table.begin());
-
-            // TODO: Do we need to clear result buf?
-            // req.clear_result_buf();
-
         } else {
-            // req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
-
             reverse_result_buf();
         }
 
@@ -364,17 +350,12 @@ public:
             thrust::device_ptr<int> dptr(param.gpu.d_out_rbuf);
             thrust::copy(dptr, dptr + table_size, new_table.begin());
             logstream(LOG_DEBUG) << "new_table.size()=" << new_table.size() << LOG_endl;
-
-
         } else {
-            // req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, table_size);
-
             reverse_result_buf();
         }
 
     }
 
-    // TODO
     void generate_sub_query(const SPARQLQuery &req, sid_t start, int num_jobs,
                             vector<sid_t*>& buf_ptrs, vector<int>& buf_sizes) {
         int query_size = req.result.get_row_num();
@@ -395,16 +376,15 @@ public:
 
         vector<int> buf_heads(num_jobs);
 
-        // calc_dispatched_position
+        // shuffle records in result buffer according to server ID
         gpu_shuffle_result_buf(param, num_jobs, buf_sizes, buf_heads, stream);
 
-        // update_result_table_sub
+        // split the result buffer of req
         gpu_split_result_buf(param, num_jobs, stream);
 
         CUDA_STREAM_SYNC(stream);
 
         for (int i = 0; i < num_jobs; ++i) {
-            // buf_sizes[i] *= req.result.get_col_num();
             buf_sizes[i] *= req.result.get_col_num();
             buf_heads[i] *= req.result.get_col_num();
             buf_ptrs[i] = ((sid_t*) gmem->res_outbuf()) + buf_heads[i];
@@ -415,7 +395,6 @@ public:
 #endif
         }
 
-        // TODO: Do we need to reverse rbuf here?
         reverse_result_buf();
     }
 

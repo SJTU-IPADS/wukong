@@ -207,7 +207,6 @@ public:
                 // only send back row_num in blind mode
                 req.result.row_num = req.result.get_row_num();
                 req.state = SPARQLQuery::SQState::SQ_REPLY;
-                // TODO
                 req.job_type = SPARQLQuery::SubJobType::FULL_JOB;
                 Bundle bundle(req);
                 int psid, ptid;
@@ -247,7 +246,6 @@ public:
             // check and send pending messages first
             sweep_msgs();
 
-            // priority path: sparql stage (FIXME: only for SPARQL queries)
             SPARQLQuery req;
             if (runqueue.try_pop(req)) {
                 execute_sparql_query(req);
@@ -262,6 +260,7 @@ public:
                     SPARQLQuery req = bundle.get_sparql_query();
                     ASSERT(req.dev_type == SPARQLQuery::DeviceType::GPU);
 
+                    // We need to wait for the result buffer if it is sent by GPUDirect RDMA.
                     if (req.job_type == SPARQLQuery::SubJobType::SPLIT_JOB
                             && req.result.gpu.result_buf_nelems > 0) {
                         // recv result buffer
