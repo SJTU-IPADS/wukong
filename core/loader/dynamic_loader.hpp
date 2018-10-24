@@ -20,8 +20,6 @@
  *
  */
 
-#ifdef DYNAMIC_GSTORE
-
 #pragma once
 
 #include <string>
@@ -42,7 +40,7 @@
 #include "global.hpp"
 #include "type.hpp"
 #include "rdma.hpp"
-#include "gstore.hpp"
+#include "gstore/dynamic_gstore.hpp"
 #include "timer.hpp"
 #include "assertion.hpp"
 #include "math.hpp"
@@ -53,7 +51,7 @@ class DynamicLoader {
 private:
     int sid;
     String_Server *str_server;
-    GStore *gstore;
+    DynamicGStore *gstore;
 
     inline vector<string> list_files(string dname, string prefix) {
         if (boost::starts_with(dname, "hdfs:")) {
@@ -146,7 +144,7 @@ private:
     }
 
 public:
-    DynamicLoader(int sid, String_Server *str_server, GStore *gstore): sid(sid), str_server(str_server), gstore(gstore) {}
+    DynamicLoader(int sid, String_Server *str_server, DynamicGStore *gstore): sid(sid), str_server(str_server), gstore(gstore) {}
 
     int64_t dynamic_load_data(string dname, bool check_dup) {
         dynamic_load_mappings(dname); // load ID-mapping files and construct id2id mapping
@@ -254,5 +252,3 @@ public:
         return 0;
     }
 };
-
-#endif

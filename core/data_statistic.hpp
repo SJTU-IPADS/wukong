@@ -13,7 +13,7 @@
 #include <boost/serialization/unordered_set.hpp>
 
 #include "global.hpp"
-#include "gstore.hpp"
+#include "gstore/gstore.hpp"
 #include "comm/tcp_adaptor.hpp"
 
 using namespace std;
