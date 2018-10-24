@@ -558,6 +558,8 @@ class DynamicGStore : public GStore {
         rdma_cache.set_lease(lease);
     }
 
+    ~DynamicGStore() {}
+
     void init(vector<vector<triple_t>> &triple_pso, vector<vector<triple_t>> &triple_pos, vector<vector<triple_attr_t>> &triple_sav) {
         uint64_t start, end;
         start = timer::get_usec();

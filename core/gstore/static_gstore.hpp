@@ -684,6 +684,7 @@ class StaticGStore : public GStore {
     StaticGStore(int sid, Mem *mem): GStore(sid, mem) {
         pthread_spin_init(&entry_lock, 0);
     }
+
     ~StaticGStore() {}
 
     void init(vector<vector<triple_t>> &triple_pso, vector<vector<triple_t>> &triple_pos, vector<vector<triple_attr_t>> &triple_sav) {
