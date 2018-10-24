@@ -37,7 +37,7 @@
 
 using namespace std;
 
-class GPUEngineImpl final {
+class GPUEngineCuda final {
 private:
     int sid;
     GPUMem *gmem;
@@ -72,14 +72,14 @@ private:
 
 
 public:
-    GPUEngineImpl(int sid, GPUCache *gcache, GPUMem *gmem, GPUStreamPool *stream_pool)
+    GPUEngineCuda(int sid, GPUCache *gcache, GPUMem *gmem, GPUStreamPool *stream_pool)
         : sid(sid), gcache(gcache), gmem(gmem), stream_pool(stream_pool),
           param(gcache->get_vertex_gaddr(), gcache->get_edge_gaddr(),
                 gcache->get_num_key_blks(), gcache->get_num_value_blks(),
                 gcache->get_nbuckets_kblk(), gcache->get_nentries_vblk()) {
     }
 
-    ~GPUEngineImpl() { }
+    ~GPUEngineCuda() { }
 
     char* load_result_buf(const SPARQLQuery::Result &r) {
         CUDA_ASSERT( cudaMemcpy((void**)gmem->res_inbuf(),

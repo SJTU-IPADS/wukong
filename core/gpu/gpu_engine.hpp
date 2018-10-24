@@ -38,7 +38,7 @@
 #include "timer.hpp"
 #include "engine/rmap.hpp"
 
-#include "gpu_engine_impl.hpp"
+#include "gpu_engine_cuda.hpp"
 
 using namespace std;
 
@@ -53,7 +53,7 @@ private:
     RMap rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
 
-    GPUEngineImpl impl;
+    GPUEngineCuda backend;
 
     tbb::concurrent_queue<SPARQLQuery> sub_queries;
 
@@ -126,7 +126,7 @@ private:
         logstream(LOG_DEBUG) << "#" << sid << " [begin] known_to_unknown: row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
         if (req.result.get_row_num() != 0) {
             ASSERT(nullptr != req.result.gpu.result_buf_dp);
-            impl.known_to_unknown(req, start, pid, d, updated_result_table);
+            backend.known_to_unknown(req, start, pid, d, updated_result_table);
         }
 
         res.result_table.swap(updated_result_table);
@@ -156,7 +156,7 @@ private:
         logstream(LOG_DEBUG) << "#" << sid << " [begin] known_to_known: row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
         if (req.result.get_row_num() != 0) {
             ASSERT(nullptr != req.result.gpu.result_buf_dp);
-            impl.known_to_known(req, start, pid, end, d, updated_result_table);
+            backend.known_to_known(req, start, pid, end, d, updated_result_table);
         }
 
         res.result_table.swap(updated_result_table);
@@ -185,7 +185,7 @@ private:
                              << ", step=" << req.pattern_step << LOG_endl;
         if (req.result.get_row_num() != 0) {
             ASSERT(nullptr != req.result.gpu.result_buf_dp);
-            impl.known_to_const(req, start, pid, end, d, updated_result_table);
+            backend.known_to_const(req, start, pid, end, d, updated_result_table);
         }
 
         res.result_table.swap(updated_result_table);
@@ -214,7 +214,7 @@ private:
 
 public:
     GPUEngine(int sid, int tid, GPUMem *gmem, GPUCache *gcache, GPUStreamPool *stream_pool, DGraph *graph)
-        : sid(sid), tid(tid), impl(sid, gcache, gmem, stream_pool), graph(graph) {
+        : sid(sid), tid(tid), backend(sid, gcache, gmem, stream_pool), graph(graph) {
 
     }
 
@@ -229,12 +229,12 @@ public:
     }
 
     void load_result_buf(SPARQLQuery &req) {
-        char *rbuf = impl.load_result_buf(req.result);
+        char *rbuf = backend.load_result_buf(req.result);
         req.result.set_gpu_result_buf(rbuf, req.result.result_table.size());
     }
 
     char* load_result_buf(SPARQLQuery &req, const string &rbuf_str) {
-        char *rbuf = impl.load_result_buf(rbuf_str.c_str(), rbuf_str.size());
+        char *rbuf = backend.load_result_buf(rbuf_str.c_str(), rbuf_str.size());
         req.result.set_gpu_result_buf(rbuf, rbuf_str.size() / WUKONG_GPU_ELEM_SIZE);
     }
 
@@ -348,7 +348,7 @@ public:
             std::vector<sid_t*> buf_ptrs(global_num_servers);
             std::vector<int> buf_sizes(global_num_servers);
 
-            impl.generate_sub_query(req, start, global_num_servers, buf_ptrs, buf_sizes);
+            backend.generate_sub_query(req, start, global_num_servers, buf_ptrs, buf_sizes);
 
             logstream(LOG_DEBUG) << "#" << sid << " generate_sub_query for req#" << req.id << ", parent: " << req.pid
                                  << ", step: " << req.pattern_step << LOG_endl;
