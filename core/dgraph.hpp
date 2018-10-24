@@ -25,12 +25,12 @@
 #include "loader/posix_loader.hpp"
 #include "loader/hdfs_loader.hpp"
 #ifdef DYNAMIC_GSTORE
-#include "gstore/dynamic_gstore.hpp"
+#include "store/dynamic_gstore.hpp"
 #include "loader/dynamic_loader.hpp"
 #else
-#include "gstore/static_gstore.hpp"
+#include "store/static_gstore.hpp"
 #endif
-#include "gstore/gchecker.hpp"
+#include "store/gchecker.hpp"
 
 using namespace std;
 

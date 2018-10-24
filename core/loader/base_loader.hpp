@@ -45,9 +45,9 @@
 #include "math.hpp"
 #include "loader_interface.hpp"
 #ifdef USE_GPU
-#include "gstore/static_gstore.hpp"
+#include "store/static_gstore.hpp"
 #else
-#include "gstore/gstore.hpp"
+#include "store/gstore.hpp"
 #endif
 
 using namespace std;
