@@ -374,7 +374,7 @@ class GChecker {
             np_check(key, OUT, normal_check);
     }
 
-    public:
+public:
     GChecker(GStore *gstore): gstore(gstore) {}
 
     int gstore_check(bool index_check, bool normal_check) {

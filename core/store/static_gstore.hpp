@@ -32,34 +32,34 @@
 using namespace std;
 
 class StaticGStore : public GStore {
-    private:
+private:
     uint64_t last_entry;
     pthread_spinlock_t entry_lock;
 
     // get bucket_id according to key
     uint64_t bucket_local(ikey_t key) {
         uint64_t bucket_id;
-        #ifdef USE_GPU
-            // the smallest pid is 1
-            auto &seg = rdf_segment_meta_map[segid_t((key.vid == 0 ? 1 : 0), key.pid, key.dir)];
-            ASSERT(seg.num_buckets > 0);
-            bucket_id = seg.bucket_start + key.hash() % seg.num_buckets;
-        #else
-            bucket_id = key.hash() % num_buckets;
-        #endif // end of USE_GPU
+#ifdef USE_GPU
+        // the smallest pid is 1
+        auto &seg = rdf_segment_meta_map[segid_t((key.vid == 0 ? 1 : 0), key.pid, key.dir)];
+        ASSERT(seg.num_buckets > 0);
+        bucket_id = seg.bucket_start + key.hash() % seg.num_buckets;
+#else
+        bucket_id = key.hash() % num_buckets;
+#endif // end of USE_GPU
         return bucket_id;
     }
 
     uint64_t bucket_remote(ikey_t key, int dst_sid) {
         uint64_t bucket_id;
-        #ifdef USE_GPU
-            auto &remote_meta_map = shared_rdf_segment_meta_map[dst_sid];
-            auto &seg = remote_meta_map[segid_t((key.vid == 0 ? 1 : 0), key.pid, key.dir)];
-            ASSERT(seg.num_buckets > 0);
-            bucket_id = seg.bucket_start + key.hash() % seg.num_buckets;
-        #else
-            bucket_id = key.hash() % num_buckets;
-        #endif // end of USE_GPU
+#ifdef USE_GPU
+        auto &remote_meta_map = shared_rdf_segment_meta_map[dst_sid];
+        auto &seg = remote_meta_map[segid_t((key.vid == 0 ? 1 : 0), key.pid, key.dir)];
+        ASSERT(seg.num_buckets > 0);
+        bucket_id = seg.bucket_start + key.hash() % seg.num_buckets;
+#else
+        bucket_id = key.hash() % num_buckets;
+#endif // end of USE_GPU
         return bucket_id;
     }
 
@@ -105,19 +105,19 @@ class StaticGStore : public GStore {
             }
 
             // allocate and link a new indirect header
-            #ifdef USE_GPU
-                rdf_segment_meta_t &seg = rdf_segment_meta_map[segid_t((key.vid == 0 ? 1 : 0), key.pid, key.dir)];
-                uint64_t ext_bucket_id = seg.get_ext_bucket();
-                if (ext_bucket_id == 0) {
-                    uint64_t nbuckets = EXT_BUCKET_EXTENT_LEN(seg.num_buckets);
-                    uint64_t start_off = alloc_ext_buckets(nbuckets);
-                    seg.add_ext_buckets(ext_bucket_extent_t(nbuckets, start_off));
-                    ext_bucket_id = seg.get_ext_bucket();
-                }
-                vertices[slot_id].key.vid = ext_bucket_id;
-            #else // !USE_GPU
-                vertices[slot_id].key.vid = alloc_ext_buckets(1);
-            #endif  // end of USE_GPU
+#ifdef USE_GPU
+            rdf_segment_meta_t &seg = rdf_segment_meta_map[segid_t((key.vid == 0 ? 1 : 0), key.pid, key.dir)];
+            uint64_t ext_bucket_id = seg.get_ext_bucket();
+            if (ext_bucket_id == 0) {
+                uint64_t nbuckets = EXT_BUCKET_EXTENT_LEN(seg.num_buckets);
+                uint64_t start_off = alloc_ext_buckets(nbuckets);
+                seg.add_ext_buckets(ext_bucket_extent_t(nbuckets, start_off));
+                ext_bucket_id = seg.get_ext_bucket();
+            }
+            vertices[slot_id].key.vid = ext_bucket_id;
+#else // !USE_GPU
+            vertices[slot_id].key.vid = alloc_ext_buckets(1);
+#endif  // end of USE_GPU
 
             slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY; // move to a new bucket_ext
             vertices[slot_id].key = key; // insert to the first slot
@@ -178,7 +178,7 @@ class StaticGStore : public GStore {
         return edge_ptr;
     }
 
-    #ifdef USE_GPU  // enable GPU support
+#ifdef USE_GPU  // enable GPU support
     int num_predicates;  // number of predicates
 
     // wrapper of atomic counters
@@ -678,9 +678,9 @@ class StaticGStore : public GStore {
                 insert_pidx_map(pidx_out_map, pid, OUT);
         }
     }
-    #endif  // end of USE_GPU
+#endif  // end of USE_GPU
 
-    public:
+public:
     StaticGStore(int sid, Mem *mem): GStore(sid, mem) {
         pthread_spin_init(&entry_lock, 0);
     }
@@ -689,72 +689,72 @@ class StaticGStore : public GStore {
 
     void init(vector<vector<triple_t>> &triple_pso, vector<vector<triple_t>> &triple_pos, vector<vector<triple_attr_t>> &triple_sav) {
         uint64_t start, end;
-        #ifdef USE_GPU
-            start = timer::get_usec();
-            // merge triple_pso and triple_pos into a map
-            init_triples_map(triple_pso, triple_pos);
-            end = timer::get_usec();
-            logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                                << "for merging triple_pso and triple_pos." << LOG_endl;
+#ifdef USE_GPU
+        start = timer::get_usec();
+        // merge triple_pso and triple_pos into a map
+        init_triples_map(triple_pso, triple_pos);
+        end = timer::get_usec();
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+                            << "for merging triple_pso and triple_pos." << LOG_endl;
 
-            start = timer::get_usec();
-            init_segment_metas(triple_pso, triple_pos);
-            end = timer::get_usec();
-            logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                                << "for initializing predicate segment statistics." << LOG_endl;
+        start = timer::get_usec();
+        init_segment_metas(triple_pso, triple_pos);
+        end = timer::get_usec();
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+                            << "for initializing predicate segment statistics." << LOG_endl;
 
-            start = timer::get_usec();
-            auto& predicates = get_all_predicates();
-            logstream(LOG_DEBUG) << "#" << sid << ": all_predicates: " << predicates.size() << LOG_endl;
-            #pragma omp parallel for num_threads(global_num_engines)
-            for (int i = 0; i < predicates.size(); i++) {
-                int localtid = omp_get_thread_num();
-                sid_t pid = predicates[i];
-                insert_triples_to_segment(localtid, segid_t(0, pid, OUT));
-                insert_triples_to_segment(localtid, segid_t(0, pid, IN));
-            }
-            end = timer::get_usec();
-            logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                                << "for inserting triples as segments into gstore" << LOG_endl;
+        start = timer::get_usec();
+        auto& predicates = get_all_predicates();
+        logstream(LOG_DEBUG) << "#" << sid << ": all_predicates: " << predicates.size() << LOG_endl;
+        #pragma omp parallel for num_threads(global_num_engines)
+        for (int i = 0; i < predicates.size(); i++) {
+            int localtid = omp_get_thread_num();
+            sid_t pid = predicates[i];
+            insert_triples_to_segment(localtid, segid_t(0, pid, OUT));
+            insert_triples_to_segment(localtid, segid_t(0, pid, IN));
+        }
+        end = timer::get_usec();
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+                            << "for inserting triples as segments into gstore" << LOG_endl;
 
-            finalize_segment_metas();
-            free_triples_map();
+        finalize_segment_metas();
+        free_triples_map();
 
-            // synchronize segment metadata among servers
-            extern TCP_Adaptor *con_adaptor;
-            sync_metadata(con_adaptor);
-        #else   // !USE_GPU
-            start = timer::get_usec();
-            #pragma omp parallel for num_threads(global_num_engines)
-            for (int t = 0; t < global_num_engines; t++) {
-                insert_normal(triple_pso[t], triple_pos[t], t);
+        // synchronize segment metadata among servers
+        extern TCP_Adaptor *con_adaptor;
+        sync_metadata(con_adaptor);
+#else   // !USE_GPU
+        start = timer::get_usec();
+        #pragma omp parallel for num_threads(global_num_engines)
+        for (int t = 0; t < global_num_engines; t++) {
+            insert_normal(triple_pso[t], triple_pos[t], t);
 
-                // release memory
-                vector<triple_t>().swap(triple_pso[t]);
-                vector<triple_t>().swap(triple_pos[t]);
-            }
-            end = timer::get_usec();
-            logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                                << "for inserting normal data into gstore" << LOG_endl;
+            // release memory
+            vector<triple_t>().swap(triple_pso[t]);
+            vector<triple_t>().swap(triple_pos[t]);
+        }
+        end = timer::get_usec();
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+                            << "for inserting normal data into gstore" << LOG_endl;
 
-            start = timer::get_usec();
-            #pragma omp parallel for num_threads(global_num_engines)
-            for (int t = 0; t < global_num_engines; t++) {
-                insert_attr(triple_sav[t], t);
+        start = timer::get_usec();
+        #pragma omp parallel for num_threads(global_num_engines)
+        for (int t = 0; t < global_num_engines; t++) {
+            insert_attr(triple_sav[t], t);
 
-                // release memory
-                vector<triple_attr_t>().swap(triple_sav[t]);
-            }
-            end = timer::get_usec();
-            logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                                << "for inserting attributes into gstore" << LOG_endl;
+            // release memory
+            vector<triple_attr_t>().swap(triple_sav[t]);
+        }
+        end = timer::get_usec();
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+                            << "for inserting attributes into gstore" << LOG_endl;
 
-            start = timer::get_usec();
-            insert_index();
-            end = timer::get_usec();
-            logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                                << "for inserting index data into gstore" << LOG_endl;
-        #endif  // end of USE_GPU
+        start = timer::get_usec();
+        insert_index();
+        end = timer::get_usec();
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+                            << "for inserting index data into gstore" << LOG_endl;
+#endif  // end of USE_GPU
     }
 
     void refresh() {
@@ -773,7 +773,7 @@ class StaticGStore : public GStore {
                             << " % (" << last_entry << " entries)" << LOG_endl;
     }
 
-    #ifdef USE_GPU
+#ifdef USE_GPU
     inline const std::map<segid_t, rdf_segment_meta_t> &get_rdf_segment_metas() { return rdf_segment_meta_map; }
 
     inline void set_num_predicates(sid_t n) { num_predicates = n; }
@@ -781,7 +781,7 @@ class StaticGStore : public GStore {
     inline int get_num_predicates() const { return num_predicates; }
 
     const vector<sid_t>& get_all_predicates() const { return all_predicates; }
-    #endif // USE_GPU
+#endif // USE_GPU
 
     /// skip all TYPE triples (e.g., <http://www.Department0.University0.edu> rdf:type ub:University)
     /// because Wukong treats all TYPE triples as index vertices. In addition, the triples in triple_pos
@@ -793,16 +793,16 @@ class StaticGStore : public GStore {
         while (type_triples < pos.size() && is_tpid(pos[type_triples].o))
             type_triples++;
 
-        #ifdef VERSATILE
-            /// The following code is used to support a rare case where the predicate is unknown
-            /// (e.g., <http://www.Department0.University0.edu> ?P ?O). Each normal vertex should
-            /// add two key/value pairs with a reserved ID (i.e., PREDICATE_ID) as the predicate
-            /// to store the IN and OUT lists of its predicates.
-            /// e.g., key=(vid, PREDICATE_ID, IN/OUT), val=(predicate0, predicate1, ...)
-            ///
-            /// NOTE, it is disabled by default in order to save memory.
-            vector<sid_t> predicates;
-        #endif // end of VERSATILE
+#ifdef VERSATILE
+        /// The following code is used to support a rare case where the predicate is unknown
+        /// (e.g., <http://www.Department0.University0.edu> ?P ?O). Each normal vertex should
+        /// add two key/value pairs with a reserved ID (i.e., PREDICATE_ID) as the predicate
+        /// to store the IN and OUT lists of its predicates.
+        /// e.g., key=(vid, PREDICATE_ID, IN/OUT), val=(predicate0, predicate1, ...)
+        ///
+        /// NOTE, it is disabled by default in order to save memory.
+        vector<sid_t> predicates;
+#endif // end of VERSATILE
 
         uint64_t s = 0;
         while (s < pso.size()) {
@@ -825,29 +825,29 @@ class StaticGStore : public GStore {
             for (uint64_t i = s; i < e; i++)
                 edges[off++].val = pso[i].o;
 
-            #ifdef VERSATILE
-                // add a new predicate
-                predicates.push_back(pso[s].p);
+#ifdef VERSATILE
+            // add a new predicate
+            predicates.push_back(pso[s].p);
 
-                // insert a special PREDICATE triple (OUT)
-                if (e >= pso.size() || pso[s].s != pso[e].s) {
-                    // allocate a vertex and edges
-                    ikey_t key = ikey_t(pso[s].s, PREDICATE_ID, OUT);
-                    uint64_t sz = predicates.size();
-                    uint64_t off = alloc_edges(sz, tid);
+            // insert a special PREDICATE triple (OUT)
+            if (e >= pso.size() || pso[s].s != pso[e].s) {
+                // allocate a vertex and edges
+                ikey_t key = ikey_t(pso[s].s, PREDICATE_ID, OUT);
+                uint64_t sz = predicates.size();
+                uint64_t off = alloc_edges(sz, tid);
 
-                    // insert a vertex
-                    uint64_t slot_id = insert_key(key);
-                    iptr_t ptr = iptr_t(sz, off);
-                    vertices[slot_id].ptr = ptr;
+                // insert a vertex
+                uint64_t slot_id = insert_key(key);
+                iptr_t ptr = iptr_t(sz, off);
+                vertices[slot_id].ptr = ptr;
 
-                    // insert edges
-                    for (auto const &p : predicates)
-                        edges[off++].val = p;
+                // insert edges
+                for (auto const &p : predicates)
+                    edges[off++].val = p;
 
-                    predicates.clear();
-                }
-            #endif // end of VERSATILE
+                predicates.clear();
+            }
+#endif // end of VERSATILE
 
             s = e;
         }
@@ -873,29 +873,29 @@ class StaticGStore : public GStore {
             for (uint64_t i = s; i < e; i++)
                 edges[off++].val = pos[i].s;
 
-            #ifdef VERSATILE
-                // add a new predicate
-                predicates.push_back(pos[s].p);
+#ifdef VERSATILE
+            // add a new predicate
+            predicates.push_back(pos[s].p);
 
-                // insert a special PREDICATE triple (OUT)
-                if (e >= pos.size() || pos[s].o != pos[e].o) {
-                    // allocate a vertex and edges
-                    ikey_t key = ikey_t(pos[s].o, PREDICATE_ID, IN);
-                    uint64_t sz = predicates.size();
-                    uint64_t off = alloc_edges(sz, tid);
+            // insert a special PREDICATE triple (OUT)
+            if (e >= pos.size() || pos[s].o != pos[e].o) {
+                // allocate a vertex and edges
+                ikey_t key = ikey_t(pos[s].o, PREDICATE_ID, IN);
+                uint64_t sz = predicates.size();
+                uint64_t off = alloc_edges(sz, tid);
 
-                    // insert a vertex
-                    uint64_t slot_id = insert_key(key);
-                    iptr_t ptr = iptr_t(sz, off);
-                    vertices[slot_id].ptr = ptr;
+                // insert a vertex
+                uint64_t slot_id = insert_key(key);
+                iptr_t ptr = iptr_t(sz, off);
+                vertices[slot_id].ptr = ptr;
 
-                    // insert edges
-                    for (auto const &p : predicates)
-                        edges[off++].val = p;
+                // insert edges
+                for (auto const &p : predicates)
+                    edges[off++].val = p;
 
-                    predicates.clear();
-                }
-            #endif // end of VERSATILE
+                predicates.clear();
+            }
+#endif // end of VERSATILE
             s = e;
         }
     }
@@ -951,12 +951,12 @@ class StaticGStore : public GStore {
 
                 if (vertices[slot_id].key.dir == IN) {
                     if (pid == PREDICATE_ID) {
-                        #ifdef VERSATILE
-                            // every subject/object has at least one predicate or one type
-                            v_set.insert(vid); // collect all local objects w/ predicate
-                            for (uint64_t e = 0; e < sz; e++)
-                                p_set.insert(edges[off + e].val); // collect all local predicates
-                        #endif
+#ifdef VERSATILE
+                        // every subject/object has at least one predicate or one type
+                        v_set.insert(vid); // collect all local objects w/ predicate
+                        for (uint64_t e = 0; e < sz; e++)
+                            p_set.insert(edges[off + e].val); // collect all local predicates
+#endif
                     } else if (pid == TYPE_ID) {
                         ASSERT(false); // (IN) type triples should be skipped
                     } else { // predicate-index (OUT) vid
@@ -966,25 +966,25 @@ class StaticGStore : public GStore {
                     }
                 } else {
                     if (pid == PREDICATE_ID) {
-                        #ifdef VERSATILE
-                            // every subject/object has at least one predicate or one type
-                            v_set.insert(vid); // collect all local subjects w/ predicate
-                            for (uint64_t e = 0; e < sz; e++)
-                                p_set.insert(edges[off + e].val); // collect all local predicates
-                        #endif
+#ifdef VERSATILE
+                        // every subject/object has at least one predicate or one type
+                        v_set.insert(vid); // collect all local subjects w/ predicate
+                        for (uint64_t e = 0; e < sz; e++)
+                            p_set.insert(edges[off + e].val); // collect all local predicates
+#endif
                     } else if (pid == TYPE_ID) {
-                        #ifdef VERSATILE
-                            // every subject/object has at least one predicate or one type
-                            v_set.insert(vid); // collect all local subjects w/ type
-                        #endif
+#ifdef VERSATILE
+                        // every subject/object has at least one predicate or one type
+                        v_set.insert(vid); // collect all local subjects w/ type
+#endif
                         // type-index (IN) vid
                         for (uint64_t e = 0; e < sz; e++) {
                             tbb_hash_map::accessor a;
                             tidx_map.insert(a, edges[off + e].val);
                             a->second.push_back(vid);
-                            #ifdef VERSATILE
-                                t_set.insert(edges[off + e].val); // collect all local types
-                            #endif
+#ifdef VERSATILE
+                            t_set.insert(edges[off + e].val); // collect all local types
+#endif
                         }
                     } else { // predicate-index (IN) vid
                         tbb_hash_map::accessor a;
@@ -1008,15 +1008,15 @@ class StaticGStore : public GStore {
         tbb_hash_map().swap(pidx_out_map);
         tbb_hash_map().swap(tidx_map);
 
-        #ifdef VERSATILE
-            insert_index_set(v_set, TYPE_ID, IN);
-            insert_index_set(t_set, TYPE_ID, OUT);
-            insert_index_set(p_set, PREDICATE_ID, OUT);
+#ifdef VERSATILE
+        insert_index_set(v_set, TYPE_ID, IN);
+        insert_index_set(t_set, TYPE_ID, OUT);
+        insert_index_set(p_set, PREDICATE_ID, OUT);
 
-            tbb_unordered_set().swap(v_set);
-            tbb_unordered_set().swap(t_set);
-            tbb_unordered_set().swap(p_set);
-        #endif
+        tbb_unordered_set().swap(v_set);
+        tbb_unordered_set().swap(t_set);
+        tbb_unordered_set().swap(p_set);
+#endif
         uint64_t t3 = timer::get_usec();
         logstream(LOG_DEBUG) << (t3 - t2) / 1000 << " ms for inserting index data into gstore" << LOG_endl;
     }

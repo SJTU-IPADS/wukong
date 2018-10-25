@@ -30,7 +30,7 @@
 using namespace std;
 
 class DynamicGStore : public GStore {
-    private:
+private:
     // block deferred to be freed
     struct free_blk {
         uint64_t off;
@@ -211,9 +211,7 @@ class DynamicGStore : public GStore {
     }
 
     uint64_t bucket_remote(ikey_t key, int dst_sid) {
-        uint64_t bucket_id;
-        bucket_id = key.hash() % num_buckets;
-        return bucket_id;
+        return bucket_local(key);
     }
 
     // cluster chaining hash-table (see paper: DrTM SOSP'15)
@@ -278,16 +276,16 @@ class DynamicGStore : public GStore {
         while (type_triples < pos.size() && is_tpid(pos[type_triples].o))
             type_triples++;
 
-        #ifdef VERSATILE
-            /// The following code is used to support a rare case where the predicate is unknown
-            /// (e.g., <http://www.Department0.University0.edu> ?P ?O). Each normal vertex should
-            /// add two key/value pairs with a reserved ID (i.e., PREDICATE_ID) as the predicate
-            /// to store the IN and OUT lists of its predicates.
-            /// e.g., key=(vid, PREDICATE_ID, IN/OUT), val=(predicate0, predicate1, ...)
-            ///
-            /// NOTE, it is disabled by default in order to save memory.
-            vector<sid_t> predicates;
-        #endif // end of VERSATILE
+#ifdef VERSATILE
+        /// The following code is used to support a rare case where the predicate is unknown
+        /// (e.g., <http://www.Department0.University0.edu> ?P ?O). Each normal vertex should
+        /// add two key/value pairs with a reserved ID (i.e., PREDICATE_ID) as the predicate
+        /// to store the IN and OUT lists of its predicates.
+        /// e.g., key=(vid, PREDICATE_ID, IN/OUT), val=(predicate0, predicate1, ...)
+        ///
+        /// NOTE, it is disabled by default in order to save memory.
+        vector<sid_t> predicates;
+#endif // end of VERSATILE
 
         uint64_t s = 0;
         while (s < pso.size()) {
@@ -310,29 +308,29 @@ class DynamicGStore : public GStore {
             for (uint64_t i = s; i < e; i++)
                 edges[off++].val = pso[i].o;
 
-            #ifdef VERSATILE
-                // add a new predicate
-                predicates.push_back(pso[s].p);
+#ifdef VERSATILE
+            // add a new predicate
+            predicates.push_back(pso[s].p);
 
-                // insert a special PREDICATE triple (OUT)
-                if (e >= pso.size() || pso[s].s != pso[e].s) {
-                    // allocate a vertex and edges
-                    ikey_t key = ikey_t(pso[s].s, PREDICATE_ID, OUT);
-                    uint64_t sz = predicates.size();
-                    uint64_t off = alloc_edges(sz, tid);
+            // insert a special PREDICATE triple (OUT)
+            if (e >= pso.size() || pso[s].s != pso[e].s) {
+                // allocate a vertex and edges
+                ikey_t key = ikey_t(pso[s].s, PREDICATE_ID, OUT);
+                uint64_t sz = predicates.size();
+                uint64_t off = alloc_edges(sz, tid);
 
-                    // insert a vertex
-                    uint64_t slot_id = insert_key(key);
-                    iptr_t ptr = iptr_t(sz, off);
-                    vertices[slot_id].ptr = ptr;
+                // insert a vertex
+                uint64_t slot_id = insert_key(key);
+                iptr_t ptr = iptr_t(sz, off);
+                vertices[slot_id].ptr = ptr;
 
-                    // insert edges
-                    for (auto const &p : predicates)
-                        edges[off++].val = p;
+                // insert edges
+                for (auto const &p : predicates)
+                    edges[off++].val = p;
 
-                    predicates.clear();
-                }
-            #endif // end of VERSATILE
+                predicates.clear();
+            }
+#endif // end of VERSATILE
 
             s = e;
         }
@@ -358,29 +356,29 @@ class DynamicGStore : public GStore {
             for (uint64_t i = s; i < e; i++)
                 edges[off++].val = pos[i].s;
 
-            #ifdef VERSATILE
-                // add a new predicate
-                predicates.push_back(pos[s].p);
+#ifdef VERSATILE
+            // add a new predicate
+            predicates.push_back(pos[s].p);
 
-                // insert a special PREDICATE triple (OUT)
-                if (e >= pos.size() || pos[s].o != pos[e].o) {
-                    // allocate a vertex and edges
-                    ikey_t key = ikey_t(pos[s].o, PREDICATE_ID, IN);
-                    uint64_t sz = predicates.size();
-                    uint64_t off = alloc_edges(sz, tid);
+            // insert a special PREDICATE triple (OUT)
+            if (e >= pos.size() || pos[s].o != pos[e].o) {
+                // allocate a vertex and edges
+                ikey_t key = ikey_t(pos[s].o, PREDICATE_ID, IN);
+                uint64_t sz = predicates.size();
+                uint64_t off = alloc_edges(sz, tid);
 
-                    // insert a vertex
-                    uint64_t slot_id = insert_key(key);
-                    iptr_t ptr = iptr_t(sz, off);
-                    vertices[slot_id].ptr = ptr;
+                // insert a vertex
+                uint64_t slot_id = insert_key(key);
+                iptr_t ptr = iptr_t(sz, off);
+                vertices[slot_id].ptr = ptr;
 
-                    // insert edges
-                    for (auto const &p : predicates)
-                        edges[off++].val = p;
+                // insert edges
+                for (auto const &p : predicates)
+                    edges[off++].val = p;
 
-                    predicates.clear();
-                }
-            #endif // end of VERSATILE
+                predicates.clear();
+            }
+#endif // end of VERSATILE
             s = e;
         }
     }
@@ -438,12 +436,12 @@ class DynamicGStore : public GStore {
 
                 if (vertices[slot_id].key.dir == IN) {
                     if (pid == PREDICATE_ID) {
-                        #ifdef VERSATILE
-                            // every subject/object has at least one predicate or one type
-                            v_set.insert(vid); // collect all local objects w/ predicate
-                            for (uint64_t e = 0; e < sz; e++)
-                                p_set.insert(edges[off + e].val); // collect all local predicates
-                        #endif
+#ifdef VERSATILE
+                        // every subject/object has at least one predicate or one type
+                        v_set.insert(vid); // collect all local objects w/ predicate
+                        for (uint64_t e = 0; e < sz; e++)
+                            p_set.insert(edges[off + e].val); // collect all local predicates
+#endif
                     } else if (pid == TYPE_ID) {
                         ASSERT(false); // (IN) type triples should be skipped
                     } else { // predicate-index (OUT) vid
@@ -453,25 +451,25 @@ class DynamicGStore : public GStore {
                     }
                 } else {
                     if (pid == PREDICATE_ID) {
-                        #ifdef VERSATILE
-                            // every subject/object has at least one predicate or one type
-                            v_set.insert(vid); // collect all local subjects w/ predicate
-                            for (uint64_t e = 0; e < sz; e++)
-                                p_set.insert(edges[off + e].val); // collect all local predicates
-                        #endif
+#ifdef VERSATILE
+                        // every subject/object has at least one predicate or one type
+                        v_set.insert(vid); // collect all local subjects w/ predicate
+                        for (uint64_t e = 0; e < sz; e++)
+                            p_set.insert(edges[off + e].val); // collect all local predicates
+#endif
                     } else if (pid == TYPE_ID) {
-                        #ifdef VERSATILE
-                            // every subject/object has at least one predicate or one type
-                            v_set.insert(vid); // collect all local subjects w/ type
-                        #endif
+#ifdef VERSATILE
+                        // every subject/object has at least one predicate or one type
+                        v_set.insert(vid); // collect all local subjects w/ type
+#endif
                         // type-index (IN) vid
                         for (uint64_t e = 0; e < sz; e++) {
                             tbb_hash_map::accessor a;
                             tidx_map.insert(a, edges[off + e].val);
                             a->second.push_back(vid);
-                            #ifdef VERSATILE
-                                t_set.insert(edges[off + e].val); // collect all local types
-                            #endif
+#ifdef VERSATILE
+                            t_set.insert(edges[off + e].val); // collect all local types
+#endif
                         }
                     } else { // predicate-index (IN) vid
                         tbb_hash_map::accessor a;
@@ -495,15 +493,15 @@ class DynamicGStore : public GStore {
         tbb_hash_map().swap(pidx_out_map);
         tbb_hash_map().swap(tidx_map);
 
-        #ifdef VERSATILE
-            insert_index_set(v_set, TYPE_ID, IN);
-            insert_index_set(t_set, TYPE_ID, OUT);
-            insert_index_set(p_set, PREDICATE_ID, OUT);
+#ifdef VERSATILE
+        insert_index_set(v_set, TYPE_ID, IN);
+        insert_index_set(t_set, TYPE_ID, OUT);
+        insert_index_set(p_set, PREDICATE_ID, OUT);
 
-            tbb_unordered_set().swap(v_set);
-            tbb_unordered_set().swap(t_set);
-            tbb_unordered_set().swap(p_set);
-        #endif
+        tbb_unordered_set().swap(v_set);
+        tbb_unordered_set().swap(t_set);
+        tbb_unordered_set().swap(p_set);
+#endif
 
         uint64_t t3 = timer::get_usec();
         logstream(LOG_DEBUG) << (t3 - t2) / 1000 << " ms for inserting index data into gstore" << LOG_endl;
@@ -546,13 +544,13 @@ class DynamicGStore : public GStore {
         return edge_ptr;
     }
 
-    public:
+public:
     DynamicGStore(int sid, Mem *mem): GStore(sid, mem) {
-        #ifdef USE_JEMALLOC
-            edge_allocator = new JeMalloc();
-        #else
-            edge_allocator = new BuddyMalloc();
-        #endif // end of USE_JEMALLOC
+#ifdef USE_JEMALLOC
+        edge_allocator = new JeMalloc();
+#else
+        edge_allocator = new BuddyMalloc();
+#endif // end of USE_JEMALLOC
         pthread_spin_init(&free_queue_lock, 0);
         lease = SEC(600);
         rdma_cache.set_lease(lease);
@@ -618,28 +616,28 @@ class DynamicGStore : public GStore {
             ikey_t key = ikey_t(triple.s, triple.p, OUT);
             // <1> vid's type (7) [need dedup]
             if (insert_vertex_edge(key, triple.o, dedup_or_isdup, tid)) {
-                #ifdef VERSATILE
-                    key = ikey_t(triple.s, PREDICATE_ID, OUT);
-                    // key and its buddy_key should be used to
-                    // identify the exist of corresponding index
-                    ikey_t buddy_key = ikey_t(triple.s, PREDICATE_ID, IN);
-                    // <2> vid's predicate, value is TYPE_ID (*8) [dedup from <1>]
-                    if (insert_vertex_edge(key, triple.p, nodup, tid) && !check_key_exist(buddy_key)) {
-                        key = ikey_t(0, TYPE_ID, IN);
-                        // <3> the index to vid (*3) [dedup from <2>]
-                        insert_vertex_edge(key, triple.s, nodup, tid);
-                    }
-                #endif // end of VERSATILE
+#ifdef VERSATILE
+                key = ikey_t(triple.s, PREDICATE_ID, OUT);
+                // key and its buddy_key should be used to
+                // identify the exist of corresponding index
+                ikey_t buddy_key = ikey_t(triple.s, PREDICATE_ID, IN);
+                // <2> vid's predicate, value is TYPE_ID (*8) [dedup from <1>]
+                if (insert_vertex_edge(key, triple.p, nodup, tid) && !check_key_exist(buddy_key)) {
+                    key = ikey_t(0, TYPE_ID, IN);
+                    // <3> the index to vid (*3) [dedup from <2>]
+                    insert_vertex_edge(key, triple.s, nodup, tid);
+                }
+#endif // end of VERSATILE
             }
             if (!dedup_or_isdup) {
                 key = ikey_t(0, triple.o, IN);
                 // <4> type-index (2) [if <1>'s result is not dup, this is not dup, too]
                 if (insert_vertex_edge(key, triple.s, nodup, tid)) {
-                    #ifdef VERSATILE
-                        key = ikey_t(0, TYPE_ID, OUT);
-                        // <5> index to this type (*4) [dedup from <4>]
-                        insert_vertex_edge(key, triple.o, nodup, tid);
-                    #endif // end of VERSATILE
+#ifdef VERSATILE
+                    key = ikey_t(0, TYPE_ID, OUT);
+                    // <5> index to this type (*4) [dedup from <4>]
+                    insert_vertex_edge(key, triple.o, nodup, tid);
+#endif // end of VERSATILE
                 }
             }
         } else {
@@ -652,24 +650,24 @@ class DynamicGStore : public GStore {
                 ikey_t buddy_key = ikey_t(0, triple.p, OUT);
                 // <7> predicate-index (1) [dedup from <6>]
                 if (insert_vertex_edge(key, triple.s, nodup, tid) && !check_key_exist(buddy_key)) {
-                    #ifdef VERSATILE
-                        key = ikey_t(0, PREDICATE_ID, OUT);
-                        // <8> the index to predicate (*5) [dedup from <7>]
-                        insert_vertex_edge(key, triple.p, nodup, tid);
-                    #endif // end of VERSATILE
+#ifdef VERSATILE
+                    key = ikey_t(0, PREDICATE_ID, OUT);
+                    // <8> the index to predicate (*5) [dedup from <7>]
+                    insert_vertex_edge(key, triple.p, nodup, tid);
+#endif // end of VERSATILE
                 }
-                #ifdef VERSATILE
-                    key = ikey_t(triple.s, PREDICATE_ID, OUT);
-                    // key and its buddy_key should be used to
-                    // identify the exist of corresponding index
-                    buddy_key = ikey_t(triple.s, PREDICATE_ID, IN);
-                    // <9> vid's predicate (*8) [dedup from <6>]
-                    if (insert_vertex_edge(key, triple.p, nodup, tid) && !check_key_exist(buddy_key)) {
-                        key = ikey_t(0, TYPE_ID, IN);
-                        // <10> the index to vid (*3) [dedup from <9>]
-                        insert_vertex_edge(key, triple.s, nodup, tid);
-                    }
-                #endif // end of VERSATILE
+#ifdef VERSATILE
+                key = ikey_t(triple.s, PREDICATE_ID, OUT);
+                // key and its buddy_key should be used to
+                // identify the exist of corresponding index
+                buddy_key = ikey_t(triple.s, PREDICATE_ID, IN);
+                // <9> vid's predicate (*8) [dedup from <6>]
+                if (insert_vertex_edge(key, triple.p, nodup, tid) && !check_key_exist(buddy_key)) {
+                    key = ikey_t(0, TYPE_ID, IN);
+                    // <10> the index to vid (*3) [dedup from <9>]
+                    insert_vertex_edge(key, triple.s, nodup, tid);
+                }
+#endif // end of VERSATILE
             }
         }
     }
@@ -689,24 +687,24 @@ class DynamicGStore : public GStore {
             ikey_t buddy_key = ikey_t(0, triple.p, IN);
             // <2> predicate-index (1) [dedup from <1>]
             if (insert_vertex_edge(key, triple.o, nodup, tid) && !check_key_exist(buddy_key)) {
-                #ifdef VERSATILE
-                    key = ikey_t(0, PREDICATE_ID, OUT);
-                    // <3> the index to predicate (*5) [dedup from <2>]
-                    insert_vertex_edge(key, triple.p, nodup, tid);
-                #endif // end of VERSATILE
+#ifdef VERSATILE
+                key = ikey_t(0, PREDICATE_ID, OUT);
+                // <3> the index to predicate (*5) [dedup from <2>]
+                insert_vertex_edge(key, triple.p, nodup, tid);
+#endif // end of VERSATILE
             }
-            #ifdef VERSATILE
-                key = ikey_t(triple.o, PREDICATE_ID, IN);
-                // key and its buddy_key should be used to
-                // identify the exist of corresponding index
-                buddy_key = ikey_t(triple.o, PREDICATE_ID, OUT);
-                // <4> vid's predicate (*8) [dedup from <1>]
-                if (insert_vertex_edge(key, triple.p, nodup, tid) && !check_key_exist(buddy_key)) {
-                    key = ikey_t(0, TYPE_ID, IN);
-                    // <5> the index to vid (*3) [dedup from <4>]
-                    insert_vertex_edge(key, triple.o, nodup, tid);
-                }
-            #endif // end of VERSATILE
+#ifdef VERSATILE
+            key = ikey_t(triple.o, PREDICATE_ID, IN);
+            // key and its buddy_key should be used to
+            // identify the exist of corresponding index
+            buddy_key = ikey_t(triple.o, PREDICATE_ID, OUT);
+            // <4> vid's predicate (*8) [dedup from <1>]
+            if (insert_vertex_edge(key, triple.p, nodup, tid) && !check_key_exist(buddy_key)) {
+                key = ikey_t(0, TYPE_ID, IN);
+                // <5> the index to vid (*3) [dedup from <4>]
+                insert_vertex_edge(key, triple.o, nodup, tid);
+            }
+#endif // end of VERSATILE
         }
     }
 };

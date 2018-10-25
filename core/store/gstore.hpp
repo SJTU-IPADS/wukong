@@ -73,7 +73,7 @@ class RDMA_Cache {
     bucket_t *hashtable;
     uint64_t lease;  // only work when DYNAMIC_GSTORE=on
 
-    public:
+public:
     RDMA_Cache() {
         // init hashtable
         size_t mem_size = sizeof(bucket_t) * NUM_BUCKETS;
@@ -98,17 +98,17 @@ class RDMA_Cache {
                     ver = items[i].version;
                     // re-check
                     if (items[i].v.key == key) {
-                        #ifdef DYNAMIC_GSTORE
-                            if (timer::get_usec() < items[i].expire_time) {
-                                ret = items[i].v;
-                                items[i].cnt++;
-                                found = true;
-                            }
-                        #else
+#ifdef DYNAMIC_GSTORE
+                        if (timer::get_usec() < items[i].expire_time) {
                             ret = items[i].v;
                             items[i].cnt++;
                             found = true;
-                        #endif
+                        }
+#else
+                        ret = items[i].v;
+                        items[i].cnt++;
+                        found = true;
+#endif
                         asm volatile("" ::: "memory");
 
                         // check version
@@ -158,15 +158,15 @@ class RDMA_Cache {
             if (old_ver != 0) {
                 uint32_t ret_ver = wukong::atomic::compare_and_swap(&items[pos].version, old_ver, 0);
                 if (ret_ver == old_ver) {
-                    #ifdef DYNAMIC_GSTORE
-                        // Do not reset visit cnt for the same vertex
-                        items[pos].cnt = (items[pos].v.key == v.key) ? items[pos].cnt : 0;
-                        items[pos].v = v;
-                        items[pos].expire_time = timer::get_usec() + lease;
-                    #else
-                        items[pos].v = v;
-                        items[pos].cnt = 0;
-                    #endif
+#ifdef DYNAMIC_GSTORE
+                    // Do not reset visit cnt for the same vertex
+                    items[pos].cnt = (items[pos].v.key == v.key) ? items[pos].cnt : 0;
+                    items[pos].v = v;
+                    items[pos].expire_time = timer::get_usec() + lease;
+#else
+                    items[pos].v = v;
+                    items[pos].cnt = 0;
+#endif
                     asm volatile("" ::: "memory");
                     ret_ver = wukong::atomic::compare_and_swap(&items[pos].version, 0, old_ver + 1);
                     assert(ret_ver == 0);
@@ -176,7 +176,7 @@ class RDMA_Cache {
         }
     } // end of insert
 
-    #ifdef DYNAMIC_GSTORE
+#ifdef DYNAMIC_GSTORE
         /* Set lease.*/
         void set_lease(uint64_t lease) { this->lease = lease; }
 
@@ -211,7 +211,7 @@ class RDMA_Cache {
 class GStore {
     friend class data_statistic;
     friend class GChecker;
-    protected:
+protected:
     static const int NUM_LOCKS = 1024;
 
     int sid;
@@ -360,7 +360,7 @@ class GStore {
     }
 
     // TODO
-    #ifdef VERSATILE
+#ifdef VERSATILE
     typedef tbb::concurrent_unordered_set<sid_t> tbb_unordered_set;
 
     tbb_unordered_set v_set; // all of subjects and objects
@@ -379,9 +379,9 @@ class GStore {
         for (auto const &e : set)
             edges[off++].val = e;
     }
-    #endif // VERSATILE
+#endif // VERSATILE
 
-    public:
+public:
     static const int ASSOCIATIVITY = 8;  // the associativity of slots in each bucket
 
     // Memory Usage (estimation):
