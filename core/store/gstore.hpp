@@ -177,32 +177,32 @@ public:
     } // end of insert
 
 #ifdef DYNAMIC_GSTORE
-        /* Set lease.*/
-        void set_lease(uint64_t lease) { this->lease = lease; }
+    /* Set lease.*/
+    void set_lease(uint64_t lease) { this->lease = lease; }
 
-        /**
-         * Invalidate cache item of the given key.
-         * Only work when the corresponding vertex exists.
-         */
-        void invalidate(ikey_t key) {
-            if (!global_enable_caching)
+    /**
+     * Invalidate cache item of the given key.
+     * Only work when the corresponding vertex exists.
+     */
+    void invalidate(ikey_t key) {
+        if (!global_enable_caching)
+            return;
+
+        int idx = key.hash() % NUM_BUCKETS;
+        item_t *items = hashtable[idx].items;
+        for (int i = 0; i < ASSOCIATIVITY; i++) {
+            if (items[i].v.key == key) {
+
+                /// Version is not checked and set here
+                /// since inconsistent expire time does not cause staleness.
+                /// The only possible overhead is
+                /// an extra update of vertex and expire time.
+                items[i].expire_time = timer::get_usec();
                 return;
-
-            int idx = key.hash() % NUM_BUCKETS;
-            item_t *items = hashtable[idx].items;
-            for (int i = 0; i < ASSOCIATIVITY; i++) {
-                if (items[i].v.key == key) {
-
-                    /// Version is not checked and set here
-                    /// since inconsistent expire time does not cause staleness.
-                    /// The only possible overhead is
-                    /// an extra update of vertex and expire time.
-                    items[i].expire_time = timer::get_usec();
-                    return;
-                }
             }
         }
-    #endif
+    }
+#endif
 };
 
 /**
@@ -243,7 +243,8 @@ protected:
     virtual uint64_t alloc_edges(uint64_t n, int64_t tid = 0) = 0;
     // Get remote edges according to given vid, dir, pid.
     // @sz: size of return edges
-    virtual edge_t *get_edges_remote(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t &sz, int &type = *(int *)NULL) = 0;
+    virtual edge_t *get_edges_remote(int tid, sid_t vid,
+                                     sid_t pid, dir_t d, uint64_t &sz, int &type = *(int *)NULL) = 0;
 
     // Allocate extended buckets
     // @n number of extended buckets to allocate
@@ -344,7 +345,8 @@ protected:
 
     // Get local edges according to given vid, pid, d.
     // @sz: size of return edges
-    edge_t *get_edges_local(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t &sz, int &type = *(int *)NULL) {
+    edge_t *get_edges_local(int tid, sid_t vid,
+                            sid_t pid, dir_t d, uint64_t &sz, int &type = *(int *)NULL) {
         ikey_t key = ikey_t(vid, pid, d);
         vertex_t v = get_vertex_local(tid, key);
 
@@ -437,7 +439,9 @@ public:
     ///               ?S ?P ?O : (3) +> (7) AND (8) +> (6)
 
     virtual ~GStore() {}
-    virtual void init(vector<vector<triple_t>> &triple_pso, vector<vector<triple_t>> &triple_pos, vector<vector<triple_attr_t>> &triple_sav) = 0;
+    virtual void init(vector<vector<triple_t>> &triple_pso,
+                      vector<vector<triple_t>> &triple_pos,
+                      vector<vector<triple_attr_t>> &triple_sav) = 0;
     virtual void refresh() = 0;
 
     /**
@@ -467,7 +471,8 @@ public:
         logstream(LOG_INFO) << "gstore = ";
         logstream(LOG_INFO) << mem->kvstore_size() << " bytes " << LOG_endl;
         logstream(LOG_INFO) << "  header region: " << num_slots << " slots"
-                            << " (main = " << num_buckets << ", indirect = " << num_buckets_ext << ")" << LOG_endl;
+                            << " (main = " << num_buckets
+                            << ", indirect = " << num_buckets_ext << ")" << LOG_endl;
         logstream(LOG_INFO) << "  entry region: " << num_entries << " entries" << LOG_endl;
     }
 

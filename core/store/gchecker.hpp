@@ -184,9 +184,11 @@ class GChecker {
             }
 
             if (!found) {
-                logstream(LOG_ERROR) << "if " << key.pid << "is predicate, in the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
+                logstream(LOG_ERROR) << "if " << key.pid << "is predicate, "
+                                     << "in the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
                                      << " there is NO value " << key.pid << LOG_endl;
-                logstream(LOG_ERROR) << "if " << key.pid << " is type, in the value part of all local types [ 0 | TYPE_ID | OUT ]"
+                logstream(LOG_ERROR) << "if " << key.pid << " is type, "
+                                     << "in the value part of all local types [ 0 | TYPE_ID | OUT ]"
                                      << " there is NO value " << key.pid << LOG_endl;
             }
 
@@ -194,7 +196,8 @@ class GChecker {
             // get the vid refered which refered by the type/predicate
             edge_t *vres = gstore->get_edges_local(0, 0, key.pid, IN, vsz);
             if (vsz == 0) {
-                logstream(LOG_ERROR) << "if " << key.pid << " is type, in the value part of all local types [ 0 | TYPE_ID | OUT ]"
+                logstream(LOG_ERROR) << "if " << key.pid << " is type, "
+                                     << "in the value part of all local types [ 0 | TYPE_ID | OUT ]"
                                      << " there is NO value " << key.pid << LOG_endl;
                 return;
             }

@@ -123,7 +123,7 @@ private:
             vertices[slot_id].key = key; // insert to the first slot
             goto done;
         }
-        done:
+done:
         pthread_spin_unlock(&bucket_locks[lock_id]);
         ASSERT(slot_id < num_slots);
         ASSERT(vertices[slot_id].key == key);
@@ -247,7 +247,9 @@ private:
             ia >> msg;
 
             shared_rdf_segment_meta_map.insert(make_pair(msg.sender_sid, msg.data));
-            logstream(LOG_INFO) << "#" << sid << " receives segment metadata from server " << msg.sender_sid << LOG_endl;
+            logstream(LOG_INFO) << "#" << sid
+                                << " receives segment metadata from server " << msg.sender_sid
+                                << LOG_endl;
         }
     }
 
@@ -397,9 +399,12 @@ private:
                 double ratio = static_cast<double>(seg.num_keys) / total_num_keys;
                 nbuckets = ratio * num_free_buckets;
                 total_ratio_ += ratio;
-                logger(LOG_DEBUG, "Seg[%lu|%lu|%lu]: #keys: %lu, nbuckets: %lu, bucket_off: %lu, ratio: %f, total_ratio: %f",
+                logger(LOG_DEBUG, "Seg[%lu|%lu|%lu]: "
+                       "#keys: %lu, nbuckets: %lu, bucket_off: %lu, "
+                       "ratio: %f, total_ratio: %f",
                        segid.index, segid.pid, segid.dir,
-                       seg.num_keys, nbuckets, main_hdr_off, ratio, total_ratio_);
+                       seg.num_keys, nbuckets, main_hdr_off,
+                       ratio, total_ratio_);
             }
             seg.num_buckets = (nbuckets > 0 ? nbuckets : 1);
         } else {
@@ -499,12 +504,12 @@ private:
         for (int i = 1; i <= num_predicates; ++i) {
             logger(LOG_DEBUG, "pid: %d: normal: #IN: %lu, #OUT: %lu; index: #ALL: %lu, #IN: %lu, #OUT: %lu",
                    i, normal_cnt_map[i].normal_cnts[IN].load(), normal_cnt_map[i].normal_cnts[OUT].load(),
-                   (index_cnt_map[i].index_cnts[ IN ].load() + index_cnt_map[i].index_cnts[ OUT ].load()),
-                   index_cnt_map[i].index_cnts[ IN ].load(),
-                   index_cnt_map[i].index_cnts[ OUT ].load());
+                   (index_cnt_map[i].index_cnts[IN].load() + index_cnt_map[i].index_cnts[OUT].load()),
+                   index_cnt_map[i].index_cnts[IN].load(), index_cnt_map[i].index_cnts[OUT].load());
 
             if (normal_cnt_map[i].normal_cnts[IN].load() +  normal_cnt_map[i].normal_cnts[OUT].load() > 0) {
-                total_num_keys += (index_cnt_map[i].index_cnts[IN].load() + index_cnt_map[i].index_cnts[OUT].load());
+                total_num_keys += (index_cnt_map[i].index_cnts[IN].load()
+                                   + index_cnt_map[i].index_cnts[OUT].load());
             }
         }
 
@@ -526,13 +531,17 @@ private:
             }
 
             // allocate space for edges in entry-region
-            seg_normal_out.edge_start = (seg_normal_out.num_edges > 0) ? alloc_edges(seg_normal_out.num_edges) : 0;
-            seg_normal_in.edge_start  = (seg_normal_in.num_edges > 0) ? alloc_edges(seg_normal_in.num_edges) : 0;
+            seg_normal_out.edge_start = (seg_normal_out.num_edges > 0) ?
+                                        alloc_edges(seg_normal_out.num_edges) : 0;
+            seg_normal_in.edge_start  = (seg_normal_in.num_edges > 0) ?
+                                        alloc_edges(seg_normal_in.num_edges) : 0;
 
             // predicate rdf:type doesn't have index vertices
             if (pid != TYPE_ID) {
-                seg_index_out.edge_start = (seg_index_out.num_edges > 0) ? alloc_edges(seg_index_out.num_edges) : 0;
-                seg_index_in.edge_start  = (seg_index_in.num_edges > 0) ? alloc_edges(seg_index_in.num_edges) : 0;
+                seg_index_out.edge_start = (seg_index_out.num_edges > 0) ?
+                                           alloc_edges(seg_index_out.num_edges) : 0;
+                seg_index_in.edge_start  = (seg_index_in.num_edges > 0) ?
+                                           alloc_edges(seg_index_in.num_edges) : 0;
             }
 
             uint64_t normal_nkeys[2] = {seg_index_out.num_edges, seg_index_in.num_edges};
@@ -547,16 +556,19 @@ private:
             alloc_buckets_to_segment(seg_index_in, segid_t(1, pid, IN), total_num_keys);
 
 
-            logger(LOG_DEBUG, "Predicate[%d]: normal: OUT[#keys: %lu, #buckets: %lu, #edges: %lu] IN[#keys: %lu, #buckets: %lu, #edges: %lu];",
+            logger(LOG_DEBUG, "Predicate[%d]: normal: OUT[#keys: %lu, #buckets: %lu, #edges: %lu] "
+                   "IN[#keys: %lu, #buckets: %lu, #edges: %lu];",
                    pid, seg_normal_out.num_keys, seg_normal_out.num_buckets, seg_normal_out.num_edges,
                    seg_normal_in.num_keys, seg_normal_in.num_buckets, seg_normal_in.num_edges);
-            logger(LOG_DEBUG, "index: OUT[#keys: %lu, #buckets: %lu, #edges: %lu], IN[#keys: %lu, #buckets: %lu, #edges: %lu], bucket_off: %lu\n",
+            logger(LOG_DEBUG, "index: OUT[#keys: %lu, #buckets: %lu, #edges: %lu], "
+                   "IN[#keys: %lu, #buckets: %lu, #edges: %lu], bucket_off: %lu\n",
                    seg_index_out.num_keys, seg_index_out.num_buckets, seg_index_out.num_edges,
                    seg_index_in.num_keys, seg_index_in.num_buckets, seg_index_in.num_edges, main_hdr_off);
 
         }
 
-        logger(LOG_DEBUG, "#total_keys: %lu, bucket_off: %lu, #total_entries: %lu", total_num_keys, main_hdr_off, this->last_entry);
+        logger(LOG_DEBUG, "#total_keys: %lu, bucket_off: %lu, #total_entries: %lu",
+               total_num_keys, main_hdr_off, this->last_entry);
     }
 
     // re-adjust attributes of segments
@@ -586,7 +598,8 @@ private:
         int dir = segid.dir;
 
         if (segment.num_edges == 0) {
-            logger(LOG_DEBUG, "Thread(%d): abort! segment(%d|%d|%d) is empty.\n", tid, segid.index, segid.pid, segid.dir);
+            logger(LOG_DEBUG, "Thread(%d): abort! segment(%d|%d|%d) is empty.\n",
+                   tid, segid.index, segid.pid, segid.dir);
             return;
         }
 
@@ -629,7 +642,8 @@ private:
                 collect_index_info(slot_id);
                 s = e;
             }
-            logger(LOG_DEBUG, "Thread(%d): inserted predicate %d pso(%lu triples).", tid, pid, pso.size());
+            logger(LOG_DEBUG, "Thread(%d): inserted predicate %d pso(%lu triples).",
+                   tid, pid, pso.size());
         }
 
         ASSERT(off <= segment.edge_start + segment.num_edges);
@@ -663,7 +677,8 @@ private:
                 collect_index_info(slot_id);
                 s = e;
             }
-            logger(LOG_DEBUG, "Thread(%d): inserted predicate %d pos(%lu triples).", tid, pid, pos.size());
+            logger(LOG_DEBUG, "Thread(%d): inserted predicate %d pos(%lu triples).",
+                   tid, pid, pos.size());
         }
 
         ASSERT(off <= segment.edge_start + segment.num_edges);
@@ -687,7 +702,9 @@ public:
 
     ~StaticGStore() {}
 
-    void init(vector<vector<triple_t>> &triple_pso, vector<vector<triple_t>> &triple_pos, vector<vector<triple_attr_t>> &triple_sav) {
+    void init(vector<vector<triple_t>> &triple_pso,
+              vector<vector<triple_t>> &triple_pos,
+              vector<vector<triple_attr_t>> &triple_sav) {
         uint64_t start, end;
 #ifdef USE_GPU
         start = timer::get_usec();

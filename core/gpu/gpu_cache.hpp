@@ -158,10 +158,13 @@ private:
             }
         } // end of worst case
 
-        logstream(LOG_ERROR) << "GPU Cache: evict_key_blocks() could not provide enough free key blocks." << LOG_endl;
+        logstream(LOG_ERROR) << "GPU Cache: evict_key_blocks() cannot provide enough free key blocks."
+                             << LOG_endl;
     } // end of evict_key_blocks
 
-    void evict_value_blocks(const vector<segid_t> &conflicts, segid_t seg_to_load, segid_t seg_in_pattern, int num_need_blocks) {
+    void evict_value_blocks(const vector<segid_t> &conflicts,
+                            segid_t seg_to_load, segid_t seg_in_pattern,
+                            int num_need_blocks) {
         // step 1: traverse segments in value cache, evict segments that are not in conflicts or not to load/using
         for (auto it = segs_in_value_cache.begin(); it != segs_in_value_cache.end(); ) {
             segid_t seg = *it;
@@ -262,7 +265,8 @@ private:
         if (main_size != 0) {
             CUDA_ASSERT(cudaMemcpyAsync(
                             vertex_gaddr + block_id * nbuckets_kblk * GStore::ASSOCIATIVITY,
-                            vertex_addr + (rdf_metas[seg].bucket_start + seg_block_idx * nbuckets_kblk) * GStore::ASSOCIATIVITY,
+                            vertex_addr + (rdf_metas[seg].bucket_start
+                                           + seg_block_idx * nbuckets_kblk) * GStore::ASSOCIATIVITY,
                             sizeof(vertex_t) * main_size * GStore::ASSOCIATIVITY,
                             cudaMemcpyHostToDevice,
                             stream));

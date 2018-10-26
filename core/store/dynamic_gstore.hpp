@@ -259,7 +259,7 @@ private:
             vertices[slot_id].key = key; // insert to the first slot
             goto done;
         }
-        done:
+done:
         pthread_spin_unlock(&bucket_locks[lock_id]);
         ASSERT(slot_id < num_slots);
         ASSERT(vertices[slot_id].key == key);
@@ -558,7 +558,9 @@ public:
 
     ~DynamicGStore() {}
 
-    void init(vector<vector<triple_t>> &triple_pso, vector<vector<triple_t>> &triple_pos, vector<vector<triple_attr_t>> &triple_sav) {
+    void init(vector<vector<triple_t>> &triple_pso,
+              vector<vector<triple_t>> &triple_pos,
+              vector<vector<triple_attr_t>> &triple_sav) {
         uint64_t start, end;
         start = timer::get_usec();
         #pragma omp parallel for num_threads(global_num_engines)

@@ -140,7 +140,8 @@ main(int argc, char *argv[])
     bcast_mems.push_back(ss_bcast_mem);
     // CPU (host) memory
     Mem *mem = new Mem(global_num_servers, global_num_threads, bcast_mems);
-    logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(mem->size()) << "GB memory" << LOG_endl;
+    logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(mem->size())
+                        << "GB memory" << LOG_endl;
     RDMA::MemoryRegion mr_cpu = { RDMA::MemType::CPU, mem->address(), mem->size(), mem };
     mrs.push_back(mr_cpu);
 
@@ -148,7 +149,8 @@ main(int argc, char *argv[])
     // GPU (device) memory
     int devid = 0; // FIXME: it means one GPU device?
     GPUMem *gpu_mem = new GPUMem(devid, global_num_servers, global_num_gpus);
-    logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(gpu_mem->size()) << "GB GPU memory" << LOG_endl;
+    logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(gpu_mem->size())
+                        << "GB GPU memory" << LOG_endl;
     RDMA::MemoryRegion mr_gpu = { RDMA::MemType::GPU, gpu_mem->address(), gpu_mem->size(), gpu_mem };
     mrs.push_back(mr_gpu);
 #endif
@@ -216,15 +218,19 @@ main(int argc, char *argv[])
     }
 
 #ifdef USE_GPU
-    logstream(LOG_INFO) << "#" << sid << " #threads:" << global_num_threads << ", #proxies:"
-        << global_num_proxies << ", #engines:" << global_num_engines << ", #agent:" << global_num_gpus << LOG_endl;
+    logstream(LOG_INFO) << "#" << sid
+                        << " #threads:" << global_num_threads
+                        << ", #proxies:" << global_num_proxies
+                        << ", #engines:" << global_num_engines
+                        << ", #agent:" << global_num_gpus << LOG_endl;
 
     // create GPU agent
     GPUStreamPool stream_pool(32);
-    GPUCache gpu_cache(gpu_mem, dgraph.gstore->vertex_addr(), dgraph.gstore->edge_addr(), static_cast<StaticGStore *>(dgraph.gstore)->get_rdf_segment_metas());
+    GPUCache gpu_cache(gpu_mem, dgraph.gstore->vertex_addr(), dgraph.gstore->edge_addr(),
+                       static_cast<StaticGStore *>(dgraph.gstore)->get_rdf_segment_metas());
     GPUEngine gpu_engine(sid, WUKONG_GPU_AGENT_TID, gpu_mem, &gpu_cache, &stream_pool, &dgraph);
     GPUAgent agent(sid, WUKONG_GPU_AGENT_TID, new Adaptor(WUKONG_GPU_AGENT_TID,
-                tcp_adaptor, rdma_adaptor), &gpu_engine);
+                   tcp_adaptor, rdma_adaptor), &gpu_engine);
     pthread_create(&(threads[WUKONG_GPU_AGENT_TID]), NULL, agent_thread, (void *)&agent);
 #endif
 
