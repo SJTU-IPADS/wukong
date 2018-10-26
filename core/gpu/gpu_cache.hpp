@@ -30,7 +30,7 @@
 #include <algorithm>
 #include <cuda_runtime.h>
 #include "rdf_meta.hpp"
-#include "gstore.hpp"
+#include "store/gstore.hpp"
 #include "unit.hpp"
 #include "gpu_utils.hpp"
 

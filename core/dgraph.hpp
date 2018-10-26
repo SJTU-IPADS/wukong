@@ -24,10 +24,13 @@
 
 #include "loader/posix_loader.hpp"
 #include "loader/hdfs_loader.hpp"
-#include "gstore.hpp"
 #ifdef DYNAMIC_GSTORE
+#include "store/dynamic_gstore.hpp"
 #include "loader/dynamic_loader.hpp"
+#else
+#include "store/static_gstore.hpp"
 #endif
+#include "store/gchecker.hpp"
 
 using namespace std;
 
@@ -38,6 +41,7 @@ class DGraph {
 private:
     int sid;
     BaseLoader *loader;
+    GChecker *checker;
 
 
 public:
@@ -47,10 +51,13 @@ public:
 #endif
 
     DGraph(int sid, Mem *mem, String_Server *str_server, string dname): sid(sid) {
-        gstore = new GStore(sid, mem);
         #ifdef DYNAMIC_GSTORE
-            dynamic_loader = new DynamicLoader(sid, str_server, gstore);
+            gstore = new DynamicGStore(sid, mem);
+            dynamic_loader = new DynamicLoader(sid, str_server, static_cast<DynamicGStore *>(gstore));
+        #else
+            gstore = new StaticGStore(sid, mem);
         #endif
+        checker = new GChecker(gstore);
         //load from hdfs or posix file
         if (boost::starts_with(dname, "hdfs:"))
             loader = new HDFSLoader(sid, mem, str_server, gstore);
@@ -69,76 +76,11 @@ public:
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
                             << "for loading triples from disk to memory." << LOG_endl;
 
-#ifdef USE_GPU
-
         start = timer::get_usec();
-        // merge triple_pso and triple_pos into a map
-        gstore->init_triples_map(triple_pso, triple_pos);
+        gstore->init(triple_pso, triple_pos, triple_sav);
         end = timer::get_usec();
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                            << "for merging triple_pso and triple_pos." << LOG_endl;
-
-        start = timer::get_usec();
-        gstore->init_segment_metas(triple_pso, triple_pos);
-        end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                            << "for initializing predicate segment statistics." << LOG_endl;
-
-        start = timer::get_usec();
-        auto& predicates = gstore->get_all_predicates();
-        logstream(LOG_DEBUG) << "#" << sid << ": all_predicates: " << predicates.size() << LOG_endl;
-        #pragma omp parallel for num_threads(global_num_engines)
-        for (int i = 0; i < predicates.size(); i++) {
-            int localtid = omp_get_thread_num();
-            sid_t pid = predicates[i];
-            gstore->insert_triples_to_segment(localtid, segid_t(0, pid, OUT));
-            gstore->insert_triples_to_segment(localtid, segid_t(0, pid, IN));
-        }
-        end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                            << "for inserting triples as segments into gstore" << LOG_endl;
-
-        gstore->finalize_segment_metas();
-        gstore->free_triples_map();
-
-        // synchronize segment metadata among servers
-        extern TCP_Adaptor *con_adaptor;
-        gstore->sync_metadata(con_adaptor);
-
-#else   // !USE_GPU
-
-        start = timer::get_usec();
-        #pragma omp parallel for num_threads(global_num_engines)
-        for (int t = 0; t < global_num_engines; t++) {
-            gstore->insert_normal(triple_pso[t], triple_pos[t], t);
-
-            // release memory
-            vector<triple_t>().swap(triple_pso[t]);
-            vector<triple_t>().swap(triple_pos[t]);
-        }
-        end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                            << "for inserting normal data into gstore" << LOG_endl;
-
-        start = timer::get_usec();
-        #pragma omp parallel for num_threads(global_num_engines)
-        for (int t = 0; t < global_num_engines; t++) {
-            gstore->insert_attr(triple_sav[t], t);
-
-            // release memory
-            vector<triple_attr_t>().swap(triple_sav[t]);
-        }
-        end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                            << "for inserting attributes into gstore" << LOG_endl;
-
-        start = timer::get_usec();
-        gstore->insert_index();
-        end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                            << "for inserting index data into gstore" << LOG_endl;
-
-#endif  // end of USE_GPU
+                            << "for initializing gstore." << LOG_endl;
 
         logstream(LOG_INFO) << "#" << sid << ": loading DGraph is finished" << LOG_endl;
         print_graph_stat();
@@ -148,6 +90,7 @@ public:
 
     ~DGraph() {
         delete gstore;
+        delete checker;
         delete loader;
 #ifdef DYNAMIC_GSTORE
         delete dynamic_loader;
@@ -155,7 +98,7 @@ public:
     }
 
     int gstore_check(bool index_check, bool normal_check) {
-        return gstore->gstore_check(index_check, normal_check);
+        return checker->gstore_check(index_check, normal_check);
     }
 
     edge_t *get_triples(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t &sz) {
