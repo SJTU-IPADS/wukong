@@ -134,8 +134,12 @@ main(int argc, char *argv[])
     // allocate memory regions
     vector<RDMA::MemoryRegion> mrs;
 
+    // rdma broadcast memory
+    vector<Broadcast_Mem *> bcast_mems;
+    Broadcast_Mem *ss_bcast_mem = new Broadcast_Mem(global_num_servers, global_num_threads);
+    bcast_mems.push_back(ss_bcast_mem);
     // CPU (host) memory
-    Mem *mem = new Mem(global_num_servers, global_num_threads);
+    Mem *mem = new Mem(global_num_servers, global_num_threads, bcast_mems);
     logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(mem->size()) << "GB memory" << LOG_endl;
     RDMA::MemoryRegion mr_cpu = { RDMA::MemType::CPU, mem->address(), mem->size(), mem };
     mrs.push_back(mr_cpu);
@@ -149,8 +153,13 @@ main(int argc, char *argv[])
     mrs.push_back(mr_gpu);
 #endif
 
+    // RDMA full-link communication
+    int flink_nthreads = global_num_proxies + global_num_engines;
+    // RDMA broadcast communication
+    int bcast_nthreads = 2;
+    int rdma_init_nthreads = flink_nthreads + bcast_nthreads;
     // init RDMA devices and connections
-    RDMA_init(global_num_servers, global_num_threads, sid, mrs, host_fname);
+    RDMA_init(global_num_servers, rdma_init_nthreads, sid, mrs, host_fname);
 
     // init communication
     RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mrs,
