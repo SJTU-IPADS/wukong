@@ -86,9 +86,7 @@ private:
         case SPARQLParser::Element::Literal:
         {
         	string str = "";
-        	if(e.subType == SPARQLParser::Element::CustomType && e.subTypeValue == "yago_predicate")
-        		str = e.value;
-        	else if(e.subType == SPARQLParser::Element::CustomLanguage)
+        	if(e.subType == SPARQLParser::Element::CustomLanguage)
         		str = "\"" + e.value + "\"" + "@" + e.subTypeValue;
         	else
         		str = "\"" + e.value + "\"";
