@@ -136,6 +136,9 @@ void init_options_desc()
     (",n", value<int>()->default_value(1)->value_name("<num>"), "run <num> times")
     (",N", value<int>()->default_value(1)->value_name("<num>"), "run planner <num> times")
     (",v", value<int>()->default_value(0)->value_name("<lines>"), "print at most <lines> of results")
+#ifdef USE_GPU
+    (",g", "send the query to GPU")
+#endif
     (",o", value<string>()->value_name("<fname>"), "output results into <fname>")
     (",b", value<string>()->value_name("<fname>"), "run a batch of queries configured by <fname>")
     ("help,h", "help message about sparql")
@@ -465,11 +468,16 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
             }
         }
 
+        bool send_to_gpu = false;
+        if (sparql_vm.count("-g")) {
+            send_to_gpu = true;
+        }
+
         /// do sparql
         SPARQLQuery reply;
         SPARQLQuery::Result &result = reply.result;
         Monitor monitor;
-        int ret = proxy->run_single_query(ifs, fmt_stream, mfactor, cnt, cnt_planner, reply, monitor);
+        int ret = proxy->run_single_query(ifs, fmt_stream, mfactor, cnt, cnt_planner, send_to_gpu, reply, monitor);
         if (ret != 0) {
             logstream(LOG_ERROR) << "Failed to run the query (ERRNO: " << ret << ")!" << LOG_endl;
             fail_to_parse(proxy, argc, argv); // invalid cmd

@@ -26,7 +26,6 @@ include_directories(rdma_lib)
 
 ## Source code
 file(GLOB SOURCES "core/*.hpp" "utils/*.hpp" "rdma_lib/*.hpp")
-add_executable(wukong ${SOURCES} "core/wukong.cpp")
 
 
 ## Set options (cached)
@@ -43,7 +42,17 @@ option (USE_GPU "enable GPU support" OFF)
 if(USE_GPU)
   add_definitions(-DUSE_GPU)
   find_package(CUDA REQUIRED)
+
+  ## CUDA configs
+  set(CUDA_NVCC_FLAGS -arch=sm_35;-std=c++11)
+  set(CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
+  set(CUDA_SEPARABLE_COMPILATION ON)
   set(WUKONG_LIBS ${WUKONG_LIBS} cudart)
+  cuda_add_executable(wukong ${SOURCES} "core/wukong.cpp" "core/gpu/gpu_hash.cu")
+
+else(USE_GPU)
+  add_executable(wukong ${SOURCES} "core/wukong.cpp")
+
 endif(USE_GPU)
 
 #### HDFS

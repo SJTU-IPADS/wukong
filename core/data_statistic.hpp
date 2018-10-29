@@ -14,7 +14,7 @@
 #include <tbb/concurrent_hash_map.h>
 
 #include "global.hpp"
-#include "gstore.hpp"
+#include "store/gstore.hpp"
 #include "comm/tcp_adaptor.hpp"
 
 using namespace std;

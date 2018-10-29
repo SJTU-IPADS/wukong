@@ -29,7 +29,6 @@
 #include "unit.hpp"
 #include "gpu_utils.hpp"
 #include "type.hpp"
-#include "gstore.hpp"
 
 class GPUMem {
 private:
@@ -123,8 +122,9 @@ public:
 
     // RDMA buffer layout: header | type | body
     inline char *rdma_buf_hdr(int tid) { return buf + buf_sz * (tid % num_agents); }
-    inline char *rdma_buf_type(int tid) { return buf + buf_sz * (tid % num_agents) + sizeof(uint64_t); }
-    inline char *rdma_buf_body(int tid) { return buf + buf_sz * (tid % num_agents) + 2 * sizeof(uint64_t); }
+    inline char *rdma_buf_body(int tid) { return rdma_buf_hdr(tid) + sizeof(uint64_t); }
+    /* inline char *rdma_buf_type(int tid) { return rdma_buf_hdr(tid) + sizeof(uint64_t); }
+     * inline char *rdma_buf_body(int tid) { return rdma_buf_hdr(tid) + 2 * sizeof(uint64_t); } */
     inline uint64_t rdma_buf_hdr_offset(int tid) { return buf_off + buf_sz * (tid % num_agents); }
     inline uint64_t rdma_buf_type_offset(int tid) { return buf_off + buf_sz * (tid % num_agents) + sizeof(uint64_t); }
     inline uint64_t rdma_buf_body_offset(int tid) { return buf_off + buf_sz * (tid % num_agents) + 2 * sizeof(uint64_t); }

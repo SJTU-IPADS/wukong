@@ -70,20 +70,50 @@ private:
             string type = sqt.ptypes_str[i]; // the Types of random-constant
 
             // create a TYPE query to collect constants with the certain type
-            SPARQLQuery type_request = SPARQLQuery();
-            SPARQLQuery::Pattern pattern(str_server->str2id[type], TYPE_ID, IN, -1);
-            pattern.pred_type = 0;
-            type_request.pattern_group.patterns.push_back(pattern);
+            SPARQLQuery request = SPARQLQuery();
+            bool from_predicate = (type.find("fromPredicate") != string::npos);
 
-            type_request.result.nvars = 1;
-            type_request.result.required_vars.push_back(-1);
-            type_request.result.blind = false; // must take back the results
+            if (from_predicate) {
+                // template types are defined by predicate
+                // for example, %fromPredicate takeCourse ?X .
+                // create a PREDICATE query to collect constants with the certain predicate
+                int pos = sqt.ptypes_pos[i];
+                ssid_t p = sqt.pattern_group.patterns[pos / 4].predicate;
+                dir_t d;
+                switch (pos % 4) {
+                    case 0:
+                        d = (sqt.pattern_group.patterns[pos / 4].direction == OUT) ? IN : OUT;
+                        break;
+                    case 3:
+                        d = (sqt.pattern_group.patterns[pos / 4].direction == OUT) ? OUT : IN;
+                        break;
+                    default:
+                        ASSERT(false);
+                }
+                SPARQLQuery::Pattern pattern(p, PREDICATE_ID, d, -1);
+                pattern.pred_type = 0;
+                request.pattern_group.patterns.push_back(pattern);
 
-            setpid(type_request);
-            send_request(type_request);
+                string dir_str = (d == OUT) ? "->" : "<-";
+                type = "#Predicate [" + str_server->id2str[p] + " | " + dir_str + "]";
+            } else {
+                // templates are defined by type
+                // for example, %GraduateStudent takeCourse ?X .
+                // create a TYPE query to collect constants with the certain type
+                SPARQLQuery::Pattern pattern(str_server->str2id[type], TYPE_ID, IN, -1);
+                pattern.pred_type = 0;
+                request.pattern_group.patterns.push_back(pattern);
+            }
 
-            SPARQLQuery type_reply = recv_reply();
-            vector<sid_t> candidates(type_reply.result.result_table);
+            request.result.nvars = 1;
+            request.result.required_vars.push_back(-1);
+            request.result.blind = false; // must take back the results
+
+            setpid(request);
+            send_request(request);
+
+            SPARQLQuery reply = recv_reply();
+            vector<sid_t> candidates(reply.result.result_table);
 
             // There is no candidate with the Type for a random-constant in the template
             // TODO: it should report empty for all queries of the template
@@ -173,7 +203,20 @@ public:
         // submit the request to a certain server
         int start_sid = wukong::math::hash_mod(r.pattern_group.get_start(), global_num_servers);
         Bundle bundle(r);
+#ifdef USE_GPU
+        if (r.dev_type == SPARQLQuery::DeviceType::CPU) {
+            logstream(LOG_DEBUG) << "dev_type is CPU, send to engine. r.pid=" << r.pid << LOG_endl;
+            send(bundle, start_sid);
+        } else if (r.dev_type == SPARQLQuery::DeviceType::GPU) {
+            logstream(LOG_DEBUG) << "dev_type is GPU, send to GPU agent. r.pid=" << r.pid << LOG_endl;
+            send(bundle, start_sid, WUKONG_GPU_AGENT_TID);
+        } else {
+            ASSERT_MSG(false, "Unknown device type");
+        }
+#else
         send(bundle, start_sid);
+
+#endif  // end of USE_GPU
     }
 
     // Recv reply from engines.
@@ -181,6 +224,10 @@ public:
         Bundle bundle = adaptor->recv();
         ASSERT(bundle.type == SPARQL_QUERY);
         SPARQLQuery r = bundle.get_sparql_query();
+        logstream(LOG_DEBUG) << "Proxy recv_reply: got reply id="<< r.id << ", r.pid=" << r.pid
+            << ", dev_type=" << (r.dev_type == SPARQLQuery::DeviceType::GPU ? "GPU" : "CPU")
+            << ", #rows=" << r.result.get_row_num() << ", step=" << r.pattern_step
+            << ", done: " << r.done(SPARQLQuery::SQState::SQ_PATTERN) << LOG_endl;
         return r;
     }
 
@@ -200,7 +247,7 @@ public:
     // @is: input
     // @reply: result
     int run_single_query(istream &is, istream &fmt_stream, int mt_factor, int cnt, int cnt_planner,
-                         SPARQLQuery &reply, Monitor &monitor) {
+                        bool send_to_gpu, SPARQLQuery &reply, Monitor &monitor) {
         uint64_t start, end;
         SPARQLQuery request;
 
@@ -250,6 +297,20 @@ public:
                                     << LOG_endl;
             //request.mt_factor = min(mt_factor, global_mt_threshold);
         }
+#ifdef USE_GPU
+        if (send_to_gpu) {
+            request.dev_type = SPARQLQuery::DeviceType::GPU;
+            request.result.dev_type = SPARQLQuery::DeviceType::GPU;
+            logstream(LOG_INFO) << "The query will be sent to GPU" << LOG_endl;
+        }
+#else
+        if (send_to_gpu) {
+            logstream(LOG_WARNING) << "You need to build Wukong with GPU support to use the \"-g\" option." << LOG_endl;
+            send_to_gpu = false;
+        }
+#endif
+
+
 
         // Execute the SPARQL query
         monitor.init();

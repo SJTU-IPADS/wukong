@@ -24,14 +24,10 @@
 #include <boost/mpi.hpp>
 #include <iostream>
 
-#include "global.hpp"
 #include "conflict.hpp"
 #include "config.hpp"
 #include "bind.hpp"
 #include "mem.hpp"
-#ifdef USE_GPU
-#include "gpu_mem.hpp"
-#endif
 #include "string_server.hpp"
 #include "dgraph.hpp"
 #include "proxy.hpp"
@@ -44,6 +40,24 @@
 #include "comm/adaptor.hpp"
 
 #include "unit.hpp"
+#ifdef USE_GPU
+#include "gpu/gpu_mem.hpp"
+#include "gpu/gpu_agent.hpp"
+#include "gpu/gpu_engine.hpp"
+#include "gpu/gpu_cache.hpp"
+#include "gpu/gpu_stream.hpp"
+
+void *agent_thread(void *arg)
+{
+    GPUAgent *agent = (GPUAgent *)arg;
+    if (enable_binding && core_bindings.count(agent->tid) != 0)
+        bind_to_core(core_bindings[agent->tid]);
+    else
+        bind_to_core(default_bindings[agent->tid % num_cores]);
+
+    agent->run();
+}
+#endif  // end of USE_GPU
 
 void *engine_thread(void *arg)
 {
@@ -120,9 +134,14 @@ main(int argc, char *argv[])
     // allocate memory regions
     vector<RDMA::MemoryRegion> mrs;
 
+    // rdma broadcast memory
+    vector<Broadcast_Mem *> bcast_mems;
+    Broadcast_Mem *ss_bcast_mem = new Broadcast_Mem(global_num_servers, global_num_threads);
+    bcast_mems.push_back(ss_bcast_mem);
     // CPU (host) memory
-    Mem *mem = new Mem(global_num_servers, global_num_threads);
-    logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(mem->size()) << "GB memory" << LOG_endl;
+    Mem *mem = new Mem(global_num_servers, global_num_threads, bcast_mems);
+    logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(mem->size())
+                        << "GB memory" << LOG_endl;
     RDMA::MemoryRegion mr_cpu = { RDMA::MemType::CPU, mem->address(), mem->size(), mem };
     mrs.push_back(mr_cpu);
 
@@ -130,13 +149,19 @@ main(int argc, char *argv[])
     // GPU (device) memory
     int devid = 0; // FIXME: it means one GPU device?
     GPUMem *gpu_mem = new GPUMem(devid, global_num_servers, global_num_gpus);
-    logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(gpu_mem->size()) << "GB GPU memory" << LOG_endl;
+    logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(gpu_mem->size())
+                        << "GB GPU memory" << LOG_endl;
     RDMA::MemoryRegion mr_gpu = { RDMA::MemType::GPU, gpu_mem->address(), gpu_mem->size(), gpu_mem };
     mrs.push_back(mr_gpu);
 #endif
 
+    // RDMA full-link communication
+    int flink_nthreads = global_num_proxies + global_num_engines;
+    // RDMA broadcast communication
+    int bcast_nthreads = 2;
+    int rdma_init_nthreads = flink_nthreads + bcast_nthreads;
     // init RDMA devices and connections
-    RDMA_init(global_num_servers, global_num_threads, sid, mrs, host_fname);
+    RDMA_init(global_num_servers, rdma_init_nthreads, sid, mrs, host_fname);
 
     // init communication
     RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mrs,
@@ -169,8 +194,7 @@ main(int argc, char *argv[])
     }
 
     // create proxies and engines
-    ASSERT(global_num_threads == global_num_proxies + global_num_engines);
-    for (int tid = 0; tid < global_num_threads; tid++) {
+    for (int tid = 0; tid < global_num_proxies + global_num_engines; tid++) {
         Adaptor *adaptor = new Adaptor(tid, tcp_adaptor, rdma_adaptor);
 
         // TID: proxy = [0, #proxies), engine = [#proxies, #proxies + #engines)
@@ -185,13 +209,30 @@ main(int argc, char *argv[])
 
     // launch all proxies and engines
     pthread_t *threads  = new pthread_t[global_num_threads];
-    for (int tid = 0; tid < global_num_threads; tid++) {
+    for (int tid = 0; tid < global_num_proxies + global_num_engines; tid++) {
         // TID: proxy = [0, #proxies), engine = [#proxies, #proxies + #engines)
         if (tid < global_num_proxies)
             pthread_create(&(threads[tid]), NULL, proxy_thread, (void *)proxies[tid]);
         else
             pthread_create(&(threads[tid]), NULL, engine_thread, (void *)engines[tid - global_num_proxies]);
     }
+
+#ifdef USE_GPU
+    logstream(LOG_INFO) << "#" << sid
+                        << " #threads:" << global_num_threads
+                        << ", #proxies:" << global_num_proxies
+                        << ", #engines:" << global_num_engines
+                        << ", #agent:" << global_num_gpus << LOG_endl;
+
+    // create GPU agent
+    GPUStreamPool stream_pool(32);
+    GPUCache gpu_cache(gpu_mem, dgraph.gstore->vertex_addr(), dgraph.gstore->edge_addr(),
+                       static_cast<StaticGStore *>(dgraph.gstore)->get_rdf_segment_metas());
+    GPUEngine gpu_engine(sid, WUKONG_GPU_AGENT_TID, gpu_mem, &gpu_cache, &stream_pool, &dgraph);
+    GPUAgent agent(sid, WUKONG_GPU_AGENT_TID, new Adaptor(WUKONG_GPU_AGENT_TID,
+                   tcp_adaptor, rdma_adaptor), &gpu_engine);
+    pthread_create(&(threads[WUKONG_GPU_AGENT_TID]), NULL, agent_thread, (void *)&agent);
+#endif
 
     // wait to all threads termination
     for (size_t t = 0; t < global_num_threads; t++) {
