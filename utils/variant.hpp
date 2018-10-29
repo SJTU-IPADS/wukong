@@ -39,10 +39,8 @@ public:
     int operator ()(double d) const { return DOUBLE_t; }
 };
 
-variant_type get_type;
-
 // get the size of variant type
-size_t get_sizeof(int type) {
+static inline size_t get_sizeof(int type) {
     switch (type) {
     case INT_t: return sizeof(int);
     case FLOAT_t: return sizeof(float);

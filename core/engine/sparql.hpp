@@ -240,7 +240,7 @@ private:
         attr_t v = graph->get_attr(tid, start, aid, d, has_value);
         if (has_value) {
             updated_attr_table.push_back(v);
-            type = boost::apply_visitor(get_type, v);
+            type = boost::apply_visitor(variant_type(), v);
         }
 
         // update the result table and metadata
@@ -338,11 +338,12 @@ private:
         // reserve size of updated_result_table to the size of result_table
         updated_attr_table.reserve(res.result_table.size());
         int type = req.get_pattern(req.pattern_step).pred_type ;
+        variant_type get_type;
         for (int i = 0; i < res.get_row_num(); i++) {
             sid_t prev_id = res.get_row_col(i, res.var2col(start));
             bool has_value;
             attr_t v = graph->get_attr(tid, prev_id, pid, d, has_value);
-            if (has_value ) {
+            if (has_value) {
                 res.append_row_to(i, updated_result_table);
                 res.append_attr_row_to(i, updated_attr_table);
                 updated_attr_table.push_back(v);

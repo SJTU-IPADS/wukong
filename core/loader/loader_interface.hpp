@@ -31,4 +31,5 @@ class LoaderInterface {
 public:
     virtual void load(const string &src, vector<vector<triple_t>> &triple_pso, vector<vector<triple_t>> &triple_pos, vector<vector<triple_attr_t>> &triple_sav) = 0;
 
+    virtual ~LoaderInterface() {}
 };

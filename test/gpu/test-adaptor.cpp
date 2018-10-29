@@ -25,7 +25,7 @@
 #include "global.hpp"
 #include "config.hpp"
 #include "mem.hpp"
-#include "gpu_mem.hpp"
+#include "gpu/gpu_mem.hpp"
 #include "rdma.hpp"
 #include "adaptor.hpp"
 #include "logger2.hpp"
