@@ -727,7 +727,7 @@ private:
             if (prefix == "a") {
                 result.type = Element::IRI;
                 result.value = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
-            } else{
+            } else {
                 // prefix:suffix
                 if (lexer.getNext() != SPARQLLexer::Colon)
                     throw ParserException("':' expected after '" + prefix + "'");
