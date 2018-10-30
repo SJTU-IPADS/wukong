@@ -40,11 +40,15 @@
 #include "global.hpp"
 #include "type.hpp"
 #include "rdma.hpp"
-#include "gstore.hpp"
 #include "timer.hpp"
 #include "assertion.hpp"
 #include "math.hpp"
 #include "loader_interface.hpp"
+#ifdef USE_GPU
+#include "store/static_gstore.hpp"
+#else
+#include "store/gstore.hpp"
+#endif
 
 using namespace std;
 
@@ -411,7 +415,7 @@ public:
 
 #ifdef USE_GPU
         sid_t num_preds = count_predicates(src + "str_index");
-        gstore->set_num_predicates(num_preds);
+        static_cast<StaticGStore *>(gstore)->set_num_predicates(num_preds);
 #endif  // end of USE_GPU
 
         // load_data: load partial input files by each server and exchanges triples

@@ -37,7 +37,7 @@
 
 using namespace std;
 
-class GPUEngineImpl final {
+class GPUEngineCuda final {
 private:
     int sid;
     GPUMem *gmem;
@@ -72,14 +72,14 @@ private:
 
 
 public:
-    GPUEngineImpl(int sid, GPUCache *gcache, GPUMem *gmem, GPUStreamPool *stream_pool)
+    GPUEngineCuda(int sid, GPUCache *gcache, GPUMem *gmem, GPUStreamPool *stream_pool)
         : sid(sid), gcache(gcache), gmem(gmem), stream_pool(stream_pool),
           param(gcache->get_vertex_gaddr(), gcache->get_edge_gaddr(),
                 gcache->get_num_key_blks(), gcache->get_num_value_blks(),
                 gcache->get_nbuckets_kblk(), gcache->get_nentries_vblk()) {
     }
 
-    ~GPUEngineImpl() { }
+    ~GPUEngineCuda() { }
 
     char* load_result_buf(const SPARQLQuery::Result &r) {
         CUDA_ASSERT( cudaMemcpy((void**)gmem->res_inbuf(),
@@ -169,7 +169,10 @@ public:
         int table_size = gpu_update_result_buf_k2u(param);
 
 #ifdef GPU_DEBUG
-        logstream(LOG_INFO) << "#" << sid << " GPU_update_result_buf_k2u done. table_size=" << table_size << ", col_num=" << param.query.col_num << LOG_endl;
+        logstream(LOG_INFO) << "#" << sid
+                            << " GPU_update_result_buf_k2u done. table_size=" << table_size
+                            << ", col_num=" << param.query.col_num
+                            << LOG_endl;
 #endif
 
         req.result.row_num = table_size / (param.query.col_num + 1);
@@ -254,7 +257,9 @@ public:
         int table_size = gpu_update_result_buf_k2k(param);
 
 #ifdef GPU_DEBUG
-        logstream(LOG_INFO) << "#" << sid << " GPU_update_result_buf_k2k done. table_size=" << table_size << LOG_endl;
+        logstream(LOG_INFO) << "#" << sid
+                            << " GPU_update_result_buf_k2k done. table_size=" << table_size
+                            << LOG_endl;
 #endif
 
         req.result.row_num = table_size / param.query.col_num;
@@ -338,7 +343,9 @@ public:
         int table_size = gpu_update_result_buf_k2c(param);
 
 #ifdef GPU_DEBUG
-        logstream(LOG_INFO) << "#" << sid << " GPU_update_result_buf_k2c done. table_size=" << table_size << LOG_endl;
+        logstream(LOG_INFO) << "#" << sid
+                            << " GPU_update_result_buf_k2c done. table_size=" << table_size
+                            << LOG_endl;
 #endif
 
         req.result.row_num = table_size / param.query.col_num;
@@ -390,8 +397,10 @@ public:
             buf_ptrs[i] = ((sid_t*) gmem->res_outbuf()) + buf_heads[i];
 
 #ifdef GPU_DEBUG
-            logstream(LOG_INFO) << "#" << sid << " i=" << i << " sub_table_size=" << buf_sizes[i]
-                                << ", sub_table_head=" << buf_heads[i] << LOG_endl;
+            logstream(LOG_INFO) << "#" << sid << " i=" << i
+                                << " sub_table_size=" << buf_sizes[i]
+                                << ", sub_table_head=" << buf_heads[i]
+                                << LOG_endl;
 #endif
         }
 
@@ -399,9 +408,5 @@ public:
     }
 
 };
-
-
-
-
 
 #endif  // USE_GPU

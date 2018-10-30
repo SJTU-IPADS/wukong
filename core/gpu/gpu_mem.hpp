@@ -29,7 +29,6 @@
 #include "unit.hpp"
 #include "gpu_utils.hpp"
 #include "type.hpp"
-#include "gstore.hpp"
 
 class GPUMem {
 private:

@@ -81,9 +81,8 @@ public:
     ~GPUAgent() { }
 
     bool send_request(Bundle& bundle, int dst_sid, int dst_tid) {
-        if (adaptor->send(dst_sid, dst_tid, bundle)) {
+        if (adaptor->send(dst_sid, dst_tid, bundle))
             return true;
-        }
 
         // failed to send, then stash the msg to avoid deadlock
         pending_msgs.push_back(Message(dst_sid, dst_tid, bundle));
@@ -94,11 +93,9 @@ public:
         // #1 send query
         Bundle b(req);
         if (adaptor->send(dst_sid, dst_tid, b)) {
-
             // #2 send result buffer
             adaptor->send_dev2host(dst_sid, dst_tid, req.result.gpu.result_buf_dp,
                                    WUKONG_GPU_ELEM_SIZE * req.result.gpu.result_buf_nelems);
-
             return true;
         }
 
@@ -212,9 +209,11 @@ public:
                 int psid, ptid;
                 psid = coder.sid_of(req.pid);
                 ptid = coder.tid_of(req.pid);
-                logstream(LOG_DEBUG) << "#" << sid << " GPUAgent: finished query r.id=" << req.id << ", pid="
-                                     << req.pid << ", sent back to sid="
-                                     << psid << ", tid=" << ptid << LOG_endl;
+                logstream(LOG_DEBUG) << "#" << sid
+                                     << " GPUAgent: finished query r.id=" << req.id
+                                     << ", pid=" << req.pid << ", sent back to sid=" << psid
+                                     << ", tid=" << ptid
+                                     << LOG_endl;
                 send_request(bundle, psid, ptid);
                 break;
             }
@@ -226,11 +225,10 @@ public:
                 ASSERT(sub_reqs.size() == global_num_servers);
                 rmap.put_parent_request(req, sub_reqs.size());
                 for (int i = 0; i < sub_reqs.size(); i++) {
-                    if (i != sid) {
+                    if (i != sid)
                         send_sub_query(sub_reqs[i], i, tid);
-                    } else {
+                    else
                         runqueue.push(sub_reqs[i]);
-                    }
                 }
                 break;
             }
