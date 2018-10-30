@@ -86,8 +86,13 @@ private:
         case SPARQLParser::Element::Literal:
         {
         	string str = "";
+        	// string with language tag
+        	// 		Ex. "SuperPatriot"@en
+        	// 		value stored in string server: "SuperPatriot"@en
+        	// 		e.value: SuperPatriot , e.subTypeValue: en
         	if(e.subType == SPARQLParser::Element::CustomLanguage)
         		str = "\"" + e.value + "\"" + "@" + e.subTypeValue;
+        	// normal case
         	else
         		str = "\"" + e.value + "\"";
 
