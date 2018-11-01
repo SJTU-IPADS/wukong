@@ -347,6 +347,7 @@ public:
 
         int get_col_num() { return col_num; }
 
+        // Notes: The return value will be 0 after calling shrink_query()
         int get_row_num() {
             if (col_num == 0) {
                 // FIXME: impl get_attr_row_num()
@@ -357,10 +358,11 @@ public:
                     return 0;
             }
 
-            if (row_num != 0)
-                return row_num;
+            if (gpu.result_buf_dp != nullptr) {
+                return gpu.result_buf_nelems / col_num;
+            }
 
-            return (dev_type == GPU) ? gpu.result_buf_nelems / col_num : result_table.size() / col_num;
+            return result_table.size() / col_num;
         }
 
         sid_t get_row_col(int r, int c) {
