@@ -52,4 +52,6 @@ inline int WUKONG_GET_BLOCKS(const int n) {
     return (n + WUKONG_CUDA_NUM_THREADS - 1) / WUKONG_CUDA_NUM_THREADS;
 }
 
+#define WUKONG_GPU_RBUF_SIZE(num_elems) (WUKONG_GPU_ELEM_SIZE * num_elems)
+
 #endif
