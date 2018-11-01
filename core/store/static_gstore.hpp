@@ -33,6 +33,19 @@ using namespace std;
 
 class StaticGStore : public GStore {
 private:
+    struct cnt_t {
+        cnt_t() {
+            in = 0ul;
+            out = 0ul;
+        }
+
+        cnt_t(const cnt_t &cnt) {
+            in = cnt.in.load();
+            out = cnt.out.load();
+        }
+
+        atomic<uint64_t> in, out;
+    };
     uint64_t last_entry;
     pthread_spinlock_t entry_lock;
 
