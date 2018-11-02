@@ -1,3 +1,5 @@
+PREFIX y:<http://yago-knowledge.org/resource/>
+
 SELECT * WHERE {
 	?p2  y:hasInternalWikipediaLinkTo  ?p3  .
 	?p1  y:hasInternalWikipediaLinkTo  ?p2  .

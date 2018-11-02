@@ -85,7 +85,17 @@ private:
             return e.id;
         case SPARQLParser::Element::Literal:
         {
-            string str = "\"" + e.value + "\"";
+        	string str = "";
+        	// string with language tag
+        	// 		Ex. "SuperPatriot"@en
+        	// 		value stored in string server: "SuperPatriot"@en
+        	// 		e.value: SuperPatriot , e.subTypeValue: en
+        	if(e.subType == SPARQLParser::Element::CustomLanguage)
+        		str = "\"" + e.value + "\"" + "@" + e.subTypeValue;
+        	// normal case
+        	else
+        		str = "\"" + e.value + "\"";
+
             if (!str_server->exist(str)) {
                 logstream(LOG_ERROR) << "Unknown Literal: " + str << LOG_endl;
                 return DUMMY_ID;

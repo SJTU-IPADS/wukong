@@ -12,6 +12,7 @@
 
 using namespace std;
 
+#define MINIMUM_COUNT_THRESHOLD 0.01 //count below that this value will be abandoned
 #define COST_THRESHOLD 1000
 #define AA 4
 #define BB 2.25
@@ -74,6 +75,9 @@ class Planner {
     double min_cost;
     vector<ssid_t> path;
     bool is_empty;            // help identify empty queries
+    long start_time;
+    //bool enable_merge;		// if non endpoint variable > 3, we enable merge
+    int mt_factor;
 
     // for dfs
     vector<ssid_t> min_path;
@@ -105,6 +109,62 @@ class Planner {
     unordered_map<ssid_t, int> var2col;  // convert
     unordered_map<ssid_t, int> var2ptindex;  // find the first appearance for var
     DGraph *graph;
+
+    // test whether the variable is an end point of the graph
+    inline bool is_end_point(ssid_t var){
+    	int num = 0;
+    	for(auto token: triples){
+    		if(token == var){
+    			num ++;
+    		}
+    	}
+
+    	return num == 1;
+    }
+
+    // remove the col'th column, merge the rest
+    void merge(int col){
+    	int row_num = type_table.get_row_num();
+    	int col_num = type_table.get_col_num();
+
+    	//cout << "merge: " << col << endl;
+    	long start = timer::get_usec();
+
+    	vector<double> tytable;
+
+		unordered_set<ssid_t> hashset;
+    	// put type_table to tytable
+    	for(int i = 0; i < row_num; i++){
+
+    		// test if tytable.contains type_table.row(i)
+    		bool flag = false;
+    		for(int j = 0;j < tytable.size() / col_num;j ++){
+    			bool flag2 = true;
+    			for(int m = 1;m < col_num; m ++){
+    				if(m != col && tytable[col_num * j + m] != type_table.get_row_col(i,m)){
+    					flag2 = false;
+    					break;
+    				}
+    			}
+    			if(flag2){
+    				flag = true;
+    				tytable[col_num * j + 0] += type_table.get_row_col(i,0);
+    				break;
+    			}
+    		}
+
+    		if(!flag){
+    			type_table.append_row_to(i, tytable);
+    			tytable[tytable.size() - col_num + col] = 0;
+    		}
+    	}
+
+    	unordered_map<ssid_t, int> var2col;
+    	type_table.tytable.swap(tytable);
+    	long end = timer::get_usec();
+    	//cout << "using time: " << ( end -start ) << endl;
+
+    }
 
     // get the type of constant using get_edges
     ssid_t get_type(ssid_t constant) {
@@ -146,7 +206,7 @@ class Planner {
 
     // type-centric dfs enumeration
     bool plan_enum(unsigned int pt_bits, double cost, double pre_results) {
-        if (is_empty) return false;
+        //if (is_empty) return false;
         if (pt_bits == ( 1 << _chains_size_div_4 ) - 1) {
             //cout << "estimated cost : " << cost << endl;
             //finalpath ++;
@@ -181,6 +241,7 @@ class Planner {
             if (path.size() == 0) {
                 if (o1 < 0 && o2 < 0) {
                     //count00++;
+
                     // use index vertex, find subject first
                     path.push_back(p); path.push_back(0); path.push_back(IN); path.push_back(o1);
                     //cout << "pick : " << p << " " << "0" << " " << IN << " " << o1
@@ -196,7 +257,7 @@ class Planner {
                     vector<ty_count> tycountv = statistic->global_tystat.pstype[p];
                     for (size_t k = 0; k < tycountv.size(); k++) {
                         ssid_t vtype = tycountv[k].ty;
-                        double vcount = double(tycountv[k].count) / global_num_servers;
+                        double vcount = double(tycountv[k].count) / global_num_servers / mt_factor;
                         updated_result_table.push_back(vcount);
                         updated_result_table.push_back(vtype);
                     }
@@ -206,10 +267,10 @@ class Planner {
                         correprune_boost_results += updated_result_table[j];
                     }
                     condprune_results = correprune_boost_results;
-                    if (condprune_results == 0) {
-                        is_empty = true;
-                        return false;
-                    }
+//                        if (condprune_results == 0) {
+//                            is_empty = true;
+//                            return false;
+//                        }
                     add_cost = CC_const_known * condprune_results;
                     //cout << "results: " << condprune_results << endl;
                     //cout << "add cost: " << add_cost << endl;
@@ -254,7 +315,7 @@ class Planner {
                     tycountv = statistic->global_tystat.potype[p];
                     for (size_t k = 0; k < tycountv.size(); k++) {
                         ssid_t vtype = tycountv[k].ty;
-                        double vcount = double(tycountv[k].count) / global_num_servers;
+                        double vcount = double(tycountv[k].count) / global_num_servers / mt_factor;
                         updated_result_table.push_back(vcount);
                         updated_result_table.push_back(vtype);
                     }
@@ -264,10 +325,10 @@ class Planner {
                         correprune_boost_results += updated_result_table[j];
                     }
                     condprune_results = correprune_boost_results;
-                    if (condprune_results == 0) {
-                        is_empty = true;
-                        return false;
-                    }
+//                        if (condprune_results == 0) {
+//                            is_empty = true;
+//                            return false;
+//                        }
                     add_cost = CC_const_known * condprune_results;
                     //cout << "results: " << condprune_results << endl;
                     //cout << "add cost: " << add_cost << endl;
@@ -296,6 +357,17 @@ class Planner {
                     type_table.tytable.swap(updated_result_table);
                     type_table.set_col_num(0);
                     updated_result_table.clear();
+
+#if 0
+                    // TODO this is a strategy for fewer iteration but with possible worse plan order.
+                	if(!is_end_point(o1) || (is_end_point(o1) && is_end_point(o2))){
+
+                	}
+
+                	if(!is_end_point(o2)){
+
+                	}
+#endif
                 }
                 if (o1 > 0) {
                     //count01++;
@@ -328,10 +400,10 @@ class Planner {
                         correprune_boost_results += updated_result_table[j];
                     }
                     condprune_results = correprune_boost_results;
-                    if (condprune_results == 0) {
-                        is_empty = true;
-                        return false;
-                    }
+//                    if (condprune_results == 0) {
+//                        is_empty = true;
+//                        return false;
+//                    }
                     add_cost = CC_const_known * condprune_results;
                     //cout << "results: " << condprune_results << endl;
                     //cout << "add cost: " << add_cost << endl;
@@ -380,21 +452,21 @@ class Planner {
                         // start from ty-index vertex
                         ssid_t vtype = o2;
                         if (statistic->global_single2complex.find(vtype) == statistic->global_single2complex.end()) {
-                            double vcount = double(statistic->global_tyscount[o2]) / global_num_servers;
+                            double vcount = double(statistic->global_tyscount[o2]) / global_num_servers / mt_factor;
                             updated_result_table.push_back(vcount);
                             updated_result_table.push_back(vtype);
                         }
                         else {
                             // single type o2 may not exist in muititype situation
                             if (statistic->global_tyscount.find(vtype) != statistic->global_tyscount.end()) {
-                                double vcount = double(statistic->global_tyscount[o2]) / global_num_servers;
+                                double vcount = double(statistic->global_tyscount[o2]) / global_num_servers / mt_factor;
                                 updated_result_table.push_back(vcount);
                                 updated_result_table.push_back(vtype);
                             }
                             // single type o2 may be contained in complex type
                             unordered_set<ssid_t> type_set = statistic->global_single2complex[vtype];
                             for (auto iter = type_set.cbegin(); iter != type_set.cend(); ++iter) {
-                                double vcount = double(statistic->global_tyscount[*iter]) / global_num_servers;
+                                double vcount = double(statistic->global_tyscount[*iter]) / global_num_servers / mt_factor;
                                 updated_result_table.push_back(vcount);
                                 updated_result_table.push_back(*iter);
                             }
@@ -418,10 +490,10 @@ class Planner {
                         correprune_boost_results += updated_result_table[j];
                     }
                     condprune_results = correprune_boost_results;
-                    if (condprune_results == 0) {
-                        is_empty = true;
-                        return false;
-                    }
+//                    if (condprune_results == 0) {
+//                        is_empty = true;
+//                        return false;
+//                    }
                     add_cost = CC_const_known * condprune_results;
                     //cout << "results: " << condprune_results << endl;
                     //cout << "add cost: " << add_cost << endl;
@@ -479,9 +551,16 @@ class Planner {
                     int var_col = var2col[o1];
                     int prune_flag = (o2 > 0) || ((var2col.find(o2) != var2col.end()) && var2col[o2] > 0);
                     int dup_flag = (path[0] == p) && (path[3] == o1);
+                    double max = 0;
+                    for (size_t i = 0; i < row_num; i++) {
+                    	double pre_count = type_table.get_row_col(i, 0);
+                    	max = (max > pre_count) ? max : pre_count;
+                    }
                     for (size_t i = 0; i < row_num; i++) {
                         ssid_t pre_tyid = type_table.get_row_col(i, var_col);
                         double pre_count = type_table.get_row_col(i, 0);
+                        if(100 * pre_count < max || pre_count < MINIMUM_COUNT_THRESHOLD) continue;
+                        //cout << "pre_tyid: " << pre_tyid << " pre_count: " << pre_count << endl;
                         // handle type predicate first
                         if (p == TYPE_ID && o2 > 0) {
                             correprune_boost_results += pre_count;
@@ -512,6 +591,7 @@ class Planner {
                         for (size_t k = 0; k < tycountv.size(); k++) {
                             ssid_t vtype = tycountv[k].ty;
                             double vcount = double(tycountv[k].count) / tycount * pre_count;
+                            if(vcount < MINIMUM_COUNT_THRESHOLD) continue;
                             correprune_boost_results += vcount;
                             if (o2 > 0) {
                                 // for constant pruning
@@ -527,6 +607,16 @@ class Planner {
                                     type_table.append_newv_row_to(i, updated_result_table, vcount);
                                     condprune_results += vcount;
                                 }
+                            } else if (is_end_point(o2)){
+                            	// we don't care the type of o2 if it's an end point, so add it up to one whole item to save storage and speed up
+                            	double vcount_sum = 0;
+                            	for (size_t m = 0; m < tycountv.size(); m++)
+                            		vcount_sum += double(tycountv[m].count) / tycount * pre_count;
+
+                                type_table.append_newv_row_to(i, updated_result_table, vcount_sum);
+                                updated_result_table.push_back(0);
+                                condprune_results += vcount_sum;
+                            	break;
                             } else {
                                 // normal case
                                 type_table.append_newv_row_to(i, updated_result_table, vcount);
@@ -540,10 +630,10 @@ class Planner {
                         }
                     }
 
-                    if (condprune_results == 0) {
-                        is_empty = true;
-                        return false;
-                    }
+//                    if (condprune_results == 0) {
+//                        is_empty = true;
+//                        return false;
+//                    }
                     // calculate cost
                     add_cost = AA_full * final_ret + AA_early * early_ret
                                + BB_ifor * correprune_boost_results
@@ -567,6 +657,32 @@ class Planner {
                         //cout << "in ! prune flag o2: " << o2 << " var2col[o2]: " << var2col[o2] << endl;
                         type_table.set_col_num(type_table.get_col_num() + 1);
                     }
+
+                    // if no access to o1 any more, we can merge entries about o1 in type table
+#if 0
+                    // TODO merge typetable to speed up the plan process, but with extreme large typetable, this strategy
+                    // may make the situation worse.
+                    if(enable_merge){
+                        bool hasO1 = false;
+                        unsigned int curr_bits = (pt_bits | (1 << pt_pick));
+                        // if not end of plan
+                        if(curr_bits != ( 1 << _chains_size_div_4 ) - 1){
+                        	for(int i = 0; i < _chains_size_div_4; i ++){
+                        		// if i'th pattern is not picked
+                        		if(!(curr_bits & (1 << i))){
+                        			if(triples[4 * i] == o1 || triples[4 * i + 3] == o1){
+                        				hasO1 = true;
+                        				break;
+                        			}
+                        		}
+                        	}
+                        }
+                        if(!hasO1 && !is_end_point(o1)){
+                        	//merge(var2col[o1]);
+                        	//cout << "merge var_: " << o1 << endl;
+                        }
+                    }
+#endif
 
                     // next iteration
                     bool ctn = plan_enum(pt_bits | (1 << pt_pick), new_cost, condprune_results);
@@ -607,9 +723,16 @@ class Planner {
                     int var_col = var2col[o2];
                     int prune_flag = (o1 > 0) || ((var2col.find(o1) != var2col.end()) && var2col[o1] > 0);
                     int dup_flag = (path[0] == p) && (path[3] == o2);
+                    double max = 0;
+                    for (size_t i = 0; i < row_num; i++) {
+                    	double pre_count = type_table.get_row_col(i, 0);
+                    	max = (max > pre_count) ? max : pre_count;
+                    }
                     for (size_t i = 0; i < row_num; i++) {
                         ssid_t pre_tyid = type_table.get_row_col(i, var_col);
                         double pre_count = type_table.get_row_col(i, 0);
+                        if(100 * pre_count < max || pre_count < MINIMUM_COUNT_THRESHOLD) continue;
+                        //cout << "pre_tyid: " << pre_tyid << " pre_count: " << pre_count << endl;
                         int tycount = statistic->global_tyscount[pre_tyid];
                         if (dup_flag) tycount = statistic->global_tystat.get_potype_count(p, pre_tyid);
                         prune_ratio = double(statistic->global_tystat.get_potype_count(p, pre_tyid)) / tycount; // for cost model
@@ -621,6 +744,7 @@ class Planner {
                         for (size_t k = 0; k < tycountv.size(); k++) {
                             ssid_t vtype = tycountv[k].ty;
                             double vcount = double(tycountv[k].count) / tycount * pre_count;
+                            if(vcount < MINIMUM_COUNT_THRESHOLD) continue;
                             correprune_boost_results += vcount;
                             if (o1 > 0) {
                                 // for constant pruning
@@ -636,7 +760,17 @@ class Planner {
                                     type_table.append_newv_row_to(i, updated_result_table, vcount);
                                     condprune_results += vcount;
                                 }
-                            } else {
+                            } else if (is_end_point(o1)){
+                            	// we don't care the type of o1 if it's an end point, so add it up to one whole item to save storage and speed up
+                            	double vcount_sum = 0;
+                            	for (size_t m = 0; m < tycountv.size(); m++)
+                            		vcount_sum += double(tycountv[m].count) / tycount * pre_count;
+
+                                type_table.append_newv_row_to(i, updated_result_table, vcount_sum);
+                                updated_result_table.push_back(0);
+                                condprune_results += vcount_sum;
+                            	break;
+                            } else{
                                 // normal case
                                 type_table.append_newv_row_to(i, updated_result_table, vcount);
                                 updated_result_table.push_back(vtype);
@@ -649,10 +783,10 @@ class Planner {
                         }
                     }
 
-                    if (condprune_results == 0) {
-                        is_empty = true;
-                        return false;
-                    }
+//                    if (condprune_results == 0) {
+//                        is_empty = true;
+//                        return false;
+//                    }
                     // calculate cost
                     add_cost = AA_full * final_ret + AA_early * early_ret
                                + BB_ifor * correprune_boost_results
@@ -676,6 +810,30 @@ class Planner {
                         //cout << "in prune flag o1: " << o1 << " var2col[o1]: " << var2col[o1] << endl;
                         type_table.set_col_num(type_table.get_col_num() + 1);
                     }
+
+#if 0
+                    // if no access to o2 any more, we can merge entries about o2 in type table
+                    if(enable_merge){
+                        bool hasO2 = false;
+                        unsigned int curr_bits = (pt_bits | (1 << pt_pick));
+                        // if not end of plan
+                        if(curr_bits != ( 1 << _chains_size_div_4 ) - 1){
+                        	for(int i = 0; i < _chains_size_div_4; i ++){
+                        		// if i'th pattern is not picked
+                        		if(!(curr_bits & (1 << i))){
+                        			if(triples[4 * i] == o2 || triples[4 * i + 3] == o2){
+                        				hasO2 = true;
+                        				break;
+                        			}
+                        		}
+                        	}
+                        }
+                        if(!hasO2 & !is_end_point(o2)){
+                        	//merge(var2col[o2]);
+                        	//cout << "merge var: " << o2 << endl;
+                        }
+                    }
+#endif
 
                     // next iteration
                     bool ctn = plan_enum(pt_bits | (1 << pt_pick), new_cost, condprune_results);
@@ -1266,10 +1424,11 @@ class Planner {
     }
 
 public:
+    bool test;
     Planner() { }
     Planner(DGraph *graph): graph(graph) { }
 
-    bool generate_for_patterns(vector<SPARQLQuery::Pattern> &patterns) {
+    bool generate_for_patterns(vector<SPARQLQuery::Pattern> &patterns, int nvars) {
         //input : patterns
         //transform to : _chains_size_div_4, triples, temp_cmd_chains
         vector<ssid_t> temp_cmd_chains;
@@ -1289,6 +1448,7 @@ public:
         var2col.clear();
         var2ptindex.clear();
         is_empty = false;
+        //enable_merge = false;
         min_cost = std::numeric_limits<double>::max();
 
         // prepare for heuristic
@@ -1314,6 +1474,20 @@ public:
 
         this->triples = temp_cmd_chains;
         _chains_size_div_4 = temp_cmd_chains.size() / 4 ;
+
+        // test if merge should be enabled
+#if 0
+        //cout << "nvars: " << nvars << endl;
+        int num_no_endpoint = 0;
+        for(int i = 1;i <= nvars; i ++){
+        	if(!is_end_point(-i)){
+        		num_no_endpoint ++;
+        	}
+        }
+        //cout << "num_no_endpoint: " << num_no_endpoint << endl;
+        if(num_no_endpoint > 3) enable_merge = true;
+#endif
+
         plan_enum(0, 0, 0); // the traverse function
 
         if (is_empty == true) {
@@ -1346,11 +1520,6 @@ public:
                 }
             }
         }
-        // for (int i = 0, ilimit = min_path.size(); i < ilimit; i = i + 4)
-        //   cout << "min_path " << " : " << min_path[i] << " "
-        //     << min_path[i+1] << " "
-        //     << min_path[i+2] << " "
-        //     << min_path[i+3] << endl;
 
         // debug single order
         // triples = min_path;
@@ -1364,6 +1533,8 @@ public:
         // _chains_size_div_4 = triples.size() / 4;
         // score_order_new(0,0,0);
         // min_path = triples;
+
+        if(test) return true;
 
         // output: min_path
         // transform min_path to patterns
@@ -1393,18 +1564,20 @@ public:
         return true;
     }
 
-    bool generate_for_group(SPARQLQuery::PatternGroup &group) {
+    bool generate_for_group(SPARQLQuery::PatternGroup &group, int nvars) {
         bool success = true;
         if (group.patterns.size() > 0)
-            success = generate_for_patterns(group.patterns);
+            success = generate_for_patterns(group.patterns, nvars);
         for (auto &g : group.unions)
-            success = generate_for_group(g);
+            success = generate_for_group(g, nvars);
         return success;
     }
 
     bool generate_plan(SPARQLQuery &r, data_statistic *statistic) {
         this->statistic = statistic;
-        return generate_for_group(r.pattern_group);
+        this->start_time = timer::get_usec();
+        this->mt_factor = min(r.mt_factor, global_mt_threshold);
+        return generate_for_group(r.pattern_group, r.result.nvars);
     }
 
     void set_direction(SPARQLQuery::PatternGroup &group, vector<int> orders, vector<string> dirs) {

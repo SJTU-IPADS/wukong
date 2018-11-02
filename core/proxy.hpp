@@ -246,8 +246,8 @@ public:
     // Run a single query for @cnt times. Command is "-f"
     // @is: input
     // @reply: result
-    int run_single_query(istream &is, istream &fmt_stream, int mt_factor, int cnt, bool send_to_gpu,
-                         SPARQLQuery &reply, Monitor &monitor) {
+    int run_single_query(istream &is, istream &fmt_stream, int mt_factor, int cnt, int cnt_planner,
+                        bool send_to_gpu, SPARQLQuery &reply, Monitor &monitor) {
         uint64_t start, end;
         SPARQLQuery request;
 
@@ -268,19 +268,35 @@ public:
         else
             logstream(LOG_INFO) << "No query plan is set" << LOG_endl;
 
+        request.mt_factor = min(mt_factor, global_mt_threshold);
+
         // Generate plans for the query if our SPARQL planner is enabled.
         // NOTE: it only works for standard SPARQL query.
         if (global_enable_planner) {
             start = timer::get_usec();
-            bool exec = planner.generate_plan(request, statistic);
-            end = timer::get_usec();
-            logstream(LOG_INFO) << "Planning time: " << (end - start) << " usec" << LOG_endl;
 
+            for(int i = 0;i < cnt_planner;i ++){
+            	planner.test = true;
+                planner.generate_plan(request, statistic);
+                end = timer::get_usec();
+            }
+            logstream(LOG_INFO) << "Planning time: " << (end - start) / cnt_planner << " usec" << LOG_endl;
+
+            planner.test = false;
+            bool exec = planner.generate_plan(request, statistic);
             // A shortcut for contradictory queries (e.g., empty result)
             if (exec == false)
                 return 0; // skip the real execution
         }
 
+        // set the multi-threading factor for queries start from index
+        if (request.start_from_index()) {
+            if (mt_factor == 1 && global_mt_threshold > 1)
+                logstream(LOG_EMPH) << "The query starts from an index vertex, "
+                                    << "you could use option -m to accelerate it."
+                                    << LOG_endl;
+            //request.mt_factor = min(mt_factor, global_mt_threshold);
+        }
 #ifdef USE_GPU
         if (send_to_gpu) {
             request.dev_type = SPARQLQuery::DeviceType::GPU;
@@ -300,17 +316,6 @@ public:
         monitor.init();
         for (int i = 0; i < cnt; i++) {
             setpid(request);
-
-            // set the multi-threading factor for queries start from index
-            if (request.start_from_index()) {
-                if (!send_to_gpu && mt_factor == 1 && global_mt_threshold > 1)
-                    logstream(LOG_EMPH) << "The query starts from an index vertex, "
-                                        << "you could use option -m to accelerate it."
-                                        << LOG_endl;
-
-                request.mt_factor = min(mt_factor, global_mt_threshold);
-            }
-
             // only take back results of the last request if not silent
             request.result.blind = i < (cnt - 1) ? true : global_silent;
             send_request(request);
