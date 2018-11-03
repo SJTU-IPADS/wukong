@@ -132,11 +132,22 @@ main(int argc, char** argv)
         ofstream ofile((string(ddir_name) + "/id_" + string(dent->d_name)).c_str());
         ofstream attr_file((string(ddir_name) + "/attr_" + string(dent->d_name)).c_str());
         cout << "Process No." << ++count << " input file: " << dent->d_name << "." << endl;
+	
+        // prefix mapping
+        unordered_map<string, string> str_to_str;
 
         // str-format: subject predicate object .
         string subject, predicate, object, dot;
         // read (str-format) input file
         while (ifile >> subject >> predicate >> object >> dot) {
+            // handle prefix
+            if (subject == "@prefix") {
+                size_t sindex = predicate.find(':');
+                string prekey = predicate.substr(0, sindex);
+                str_to_str[prekey] = object;
+                continue;
+            }
+
             int type = 0;
             // the attr triple
             if ((type = find_type(object)) != 0) {
@@ -159,6 +170,29 @@ main(int argc, char** argv)
 
                 //the normal triple
             } else {
+                // replace prefix
+                if (str_to_str.size() != 0) {
+                    size_t pindex;
+                    if ((pindex = subject.find(':')) != string::npos) {
+                        string prekey = subject.substr(0, pindex);
+                        string lefts = subject.substr(pindex+1, subject.size()-pindex-1);
+                        string prev = str_to_str[prekey];
+                        subject = prev.substr(0, prev.size()-1) + lefts + '>';
+                    }
+                    if ((pindex = predicate.find(':')) != string::npos) {
+                        string prekey = predicate.substr(0, pindex);
+                        string lefts = predicate.substr(pindex+1, predicate.size()-pindex-1);
+                        string prev = str_to_str[prekey];
+                        predicate = prev.substr(0, prev.size()-1) + lefts + '>';
+                    }
+                    if ((pindex = object.find(':')) != string::npos) {
+                        string prekey = object.substr(0, pindex);
+                        string lefts = object.substr(pindex+1, object.size()-pindex-1);
+                        string prev = str_to_str[prekey];
+                        object = prev.substr(0, prev.size()-1) + lefts + '>';
+                    }
+                }
+
                 // add a new normal vertex (i.e., vid)
                 if (str_to_id.find(subject) == str_to_id.end()) {
                     str_to_id[subject] = next_normal_id;
