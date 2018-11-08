@@ -4,7 +4,6 @@ global_num_engines              16
 global_input_folder             /home/datanfs/nfs0/rdfdata/id_lubm_40/
 global_data_port_base           5500
 global_ctrl_port_base           9576
-global_memstore_size_gb         20
 global_mt_threshold             8
 global_enable_workstealing      0
 global_stealing_pattern         0
@@ -20,11 +19,14 @@ global_use_rdma                 1
 global_rdma_threshold           300
 global_enable_caching           0
 
+# kvstore
+global_memstore_size_gb         20
+global_key_blk_size_mb          16
+global_val_blk_size_mb          4
+
 # GPU
 global_num_gpus                 1
 global_gpu_rdma_buf_size_mb     64
 global_gpu_rbuf_size_mb         32
 global_gpu_kvcache_size_gb      10
-global_gpu_key_blk_size_mb      16
-global_gpu_value_blk_size_mb    4
 global_gpu_enable_pipeline      1

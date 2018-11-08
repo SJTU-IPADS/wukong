@@ -426,8 +426,8 @@ public:
         uint64_t num_buckets = num_slots / GStore::ASSOCIATIVITY;
         uint64_t num_entries = (GiB2B(global_gpu_kvcache_size_gb) - num_slots * sizeof(vertex_t)) / sizeof(edge_t);
 
-        nbuckets_kblk = MiB2B(global_gpu_key_blk_size_mb) / (sizeof(vertex_t) * GStore::ASSOCIATIVITY);
-        nentries_vblk = MiB2B(global_gpu_value_blk_size_mb) / sizeof(edge_t);
+        nbuckets_kblk = MiB2B(global_key_blk_size_mb) / (sizeof(vertex_t) * GStore::ASSOCIATIVITY);
+        nentries_vblk = MiB2B(global_val_blk_size_mb) / sizeof(edge_t);
 
         num_key_blks = num_buckets / nbuckets_kblk;
         num_value_blks = num_entries / nentries_vblk;

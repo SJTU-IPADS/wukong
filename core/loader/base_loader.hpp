@@ -44,11 +44,7 @@
 #include "assertion.hpp"
 #include "math.hpp"
 #include "loader_interface.hpp"
-#ifdef USE_GPU
-#include "store/static_gstore.hpp"
-#else
 #include "store/gstore.hpp"
-#endif
 
 using namespace std;
 
@@ -412,7 +408,7 @@ public:
         }
 
         sid_t num_preds = count_predicates(src + "str_index");
-        static_cast<StaticGStore *>(gstore)->set_num_predicates(num_preds);
+        gstore->set_num_predicates(num_preds);
 
         // read_partial_exchange: load partial input files by each server and exchanges triples
         //            according to graph partitioning

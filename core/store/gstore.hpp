@@ -227,6 +227,9 @@ protected:
     edge_t *edges;
     uint64_t num_entries;     // entry region (dynamical)
 
+    // number of predicates in the whole dataset
+    int num_predicates;
+
     typedef tbb::concurrent_hash_map<sid_t, vector<sid_t>> tbb_hash_map;
     tbb_hash_map pidx_in_map; // predicate-index (IN)
     tbb_hash_map pidx_out_map; // predicate-index (OUT)
@@ -260,23 +263,6 @@ protected:
         }
         pthread_spin_unlock(&bucket_ext_lock);
         return num_buckets + orig;
-    }
-
-    // TODO check necessity
-    void insert_index_map(tbb_hash_map &map, dir_t d) {
-        for (auto const &e : map) {
-            sid_t pid = e.first;
-            uint64_t sz = e.second.size();
-            uint64_t off = alloc_edges(sz);
-
-            ikey_t key = ikey_t(0, pid, d);
-            uint64_t slot_id = insert_key(key);
-            iptr_t ptr = iptr_t(sz, off);
-            vertices[slot_id].ptr = ptr;
-
-            for (auto const &vid : e.second)
-                edges[off++].val = vid;
-        }
     }
 
     // Get remote vertex of given key. This func will fail if RDMA is disabled.
@@ -360,28 +346,6 @@ protected:
             type = v.ptr.type;
         return &(edges[v.ptr.off]);
     }
-
-    // TODO
-#ifdef VERSATILE
-    typedef tbb::concurrent_unordered_set<sid_t> tbb_unordered_set;
-
-    tbb_unordered_set v_set; // all of subjects and objects
-    tbb_unordered_set t_set; // all of types
-    tbb_unordered_set p_set; // all of predicates
-
-    void insert_index_set(tbb_unordered_set &set, sid_t tpid, dir_t d) {
-        uint64_t sz = set.size();
-        uint64_t off = alloc_edges(sz);
-
-        ikey_t key = ikey_t(0, tpid, d);
-        uint64_t slot_id = insert_key(key);
-        iptr_t ptr = iptr_t(sz, off);
-        vertices[slot_id].ptr = ptr;
-
-        for (auto const &e : set)
-            edges[off++].val = e;
-    }
-#endif // VERSATILE
 
 public:
     static const int ASSOCIATIVITY = 8;  // the associativity of slots in each bucket
@@ -493,6 +457,10 @@ public:
     inline vertex_t *vertex_addr() const { return vertices; }
 
     inline edge_t *edge_addr() const { return edges; }
+
+    inline void set_num_predicates(sid_t n) { num_predicates = n; }
+
+    inline int get_num_predicates() const { return num_predicates; }
 
     virtual void print_mem_usage() {
         // TODO

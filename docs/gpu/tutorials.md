@@ -64,8 +64,8 @@ The configuration items related to GPU support are:
 * `global_gpu_rdma_buf_size_mb`: set the size (MB) of buffer for one-sided RDMA operations
 * `global_gpu_rbuf_size_mb`: set the size (MB) of result buffer in GPU memory for query processing
 * `global_gpu_kvcache_size_gb`: set the size (GB) of key-value cache in GPU memory
-* `global_gpu_key_blk_size_mb`: set the size (MB) of key block in key-value cache
-* `global_gpu_value_blk_size_mb`: set the size (MB) of value block in key-value cache
+* `global_key_blk_size_mb`: set the size (MB) of key block in key-value cache
+* `global_val_blk_size_mb`: set the size (MB) of value block in key-value cache
 * `global_enable_pipeline`: enable query execution overlaps with memory copy between CPU and GPU
 
 2) Sync Wukong files to machines listed in `mpd.hosts`.
@@ -99,7 +99,7 @@ Wukong+G adds a new argument `-g` to the `sparql` command, which tells the conso
 
 ```bash
 wukong> help
-These are common Wukong commands: 
+These are common Wukong commands:
     help                display help infomation
     quit                quit from console
     config <args>       run commands on config
@@ -144,6 +144,3 @@ Although Wukong+G can notably speed up query processing, there is still plenty o
 - If a query produces huge intermediate result that exceeds the size of result buffer on GPU (``global_gpu_rbuf_size_mb``), Wukong+G cannot handle it.
 - If the size of triples of a predicate cannot fit into the key-value cache on GPU, Wukong+G cannot handle it.
 - If pipeline is enabled, there should be enough GPU memory to accommodate two triple patterns, the current pattern and the next pattern.
-
-
-

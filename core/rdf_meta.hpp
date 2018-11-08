@@ -22,8 +22,6 @@
 
 #pragma once
 
-#ifdef USE_GPU
-
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/serialization/string.hpp>
@@ -38,9 +36,12 @@ using namespace boost::archive;
 
 #define EXT_LIST_MAX_LEN 1
 #define EXT_BUCKET_EXTENT_LEN(num_buckets) (num_buckets * 15 / 100 + 1)
-#define PREDICATE_NSEGS 4
-
-
+#define PREDICATE_NSEGS 2
+#ifdef VERSATILE
+#define INDEX_NSEGS 4   // index(2) + vid's all preds(2)
+#else // VERSATILE
+#define INDEX_NSEGS 2   // index(2)
+#endif // VERSATILE
 /**
  * A contiguous space in the indirect-header region
  */
@@ -127,6 +128,17 @@ struct segid_t {
     sid_t pid;  // predicate id
     segid_t(): index(0), pid(0), dir(0) { }
     segid_t(int idx, sid_t p, int d) : index(idx), pid(p), dir(d) { }
+    segid_t(const ikey_t &key) {
+        dir = key.dir;
+        // index
+        if (key.vid == 0) {
+            index = 1;
+            pid = PREDICATE_ID;
+        } else {
+            index = 0;
+            pid = key.pid;
+        }
+    }
 
     bool operator == (const segid_t &s) const {
         return (index == s.index && dir == s.dir && pid == s.pid);
@@ -182,5 +194,3 @@ public:
         ar & data;
     }
 };
-
-#endif  // USE_GPU
