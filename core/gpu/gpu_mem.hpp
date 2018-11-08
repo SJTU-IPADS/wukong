@@ -26,9 +26,11 @@
 
 #include "global.hpp"
 #include "rdma.hpp"
-#include "unit.hpp"
-#include "gpu_utils.hpp"
 #include "type.hpp"
+
+// utils
+#include "unit.hpp"
+#include "gpu.hpp"
 
 class GPUMem {
 private:

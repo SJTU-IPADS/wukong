@@ -34,13 +34,15 @@
 #include "global.hpp"
 #include "rdma.hpp"
 #include "mem.hpp"
-#include "assertion.hpp"
-#include "atomic.hpp"
 
 #ifdef USE_GPU
 #include "gpu/gpu_mem.hpp"
-#include "gpu_utils.hpp"
+#include "gpu.hpp"
 #endif
+
+// utils
+#include "assertion.hpp"
+#include "atomic.hpp"
 
 using namespace std;
 

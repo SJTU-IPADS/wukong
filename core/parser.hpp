@@ -27,8 +27,6 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
-// #include <assert.h>
-#include "assertion.hpp"
 #include <boost/unordered_map.hpp>
 #include <boost/algorithm/string.hpp>
 
@@ -37,6 +35,9 @@
 #include "string_server.hpp"
 
 #include "SPARQLParser.hpp"
+
+// utils
+#include "assertion.hpp"
 
 using namespace std;
 
@@ -85,16 +86,16 @@ private:
             return e.id;
         case SPARQLParser::Element::Literal:
         {
-        	string str = "";
-        	// string with language tag
-        	// 		Ex. "SuperPatriot"@en
-        	// 		value stored in string server: "SuperPatriot"@en
-        	// 		e.value: SuperPatriot , e.subTypeValue: en
-        	if(e.subType == SPARQLParser::Element::CustomLanguage)
-        		str = "\"" + e.value + "\"" + "@" + e.subTypeValue;
-        	// normal case
-        	else
-        		str = "\"" + e.value + "\"";
+            string str = "";
+            // string with language tag
+            //      Ex. "SuperPatriot"@en
+            //      value stored in string server: "SuperPatriot"@en
+            //      e.value: SuperPatriot , e.subTypeValue: en
+            if (e.subType == SPARQLParser::Element::CustomLanguage)
+                str = "\"" + e.value + "\"" + "@" + e.subTypeValue;
+            // normal case
+            else
+                str = "\"" + e.value + "\"";
 
             if (!str_server->exist(str)) {
                 logstream(LOG_ERROR) << "Unknown Literal: " + str << LOG_endl;

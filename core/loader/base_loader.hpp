@@ -40,15 +40,21 @@
 #include "global.hpp"
 #include "type.hpp"
 #include "rdma.hpp"
-#include "timer.hpp"
-#include "assertion.hpp"
-#include "math.hpp"
+
+// loader
 #include "loader_interface.hpp"
+
 #ifdef USE_GPU
 #include "store/static_gstore.hpp"
 #else
 #include "store/gstore.hpp"
 #endif
+
+// utils
+#include "timer.hpp"
+#include "assertion.hpp"
+#include "math.hpp"
+
 
 using namespace std;
 
@@ -163,19 +169,19 @@ protected:
         // ensure the file name list has the same order on all servers
         sort(fnames.begin(), fnames.end());
 
-        auto lambda = [&](istream &file, int localtid) {
-                sid_t s, p, o;
-                while (file >> s >> p >> o) {
-                    int s_sid = wukong::math::hash_mod(s, global_num_servers);
-                    int o_sid = wukong::math::hash_mod(o, global_num_servers);
-                    if (s_sid == o_sid) {
-                        send_triple(localtid, s_sid, s, p, o);
-                    } else {
-                        send_triple(localtid, s_sid, s, p, o);
-                        send_triple(localtid, o_sid, s, p, o);
-                    }
+        auto lambda = [&](istream & file, int localtid) {
+            sid_t s, p, o;
+            while (file >> s >> p >> o) {
+                int s_sid = wukong::math::hash_mod(s, global_num_servers);
+                int o_sid = wukong::math::hash_mod(o, global_num_servers);
+                if (s_sid == o_sid) {
+                    send_triple(localtid, s_sid, s, p, o);
+                } else {
+                    send_triple(localtid, s_sid, s, p, o);
+                    send_triple(localtid, o_sid, s, p, o);
                 }
-            };
+            }
+        };
 
         // load input data and assign to different severs in parallel
         int num_files = fnames.size();
@@ -219,21 +225,21 @@ protected:
     int read_all_files(vector<string> &fnames) {
         sort(fnames.begin(), fnames.end());
 
-        auto lambda = [&](istream &file, uint64_t &n, uint64_t kvs_sz, sid_t *kvs) {
-                sid_t s, p, o;
-                while (file >> s >> p >> o) {
-                    int s_sid = wukong::math::hash_mod(s, global_num_servers);
-                    int o_sid = wukong::math::hash_mod(o, global_num_servers);
-                    if ((s_sid == sid) || (o_sid == sid)) {
-                        ASSERT((n * 3 + 3) * sizeof(sid_t) <= kvs_sz);
-                        // buffer the triple and update the counter
-                        kvs[n * 3 + 0] = s;
-                        kvs[n * 3 + 1] = p;
-                        kvs[n * 3 + 2] = o;
-                        n++;
-                    }
+        auto lambda = [&](istream & file, uint64_t &n, uint64_t kvs_sz, sid_t * kvs) {
+            sid_t s, p, o;
+            while (file >> s >> p >> o) {
+                int s_sid = wukong::math::hash_mod(s, global_num_servers);
+                int o_sid = wukong::math::hash_mod(o, global_num_servers);
+                if ((s_sid == sid) || (o_sid == sid)) {
+                    ASSERT((n * 3 + 3) * sizeof(sid_t) <= kvs_sz);
+                    // buffer the triple and update the counter
+                    kvs[n * 3 + 0] = s;
+                    kvs[n * 3 + 1] = p;
+                    kvs[n * 3 + 2] = o;
+                    n++;
                 }
-            };
+            }
+        };
 
         int num_files = fnames.size();
         #pragma omp parallel for num_threads(global_num_engines)
@@ -263,35 +269,35 @@ protected:
 
         sort(fnames.begin(), fnames.end());
 
-        auto load_attr = [&](istream &file, int localtid) {
-                sid_t s, a;
-                attr_t v;
-                int type;
-                while (file >> s >> a >> type) {
-                    switch (type) {
-                    case 1:
-                        int i;
-                        file >> i;
-                        v = i;
-                        break;
-                    case 2:
-                        float f;
-                        file >> f;
-                        v = f;
-                        break;
-                    case 3:
-                        double d;
-                        file >> d;
-                        v = d;
-                        break;
-                    default:
-                        logstream(LOG_ERROR) << "Unsupported value type" << LOG_endl;
-                        break;
-                    }
-                    if (sid == wukong::math::hash_mod(s, global_num_servers))
-                        triple_sav[localtid].push_back(triple_attr_t(s, a, v));
+        auto load_attr = [&](istream & file, int localtid) {
+            sid_t s, a;
+            attr_t v;
+            int type;
+            while (file >> s >> a >> type) {
+                switch (type) {
+                case 1:
+                    int i;
+                    file >> i;
+                    v = i;
+                    break;
+                case 2:
+                    float f;
+                    file >> f;
+                    v = f;
+                    break;
+                case 3:
+                    double d;
+                    file >> d;
+                    v = d;
+                    break;
+                default:
+                    logstream(LOG_ERROR) << "Unsupported value type" << LOG_endl;
+                    break;
                 }
-            };
+                if (sid == wukong::math::hash_mod(s, global_num_servers))
+                    triple_sav[localtid].push_back(triple_attr_t(s, a, v));
+            }
+        };
 
         //parallel load from all files
         int num_files = fnames.size();

@@ -25,6 +25,7 @@
 #include "global.hpp"
 #include "query.hpp"
 
+// comm
 #include "tcp_adaptor.hpp"
 #include "rdma_adaptor.hpp"
 

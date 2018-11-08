@@ -34,8 +34,10 @@
 #include <cstring>
 #include <string>
 
-#include "logger2.hpp"
 #include "type.hpp"
+
+// utils
+#include "logger2.hpp"
 
 using namespace std;
 using namespace boost::archive;

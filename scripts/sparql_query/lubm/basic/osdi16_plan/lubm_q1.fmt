@@ -60,13 +60,13 @@
 #	?Z  rdf:type  ub:Department  .
 # }
 #
-5 <<
-5 >
-1 >
-2 <
-3 >
-4 >
-6 >
+# 5 <<
+# 5 >
+# 1 >
+# 2 <
+# 3 >
+# 4 >
+# 6 >
 
 
 #
@@ -82,13 +82,11 @@
 #	?Z  rdf:type  ub:Department  ->
 # }
 #
-# 3 <
-# 4 >
-# 2 >
-# 1 >
-# 5 <
-# 6 >
-
-
-
+# disable corun optimization
+3 <
+4 >
+2 >
+1 >
+5 <
+6 >
 
