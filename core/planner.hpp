@@ -70,6 +70,8 @@ public:
 
 };
 
+vector<int> empty_ptypes_pos;
+
 class Planner {
     // members
     data_statistic *statistic ;
@@ -1582,7 +1584,52 @@ public:
         return generate_for_group(r.pattern_group, r.result.nvars);
     }
 
-    void set_direction(SPARQLQuery::PatternGroup &group, vector<int> orders, vector<string> dirs) {
+    void set_ptypes_pos(vector<int> &ptypes_pos, const string &dir, int current_order, int raw_order){
+
+    	for (int i = 0; i < ptypes_pos.size(); i ++) {
+    		// check if any pos need to be changed
+    		if (ptypes_pos[i] / 4 == raw_order) {
+    	    	if (dir == "<") {
+    	    		switch (ptypes_pos[i] % 4) {
+    	    		case 0:
+    	    			ptypes_pos[i] = current_order * 4 + 3;
+    	    			break;
+    	    		case 1:
+    	    			ptypes_pos[i] = current_order * 4 + 1;
+    	    			break;
+    	    		case 3:
+    	    			ptypes_pos[i] = current_order * 4 + 0;
+    	    			break;
+    	    		default:
+    	    			ptypes_pos[i] = current_order * 4 + ptypes_pos[i] % 4;
+    	    		}
+    	    	} else if (dir == ">") {
+    	    		ptypes_pos[i] = current_order * 4 + ptypes_pos[i] % 4;
+    	    	} else if (dir == "<<") {
+    	    		switch (ptypes_pos[i] % 4) {
+    	    		case 0:
+    	    			ptypes_pos[i] = current_order * 4 + 3;
+    	    			break;
+    	    		case 1:
+    	    			ptypes_pos[i] = current_order * 4 + 0;
+    	    			break;
+    	    		default:
+    	    			ptypes_pos[i] = current_order * 4 + ptypes_pos[i] % 4;
+    	    		}
+    	    	} else if (dir == ">>") {
+    	    		switch (ptypes_pos[i] % 4) {
+    	    		case 1:
+    	    			ptypes_pos[i] = current_order * 4 + 0;
+    	    			break;
+    	    		default:
+    	    			ptypes_pos[i] = current_order * 4 + ptypes_pos[i] % 4;
+    	    		}
+    	    	}
+    		}
+    	}
+    }
+
+    void set_direction(SPARQLQuery::PatternGroup &group, const vector<int> &orders, const vector<string> &dirs, vector<int> &ptypes_pos = empty_ptypes_pos) {
         vector<SPARQLQuery::Pattern> patterns;
         for (int i = 0; i < orders.size(); i++) {
             // number of orders starts from 1
@@ -1593,17 +1640,29 @@ public:
                 ssid_t t = pattern.subject;
                 pattern.subject = pattern.object;
                 pattern.object = t;
+
+                if(ptypes_pos.size() != 0)
+                	set_ptypes_pos(ptypes_pos, dirs[i], patterns.size(), orders[i] - 1);
             } else if (dirs[i] == ">") {
                 pattern.direction = OUT;
+
+                if(ptypes_pos.size() != 0)
+                    set_ptypes_pos(ptypes_pos, dirs[i], patterns.size(), orders[i] - 1);
             } else if (dirs[i] == "<<") {
                 pattern.direction = IN;
                 pattern.object = pattern.subject;
                 pattern.subject = pattern.predicate;
                 pattern.predicate = PREDICATE_ID;
+
+                if(ptypes_pos.size() != 0)
+                	set_ptypes_pos(ptypes_pos, dirs[i], patterns.size(), orders[i] - 1);
             } else if (dirs[i] == ">>") {
                 pattern.direction = OUT;
                 pattern.subject = pattern.predicate;
                 pattern.predicate = PREDICATE_ID;
+
+                if(ptypes_pos.size() != 0)
+                	set_ptypes_pos(ptypes_pos, dirs[i], patterns.size(), orders[i] - 1);
             }
             patterns.push_back(pattern);
         }
@@ -1612,7 +1671,7 @@ public:
 
     // Set orders and directions of patterns in SPARQL query according to the query plan file
     // return false if no plan is set
-    bool set_query_plan(SPARQLQuery::PatternGroup &group, istream &fmt_stream) {
+    bool set_query_plan(SPARQLQuery::PatternGroup &group, istream &fmt_stream, vector<int> &ptypes_pos = empty_ptypes_pos) {
         if (fmt_stream.good()) {
             if (global_enable_planner) {
                 logstream(LOG_WARNING) << "Query plan will not work since planner is on" << LOG_endl;
@@ -1657,7 +1716,7 @@ public:
                 return false;
             }
 
-            set_direction(group, orders, dirs);
+            set_direction(group, orders, dirs, ptypes_pos);
             return true;
         }
         return false;
