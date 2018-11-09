@@ -1640,30 +1640,21 @@ public:
                 ssid_t t = pattern.subject;
                 pattern.subject = pattern.object;
                 pattern.object = t;
-
-                if(ptypes_pos.size() != 0)
-                	set_ptypes_pos(ptypes_pos, dirs[i], patterns.size(), orders[i] - 1);
             } else if (dirs[i] == ">") {
                 pattern.direction = OUT;
-
-                if(ptypes_pos.size() != 0)
-                    set_ptypes_pos(ptypes_pos, dirs[i], patterns.size(), orders[i] - 1);
             } else if (dirs[i] == "<<") {
                 pattern.direction = IN;
                 pattern.object = pattern.subject;
                 pattern.subject = pattern.predicate;
                 pattern.predicate = PREDICATE_ID;
-
-                if(ptypes_pos.size() != 0)
-                	set_ptypes_pos(ptypes_pos, dirs[i], patterns.size(), orders[i] - 1);
             } else if (dirs[i] == ">>") {
                 pattern.direction = OUT;
                 pattern.subject = pattern.predicate;
                 pattern.predicate = PREDICATE_ID;
-
-                if(ptypes_pos.size() != 0)
-                	set_ptypes_pos(ptypes_pos, dirs[i], patterns.size(), orders[i] - 1);
             }
+
+            if(ptypes_pos.size() != 0)
+            	set_ptypes_pos(ptypes_pos, dirs[i], patterns.size(), orders[i] - 1);
             patterns.push_back(pattern);
         }
         group.patterns = patterns;
