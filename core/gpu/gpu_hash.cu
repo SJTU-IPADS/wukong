@@ -125,8 +125,10 @@ void gpu_generate_key_list_k2u(GPUEngineParam &param, cudaStream_t stream)
                 param.query.dir,
                 param.query.pid,
                 param.query.col_num,
-                param.query.row_num
-                );
+                param.query.row_num);
+
+    CUDA_ASSERT( cudaPeekAtLastError() );
+
 }
 
 __device__
@@ -260,6 +262,8 @@ void gpu_get_slot_id_list(GPUEngineParam &param, cudaStream_t stream)
             param.gpu.d_vertex_mapping,
             param.gpu.vertex_blk_sz,
             param.query.row_num);
+
+    CUDA_ASSERT( cudaPeekAtLastError() );
 }
 
 __global__
@@ -321,6 +325,9 @@ void gpu_get_edge_list(GPUEngineParam &param, cudaStream_t stream)
                     param.gpu.d_edge_mapping,
                     param.gpu.edge_blk_sz,
                     param.query.row_num);
+
+    CUDA_ASSERT( cudaPeekAtLastError() );
+
 }
 
 __global__
@@ -375,6 +382,8 @@ void gpu_get_edge_list_k2c(GPUEngineParam &param, cudaStream_t stream)
                     param.gpu.d_edge_mapping,
                     param.gpu.edge_blk_sz,
                     param.query.row_num);
+
+    CUDA_ASSERT( cudaPeekAtLastError() );
 }
 
 __global__
@@ -437,6 +446,8 @@ void gpu_get_edge_list_k2k(GPUEngineParam &param, cudaStream_t stream)
                     param.query.segment_edge_start,
                     param.gpu.d_edge_mapping,
                     param.gpu.edge_blk_sz);
+
+    CUDA_ASSERT( cudaPeekAtLastError() );
 
 }
 
@@ -554,10 +565,10 @@ void k_update_result_buf_k2k(sid_t *result_table,
 int gpu_update_result_buf_k2k(GPUEngineParam& param, cudaStream_t stream)
 {
     int table_size = 0;
-    CUDA_ASSERT( cudaMemcpy(&table_size,
+    CUDA_ASSERT( cudaMemcpyAsync(&table_size,
                param.gpu.d_prefix_sum_list + param.query.row_num - 1,
                sizeof(int),
-               cudaMemcpyDeviceToHost) );
+               cudaMemcpyDeviceToHost, stream) );
 
     k_update_result_buf_k2k<<<WUKONG_GET_BLOCKS(param.query.row_num),
         WUKONG_CUDA_NUM_THREADS, 0, stream>>>(
@@ -570,6 +581,7 @@ int gpu_update_result_buf_k2k(GPUEngineParam& param, cudaStream_t stream)
          param.query.end_vid,
          param.query.row_num);
 
+    CUDA_ASSERT( cudaPeekAtLastError() );
     CUDA_STREAM_SYNC(stream);
     return table_size * param.query.col_num;
 }
@@ -585,6 +597,9 @@ void gpu_calc_prefix_sum(GPUEngineParam& param,
     thrust::device_ptr<int> d_in_ptr(param.gpu.d_edge_size_list);
     thrust::device_ptr<int> d_out_ptr(param.gpu.d_prefix_sum_list);
     thrust::inclusive_scan(thrust::cuda::par.on(stream), d_in_ptr, d_in_ptr + param.query.row_num, d_out_ptr);
+
+    CUDA_ASSERT( cudaPeekAtLastError() );
+
 }
 
 

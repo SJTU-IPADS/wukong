@@ -28,6 +28,7 @@
 #include <boost/serialization/map.hpp>
 #include <map>
 #include <sstream>
+
 #include "type.hpp"
 
 using namespace std;

@@ -28,16 +28,19 @@
 #include <vector>
 
 #include "global.hpp"
-#include "comm/adaptor.hpp"
 #include "query.hpp"
 #include "coder.hpp"
-#include "assertion.hpp"
-#include "engine/rmap.hpp"
-#include "gpu_utils.hpp"
 
-#ifdef USE_GPU
+// gpu
 #include "gpu_engine.hpp"
-#endif
+
+#include "engine/rmap.hpp"
+#include "comm/adaptor.hpp"
+
+// utils
+#include "assertion.hpp"
+#include "gpu.hpp"
+
 
 using namespace std;
 

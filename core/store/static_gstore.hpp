@@ -24,9 +24,10 @@
 
 #include <tbb/concurrent_unordered_map.h>
 #include <unordered_set>
-#include "rdf_meta.hpp"
+#include "store/meta.hpp"
 #include "comm/tcp_adaptor.hpp"
 #include "gstore.hpp"
+
 
 using namespace std;
 

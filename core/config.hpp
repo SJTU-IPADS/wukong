@@ -33,6 +33,8 @@
 
 #include "global.hpp"
 #include "rdma.hpp"
+
+// utils
 #include "assertion.hpp"
 
 using namespace std;

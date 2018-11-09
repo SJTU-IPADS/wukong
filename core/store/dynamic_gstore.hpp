@@ -22,10 +22,12 @@
 
 #pragma once
 
+// store
+#include "gstore.hpp"
+
 #include "mm/malloc_interface.hpp"
 #include "mm/jemalloc.hpp"
 #include "mm/buddy_malloc.hpp"
-#include "gstore.hpp"
 
 using namespace std;
 

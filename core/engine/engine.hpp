@@ -31,15 +31,17 @@
 #include "coder.hpp"
 #include "dgraph.hpp"
 #include "query.hpp"
-#include "timer.hpp"
 
+// engine
 #include "sparql.hpp"
 #include "rdf.hpp"
 #include "msgr.hpp"
 
 #include "comm/adaptor.hpp"
 
+// utils
 #include "assertion.hpp"
+#include "timer.hpp"
 
 
 using namespace std;

@@ -35,12 +35,16 @@
 #include "global.hpp"
 #include "rdma.hpp"
 #include "type.hpp"
+
+#include "store/vertex.hpp"
+
+// utils
 #include "math.hpp"
 #include "timer.hpp"
 #include "unit.hpp"
 #include "atomic.hpp"
 #include "variant.hpp"
-#include "vertex.hpp"
+
 
 using namespace std;
 

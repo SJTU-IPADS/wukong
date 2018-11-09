@@ -34,13 +34,16 @@
 #include "console.hpp"
 #include "rdma.hpp"
 #include "data_statistic.hpp"
-#include "logger2.hpp"
 
 #include "engine/engine.hpp"
 #include "comm/adaptor.hpp"
 
+// utils
 #include "unit.hpp"
+#include "logger2.hpp"
+
 #ifdef USE_GPU
+
 #include "gpu/gpu_mem.hpp"
 #include "gpu/gpu_agent.hpp"
 #include "gpu/gpu_engine.hpp"
