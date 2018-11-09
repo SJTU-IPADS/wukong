@@ -23,6 +23,7 @@
 #pragma once
 
 #include <tbb/concurrent_unordered_map.h>
+#include <unordered_set>
 #include "rdf_meta.hpp"
 #include "comm/tcp_adaptor.hpp"
 #include "gstore.hpp"
@@ -74,9 +75,37 @@ private:
      */
     typedef tbb::concurrent_unordered_set<sid_t> tbb_unordered_set;
     tbb_unordered_set t_set;    // all local types
-    tbb_unordered_set s_set;    // all local subjects
-    tbb_unordered_set o_set;    // all local objects
+    tbb_unordered_set v_set;    // all local entities(subjects & objects)
     tbb_unordered_set p_set;    // all local predicates
+    tbb::concurrent_unordered_map<sid_t, std::unordered_set<sid_t> > out_preds;  // vid's out predicates
+    tbb::concurrent_unordered_map<sid_t, std::unordered_set<sid_t> > in_preds;   // vid's in predicates
+
+    void insert_idx_set(tbb_unordered_set &set, uint64_t &off, sid_t pid, dir_t d) {
+        uint64_t sz = set.size();
+
+        ikey_t key = ikey_t(0, pid, d);
+        uint64_t slot_id = insert_key(key);
+        iptr_t ptr = iptr_t(sz, off);
+        vertices[slot_id].ptr = ptr;
+
+        for (auto const &e : set)
+            edges[off++].val = e;
+    }
+
+    void insert_preds(sid_t vid, const unordered_set<sid_t> &preds, dir_t d) {
+        uint64_t sz = preds.size();
+        auto &seg = rdf_segment_meta_map[segid_t(0, PREDICATE_ID, d)];
+        uint64_t off = seg.edge_start + seg.edge_off;
+        seg.edge_off += sz;
+
+        ikey_t key = ikey_t(vid, PREDICATE_ID, d);
+        uint64_t slot_id = insert_key(key);
+        iptr_t ptr = iptr_t(sz, off);
+        vertices[slot_id].ptr = ptr;
+
+        for (auto const &e : preds)
+            edges[off++].val = e;
+    }
 #endif // VERSATILE
 
     typedef tbb::concurrent_hash_map<ikey_t, vector<triple_t>, ikey_Hasher> tbb_triple_hash_map;
@@ -334,6 +363,17 @@ done:
                 ASSERT(off <= segment.edge_start + segment.num_edges);
             }
         }
+#ifdef VERSATILE
+        if (d == IN) {
+            // all local entities, key: [0 | TYPE_ID | IN]
+            insert_idx_set(v_set, off, TYPE_ID, IN);
+        } else {
+            // all local types, key: [0 | TYPE_ID | OUT]
+            insert_idx_set(t_set, off, TYPE_ID, OUT);
+            // all local predicates, key: [0 | PREDICATE_ID | OUT]
+            insert_idx_set(p_set, off, PREDICATE_ID, OUT);
+        }
+#endif // VERSATILE
     }
 
     void sync_metadata(TCP_Adaptor *tcp_ad) {
@@ -579,8 +619,9 @@ done:
                 }
 
 #ifdef VERSATILE
-                s_set.insert(pso[s].s);
+                v_set.insert(pso[s].s);
                 p_set.insert(pso[s].p);
+                out_preds[pso[s].s].insert(pso[s].p);
                 // count vid's all predicates OUT (number of value in the segment)
                 normal_cnt_map[PREDICATE_ID].out++;
 #endif
@@ -617,7 +658,9 @@ done:
                     e++;
                 }
 #ifdef VERSATILE
-                o_set.insert(pso[s].o);
+                v_set.insert(pos[s].o);
+                p_set.insert(pos[s].p);
+                in_preds[pos[s].o].insert(pos[s].p);
                 // count vid's all predicates IN (number of value in the segment)
                 normal_cnt_map[PREDICATE_ID].in++;
 #endif
@@ -634,7 +677,7 @@ done:
 #ifdef VERSATILE
         logger(LOG_DEBUG, "pid: %d: normal: #IN: %lu, #OUT: %lu", PREDICATE_ID,
                normal_cnt_map[PREDICATE_ID].in.load(), normal_cnt_map[PREDICATE_ID].out.load());
-        total_num_keys += s_set.size() + o_set.size();
+        total_num_keys += out_preds.size() + in_preds.size();
 #endif
         for (int i = 1; i <= num_predicates; ++i) {
             logger(LOG_DEBUG, "pid: %d: normal: #IN: %lu, #OUT: %lu; index: #ALL: %lu, #IN: %lu, #OUT: %lu",
@@ -665,18 +708,33 @@ done:
 
         rdf_segment_meta_t &idx_out_seg = rdf_segment_meta_map[segid_t(1, PREDICATE_ID, OUT)];
         rdf_segment_meta_t &idx_in_seg = rdf_segment_meta_map[segid_t(1, PREDICATE_ID, IN)];
+
 #ifdef VERSATILE
+        // vid's all predicates OUT
         rdf_segment_meta_t &pred_out_seg = rdf_segment_meta_map[segid_t(0, PREDICATE_ID, OUT)];
         pred_out_seg.num_edges = normal_cnt_map[PREDICATE_ID].out.load();
         pred_out_seg.edge_start = (pred_out_seg.num_edges > 0) ? alloc_edges(pred_out_seg.num_edges) : 0;
-        pred_out_seg.num_keys = s_set.size();
+        pred_out_seg.num_keys = out_preds.size();
         alloc_buckets_to_segment(pred_out_seg, segid_t(0, PREDICATE_ID, OUT), total_num_keys);
-
+        // vid's all predicates IN
         rdf_segment_meta_t &pred_in_seg = rdf_segment_meta_map[segid_t(0, PREDICATE_ID, IN)];
         pred_in_seg.num_edges = normal_cnt_map[PREDICATE_ID].in.load();
         pred_in_seg.edge_start = (pred_in_seg.num_edges > 0) ? alloc_edges(pred_in_seg.num_edges) : 0;
-        pred_in_seg.num_keys = o_set.size();
+        pred_in_seg.num_keys = in_preds.size();
         alloc_buckets_to_segment(pred_in_seg, segid_t(0, PREDICATE_ID, IN), total_num_keys);
+
+        // all local entities
+        idx_in_seg.num_edges += v_set.size();
+        idx_in_seg.num_keys += 1;
+        // all local types
+        idx_out_seg.num_edges += t_set.size();
+        idx_out_seg.num_keys += 1;
+        // all local predicates
+        idx_out_seg.num_edges += p_set.size();
+        idx_out_seg.num_keys += 1;
+
+        logstream(LOG_DEBUG) <<  "s_set: " << pred_out_seg.num_keys << ", o_set: " << pred_in_seg.num_keys
+            << ", v_set: " << v_set.size() << ", p_set: " << p_set.size() << ", t_set: " << t_set.size() << LOG_endl;
 #endif
 
         for (sid_t pid = 1; pid <= num_predicates; ++pid) {
@@ -759,6 +817,18 @@ public:
             insert_triples_to_segment(localtid, segid_t(0, pid, OUT));
             insert_triples_to_segment(localtid, segid_t(0, pid, IN));
         }
+#ifdef VERSATILE
+        #pragma omp parallel for num_threads(2)
+        for (int i = 0; i < 2; i++) {
+            if (i == 0) {
+                for (auto const &item : in_preds)
+                    insert_preds(item.first, item.second, IN);
+            } else {
+                for (auto const &item : out_preds)
+                    insert_preds(item.first, item.second, OUT);
+            }
+        }
+#endif // VERSATILE
         #pragma omp parallel for num_threads(2)
         for (int i = 0; i < 2; i++) {
             if (i == 0)
