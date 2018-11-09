@@ -367,11 +367,14 @@ done:
         if (d == IN) {
             // all local entities, key: [0 | TYPE_ID | IN]
             insert_idx_set(v_set, off, TYPE_ID, IN);
+            tbb_unordered_set().swap(v_set);
         } else {
             // all local types, key: [0 | TYPE_ID | OUT]
             insert_idx_set(t_set, off, TYPE_ID, OUT);
+            tbb_unordered_set().swap(t_set);
             // all local predicates, key: [0 | PREDICATE_ID | OUT]
             insert_idx_set(p_set, off, PREDICATE_ID, OUT);
+            tbb_unordered_set().swap(p_set);
         }
 #endif // VERSATILE
     }
@@ -821,13 +824,19 @@ public:
         #pragma omp parallel for num_threads(2)
         for (int i = 0; i < 2; i++) {
             if (i == 0) {
-                for (auto const &item : in_preds)
+                for (auto &item : in_preds) {
                     insert_preds(item.first, item.second, IN);
+                    std::unordered_set<sid_t>().swap(item.second);
+                }
             } else {
-                for (auto const &item : out_preds)
+                for (auto &item : out_preds) {
                     insert_preds(item.first, item.second, OUT);
+                    std::unordered_set<sid_t>().swap(item.second);
+                }
             }
         }
+        tbb::concurrent_unordered_map<sid_t, std::unordered_set<sid_t> >().swap(in_preds);
+        tbb::concurrent_unordered_map<sid_t, std::unordered_set<sid_t> >().swap(out_preds);
 #endif // VERSATILE
         #pragma omp parallel for num_threads(2)
         for (int i = 0; i < 2; i++) {
