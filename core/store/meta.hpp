@@ -30,6 +30,7 @@
 #include <sstream>
 
 #include "type.hpp"
+#include "vertex.hpp"
 
 using namespace std;
 using namespace boost::archive;
