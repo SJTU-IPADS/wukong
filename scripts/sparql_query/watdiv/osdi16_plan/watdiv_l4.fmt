@@ -1,0 +1,21 @@
+#
+# SPARQL
+#
+# SELECT ?v0 ?v2 WHERE {
+#	?v0  <http://ogp.me/ns#tag>  <http://db.uwaterloo.ca/~galuc/wsdbm/Topic227>  .
+#	?v0  <http://schema.org/caption>  ?v2  .
+# }
+#
+# command: sparql -f sparql_query/watdiv/watdiv_l4 -p sparql_query/watdiv/osdi16_plan/watdiv_l4.fmt
+#
+
+#
+# Plan (OSDI16)
+#
+# SELECT ?v0 ?v2 WHERE {
+#	?v0  <http://ogp.me/ns#tag>  <http://db.uwaterloo.ca/~galuc/wsdbm/Topic227>  <-
+#	?v0  <http://schema.org/caption>  ?v2  .
+# }
+#
+1 <
+2 >

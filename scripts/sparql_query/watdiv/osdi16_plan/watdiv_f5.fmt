@@ -1,0 +1,33 @@
+#
+# SPARQL
+#
+# SELECT ?v0 ?v1 ?v3 ?v4 ?v5 ?v6 WHERE {
+#	<http://db.uwaterloo.ca/~galuc/wsdbm/Retailer5186>  <http://purl.org/goodrelations/offers>  ?v0  .
+#	?v0  <http://purl.org/goodrelations/price>  ?v3  .
+#	?v0  <http://purl.org/goodrelations/validThrough>  ?v4  .
+#	?v0  <http://purl.org/goodrelations/includes>  ?v1  .
+#	?v1  <http://ogp.me/ns#title>  ?v5  .
+#	?v1  <http://www.w3.org/1999/02/22-rdf-syntax-ns#type>  ?v6  .
+# }
+#
+# command: sparql -f sparql_query/watdiv/watdiv_f5 -p sparql_query/watdiv/osdi16_plan/watdiv_f5.fmt
+#
+
+#
+# Plan (ODI16)
+#
+# SELECT ?v0 ?v1 ?v3 ?v4 ?v5 ?v6 WHERE {
+#	<http://db.uwaterloo.ca/~galuc/wsdbm/Retailer5186>  <http://purl.org/goodrelations/offers>  ?v0  .
+#	?v0  <http://purl.org/goodrelations/price>  ?v3  .
+#	?v0  <http://purl.org/goodrelations/validThrough>  ?v4  .
+#	?v0  <http://purl.org/goodrelations/includes>  ?v1  .
+#	?v1  <http://ogp.me/ns#title>  ?v5  .
+#	?v1  <http://www.w3.org/1999/02/22-rdf-syntax-ns#type>  ?v6  .
+# }
+#
+1 >
+2 >
+3 >
+4 >
+5 >
+6 >

@@ -1,0 +1,38 @@
+#
+# SPARQL
+#
+# PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+# PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
+# SELECT ?X ?Y ?Z ?H WHERE {
+#   ?Y  rdf:type  ub:FullProfessor  .
+#   ?X  ub:advisor  ?Y  .
+#   ?X  rdf:type  ub:UndergraduateStudent  .
+#   ?X  ub:takesCourse  ?Z  .
+#   ?Z  rdf:type  ub:Course  .
+#   ?Z  ub:id  ?H  .
+#   ?Y  ub:teacherOf  ?Z  .
+# }
+#
+# command: sparql -f sparql_query/lubm/attr/lubm_attr_q5 -p sparql_query/lubm/attr/manual_plan/lubm_attr_q5.fmt
+#
+
+#
+# Plan 
+#
+# SELECT ?X ?Y ?Z ?H WHERE {
+#	?Y  rdf:type  ub:FullProfessor  <-
+#	?X  ub:advisor  ?Y  <-
+#	?X  rdf:type  ub:UndergraduateStudent  .
+#	?X  ub:takesCourse  ?Z  .
+#	?Z  rdf:type  ub:Course  .
+#	?Z  ub:id  ?H  .
+#	?Y  ub:teacherOf  ?Z  <-
+# }
+#
+1 <
+2 <
+3 >
+4 >
+5 >
+6 >
+7 <

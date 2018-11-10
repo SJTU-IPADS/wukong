@@ -1,0 +1,47 @@
+#
+# SPARQL
+#
+# SELECT ?v0 ?v3 ?v4 ?v8 WHERE {
+#	?v4  <http://schema.org/jobTitle>  ?v5  .
+#	?v4  <http://xmlns.com/foaf/homepage>  ?v6  .
+#	?v4  <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase>  ?v7  .
+#	?v7  <http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor>  ?v3  .
+#	?v3  <http://purl.org/stuff/rev#hasReview>  ?v8  .
+#	?v8  <http://purl.org/stuff/rev#totalVotes>  ?v9  .
+#	?v2  <http://purl.org/goodrelations/includes>  ?v3  .
+#	?v2  <http://schema.org/eligibleRegion>  <http://db.uwaterloo.ca/~galuc/wsdbm/Country5>  .
+#	?v0  <http://purl.org/goodrelations/offers>  ?v2  .
+#	?v0  <http://schema.org/legalName>  ?v1  .
+# }
+#
+# command: sparql -f sparql_query/watdiv/watdiv_c2 -p sparql_query/watdiv/osdi16_plan/watdiv_c2.fmt
+#
+
+#
+# Plan (OSDI16)
+#
+# SELECT ?v0 ?v3 ?v4 ?v8 WHERE {
+#	?v4  __PREDICATE__  <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase>  <-
+#	?v4  <http://schema.org/jobTitle> ?v5  .
+#	?v4  <http://xmlns.com/foaf/homepage>  ?v6  .
+#	?v4  <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase>  ?v7  .
+#	?v7  <http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor>  ?v3  .
+#	?v3  <http://purl.org/stuff/rev#hasReview>  ?v8  .
+#	?v8  <http://purl.org/stuff/rev#totalVotes>  ?v9  .
+#	?v2  <http://purl.org/goodrelations/includes>  ?v3  <-
+#	?v2  <http://schema.org/eligibleRegion>  <http://db.uwaterloo.ca/~galuc/wsdbm/Country5>  .
+#	?v0  <http://purl.org/goodrelations/offers>  ?v2  <-
+#	?v0  <http://schema.org/legalName>  ?v1  .
+# }
+#
+1 <<
+1 >
+2 >
+3 >
+4 >
+5 >
+6 >
+7 <
+8 >
+9 <
+10 >

@@ -1,0 +1,19 @@
+#
+# SPARQL
+#
+# SELECT ?X WHERE {
+#	?X  ub:takesCourse  %ub:GraduateCourse  .
+#	?X  rdf:type  ub:GraduateStudent  .
+# }
+#
+
+#
+# Plan (OSDI16)
+#
+# SELECT ?X WHERE {
+#	?X  ub:takesCourse  %ub:GraduateCourse  <-
+#	?X  rdf:type  ub:GraduateStudent  .
+# }
+#
+1 <
+2 >

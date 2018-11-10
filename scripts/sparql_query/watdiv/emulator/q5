@@ -1,0 +1,6 @@
+SELECT ?v0 ?v1 ?v2 ?v3 WHERE {
+	%<fromPredicate> <http://purl.org/stuff/rev#hasReview>  ?v0  .
+	?v0  <http://purl.org/stuff/rev#reviewer>  ?v1  .
+	?v1  <http://schema.org/email>  ?v2  .
+	?v1  <http://schema.org/telephone>  ?v3  .
+}

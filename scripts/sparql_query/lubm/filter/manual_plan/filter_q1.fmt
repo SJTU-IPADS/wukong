@@ -1,0 +1,33 @@
+#
+# SPARQL
+#
+# SELECT ?S ?UG ?MAS WHERE {
+#	?S  ub:undergraduateDegreeFrom  ?UG  .
+#	OPTIONAL {
+#		?S  ub:mastersDegreeFrom  ?MAS  .
+#		?MAS  ub:name  "University0"  .
+#	}
+#	FILTER bound(?MAS)
+# }
+#
+# command: sparql -f sparql_query/lubm/filter/filter_q1 -p sparql_query/lubm/filter/manual_plan/filter_q1.fmt
+#
+
+#
+# Plan 
+#
+# SELECT ?S ?UG ?MAS WHERE {
+#	?S	__PREDICATE__  ub:undergraduateDegreeFrom  <-
+#	?S  ub:undergraduateDegreeFrom  ?UG  .
+#	OPTIONAL {
+#		?S  ub:mastersDegreeFrom  ?MAS  .
+#		?MAS  ub:name  "University0"  .
+#	}
+#	FILTER bound(?MAS)
+# }
+1 <<
+1 >
+Optional{
+1 >
+2 >
+}

@@ -1,11 +1,4 @@
 #
-# comments start with #
-# numbers in each line represent the x'st pattern in raw query file
-# number STARTS from 1
-# > means OUT
-# < means IN
-#
-#
 # SPARQL
 #
 # SELECT ?X ?Y ?Z WHERE {
@@ -17,27 +10,36 @@
 #	?Z  rdf:type  ub:Department  .
 # }
 #
-# command : sparql -f sparql_query/lubm/basic/lubm_q1 -p sparql_query/lubm/basic/osdi16_plan/lubm_q1.fmt -m 16 -n 10
+# command: sparql -f sparql_query/lubm/basic/lubm_q1 -p sparql_query/lubm/basic/osdi16_plan/lubm_q1.fmt -m 16 -n 10
 #
 
 #
-# Plan 
+# comments start with #
+# numbers in each line represent the x'st pattern in raw query file
+# number STARTS from 1
+# > means OUT
+# < means IN
 #
+#
+# Plan (OSDI16)
+#
+# CORUN 3 5
 # SELECT ?X ?Y ?Z WHERE {
-#	?Y  rdf:type  ub:University  <-
-#	?X  ub:undergraduateDegreeFrom  ?Y  <-
-#	?X  rdf:type  ub:GraduateStudent  .
-#	?X  ub:memberOf  ?Z  .
-#	?Z  ub:subOrganizationOf  ?Y  .
-#	?Z  rdf:type  ub:Department  .
+#	?X  rdf:type  ub:GraduateStudent  <-
+#	?X  ub:memberOf  ?Z  ->
+#	?X  ub:undergraduateDegreeFrom  ?Y  ->
+#	?Y  rdf:type  ub:University  ->
+#	?Z  ub:subOrganizationOf  ?Y  <-
+#	?Z  rdf:type  ub:Department  ->
 # }
 #
-# 1 <
-# 2 <
-# 3 >
-# 4 >
-# 5 >
-# 6 >
+# disable corun optimization
+3 <
+4 >
+2 >
+1 >
+5 <
+6 >
 
 
 #
@@ -67,26 +69,3 @@
 # 3 >
 # 4 >
 # 6 >
-
-
-#
-# Plan3 (OSDI16)
-#
-# CORUN 3 5
-# SELECT ?X ?Y ?Z WHERE {
-#	?X  rdf:type  ub:GraduateStudent  <-
-#	?X  ub:memberOf  ?Z  ->
-#	?X  ub:undergraduateDegreeFrom  ?Y  ->
-#	?Y  rdf:type  ub:University  ->
-#	?Z  ub:subOrganizationOf  ?Y  <-
-#	?Z  rdf:type  ub:Department  ->
-# }
-#
-# disable corun optimization
-3 <
-4 >
-2 >
-1 >
-5 <
-6 >
-

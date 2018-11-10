@@ -1,0 +1,23 @@
+#
+# SPARQL
+#
+# PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+#
+# SELECT ?var3 ?var2 WHERE {
+#	?var3  rdf:type  <http://dbpedia.org/ontology/Person>  .
+#	?var3  <http://xmlns.com/foaf/0.1/homepage>  ?var2  .
+# }
+#
+# command: sparql -f sparql_query/dbpsb/dbpsb_q1 -p sparql_query/dbpsb/osdi16_plan/dbpsb_q1.fmt
+#
+
+#
+# Plan (ODSI16)
+#
+# SELECT ?var3 ?var2 WHERE {
+#	?var3  rdf:type  <http://dbpedia.org/ontology/Person>  <-
+#	?var3  <http://xmlns.com/foaf/0.1/homepage>  ?var2  .
+# }
+#
+1 <
+2 >

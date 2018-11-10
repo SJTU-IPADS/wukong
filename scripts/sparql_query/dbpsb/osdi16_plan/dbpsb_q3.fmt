@@ -1,0 +1,26 @@
+#
+# SPARQL
+#
+# PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+#
+# SELECT * where {
+#	?var2  <http://dbpedia.org/ontology/foundationPlace>  <http://dbpedia.org/resource/Hasbro_Interactive>  .
+#	?var4  <http://dbpedia.org/ontology/developer>  ?var2  .
+#	?var4  rdf:type  <http://dbpedia.org/ontology/Software>  .
+# }
+#
+# command: sparql -f sparql_query/dbpsb/dbpsb_q3 -p sparql_query/dbpsb/osdi16_plan/dbpsb_q3.fmt
+#
+
+#
+# Plan (ODSI16)
+#
+# SELECT * where {
+#	?var2  <http://dbpedia.org/ontology/foundationPlace>  <http://dbpedia.org/resource/Hasbro_Interactive>  <-
+#	?var4  <http://dbpedia.org/ontology/developer>  ?var2  <-
+#	?var4  rdf:type  <http://dbpedia.org/ontology/Software>  .
+# }
+#
+1 <
+2 <
+3 >

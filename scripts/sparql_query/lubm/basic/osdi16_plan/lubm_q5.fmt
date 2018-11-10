@@ -6,15 +6,15 @@
 #	?X  rdf:type   ub:ResearchGroup .
 # }
 #
-# command : sparql -f sparql_query/lubm/basic/lubm_q5 -p sparql_query/lubm/basic/osdi16_plan/lubm_q5.fmt -n 1000
+# command: sparql -f sparql_query/lubm/basic/lubm_q5 -p sparql_query/lubm/basic/osdi16_plan/lubm_q5.fmt -n 1000
 #
 
 #
 # Plan (OSDI16)
 #
 # SELECT ?X WHERE {
-#	?X ub:subOrganizationOf <http://www.Department0.University0.edu>    <-
-#	?X rdf:type ub:ResearchGroup .
+#	?X  ub:subOrganizationOf  <http://www.Department0.University0.edu>  <-
+#	?X  rdf:type  ub:ResearchGroup  .
 # }
 #
 1 <

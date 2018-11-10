@@ -45,7 +45,7 @@ global_enable_vattr   		1
 ## Running the attribute query
 
 ```
-wukong> sparql -f sparql_query/lubm/attr/lubm_attr_q2 -p sparql_query/lubm/attr/plan/lubm_attr_q2.fmt
+wukong> sparql -f sparql_query/lubm/attr/lubm_attr_q2 -p sparql_query/lubm/attr -p /plan/lubm_attr_q2.fmt
 INFO:     Parsing a SPARQL query is done.
 INFO:     Parsing time: 2466 usec
 INFO:     Query plan is successfully set
