@@ -105,6 +105,13 @@ public:
         return false;
     }
 
+    void send_reply(SPARQLQuery &req, int dst_sid, int dst_tid) {
+        req.state = SPARQLQuery::SQState::SQ_REPLY;
+        req.job_type = SPARQLQuery::SubJobType::FULL_JOB;
+        Bundle bundle(req);
+        bool ret = send_request(bundle, dst_sid, dst_tid);
+        ASSERT(ret == true);
+    }
 
     void sweep_msgs() { }
 
@@ -184,6 +191,9 @@ public:
             // all sub-queries have done, continue to execute
             req = rmap.get_merged_reply(req.pid);
             pthread_spin_unlock(&rmap_lock);
+
+            send_reply(req, coder.sid_of(req.pid), coder.tid_of(req.pid));
+            return;
         }
 
         // execute_patterns
@@ -203,18 +213,7 @@ public:
             if (req.done(SPARQLQuery::SQState::SQ_PATTERN)) {
                 // only send back row_num in blind mode
                 req.result.row_num = req.result.get_row_num();
-                req.state = SPARQLQuery::SQState::SQ_REPLY;
-                req.job_type = SPARQLQuery::SubJobType::FULL_JOB;
-                Bundle bundle(req);
-                int psid, ptid;
-                psid = coder.sid_of(req.pid);
-                ptid = coder.tid_of(req.pid);
-                logstream(LOG_DEBUG) << "#" << sid
-                                     << " GPUAgent: finished query r.id=" << req.id
-                                     << ", pid=" << req.pid << ", sent back to sid=" << psid
-                                     << ", tid=" << ptid
-                                     << LOG_endl;
-                send_request(bundle, psid, ptid);
+                send_reply(req, coder.sid_of(req.pid), coder.tid_of(req.pid));
                 break;
             }
 
@@ -223,6 +222,9 @@ public:
                                      << req.pid << LOG_endl;
                 vector<SPARQLQuery> sub_reqs = gpu_engine->generate_sub_query(req);
                 ASSERT(sub_reqs.size() == global_num_servers);
+
+                // clear parent's result buf after generating sub-jobs
+                req.result.clear_gpu_result_buf();
                 rmap.put_parent_request(req, sub_reqs.size());
                 for (int i = 0; i < sub_reqs.size(); i++) {
                     if (i != sid)

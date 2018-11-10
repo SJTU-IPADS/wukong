@@ -465,6 +465,7 @@ public:
                                             result.attr_res_table.begin(),
                                             result.attr_res_table.end());
             }
+
         }
 
         bool gpu_result_buf_empty() {
@@ -477,6 +478,7 @@ public:
         }
 
         void set_gpu_result_buf(char *rbuf, uint64_t n) {
+            ASSERT(rbuf != nullptr);
             gpu.result_buf_dp = rbuf;
             gpu.result_buf_nelems = n;
         }

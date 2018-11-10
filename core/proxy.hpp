@@ -290,13 +290,14 @@ public:
         }
 
         // set the multi-threading factor for queries start from index
-        if (request.start_from_index()) {
+        if (!send_to_gpu && request.start_from_index()) {
             if (mt_factor == 1 && global_mt_threshold > 1)
                 logstream(LOG_EMPH) << "The query starts from an index vertex, "
                                     << "you could use option -m to accelerate it."
                                     << LOG_endl;
             //request.mt_factor = min(mt_factor, global_mt_threshold);
         }
+
 #ifdef USE_GPU
         if (send_to_gpu) {
             request.dev_type = SPARQLQuery::DeviceType::GPU;

@@ -363,9 +363,11 @@ public:
         ASSERT(req.pattern_step > 0);
 
         param.query.start_vid = start;
-        param.query.col_num = req.result.get_col_num(),
-                    param.query.row_num = req.result.get_row_num(),
-                                param.query.var2col_start = req.result.var2col(start);
+        param.query.col_num = req.result.get_col_num();
+        param.query.row_num = req.result.get_row_num();
+        param.query.var2col_start = req.result.var2col(start);
+
+        ASSERT(param.query.row_num > 0);
 
         if (req.pattern_step == 0) {
             param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
