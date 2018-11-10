@@ -31,11 +31,14 @@
 using namespace std;
 
 #include "global.hpp"
+
+// utils
 #include "timer.hpp"
 #include "assertion.hpp"
 
 #ifdef HAS_RDMA
 
+// rdma_lib
 #include "rdmaio.hpp"
 
 using namespace rdmaio;

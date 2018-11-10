@@ -29,10 +29,14 @@
 
 #include "assertion.hpp"
 #include "query.hpp"
+
+// gpu
 #include "gpu_hash.hpp"
-#include "gpu_utils.hpp"
 #include "gpu_cache.hpp"
 #include "gpu_stream.hpp"
+
+// utils
+#include "gpu.hpp"
 #include "logger2.hpp"
 
 using namespace std;

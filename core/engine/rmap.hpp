@@ -24,6 +24,7 @@
 
 #include <vector>
 #include <boost/unordered_map.hpp>
+
 #include "query.hpp"
 
 using namespace std;

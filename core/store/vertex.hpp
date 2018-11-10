@@ -21,8 +21,10 @@
  */
 
 #pragma once
-#include "math.hpp"
 #include <sstream>
+
+// utils
+#include "math.hpp"
 
 enum { NBITS_DIR = 1 };
 enum { NBITS_IDX = 17 }; // equal to the size of t/pid

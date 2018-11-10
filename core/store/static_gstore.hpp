@@ -24,10 +24,12 @@
 
 #ifdef USE_GPU
 #include <tbb/concurrent_unordered_map.h>
-#include "rdf_meta.hpp"
+
 #include "comm/tcp_adaptor.hpp"
+#include "store/meta.hpp"
 #endif // USE_GPU
-#include "gstore.hpp"
+
+#include "store/gstore.hpp"
 
 using namespace std;
 

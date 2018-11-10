@@ -22,8 +22,11 @@
 
 #pragma once
 
-#include "hdfs.hpp"
+// loader
 #include "base_loader.hpp"
+
+// utils
+#include "hdfs.hpp"
 
 class HDFSLoader : public BaseLoader {
 protected:

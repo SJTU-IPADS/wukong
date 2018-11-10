@@ -37,6 +37,7 @@
 
 #include "comm/adaptor.hpp"
 
+// utils
 #include "math.hpp"
 #include "timer.hpp"
 
@@ -81,14 +82,14 @@ private:
                 ssid_t p = sqt.pattern_group.patterns[pos / 4].predicate;
                 dir_t d;
                 switch (pos % 4) {
-                    case 0:
-                        d = (sqt.pattern_group.patterns[pos / 4].direction == OUT) ? IN : OUT;
-                        break;
-                    case 3:
-                        d = (sqt.pattern_group.patterns[pos / 4].direction == OUT) ? OUT : IN;
-                        break;
-                    default:
-                        ASSERT(false);
+                case 0:
+                    d = (sqt.pattern_group.patterns[pos / 4].direction == OUT) ? IN : OUT;
+                    break;
+                case 3:
+                    d = (sqt.pattern_group.patterns[pos / 4].direction == OUT) ? OUT : IN;
+                    break;
+                default:
+                    ASSERT(false);
                 }
                 SPARQLQuery::Pattern pattern(p, PREDICATE_ID, d, -1);
                 pattern.pred_type = 0;
@@ -224,10 +225,10 @@ public:
         Bundle bundle = adaptor->recv();
         ASSERT(bundle.type == SPARQL_QUERY);
         SPARQLQuery r = bundle.get_sparql_query();
-        logstream(LOG_DEBUG) << "Proxy recv_reply: got reply id="<< r.id << ", r.pid=" << r.pid
-            << ", dev_type=" << (r.dev_type == SPARQLQuery::DeviceType::GPU ? "GPU" : "CPU")
-            << ", #rows=" << r.result.get_row_num() << ", step=" << r.pattern_step
-            << ", done: " << r.done(SPARQLQuery::SQState::SQ_PATTERN) << LOG_endl;
+        logstream(LOG_DEBUG) << "Proxy recv_reply: got reply id=" << r.id << ", r.pid=" << r.pid
+                             << ", dev_type=" << (r.dev_type == SPARQLQuery::DeviceType::GPU ? "GPU" : "CPU")
+                             << ", #rows=" << r.result.get_row_num() << ", step=" << r.pattern_step
+                             << ", done: " << r.done(SPARQLQuery::SQState::SQ_PATTERN) << LOG_endl;
         return r;
     }
 
@@ -247,7 +248,7 @@ public:
     // @is: input
     // @reply: result
     int run_single_query(istream &is, istream &fmt_stream, int mt_factor, int cnt, int cnt_planner,
-                        bool send_to_gpu, SPARQLQuery &reply, Monitor &monitor) {
+                         bool send_to_gpu, SPARQLQuery &reply, Monitor &monitor) {
         uint64_t start, end;
         SPARQLQuery request;
 
@@ -275,8 +276,8 @@ public:
         if (global_enable_planner) {
             start = timer::get_usec();
 
-            for(int i = 0;i < cnt_planner;i ++){
-            	planner.test = true;
+            for (int i = 0; i < cnt_planner; i ++) {
+                planner.test = true;
                 planner.generate_plan(request, statistic);
                 end = timer::get_usec();
             }
@@ -390,6 +391,21 @@ public:
             // generate a template for each class of light query
             if (i < nlights)
                 fill_template(tpls[i]);
+
+            // adapt user defined plan according to plan_config file
+            if (!global_enable_planner && fmt_file_names.size() != 0) {
+            	ifstream fs(fmt_file_names[i]);
+                if (!fs.good()) {
+                    logstream(LOG_ERROR) << "Fail to read file: " << fmt_file_names[i] << LOG_endl;
+                    return -2;
+                }
+            	if (i < nlights) {
+            		planner.set_query_plan(tpls[i].pattern_group, fs, tpls[i].ptypes_pos);
+            	}
+            	else {
+            		planner.set_query_plan(heavy_reqs[i - nlights].pattern_group, fs);
+            	}
+            }
         }
 
         monitor.init(ntypes);
@@ -411,14 +427,6 @@ public:
 
                 if (global_enable_planner) {
                     planner.generate_plan(request, statistic);
-                } else if (fmt_file_names.size() > 0) {
-                    // adapt user defined plan according to format directory file
-                    ifstream fs(fmt_file_names[idx]);
-                    if (!fs.good()) {
-                        logstream(LOG_ERROR) << "Fail to read file: " << fmt_file_names[idx] << LOG_endl;
-                        return -2;
-                    }
-                    planner.set_query_plan(request.pattern_group, fs);
                 }
 
                 setpid(request);

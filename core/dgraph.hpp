@@ -24,12 +24,14 @@
 
 #include "loader/posix_loader.hpp"
 #include "loader/hdfs_loader.hpp"
+
 #ifdef DYNAMIC_GSTORE
 #include "store/dynamic_gstore.hpp"
 #include "loader/dynamic_loader.hpp"
 #else
 #include "store/static_gstore.hpp"
 #endif
+
 #include "store/gchecker.hpp"
 
 using namespace std;
@@ -51,12 +53,12 @@ public:
 #endif
 
     DGraph(int sid, Mem *mem, String_Server *str_server, string dname): sid(sid) {
-        #ifdef DYNAMIC_GSTORE
-            gstore = new DynamicGStore(sid, mem);
-            dynamic_loader = new DynamicLoader(sid, str_server, static_cast<DynamicGStore *>(gstore));
-        #else
-            gstore = new StaticGStore(sid, mem);
-        #endif
+#ifdef DYNAMIC_GSTORE
+        gstore = new DynamicGStore(sid, mem);
+        dynamic_loader = new DynamicLoader(sid, str_server, static_cast<DynamicGStore *>(gstore));
+#else
+        gstore = new StaticGStore(sid, mem);
+#endif
         checker = new GChecker(gstore);
         //load from hdfs or posix file
         if (boost::starts_with(dname, "hdfs:"))

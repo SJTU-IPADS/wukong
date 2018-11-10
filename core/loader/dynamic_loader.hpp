@@ -40,7 +40,10 @@
 #include "global.hpp"
 #include "type.hpp"
 #include "rdma.hpp"
+
 #include "store/dynamic_gstore.hpp"
+
+// utils
 #include "timer.hpp"
 #include "assertion.hpp"
 #include "math.hpp"

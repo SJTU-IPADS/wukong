@@ -22,6 +22,7 @@
 
 #pragma once
 
+// loader
 #include "base_loader.hpp"
 
 class PosixLoader : public BaseLoader {
@@ -58,7 +59,8 @@ protected:
     }
 
 public:
-    PosixLoader(int sid, Mem *mem, String_Server *str_server, GStore *gstore): BaseLoader(sid, mem, str_server, gstore) {}
+    PosixLoader(int sid, Mem *mem, String_Server *str_server, GStore *gstore)
+        : BaseLoader(sid, mem, str_server, gstore) { }
 
     ~PosixLoader() {}
 };

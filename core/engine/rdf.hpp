@@ -31,11 +31,14 @@
 #include "coder.hpp"
 #include "dgraph.hpp"
 #include "query.hpp"
+
+// engine
+#include "msgr.hpp"
+
+// utils
 #include "assertion.hpp"
 #include "math.hpp"
 #include "timer.hpp"
-
-#include "msgr.hpp"
 
 using namespace std;
 
