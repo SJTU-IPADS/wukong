@@ -30,15 +30,19 @@
 
 #include "config.hpp"
 #include "type.hpp"
-#include "comm/adaptor.hpp"
 #include "dgraph.hpp"
 #include "query.hpp"
+
+// gpu
+#include "gpu_engine_cuda.hpp"
+
+#include "comm/adaptor.hpp"
+#include "engine/rmap.hpp"
+
 #include "assertion.hpp"
 #include "math.hpp"
 #include "timer.hpp"
-#include "engine/rmap.hpp"
 
-#include "gpu_engine_cuda.hpp"
 
 using namespace std;
 

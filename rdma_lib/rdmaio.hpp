@@ -39,8 +39,10 @@
 #include "pre_connector.hpp"
 #include "rdma_header.hpp"
 #include "simple_map.hpp"
+
 #ifdef USE_GPU
-#include "gpu_utils.hpp"
+// utils
+#include "gpu.hpp"
 #endif
 
 // #define PER_QP_PD

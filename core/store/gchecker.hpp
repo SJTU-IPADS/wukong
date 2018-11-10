@@ -22,6 +22,7 @@
 
 #pragma once
 
+// store
 #include "gstore.hpp"
 
 class GChecker {

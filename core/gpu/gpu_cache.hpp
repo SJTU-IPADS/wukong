@@ -29,10 +29,13 @@
 #include <map>
 #include <algorithm>
 #include <cuda_runtime.h>
-#include "rdf_meta.hpp"
+
 #include "store/gstore.hpp"
+#include "store/meta.hpp"
+
+// utils
 #include "unit.hpp"
-#include "gpu_utils.hpp"
+#include "gpu.hpp"
 
 using namespace std;
 

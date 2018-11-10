@@ -30,10 +30,12 @@
 #include <thrust/system/cuda/execution_policy.h>
 #include <cmath>
 
-#include "gpu_utils.hpp"
+#include "store/meta.hpp"
+#include "store/vertex.hpp"
+
+// utils
+#include "gpu.hpp"
 #include "unit.hpp"
-#include "rdf_meta.hpp"
-#include "vertex.hpp"
 
 struct GPUMem;
 extern int global_gpu_rbuf_size_mb;

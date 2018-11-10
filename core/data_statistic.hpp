@@ -14,6 +14,7 @@
 #include <tbb/concurrent_hash_map.h>
 
 #include "global.hpp"
+
 #include "store/gstore.hpp"
 #include "comm/tcp_adaptor.hpp"
 
@@ -38,7 +39,7 @@ struct type_t {
         return this->composition == other.composition;
     }
 
-    bool equal(const type_t &other) const{
+    bool equal(const type_t &other) const {
         if (data_type != other.data_type) return false;
         return this->composition == other.composition;
     }
@@ -52,11 +53,11 @@ struct type_t {
 
 struct type_t_hasher {
     size_t operator()( const type_t& type ) const {
-    	return hash(type);
+        return hash(type);
     }
 
     // for tbb hashcompare
-    size_t hash( const type_t& type ) const{
+    size_t hash( const type_t& type ) const {
         size_t res = 17;
         for (auto it = type.composition.cbegin(); it != type.composition.cend(); ++it)
             res += *it + 17;
@@ -64,8 +65,8 @@ struct type_t_hasher {
     }
 
     // for tbb hashcompare
-    bool equal(const type_t& type1, const type_t& type2) const{
-    	return type1.equal(type2);
+    bool equal(const type_t& type1, const type_t& type2) const {
+        return type1.equal(type2);
     }
 };
 
@@ -214,7 +215,7 @@ public:
     // (type_composition and index_composition)
     unordered_map<ssid_t, type_t> local_int2type;
     unordered_map<type_t, ssid_t, type_t_hasher> local_type2int;
-    unordered_map<ssid_t, type_t> global_int2type;	//not used in planner.hpp currently
+    unordered_map<ssid_t, type_t> global_int2type;  //not used in planner.hpp currently
     unordered_map<type_t, ssid_t, type_t_hasher> global_type2int;
 
     // single type may be contained by several multitype
@@ -229,45 +230,45 @@ public:
     data_statistic() { }
 
     // for debug usage
-    void show_stat_info(){
-    	int number_of_notype = 0;
-    	int number_of_multitype = 0;
-    	int number_of_singletype = 0;
-    	for(auto const &token:global_type2int){
-    		if(token.first.data_type)
-    			number_of_multitype ++;
-    		else
-    			number_of_notype ++;
-    	}
-    	for(auto const &token:global_tyscount){
-    		if(token.first > 0)
-    			number_of_singletype++;
-    	}
+    void show_stat_info() {
+        int number_of_notype = 0;
+        int number_of_multitype = 0;
+        int number_of_singletype = 0;
+        for (auto const &token : global_type2int) {
+            if (token.first.data_type)
+                number_of_multitype ++;
+            else
+                number_of_notype ++;
+        }
+        for (auto const &token : global_tyscount) {
+            if (token.first > 0)
+                number_of_singletype++;
+        }
 
-    	cout << "number_of_multitype: " << number_of_multitype << endl;
-    	cout << "number_of_notype: " << number_of_notype << endl;
-    	cout << "number_of_singletype: " << number_of_singletype << endl;
+        cout << "number_of_multitype: " << number_of_multitype << endl;
+        cout << "number_of_notype: " << number_of_notype << endl;
+        cout << "number_of_singletype: " << number_of_singletype << endl;
 
-    	const int NUMBER = 10;
-    	int temp[NUMBER];
-    	int temp2[NUMBER];
-    	for(int i = 0; i < NUMBER; i ++){
-    		temp[i] = 0;
-    		temp2[i] = 0;
-    	}
-    	for(auto const &token:global_tyscount){
-    		if(token.second <= NUMBER){
-    			temp[token.second - 1] ++;
-    			if(token.first > 0){
-    				temp2[token.second - 1] ++;
-    			}
-    		}
-    	}
+        const int NUMBER = 10;
+        int temp[NUMBER];
+        int temp2[NUMBER];
+        for (int i = 0; i < NUMBER; i ++) {
+            temp[i] = 0;
+            temp2[i] = 0;
+        }
+        for (auto const &token : global_tyscount) {
+            if (token.second <= NUMBER) {
+                temp[token.second - 1] ++;
+                if (token.first > 0) {
+                    temp2[token.second - 1] ++;
+                }
+            }
+        }
 
-    	cout << "useless type number: " << endl;
-    	for(int i = 0;i < NUMBER;i ++){
-    		cout << temp[i] << "\t" << temp2[i] << endl;
-    	}
+        cout << "useless type number: " << endl;
+        for (int i = 0; i < NUMBER; i ++) {
+            cout << temp[i] << "\t" << temp2[i] << endl;
+        }
     }
 
     // reduce number of types to speed up planning procedure
@@ -276,114 +277,114 @@ public:
     // global_tyscount: useful_type count
     // global_type2int: all type to its type_No
     // global_single2complex: single to useful_multipletype
-    void merge_type(){
+    void merge_type() {
 
-    	//show_stat_info();
+        //show_stat_info();
 
-    	uint64_t total_number = 0;
-    	map<int, ssid_t> tys;
-    	int minimum_count = 0;
-    	for(auto const &token:global_tyscount){
-    		total_number += token.second;
-    		if(tys.find(token.second) == tys.end())
-    			tys[token.second] = 1;
-    		else
-    			tys[token.second] ++;
-    	}
+        uint64_t total_number = 0;
+        map<int, ssid_t> tys;
+        int minimum_count = 0;
+        for (auto const &token : global_tyscount) {
+            total_number += token.second;
+            if (tys.find(token.second) == tys.end())
+                tys[token.second] = 1;
+            else
+                tys[token.second] ++;
+        }
 
-    	uint64_t sum = 0;
+        uint64_t sum = 0;
 
-    	for(auto const &token: tys){
-    		sum += token.first * token.second;
-    		if(sum >= total_number * TYPE_REMOVE_RATE){
-    			minimum_count = token.first;
-    			break;
-    		}
-    	}
+        for (auto const &token : tys) {
+            sum += token.first * token.second;
+            if (sum >= total_number * TYPE_REMOVE_RATE) {
+                minimum_count = token.first;
+                break;
+            }
+        }
 
-    	//cout << "minimum_count: " << minimum_count << endl;
+        //cout << "minimum_count: " << minimum_count << endl;
 
-    	tbb_map new_type2int;
-    	// type of which has too few vertices (among notype & multitype)
-    	unordered_set<ssid_t> global_useless_type;
-    	for(auto const &token:global_tyscount){
-    		//global_useless_type.insert(token.first);
+        tbb_map new_type2int;
+        // type of which has too few vertices (among notype & multitype)
+        unordered_set<ssid_t> global_useless_type;
+        for (auto const &token : global_tyscount) {
+            //global_useless_type.insert(token.first);
 
-    		// generated type && vertices of this type less than threshold
-    		if(token.first < 0 && token.second < minimum_count)
-    			global_useless_type.insert(token.first);
-    		else
-    			global_useful_type.insert(token.first);
-    	}
+            // generated type && vertices of this type less than threshold
+            if (token.first < 0 && token.second < minimum_count)
+                global_useless_type.insert(token.first);
+            else
+                global_useful_type.insert(token.first);
+        }
 
 # if 0
-    	// TODO: Using similarity may have better performance for some queries. This strategy may be useful in future.
-		auto similarity = [&](type_t t1,type_t t2) -> int{
-			if(t1.data_type != t2.data_type) return 0;
-			for(auto &token: t2.composition){
-				if(t1.composition.find(token) == t1.composition.end())
-					return 0;
-			}
-			return t2.composition.size();
-		};
+        // TODO: Using similarity may have better performance for some queries. This strategy may be useful in future.
+        auto similarity = [&](type_t t1, type_t t2) -> int{
+            if (t1.data_type != t2.data_type) return 0;
+            for (auto &token : t2.composition) {
+                if (t1.composition.find(token) == t1.composition.end())
+                    return 0;
+            }
+            return t2.composition.size();
+        };
 
-    	// get useful type2int
-		#pragma omp parallel
-    	for(auto const &token: global_useless_type){
-			#pragma omp single nowait
-			{
-				type_t useless_type_No = global_int2type[token];
-				// take it as the closest useful type or 0-type
-				ssid_t result = 0;
-				int max_similarity = 0;
-				for(auto const &token2: global_useful_type){
-					type_t useful_type = global_int2type[token2];
-					int sim = similarity(useless_type_No,useful_type);
-					if(sim > 0 && sim > max_similarity){
-						result = token2;
-					}
-				}
-				tbb_map::accessor a;
-				new_type2int.insert(a, useless_type_No);
-				a->second = result;
-			}
-    	}
+        // get useful type2int
+        #pragma omp parallel
+        for (auto const &token : global_useless_type) {
+            #pragma omp single nowait
+            {
+                type_t useless_type_No = global_int2type[token];
+                // take it as the closest useful type or 0-type
+                ssid_t result = 0;
+                int max_similarity = 0;
+                for (auto const &token2 : global_useful_type) {
+                    type_t useful_type = global_int2type[token2];
+                    int sim = similarity(useless_type_No, useful_type);
+                    if (sim > 0 && sim > max_similarity) {
+                        result = token2;
+                    }
+                }
+                tbb_map::accessor a;
+                new_type2int.insert(a, useless_type_No);
+                a->second = result;
+            }
+        }
 # endif
 
-    	// useful type2int
-    	unordered_map<type_t, ssid_t, type_t_hasher> type2int_new;
-//    	for(auto const &token: new_type2int){
-//    		type2int_new[token.first] = token.second;
-//    	}
+        // useful type2int
+        unordered_map<type_t, ssid_t, type_t_hasher> type2int_new;
+//      for(auto const &token: new_type2int){
+//          type2int_new[token.first] = token.second;
+//      }
 
-    	// set all useless types to 0-type
-    	for(auto const &token: global_useless_type){
-    		type2int_new[global_int2type[token]] = 0;
-    	}
-    	for(auto const &token: global_useful_type){
-    		type2int_new[global_int2type[token]] = token;
-    	}
+        // set all useless types to 0-type
+        for (auto const &token : global_useless_type) {
+            type2int_new[global_int2type[token]] = 0;
+        }
+        for (auto const &token : global_useful_type) {
+            type2int_new[global_int2type[token]] = token;
+        }
 
-    	// update global_tyscount
-    	unordered_map<ssid_t, int> tyscount;
-    	for(auto const &token: global_useful_type){
-    		tyscount[token] = global_tyscount[token];
-    	}
-    	for(auto const &token: type2int_new){
-    		if(tyscount.find(token.second) != tyscount.end()){
-    			tyscount[token.second] += global_tyscount[global_type2int[token.first]];
-    		}
-    		else{
-    			tyscount[token.second] = global_tyscount[global_type2int[token.first]];
-    		}
-    	}
-    	global_tyscount.swap(tyscount);
+        // update global_tyscount
+        unordered_map<ssid_t, int> tyscount;
+        for (auto const &token : global_useful_type) {
+            tyscount[token] = global_tyscount[token];
+        }
+        for (auto const &token : type2int_new) {
+            if (tyscount.find(token.second) != tyscount.end()) {
+                tyscount[token.second] += global_tyscount[global_type2int[token.first]];
+            }
+            else {
+                tyscount[token.second] = global_tyscount[global_type2int[token.first]];
+            }
+        }
+        global_tyscount.swap(tyscount);
 
-    	// add global_single2complex info
-    	for(auto const &type_No: global_useful_type){
-    		type_t type = global_int2type[type_No];
-    		if(type.data_type){
-    			for(auto const &single_type: type.composition){
+        // add global_single2complex info
+        for (auto const &type_No : global_useful_type) {
+            type_t type = global_int2type[type_No];
+            if (type.data_type) {
+                for (auto const &single_type : type.composition) {
                     if (global_single2complex.find(single_type) != global_single2complex.end()) {
                         global_single2complex[single_type].insert(type_No);
                     } else {
@@ -392,12 +393,12 @@ public:
                         multi_type_set.insert(type_No);
                         global_single2complex[single_type] = multi_type_set;
                     }
-    			}
-    		}
-    	}
+                }
+            }
+        }
 
-    	// update global_type2int
-    	global_type2int.swap(type2int_new);
+        // update global_type2int
+        global_type2int.swap(type2int_new);
 
     }
 
@@ -422,8 +423,8 @@ public:
                 if (global_type2int.find(complex_type) != global_type2int.end())
                     return global_type2int[complex_type];
                 else {
-                	logstream(LOG_ERROR) << "type not found" << LOG_endl;
-                	return 0;
+                    logstream(LOG_ERROR) << "type not found" << LOG_endl;
+                    return 0;
                 }
             };
 
@@ -441,11 +442,11 @@ public:
 
             // register all types in global_tyscount
             for (int i = 0; i < all_gather.size(); i++) {
-                for(auto const & token: all_gather[i].local_tyscount){
+                for (auto const & token : all_gather[i].local_tyscount) {
                     ssid_t raw_type_No = token.first;
                     int number = token.second;
                     ssid_t new_type_No = raw_type_No;
-                    if(raw_type_No < 0){
+                    if (raw_type_No < 0) {
                         type_t complex_type;
 
                         if (all_gather[i].local_int2type.find(raw_type_No) != all_gather[i].local_int2type.end())
@@ -453,7 +454,7 @@ public:
                         else
                             logstream(LOG_ERROR) << "type: " << raw_type_No << " is not in local_int2type" << LOG_endl;
 
-                        if (global_type2int.find(complex_type) == global_type2int.end()){
+                        if (global_type2int.find(complex_type) == global_type2int.end()) {
                             ssid_t number = global_type2int.size();
                             number ++;
                             number = -number;
@@ -462,28 +463,28 @@ public:
                             new_type_No = number;
                         }
                         else
-                        	new_type_No = global_type2int[complex_type];
+                            new_type_No = global_type2int[complex_type];
                     }
 
-                    if(global_tyscount.find(new_type_No) == global_tyscount.end())
-                    	global_tyscount[new_type_No] = number;
+                    if (global_tyscount.find(new_type_No) == global_tyscount.end())
+                        global_tyscount[new_type_No] = number;
                     else
-                    	global_tyscount[new_type_No] += number;
+                        global_tyscount[new_type_No] += number;
 
                 }
             }
 
             // merge
-            if(global_tyscount.size() > 100)
-            	merge_type();
-            else{
-            	// add global_single2complex info
-            	for(auto const &token: global_tyscount){
-            		ssid_t type_No = token.first;
-            		if (type_No>= 0) continue;
-            		type_t type = global_int2type[type_No];
-            		if(type.data_type){
-            			for(auto const &single_type: type.composition){
+            if (global_tyscount.size() > 100)
+                merge_type();
+            else {
+                // add global_single2complex info
+                for (auto const &token : global_tyscount) {
+                    ssid_t type_No = token.first;
+                    if (type_No >= 0) continue;
+                    type_t type = global_int2type[type_No];
+                    if (type.data_type) {
+                        for (auto const &single_type : type.composition) {
                             if (global_single2complex.find(single_type) != global_single2complex.end()) {
                                 global_single2complex[single_type].insert(type_No);
                             } else {
@@ -492,9 +493,9 @@ public:
                                 multi_type_set.insert(type_No);
                                 global_single2complex[single_type] = multi_type_set;
                             }
-            			}
-            		}
-            	}
+                        }
+                    }
+                }
             }
 
             for (int i = 0; i < all_gather.size(); i++) {
@@ -505,7 +506,7 @@ public:
                     vector<ty_count>& types = it->second;
                     for (size_t k = 0; k < types.size(); k++)
                         global_tystat.insert_stype(key,
-                        		//0,
+                                                   //0,
                                                    types[k].ty < 0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
                                                    types[k].count);
                 }
@@ -516,8 +517,8 @@ public:
                     vector<ty_count>& types = it->second;
                     for (size_t k = 0; k < types.size(); k++)
                         global_tystat.insert_otype(key,
-                                  //0,
-                        		types[k].ty < 0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
+                                                   //0,
+                                                   types[k].ty < 0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
                                                    types[k].count);
                 }
 
@@ -528,20 +529,20 @@ public:
                     vector<ty_count>& types = it->second;
                     for (size_t k = 0; k < types.size(); k++)
                         global_tystat.insert_finetype(
-                        								key.first < 0 ? type_transform(key.first, all_gather[i]) : key.first,
-                                                      key.second < 0 ? type_transform(key.second, all_gather[i]) : key.second,
-                                                      //(key.first < 0 || key.first > (1 << 17)) ? 0 : key.first ,
-                                                       //(key.second < 0 || key.second > (1 << 17)) ? 0 : key.second ,
-                                                    		  types[k].ty < 0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
-                                                      //0,
-                                                    		  types[k].count);
+                            key.first < 0 ? type_transform(key.first, all_gather[i]) : key.first,
+                            key.second < 0 ? type_transform(key.second, all_gather[i]) : key.second,
+                            //(key.first < 0 || key.first > (1 << 17)) ? 0 : key.first ,
+                            //(key.second < 0 || key.second > (1 << 17)) ? 0 : key.second ,
+                            types[k].ty < 0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
+                            //0,
+                            types[k].count);
                 }
             }
 
             // clear useless type in global_type2int
             unordered_map<type_t, ssid_t, type_t_hasher> type2int;
-            for(auto const &token: global_useful_type){
-            	type2int[global_int2type[token]] = token;
+            for (auto const &token : global_useful_type) {
+                type2int[global_int2type[token]] = token;
             }
             global_type2int.swap(type2int);
 
@@ -633,9 +634,9 @@ public:
     // prepare data for planner
     void generate_statistic(GStore *gstore) {
 
-    // find if the same raw type have similar predicates
-    // unordered_map<ssid_t, unordered_set<type_t,type_t_hasher>> rawType_to_predicates;
-    // unordered_map<type_t, int, type_t_hasher> each_predicate_number;
+        // find if the same raw type have similar predicates
+        // unordered_map<ssid_t, unordered_set<type_t,type_t_hasher>> rawType_to_predicates;
+        // unordered_map<type_t, int, type_t_hasher> each_predicate_number;
 
 #ifndef VERSATILE
         logstream(LOG_ERROR) << "please turn off generate_statistics in config "
@@ -705,13 +706,13 @@ public:
             }
         };
 
-    	int percent_number = 1;
+        int percent_number = 1;
         for (uint64_t bucket_id = 0; bucket_id < gstore->num_buckets + gstore->num_buckets_ext; bucket_id++) {
-        	// print progress percent info
-        	if(bucket_id * 1.0 / (gstore->num_buckets + gstore->num_buckets_ext) > percent_number * 1.0 / 10){
+            // print progress percent info
+            if (bucket_id * 1.0 / (gstore->num_buckets + gstore->num_buckets_ext) > percent_number * 1.0 / 10) {
                 logstream(LOG_INFO) << "#" << sid << ": already generate statistics " << percent_number << "0%" << LOG_endl;
                 percent_number ++;
-        	}
+            }
 
             uint64_t slot_id = bucket_id * gstore->ASSOCIATIVITY;
             for (int i = 0; i < gstore->ASSOCIATIVITY - 1; i++, slot_id++) {

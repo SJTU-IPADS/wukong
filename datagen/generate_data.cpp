@@ -132,7 +132,7 @@ main(int argc, char** argv)
         ofstream ofile((string(ddir_name) + "/id_" + string(dent->d_name)).c_str());
         ofstream attr_file((string(ddir_name) + "/attr_" + string(dent->d_name)).c_str());
         cout << "Process No." << ++count << " input file: " << dent->d_name << "." << endl;
-	
+
         // prefix mapping
         unordered_map<string, string> str_to_str;
 
