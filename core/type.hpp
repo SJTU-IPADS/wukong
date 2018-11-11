@@ -111,4 +111,17 @@ struct triple_sort_by_pos {
     }
 };
 
+struct triple_sort_by_asv {
+    inline bool operator()(const triple_attr_t &t1, const triple_attr_t &t2) {
+        if (t1.a < t2.a)
+            return true;
+        else if (t1.a == t2.a)
+            if (t1.s < t2.s)
+                return true;
+            else if (t1.s == t2.s && t1.v < t2.v)
+                return true;
+        return false;
+    }
+};
+
 enum dir_t { IN = 0, OUT, CORUN }; // direction: IN=0, OUT=1, and optimization hints

@@ -313,6 +313,12 @@ protected:
         }
     }
 
+    void sort_attr(vector<vector<triple_attr_t>> &triple_sav) {
+        #pragma omp parallel for num_threads(global_num_engines)
+        for (int tid = 0; tid < global_num_engines; tid++)
+            sort(triple_sav[tid].begin(), triple_sav[tid].end(), triple_sort_by_asv());
+    }
+
     void aggregate_data(int num_partitions, vector<vector<triple_t>> &triple_pso, vector<vector<triple_t>> &triple_pos) {
         // calculate #triples on the kvstore from all servers
         uint64_t total = 0;
@@ -457,6 +463,7 @@ public:
         // load attribute files
         start = timer::get_usec();
         load_attr_from_allfiles(afiles, triple_sav);
+        sort_attr(triple_sav);
         end = timer::get_usec();
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << " ms "
                             << "for loading attribute files" << LOG_endl;
