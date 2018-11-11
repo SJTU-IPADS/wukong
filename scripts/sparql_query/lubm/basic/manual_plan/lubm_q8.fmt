@@ -1,0 +1,21 @@
+#
+# SPARQL
+#
+# SELECT ?X ?P ?D WHERE {
+#	?D  ub:subOrganizationOf  <http://www.University0.edu>  .
+#	?X  ?P  ?D  .
+# }
+#
+# command: sparql -f sparql_query/lubm/basic/lubm_q8 -p sparql_query/lubm/basic/manual_plan/lubm_q8.fmt
+#
+
+#
+# Plan
+#
+# SELECT ?X ?P ?D WHERE {
+#	?D  ub:subOrganizationOf  <http://www.University0.edu>  <-
+#	?X  ?P  ?D  <-
+# }
+#
+1 <
+2 <

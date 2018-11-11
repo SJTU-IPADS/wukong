@@ -1,0 +1,23 @@
+#
+# SPARQL
+#
+# PREFIX y:<http://yago-knowledge.org/resource/>
+#
+# SELECT ?y ?u WHERE {
+#	<Albert_Einstein>  y:graduatedFrom  ?u  .
+#	?y  y:graduatedFrom  ?u  .
+# }
+#
+# command: sparql -f sparql_query/yago/yago_q2 -p sparql_query/yago/osdi16_plan/yago_q2.fmt
+#
+
+#
+# Plan (ODSI16)
+#
+# SELECT ?y ?u WHERE {
+#	<Albert_Einstein>  y:graduatedFrom  ?u  .
+#	?y  y:graduatedFrom  ?u  <-
+# }
+#
+1 >
+2 <

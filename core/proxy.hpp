@@ -391,6 +391,21 @@ public:
             // generate a template for each class of light query
             if (i < nlights)
                 fill_template(tpls[i]);
+
+            // adapt user defined plan according to plan_config file
+            if (!global_enable_planner && fmt_file_names.size() != 0) {
+            	ifstream fs(fmt_file_names[i]);
+                if (!fs.good()) {
+                    logstream(LOG_ERROR) << "Fail to read file: " << fmt_file_names[i] << LOG_endl;
+                    return -2;
+                }
+            	if (i < nlights) {
+            		planner.set_query_plan(tpls[i].pattern_group, fs, tpls[i].ptypes_pos);
+            	}
+            	else {
+            		planner.set_query_plan(heavy_reqs[i - nlights].pattern_group, fs);
+            	}
+            }
         }
 
         monitor.init(ntypes);
@@ -412,14 +427,6 @@ public:
 
                 if (global_enable_planner) {
                     planner.generate_plan(request, statistic);
-                } else if (fmt_file_names.size() > 0) {
-                    // adapt user defined plan according to format directory file
-                    ifstream fs(fmt_file_names[idx]);
-                    if (!fs.good()) {
-                        logstream(LOG_ERROR) << "Fail to read file: " << fmt_file_names[idx] << LOG_endl;
-                        return -2;
-                    }
-                    planner.set_query_plan(request.pattern_group, fs);
                 }
 
                 setpid(request);

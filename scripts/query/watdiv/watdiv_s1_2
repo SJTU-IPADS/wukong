@@ -1,5 +1,5 @@
 SELECT ?v0 ?v1 ?v3 ?v4 ?v5 ?v6 ?v7 ?v8 ?v9 WHERE {
-    <http://db.uwaterloo.ca/~galuc/wsdbm/Retailer9817> <http://purl.org/goodrelations/offers> ?v0 .
+	<http://db.uwaterloo.ca/~galuc/wsdbm/Retailer9817> <http://purl.org/goodrelations/offers> ?v0 .
 	?v0 <http://purl.org/goodrelations/includes> ?v1 .
 	?v0 <http://purl.org/goodrelations/price> ?v3 .
 	?v0 <http://purl.org/goodrelations/serialNumber> ?v4 .

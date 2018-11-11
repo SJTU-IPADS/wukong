@@ -1,0 +1,24 @@
+#
+# SPARQL
+#
+# SELECT ?v1 ?v2 WHERE {
+#	<http://db.uwaterloo.ca/~galuc/wsdbm/City113>  <http://www.geonames.org/ontology#parentCountry>  ?v1  .
+#	?v2  <http://schema.org/nationality>  ?v1  .
+#	?v2  <http://db.uwaterloo.ca/~galuc/wsdbm/likes>  <http://db.uwaterloo.ca/~galuc/wsdbm/Product0>  .
+# }
+#
+# command: sparql -f sparql_query/watdiv/watdiv_l2 -p sparql_query/watdiv/osdi16_plan/watdiv_l2.fmt
+#
+
+#
+# Plan (OSDI16)
+#
+# SELECT ?v1 ?v2 WHERE {
+#	<http://db.uwaterloo.ca/~galuc/wsdbm/City113>  <http://www.geonames.org/ontology#parentCountry>  ?v1  .
+#	?v2  <http://schema.org/nationality>  ?v1  <-
+#	?v2  <http://db.uwaterloo.ca/~galuc/wsdbm/likes>  <http://db.uwaterloo.ca/~galuc/wsdbm/Product0>  .
+# }
+#
+1 >
+2 <
+3 >

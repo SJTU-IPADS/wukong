@@ -1,0 +1,22 @@
+#
+# SPARQL
+#
+# SELECT ?v0 ?v1 ?v2 WHERE {
+#	?v0  <http://schema.org/birthDate>  %<fromPredicate>  .
+#	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/likes>  ?v1  .
+#	?v1  <http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre>  ?v2  .
+# }
+#
+
+#
+# Plan
+#
+# SELECT ?v0 ?v1 ?v2 WHERE {
+#	?v0  <http://schema.org/birthDate>  %<fromPredicate>  <-
+#	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/likes>  ?v1  .
+#	?v1  <http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre>  ?v2  .
+# }
+#
+1 <
+2 >
+3 >

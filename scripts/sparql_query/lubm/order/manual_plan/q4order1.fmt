@@ -1,0 +1,32 @@
+#
+# SPARQL
+#
+# SELECT DISTINCT ?Y3 WHERE {
+#	?X  ub:worksFor  <http://www.Department0.University0.edu>  .
+#	?X  rdf:type  ub:FullProfessor  .
+#	?X  ub:name  ?Y1  .
+#	?X  ub:emailAddress  ?Y2  .
+#	?X  ub:telephone  ?Y3  .
+# }
+# ORDER BY ASC(?X) DESC(?Y1)
+#
+# command: sparql -f sparql_query/lubm/order/q4order1 -p sparql_query/lubm/filter/manual_plan/q4order1.fmt
+#
+
+#
+# Plan 
+#
+# SELECT DISTINCT ?Y3 WHERE {
+#	?X  ub:worksFor  <http://www.Department0.University0.edu>  <-
+#	?X  rdf:type  ub:FullProfessor  .
+#	?X  ub:name  ?Y1  .
+#	?X  ub:emailAddress  ?Y2  .
+#	?X  ub:telephone  ?Y3  .
+# }
+# ORDER BY ASC(?X) DESC(?Y1)
+#
+1 <
+2 >
+3 >
+4 >
+5 >

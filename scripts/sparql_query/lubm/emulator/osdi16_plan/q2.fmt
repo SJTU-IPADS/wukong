@@ -1,0 +1,19 @@
+#
+# SPARQL
+#
+# SELECT ?X WHERE {
+#	?X  ub:publicationAuthor  %ub:AssistantProfessor  .
+#	?X  rdf:type  ub:Publication  .
+# }
+#
+
+#
+# Plan (OSDI16)
+#
+# SELECT ?X WHERE {
+#	?X  ub:publicationAuthor  %ub:AssistantProfessor  <-
+#	?X  rdf:type  ub:Publication  .
+# }
+#
+1 <
+2 >

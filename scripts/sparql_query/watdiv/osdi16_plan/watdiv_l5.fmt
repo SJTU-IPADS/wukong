@@ -1,0 +1,26 @@
+#
+# SPARQL
+#
+# SELECT ?v0 ?v1 ?v3 WHERE {
+#	?v0  <http://schema.org/jobTitle>  ?v1  .
+#	?v0  <http://schema.org/nationality>  ?v3  .
+#	<http://db.uwaterloo.ca/~galuc/wsdbm/City17>  <http://www.geonames.org/ontology#parentCountry>  ?v3  .
+# }
+#
+# command: sparql -f sparql_query/watdiv/watdiv_l5 -p sparql_query/watdiv/osdi16_plan/watdiv_l5.fmt
+#
+
+#
+# Plan (OSDI16)
+#
+# SELECT ?v0 ?v1 ?v3 WHERE {
+#	?v0  __PREDICATE__  <http://schema.org/jobTitle>  <-
+#	?v0  <http://schema.org/jobTitle>  ?v1  .
+#	?v0  <http://schema.org/nationality>  ?v3  .
+#	<http://db.uwaterloo.ca/~galuc/wsdbm/City17>  <http://www.geonames.org/ontology#parentCountry>  ?v3  <-
+# }
+#
+1 <<
+1 >
+2 >
+3 <

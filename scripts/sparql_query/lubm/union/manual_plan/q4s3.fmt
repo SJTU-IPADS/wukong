@@ -1,0 +1,23 @@
+# SPARQL
+#
+# PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+# PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
+#
+# SELECT ?X ?Y WHERE {
+#	?X  rdf:type  ub:AssociateProfessor  .
+#	?X  ub:name  ?Y  .
+#	?X  ub:worksFor  <http://www.Department8.University1.edu>  .
+# }
+#
+# command: sparql -f sparql_query/lubm/union/q4s3 -p sparql_query/lubm/union/manual_plan/q4s3.fmt
+#
+
+#
+# Plan 
+#
+# SELECT ?X ?Y WHERE {
+#	?X  rdf:type  ub:AssociateProfessor  .
+#	?X  ub:name  ?Y  .
+#	?X  ub:worksFor  <http://www.Department8.University1.edu>  .
+# }
+#

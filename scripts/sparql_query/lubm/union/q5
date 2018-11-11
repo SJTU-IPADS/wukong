@@ -5,10 +5,10 @@ SELECT ?X ?Y ?Z ?N WHERE {
 	?X  rdf:type  ub:AssociateProfessor  .
 	?Y  ub:advisor  ?X  .
 	{
-    	?X  ub:worksFor  <http://www.Department8.University0.edu>  .
-    	?X  ub:teacherOf  ?Z  .
+		?X  ub:worksFor  <http://www.Department8.University0.edu>  .
+		?X  ub:teacherOf  ?Z  .
 	} UNION {
-    	?X  ub:worksFor  <http://www.Department8.University1.edu>  .
-    	?X  ub:teacherOf  ?N  .
+		?X  ub:worksFor  <http://www.Department8.University1.edu>  .
+		?X  ub:teacherOf  ?N  .
 	}
 }

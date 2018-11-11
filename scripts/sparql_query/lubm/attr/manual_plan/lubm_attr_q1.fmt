@@ -1,0 +1,21 @@
+#
+# SPARQL
+#
+# PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+# PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
+#
+# SELECT ?X WHERE {
+#   <http://www.Department7.University0.edu/Course44>  ub:id  ?X  .
+# }
+#
+# command: sparql -f sparql_query/lubm/attr/lubm_attr_q1 -p sparql_query/lubm/attr/manual_plan/lubm_attr_q1.fmt
+#
+
+#
+# Plan 
+#
+# SELECT ?X WHERE {
+#   <http://www.Department7.University0.edu/Course44>  ub:id  ?X  .
+# }
+#
+1 >

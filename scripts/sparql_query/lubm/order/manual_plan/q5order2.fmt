@@ -1,0 +1,23 @@
+#
+# SPARQL
+#
+# SELECT ?X WHERE {
+#	?X  ub:subOrganizationOf  <http://www.Department0.University0.edu>  .
+#	?X  rdf:type  ub:ResearchGroup  .
+# }
+# ORDER BY ?X LIMIT 5 OFFSET 2)
+#
+# command: sparql -f sparql_query/lubm/order/q5order2 -p sparql_query/lubm/filter/manual_plan/q5order2.fmt
+#
+
+#
+# Plan 
+#
+# SELECT ?X WHERE {
+#	?X  ub:subOrganizationOf  <http://www.Department0.University0.edu>  .
+#	?X  rdf:type  ub:ResearchGroup  .
+# }
+# ORDER BY ?X LIMIT 5 OFFSET 2)
+#
+1 <
+2 >

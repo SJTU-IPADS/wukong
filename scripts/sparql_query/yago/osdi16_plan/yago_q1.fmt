@@ -1,0 +1,20 @@
+#
+# SPARQL
+#
+# PREFIX y:<http://yago-knowledge.org/resource/>
+#
+# SELECT ?x WHERE {
+#	?x  y:livesIn  <Athens>  .
+# }
+#
+# command: sparql -f sparql_query/yago/yago_q1 -p sparql_query/yago/osdi16_plan/yago_q1.fmt
+#
+
+#
+# Plan (ODSI16)
+#
+# SELECT ?x WHERE {
+#	?x  y:livesIn  <Athens>  <-
+# }
+#
+1 <

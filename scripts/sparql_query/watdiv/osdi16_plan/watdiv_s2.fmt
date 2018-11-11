@@ -1,0 +1,27 @@
+#
+# SPARQL
+#
+# SELECT ?v0 ?v1 ?v3 WHERE {
+#	?v0  <http://schema.org/nationality>  <http://db.uwaterloo.ca/~galuc/wsdbm/Country6>  .
+#	?v0  <http://www.w3.org/1999/02/22-rdf-syntax-ns#type>  <http://db.uwaterloo.ca/~galuc/wsdbm/Role2>  .
+#	?v0  <http://purl.org/dc/terms/Location>  ?v1  .
+#	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/gender>  ?v3  .
+# }
+#
+# command: sparql -f sparql_query/watdiv/watdiv_s2 -p sparql_query/watdiv/osdi16_plan/watdiv_s2.fmt
+#
+
+#
+# Plan (OSDI16)
+#
+# SELECT ?v0 ?v1 ?v3 WHERE {
+#	?v0  <http://schema.org/nationality>  <http://db.uwaterloo.ca/~galuc/wsdbm/Country6>  <-
+#	?v0  <http://www.w3.org/1999/02/22-rdf-syntax-ns#type>  <http://db.uwaterloo.ca/~galuc/wsdbm/Role2>  .
+#	?v0  <http://purl.org/dc/terms/Location>  ?v1  .
+#	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/gender>  ?v3  .
+# }
+#
+1 <
+2 >
+3 >
+4 >

@@ -1,0 +1,35 @@
+#
+# SPARQL
+#
+# SELECT ?X ?Y ?Z WHERE {
+#	?Y  rdf:type  ub:University  .
+#	?X  ub:undergraduateDegreeFrom  ?Y  .
+#	?X  rdf:type  ub:GraduateStudent  .
+#	?X  ub:memberOf  ?Z  .
+#	?Z  ub:subOrganizationOf  ?Y  .
+#	?Z  rdf:type  ub:Department  .
+# }
+#
+# command: sparql -f sparql_query/lubm/dedup/lubm_q1 -p sparql_query/lubm/dedup/manual_plan/lubm_q1_1.fmt -m 16 -n 10
+#
+
+#
+# Plan
+#
+# SELECT ?X ?Y ?Z WHERE {
+#	ub:memberOf  __PREDICATE__  ?Z  .
+#	?Z  ub:subOrganizationOf  ?Y  .
+#	?X  ub:undergraduateDegreeFrom  ?Y  <-
+#	?X  rdf:type  ub:GraduateStudent  .
+#	?X  ub:memberOf  ?Z  .
+#	?Z  rdf:type  ub:Department  .
+#	?Y  rdf:type  ub:University  .
+# }
+#
+4 >>
+5 >
+2 <
+3 >
+4 >
+6 >
+1 >
