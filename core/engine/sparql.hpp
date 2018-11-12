@@ -154,7 +154,7 @@ private:
         res.set_col_num(1);
         res.add_var2col(var, 0);
         req.pattern_step++;
-        req.local_var = -1;
+        req.local_var = var;
     }
 
     /// A query whose parent's PGType is UNION may call this pattern
@@ -693,15 +693,14 @@ private:
         // always need NOT fork-join when executing on single machine
         if (global_num_servers == 1) return false;
 
-        // always need fork-join mode w/o RDMA
+        // always need fork-join w/o RDMA
         if (!global_use_rdma) return true;
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ASSERT(req.result.variable_type(pattern.subject) == known_var);
-        //ssid_t start = pattern.subject;
-        //return ((req.local_var != start)
-        //        && (req.result.get_row_num() >= global_rdma_threshold));
-        return (req.result.get_row_num() >= global_rdma_threshold); // FIXME: not consider dedup
+        ssid_t start = pattern.subject;
+        return ((req.local_var != start) // next hop is not local
+                && (req.result.get_row_num() >= global_rdma_threshold)); // FIXME: not consider dedup
     }
 
     void do_corun(SPARQLQuery &req) {

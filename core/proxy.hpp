@@ -290,7 +290,7 @@ public:
         }
 
         // set the multi-threading factor for queries start from index
-        if (request.start_from_index()) {
+        if (!snd2gpu && request.start_from_index()) {
             if (mt_factor == 1 && global_mt_threshold > 1)
                 logstream(LOG_EMPH) << "The query starts from an index vertex, "
                                     << "you could use option -m to accelerate it."

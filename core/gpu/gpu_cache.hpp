@@ -161,7 +161,7 @@ private:
             }
         } // end of worst case
 
-        logstream(LOG_ERROR) << "GPU Cache: evict_key_blocks() cannot provide enough free key blocks."
+        logstream(LOG_WARNING) << "GPU Cache: evict_key_blocks() cannot provide enough free key blocks."
                              << LOG_endl;
     } // end of evict_key_blocks
 
@@ -227,7 +227,7 @@ private:
             }
         } // end of worst case
 
-        logstream(LOG_ERROR) << "GPU Cache: evict_value_blocks() could not provide enough free value blocks." << LOG_endl;
+        logstream(LOG_WARNING) << "GPU Cache: evict_value_blocks() could not provide enough free value blocks." << LOG_endl;
     } // end of evict_value_blocks
 
     /* load one key block of a segment to a free block
@@ -346,7 +346,7 @@ private:
 #endif
 
         if (free_key_blocks.size() < num_need_key_blocks) {
-            logstream(LOG_ERROR) << "load_segment: evict_key_blocks" << LOG_endl;
+            logstream(LOG_WARNING) << "load_segment: evict_key_blocks" << LOG_endl;
             evict_key_blocks(conflicts, seg_to_load, seg_in_use, num_need_key_blocks);
         }
         // step 1.2: load key blocks
@@ -365,7 +365,7 @@ private:
                     break;
                 }
                 // crash if it is not preload
-                logstream(LOG_ERROR) << "GPU Cache: No enough free key blocks. "
+                logstream(LOG_WARNING) << "GPU Cache: No enough free key blocks. "
                                      << "segment_to_load: " << seg_to_load.to_string()
                                      << ", seg_in_use: " << seg_in_use.to_string() << LOG_endl;
                 ASSERT(false);
@@ -403,7 +403,7 @@ private:
                     break;
                 }
                 // crash if it is not preload
-                logstream(LOG_ERROR) << "GPU Cache: No enough free value blocks. "
+                logstream(LOG_WARNING) << "GPU Cache: No enough free value blocks. "
                                      << "segment_to_load: " << seg_to_load.to_string()
                                      << ", seg_in_use: " << seg_in_use.to_string() << LOG_endl;
                 ASSERT(false);
