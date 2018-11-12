@@ -232,7 +232,8 @@ protected:
     uint64_t num_entries;     // entry region (dynamical)
 
     // number of predicates in the whole dataset
-    int num_predicates;
+    int num_normal_preds = 0;
+    int num_attr_preds = 0;
 
     typedef tbb::concurrent_hash_map<sid_t, vector<sid_t>> tbb_hash_map;
     tbb_hash_map pidx_in_map; // predicate-index (IN)
@@ -462,9 +463,17 @@ public:
 
     inline edge_t *edge_addr() const { return edges; }
 
-    inline void set_num_predicates(sid_t n) { num_predicates = n; }
+    inline void set_num_normal_preds(sid_t n) { num_normal_preds = n; }
 
-    inline int get_num_predicates() const { return num_predicates; }
+    inline int get_num_normal_preds() const { return num_normal_preds; }
+
+    inline void set_num_attr_preds(sid_t n) { num_attr_preds = n; }
+
+    inline int get_num_attr_preds() const { return num_attr_preds; }
+
+    // return total num of preds, including normal and attr
+    inline int get_num_preds() const { return num_normal_preds + num_attr_preds; }
+
 
     virtual void print_mem_usage() {
         // TODO

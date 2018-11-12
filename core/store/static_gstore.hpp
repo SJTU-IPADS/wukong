@@ -24,6 +24,7 @@
 
 #include <tbb/concurrent_unordered_map.h>
 #include <unordered_set>
+#include <thread>
 #include "store/meta.hpp"
 #include "comm/tcp_adaptor.hpp"
 #include "gstore.hpp"
@@ -47,8 +48,8 @@ private:
         atomic<uint64_t> in, out;
     };
 
-    // all local predicate IDs
-    vector<sid_t> all_predicates;
+    // all local normal predicate IDs
+    vector<sid_t> all_local_preds;
 
     /**
      * metadata of local segments (will be used on GPU)
@@ -66,6 +67,9 @@ private:
     tbb::concurrent_unordered_map <int, map<segid_t, rdf_segment_meta_t> > shared_rdf_segment_meta_map;
     std::map<segid_t, rdf_segment_meta_t> rdf_segment_meta_map;
 
+    typedef tbb::concurrent_unordered_set<sid_t> tbb_unordered_set;
+    tbb_unordered_set attr_set;
+    tbb::concurrent_unordered_map<sid_t, int> attr_type_map;
 #ifdef VERSATILE
     /**
      * local sets will be freed after inserting into edges
@@ -74,7 +78,6 @@ private:
      * 2*. all local types        [0|TYPE_ID|OUT]
      * 3*. all local predicates   [0|PREDICATE_ID|OUT]
      */
-    typedef tbb::concurrent_unordered_set<sid_t> tbb_unordered_set;
     tbb_unordered_set t_set;    // all local types
     tbb_unordered_set v_set;    // all local entities(subjects & objects)
     tbb_unordered_set p_set;    // all local predicates
@@ -112,6 +115,10 @@ private:
     typedef tbb::concurrent_hash_map<ikey_t, vector<triple_t>, ikey_Hasher> tbb_triple_hash_map;
     // triples grouped by (predicate, direction)
     tbb_triple_hash_map triples_map;
+
+    typedef tbb::concurrent_hash_map<ikey_t, vector<triple_attr_t>, ikey_Hasher> tbb_triple_attr_hash_map;
+    // triples grouped by (predicate, direction)
+    tbb_triple_attr_hash_map attr_triples_map;
 
     uint64_t last_entry;
     pthread_spinlock_t entry_lock;
@@ -324,8 +331,8 @@ done:
 
         uint64_t off = segment.edge_start;
 
-        for (int i = 0; i < all_predicates.size(); i++) {
-            sid_t pid = all_predicates[i];
+        for (int i = 0; i < all_local_preds.size(); i++) {
+            sid_t pid = all_local_preds[i];
             bool success = pidx_map->find(ca, pid);
             if (!success)
                 continue;
@@ -387,7 +394,10 @@ done:
 
     void alloc_buckets_to_segment(rdf_segment_meta_t &seg, segid_t segid, uint64_t total_num_keys) {
         // deduct some buckets from total to prevent overflow
-        static uint64_t num_free_buckets = num_buckets - num_predicates * PREDICATE_NSEGS - INDEX_NSEGS;
+        static uint64_t num_free_buckets = num_buckets
+                                           - num_normal_preds * PREDICATE_NSEGS
+                                           - INDEX_NSEGS
+                                           - num_attr_preds;
         static double total_ratio_ = 0.0;
 
         // allocate buckets in main-header region to segments
@@ -533,14 +543,67 @@ done:
         ASSERT(off <= segment.edge_start + segment.num_edges);
     }
 
+    // insert attributes
+    void insert_attr_to_segment(segid_t segid) {
+        auto &segment = rdf_segment_meta_map[segid];
+        sid_t aid = segid.pid;
+        int dir = segid.dir;
+
+        if (segment.num_edges == 0) {
+            logger(LOG_DEBUG, "Segment(%d|%d|%d) is empty.\n",
+                   segid.index, segid.pid, segid.dir);
+            return;
+        }
+        // get OUT edges and IN edges from triples map
+        tbb_triple_attr_hash_map::accessor a;
+        bool success = attr_triples_map.find(a, ikey_t(0, aid, (dir_t) dir));
+        ASSERT(success);
+        vector<triple_attr_t> &asv = a->second;
+        variant_type get_type;
+        uint64_t off = segment.edge_start;
+        int type = attr_type_map[aid];
+        uint64_t sz = (get_sizeof(type) - 1) / sizeof(edge_t) + 1;   // get the ceil size;
+        uint64_t s = 0;
+        for (auto &attr : asv) {
+            // allocate a vertex and edges
+            ikey_t key = ikey_t(attr.s, attr.a, OUT);
+
+            // insert a vertex
+            uint64_t slot_id = insert_key(key);
+            iptr_t ptr = iptr_t(sz, off, type);
+            vertices[slot_id].ptr = ptr;
+
+            // insert edges
+            switch (type) {
+                case INT_t:
+                    *(int *)(edges + off) = boost::get<int>(attr.v);
+                    break;
+                case FLOAT_t:
+                    *(float *)(edges + off) = boost::get<float>(attr.v);
+                    break;
+                case DOUBLE_t:
+                    *(double *)(edges + off) = boost::get<double>(attr.v);
+                    break;
+                default:
+                    logstream(LOG_ERROR) << "Unsupported value type of attribute" << LOG_endl;
+            }
+            off += sz;
+        }
+
+        ASSERT(off <= segment.edge_start + segment.num_edges);
+    }
+
     /**
      * Merge triples with same predicate and direction to a vector
      */
-    void init_triples_map(vector<vector<triple_t>> &triple_pso, vector<vector<triple_t>> &triple_pos) {
+    void init_triples_map(vector<vector<triple_t>> &triple_pso,
+                          vector<vector<triple_t>> &triple_pos,
+                          vector<vector<triple_attr_t>> &triple_sav) {
         #pragma omp parallel for num_threads(global_num_engines)
         for (int tid = 0; tid < global_num_engines; tid++) {
             vector<triple_t> &pso_vec = triple_pso[tid];
             vector<triple_t> &pos_vec = triple_pos[tid];
+            vector<triple_attr_t> &sav_vec = triple_sav[tid];
 
             int i = 0;
             int current_pid;
@@ -564,21 +627,37 @@ done:
                     a->second.push_back(pos_vec[i]);
                 }
             }
+
+            i = 0;
+            while (!sav_vec.empty() && i < sav_vec.size()) {
+                current_pid = sav_vec[i].a;
+                tbb_triple_attr_hash_map::accessor a;
+                attr_triples_map.insert(a, ikey_t(0, current_pid, OUT));
+
+                for (; sav_vec[i].a == current_pid; i++) {
+                    a->second.push_back(sav_vec[i]);
+                }
+            }
         }
     }
 
-    void free_triples_map() {
-        triples_map.clear();
+    void finalize_init() {
+        tbb_triple_hash_map().swap(triples_map);
+        tbb_triple_attr_hash_map().swap(attr_triples_map);
+        tbb_unordered_set().swap(attr_set);
+        tbb::concurrent_unordered_map<sid_t, int>().swap(attr_type_map);
     }
 
     // init metadata for each segment
     void init_segment_metas(const vector<vector<triple_t>> &triple_pso,
-                            const vector<vector<triple_t>> &triple_pos) {
+                            const vector<vector<triple_t>> &triple_pos,
+                            const vector<vector<triple_attr_t>> &triple_sav) {
         /**
          * count(|pred| means number of local predicates):
          * 1. normal vertices [vid|pid|IN/OUT], key: pid, cnt_t: in&out, #item: |pred|
          * 2. vid's all types [vid|TYPE_ID(1)|OUT], key: TYPE_ID(1), cnt_t: out, #item: contained above
          * 3*. vid's all predicates [vid|PREDICATE_ID(0)|IN/OUT], key: PREDICATE_ID(0), cnt_t: in&out, #item: 1
+         * 4^. attr triples [vid|pid|out], key: pid, cnt_t: out, #item: |attrpred|
          */
         map<sid_t, cnt_t> normal_cnt_map;
 
@@ -590,7 +669,7 @@ done:
         map<sid_t, cnt_t> index_cnt_map;
 
         // initialization
-        for (int i = 0; i <= num_predicates; ++i) {
+        for (int i = 0; i <= get_num_preds(); ++i) {
             index_cnt_map.insert(make_pair(i, cnt_t()));
             normal_cnt_map.insert(make_pair(i, cnt_t()));
             for (int dir = 0; dir <= 1; dir++)
@@ -604,6 +683,7 @@ done:
         for (int tid = 0; tid < global_num_engines; tid++) {
             const vector<triple_t> &pso = triple_pso[tid];
             const vector<triple_t> &pos = triple_pos[tid];
+            const vector<triple_attr_t> &sav = triple_sav[tid];
 
             uint64_t s = 0;
             while (s < pso.size()) {
@@ -674,6 +754,21 @@ done:
                 index_cnt_map[ pos[s].p ].out++;
                 s = e;
             }
+
+            s = 0;
+            while (s < sav.size()) {
+                uint64_t e = s + 1;
+
+                while ((e < sav.size()) && (sav[s].s == sav[e].s) && (sav[s].a == sav[e].a))
+                    e++;
+
+                // count #edge of predicate
+                normal_cnt_map[ sav[s].a ].out += (e - s);
+                attr_set.insert(sav[s].a);
+                attr_type_map.insert(std::make_pair(sav[s].a, boost::apply_visitor(variant_type(), sav[s].v)));
+
+                s = e;
+            }
         }
 
         // count the total number of keys
@@ -683,7 +778,7 @@ done:
                normal_cnt_map[PREDICATE_ID].in.load(), normal_cnt_map[PREDICATE_ID].out.load());
         total_num_keys += out_preds.size() + in_preds.size();
 #endif
-        for (int i = 1; i <= num_predicates; ++i) {
+        for (int i = 1; i <= get_num_preds(); ++i) {
             logger(LOG_DEBUG, "pid: %d: normal: #IN: %lu, #OUT: %lu; index: #ALL: %lu, #IN: %lu, #OUT: %lu",
                    i, normal_cnt_map[i].in.load(), normal_cnt_map[i].out.load(),
                    (index_cnt_map[i].in.load() + index_cnt_map[i].out.load()),
@@ -694,8 +789,10 @@ done:
              * index_cnt_map[i] stores #edges of pid's predicate index (IN, OUT)
              * whose sum equals to #keys of the predicate
              */
-            if (normal_cnt_map[i].in.load() +  normal_cnt_map[i].out.load() > 0) {
-                all_predicates.push_back(i);
+            if (attr_set.find(i) != attr_set.end()) {
+                total_num_keys += normal_cnt_map[i].out.load();
+            } else if (normal_cnt_map[i].in.load() + normal_cnt_map[i].out.load() > 0) {
+                all_local_preds.push_back(i);
                 total_num_keys += (index_cnt_map[i].in.load()
                                    + index_cnt_map[i].out.load());
             } else if (index_cnt_map[i].in.load() > 0) {
@@ -706,7 +803,7 @@ done:
          * #predicate index = #normal predicate * 2
          * #type index = #typeid
          */
-        total_num_keys += all_predicates.size() * 2 + num_typeid;
+        total_num_keys += all_local_preds.size() * 2 + num_typeid;
 
         uint64_t bucket_off = 0, edge_off = 0;
 
@@ -741,7 +838,7 @@ done:
             << ", v_set: " << v_set.size() << ", p_set: " << p_set.size() << ", t_set: " << t_set.size() << LOG_endl;
 #endif
 
-        for (sid_t pid = 1; pid <= num_predicates; ++pid) {
+        for (sid_t pid = 1; pid <= get_num_preds(); ++pid) {
             rdf_segment_meta_t &out_seg = rdf_segment_meta_map[segid_t(0, pid, OUT)];
             rdf_segment_meta_t &in_seg = rdf_segment_meta_map[segid_t(0, pid, IN)];
 
@@ -751,15 +848,25 @@ done:
             idx_out_seg.num_edges += index_cnt_map[pid].out.load();
             idx_in_seg.num_edges += index_cnt_map[pid].in.load();
 
+            if (attr_set.find(pid) != attr_set.end()) {
+                // attribute segment
+                out_seg.num_keys = out_seg.num_edges;
+                in_seg.num_keys = 0;
+                // calculate the number of edge_t needed to store 1 value
+                uint64_t sz = (attr_type_map[pid] - 1) / sizeof(edge_t) + 1;   // get the ceil size;
+                out_seg.num_edges = out_seg.num_edges * sz;
+            } else {
+                // normal pred segment
+                uint64_t normal_nkeys[2] = {index_cnt_map[pid].out, index_cnt_map[pid].in};
+                out_seg.num_keys = (out_seg.num_edges == 0) ? 0 : normal_nkeys[OUT];
+                in_seg.num_keys  = (in_seg.num_edges == 0)  ? 0 : normal_nkeys[IN];
+            }
+
             // allocate space for edges in entry-region
             out_seg.edge_start = (out_seg.num_edges > 0) ?
                                         alloc_edges(out_seg.num_edges) : 0;
             in_seg.edge_start  = (in_seg.num_edges > 0) ?
                                         alloc_edges(in_seg.num_edges) : 0;
-
-            uint64_t normal_nkeys[2] = {index_cnt_map[pid].out, index_cnt_map[pid].in};
-            out_seg.num_keys = (out_seg.num_edges == 0) ? 0 : normal_nkeys[OUT];
-            in_seg.num_keys  = (in_seg.num_edges == 0)  ? 0 : normal_nkeys[IN];
 
             alloc_buckets_to_segment(out_seg, segid_t(0, pid, OUT), total_num_keys);
             alloc_buckets_to_segment(in_seg, segid_t(0, pid, IN), total_num_keys);
@@ -772,11 +879,11 @@ done:
         }
 
         idx_out_seg.edge_start = (idx_out_seg.num_edges > 0) ? alloc_edges(idx_out_seg.num_edges) : 0;
-        idx_out_seg.num_keys = all_predicates.size();
+        idx_out_seg.num_keys = all_local_preds.size();
         alloc_buckets_to_segment(idx_out_seg, segid_t(1, PREDICATE_ID, OUT), total_num_keys);
 
         idx_in_seg.edge_start = (idx_in_seg.num_edges > 0) ? alloc_edges(idx_in_seg.num_edges) : 0;
-        idx_in_seg.num_keys = all_predicates.size() + num_typeid;
+        idx_in_seg.num_keys = all_local_preds.size() + num_typeid;
         alloc_buckets_to_segment(idx_in_seg, segid_t(1, PREDICATE_ID, IN), total_num_keys);
 
         logger(LOG_DEBUG, "index: OUT[#keys: %lu, #buckets: %lu, #edges: %lu], "
@@ -801,26 +908,37 @@ public:
         uint64_t start, end;
         start = timer::get_usec();
         // merge triple_pso and triple_pos into a map
-        init_triples_map(triple_pso, triple_pos);
+        init_triples_map(triple_pso, triple_pos, triple_sav);
         end = timer::get_usec();
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                            << "for merging triple_pso and triple_pos." << LOG_endl;
+                            << "for merging triple_pso, triple_pos and triple_sav." << LOG_endl;
 
         start = timer::get_usec();
-        init_segment_metas(triple_pso, triple_pos);
+        init_segment_metas(triple_pso, triple_pos, triple_sav);
         end = timer::get_usec();
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
                             << "for initializing predicate segment statistics." << LOG_endl;
 
         start = timer::get_usec();
-        logstream(LOG_DEBUG) << "#" << sid << ": all_predicates: " << all_predicates.size() << LOG_endl;
+        logstream(LOG_DEBUG) << "#" << sid << ": all_local_preds: " << all_local_preds.size() << LOG_endl;
         #pragma omp parallel for num_threads(global_num_engines)
-        for (int i = 0; i < all_predicates.size(); i++) {
+        for (int i = 0; i < all_local_preds.size(); i++) {
             int localtid = omp_get_thread_num();
-            sid_t pid = all_predicates[i];
+            sid_t pid = all_local_preds[i];
             insert_triples_to_segment(localtid, segid_t(0, pid, OUT));
             insert_triples_to_segment(localtid, segid_t(0, pid, IN));
         }
+
+        vector<sid_t> aids;
+        for (auto iter = attr_set.begin(); iter != attr_set.end(); iter++)
+            aids.push_back(*iter);
+        #pragma omp parallel for num_threads(global_num_engines)
+        for (int i = 0; i < aids.size(); i++) {
+            int localtid = omp_get_thread_num();
+            insert_attr_to_segment(segid_t(0, aids[i], OUT));
+        }
+        vector<sid_t>().swap(aids);
+
 #ifdef VERSATILE
         #pragma omp parallel for num_threads(2)
         for (int i = 0; i < 2; i++) {
@@ -851,7 +969,7 @@ public:
                             << "for inserting triples as segments into gstore" << LOG_endl;
 
         finalize_segment_metas();
-        free_triples_map();
+        finalize_init();
 
         // synchronize segment metadata among servers
         extern TCP_Adaptor *con_adaptor;

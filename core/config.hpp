@@ -87,9 +87,8 @@ static bool set_immutable_config(string cfg_name, string value)
         global_key_blk_size_mb = atoi(value.c_str());
     } else if (cfg_name == "global_val_blk_size_mb") {
         global_val_blk_size_mb = atoi(value.c_str());
-    }
-    // GPU support
-    else if (cfg_name == "global_num_gpus") {
+#ifdef USE_GPU
+    } else if (cfg_name == "global_num_gpus") {
         global_num_gpus = atoi(value.c_str());
     } else if (cfg_name == "global_gpu_rdma_buf_size_mb") {
         if (RDMA::get_rdma().has_rdma())
@@ -101,6 +100,7 @@ static bool set_immutable_config(string cfg_name, string value)
         global_gpu_rbuf_size_mb = atoi(value.c_str());
     } else if (cfg_name == "global_gpu_kvcache_size_gb") {
         global_gpu_kvcache_size_gb = atoi(value.c_str());
+#endif // USE_GPU
     } else {
         return false;
     }
@@ -140,8 +140,10 @@ static bool set_mutable_config(string cfg_name, string value)
         global_enable_planner = atoi(value.c_str());
     } else if (cfg_name == "global_enable_vattr") {
         global_enable_vattr = atoi(value.c_str());
+#ifdef USE_GPU
     } else if (cfg_name == "global_gpu_enable_pipeline") {
         global_gpu_enable_pipeline = atoi(value.c_str());
+#endif // USE_GPU
     } else {
         return false;
     }
@@ -217,11 +219,10 @@ void load_config(string fname, int num_servers)
     }
 
     // set the total number of threads
-#ifndef USE_GPU
     global_num_threads = global_num_engines + global_num_proxies;
-#else
-    // each GPU needs a dedicated agent thread, and engines and proxies are worker threads
-    global_num_threads = global_num_engines + global_num_proxies + global_num_gpus;
+#ifdef USE_GPU
+    // each GPU card needs one (dedicated) agent thread
+    global_num_threads += global_num_gpus;
 #endif // USE_GPU
 
     // limited the number of engines
@@ -240,7 +241,7 @@ void print_config(void)
     // setting by config file
     logstream(LOG_INFO) << "the number of proxies: "        << global_num_proxies           << LOG_endl;
     logstream(LOG_INFO) << "the number of engines: "        << global_num_engines           << LOG_endl;
-    logstream(LOG_INFO) << "global_input_folder: "      << global_input_folder          << LOG_endl;
+    logstream(LOG_INFO) << "global_input_folder: "          << global_input_folder          << LOG_endl;
     logstream(LOG_INFO) << "global_data_port_base: "        << global_data_port_base        << LOG_endl;
     logstream(LOG_INFO) << "global_ctrl_port_base: "        << global_ctrl_port_base        << LOG_endl;
     logstream(LOG_INFO) << "global_memstore_size_gb: "  << global_memstore_size_gb      << LOG_endl;
@@ -253,19 +254,18 @@ void print_config(void)
     logstream(LOG_INFO) << "global_enable_workstealing: "   << global_enable_workstealing   << LOG_endl;
     logstream(LOG_INFO) << "global_stealing_pattern: "      << global_stealing_pattern      << LOG_endl;
     logstream(LOG_INFO) << "global_rdma_threshold: "        << global_rdma_threshold        << LOG_endl;
-    logstream(LOG_INFO) << "global_mt_threshold: "      << global_mt_threshold          << LOG_endl;
+    logstream(LOG_INFO) << "global_mt_threshold: "          << global_mt_threshold          << LOG_endl;
     logstream(LOG_INFO) << "global_silent: "                << global_silent                << LOG_endl;
     logstream(LOG_INFO) << "global_enable_planner: "        << global_enable_planner        << LOG_endl;
     logstream(LOG_INFO) << "global_generate_statistics: "   << global_generate_statistics   << LOG_endl;
-    logstream(LOG_INFO) << "global_enable_vattr: "      << global_enable_vattr          << LOG_endl;
-
-    // GPU support
-    logstream(LOG_INFO) << "global_num_gpus: "        << global_num_gpus        << LOG_endl;
+    logstream(LOG_INFO) << "global_enable_vattr: "          << global_enable_vattr          << LOG_endl;
+#ifdef USE_GPU
+    logstream(LOG_INFO) << "global_num_gpus: "              << global_num_gpus              << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_rdma_buf_size_mb: "  << global_gpu_rdma_buf_size_mb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_rbuf_size_mb: "  << global_gpu_rbuf_size_mb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_kvcache_size_gb: "  << global_gpu_kvcache_size_gb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_enable_pipeline: "  << global_gpu_enable_pipeline  << LOG_endl;
-
+#endif
     logstream(LOG_INFO) << "--" << LOG_endl;
 
     // compute from other settings

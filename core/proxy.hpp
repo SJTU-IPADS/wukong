@@ -216,7 +216,6 @@ public:
         }
 #else
         send(bundle, start_sid);
-
 #endif  // end of USE_GPU
     }
 
@@ -244,11 +243,61 @@ public:
         return success;
     }
 
+
+    // output result of current query
+    void output_result(ostream &stream, SPARQLQuery &q, int sz) {
+        for (int i = 0; i < sz; i++) {
+            stream << i + 1 << ": ";
+
+            // entity
+            for (int j = 0; j < q.result.col_num; j++) {
+                int id = q.result.get_row_col(i, j);
+                if (str_server->exist(id))
+                    stream << str_server->id2str[id] << "\t";
+                else
+                    stream << id << "\t";
+            }
+
+            // attribute
+            for (int c = 0; c < q.result.get_attr_col_num(); c++) {
+                attr_t tmp = q.result.get_attr_row_col(i, c);
+                stream << tmp << "\t";
+            }
+
+            stream << endl;
+        }
+    }
+
+    // print result of current query to console
+    void print_result(SPARQLQuery &q, int row2prt) {
+        logstream(LOG_INFO) << "The first " << row2prt << " rows of results: " << LOG_endl;
+        output_result(cout, q, row2prt);
+    }
+
+    // dump result of current query to specific file
+    void dump_result(string path, SPARQLQuery &q, int row2prt) {
+        if (boost::starts_with(path, "hdfs:")) {
+            wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
+            wukong::hdfs::fstream ofs(hdfs, path, true);
+
+            output_result(ofs, q, row2prt);
+            ofs.close();
+        } else {
+            ofstream ofs(path);
+            if (!ofs.good()) {
+                logstream(LOG_INFO) << "Can't open/create output file: " << path << LOG_endl;
+                return;
+            }
+
+            output_result(ofs, q, row2prt);
+            ofs.close();
+        }
+    }
     // Run a single query for @cnt times. Command is "-f"
     // @is: input
     // @reply: result
-    int run_single_query(istream &is, int mt_factor, int cnt,
-                         istream &fmt_stream, int nopts, bool snd2gpu,
+    int run_single_query(istream &is, istream &fmt_stream, int nopts,
+                         int mt_factor, bool snd2gpu, int cnt, int nlines, string ofname,
                          SPARQLQuery &reply, Monitor &monitor) {
         uint64_t start, end;
         SPARQLQuery request;
@@ -256,8 +305,7 @@ public:
         // Parse the SPARQL query
         start = timer::get_usec();
         if (!parser.parse(is, request)) {
-            logstream(LOG_ERROR) << "Parsing failed! ("
-                                 << parser.strerror << ")" << LOG_endl;
+            logstream(LOG_ERROR) << "Parsing failed! (" << parser.strerror << ")" << LOG_endl;
             is.clear();
             is.seekg(0);
             return -2; // parsing failed
@@ -269,8 +317,6 @@ public:
             logstream(LOG_INFO) << "User-defined query plan is enabled" << LOG_endl;
         else
             logstream(LOG_INFO) << "No query plan, turn on optimization" << LOG_endl;
-
-        request.mt_factor = min(mt_factor, global_mt_threshold);
 
         // Generate query plan if SPARQL optimizer is enabled.
         // FIXME: currently, the optimizater only works for standard SPARQL query.
@@ -285,29 +331,30 @@ public:
 
             planner.test = false;
             // A shortcut for contradictory queries (e.g., empty result)
-            if (planner.generate_plan(request, statistic) == false)
+            if (planner.generate_plan(request, statistic) == false) {
+                logstream(LOG_INFO) << "Query has no bindings, no need to execute it." << LOG_endl;
                 return 0; // success, skip execution
+            }
         }
 
-        // set the multi-threading factor for queries start from index
-        if (!snd2gpu && request.start_from_index()) {
-            if (mt_factor == 1 && global_mt_threshold > 1)
-                logstream(LOG_EMPH) << "The query starts from an index vertex, "
-                                    << "you could use option -m to accelerate it."
-                                    << LOG_endl;
-            // request.mt_factor = min(mt_factor, global_mt_threshold);
+        request.mt_factor = min(mt_factor, global_mt_threshold);
+
+        // Print a WARNING to enable multi-threading for potential (heavy) query
+        // TODO: optimizer could recognize the real heavy query
+        if (request.start_from_index() // HINT: start from index
+                && !snd2gpu  // accelerated by GPU
+                && (mt_factor == 1 && global_mt_threshold > 1) ) {
+            logstream(LOG_EMPH) << "The query starts from an index vertex, "
+                                << "you could use option -m to accelerate it."
+                                << LOG_endl;
         }
 
+        // GPU-accelerate or not
         if (snd2gpu) {
-#ifdef USE_GPU
             request.dev_type = SPARQLQuery::DeviceType::GPU;
-            request.result.dev_type = SPARQLQuery::DeviceType::GPU;
             logstream(LOG_INFO) << "Leverage GPU to accelerate query processing." << LOG_endl;
-#else
-            snd2gpu = false;
-            logstream(LOG_WARNING) << "Please build Wukong with GPU support "
-                                   << "to turn on the \"-g\" option." << LOG_endl;
-#endif
+        } else {
+            request.dev_type = SPARQLQuery::DeviceType::CPU;
         }
 
         // Execute the SPARQL query
@@ -321,6 +368,15 @@ public:
             reply = recv_reply();
         }
         monitor.finish();
+        logstream(LOG_INFO) << "(last) result size: " << reply.result.row_num << LOG_endl;
+
+        // print or dump results
+        if (!global_silent) {
+            if (nlines > 0)
+                print_result(reply, min(nlines, reply.result.row_num));
+            if (ofname != "")
+                dump_result(ofname, reply, reply.result.row_num);
+        }
 
         return 0; // success
     } // end of run_single_query

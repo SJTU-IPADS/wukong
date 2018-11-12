@@ -381,18 +381,6 @@ protected:
         }
     }
 
-    int count_predicates(const string &file_str_index) {
-        string line, predicate;
-        int pid, count = 0;
-        ifstream ifs(file_str_index.c_str());
-        getline(ifs, line); // skip the "__PREDICATE__"
-        while (ifs >> predicate >> pid) {
-            count++;
-        }
-        ifs.close();
-        return count;
-    }
-
 public:
     BaseLoader(int sid, Mem *mem, String_Server *str_server, GStore *gstore): sid(sid), mem(mem), str_server(str_server), gstore(gstore) {}
 
@@ -418,8 +406,20 @@ public:
                                 << ") at server " << sid << LOG_endl;
         }
 
-        sid_t num_preds = count_predicates(src + "str_index");
-        gstore->set_num_predicates(num_preds);
+        auto count_preds = [](const string str_idx_file) {
+            string pred;
+            int pid, count = 0;
+            ifstream ifs(str_idx_file.c_str());
+            while (ifs >> pred >> pid) {
+                count++;
+            }
+            ifs.close();
+            return count;
+        };
+
+        gstore->set_num_normal_preds(count_preds(src + "str_index") - 1); // skip PREDICATE_ID
+        if (global_enable_vattr)
+            gstore->set_num_attr_preds(count_preds(src + "str_attr_index"));
 
         // read_partial_exchange: load partial input files by each server and exchanges triples
         //            according to graph partitioning
