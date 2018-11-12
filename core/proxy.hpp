@@ -247,8 +247,9 @@ public:
     // Run a single query for @cnt times. Command is "-f"
     // @is: input
     // @reply: result
-    int run_single_query(istream &is, istream &fmt_stream, int mt_factor, int cnt, int cnt_planner,
-                         bool send_to_gpu, SPARQLQuery &reply, Monitor &monitor) {
+    int run_single_query(istream &is, int mt_factor, int cnt,
+                         istream &fmt_stream, int nopts, bool snd2gpu,
+                         SPARQLQuery &reply, Monitor &monitor) {
         uint64_t start, end;
         SPARQLQuery request;
 
@@ -265,53 +266,49 @@ public:
         logstream(LOG_INFO) << "Parsing time: " << (end - start) << " usec" << LOG_endl;
 
         if (planner.set_query_plan(request.pattern_group, fmt_stream))
-            logstream(LOG_INFO) << "Query plan is successfully set" << LOG_endl;
+            logstream(LOG_INFO) << "User-defined query plan is enabled" << LOG_endl;
         else
-            logstream(LOG_INFO) << "No query plan is set" << LOG_endl;
+            logstream(LOG_INFO) << "No query plan, turn on optimization" << LOG_endl;
 
         request.mt_factor = min(mt_factor, global_mt_threshold);
 
-        // Generate plans for the query if our SPARQL planner is enabled.
-        // NOTE: it only works for standard SPARQL query.
+        // Generate query plan if SPARQL optimizer is enabled.
+        // FIXME: currently, the optimizater only works for standard SPARQL query.
         if (global_enable_planner) {
             start = timer::get_usec();
-
-            for (int i = 0; i < cnt_planner; i ++) {
+            for (int i = 0; i < nopts; i ++) {
                 planner.test = true;
                 planner.generate_plan(request, statistic);
-                end = timer::get_usec();
             }
-            logstream(LOG_INFO) << "Planning time: " << (end - start) / cnt_planner << " usec" << LOG_endl;
+            end = timer::get_usec();
+            logstream(LOG_INFO) << "Optimization time: " << (end - start) / nopts << " usec" << LOG_endl;
 
             planner.test = false;
-            bool exec = planner.generate_plan(request, statistic);
             // A shortcut for contradictory queries (e.g., empty result)
-            if (exec == false)
-                return 0; // skip the real execution
+            if (planner.generate_plan(request, statistic) == false)
+                return 0; // success, skip execution
         }
 
         // set the multi-threading factor for queries start from index
-        if (request.start_from_index()) {
+        if (!snd2gpu && request.start_from_index()) {
             if (mt_factor == 1 && global_mt_threshold > 1)
                 logstream(LOG_EMPH) << "The query starts from an index vertex, "
                                     << "you could use option -m to accelerate it."
                                     << LOG_endl;
-            //request.mt_factor = min(mt_factor, global_mt_threshold);
+            // request.mt_factor = min(mt_factor, global_mt_threshold);
         }
+
+        if (snd2gpu) {
 #ifdef USE_GPU
-        if (send_to_gpu) {
             request.dev_type = SPARQLQuery::DeviceType::GPU;
             request.result.dev_type = SPARQLQuery::DeviceType::GPU;
-            logstream(LOG_INFO) << "The query will be sent to GPU" << LOG_endl;
-        }
+            logstream(LOG_INFO) << "Leverage GPU to accelerate query processing." << LOG_endl;
 #else
-        if (send_to_gpu) {
-            logstream(LOG_WARNING) << "You need to build Wukong with GPU support to use the \"-g\" option." << LOG_endl;
-            send_to_gpu = false;
-        }
+            snd2gpu = false;
+            logstream(LOG_WARNING) << "Please build Wukong with GPU support "
+                                   << "to turn on the \"-g\" option." << LOG_endl;
 #endif
-
-
+        }
 
         // Execute the SPARQL query
         monitor.init();
@@ -319,10 +316,12 @@ public:
             setpid(request);
             // only take back results of the last request if not silent
             request.result.blind = i < (cnt - 1) ? true : global_silent;
+
             send_request(request);
             reply = recv_reply();
         }
         monitor.finish();
+
         return 0; // success
     } // end of run_single_query
 
@@ -394,17 +393,17 @@ public:
 
             // adapt user defined plan according to plan_config file
             if (!global_enable_planner && fmt_file_names.size() != 0) {
-            	ifstream fs(fmt_file_names[i]);
+                ifstream fs(fmt_file_names[i]);
                 if (!fs.good()) {
                     logstream(LOG_ERROR) << "Fail to read file: " << fmt_file_names[i] << LOG_endl;
                     return -2;
                 }
-            	if (i < nlights) {
-            		planner.set_query_plan(tpls[i].pattern_group, fs, tpls[i].ptypes_pos);
-            	}
-            	else {
-            		planner.set_query_plan(heavy_reqs[i - nlights].pattern_group, fs);
-            	}
+                if (i < nlights) {
+                    planner.set_query_plan(tpls[i].pattern_group, fs, tpls[i].ptypes_pos);
+                }
+                else {
+                    planner.set_query_plan(heavy_reqs[i - nlights].pattern_group, fs);
+                }
             }
         }
 

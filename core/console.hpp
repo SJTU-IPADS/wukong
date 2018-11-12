@@ -123,24 +123,22 @@ void init_options_desc()
     config_desc.add_options()
     (",v", "print current config")
     (",l", value<string>()->value_name("<fname>"), "load config items from <fname>")
-    (",s", value<string>()->value_name("<string>"), "set config items by <str> (format: item1=val1&item2=...)")
+    (",s", value<string>()->value_name("<string>"), "set config items by <str> (e.g., item1=val1&item2=...)")
     ("help,h", "help message about config")
     ;
     all_desc.add(config_desc);
 
     // e.g., wukong> sparql <args>
     sparql_desc.add_options()
-    (",f", value<string>()->value_name("<fname>"), "run a single query from <fname>")
+    (",f", value<string>()->value_name("<fname>"), "run a [single] SPARQL query from <fname>")
+    (",m", value<int>()->default_value(1)->value_name("<factor>"), "set multi-threading <factor> for heavy query processing")
+    (",n", value<int>()->default_value(1)->value_name("<num>"), "repeat query processing <num> times")
     (",p", value<string>()->value_name("<fname>"), "adopt user-defined query plan from <fname> for running a single query")
-    (",m", value<int>()->default_value(1)->value_name("<factor>"), "set multi-threading <factor> for heavy query")
-    (",n", value<int>()->default_value(1)->value_name("<num>"), "run <num> times")
-    (",N", value<int>()->default_value(1)->value_name("<num>"), "run planner <num> times")
+    (",N", value<int>()->default_value(1)->value_name("<num>"), "do query optimization <num> times")
     (",v", value<int>()->default_value(0)->value_name("<lines>"), "print at most <lines> of results")
-#ifdef USE_GPU
-    (",g", "send the query to GPU")
-#endif
     (",o", value<string>()->value_name("<fname>"), "output results into <fname>")
-    (",b", value<string>()->value_name("<fname>"), "run a batch of queries configured by <fname>")
+    (",g", "leverage GPU to accelerate heavy query processing ")
+    (",b", value<string>()->value_name("<fname>"), "run a [batch] of SPARQL queries configured by <fname>")
     ("help,h", "help message about sparql")
     ;
     all_desc.add(sparql_desc);
@@ -159,7 +157,7 @@ void init_options_desc()
     // e.g., wukong> load <args>
     load_desc.add_options()
     (",d", value<string>()->value_name("<dname>"), "load data from directory <dname>")
-    (",c", "check and skip duplicate rdf triple")
+    (",c", "check and skip duplicate RDF triples")
     ("help,h", "help message about load")
     ;
     all_desc.add(load_desc);
@@ -382,15 +380,17 @@ static void dump_result(string path, SPARQLQuery::Result &result, int row2print,
     }
 }
 
-
 /**
  * run the 'sparql' command
  * usage:
  * sparql -f <fname> [options]
- *   -m <factor>  set multi-threading factor <factor> for heavy queries
+ *   -m <factor>  set multi-threading factor <factor> for heavy query processing
  *   -n <num>     run <num> times
+ *   -p <fname>   adopt user-defined query plan from <fname> for running a single query
+ *   -N <num>     do query optimization <num> times
  *   -v <lines>   print at most <lines> of results
  *   -o <fname>   output results into <fname>
+ *   -g           leverage GPU to accelerate heavy query processing
  *
  * sparql -b <fname>
  */
@@ -417,8 +417,9 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         return;
     }
 
-    // exclusive
+    // single mode (-f) and batch mode (-b) are exclusive
     if (!(sparql_vm.count("-f") ^ sparql_vm.count("-b"))) {
+        logstream(LOG_ERROR) << "single mode (-f) and batch mode (-b) are exclusive!" << LOG_endl;
         fail_to_parse(proxy, argc, argv); // invalid cmd
         return;
     }
@@ -433,27 +434,32 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
             return;
         }
 
+        // NOTE: the options with default_value are always available.
+        //       default value: mfactor(1), cnt(1), nopts(1), nlines(0)
+
+        // option: -m <factor>, -n <num>
+        int mfactor = sparql_vm["-m"].as<int>(); // the number of multithreading
+        int cnt = sparql_vm["-n"].as<int>();     // the number of executions
+
+        // option: -p <fname>, -N <num>
         string fmt_name = "";
         if (sparql_vm.count("-p"))
             fmt_name = sparql_vm["-p"].as<string>();
 
         ifstream fmt_stream(fmt_name);
         if (fmt_name == "") {
-            // no format file path is given
+            // no user-defined plan
             fmt_stream.setstate(std::ios::failbit);
         } else if (!fmt_stream.good()) {
-            // format file path is given but read error occurs
-            logstream(LOG_ERROR) << "Format file not found: " << fmt_name << LOG_endl;
+            // fail to load user-defined plan file
+            logstream(LOG_ERROR) << "Plan file is not found: " << fmt_name << LOG_endl;
             fail_to_parse(proxy, argc, argv); // invalid cmd
             return;
         }
+        int nopts = sparql_vm["-N"].as<int>();
 
-        // NOTE: the option with default_value is always available
-        // default value: mfactor(1), cnt(1), cnt_planner(1), nlines(0)
-        int mfactor = sparql_vm["-m"].as<int>(); // the number of multithreading
-        int cnt = sparql_vm["-n"].as<int>();
-        int cnt_planner = sparql_vm["-N"].as<int>();
-        int nlines = sparql_vm["-v"].as<int>();
+        // option: -v <lines>, -o <fname>
+        int nlines = sparql_vm["-v"].as<int>();  // the number of result lines
 
         string ofname;
         if (sparql_vm.count("-o"))
@@ -468,16 +474,15 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
             }
         }
 
-        bool send_to_gpu = false;
-        if (sparql_vm.count("-g")) {
-            send_to_gpu = true;
-        }
+        // option: -g
+        bool snd2gpu = sparql_vm.count("-g");
+
 
         /// do sparql
         SPARQLQuery reply;
         SPARQLQuery::Result &result = reply.result;
         Monitor monitor;
-        int ret = proxy->run_single_query(ifs, fmt_stream, mfactor, cnt, cnt_planner, send_to_gpu, reply, monitor);
+        int ret = proxy->run_single_query(ifs, mfactor, cnt, fmt_stream, nopts, snd2gpu, reply, monitor);
         if (ret != 0) {
             logstream(LOG_ERROR) << "Failed to run the query (ERRNO: " << ret << ")!" << LOG_endl;
             fail_to_parse(proxy, argc, argv); // invalid cmd

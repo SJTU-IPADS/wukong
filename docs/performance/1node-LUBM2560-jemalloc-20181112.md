@@ -1,6 +1,6 @@
 # Performance (single node, dynamic gstore, jemalloc, versatile)
 
-###### Date: Nov. 11, 2018 
+###### Date: Nov. 12, 2018 
 
 ###### Author: Rong Chen
 
@@ -38,7 +38,7 @@
 <a name="sw"></a>
 ## Software configuration
 
-##### Gitlab Version: @76fb5ef
+##### Gitlab Version: @b33e3e7
 
 #### Configuration
 
@@ -201,7 +201,7 @@ INFO:     Planning time: 4 usec
 INFO:     (average) latency: 21 usec
 INFO:     (last) result size: 730
 wukong> 
-wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -d 5 -w 1 -p 1
+wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -d 5 -w 1 -n 1
 INFO:     CDF Res: 
 INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
 INFO:     1 20  21  132 37  24  175 
@@ -231,7 +231,7 @@ INFO:     99    74  75  277 94  77  408
 INFO:     100   1850    1330    2181    234 1626    773 
 INFO:     Throughput: 63.9418K queries/sec
 wukong> 
-wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -d 5 -w 1 -p 5
+wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -d 5 -w 1 -n 5
 INFO:     Per-query CDF graph
 INFO:     CDF Res: 
 INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
@@ -262,7 +262,7 @@ INFO:     99    486 482 675 503 488 797
 INFO:     100   1697    1678    1098    957 2674    1220    
 INFO:     Throughput: 70.2683K queries/sec
 wukong> 
-wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -d 5 -w 1 -p 10
+wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -d 5 -w 1 -n 10
 INFO:     CDF Res: 
 INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
 INFO:     1 166 164 230 175 168 281 
@@ -292,7 +292,7 @@ INFO:     99    600 607 767 622 610 867
 INFO:     100   1918    1976    2049    1805    1884    1390    
 INFO:     Throughput: 70.1843K queries/sec
 wukong> 
-wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -d 5 -w 1 -p 20
+wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -d 5 -w 1 -n 20
 INFO:     CDF Res: 
 INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
 INFO:     1 148 151 243 154 146 305 
@@ -322,7 +322,7 @@ INFO:     99    882 884 1020    895 884 1267
 INFO:     100   2613    2596    2086    2562    2613    2114    
 INFO:     Throughput: 71.5456K queries/sec
 wukong> 
-wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -d 5 -w 1 -p 30
+wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -d 5 -w 1 -n 30
 INFO:     CDF Res: 
 INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
 INFO:     1 203 207 271 213 204 367 
@@ -463,7 +463,7 @@ INFO:     (average) latency: 21 usec
 INFO:     (last) result size: 730
 wukong> 
 wukong> 
-wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -F sparql_query/lubm/emulator/plan_config -d 5 -w 1 -p 1
+wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -p sparql_query/lubm/emulator/plan_config -d 5 -w 1 -n 1
 INFO:     CDF Res: 
 INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
 INFO:     1 20  21  135 36  23  171 
@@ -492,7 +492,7 @@ INFO:     98    72  73  268 92  76  397
 INFO:     99    75  76  278 95  79  406 
 INFO:     100   393 1299    491 206 1668    2833    
 INFO:     Throughput: 64.7264K queries/sec
-wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -F sparql_query/lubm/emulator/plan_config -d 5 -w 1 -p 5
+wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -p sparql_query/lubm/emulator/plan_config -d 5 -w 1 -n 5
 INFO:     CDF Res: 
 INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
 INFO:     1 77  82  201 99  82  249 
@@ -521,7 +521,7 @@ INFO:     98    379 378 532 409 387 629
 INFO:     99    443 439 588 473 451 693 
 INFO:     100   2683    2515    1072    2517    2873    2903    
 INFO:     Throughput: 69.6764K queries/sec
-wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -F sparql_query/lubm/emulator/plan_config -d 5 -w 1 -p 10
+wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -p sparql_query/lubm/emulator/plan_config -d 5 -w 1 -n 10
 INFO:     CDF Res: 
 INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
 INFO:     1 101 103 219 105 97  277 
@@ -550,7 +550,7 @@ INFO:     98    515 517 739 549 513 799
 INFO:     99    609 613 801 646 609 858 
 INFO:     100   2184    2313    1989    1833    1805    2106    
 INFO:     Throughput: 70.2949K queries/sec
-wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -F sparql_query/lubm/emulator/plan_config -d 5 -w 1 -p 20
+wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -p sparql_query/lubm/emulator/plan_config -d 5 -w 1 -n 20
 INFO:     CDF Res: 
 INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
 INFO:     1 187 187 283 197 190 359 
@@ -580,7 +580,7 @@ INFO:     99    897 899 1086    919 901 1333
 INFO:     100   24503   24223   16713   21546   23838   23941   
 INFO:     Throughput: 71.334K queries/sec
 wukong>
-wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -F sparql_query/lubm/emulator/plan_config -d 5 -w 1 -p 30
+wukong> sparql-emu -f sparql_query/lubm/emulator/mix_config -p sparql_query/lubm/emulator/plan_config -d 5 -w 1 -n 30
 INFO:     CDF Res: 
 INFO:     P Q1  Q2  Q3  Q4  Q5  Q6
 INFO:     1 545 546 594 547 547 601 
