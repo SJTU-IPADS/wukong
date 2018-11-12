@@ -326,59 +326,6 @@ static void run_config(Proxy *proxy, int argc, char **argv)
     }
 }
 
-/**
- * output result of current query
- */
-static void output_result(ostream &stream, SPARQLQuery::Result &result, int size, String_Server *str_server)
-{
-    for (int i = 0; i < size; i++) {
-        stream << i + 1 << ": ";
-        for (int j = 0; j < result.col_num; j++) {
-            int id = result.get_row_col(i, j);
-            if (str_server->exist(id))
-                stream << str_server->id2str[id] << "\t";
-            else
-                stream << id << "\t";
-        }
-
-        for (int c = 0; c < result.get_attr_col_num(); c++) {
-            attr_t tmp = result.get_attr_row_col(i, c);
-            stream << tmp << "\t";
-        }
-
-        stream << endl;
-    }
-}
-
-/**
- * print result of current query to console
- */
-static void print_result(SPARQLQuery::Result &result, int row2print, String_Server *str_server)
-{
-    logstream(LOG_INFO) << "The first " << row2print << " rows of results: " << LOG_endl;
-    output_result(cout, result, row2print, str_server);
-}
-
-/**
- * dump result of current query to specific file
- */
-static void dump_result(string path, SPARQLQuery::Result &result, int row2print, String_Server *str_server)
-{
-    if (boost::starts_with(path, "hdfs:")) {
-        wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
-        wukong::hdfs::fstream ofs(hdfs, path, true);
-        output_result(ofs, result, row2print, str_server);
-        ofs.close();
-    } else {
-        ofstream ofs(path);
-        if (!ofs.good()) {
-            logstream(LOG_INFO) << "Can't open/create output file: " << path << LOG_endl;
-        } else {
-            output_result(ofs, result, row2print, str_server);
-            ofs.close();
-        }
-    }
-}
 
 /**
  * run the 'sparql' command
@@ -461,7 +408,7 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         // option: -v <lines>, -o <fname>
         int nlines = sparql_vm["-v"].as<int>();  // the number of result lines
 
-        string ofname;
+        string ofname = "";
         if (sparql_vm.count("-o"))
             ofname = sparql_vm["-o"].as<string>();
 
@@ -476,29 +423,26 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
 
         // option: -g
         bool snd2gpu = sparql_vm.count("-g");
-
+#ifndef USE_GPU
+        if (snd2gpu) {
+            logstream(LOG_WARNING) << "Please build Wukong with GPU support "
+                                   << "to turn on the \"-g\" option." << LOG_endl;
+            return;
+        }
+#endif
 
         /// do sparql
         SPARQLQuery reply;
-        SPARQLQuery::Result &result = reply.result;
         Monitor monitor;
-        int ret = proxy->run_single_query(ifs, mfactor, cnt, fmt_stream, nopts, snd2gpu, reply, monitor);
+        int ret = proxy->run_single_query(ifs, fmt_stream, nopts,
+                                          mfactor, snd2gpu, cnt,
+                                          nlines, ofname, reply, monitor);
         if (ret != 0) {
             logstream(LOG_ERROR) << "Failed to run the query (ERRNO: " << ret << ")!" << LOG_endl;
             fail_to_parse(proxy, argc, argv); // invalid cmd
             return;
         }
         monitor.print_latency(cnt);
-        logstream(LOG_INFO) << "(last) result size: " << result.row_num << LOG_endl;
-
-        // print or dump results
-        if (!global_silent && !result.blind) {
-            if (nlines > 0)
-                print_result(result, min(nlines, result.get_row_num()), proxy->str_server);
-
-            if (sparql_vm.count("-o"))
-                dump_result(ofname, result, result.get_row_num(), proxy->str_server);
-        }
     }
 
     /// [batch mode]
@@ -512,7 +456,7 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         }
 
         /// do sparql
-        logstream(LOG_INFO) << "Batch-mode starting ..." << LOG_endl;
+        logstream(LOG_INFO) << "Batch-mode start ..." << LOG_endl;
 
         string sg_cmd; // a single command line
         while (getline(ifs, sg_cmd)) {
@@ -573,7 +517,7 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
         fname = sparql_emu_vm["-f"].as<string>();
     }
 
-    string fmt_name;
+    string fmt_name = "";
     if (sparql_emu_vm.count("-p"))
         fmt_name = sparql_emu_vm["-p"].as<string>();
 
