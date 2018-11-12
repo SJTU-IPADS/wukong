@@ -38,7 +38,7 @@
 <a name="sw"></a>
 ## Software configuration
 
-##### Gitlab Version: @76fb5ef
+##### Gitlab Version: @b33e3e7
 
 #### Configuration
 
