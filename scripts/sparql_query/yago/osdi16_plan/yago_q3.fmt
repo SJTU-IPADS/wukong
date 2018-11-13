@@ -1,0 +1,28 @@
+#
+# SPARQL
+#
+# PREFIX y:<http://yago-knowledge.org/resource/>
+#
+# SELECT * WHERE {
+#	?p2  y:hasInternalWikipediaLinkTo  ?p3  .
+#	?p1  y:hasInternalWikipediaLinkTo  ?p2  .
+#	?p  y:hasInternalWikipediaLinkTo  ?p1  .
+# }
+#
+# command: sparql -f sparql_query/yago/yago_q3 -p sparql_query/yago/osdi16_plan/yago_q3.fmt
+#
+
+#
+# Plan (ODSI16)
+#
+# SELECT * WHERE {
+#	y:hasInternalWikipediaLinkTo  __PREDICATE__  ?p3  .
+#	?p2  y:hasInternalWikipediaLinkTo  ?p3  <-
+#	?p1  y:hasInternalWikipediaLinkTo  ?p2  <-
+#	?p  y:hasInternalWikipediaLinkTo  ?p1  <-
+# }
+#
+1 >>
+1 <
+2 <
+3 <

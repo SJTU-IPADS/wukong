@@ -1,0 +1,41 @@
+#
+# SPARQL
+#
+# SELECT ?X ?Y ?Z WHERE {
+#	{
+#		?X  rdf:type  ub:Course  .
+#		?X  ub:name  ?Y  .
+#	} UNION {
+#		?Z  ub:publicationAuthor  ?A  .
+#		?A  ub:name  "FullProfessor8"  .
+#		?A  ub:worksFor  <http://www.Department6.University0.edu>  .
+#	}
+#	FILTER bound(?Z)
+# }
+#
+# command: sparql -f sparql_query/lubm/filter/filter_q3 -p sparql_query/lubm/filter/manual_plan/filter_q3.fmt
+#
+
+#
+# Plan 
+#
+# SELECT ?X ?Y ?Z WHERE {
+#	{
+#		?X  rdf:type  ub:Course  <
+#		?X  ub:name  ?Y  .
+#	} UNION {
+#		?Z  ub:publicationAuthor  ?A  <
+#		?A  ub:name  "FullProfessor8"  <
+#		?A  ub:worksFor  <http://www.Department6.University0.edu>  .
+#	}
+#	FILTER bound(?Z)
+# }
+#
+Union {
+1 <
+2 >
+} Union {
+3 <
+1 <
+2 >
+}

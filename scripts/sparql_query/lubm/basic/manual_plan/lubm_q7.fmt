@@ -1,0 +1,33 @@
+#
+# SPARQL
+#
+# SELECT ?X ?Y ?Z WHERE {
+#	?Y  rdf:type  ub:FullProfessor  .
+#	?X  ub:advisor  ?Y  .
+#	?X  rdf:type  ub:UndergraduateStudent  .
+#	?X  ub:takesCourse  ?Z  .
+#	?Z  rdf:type  ub:Course  .
+#	?Y  ub:teacherOf  ?Z  .
+# }
+#
+# command: sparql -f sparql_query/lubm/basic/lubm_q7 -p sparql_query/lubm/basic/manual_plan/lubm_q7.fmt -m 16 -n 10
+#
+
+#
+# Plan
+#
+# SELECT ?X ?Y ?Z WHERE {
+#	?Y  rdf:type  ub:FullProfessor  <-
+#	?Y  ub:teacherOf  ?Z  .
+#	?Z  rdf:type  ub:Course  .
+#	?X  ub:takesCourse  ?Z  <-
+#	?X  ub:advisor  ?Y  .
+#	?X  rdf:type  ub:UndergraduateStudent  .
+# }
+#
+1 <
+6 >
+5 >
+4 <
+2 >
+3 >

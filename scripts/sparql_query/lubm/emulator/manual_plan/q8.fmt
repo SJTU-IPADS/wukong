@@ -1,0 +1,25 @@
+#
+# SPARQL
+#
+# SELECT ?X ?Y1 ?Y2 WHERE {
+#	?X ub:memberOf %ub:Department .
+#	?X rdf:type ub:GraduateStudent .
+#	?X ub:name ?Y1 .
+#	?X ub:emailAddress ?Y2 .
+# }
+#
+
+#
+# Plan
+#
+# SELECT ?X ?Y1 ?Y2 WHERE {
+#	?X ub:memberOf %ub:Department <-
+#	?X rdf:type ub:GraduateStudent .
+#	?X ub:name ?Y1 .
+#	?X ub:emailAddress ?Y2 .
+# }
+#
+1 <
+2 >
+3 >
+4 >

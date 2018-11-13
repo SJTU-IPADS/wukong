@@ -123,24 +123,22 @@ void init_options_desc()
     config_desc.add_options()
     (",v", "print current config")
     (",l", value<string>()->value_name("<fname>"), "load config items from <fname>")
-    (",s", value<string>()->value_name("<string>"), "set config items by <str> (format: item1=val1&item2=...)")
+    (",s", value<string>()->value_name("<string>"), "set config items by <str> (e.g., item1=val1&item2=...)")
     ("help,h", "help message about config")
     ;
     all_desc.add(config_desc);
 
     // e.g., wukong> sparql <args>
     sparql_desc.add_options()
-    (",f", value<string>()->value_name("<fname>"), "run a single query from <fname>")
+    (",f", value<string>()->value_name("<fname>"), "run a [single] SPARQL query from <fname>")
+    (",m", value<int>()->default_value(1)->value_name("<factor>"), "set multi-threading <factor> for heavy query processing")
+    (",n", value<int>()->default_value(1)->value_name("<num>"), "repeat query processing <num> times")
     (",p", value<string>()->value_name("<fname>"), "adopt user-defined query plan from <fname> for running a single query")
-    (",m", value<int>()->default_value(1)->value_name("<factor>"), "set multi-threading <factor> for heavy query")
-    (",n", value<int>()->default_value(1)->value_name("<num>"), "run <num> times")
-    (",N", value<int>()->default_value(1)->value_name("<num>"), "run planner <num> times")
+    (",N", value<int>()->default_value(1)->value_name("<num>"), "do query optimization <num> times")
     (",v", value<int>()->default_value(0)->value_name("<lines>"), "print at most <lines> of results")
-#ifdef USE_GPU
-    (",g", "send the query to GPU")
-#endif
     (",o", value<string>()->value_name("<fname>"), "output results into <fname>")
-    (",b", value<string>()->value_name("<fname>"), "run a batch of queries configured by <fname>")
+    (",g", "leverage GPU to accelerate heavy query processing ")
+    (",b", value<string>()->value_name("<fname>"), "run a [batch] of SPARQL queries configured by <fname>")
     ("help,h", "help message about sparql")
     ;
     all_desc.add(sparql_desc);
@@ -148,10 +146,10 @@ void init_options_desc()
     // e.g., wukong> sparql-emu <args>
     sparql_emu_desc.add_options()
     (",f", value<string>()->value_name("<fname>"), "run queries generated from temples configured by <fname>")
-    (",F", value<string>()->value_name("<fname>"), "adopt user-defined query plans from <fname> for running queries")
+    (",p", value<string>()->value_name("<fname>"), "adopt user-defined query plans from <fname> for running queries")
     (",d", value<int>()->default_value(10)->value_name("<sec>"), "eval <sec> seconds (default: 10)")
     (",w", value<int>()->default_value(5)->value_name("<sec>"), "warmup <sec> seconds (default: 5)")
-    (",p", value<int>()->default_value(20)->value_name("<num>"), "send <num> queries in parallel (default: 20)")
+    (",n", value<int>()->default_value(20)->value_name("<num>"), "keep <num> queries being processed (default: 20)")
     ("help,h", "help message about sparql-emu")
     ;
     all_desc.add(sparql_emu_desc);
@@ -159,7 +157,7 @@ void init_options_desc()
     // e.g., wukong> load <args>
     load_desc.add_options()
     (",d", value<string>()->value_name("<dname>"), "load data from directory <dname>")
-    (",c", "check and skip duplicate rdf triple")
+    (",c", "check and skip duplicate RDF triples")
     ("help,h", "help message about load")
     ;
     all_desc.add(load_desc);
@@ -328,69 +326,18 @@ static void run_config(Proxy *proxy, int argc, char **argv)
     }
 }
 
-/**
- * output result of current query
- */
-static void output_result(ostream &stream, SPARQLQuery::Result &result, int size, String_Server *str_server)
-{
-    for (int i = 0; i < size; i++) {
-        stream << i + 1 << ": ";
-        for (int j = 0; j < result.col_num; j++) {
-            int id = result.get_row_col(i, j);
-            if (str_server->exist(id))
-                stream << str_server->id2str[id] << "\t";
-            else
-                stream << id << "\t";
-        }
-
-        for (int c = 0; c < result.get_attr_col_num(); c++) {
-            attr_t tmp = result.get_attr_row_col(i, c);
-            stream << tmp << "\t";
-        }
-
-        stream << endl;
-    }
-}
-
-/**
- * print result of current query to console
- */
-static void print_result(SPARQLQuery::Result &result, int row2print, String_Server *str_server)
-{
-    logstream(LOG_INFO) << "The first " << row2print << " rows of results: " << LOG_endl;
-    output_result(cout, result, row2print, str_server);
-}
-
-/**
- * dump result of current query to specific file
- */
-static void dump_result(string path, SPARQLQuery::Result &result, int row2print, String_Server *str_server)
-{
-    if (boost::starts_with(path, "hdfs:")) {
-        wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
-        wukong::hdfs::fstream ofs(hdfs, path, true);
-        output_result(ofs, result, row2print, str_server);
-        ofs.close();
-    } else {
-        ofstream ofs(path);
-        if (!ofs.good()) {
-            logstream(LOG_INFO) << "Can't open/create output file: " << path << LOG_endl;
-        } else {
-            output_result(ofs, result, row2print, str_server);
-            ofs.close();
-        }
-    }
-}
-
 
 /**
  * run the 'sparql' command
  * usage:
  * sparql -f <fname> [options]
- *   -m <factor>  set multi-threading factor <factor> for heavy queries
+ *   -m <factor>  set multi-threading factor <factor> for heavy query processing
  *   -n <num>     run <num> times
+ *   -p <fname>   adopt user-defined query plan from <fname> for running a single query
+ *   -N <num>     do query optimization <num> times
  *   -v <lines>   print at most <lines> of results
  *   -o <fname>   output results into <fname>
+ *   -g           leverage GPU to accelerate heavy query processing
  *
  * sparql -b <fname>
  */
@@ -417,8 +364,9 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         return;
     }
 
-    // exclusive
+    // single mode (-f) and batch mode (-b) are exclusive
     if (!(sparql_vm.count("-f") ^ sparql_vm.count("-b"))) {
+        logstream(LOG_ERROR) << "single mode (-f) and batch mode (-b) are exclusive!" << LOG_endl;
         fail_to_parse(proxy, argc, argv); // invalid cmd
         return;
     }
@@ -433,29 +381,34 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
             return;
         }
 
+        // NOTE: the options with default_value are always available.
+        //       default value: mfactor(1), cnt(1), nopts(1), nlines(0)
+
+        // option: -m <factor>, -n <num>
+        int mfactor = sparql_vm["-m"].as<int>(); // the number of multithreading
+        int cnt = sparql_vm["-n"].as<int>();     // the number of executions
+
+        // option: -p <fname>, -N <num>
         string fmt_name = "";
         if (sparql_vm.count("-p"))
             fmt_name = sparql_vm["-p"].as<string>();
 
         ifstream fmt_stream(fmt_name);
         if (fmt_name == "") {
-            // no format file path is given
+            // no user-defined plan
             fmt_stream.setstate(std::ios::failbit);
         } else if (!fmt_stream.good()) {
-            // format file path is given but read error occurs
-            logstream(LOG_ERROR) << "Format file not found: " << fmt_name << LOG_endl;
+            // fail to load user-defined plan file
+            logstream(LOG_ERROR) << "Plan file is not found: " << fmt_name << LOG_endl;
             fail_to_parse(proxy, argc, argv); // invalid cmd
             return;
         }
+        int nopts = sparql_vm["-N"].as<int>();
 
-        // NOTE: the option with default_value is always available
-        // default value: mfactor(1), cnt(1), cnt_planner(1), nlines(0)
-        int mfactor = sparql_vm["-m"].as<int>(); // the number of multithreading
-        int cnt = sparql_vm["-n"].as<int>();
-        int cnt_planner = sparql_vm["-N"].as<int>();
-        int nlines = sparql_vm["-v"].as<int>();
+        // option: -v <lines>, -o <fname>
+        int nlines = sparql_vm["-v"].as<int>();  // the number of result lines
 
-        string ofname;
+        string ofname = "";
         if (sparql_vm.count("-o"))
             ofname = sparql_vm["-o"].as<string>();
 
@@ -468,32 +421,28 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
             }
         }
 
-        bool send_to_gpu = false;
-        if (sparql_vm.count("-g")) {
-            send_to_gpu = true;
+        // option: -g
+        bool snd2gpu = sparql_vm.count("-g");
+#ifndef USE_GPU
+        if (snd2gpu) {
+            logstream(LOG_WARNING) << "Please build Wukong with GPU support "
+                                   << "to turn on the \"-g\" option." << LOG_endl;
+            return;
         }
+#endif
 
         /// do sparql
         SPARQLQuery reply;
-        SPARQLQuery::Result &result = reply.result;
         Monitor monitor;
-        int ret = proxy->run_single_query(ifs, fmt_stream, mfactor, cnt, cnt_planner, send_to_gpu, reply, monitor);
+        int ret = proxy->run_single_query(ifs, fmt_stream, nopts,
+                                          mfactor, snd2gpu, cnt,
+                                          nlines, ofname, reply, monitor);
         if (ret != 0) {
             logstream(LOG_ERROR) << "Failed to run the query (ERRNO: " << ret << ")!" << LOG_endl;
             fail_to_parse(proxy, argc, argv); // invalid cmd
             return;
         }
         monitor.print_latency(cnt);
-        logstream(LOG_INFO) << "(last) result size: " << result.row_num << LOG_endl;
-
-        // print or dump results
-        if (!global_silent && !result.blind) {
-            if (nlines > 0)
-                print_result(result, min(nlines, result.get_row_num()), proxy->str_server);
-
-            if (sparql_vm.count("-o"))
-                dump_result(ofname, result, result.get_row_num(), proxy->str_server);
-        }
     }
 
     /// [batch mode]
@@ -507,7 +456,7 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         }
 
         /// do sparql
-        logstream(LOG_INFO) << "Batch-mode starting ..." << LOG_endl;
+        logstream(LOG_INFO) << "Batch-mode start ..." << LOG_endl;
 
         string sg_cmd; // a single command line
         while (getline(ifs, sg_cmd)) {
@@ -568,9 +517,9 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
         fname = sparql_emu_vm["-f"].as<string>();
     }
 
-    string fmt_name;
-    if (sparql_emu_vm.count("-F"))
-        fmt_name = sparql_emu_vm["-F"].as<string>();
+    string fmt_name = "";
+    if (sparql_emu_vm.count("-p"))
+        fmt_name = sparql_emu_vm["-p"].as<string>();
 
     ifstream fmt_stream(fmt_name);
     if (fmt_name == "") {
@@ -592,15 +541,15 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
     }
 
     // NOTE: the option with default_value is always available
-    // default value: duration(10), warmup(5), pfactor(20)
+    // default value: duration(10), warmup(5), otf(20)
     int duration = sparql_emu_vm["-d"].as<int>();
     int warmup = sparql_emu_vm["-w"].as<int>();
-    int pfactor = sparql_emu_vm["-p"].as<int>(); // the number of paralle queries on the fly
+    int otf = sparql_emu_vm["-n"].as<int>(); // the number of queries being processed (on the fly)
 
-    if (duration <= 0 || warmup < 0 || pfactor <= 0) {
+    if (duration <= 0 || warmup < 0 || otf <= 0) {
         logstream(LOG_ERROR) << "invalid parameters for SPARQL emulator! "
                              << "(duration=" << duration << ", warmup=" << warmup
-                             << ", parallel_factor=" << pfactor << ")" << LOG_endl;
+                             << ", on-the-fly=" << otf << ")" << LOG_endl;
         fail_to_parse(proxy, argc, argv); // invalid cmd
         return;
     }
@@ -616,7 +565,7 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
 
     /// do sparql-emu
     Monitor monitor;
-    proxy->run_query_emu(ifs, fmt_stream, duration, warmup, pfactor, monitor);
+    proxy->run_query_emu(ifs, fmt_stream, duration, warmup, otf, monitor);
 
     // FIXME: maybe hang in here if the input file misses in some machines
     //        or inconsistent global variables (e.g., global_enable_planner)

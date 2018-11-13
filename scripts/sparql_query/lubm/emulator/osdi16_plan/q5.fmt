@@ -1,0 +1,19 @@
+#
+# SPARQL
+#
+# SELECT ?X WHERE {
+#	?X  ub:subOrganizationOf  <http://www.Department0.University0.edu>  .
+#	?X  rdf:type  ub:ResearchGroup  .
+# }
+#
+
+#
+# Plan (OSDI16)
+#
+# SELECT ?X WHERE {
+#	?X  ub:subOrganizationOf  <http://www.Department0.University0.edu>  <-
+#	?X  rdf:type  ub:ResearchGroup  .
+# }
+#
+1 <
+2 >

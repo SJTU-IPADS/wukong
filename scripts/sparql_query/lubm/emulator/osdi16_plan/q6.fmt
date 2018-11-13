@@ -1,0 +1,25 @@
+#
+# SPARQL
+#
+# SELECT ?X ?Y WHERE {
+#	?Y  ub:subOrganizationOf  <http://www.University0.edu>  .
+#	?Y  rdf:type  ub:Department  .
+#	?X  ub:worksFor  ?Y  .
+#	?X  rdf:type  ub:FullProfessor  .
+# }
+#
+
+#
+# Plan (OSDI16)
+#
+# SELECT ?X ?Y WHERE {
+#	?Y  ub:subOrganizationOf  <http://www.University0.edu>  <-
+#	?Y  rdf:type ub:Department  .
+#	?X  ub:worksFor  ?Y  <-
+#	?X  rdf:type  ub:FullProfessor  .
+# }
+#
+1 <
+2 >
+3 <
+4 >

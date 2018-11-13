@@ -8,7 +8,7 @@
 #	?X  rdf:type  ub:FullProfessor  .
 # }
 #
-# command : sparql -f sparql_query/lubm/basic/lubm_q6 -p sparql_query/lubm/basic/osdi16_plan/lubm_q6.fmt -n 1000
+# command: sparql -f sparql_query/lubm/basic/lubm_q6 -p sparql_query/lubm/basic/osdi16_plan/lubm_q6.fmt -n 1000
 #
 
 #

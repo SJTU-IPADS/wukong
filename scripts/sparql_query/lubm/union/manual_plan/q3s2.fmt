@@ -1,0 +1,23 @@
+# SPARQL
+#
+# PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+# PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
+#
+# SELECT ?Z WHERE {
+#	?Z  ub:publicationAuthor  ?A  .
+#	?A  ub:name  "FullProfessor8"  .
+#	?A  ub:worksFor <http://www.Department6.University0.edu>  .
+# }
+#
+# command: sparql -f sparql_query/lubm/union/q3s2 -p sparql_query/lubm/union/manual_plan/q3s2.fmt
+#
+
+#
+# Plan 
+#
+# SELECT ?Z WHERE {
+#	?Z  ub:publicationAuthor  ?A  .
+#	?A  ub:name  "FullProfessor8"  .
+#	?A  ub:worksFor <http://www.Department6.University0.edu>  .
+# }
+#

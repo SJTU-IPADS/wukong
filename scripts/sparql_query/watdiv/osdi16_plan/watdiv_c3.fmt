@@ -1,0 +1,35 @@
+#
+# SPARQL
+#
+# SELECT ?v0 WHERE {
+#	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/gender>  ?v5  .
+#	?v0  <http://xmlns.com/foaf/givenName>  ?v6  .
+#	?v0  <http://purl.org/dc/terms/Location>  ?v3  .
+#	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/likes>  ?v1  .
+#	?v0  <http://xmlns.com/foaf/age>  ?v4  .
+#	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/friendOf>  ?v2  .
+# }
+#
+# command: sparql -f sparql_query/watdiv/watdiv_c3 -p sparql_query/watdiv/osdi16_plan/watdiv_c3.fmt
+#
+
+#
+# Plan (OSDI16)
+#
+# SELECT ?v0 WHERE {
+#	?v0  __PREDICATE__  <http://purl.org/dc/terms/Location>  <-
+#	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/gender>  ?v5  .
+#	?v0  <http://xmlns.com/foaf/givenName>  ?v6  .
+#	?v0  <http://purl.org/dc/terms/Location>  ?v3  .
+#	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/likes>  ?v1  .
+#	?v0  <http://xmlns.com/foaf/age>  ?v4  .
+#	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/friendOf>  ?v2  .
+# }
+#
+1 <<
+1 >
+2 >
+3 >
+4 >
+5 >
+6 >

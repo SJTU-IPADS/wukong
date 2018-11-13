@@ -1,0 +1,6 @@
+SELECT ?v0 ?v2 ?v3 WHERE {
+	%<fromPredicate> <http://purl.org/goodrelations/offers>  ?v0  .
+	?v0  <http://purl.org/goodrelations/price>  ?v1  .
+	?v0  <http://schema.org/eligibleRegion>  ?v2  .
+	?v0  <http://schema.org/priceValidUntil>  ?v3  .
+}

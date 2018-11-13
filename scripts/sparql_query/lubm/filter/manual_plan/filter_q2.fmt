@@ -1,0 +1,35 @@
+#
+# SPARQL
+#
+# SELECT DISTINCT ?Y2 ?Y1 WHERE {
+#	?X  ub:worksFor  <http://www.Department0.University0.edu>  .
+#	?X  rdf:type  ub:FullProfessor  .
+#	FILTER ("FullProfessor7" != ?Y1)
+#	?X  ub:name  ?Y1  .
+#	?X  ub:emailAddress  ?Y2  .
+#	FILTER  regex(?Y1, "FullProfessoR.*", "i")
+#	FILTER  isLITERAL(?Y1)
+#	FILTER  isIRI(?X)
+#	?X  ub:telephone  ?Y3  .
+#	FILTER ((?Y1 > "FullProfessor5" && ?Y1 < "FullProfessor9") || ?Y1 < "FullProfessor3")
+# }
+# ORDER BY ASC(?X)
+#
+# command: sparql -f sparql_query/lubm/filter/filter_q2 -p sparql_query/lubm/filter/manual_plan/filter_q2.fmt
+#
+
+#
+# Plan 
+#
+# SELECT DISTINCT ?Y2 ?Y1 WHERE {
+#	?X  ub:worksFor  <http://www.Department0.University0.edu>  <-
+#	?X  rdf:type  ub:FullProfessor  .
+#	?X  ub:name  ?Y1  .
+#	?X  ub:emailAddress  ?Y2  .
+#	?X  ub:telephone  ?Y3  .
+# }
+1 <
+2 >
+3 >
+4 >
+5 >

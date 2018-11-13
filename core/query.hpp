@@ -257,8 +257,8 @@ public:
         Result() { }
 
         Result(DeviceType dev_type) : dev_type(dev_type) { }
+
         DeviceType dev_type;
-        GPUState gpu;
 
         int col_num = 0;
         int row_num = 0;  // FIXME: vs. get_row_num()
@@ -469,6 +469,8 @@ public:
             }
         }
 
+        GPUState gpu;
+
         bool gpu_result_buf_empty() {
             return gpu.result_buf_nelems == 0;
         }
@@ -479,6 +481,7 @@ public:
         }
 
         void set_gpu_result_buf(char *rbuf, uint64_t n) {
+            ASSERT(rbuf != nullptr);
             gpu.result_buf_dp = rbuf;
             gpu.result_buf_nelems = n;
         }

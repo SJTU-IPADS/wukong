@@ -1,0 +1,18 @@
+#
+# SPARQL
+#
+# SELECT ?X ?P WHERE {
+#	?X  ?P  <http://www.Department0.University0.edu>  .
+# }
+#
+# command: sparql -f sparql_query/lubm/basic/lubm_q9 -p sparql_query/lubm/basic/manual_plan/lubm_q9.fmt
+#
+
+#
+# Plan
+#
+# SELECT ?X ?P WHERE {
+#	?X  ?P  <http://www.Department0.University0.edu>  <-
+# }
+#
+1 <

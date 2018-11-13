@@ -1,0 +1,25 @@
+#
+# SPARQL
+#
+# SELECT ?v0 ?v1 ?v2 ?v3 WHERE {
+#	?v0  <http://purl.org/stuff/rev#totalVotes>  %<fromPredicate>  .
+#	?v0  <http://purl.org/stuff/rev#reviewer>  ?v1  .
+#	?v1  <http://xmlns.com/foaf/familyName>  ?v2  .
+#	?v1  <http://xmlns.com/foaf/givenName>  ?v3 .
+# }
+#
+
+#
+# Plan
+#
+# SELECT ?v0 ?v1 ?v2 ?v3 WHERE {
+#	?v0  <http://purl.org/stuff/rev#totalVotes>  %<fromPredicate>  <-
+#	?v0  <http://purl.org/stuff/rev#reviewer>  ?v1  .
+#	?v1  <http://xmlns.com/foaf/familyName>  ?v2  .
+#	?v1  <http://xmlns.com/foaf/givenName>  ?v3 .
+# }
+#
+1 <
+2 >
+3 >
+4 >

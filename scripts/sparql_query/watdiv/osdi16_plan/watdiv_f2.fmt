@@ -1,0 +1,39 @@
+#
+# SPARQL
+#
+# SELECT ?v0 ?v1 ?v2 ?v4 ?v5 ?v6 ?v7 WHERE {
+#	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre>  <http://db.uwaterloo.ca/~galuc/wsdbm/SubGenre101>  .
+#	?v0  <http://schema.org/description>  ?v5  .
+#	?v0  <http://schema.org/caption>  ?v4  .
+#	?v0  <http://ogp.me/ns#title>  ?v2  .
+#	?v0  <http://www.w3.org/1999/02/22-rdf-syntax-ns#type>  ?v3  .
+#	?v0  <http://xmlns.com/foaf/homepage>  ?v1  .
+#	?v1  <http://schema.org/url>  ?v6  .
+#	?v1  <http://db.uwaterloo.ca/~galuc/wsdbm/hits>  ?v7  .
+# }
+#
+# command: sparql -f sparql_query/watdiv/watdiv_f2 -p sparql_query/watdiv/osdi16_plan/watdiv_f2.fmt
+#
+
+#
+# Plan (OSDI16)
+#
+# SELECT ?v0 ?v1 ?v2 ?v4 ?v5 ?v6 ?v7 WHERE {
+#	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre>  <http://db.uwaterloo.ca/~galuc/wsdbm/SubGenre101>  <-
+#	?v0  <http://schema.org/description>  ?v5  .
+#	?v0  <http://schema.org/caption>  ?v4  .
+#	?v0  <http://ogp.me/ns#title>  ?v2  .
+#	?v0  <http://www.w3.org/1999/02/22-rdf-syntax-ns#type>  ?v3  .
+#	?v0  <http://xmlns.com/foaf/homepage>  ?v1  .
+#	?v1  <http://schema.org/url>  ?v6  .
+#	?v1  <http://db.uwaterloo.ca/~galuc/wsdbm/hits>  ?v7  .
+# }
+#
+1 <
+2 >
+3 >
+4 >
+5 >
+6 >
+7 >
+8 >
