@@ -488,10 +488,10 @@ public:
 
     };
 
-    int id = -1;     // query id
+    int qid = -1;   // query id (track engine (sid, tid))
+    int pqid = -1;  // parent qid (track the source (proxy or parent query) of query)
 
-    int pid = -1;    // parqnt query id
-    int tid = 0;     // engine thread id (MT)
+    int tid = 0;    // engine thread id (MT)
 
     PGType pg_type = BASIC;
     SQState state = SQ_PATTERN;
@@ -613,7 +613,7 @@ public:
 
     void print_sparql_query() {
         logstream(LOG_INFO) << "SPARQLQuery"
-                            << "[ ID=" << id << " | PID=" << pid << " | TID=" << tid << " ]"
+                            << "[ QID=" << qid << " | PQID=" << pqid << " | TID=" << tid << " ]"
                             << LOG_endl;
         pattern_group.print_group();
         /// TODO: print more fields
@@ -622,7 +622,7 @@ public:
 
     void print_SQState() {
         logstream(LOG_INFO) << "SPARQLQuery"
-                            << "[ ID=" << id << " | PID=" << pid << " | TID=" << tid << " ]";
+                            << "[ QID=" << qid << " | PQID=" << pqid << " | TID=" << tid << " ]";
         switch (state) {
         case SQState::SQ_PATTERN: logstream(LOG_INFO) << "\tSQ_PATTERN" << LOG_endl; break;
         case SQState::SQ_REPLY: logstream(LOG_INFO) << "\tSQ_REPLY" << LOG_endl; break;
@@ -636,7 +636,7 @@ public:
 
     // UNION
     void inherit_union(SPARQLQuery &r, int idx) {
-        pid = r.id;
+        pqid = r.qid;
         pg_type = SPARQLQuery::PGType::UNION;
         pattern_group = r.pattern_group.unions[idx];
         if (start_from_index()
@@ -717,7 +717,7 @@ public:
     }
 
     void inherit_optional(SPARQLQuery &r) {
-        pid = r.id;
+        pqid = r.qid;
         pg_type = SPARQLQuery::PGType::OPTIONAL;
         pattern_group = r.pattern_group.optional[r.optional_step];
 
@@ -794,14 +794,16 @@ private:
 
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
-        ar & pid;
+        ar & qid;
+        ar & pqid;
         ar & check_ret;
         ar & index_check;
         ar & normal_check;
     }
 
 public:
-    int pid = -1;    // parent query id
+    int qid = -1;   // unused
+    int pqid = -1;  // parent qid
 
     int check_ret = 0;
     bool index_check = false;
@@ -821,14 +823,16 @@ private:
 
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int version) {
-        ar & pid;
+        ar & qid;
+        ar & pqid;
         ar & load_dname;
         ar & load_ret;
         ar & check_dup;
     }
 
 public:
-    int pid = -1;    // parent query id
+    int qid = -1;   // unused
+    int pqid = -1;  // parent query id
 
     string load_dname = "";   // the file name used to be inserted
     int load_ret = 0;
@@ -950,8 +954,8 @@ void load(Archive & ar, SPARQLQuery::Result &t, unsigned int version) {
 
 template<class Archive>
 void save(Archive & ar, const SPARQLQuery &t, unsigned int version) {
-    ar << t.id;
-    ar << t.pid;
+    ar << t.qid;
+    ar << t.pqid;
     ar << t.tid;
     ar << t.limit;
     ar << t.offset;
@@ -981,8 +985,8 @@ void save(Archive & ar, const SPARQLQuery &t, unsigned int version) {
 template<class Archive>
 void load(Archive & ar, SPARQLQuery &t, unsigned int version) {
     char temp = 2;
-    ar >> t.id;
-    ar >> t.pid;
+    ar >> t.qid;
+    ar >> t.pqid;
     ar >> t.tid;
     ar >> t.limit;
     ar >> t.offset;
@@ -1138,7 +1142,7 @@ public:
     }
 
     string to_str() const {
-#if 1
+#if 1 // FIXME
         char *c_str = new char[sizeof(req_type) + data.length()];
         memcpy(c_str, &type, sizeof(req_type));
         memcpy(c_str + sizeof(req_type), data.c_str(), data.length());

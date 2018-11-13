@@ -332,7 +332,7 @@ public:
         // generate sub requests for all servers
         vector<SPARQLQuery> sub_reqs(global_num_servers);
         for (int i = 0; i < global_num_servers; i++) {
-            sub_reqs[i].pid = req.id;
+            sub_reqs[i].pqid = req.qid;
             sub_reqs[i].pg_type = req.pg_type == SPARQLQuery::PGType::UNION ?
                                   SPARQLQuery::PGType::BASIC : req.pg_type;
             sub_reqs[i].pattern_group = req.pattern_group;
@@ -362,7 +362,7 @@ public:
 
             backend.generate_sub_query(req, start, global_num_servers, buf_ptrs, buf_sizes);
 
-            logstream(LOG_DEBUG) << "#" << sid << " generate_sub_query for req#" << req.id << ", parent: " << req.pid
+            logstream(LOG_DEBUG) << "#" << sid << " generate_sub_query for req#" << req.qid << ", parent: " << req.pid
                                  << ", step: " << req.pattern_step << LOG_endl;
 
             for (int i = 0; i < global_num_servers; ++i) {

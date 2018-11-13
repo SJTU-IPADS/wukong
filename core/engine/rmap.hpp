@@ -42,28 +42,30 @@ private:
 
 public:
     void put_parent_request(SPARQLQuery &r, int cnt) {
-        logstream(LOG_DEBUG) << "add pid=" << r.id << " and cnt=" << cnt << LOG_endl;
+        logstream(LOG_DEBUG) << "add parent-qid=" << r.qid
+                             << " and #sub-queries=" << cnt << LOG_endl;
 
         // not exist
-        ASSERT(internal_map.find(r.id) == internal_map.end());
+        ASSERT(internal_map.find(r.qid) == internal_map.end());
 
         Item d;
         d.cnt = cnt;
         d.parent = r;
 
-        internal_map[r.id] = d;
+        internal_map[r.qid] = d;
     }
 
     void put_reply(SPARQLQuery &r) {
         // exist
-        ASSERT(internal_map.find(r.pid) != internal_map.end());
+        ASSERT(internal_map.find(r.pqid) != internal_map.end());
 
-        Item &d = internal_map[r.pid];
+        Item &d = internal_map[r.pqid];
         SPARQLQuery::Result &whole = d.reply.result;
         SPARQLQuery::Result &part = r.result;
         d.cnt--;
 
-        // if the PatternGroup of r comes from a query's union part, use merge_union to put result
+        // if the PatternGroup of r comes from a query's union part,
+        // use merge_union to put result
         if (r.pg_type == SPARQLQuery::PGType::UNION)
             whole.merge_union(part);
         else
@@ -72,21 +74,26 @@ public:
         // keep inprogress
         if (d.parent.state == SPARQLQuery::SQState::SQ_PATTERN)
             d.reply.pattern_step = r.pattern_step;
-        // if r is a forked query that has done OPTIONAL query, it updates its parent's optional_step to avoid the parent do it again
-        if (r.pg_type != SPARQLQuery::PGType::OPTIONAL && r.done(SPARQLQuery::SQState::SQ_OPTIONAL))
+
+        // if r is a forked query that has done OPTIONAL query,
+        // update its parent's optional_step to avoid the parent do it again
+        if (r.pg_type != SPARQLQuery::PGType::OPTIONAL
+                && r.done(SPARQLQuery::SQState::SQ_OPTIONAL))
             d.parent.optional_step = r.optional_step;
-        // if r is a forked query that has done UNION query, it updates its parent's union_done to avoid the parent do it again
+
+        // if r is a forked query that has done UNION query,
+        // update its parent's union_done to avoid the parent do it again
         if (r.union_done)
             d.parent.union_done = true;
     }
 
-    bool is_ready(int pid) {
-        return internal_map[pid].cnt == 0;
+    bool is_ready(int qid) {
+        return internal_map[qid].cnt == 0;
     }
 
-    SPARQLQuery get_merged_reply(int pid) {
-        SPARQLQuery r = internal_map[pid].parent;
-        SPARQLQuery &reply = internal_map[pid].reply;
+    SPARQLQuery get_merged_reply(int qid) {
+        SPARQLQuery r = internal_map[qid].parent;
+        SPARQLQuery &reply = internal_map[qid].reply;
 
         // copy the result
         // FIXME: implement copy construct of SPARQLQuery::Result
@@ -102,8 +109,8 @@ public:
         if (r.state == SPARQLQuery::SQState::SQ_PATTERN)
             r.pattern_step = reply.pattern_step;
 
-        internal_map.erase(pid);
-        logstream(LOG_DEBUG) << "erase pid=" << pid << LOG_endl;
+        internal_map.erase(qid);
+        logstream(LOG_DEBUG) << "erase parent-qid=" << qid << LOG_endl;
         return r;
     }
 };

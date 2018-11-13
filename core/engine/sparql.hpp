@@ -658,7 +658,7 @@ private:
         // generate sub requests for all servers
         vector<SPARQLQuery> sub_reqs(global_num_servers);
         for (int i = 0; i < global_num_servers; i++) {
-            sub_reqs[i].pid = req.id;
+            sub_reqs[i].pqid = req.qid;
             sub_reqs[i].pg_type = req.pg_type == SPARQLQuery::PGType::UNION ?
                                   SPARQLQuery::PGType::BASIC : req.pg_type;
             sub_reqs[i].pattern_group = req.pattern_group;
@@ -1356,7 +1356,7 @@ out:
 
     bool execute_patterns(SPARQLQuery &r) {
         logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "]"
-                             << " id=" << r.id << " pid=" << r.pid << LOG_endl;
+                             << " qid=" << r.qid << " pqid=" << r.pqid << LOG_endl;
 
         if (r.pattern_step == 0
                 && r.pattern_group.parallel == false
@@ -1370,8 +1370,8 @@ out:
             SPARQLQuery sub_query = r;
             for (int i = 0; i < global_num_servers; i++) {
                 for (int j = 0; j < r.mt_factor; j++) {
-                    sub_query.id = -1;
-                    sub_query.pid = r.id;
+                    sub_query.qid = -1;
+                    sub_query.pqid = r.qid;
                     // start from the next engine thread
                     int dst_tid = (tid + j + 1 - global_num_proxies) % global_num_engines
                                   + global_num_proxies;
@@ -1429,19 +1429,19 @@ public:
 
     void execute_sparql_query(SPARQLQuery &r) {
         // encode the lineage of the query (server & thread)
-        if (r.id == -1) r.id = coder->get_and_inc_qid();
+        if (r.qid == -1) r.qid = coder->get_and_inc_qid();
 
         if (r.state == SPARQLQuery::SQState::SQ_REPLY) {
             pthread_spin_lock(&rmap_lock);
             rmap.put_reply(r);
 
-            if (!rmap.is_ready(r.pid)) {
+            if (!rmap.is_ready(r.pqid)) {
                 pthread_spin_unlock(&rmap_lock);
                 return; // not ready (waiting for the rest)
             }
 
             // all sub-queries have done, continue to execute
-            r = rmap.get_merged_reply(r.pid);
+            r = rmap.get_merged_reply(r.pqid);
             pthread_spin_unlock(&rmap_lock);
         }
 
@@ -1479,7 +1479,7 @@ public:
             optional_req.inherit_optional(r);
             r.optional_step++;
             if (need_fork_join(optional_req)) {
-                optional_req.id = r.id;
+                optional_req.qid = r.qid;
                 vector<SPARQLQuery> sub_reqs = generate_sub_query(optional_req);
                 rmap.put_parent_request(r, sub_reqs.size());
                 for (int i = 0; i < sub_reqs.size(); i++) {
@@ -1511,7 +1511,7 @@ public:
         }
 
         // 5. Final
-        if (QUERY_FROM_PROXY(coder->tid_of(r.pid))) {
+        if (QUERY_FROM_PROXY(coder->tid_of(r.pqid))) {
             r.state = SPARQLQuery::SQState::SQ_FINAL;
             final_process(r);
         }
@@ -1520,7 +1520,7 @@ public:
         r.shrink_query();
         r.state = SPARQLQuery::SQState::SQ_REPLY;
         Bundle bundle(r);
-        msgr->send_msg(bundle, coder->sid_of(r.pid), coder->tid_of(r.pid));
+        msgr->send_msg(bundle, coder->sid_of(r.pqid), coder->tid_of(r.pqid));
     }
 
 };
