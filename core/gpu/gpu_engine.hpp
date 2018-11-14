@@ -343,7 +343,7 @@ public:
             sub_reqs[i].priority = req.priority + 1;
 
             sub_reqs[i].job_type = SPARQLQuery::SubJobType::SPLIT_JOB;
-            sub_reqs[i].result.dev_type = sub_reqs[i].dev_type = SPARQLQuery::DeviceType::GPU;
+            sub_reqs[i].dev_type = SPARQLQuery::DeviceType::GPU;
 
             sub_reqs[i].result.col_num = req.result.col_num;
             sub_reqs[i].result.attr_col_num = req.result.attr_col_num;

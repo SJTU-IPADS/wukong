@@ -256,10 +256,6 @@ public:
     public:
         Result() { }
 
-        Result(DeviceType dev_type) : dev_type(dev_type) { }
-
-        DeviceType dev_type;
-
         int col_num = 0;
         int row_num = 0;  // FIXME: vs. get_row_num()
         int attr_col_num = 0; // FIXME: why not no attr_row_num
@@ -919,7 +915,6 @@ void save(Archive &ar, const SPARQLQuery::Result &t, unsigned int version) {
     ar << t.nvars;
     ar << t.v2c_map;
     ar << t.optional_matched_rows;
-    ar << t.dev_type;
     ar << t.gpu;
     if (!t.blind) ar << t.required_vars;
     // attr_res_table may not be empty if result_table is empty
@@ -942,7 +937,6 @@ void load(Archive & ar, SPARQLQuery::Result &t, unsigned int version) {
     ar >> t.nvars;
     ar >> t.v2c_map;
     ar >> t.optional_matched_rows;
-    ar >> t.dev_type;
     ar >> t.gpu;
     if (!t.blind) ar >> t.required_vars;
     ar >> temp;
