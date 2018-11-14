@@ -389,20 +389,32 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         int cnt = sparql_vm["-n"].as<int>();     // the number of executions
 
         // option: -p <fname>, -N <num>
-        string fmt_name = "";
-        if (sparql_vm.count("-p"))
-            fmt_name = sparql_vm["-p"].as<string>();
-
-        ifstream fmt_stream(fmt_name);
-        if (fmt_name == "") {
-            // no user-defined plan
-            fmt_stream.setstate(std::ios::failbit);
-        } else if (!fmt_stream.good()) {
-            // fail to load user-defined plan file
-            logstream(LOG_ERROR) << "Plan file is not found: " << fmt_name << LOG_endl;
-            fail_to_parse(proxy, argc, argv); // invalid cmd
-            return;
+        if (!(sparql_vm.count("-p") ^ global_enable_planner)) {
+            if (global_enable_planner) {
+                logstream(LOG_WARNING) << "Optimizer is enabled, "
+                                       << "your plan file (-p) will be ignored." << LOG_endl;
+            } else {
+                logstream(LOG_ERROR) << "Optimizer is disabled, "
+                                     << "you must provide a user-defined plan file (-p)." << LOG_endl;
+                fail_to_parse(proxy, argc, argv); // invalid cmd
+                return;
+            }
         }
+
+        ifstream fmt_stream;
+        if (global_enable_planner) {
+            fmt_stream.setstate(std::ios::failbit);
+        } else {
+            string fmt_fname = sparql_vm["-p"].as<string>();
+            fmt_stream.open(fmt_fname);
+            if (!fmt_stream.good()) { // fail to load user-defined plan file
+                logstream(LOG_ERROR) << "The plan file is not found: "
+                                     << fmt_fname << LOG_endl;
+                fail_to_parse(proxy, argc, argv); // invalid cmd
+                return;
+            }
+        }
+
         int nopts = sparql_vm["-N"].as<int>();
 
         // option: -v <lines>, -o <fname>
@@ -517,19 +529,31 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
         fname = sparql_emu_vm["-f"].as<string>();
     }
 
-    string fmt_name = "";
-    if (sparql_emu_vm.count("-p"))
-        fmt_name = sparql_emu_vm["-p"].as<string>();
+    // option: -p <fname>
+    if (!(sparql_emu_vm.count("-p") ^ global_enable_planner)) {
+        if (global_enable_planner) {
+            logstream(LOG_WARNING) << "Optimizer is enabled, "
+                                   << "your config file of plans (-p) will be ignored." << LOG_endl;
+        } else {
+            logstream(LOG_ERROR) << "Optimizer is disabled, "
+                                 << "you must provide a user-defined plan file (-p)." << LOG_endl;
+            fail_to_parse(proxy, argc, argv); // invalid cmd
+            return;
+        }
+    }
 
-    ifstream fmt_stream(fmt_name);
-    if (fmt_name == "") {
-        // no format file path is given
+    ifstream fmt_stream;
+    if (global_enable_planner) {
         fmt_stream.setstate(std::ios::failbit);
-    } else if (!fmt_stream.good()) {
-        // format file path is given but read error occurs
-        logstream(LOG_ERROR) << "Format directory file not found: " << fmt_name << LOG_endl;
-        fail_to_parse(proxy, argc, argv); // invalid cmd
-        return;
+    } else {
+        string fmt_fname = sparql_emu_vm["-p"].as<string>();
+        fmt_stream.open(fmt_fname);
+        if (!fmt_stream.good()) { // fail to load user-defined plan file
+            logstream(LOG_ERROR) << "The plan file is not found: "
+                                 << fmt_fname << LOG_endl;
+            fail_to_parse(proxy, argc, argv); // invalid cmd
+            return;
+        }
     }
 
     // config file for the SPARQL emulator
@@ -565,7 +589,12 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
 
     /// do sparql-emu
     Monitor monitor;
-    proxy->run_query_emu(ifs, fmt_stream, duration, warmup, otf, monitor);
+    int ret = proxy->run_query_emu(ifs, fmt_stream, duration, warmup, otf, monitor);
+    if (ret != 0) {
+        logstream(LOG_ERROR) << "Failed to run the query emulator (ERRNO: " << ret << ")!" << LOG_endl;
+        fail_to_parse(proxy, argc, argv); // invalid cmd
+        return;
+    }
 
     // FIXME: maybe hang in here if the input file misses in some machines
     //        or inconsistent global variables (e.g., global_enable_planner)
