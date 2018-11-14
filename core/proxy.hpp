@@ -191,25 +191,25 @@ public:
         : sid(sid), tid(tid), str_server(str_server), adaptor(adaptor),
           coder(sid, tid), parser(str_server), statistic(statistic), planner(graph, tid) { }
 
-    void setpid(SPARQLQuery &r) { r.pid = coder.get_and_inc_qid(); }
+    void setpid(SPARQLQuery &r) { r.pqid = coder.get_and_inc_qid(); }
 
-    void setpid(RDFLoad &r) { r.pid = coder.get_and_inc_qid(); }
+    void setpid(RDFLoad &r) { r.pqid = coder.get_and_inc_qid(); }
 
-    void setpid(GStoreCheck &r) { r.pid = coder.get_and_inc_qid(); }
+    void setpid(GStoreCheck &r) { r.pqid = coder.get_and_inc_qid(); }
 
     // Send request to certain engine.
     void send_request(SPARQLQuery &r) {
-        ASSERT(r.pid != -1);
+        ASSERT(r.pqid != -1);
 
         // submit the request to a certain server
         int start_sid = wukong::math::hash_mod(r.pattern_group.get_start(), global_num_servers);
         Bundle bundle(r);
 #ifdef USE_GPU
         if (r.dev_type == SPARQLQuery::DeviceType::CPU) {
-            logstream(LOG_DEBUG) << "dev_type is CPU, send to engine. r.pid=" << r.pid << LOG_endl;
+            logstream(LOG_DEBUG) << "dev_type is CPU, send to engine. r.pqid=" << r.pqid << LOG_endl;
             send(bundle, start_sid);
         } else if (r.dev_type == SPARQLQuery::DeviceType::GPU) {
-            logstream(LOG_DEBUG) << "dev_type is GPU, send to GPU agent. r.pid=" << r.pid << LOG_endl;
+            logstream(LOG_DEBUG) << "dev_type is GPU, send to GPU agent. r.pqid=" << r.pqid << LOG_endl;
             send(bundle, start_sid, WUKONG_GPU_AGENT_TID);
         } else {
             ASSERT_MSG(false, "Unknown device type");
@@ -224,7 +224,7 @@ public:
         Bundle bundle = adaptor->recv();
         ASSERT(bundle.type == SPARQL_QUERY);
         SPARQLQuery r = bundle.get_sparql_query();
-        logstream(LOG_DEBUG) << "Proxy recv_reply: got reply id=" << r.id << ", r.pid=" << r.pid
+        logstream(LOG_DEBUG) << "Proxy recv_reply: got reply qid=" << r.qid << ", r.pqid=" << r.pqid
                              << ", dev_type=" << (r.dev_type == SPARQLQuery::DeviceType::GPU ? "GPU" : "CPU")
                              << ", #rows=" << r.result.get_row_num() << ", step=" << r.pattern_step
                              << ", done: " << r.done(SPARQLQuery::SQState::SQ_PATTERN) << LOG_endl;
@@ -480,19 +480,19 @@ public:
                 sweep_msgs(); // sweep pending msgs first
 
                 int idx = wukong::math::get_distribution(coder.get_random(), loads);
-                SPARQLQuery request = idx < nlights ?
-                                      tpls[idx].instantiate(coder.get_random()) : // light query
-                                      heavy_reqs[idx - nlights]; // heavy query
+                SPARQLQuery r = idx < nlights ?
+                                tpls[idx].instantiate(coder.get_random()) : // light query
+                                heavy_reqs[idx - nlights]; // heavy query
 
                 if (global_enable_planner) {
-                    planner.generate_plan(request, statistic);
+                    planner.generate_plan(r, statistic);
                 }
 
-                setpid(request);
-                request.result.blind = true; // always not take back results for emulator
+                setpid(r);
+                r.result.blind = true; // always not take back results for emulator
 
-                monitor.start_record(request.pid, idx);
-                send_request(request);
+                monitor.start_record(r.pqid, idx);
+                send_request(r);
 
                 send_cnt++;
             }
@@ -502,7 +502,7 @@ public:
                 SPARQLQuery r;
                 while (tryrecv_reply(r)) {
                     recv_cnt++;
-                    monitor.end_record(r.pid);
+                    monitor.end_record(r.pqid);
                 }
             }
 
@@ -526,7 +526,7 @@ public:
             SPARQLQuery r;
             while (tryrecv_reply(r)) {
                 recv_cnt ++;
-                monitor.end_record(r.pid);
+                monitor.end_record(r.pqid);
             }
 
             monitor.print_timely_thpt(recv_cnt, sid, tid);

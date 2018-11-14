@@ -5,5 +5,5 @@ SELECT ?X ?Y ?N WHERE {
 	?X  rdf:type  ub:AssociateProfessor  .
 	?Y  ub:advisor  ?X  .
 	?X  ub:worksFor  <http://www.Department8.University1.edu>  .
-	?X  b:teacherOf  ?N  .
+	?X  ub:teacherOf  ?N  .
 }
