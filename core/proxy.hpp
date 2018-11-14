@@ -313,18 +313,12 @@ public:
         end = timer::get_usec();
         logstream(LOG_INFO) << "Parsing time: " << (end - start) << " usec" << LOG_endl;
 
-        if (planner.set_query_plan(request.pattern_group, fmt_stream))
-            logstream(LOG_INFO) << "User-defined query plan is enabled" << LOG_endl;
-        else
-            logstream(LOG_INFO) << "No query plan, turn on optimization" << LOG_endl;
-
         // Generate query plan if SPARQL optimizer is enabled.
         // FIXME: currently, the optimizater only works for standard SPARQL query.
         if (global_enable_planner) {
             start = timer::get_usec();
-            for (int i = 0; i < nopts; i ++) {
+            for (int i = 0; i < nopts; i ++)
                 planner.test_plan_time(request, statistic);
-            }
             end = timer::get_usec();
             logstream(LOG_INFO) << "Optimization time: " << (end - start) / nopts << " usec" << LOG_endl;
 
@@ -333,6 +327,10 @@ public:
                 logstream(LOG_INFO) << "Query has no bindings, no need to execute it." << LOG_endl;
                 return 0; // success, skip execution
             }
+        } else {
+            ASSERT(fmt_stream.good());
+            planner.set_query_plan(request.pattern_group, fmt_stream);
+            logstream(LOG_INFO) << "User-defined query plan is enabled" << LOG_endl;
         }
 
         request.mt_factor = min(mt_factor, global_mt_threshold);
@@ -401,18 +399,14 @@ public:
             return -2; // parsing failed
         }
 
-        // read query-plan config file
-        vector<string> fmt_file_names;
+        // read plan files according to config file of plans
+        vector<string> fmt_fnames;
         if (!global_enable_planner) {
-            if (fmt_stream.good()) {
-                fmt_file_names.resize(ntypes);
-                for (int i = 0; i < ntypes; i ++)
-                    fmt_stream >> fmt_file_names[i];
-            }
-            else {
-                logstream(LOG_ERROR) << "Fail to read fmt config file! " << LOG_endl;
-                return -2;
-            }
+            ASSERT(fmt_stream.good());
+
+            fmt_fnames.resize(ntypes);
+            for (int i = 0; i < ntypes; i ++)
+                fmt_stream >> fmt_fnames[i];  // FIXME: incorrect config file (e.g., few plan files)
         }
 
         vector<SPARQLQuery_Template> tpls(nlights);
@@ -451,19 +445,18 @@ public:
             if (i < nlights)
                 fill_template(tpls[i]);
 
-            // adapt user defined plan according to plan_config file
-            if (!global_enable_planner && fmt_file_names.size() != 0) {
-                ifstream fs(fmt_file_names[i]);
+            // adapt user-defined plan according
+            if (!global_enable_planner) {
+                ifstream fs(fmt_fnames[i]);
                 if (!fs.good()) {
-                    logstream(LOG_ERROR) << "Fail to read file: " << fmt_file_names[i] << LOG_endl;
-                    return -2;
+                    logstream(LOG_ERROR) << "Plan file not found: " << fmt_fnames[i] << LOG_endl;
+                    return -1; // file not found
                 }
-                if (i < nlights) {
+
+                if (i < nlights) // light query
                     planner.set_query_plan(tpls[i].pattern_group, fs, tpls[i].ptypes_pos);
-                }
-                else {
+                else // heavy query
                     planner.set_query_plan(heavy_reqs[i - nlights].pattern_group, fs);
-                }
             }
         }
 
