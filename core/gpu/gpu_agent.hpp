@@ -132,8 +132,8 @@ public:
         SPARQLQuery sub_query = req;
         ASSERT(req.mt_factor == 1);
         for (int i = 0; i < global_num_servers; i++) {
-            sub_query.id = -1;
-            sub_query.pid = req.id;
+            sub_query.qid = -1;
+            sub_query.pqid = req.qid;
             // start from the next engine thread
             int dst_tid = (tid + 1 - WUKONG_GPU_AGENT_TID) % global_num_gpus
                           + WUKONG_GPU_AGENT_TID;
@@ -170,10 +170,10 @@ public:
 
     void execute_sparql_query(SPARQLQuery &req) {
         // encode the lineage of the query (server & thread)
-        if (req.id == -1) req.id = coder.get_and_inc_qid();
+        if (req.qid == -1) req.qid = coder.get_and_inc_qid();
 
         logstream(LOG_DEBUG) << "#" << sid << " GPUAgent: " << "[" << sid << "-" << tid << "]"
-                             << " got a req: r.id=" << req.id << ", pid=" << req.pid << ", r.state="
+                             << " got a req: r.qid=" << req.qid << ", pqid=" << req.pqid << ", r.state="
                              << (req.state == SPARQLQuery::SQState::SQ_REPLY ? "REPLY" : "REQUEST") << LOG_endl;
 
         if (need_parallel(req)) {
@@ -186,16 +186,16 @@ public:
             pthread_spin_lock(&rmap_lock);
             rmap.put_reply(req);
 
-            if (!rmap.is_ready(req.pid)) {
+            if (!rmap.is_ready(req.pqid)) {
                 pthread_spin_unlock(&rmap_lock);
                 return; // not ready (waiting for the rest)
             }
 
             // all sub-queries have done, continue to execute
-            req = rmap.get_merged_reply(req.pid);
+            req = rmap.get_merged_reply(req.pqid);
             pthread_spin_unlock(&rmap_lock);
 
-            send_reply(req, coder.sid_of(req.pid), coder.tid_of(req.pid));
+            send_reply(req, coder.sid_of(req.pqid), coder.tid_of(req.pqid));
             return;
         }
 
@@ -215,13 +215,13 @@ public:
             if (req.done(SPARQLQuery::SQState::SQ_PATTERN)) {
                 // only send back row_num in blind mode
                 req.result.row_num = req.result.get_row_num();
-                send_reply(req, coder.sid_of(req.pid), coder.tid_of(req.pid));
+                send_reply(req, coder.sid_of(req.pqid), coder.tid_of(req.pqid));
                 break;
             }
 
             if (need_fork_join(req)) {
-                logstream(LOG_DEBUG) << "#" << sid << " GPUAgent: fork query r.id=" << req.id << ", r.pid="
-                                     << req.pid << LOG_endl;
+                logstream(LOG_DEBUG) << "#" << sid << " GPUAgent: fork query r.qid=" << req.qid << ", r.pqid="
+                                     << req.pqid << LOG_endl;
                 vector<SPARQLQuery> sub_reqs = gpu_engine->generate_sub_query(req);
                 ASSERT(sub_reqs.size() == global_num_servers);
 
