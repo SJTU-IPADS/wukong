@@ -202,7 +202,6 @@ public:
         // execute_patterns
         while (true) {
             ASSERT(req.dev_type == SPARQLQuery::DeviceType::GPU);
-            ASSERT(req.result.dev_type == SPARQLQuery::DeviceType::GPU);
             ASSERT(req.has_pattern());
 
             if (!req.done(SPARQLQuery::SQState::SQ_PATTERN)) {
