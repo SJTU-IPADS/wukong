@@ -1056,9 +1056,9 @@ private:
     }
 
     // IRI and URI are the same in SPARQL
-    void is_IRI_filter(SPARQLQuery::Filter &filter,
-                       SPARQLQuery::Result &result,
-                       vector<bool> &is_satisfy) {
+    void isIRI_filter(SPARQLQuery::Filter &filter,
+                      SPARQLQuery::Result &result,
+                      vector<bool> &is_satisfy) {
         int col = result.var2col(filter.arg1->valueArg);
 
         string IRI_REF = R"(<([^<>\\"{}|^`\\])*>)";
@@ -1077,9 +1077,9 @@ private:
         }
     }
 
-    void is_literal_filter(SPARQLQuery::Filter &filter,
-                           SPARQLQuery::Result &result,
-                           vector<bool> &is_satisfy) {
+    void isliteral_filter(SPARQLQuery::Filter &filter,
+                          SPARQLQuery::Result &result,
+                          vector<bool> &is_satisfy) {
         int col = result.var2col(filter.arg1->valueArg);
 
         string langtag_pattern_str("@[a-zA-Z]+(-[a-zA-Z0-9]+)*");
@@ -1139,8 +1139,8 @@ private:
     void general_filter(SPARQLQuery::Filter &filter,
                         SPARQLQuery::Result &result,
                         vector<bool> &is_satisfy) {
-        // conditional operator
-        if (filter.type <= 1) {
+        if (filter.type <= SPARQLQuery::Filter::Type::And) {
+            // conditional operator: Or(0), And(1)
             vector<bool> is_satisfy1(result.get_row_num(), true);
             vector<bool> is_satisfy2(result.get_row_num(), true);
             if (filter.type == SPARQLQuery::Filter::Type::And) {
@@ -1152,22 +1152,24 @@ private:
                 for (int i = 0; i < is_satisfy.size(); i ++)
                     is_satisfy[i] = is_satisfy[i] && (is_satisfy1[i] || is_satisfy2[i]);
             }
+        } else if (filter.type <= SPARQLQuery::Filter::Type::GreaterOrEqual) {
+            // relational operator: Equal(2), NotEqual(3), Less(4), LessOrEqual(5),
+            //                      Greater(6), GreaterOrEqual(7)
+            relational_filter(filter, result, is_satisfy);
+        } else if (filter.type == SPARQLQuery::Filter::Type::Builtin_bound) {
+            bound_filter(filter, result, is_satisfy);
+        } else if (filter.type == SPARQLQuery::Filter::Type::Builtin_isiri) {
+            isIRI_filter(filter, result, is_satisfy);
+        } else if (filter.type == SPARQLQuery::Filter::Type::Builtin_isliteral) {
+            isliteral_filter(filter, result, is_satisfy);
+        } else if (filter.type == SPARQLQuery::Filter::Type::Builtin_regex) {
+            regex_filter(filter, result, is_satisfy);
+        } else {
+            ASSERT(false); // unsupport filter type
         }
-        // relational operator
-        else if (filter.type <= 7)
-            return relational_filter(filter, result, is_satisfy);
-        else if (filter.type == SPARQLQuery::Filter::Type::Builtin_bound)
-            return bound_filter(filter, result, is_satisfy);
-        else if (filter.type == SPARQLQuery::Filter::Type::Builtin_isiri)
-            return is_IRI_filter(filter, result, is_satisfy);
-        else if (filter.type == SPARQLQuery::Filter::Type::Builtin_isliteral)
-            return is_literal_filter(filter, result, is_satisfy);
-        else if (filter.type == SPARQLQuery::Filter::Type::Builtin_regex)
-            return regex_filter(filter, result, is_satisfy);
-
     }
 
-    void filter(SPARQLQuery &r) {
+    void execute_filter(SPARQLQuery &r) {
         ASSERT(r.has_filter());
 
         // during filtering, flag of unsatified row will be set to false one by one
@@ -1179,11 +1181,10 @@ private:
         }
 
         vector<sid_t> new_table;
-        for (int row = 0; row < r.result.get_row_num(); row ++) {
-            if (is_satisfy[row]) {
+        for (int row = 0; row < r.result.get_row_num(); row ++)
+            if (is_satisfy[row])
                 r.result.append_row_to(row, new_table);
-            }
-        }
+
         r.result.result_table.swap(new_table);
         r.result.row_num = r.result.get_row_num();
     }
@@ -1431,6 +1432,7 @@ public:
         // encode the lineage of the query (server & thread)
         if (r.qid == -1) r.qid = coder->get_and_inc_qid();
 
+        // 0. query has done
         if (r.state == SPARQLQuery::SQState::SQ_REPLY) {
             pthread_spin_lock(&rmap_lock);
             rmap.put_reply(r);
@@ -1448,7 +1450,8 @@ public:
         // 1. Pattern
         if (r.has_pattern() && !r.done(SPARQLQuery::SQState::SQ_PATTERN)) {
             r.state = SPARQLQuery::SQState::SQ_PATTERN;
-            if (!execute_patterns(r)) return;
+            if (!execute_patterns(r))
+                return;
         }
 
         // 2. Union
@@ -1507,7 +1510,7 @@ public:
         // 4. Filter
         if (r.has_filter()) {
             r.state = SPARQLQuery::SQState::SQ_FILTER;
-            filter(r);
+            execute_filter(r);
         }
 
         // 5. Final
