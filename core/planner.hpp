@@ -74,6 +74,7 @@ vector<int> empty_ptypes_pos;
 
 class Planner {
     // members
+    int tid;
     data_statistic *statistic ;
     vector<ssid_t> triples;
     double min_cost;
@@ -173,7 +174,7 @@ class Planner {
     // get the type of constant using get_edges
     ssid_t get_type(ssid_t constant) {
         uint64_t type_sz = 0;
-        edge_t *res = graph->get_triples(0, constant, TYPE_ID, OUT, type_sz);
+        edge_t *res = graph->get_triples(tid, constant, TYPE_ID, OUT, type_sz);
         if (type_sz == 1) {
             return res[0].val;
         } else if (type_sz > 1) {
@@ -189,14 +190,14 @@ class Planner {
             unordered_set<int> index_composition;
 
             uint64_t psize1 = 0;
-            edge_t *res1 = graph->get_triples(0, constant, PREDICATE_ID, OUT, psize1);
+            edge_t *res1 = graph->get_triples(tid, constant, PREDICATE_ID, OUT, psize1);
             for (uint64_t k = 0; k < psize1; k++) {
                 ssid_t pre = res1[k].val;
                 index_composition.insert(pre);
             }
 
             uint64_t psize2 = 0;
-            edge_t *res2 = graph->get_triples(0, constant, PREDICATE_ID, IN, psize2);
+            edge_t *res2 = graph->get_triples(tid, constant, PREDICATE_ID, IN, psize2);
             for (uint64_t k = 0; k < psize2; k++) {
                 ssid_t pre = res2[k].val;
                 index_composition.insert(-pre);
@@ -1430,7 +1431,7 @@ class Planner {
 public:
     bool test;
     Planner() { }
-    Planner(DGraph *graph): graph(graph) { }
+    Planner(DGraph *graph, int tid): graph(graph), tid(tid) { }
 
     bool generate_for_patterns(vector<SPARQLQuery::Pattern> &patterns, int nvars) {
         //input : patterns
@@ -1577,11 +1578,15 @@ public:
         return success;
     }
 
-    bool generate_plan(SPARQLQuery &r, data_statistic *statistic) {
+    bool generate_plan(SPARQLQuery &r, data_statistic *statistic, bool test = false) {
         this->statistic = statistic;
         this->start_time = timer::get_usec();
         this->mt_factor = min(r.mt_factor, global_mt_threshold);
         return generate_for_group(r.pattern_group, r.result.nvars);
+    }
+
+    bool test_plan_time(SPARQLQuery &r, data_statistic *statistic){
+    	generate_plan(r, statistic, true);
     }
 
     void set_ptypes_pos(vector<int> &ptypes_pos, const string &dir, int current_order, int raw_order){
