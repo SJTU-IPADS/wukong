@@ -362,7 +362,7 @@ public:
 
             backend.generate_sub_query(req, start, global_num_servers, buf_ptrs, buf_sizes);
 
-            logstream(LOG_DEBUG) << "#" << sid << " generate_sub_query for req#" << req.qid << ", parent: " << req.pid
+            logstream(LOG_DEBUG) << "#" << sid << " generate_sub_query for req#" << req.qid << ", parent: " << req.pqid
                                  << ", step: " << req.pattern_step << LOG_endl;
 
             for (int i = 0; i < global_num_servers; ++i) {
