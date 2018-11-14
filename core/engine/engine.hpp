@@ -182,10 +182,11 @@ public:
                 }
             }
 
-            // if work stealing is enabled
-            // FIXME: only steal SPARQL queries from runqueue,
-            //        steal adaptor as well will significantly improve stealing effect
-            //        the problem is, what if a work stealed from adaptor is not SPARQL query ?
+            /// do work-obliger
+            // FIXME: Currently, we only steal SPARQL queries from the neighboring runqueues,
+            //        If we could steal jobs from adaptor, it will significantly improve the effect
+            //        Howeverm, we could not know the type of jobs in advance, and our work-obliger
+            //        mechanism only works well with SPARQL queries.
             if (global_enable_workstealing) {
                 bool success;
                 int offset = 1;
@@ -208,6 +209,7 @@ public:
                     }
                 } while (success);
             }
+
 
             if (at_work) continue; // keep calm (no snooze)
 

@@ -60,7 +60,7 @@ public:
         r.check_ret = graph->gstore_check(r.index_check, r.normal_check);
 
         Bundle bundle(r);
-        msgr->send_msg(bundle, coder->sid_of(r.pid), coder->tid_of(r.pid));
+        msgr->send_msg(bundle, coder->sid_of(r.pqid), coder->tid_of(r.pqid));
     }
 
 #ifdef DYNAMIC_GSTORE
@@ -74,7 +74,7 @@ public:
         bind_to_core(mask);
 
         Bundle bundle(r);
-        msgr->send_msg(bundle, coder->sid_of(r.pid), coder->tid_of(r.pid));
+        msgr->send_msg(bundle, coder->sid_of(r.pqid), coder->tid_of(r.pqid));
     }
 #endif
 
