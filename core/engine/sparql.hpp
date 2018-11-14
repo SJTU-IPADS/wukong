@@ -971,6 +971,69 @@ private:
         return true;
     }
 
+    bool execute_patterns(SPARQLQuery &r) {
+        logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "]"
+                             << " qid=" << r.qid << " pqid=" << r.pqid << LOG_endl;
+
+        if (r.pattern_step == 0
+                && r.pattern_group.parallel == false
+                && r.start_from_index()
+                && (global_num_servers * r.mt_factor > 1)) {
+            // The mt_factor can be set on proxy side before sending to engine,
+            // but must smaller than global_mt_threshold (Default: mt_factor == 1)
+            // Normally, we will NOT let global_mt_threshold == #engines, which will cause HANG
+            int sub_reqs_size = global_num_servers * r.mt_factor;
+            rmap.put_parent_request(r, sub_reqs_size);
+            SPARQLQuery sub_query = r;
+            for (int i = 0; i < global_num_servers; i++) {
+                for (int j = 0; j < r.mt_factor; j++) {
+                    sub_query.qid = -1;
+                    sub_query.pqid = r.qid;
+                    // start from the next engine thread
+                    int dst_tid = (tid + j + 1 - global_num_proxies) % global_num_engines
+                                  + global_num_proxies;
+                    sub_query.tid = j;
+                    sub_query.mt_factor = r.mt_factor;
+                    sub_query.pattern_group.parallel = true;
+
+                    Bundle bundle(sub_query);
+                    msgr->send_msg(bundle, i, dst_tid);
+                }
+            }
+
+            return false; //
+        }
+
+        do {
+            execute_one_pattern(r);
+
+            // co-run optimization
+            if (r.corun_enabled && (r.pattern_step == r.corun_step))
+                do_corun(r);
+
+            if (r.done(SPARQLQuery::SQState::SQ_PATTERN)) {
+                // only send back row_num in blind mode
+                r.result.row_num = r.result.get_row_num();
+                return true;
+            }
+
+            if (need_fork_join(r)) {
+                vector<SPARQLQuery> sub_reqs = generate_sub_query(r);
+                rmap.put_parent_request(r, sub_reqs.size());
+                for (int i = 0; i < sub_reqs.size(); i++) {
+                    if (i != sid) {
+                        Bundle bundle(sub_reqs[i]);
+                        msgr->send_msg(bundle, i, tid);
+                    } else {
+                        prior_stage.push(sub_reqs[i]);
+                    }
+                }
+                return false;
+            }
+        } while (true);
+    }
+
+
     // relational operator: < <= > >= == !=
     void relational_filter(SPARQLQuery::Filter &filter,
                            SPARQLQuery::Result &result,
@@ -1353,68 +1416,6 @@ out:
         }
         r.result.attr_res_table.swap(new_attr_result_table);
         r.result.attr_col_num = new_attr_col_num;
-    }
-
-    bool execute_patterns(SPARQLQuery &r) {
-        logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "]"
-                             << " qid=" << r.qid << " pqid=" << r.pqid << LOG_endl;
-
-        if (r.pattern_step == 0
-                && r.pattern_group.parallel == false
-                && r.start_from_index()
-                && (global_num_servers * r.mt_factor > 1)) {
-            // The mt_factor can be set on proxy side before sending to engine,
-            // but must smaller than global_mt_threshold (Default: mt_factor == 1)
-            // Normally, we will NOT let global_mt_threshold == #engines, which will cause HANG
-            int sub_reqs_size = global_num_servers * r.mt_factor;
-            rmap.put_parent_request(r, sub_reqs_size);
-            SPARQLQuery sub_query = r;
-            for (int i = 0; i < global_num_servers; i++) {
-                for (int j = 0; j < r.mt_factor; j++) {
-                    sub_query.qid = -1;
-                    sub_query.pqid = r.qid;
-                    // start from the next engine thread
-                    int dst_tid = (tid + j + 1 - global_num_proxies) % global_num_engines
-                                  + global_num_proxies;
-                    sub_query.tid = j;
-                    sub_query.mt_factor = r.mt_factor;
-                    sub_query.pattern_group.parallel = true;
-
-                    Bundle bundle(sub_query);
-                    msgr->send_msg(bundle, i, dst_tid);
-                }
-            }
-
-            return false;
-        }
-
-        do {
-            execute_one_pattern(r);
-
-            // co-run optimization
-            if (r.corun_enabled && (r.pattern_step == r.corun_step))
-                do_corun(r);
-
-            if (r.done(SPARQLQuery::SQState::SQ_PATTERN)) {
-                // only send back row_num in blind mode
-                r.result.row_num = r.result.get_row_num();
-                return true;
-            }
-
-            if (need_fork_join(r)) {
-                vector<SPARQLQuery> sub_reqs = generate_sub_query(r);
-                rmap.put_parent_request(r, sub_reqs.size());
-                for (int i = 0; i < sub_reqs.size(); i++) {
-                    if (i != sid) {
-                        Bundle bundle(sub_reqs[i]);
-                        msgr->send_msg(bundle, i, tid);
-                    } else {
-                        prior_stage.push(sub_reqs[i]);
-                    }
-                }
-                return false;
-            }
-        } while (true);
     }
 
 public:
