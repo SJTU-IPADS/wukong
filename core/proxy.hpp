@@ -189,7 +189,7 @@ public:
     Proxy(int sid, int tid, String_Server *str_server, DGraph * graph,
           Adaptor *adaptor, data_statistic *statistic)
         : sid(sid), tid(tid), str_server(str_server), adaptor(adaptor),
-          coder(sid, tid), parser(str_server), statistic(statistic), planner(graph) { }
+          coder(sid, tid), parser(str_server), statistic(statistic), planner(graph, tid) { }
 
     void setpid(SPARQLQuery &r) { r.pid = coder.get_and_inc_qid(); }
 
@@ -323,13 +323,11 @@ public:
         if (global_enable_planner) {
             start = timer::get_usec();
             for (int i = 0; i < nopts; i ++) {
-                planner.test = true;
-                planner.generate_plan(request, statistic);
+                planner.test_plan_time(request, statistic);
             }
             end = timer::get_usec();
             logstream(LOG_INFO) << "Optimization time: " << (end - start) / nopts << " usec" << LOG_endl;
 
-            planner.test = false;
             // A shortcut for contradictory queries (e.g., empty result)
             if (planner.generate_plan(request, statistic) == false) {
                 logstream(LOG_INFO) << "Query has no bindings, no need to execute it." << LOG_endl;
@@ -405,10 +403,16 @@ public:
 
         // read query-plan config file
         vector<string> fmt_file_names;
-        if (fmt_stream.good()) {
-            fmt_file_names.resize(ntypes);
-            for (int i = 0; i < ntypes; i ++)
-                fmt_stream >> fmt_file_names[i];
+        if (!global_enable_planner) {
+            if (fmt_stream.good()) {
+                fmt_file_names.resize(ntypes);
+                for (int i = 0; i < ntypes; i ++)
+                    fmt_stream >> fmt_file_names[i];
+            }
+            else {
+                logstream(LOG_ERROR) << "Fail to read fmt config file! " << LOG_endl;
+                return -2;
+            }
         }
 
         vector<SPARQLQuery_Template> tpls(nlights);
