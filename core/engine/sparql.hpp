@@ -697,7 +697,7 @@ private:
         if (!global_use_rdma) return true;
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ASSERT(req.result.variable_type(pattern.subject) == known_var);
+        ASSERT(req.result.var_stat(pattern.subject) == known_var);
         ssid_t start = pattern.subject;
         return ((req.local_var != start) // next hop is not local
                 && (req.result.get_row_num() >= global_rdma_threshold)); // FIXME: not consider dedup
@@ -814,13 +814,6 @@ private:
             t4 = timer::get_usec();
         }
 
-        if (sid == 0 && tid == 0) {
-            logstream(LOG_DEBUG) << "Prepare " << (t1 - t0) << " us" << LOG_endl;
-            logstream(LOG_DEBUG) << "Execute sub-request " << (t2 - t1) << " us" << LOG_endl;
-            logstream(LOG_DEBUG) << "Sort " << (t3 - t2) << " us" << LOG_endl;
-            logstream(LOG_DEBUG) << "Lookup " << (t4 - t3) << " us" << LOG_endl;
-        }
-
         req_result.result_table.swap(updated_result_table);
         req.pattern_step = fetch_step;
     }
@@ -846,7 +839,7 @@ private:
         }
 
         // triple pattern with UNKNOWN predicate/attribute
-        if (req.result.variable_type(predicate) != const_var) {
+        if (req.result.var_stat(predicate) != const_var) {
 #ifdef VERSATILE
             /// Now unsupported UNKNOWN predicate with vertex attribute enabling.
             /// When doing the query, we judge request of vertex attribute by its predicate.
@@ -856,8 +849,8 @@ private:
                 logstream(LOG_ERROR) << "Please turn off the vertex attribute enabling." << LOG_endl;
                 ASSERT(false);
             }
-            switch (const_pair(req.result.variable_type(start),
-                               req.result.variable_type(end))) {
+            switch (const_pair(req.result.var_stat(start),
+                               req.result.var_stat(end))) {
 
             // start from CONST
             case const_pair(const_var, unknown_var):
@@ -892,8 +885,8 @@ private:
 
             default:
                 logstream(LOG_ERROR) << "Unsupported triple pattern (UNKNOWN predicate) "
-                                     << "(" << req.result.variable_type(start)
-                                     << "|" << req.result.variable_type(end)
+                                     << "(" << req.result.var_stat(start)
+                                     << "|" << req.result.var_stat(end)
                                      << ")." << LOG_endl;
                 ASSERT(false);
             }
@@ -908,8 +901,8 @@ private:
 
         // triple pattern with attribute
         if (global_enable_vattr && req.get_pattern(req.pattern_step).pred_type > 0) {
-            switch (const_pair(req.result.variable_type(start),
-                               req.result.variable_type(end))) {
+            switch (const_pair(req.result.var_stat(start),
+                               req.result.var_stat(end))) {
             // now support const_to_unknown_attr and known_to_unknown_attr
             case const_pair(const_var, unknown_var):
                 const_to_unknown_attr(req);
@@ -919,8 +912,8 @@ private:
                 break;
             default:
                 logstream(LOG_ERROR) << "Unsupported triple pattern with attribute "
-                                     << "(" << req.result.variable_type(start)
-                                     << "|" << req.result.variable_type(end)
+                                     << "(" << req.result.var_stat(start)
+                                     << "|" << req.result.var_stat(end)
                                      << ")" << LOG_endl;
                 ASSERT(false);
             }
@@ -928,8 +921,8 @@ private:
         }
 
         // triple pattern with KNOWN predicate
-        switch (const_pair(req.result.variable_type(start),
-                           req.result.variable_type(end))) {
+        switch (const_pair(req.result.var_stat(start),
+                           req.result.var_stat(end))) {
 
         // start from CONST
         case const_pair(const_var, const_var):
@@ -962,8 +955,8 @@ private:
 
         default:
             logstream(LOG_ERROR) << "Unsupported triple pattern with known predicate "
-                                 << "(" << req.result.variable_type(start)
-                                 << "|" << req.result.variable_type(end)
+                                 << "(" << req.result.var_stat(start)
+                                 << "|" << req.result.var_stat(end)
                                  << ")" << LOG_endl;
             ASSERT(false);
         }
@@ -1013,6 +1006,7 @@ private:
                              << ", step=" << r.pattern_step << ")" << LOG_endl;
         do {
             execute_one_pattern(r);
+            logstream(LOG_DEBUG) << "#rows = " << r.result.get_row_num() << LOG_endl;;
 
             // co-run optimization
             if (r.corun_enabled && (r.pattern_step == r.corun_step))
@@ -1389,11 +1383,10 @@ out:
         vector<ssid_t> attr_var;
         for (int i = 0; i < r.result.required_vars.size(); i++) {
             ssid_t vid = r.result.required_vars[i];
-            if (r.result.is_attr_col(vid)) {
-                attr_var.push_back(vid);
-            } else {
-                normal_var.push_back(vid);
-            }
+            if (r.result.var_type(vid) == ENTITY)
+                normal_var.push_back(vid); // entity
+            else
+                attr_var.push_back(vid); // attributed
         }
 
         int new_row_num = r.result.get_row_num();
