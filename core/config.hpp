@@ -260,11 +260,11 @@ void print_config(void)
 #ifdef USE_GPU
     logstream(LOG_INFO) << "global_num_gpus: "              << global_num_gpus              << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_rdma_buf_size_mb: "  << global_gpu_rdma_buf_size_mb  << LOG_endl;
-    logstream(LOG_INFO) << "global_gpu_rbuf_size_mb: "      << global_gpu_rbuf_size_mb  << LOG_endl;
-    logstream(LOG_INFO) << "global_gpu_kvcache_size_gb: "   << global_gpu_kvcache_size_gb  << LOG_endl;
-    logstream(LOG_INFO) << "global_gpu_key_blk_size_mb: "   << global_gpu_key_blk_size_mb  << LOG_endl;
-    logstream(LOG_INFO) << "global_gpu_value_blk_size_mb: " << global_gpu_value_blk_size_mb  << LOG_endl;
-    logstream(LOG_INFO) << "global_gpu_enable_pipeline: "   << global_gpu_enable_pipeline  << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_rbuf_size_mb: "      << global_gpu_rbuf_size_mb      << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_kvcache_size_gb: "   << global_gpu_kvcache_size_gb   << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_key_blk_size_mb: "   << global_gpu_key_blk_size_mb   << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_value_blk_size_mb: " << global_gpu_value_blk_size_mb << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_enable_pipeline: "   << global_gpu_enable_pipeline   << LOG_endl;
 #endif
     logstream(LOG_INFO) << "--" << LOG_endl;
 
