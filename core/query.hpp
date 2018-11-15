@@ -45,14 +45,18 @@ using namespace boost::archive;
 // defined as constexpr due to switch-case
 constexpr int const_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
-enum var_type { known_var = 0, unknown_var, const_var };
+enum vstat { known_var = 0, unknown_var, const_var }; // variable stat
 
 // EXT = [ TYPE:16 | COL:16 ]
-// EXT combine message about the col of attr_res_table and the col of result_table
-// TYPE = 0 means  result_table, 1 means  attr_res_table
-#define NBITS_COL  16
+#define NBITS_TYPE 16   // column type
+#define NBITS_COL  16   // column number
+
+// ENTITY (0): result_table; ATTRIBUTE (1): attr_res_table
+enum vtype { ENTITY = 0, ATTRIBUTE };
+
 // Init COL value with NO_RESULT
 #define NO_RESULT  ((1 << NBITS_COL) - 1)
+
 
 // conversion between col and ext
 int col2ext(int col, int t) { return ((t << NBITS_COL) | col); }
@@ -95,7 +99,8 @@ public:
         ssid_t predicate;
         ssid_t object;
         dir_t  direction;
-        char  pred_type;
+
+        char  pred_type = 0;
 
         Pattern() { }
 
@@ -266,10 +271,10 @@ public:
 
         vector<sid_t> result_table; // result table for string IDs
         vector<attr_t> attr_res_table; // result table for others
-
+        GPUState gpu;
 
         // OPTIONAL
-        vector<bool> optional_matched_rows; // mark which rows are matched in optional block
+        vector<bool> optional_matched_rows; // rows matched in optional block
 
         void clear() {
             result_table.clear();
@@ -277,12 +282,7 @@ public:
             required_vars.clear();
         }
 
-        /// mapping from Variable ID(var) to column ID
-        /// var <=> idx <=> ext <=> col
-        /// var <=> idx: var is set like -1,-2 e.g. idx is the index number of v2c_map; idx = -(vid + 1)
-        /// idx <=> ext: ext store the col and result tabe type(attr_res_table or result_table); ext = v2c_map[idx]
-        /// ext <=> col: ext2col and col2ext
-        var_type variable_type(ssid_t vid) {
+        vstat var_stat(ssid_t vid) {
             if (vid >= 0)
                 return const_var;
             else if (var2col(vid) == NO_RESULT)
@@ -291,15 +291,25 @@ public:
                 return known_var;
         }
 
+        /// mapping from variable ID (var) to column ID (col)
+        /// var <=> idx <=> ext <=> col
+        /// var <=> idx: var is set as -1,-2,...; idx (the index number of v2c_map) = - (vid + 1)
+        /// idx <=> ext: ext store the col and type (attr_res_table or result_table); ext = v2c_map[idx]
+        /// ext <=> col: ext2col and col2ext
+
         // get column id from vid (pattern variable)
         int var2col(ssid_t vid) {
+            // number variables from -1 and decrease by 1 for each of rest. (i.e., -1, -2, ...)
             ASSERT(vid < 0);
-            if (v2c_map.size() == 0) // init
-                v2c_map.resize(nvars, NO_RESULT);
 
-            //get idx
+            // the number of variables is known before calling var2col()
+            ASSERT(nvars > 0);
+            if (v2c_map.size() == 0)
+                v2c_map.resize(nvars, NO_RESULT); // init
+
+            // calculate idx
             int idx = - (vid + 1);
-            ASSERT(idx < nvars);
+            ASSERT(idx < nvars && idx >= 0);
 
             // get col
             return ext2col(v2c_map[idx]);
@@ -307,35 +317,40 @@ public:
 
         // add column id to vid (pattern variable)
         void add_var2col(ssid_t vid, int col, int t = SID_t) {
+            // number variables from -1 and decrease by 1 for each of rest. (i.e., -1, -2, ...)
             ASSERT(vid < 0 && col >= 0);
-            if (v2c_map.size() == 0) // init
-                v2c_map.resize(nvars, NO_RESULT);
-            // get index
+
+            // the number of variables is known before calling var2col()
+            ASSERT(nvars > 0);
+            if (v2c_map.size() == 0)
+                v2c_map.resize(nvars, NO_RESULT); // init
+
+            // calculate idx
             int idx = - (vid + 1);
-            ASSERT(idx < nvars);
-            // col should not be set
+            ASSERT(idx < nvars && idx >= 0);
+
+            // variable should not be set
             ASSERT(v2c_map[idx] == NO_RESULT);
-            // set ext
             v2c_map[idx] = col2ext(col, t);
         }
 
         // judge the column id belong to attribute result table or not
 
-        bool is_attr_col(ssid_t vid) {
+        vtype var_type(ssid_t vid) {
+            // number variables from -1 and decrease by 1 for each of rest. (i.e., -1, -2, ...)
             ASSERT(vid < 0);
+
+            // the number of variables is known before calling var2col()
+            ASSERT(nvars > 0);
             if (v2c_map.size() == 0) // init
                 v2c_map.resize(nvars, NO_RESULT);
 
-            //get idx
+            // calculate idx
             int idx = - (vid + 1);
             ASSERT(idx < nvars);
 
             // get type
-            int type = ext2type(v2c_map[idx]);
-            if (type == 0)
-                return false;
-            else
-                return true;
+            return (vtype)ext2type(v2c_map[idx]);
         }
 
         // TODO unused set get
@@ -463,8 +478,6 @@ public:
                                             result.attr_res_table.end());
             }
         }
-
-        GPUState gpu;
 
         bool gpu_result_buf_empty() {
             return gpu.result_buf_nelems == 0;
@@ -679,7 +692,7 @@ public:
                 else    // index_to_unknown
                     const_to_unknown_patterns.push_back(pattern);
             } else {
-                switch (const_pair(r.variable_type(start), r.variable_type(end))) {
+                switch (const_pair(r.var_stat(start), r.var_stat(end))) {
                 case const_pair(const_var, known_var):
                 case const_pair(known_var, const_var):
                 case const_pair(known_var, known_var):

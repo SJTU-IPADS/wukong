@@ -215,7 +215,7 @@ private:
         if (!global_use_rdma) return true;
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ASSERT(req.result.variable_type(pattern.subject) == known_var);
+        ASSERT(req.result.var_stat(pattern.subject) == known_var);
         sid_t start = req.get_pattern().subject;
 
         // GPUEngine only supports fork-join mode now
@@ -269,7 +269,7 @@ public:
         }
 
         // triple pattern with UNKNOWN predicate/attribute
-        if (req.result.variable_type(predicate) != const_var) {
+        if (req.result.var_stat(predicate) != const_var) {
             logstream(LOG_ERROR) << "Unsupported variable at predicate." << LOG_endl;
             logstream(LOG_ERROR) << "Please add definition VERSATILE in CMakeLists.txt." << LOG_endl;
             ASSERT(false);
@@ -281,8 +281,8 @@ public:
         }
 
         // triple pattern with KNOWN predicate
-        switch (const_pair(req.result.variable_type(start),
-                           req.result.variable_type(end))) {
+        switch (const_pair(req.result.var_stat(start),
+                           req.result.var_stat(end))) {
 
         // start from CONST
         case const_pair(const_var, const_var):
@@ -316,8 +316,8 @@ public:
 
         default:
             logstream(LOG_ERROR) << "Unsupported triple pattern with known predicate "
-                                 << "(" << req.result.variable_type(start)
-                                 << "|" << req.result.variable_type(end)
+                                 << "(" << req.result.var_stat(start)
+                                 << "|" << req.result.var_stat(end)
                                  << ")" << LOG_endl;
             ASSERT(false);
         }
