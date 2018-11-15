@@ -32,6 +32,29 @@
 
 using namespace std;
 
+/**
+ * Segment-based GStore
+ *
+ * Segments
+ * #total: #normal pred(TYPE_ID not included) * 2(IN/OUT)
+ *       + 1(TYPE_ID|OUT)
+ *       + 1(index OUT, including predicate index OUT, all local types* and preds*)
+ *       + 1(index IN, including predicate index IN, type index and all local entities*)
+ *       + 2(vid's all predicates* IN/OUT)
+ *       + #attr pred
+ *
+ * description              key                         segid                   num
+ * 1. normal segments       [vid|pid|IN/OUT]            [0|pid|IN/OUT]          2 * #normal pred
+ * 2. vid's all types       [vid|TYPE_ID|OUT]           [0|TYPE_ID|OUT]         1
+ * 3. predicate index OUT   [0|pid|OUT]
+ *    p_set*                [0|PREDICATE_ID|OUT]
+ *    t_set*                [0|TYPEID|OUT]              [1|PREDICATE_ID|OUT]    1
+ * 4. predicate index IN    [0|pid|IN]
+ *    type index            [0|typeid|IN]
+ *    v_set*                [0|TYPE_ID|IN]              [0|PREDICATE_ID|IN]     1
+ * 5*. vid's all predicates [vid|PREDICATE_ID|IN/OUT]   [0|PREDICATE_ID|IN/OUT] 2
+ * 6^. attr segments        [vid|pid|OUT]               [0|pid|OUT]             #attr pred
+ */
 class StaticGStore : public GStore {
 private:
     struct cnt_t {
@@ -48,43 +71,58 @@ private:
         atomic<uint64_t> in, out;
     };
 
-    // all local normal predicate IDs
-    vector<sid_t> all_local_preds;
+    typedef tbb::concurrent_unordered_set<sid_t> tbb_unordered_set;
 
-    /**
-     * metadata of local segments (will be used on GPU)
-     * #total: 2*|normal pred| + 1 + 2 + 1 + 1 + 1 + 1 + 2
-     * description              key                         segid                   num
-     * 1. normal segments       [vid|pid|IN/OUT]            [0|pid|IN/OUT]          2*|normal pred|
-     * 2. vid's all types       [vid|TYPE_ID|OUT]           [0|TYPE_ID|OUT]         1
-     * 3. predicate index OUT   [0|pid|OUT]                 [1|PREDICATE_ID|OUT]    1
-     * 4. predicate index IN
-     *    type index            [0|pid/typeid|IN]           [0|PREDICATE_ID|IN]     1
-     * 5*. vid's all predicates [vid|PREDICATE_ID|IN/OUT]   [0|PREDICATE_ID|IN/OUT] 2
-     */
     // multiple engines will access shared_rdf_segment_meta_map
     // key: server id, value: segment metadata of the server
     tbb::concurrent_unordered_map <int, map<segid_t, rdf_segment_meta_t> > shared_rdf_segment_meta_map;
     std::map<segid_t, rdf_segment_meta_t> rdf_segment_meta_map;
 
-    typedef tbb::concurrent_unordered_set<sid_t> tbb_unordered_set;
+    // id of all local normal preds, free after gstore init
+    vector<sid_t> all_local_preds;
+
+    // id of all local attr preds, free after gstore init
     tbb_unordered_set attr_set;
+
+    /**
+     * key: id of attr preds, value: type(SID_t, INT_t, FLOAT_t, DOUBLE_t)
+     * free after gstore init
+     */
     tbb::concurrent_unordered_map<sid_t, int> attr_type_map;
+
+    // triples grouped by (predicate, direction), free after gstore init
+    typedef tbb::concurrent_hash_map<ikey_t, vector<triple_t>, ikey_Hasher> tbb_triple_hash_map;
+    tbb_triple_hash_map triples_map;
+
+    // attr triples grouped by (attr pred, direction), free after gstore init
+    typedef tbb::concurrent_hash_map<ikey_t, vector<triple_attr_t>, ikey_Hasher> tbb_triple_attr_hash_map;
+    tbb_triple_attr_hash_map attr_triples_map;
+
+    // used to alloc edges
+    uint64_t last_entry;
+    pthread_spinlock_t entry_lock;
+
+    //used to alloc buckets
+    uint64_t main_hdr_off = 0;
+
 #ifdef VERSATILE
     /**
-     * local sets will be freed after inserting into edges
-     * description                key
-     * 1*. all local entities     [0|TYPE_ID|IN]
-     * 2*. all local types        [0|TYPE_ID|OUT]
-     * 3*. all local predicates   [0|PREDICATE_ID|OUT]
+     * These sets and maps will be freed after being inserted into edges
+     * description                     key
+     * 1*. v_set, all local entities   [0|TYPE_ID|IN]
+     * 2*. t_set, all local types      [0|TYPE_ID|OUT]
+     * 3*. p_set, all local predicates [0|PREDICATE_ID|OUT]
+     * 4*. out_preds, vid's OUT preds  [vid|PREDICATE_ID|OUT]
+     * 5*. in_preds, vid's IN preds    [vid|PREDICATE_ID|IN]
      */
-    tbb_unordered_set t_set;    // all local types
-    tbb_unordered_set v_set;    // all local entities(subjects & objects)
-    tbb_unordered_set p_set;    // all local predicates
-    tbb::concurrent_unordered_map<sid_t, std::unordered_set<sid_t> > out_preds;  // vid's out predicates
-    tbb::concurrent_unordered_map<sid_t, std::unordered_set<sid_t> > in_preds;   // vid's in predicates
+    tbb_unordered_set v_set;
+    tbb_unordered_set t_set;
+    tbb_unordered_set p_set;
+    tbb::concurrent_unordered_map<sid_t, std::unordered_set<sid_t> > out_preds;
+    tbb::concurrent_unordered_map<sid_t, std::unordered_set<sid_t> > in_preds;
 
-    void insert_idx_set(tbb_unordered_set &set, uint64_t &off, sid_t pid, dir_t d) {
+    // insert {v/t/p}_set into gstore
+    void insert_idx_set(const tbb_unordered_set &set, uint64_t &off, sid_t pid, dir_t d) {
         uint64_t sz = set.size();
 
         ikey_t key = ikey_t(0, pid, d);
@@ -96,6 +134,7 @@ private:
             edges[off++].val = e;
     }
 
+    // insert vid's preds into gstore
     void insert_preds(sid_t vid, const unordered_set<sid_t> &preds, dir_t d) {
         uint64_t sz = preds.size();
         auto &seg = rdf_segment_meta_map[segid_t(0, PREDICATE_ID, d)];
@@ -111,19 +150,6 @@ private:
             edges[off++].val = e;
     }
 #endif // VERSATILE
-
-    typedef tbb::concurrent_hash_map<ikey_t, vector<triple_t>, ikey_Hasher> tbb_triple_hash_map;
-    // triples grouped by (predicate, direction)
-    tbb_triple_hash_map triples_map;
-
-    typedef tbb::concurrent_hash_map<ikey_t, vector<triple_attr_t>, ikey_Hasher> tbb_triple_attr_hash_map;
-    // triples grouped by (predicate, direction)
-    tbb_triple_attr_hash_map attr_triples_map;
-
-    uint64_t last_entry;
-    pthread_spinlock_t entry_lock;
-
-    uint64_t main_hdr_off = 0;
 
     // get bucket_id according to key
     uint64_t bucket_local(ikey_t key) {
@@ -292,6 +318,11 @@ done:
         }
     }
 
+    void sync_metadata(TCP_Adaptor *tcp_ad) {
+        send_segment_meta(tcp_ad);
+        recv_segment_meta(tcp_ad);
+    }
+
     void collect_index_info(uint64_t slot_id) {
         sid_t vid = vertices[slot_id].key.vid;
         sid_t pid = vertices[slot_id].key.pid;
@@ -324,6 +355,10 @@ done:
         }
     }
 
+    /**
+     * insert {predicate index OUT, t_set*, p_set*}
+     * or {predicate index IN, type index, v_set*}
+     */
     void insert_idx(tbb_hash_map *pidx_map, tbb_hash_map *tidx_map, dir_t d) {
         tbb_hash_map::const_accessor ca;
         rdf_segment_meta_t &segment = rdf_segment_meta_map[segid_t(1, PREDICATE_ID, d)];
@@ -385,11 +420,6 @@ done:
             tbb_unordered_set().swap(p_set);
         }
 #endif // VERSATILE
-    }
-
-    void sync_metadata(TCP_Adaptor *tcp_ad) {
-        send_segment_meta(tcp_ad);
-        recv_segment_meta(tcp_ad);
     }
 
     void alloc_buckets_to_segment(rdf_segment_meta_t &seg, segid_t segid, uint64_t total_num_keys) {
@@ -559,11 +589,10 @@ done:
         bool success = attr_triples_map.find(a, ikey_t(0, aid, (dir_t) dir));
         ASSERT(success);
         vector<triple_attr_t> &asv = a->second;
-        variant_type get_type;
         uint64_t off = segment.edge_start;
         int type = attr_type_map[aid];
         uint64_t sz = (get_sizeof(type) - 1) / sizeof(edge_t) + 1;   // get the ceil size;
-        uint64_t s = 0;
+
         for (auto &attr : asv) {
             // allocate a vertex and edges
             ikey_t key = ikey_t(attr.s, attr.a, OUT);
@@ -612,7 +641,7 @@ done:
                 tbb_triple_hash_map::accessor a;
                 triples_map.insert(a, ikey_t(0, current_pid, OUT));
 
-                for (; pso_vec[i].p == current_pid; i++) {
+                for (; i < pso_vec.size() && pso_vec[i].p == current_pid; i++) {
                     a->second.push_back(pso_vec[i]);
                 }
             }
@@ -623,7 +652,7 @@ done:
                 tbb_triple_hash_map::accessor a;
                 triples_map.insert(a, ikey_t(0, current_pid, IN));
 
-                for (; pos_vec[i].p == current_pid; i++) {
+                for (; i < pos_vec.size() &&  pos_vec[i].p == current_pid; i++) {
                     a->second.push_back(pos_vec[i]);
                 }
             }
@@ -631,21 +660,14 @@ done:
             i = 0;
             while (!sav_vec.empty() && i < sav_vec.size()) {
                 current_pid = sav_vec[i].a;
-                tbb_triple_attr_hash_map::accessor a;
-                attr_triples_map.insert(a, ikey_t(0, current_pid, OUT));
+                tbb_triple_attr_hash_map::accessor ac;
+                attr_triples_map.insert(ac, ikey_t(0, current_pid, OUT));
 
-                for (; sav_vec[i].a == current_pid; i++) {
-                    a->second.push_back(sav_vec[i]);
+                for (; i < sav_vec.size() && sav_vec[i].a == current_pid; i++) {
+                    ac->second.push_back(sav_vec[i]);
                 }
             }
         }
-    }
-
-    void finalize_init() {
-        tbb_triple_hash_map().swap(triples_map);
-        tbb_triple_attr_hash_map().swap(attr_triples_map);
-        tbb_unordered_set().swap(attr_set);
-        tbb::concurrent_unordered_map<sid_t, int>().swap(attr_type_map);
     }
 
     // init metadata for each segment
@@ -895,6 +917,15 @@ done:
                total_num_keys, main_hdr_off, this->last_entry);
     }
 
+    // release memory after gstore init
+    void finalize_init() {
+        vector<sid_t>().swap(all_local_preds);
+        tbb_triple_hash_map().swap(triples_map);
+        tbb_triple_attr_hash_map().swap(attr_triples_map);
+        tbb_unordered_set().swap(attr_set);
+        tbb::concurrent_unordered_map<sid_t, int>().swap(attr_type_map);
+    }
+
 public:
     StaticGStore(int sid, Mem *mem): GStore(sid, mem) {
         pthread_spin_init(&entry_lock, 0);
@@ -930,11 +961,11 @@ public:
         }
 
         vector<sid_t> aids;
-        for (auto iter = attr_set.begin(); iter != attr_set.end(); iter++)
+        for (auto iter = attr_set.begin(); iter != attr_set.end(); iter++) {
             aids.push_back(*iter);
+        }
         #pragma omp parallel for num_threads(global_num_engines)
         for (int i = 0; i < aids.size(); i++) {
-            int localtid = omp_get_thread_num();
             insert_attr_to_segment(segid_t(0, aids[i], OUT));
         }
         vector<sid_t>().swap(aids);
@@ -959,10 +990,14 @@ public:
 #endif // VERSATILE
         #pragma omp parallel for num_threads(2)
         for (int i = 0; i < 2; i++) {
-            if (i == 0)
+            if (i == 0) {
                 insert_idx(&pidx_in_map, &tidx_map, IN);
-            else
+                tbb_hash_map().swap(pidx_in_map);
+                tbb_hash_map().swap(tidx_map);
+            } else {
                 insert_idx(&pidx_out_map, nullptr, OUT);
+                tbb_hash_map().swap(pidx_out_map);
+            }
         }
         end = timer::get_usec();
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "

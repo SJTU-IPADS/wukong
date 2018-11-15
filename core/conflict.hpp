@@ -28,11 +28,11 @@
 static void conflict_detector(void)
 {
 
-#if defined(USE_GPU) and defined(VERSATILE)
-    logstream(LOG_ERROR) << "Currently, USE_GPU cannot work with VERSATILE. "
-                         << "Please disable USE_GPU or VERSATILE, and then rebuild Wukong."
-                         << LOG_endl;
-    exit(-1);
-#endif
+// #if defined(USE_GPU) and defined(VERSATILE)
+//     logstream(LOG_ERROR) << "Currently, USE_GPU cannot work with VERSATILE. "
+//                          << "Please disable USE_GPU or VERSATILE, and then rebuild Wukong."
+//                          << LOG_endl;
+//     exit(-1);
+// #endif
 
 }
