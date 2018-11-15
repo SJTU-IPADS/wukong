@@ -64,8 +64,8 @@ The configuration items related to GPU support are:
 * `global_gpu_rdma_buf_size_mb`: set the size (MB) of buffer for one-sided RDMA operations
 * `global_gpu_rbuf_size_mb`: set the size (MB) of result buffer in GPU memory for query processing
 * `global_gpu_kvcache_size_gb`: set the size (GB) of key-value cache in GPU memory
-* `global_key_blk_size_mb`: set the size (MB) of key block in key-value cache
-* `global_val_blk_size_mb`: set the size (MB) of value block in key-value cache
+* `global_gpu_key_blk_size_mb`: set the size (MB) of key block in key-value cache
+* `global_gpu_value_blk_size_mb`: set the size (MB) of value block in key-value cache
 * `global_enable_pipeline`: enable query execution overlaps with memory copy between CPU and GPU
 
 2) Sync Wukong files to machines listed in `mpd.hosts`.

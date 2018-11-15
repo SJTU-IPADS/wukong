@@ -462,8 +462,8 @@ done:
 
     // re-adjust attributes of segments
     void finalize_segment_metas() {
-        uint64_t nbuckets_per_blk = MiB2B(global_key_blk_size_mb) / (sizeof(vertex_t) * ASSOCIATIVITY);
-        uint64_t nentries_per_blk = MiB2B(global_val_blk_size_mb) / sizeof(edge_t);
+        uint64_t nbuckets_per_blk = MiB2B(global_gpu_key_blk_size_mb) / (sizeof(vertex_t) * ASSOCIATIVITY);
+        uint64_t nentries_per_blk = MiB2B(global_gpu_value_blk_size_mb) / sizeof(edge_t);
 
         // set the number of cache blocks needed by each segment
         for (auto &e : rdf_segment_meta_map) {

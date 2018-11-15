@@ -83,10 +83,6 @@ static bool set_immutable_config(string cfg_name, string value)
         ASSERT(global_rdma_rbf_size_mb >= 0);
     } else if (cfg_name == "global_generate_statistics") {
         global_generate_statistics = atoi(value.c_str());
-    } else if (cfg_name == "global_key_blk_size_mb") {
-        global_key_blk_size_mb = atoi(value.c_str());
-    } else if (cfg_name == "global_val_blk_size_mb") {
-        global_val_blk_size_mb = atoi(value.c_str());
 #ifdef USE_GPU
     } else if (cfg_name == "global_num_gpus") {
         global_num_gpus = atoi(value.c_str());
@@ -100,6 +96,10 @@ static bool set_immutable_config(string cfg_name, string value)
         global_gpu_rbuf_size_mb = atoi(value.c_str());
     } else if (cfg_name == "global_gpu_kvcache_size_gb") {
         global_gpu_kvcache_size_gb = atoi(value.c_str());
+    } else if (cfg_name == "global_gpu_key_blk_size_mb") {
+        global_gpu_key_blk_size_mb = atoi(value.c_str());
+    } else if (cfg_name == "global_gpu_value_blk_size_mb") {
+        global_gpu_value_blk_size_mb = atoi(value.c_str());
 #endif // USE_GPU
     } else {
         return false;
@@ -245,8 +245,6 @@ void print_config(void)
     logstream(LOG_INFO) << "global_data_port_base: "        << global_data_port_base        << LOG_endl;
     logstream(LOG_INFO) << "global_ctrl_port_base: "        << global_ctrl_port_base        << LOG_endl;
     logstream(LOG_INFO) << "global_memstore_size_gb: "  << global_memstore_size_gb      << LOG_endl;
-    logstream(LOG_INFO) << "global_key_blk_size_mb: "  << global_key_blk_size_mb  << LOG_endl;
-    logstream(LOG_INFO) << "global_val_blk_size_mb: "  << global_val_blk_size_mb  << LOG_endl;
     logstream(LOG_INFO) << "global_rdma_buf_size_mb: "  << global_rdma_buf_size_mb      << LOG_endl;
     logstream(LOG_INFO) << "global_rdma_rbf_size_mb: "  << global_rdma_rbf_size_mb      << LOG_endl;
     logstream(LOG_INFO) << "global_use_rdma: "          << global_use_rdma              << LOG_endl;
@@ -264,6 +262,8 @@ void print_config(void)
     logstream(LOG_INFO) << "global_gpu_rdma_buf_size_mb: "  << global_gpu_rdma_buf_size_mb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_rbuf_size_mb: "  << global_gpu_rbuf_size_mb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_kvcache_size_gb: "  << global_gpu_kvcache_size_gb  << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_key_blk_size_mb: "  << global_gpu_key_blk_size_mb  << LOG_endl;
+    logstream(LOG_INFO) << "global_gpu_value_blk_size_mb: "  << global_gpu_value_blk_size_mb  << LOG_endl;
     logstream(LOG_INFO) << "global_gpu_enable_pipeline: "  << global_gpu_enable_pipeline  << LOG_endl;
 #endif
     logstream(LOG_INFO) << "--" << LOG_endl;
