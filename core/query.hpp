@@ -82,7 +82,7 @@ public:
     /**
      * Indicating what device will be used to handle the query.
      */
-    enum DeviceType {CPU, GPU};
+    enum DeviceType { CPU, GPU };
 
     enum SubJobType { FULL_JOB, SPLIT_JOB };
 
@@ -178,7 +178,6 @@ public:
         friend class boost::serialization::access;
 
     public:
-        bool parallel = false;
         vector<Pattern> patterns;
         vector<PatternGroup> unions;
         vector<Filter> filters;
@@ -487,7 +486,7 @@ public:
     int qid = -1;   // query id (track engine (sid, tid))
     int pqid = -1;  // parent qid (track the source (proxy or parent query) of query)
 
-    int tid = 0;    // engine thread id (MT)
+    int tid = 0;    // engine thread number (MT)
 
     PGType pg_type = BASIC;
     SQState state = SQ_PATTERN;
@@ -864,7 +863,6 @@ void load(Archive &ar, SPARQLQuery::Pattern &t, unsigned int version) {
 
 template<class Archive>
 void save(Archive &ar, const SPARQLQuery::PatternGroup &t, unsigned int version) {
-    ar << t.parallel;
     ar << t.patterns;
     ar << t.optional_new_vars;  // it should not be put into the "if (t.optional.size() > 0)" block. The PG itself is from optional
     if (t.filters.size() > 0) {
@@ -886,7 +884,6 @@ void save(Archive &ar, const SPARQLQuery::PatternGroup &t, unsigned int version)
 template<class Archive>
 void load(Archive &ar, SPARQLQuery::PatternGroup &t, unsigned int version) {
     char temp = 2;
-    ar >> t.parallel;
     ar >> t.patterns;
     ar >> t.optional_new_vars;
     ar >> temp;
