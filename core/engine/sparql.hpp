@@ -48,7 +48,7 @@
 using namespace std;
 
 
-#define QUERY_FROM_PROXY(tid) ((tid) < global_num_proxies)
+#define QUERY_FROM_PROXY(r) (coder->tid_of((r).pqid) < global_num_proxies)
 
 typedef pair<int64_t, int64_t> int64_pair;
 
@@ -697,7 +697,7 @@ private:
         if (!global_use_rdma) return true;
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ASSERT(req.result.variable_type(pattern.subject) == known_var);
+        ASSERT(req.result.var_stat(pattern.subject) == known_var);
         ssid_t start = pattern.subject;
         return ((req.local_var != start) // next hop is not local
                 && (req.result.get_row_num() >= global_rdma_threshold)); // FIXME: not consider dedup
@@ -814,13 +814,6 @@ private:
             t4 = timer::get_usec();
         }
 
-        if (sid == 0 && tid == 0) {
-            logstream(LOG_DEBUG) << "Prepare " << (t1 - t0) << " us" << LOG_endl;
-            logstream(LOG_DEBUG) << "Execute sub-request " << (t2 - t1) << " us" << LOG_endl;
-            logstream(LOG_DEBUG) << "Sort " << (t3 - t2) << " us" << LOG_endl;
-            logstream(LOG_DEBUG) << "Lookup " << (t4 - t3) << " us" << LOG_endl;
-        }
-
         req_result.result_table.swap(updated_result_table);
         req.pattern_step = fetch_step;
     }
@@ -846,7 +839,7 @@ private:
         }
 
         // triple pattern with UNKNOWN predicate/attribute
-        if (req.result.variable_type(predicate) != const_var) {
+        if (req.result.var_stat(predicate) != const_var) {
 #ifdef VERSATILE
             /// Now unsupported UNKNOWN predicate with vertex attribute enabling.
             /// When doing the query, we judge request of vertex attribute by its predicate.
@@ -856,8 +849,8 @@ private:
                 logstream(LOG_ERROR) << "Please turn off the vertex attribute enabling." << LOG_endl;
                 ASSERT(false);
             }
-            switch (const_pair(req.result.variable_type(start),
-                               req.result.variable_type(end))) {
+            switch (const_pair(req.result.var_stat(start),
+                               req.result.var_stat(end))) {
 
             // start from CONST
             case const_pair(const_var, unknown_var):
@@ -892,8 +885,8 @@ private:
 
             default:
                 logstream(LOG_ERROR) << "Unsupported triple pattern (UNKNOWN predicate) "
-                                     << "(" << req.result.variable_type(start)
-                                     << "|" << req.result.variable_type(end)
+                                     << "(" << req.result.var_stat(start)
+                                     << "|" << req.result.var_stat(end)
                                      << ")." << LOG_endl;
                 ASSERT(false);
             }
@@ -908,8 +901,8 @@ private:
 
         // triple pattern with attribute
         if (global_enable_vattr && req.get_pattern(req.pattern_step).pred_type > 0) {
-            switch (const_pair(req.result.variable_type(start),
-                               req.result.variable_type(end))) {
+            switch (const_pair(req.result.var_stat(start),
+                               req.result.var_stat(end))) {
             // now support const_to_unknown_attr and known_to_unknown_attr
             case const_pair(const_var, unknown_var):
                 const_to_unknown_attr(req);
@@ -919,8 +912,8 @@ private:
                 break;
             default:
                 logstream(LOG_ERROR) << "Unsupported triple pattern with attribute "
-                                     << "(" << req.result.variable_type(start)
-                                     << "|" << req.result.variable_type(end)
+                                     << "(" << req.result.var_stat(start)
+                                     << "|" << req.result.var_stat(end)
                                      << ")" << LOG_endl;
                 ASSERT(false);
             }
@@ -928,8 +921,8 @@ private:
         }
 
         // triple pattern with KNOWN predicate
-        switch (const_pair(req.result.variable_type(start),
-                           req.result.variable_type(end))) {
+        switch (const_pair(req.result.var_stat(start),
+                           req.result.var_stat(end))) {
 
         // start from CONST
         case const_pair(const_var, const_var):
@@ -962,8 +955,8 @@ private:
 
         default:
             logstream(LOG_ERROR) << "Unsupported triple pattern with known predicate "
-                                 << "(" << req.result.variable_type(start)
-                                 << "|" << req.result.variable_type(end)
+                                 << "(" << req.result.var_stat(start)
+                                 << "|" << req.result.var_stat(end)
                                  << ")" << LOG_endl;
             ASSERT(false);
         }
@@ -971,41 +964,49 @@ private:
         return true;
     }
 
-    bool execute_patterns(SPARQLQuery &r) {
-        logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "]"
-                             << " qid=" << r.qid << " pqid=" << r.pqid << LOG_endl;
-
-        if (r.pattern_step == 0
-                && r.pattern_group.parallel == false
-                && r.start_from_index()
-                && (global_num_servers * r.mt_factor > 1)) {
-            // The mt_factor can be set on proxy side before sending to engine,
-            // but must smaller than global_mt_threshold (Default: mt_factor == 1)
+    bool dispatch(SPARQLQuery &r) {
+        if (QUERY_FROM_PROXY(r)
+                && r.pattern_step == 0  // not started
+                && r.start_from_index()  // heavy query (heuristics)
+                && (global_num_servers * r.mt_factor > 1)) {  // multi-resource
+            logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "] dispatch "
+                                 << "Q(qid=" << r.qid << ", pqid=" << r.pqid
+                                 << ", step=" << r.pattern_step << ")" << LOG_endl;
+            // NOTE: the mt_factor can be set on proxy side before sending to engine,
+            // but must smaller than global_mt_threshold (default: mt_factor == 1)
             // Normally, we will NOT let global_mt_threshold == #engines, which will cause HANG
-            int sub_reqs_size = global_num_servers * r.mt_factor;
-            rmap.put_parent_request(r, sub_reqs_size);
+
+            // register rmap for waiting reply
+            rmap.put_parent_request(r, global_num_servers * r.mt_factor);
+
+            // dispatch (sub)requests
             SPARQLQuery sub_query = r;
             for (int i = 0; i < global_num_servers; i++) {
                 for (int j = 0; j < r.mt_factor; j++) {
-                    sub_query.qid = -1;
                     sub_query.pqid = r.qid;
-                    // start from the next engine thread
-                    int dst_tid = (tid + j + 1 - global_num_proxies) % global_num_engines
-                                  + global_num_proxies;
+                    sub_query.qid = -1;
                     sub_query.tid = j;
-                    sub_query.mt_factor = r.mt_factor;
-                    sub_query.pattern_group.parallel = true;
+
+                    // start from the next engine thread
+                    int dst_tid = global_num_proxies
+                                  + (tid + j + 1 - global_num_proxies) % global_num_engines;
 
                     Bundle bundle(sub_query);
                     msgr->send_msg(bundle, i, dst_tid);
                 }
             }
-
-            return false; //
+            return true;
         }
+        return false;
+    }
 
+    bool execute_patterns(SPARQLQuery &r) {
+        logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "] execute patterns of "
+                             << "Q(qid=" << r.qid << ", pqid=" << r.pqid
+                             << ", step=" << r.pattern_step << ")" << LOG_endl;
         do {
             execute_one_pattern(r);
+            logstream(LOG_DEBUG) << "#rows = " << r.result.get_row_num() << LOG_endl;;
 
             // co-run optimization
             if (r.corun_enabled && (r.pattern_step == r.corun_step))
@@ -1034,7 +1035,7 @@ private:
     }
 
 
-    // relational operator: < <= > >= == !=
+// relational operator: < <= > >= == !=
     void relational_filter(SPARQLQuery::Filter &filter,
                            SPARQLQuery::Result &result,
                            vector<bool> &is_satisfy) {
@@ -1118,7 +1119,7 @@ private:
         }
     }
 
-    // IRI and URI are the same in SPARQL
+// IRI and URI are the same in SPARQL
     void isIRI_filter(SPARQLQuery::Filter &filter,
                       SPARQLQuery::Result &result,
                       vector<bool> &is_satisfy) {
@@ -1171,7 +1172,7 @@ private:
         }
     }
 
-    // regex flag only support "i" option now
+// regex flag only support "i" option now
     void regex_filter(SPARQLQuery::Filter &filter,
                       SPARQLQuery::Result &result,
                       vector<bool> &is_satisfy) {
@@ -1382,11 +1383,10 @@ out:
         vector<ssid_t> attr_var;
         for (int i = 0; i < r.result.required_vars.size(); i++) {
             ssid_t vid = r.result.required_vars[i];
-            if (r.result.is_attr_col(vid)) {
-                attr_var.push_back(vid);
-            } else {
-                normal_var.push_back(vid);
-            }
+            if (r.result.var_type(vid) == ENTITY)
+                normal_var.push_back(vid); // entity
+            else
+                attr_var.push_back(vid); // attributed
         }
 
         int new_row_num = r.result.get_row_num();
@@ -1451,8 +1451,13 @@ public:
         // 1. Pattern
         if (r.has_pattern() && !r.done(SPARQLQuery::SQState::SQ_PATTERN)) {
             r.state = SPARQLQuery::SQState::SQ_PATTERN;
+
+            // exploit parallelism (multi-server and multi-threading)
+            if (dispatch(r))
+                return; // async waiting reply by rmap
+
             if (!execute_patterns(r))
-                return;
+                return; // outstanding
         }
 
         // 2. Union
@@ -1515,7 +1520,7 @@ public:
         }
 
         // 5. Final
-        if (QUERY_FROM_PROXY(coder->tid_of(r.pqid))) {
+        if (QUERY_FROM_PROXY(r)) {
             r.state = SPARQLQuery::SQState::SQ_FINAL;
             final_process(r);
         }

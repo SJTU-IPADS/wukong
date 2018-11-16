@@ -204,19 +204,18 @@ public:
         // submit the request to a certain server
         int start_sid = wukong::math::hash_mod(r.pattern_group.get_start(), global_num_servers);
         Bundle bundle(r);
-#ifdef USE_GPU
+
         if (r.dev_type == SPARQLQuery::DeviceType::CPU) {
             logstream(LOG_DEBUG) << "dev_type is CPU, send to engine. r.pqid=" << r.pqid << LOG_endl;
             send(bundle, start_sid);
+#ifdef USE_GPU
         } else if (r.dev_type == SPARQLQuery::DeviceType::GPU) {
             logstream(LOG_DEBUG) << "dev_type is GPU, send to GPU agent. r.pqid=" << r.pqid << LOG_endl;
             send(bundle, start_sid, WUKONG_GPU_AGENT_TID);
+#endif
         } else {
             ASSERT_MSG(false, "Unknown device type");
         }
-#else
-        send(bundle, start_sid);
-#endif  // end of USE_GPU
     }
 
     // Recv reply from engines.
