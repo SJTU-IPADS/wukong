@@ -97,8 +97,8 @@ public:
         Bundle b(req);
         if (adaptor->send(dst_sid, dst_tid, b)) {
             // #2 send result buffer
-            adaptor->send_dev2host(dst_sid, dst_tid, req.result.gpu.result_buf_dp,
-                                   WUKONG_GPU_ELEM_SIZE * req.result.gpu.result_buf_nelems);
+            adaptor->send_dev2host(dst_sid, dst_tid, req.result.gpu.rbuf(),
+                                   WUKONG_GPU_ELEM_SIZE * req.result.gpu.rbuf_num_elems());
             return true;
         }
 
@@ -158,14 +158,10 @@ public:
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ASSERT(req.result.variable_type(pattern.subject) == known_var);
-        //ssid_t start = pattern.subject;
-        //return ((req.local_var != start)
-        //        && (req.result.get_row_num() >= global_rdma_threshold));
         ssid_t start = req.get_pattern().subject;
-        // logstream(LOG_INFO) << "local_var: " << req.local_var << ", start: " << start << LOG_endl;
 
         return ((req.local_var != start)
-                && (req.result.get_row_num() > 0));
+                && (req.result.gpu.get_row_num() > 0));
     }
 
     void execute_sparql_query(SPARQLQuery &req) {
@@ -199,7 +195,7 @@ public:
             return;
         }
 
-        // execute_patterns
+        // execute patterns of SPARQL query
         while (true) {
             ASSERT(req.dev_type == SPARQLQuery::DeviceType::GPU);
             ASSERT(req.has_pattern());
@@ -226,7 +222,7 @@ public:
                 ASSERT(sub_reqs.size() == global_num_servers);
 
                 // clear parent's result buf after generating sub-jobs
-                req.result.clear_gpu_result_buf();
+                req.result.gpu.clear_rbuf();
                 rmap.put_parent_request(req, sub_reqs.size());
                 for (int i = 0; i < sub_reqs.size(); i++) {
                     if (i != sid)
@@ -264,7 +260,7 @@ public:
 
                     // We need to wait for the result buffer if it is sent by GPUDirect RDMA.
                     if (req.job_type == SPARQLQuery::SubJobType::SPLIT_JOB
-                            && req.result.gpu.result_buf_nelems > 0) {
+                            && req.result.gpu.rbuf_num_elems() > 0) {
                         // recv result buffer
                         std::string rbuf_str;
                         rbuf_str = adaptor->recv(sender);
