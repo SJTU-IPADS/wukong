@@ -45,14 +45,18 @@ using namespace boost::archive;
 // defined as constexpr due to switch-case
 constexpr int const_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
-enum var_type { known_var = 0, unknown_var, const_var };
+enum vstat { known_var = 0, unknown_var, const_var }; // variable stat
 
 // EXT = [ TYPE:16 | COL:16 ]
-// EXT combine message about the col of attr_res_table and the col of result_table
-// TYPE = 0 means  result_table, 1 means  attr_res_table
-#define NBITS_COL  16
+#define NBITS_TYPE 16   // column type
+#define NBITS_COL  16   // column number
+
+// ENTITY (0): result_table; ATTRIBUTE (1): attr_res_table
+enum vtype { ENTITY = 0, ATTRIBUTE };
+
 // Init COL value with NO_RESULT
 #define NO_RESULT  ((1 << NBITS_COL) - 1)
+
 
 // conversion between col and ext
 int col2ext(int col, int t) { return ((t << NBITS_COL) | col); }
@@ -82,7 +86,7 @@ public:
     /**
      * Indicating what device will be used to handle the query.
      */
-    enum DeviceType {CPU, GPU};
+    enum DeviceType { CPU, GPU };
 
     enum SubJobType { FULL_JOB, SPLIT_JOB };
 
@@ -95,7 +99,8 @@ public:
         ssid_t predicate;
         ssid_t object;
         dir_t  direction;
-        char  pred_type;
+
+        char  pred_type = 0;
 
         Pattern() { }
 
@@ -178,7 +183,6 @@ public:
         friend class boost::serialization::access;
 
     public:
-        bool parallel = false;
         vector<Pattern> patterns;
         vector<PatternGroup> unions;
         vector<Filter> filters;
@@ -320,7 +324,7 @@ public:
 #endif
 
         // OPTIONAL
-        vector<bool> optional_matched_rows; // mark which rows are matched in optional block
+        vector<bool> optional_matched_rows; // rows matched in optional block
 
         void clear() {
             result_table.clear();
@@ -328,12 +332,7 @@ public:
             required_vars.clear();
         }
 
-        /// mapping from Variable ID(var) to column ID
-        /// var <=> idx <=> ext <=> col
-        /// var <=> idx: var is set like -1,-2 e.g. idx is the index number of v2c_map; idx = -(vid + 1)
-        /// idx <=> ext: ext store the col and result tabe type(attr_res_table or result_table); ext = v2c_map[idx]
-        /// ext <=> col: ext2col and col2ext
-        var_type variable_type(ssid_t vid) {
+        vstat var_stat(ssid_t vid) {
             if (vid >= 0)
                 return const_var;
             else if (var2col(vid) == NO_RESULT)
@@ -342,15 +341,25 @@ public:
                 return known_var;
         }
 
+        /// mapping from variable ID (var) to column ID (col)
+        /// var <=> idx <=> ext <=> col
+        /// var <=> idx: var is set as -1,-2,...; idx (the index number of v2c_map) = - (vid + 1)
+        /// idx <=> ext: ext store the col and type (attr_res_table or result_table); ext = v2c_map[idx]
+        /// ext <=> col: ext2col and col2ext
+
         // get column id from vid (pattern variable)
         int var2col(ssid_t vid) {
+            // number variables from -1 and decrease by 1 for each of rest. (i.e., -1, -2, ...)
             ASSERT(vid < 0);
-            if (v2c_map.size() == 0) // init
-                v2c_map.resize(nvars, NO_RESULT);
 
-            //get idx
+            // the number of variables is known before calling var2col()
+            ASSERT(nvars > 0);
+            if (v2c_map.size() == 0)
+                v2c_map.resize(nvars, NO_RESULT); // init
+
+            // calculate idx
             int idx = - (vid + 1);
-            ASSERT(idx < nvars);
+            ASSERT(idx < nvars && idx >= 0);
 
             // get col
             return ext2col(v2c_map[idx]);
@@ -358,35 +367,40 @@ public:
 
         // add column id to vid (pattern variable)
         void add_var2col(ssid_t vid, int col, int t = SID_t) {
+            // number variables from -1 and decrease by 1 for each of rest. (i.e., -1, -2, ...)
             ASSERT(vid < 0 && col >= 0);
-            if (v2c_map.size() == 0) // init
-                v2c_map.resize(nvars, NO_RESULT);
-            // get index
+
+            // the number of variables is known before calling var2col()
+            ASSERT(nvars > 0);
+            if (v2c_map.size() == 0)
+                v2c_map.resize(nvars, NO_RESULT); // init
+
+            // calculate idx
             int idx = - (vid + 1);
-            ASSERT(idx < nvars);
-            // col should not be set
+            ASSERT(idx < nvars && idx >= 0);
+
+            // variable should not be set
             ASSERT(v2c_map[idx] == NO_RESULT);
-            // set ext
             v2c_map[idx] = col2ext(col, t);
         }
 
         // judge the column id belong to attribute result table or not
 
-        bool is_attr_col(ssid_t vid) {
+        vtype var_type(ssid_t vid) {
+            // number variables from -1 and decrease by 1 for each of rest. (i.e., -1, -2, ...)
             ASSERT(vid < 0);
+
+            // the number of variables is known before calling var2col()
+            ASSERT(nvars > 0);
             if (v2c_map.size() == 0) // init
                 v2c_map.resize(nvars, NO_RESULT);
 
-            //get idx
+            // calculate idx
             int idx = - (vid + 1);
             ASSERT(idx < nvars);
 
             // get type
-            int type = ext2type(v2c_map[idx]);
-            if (type == 0)
-                return false;
-            else
-                return true;
+            return (vtype)ext2type(v2c_map[idx]);
         }
 
         // TODO unused set get
@@ -521,7 +535,7 @@ public:
     int qid = -1;   // query id (track engine (sid, tid))
     int pqid = -1;  // parent qid (track the source (proxy or parent query) of query)
 
-    int tid = 0;    // engine thread id (MT)
+    int tid = 0;    // engine thread number (MT)
 
     PGType pg_type = BASIC;
     SQState state = SQ_PATTERN;
@@ -714,7 +728,7 @@ public:
                 else    // index_to_unknown
                     const_to_unknown_patterns.push_back(pattern);
             } else {
-                switch (const_pair(r.variable_type(start), r.variable_type(end))) {
+                switch (const_pair(r.var_stat(start), r.var_stat(end))) {
                 case const_pair(const_var, known_var):
                 case const_pair(known_var, const_var):
                 case const_pair(known_var, known_var):
@@ -898,7 +912,6 @@ void load(Archive &ar, SPARQLQuery::Pattern &t, unsigned int version) {
 
 template<class Archive>
 void save(Archive &ar, const SPARQLQuery::PatternGroup &t, unsigned int version) {
-    ar << t.parallel;
     ar << t.patterns;
     ar << t.optional_new_vars;  // it should not be put into the "if (t.optional.size() > 0)" block. The PG itself is from optional
     if (t.filters.size() > 0) {
@@ -920,7 +933,6 @@ void save(Archive &ar, const SPARQLQuery::PatternGroup &t, unsigned int version)
 template<class Archive>
 void load(Archive &ar, SPARQLQuery::PatternGroup &t, unsigned int version) {
     char temp = 2;
-    ar >> t.parallel;
     ar >> t.patterns;
     ar >> t.optional_new_vars;
     ar >> temp;

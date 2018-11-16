@@ -41,7 +41,6 @@
 #include "assertion.hpp"
 #include "gpu.hpp"
 
-
 using namespace std;
 
 /**
@@ -119,10 +118,9 @@ public:
     void sweep_msgs() { }
 
     bool need_parallel(const SPARQLQuery& r) {
-        return (r.pattern_step == 0
-                && r.pattern_group.parallel == false
+        return (coder.tid_of((r).pqid) < global_num_proxies
+                && r.pattern_step == 0
                 && r.start_from_index()
-                // && (global_num_servers * r.mt_factor > 1)
                 && (global_num_servers > 1)
                 && (r.job_type != SPARQLQuery::SubJobType::SPLIT_JOB));
     }
@@ -139,7 +137,6 @@ public:
                           + WUKONG_GPU_AGENT_TID;
             sub_query.tid = 0;
             sub_query.mt_factor = 1;
-            sub_query.pattern_group.parallel = true;
 
             ASSERT(sub_query.job_type != SPARQLQuery::SubJobType::SPLIT_JOB);
             Bundle bundle(sub_query);
@@ -157,7 +154,7 @@ public:
         if (!global_use_rdma) return true;
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ASSERT(req.result.variable_type(pattern.subject) == known_var);
+        ASSERT(req.result.var_stat(pattern.subject) == known_var);
         ssid_t start = req.get_pattern().subject;
 
         return ((req.local_var != start)

@@ -236,40 +236,40 @@ void load_config(string fname, int num_servers)
  */
 void print_config(void)
 {
-    logstream(LOG_INFO) << "------ global configurations ------" << LOG_endl;
+    cout << "------ global configurations ------" << LOG_endl;
 
     // setting by config file
-    logstream(LOG_INFO) << "the number of proxies: "        << global_num_proxies           << LOG_endl;
-    logstream(LOG_INFO) << "the number of engines: "        << global_num_engines           << LOG_endl;
-    logstream(LOG_INFO) << "global_input_folder: "          << global_input_folder          << LOG_endl;
-    logstream(LOG_INFO) << "global_data_port_base: "        << global_data_port_base        << LOG_endl;
-    logstream(LOG_INFO) << "global_ctrl_port_base: "        << global_ctrl_port_base        << LOG_endl;
-    logstream(LOG_INFO) << "global_memstore_size_gb: "      << global_memstore_size_gb      << LOG_endl;
-    logstream(LOG_INFO) << "global_rdma_buf_size_mb: "      << global_rdma_buf_size_mb      << LOG_endl;
-    logstream(LOG_INFO) << "global_rdma_rbf_size_mb: "      << global_rdma_rbf_size_mb      << LOG_endl;
-    logstream(LOG_INFO) << "global_use_rdma: "              << global_use_rdma              << LOG_endl;
-    logstream(LOG_INFO) << "global_enable_caching: "        << global_enable_caching        << LOG_endl;
-    logstream(LOG_INFO) << "global_enable_workstealing: "   << global_enable_workstealing   << LOG_endl;
-    logstream(LOG_INFO) << "global_stealing_pattern: "      << global_stealing_pattern      << LOG_endl;
-    logstream(LOG_INFO) << "global_rdma_threshold: "        << global_rdma_threshold        << LOG_endl;
-    logstream(LOG_INFO) << "global_mt_threshold: "          << global_mt_threshold          << LOG_endl;
-    logstream(LOG_INFO) << "global_silent: "                << global_silent                << LOG_endl;
-    logstream(LOG_INFO) << "global_enable_planner: "        << global_enable_planner        << LOG_endl;
-    logstream(LOG_INFO) << "global_generate_statistics: "   << global_generate_statistics   << LOG_endl;
-    logstream(LOG_INFO) << "global_enable_vattr: "          << global_enable_vattr          << LOG_endl;
+    cout << "the number of proxies: "        << global_num_proxies           << LOG_endl;
+    cout << "the number of engines: "        << global_num_engines           << LOG_endl;
+    cout << "global_input_folder: "          << global_input_folder          << LOG_endl;
+    cout << "global_data_port_base: "        << global_data_port_base        << LOG_endl;
+    cout << "global_ctrl_port_base: "        << global_ctrl_port_base        << LOG_endl;
+    cout << "global_memstore_size_gb: "      << global_memstore_size_gb      << LOG_endl;
+    cout << "global_rdma_buf_size_mb: "      << global_rdma_buf_size_mb      << LOG_endl;
+    cout << "global_rdma_rbf_size_mb: "      << global_rdma_rbf_size_mb      << LOG_endl;
+    cout << "global_use_rdma: "              << global_use_rdma              << LOG_endl;
+    cout << "global_enable_caching: "        << global_enable_caching        << LOG_endl;
+    cout << "global_enable_workstealing: "   << global_enable_workstealing   << LOG_endl;
+    cout << "global_stealing_pattern: "      << global_stealing_pattern      << LOG_endl;
+    cout << "global_rdma_threshold: "        << global_rdma_threshold        << LOG_endl;
+    cout << "global_mt_threshold: "          << global_mt_threshold          << LOG_endl;
+    cout << "global_silent: "                << global_silent                << LOG_endl;
+    cout << "global_enable_planner: "        << global_enable_planner        << LOG_endl;
+    cout << "global_generate_statistics: "   << global_generate_statistics   << LOG_endl;
+    cout << "global_enable_vattr: "          << global_enable_vattr          << LOG_endl;
 #ifdef USE_GPU
-    logstream(LOG_INFO) << "global_num_gpus: "              << global_num_gpus              << LOG_endl;
-    logstream(LOG_INFO) << "global_gpu_rdma_buf_size_mb: "  << global_gpu_rdma_buf_size_mb  << LOG_endl;
-    logstream(LOG_INFO) << "global_gpu_rbuf_size_mb: "      << global_gpu_rbuf_size_mb      << LOG_endl;
-    logstream(LOG_INFO) << "global_gpu_kvcache_size_gb: "   << global_gpu_kvcache_size_gb   << LOG_endl;
-    logstream(LOG_INFO) << "global_gpu_key_blk_size_mb: "   << global_gpu_key_blk_size_mb   << LOG_endl;
-    logstream(LOG_INFO) << "global_gpu_value_blk_size_mb: " << global_gpu_value_blk_size_mb << LOG_endl;
-    logstream(LOG_INFO) << "global_gpu_enable_pipeline: "   << global_gpu_enable_pipeline   << LOG_endl;
+    cout << "global_num_gpus: "              << global_num_gpus              << LOG_endl;
+    cout << "global_gpu_rdma_buf_size_mb: "  << global_gpu_rdma_buf_size_mb  << LOG_endl;
+    cout << "global_gpu_rbuf_size_mb: "      << global_gpu_rbuf_size_mb      << LOG_endl;
+    cout << "global_gpu_kvcache_size_gb: "   << global_gpu_kvcache_size_gb   << LOG_endl;
+    cout << "global_gpu_key_blk_size_mb: "   << global_gpu_key_blk_size_mb   << LOG_endl;
+    cout << "global_gpu_value_blk_size_mb: " << global_gpu_value_blk_size_mb << LOG_endl;
+    cout << "global_gpu_enable_pipeline: "   << global_gpu_enable_pipeline   << LOG_endl;
 #endif
-    logstream(LOG_INFO) << "--" << LOG_endl;
+    cout << "--" << LOG_endl;
 
     // compute from other settings
-    logstream(LOG_INFO) << "the number of servers: "        << global_num_servers           << LOG_endl;
-    logstream(LOG_INFO) << "the number of threads: "        << global_num_threads           << LOG_endl;
+    cout << "the number of servers: "        << global_num_servers           << LOG_endl;
+    cout << "the number of threads: "        << global_num_threads           << LOG_endl;
 
 }

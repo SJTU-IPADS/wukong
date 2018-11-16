@@ -118,6 +118,11 @@ void reset_color(FILE *handle) {
 #define LOG_DEBUG 1
 #define LOG_EVERYTHING 0
 
+const char *levelname[] = {
+    "EVERYTHING", "DEBUG", "INFO", "EMPH",
+    "WARNING", "ERROR", "FATAL", "NONE"
+};
+
 const char *prefixes[] = {
     "DEBUG:    ", "DEBUG:    ", "INFO:     ", "INFO:     ",
     "WARNING:  ", "ERROR:    ", "FATAL:    ", ""

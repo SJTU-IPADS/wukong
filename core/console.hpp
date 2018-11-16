@@ -98,6 +98,7 @@ options_description        all_desc("These are common Wukong commands: ");
 options_description       help_desc("help                display help infomation");
 options_description       quit_desc("quit                quit from the console");
 options_description     config_desc("config <args>       run commands for configueration");
+options_description     logger_desc("logger <args>       run commands for logger");
 options_description     sparql_desc("sparql <args>       run SPARQL queries in single or batch mode");
 options_description sparql_emu_desc("sparql-emu <args>   emulate clients to continuously send SPARQL queries");
 options_description       load_desc("load <args>         load RDF data into dynamic (in-memmory) graph store");
@@ -127,6 +128,14 @@ void init_options_desc()
     ("help,h", "help message about config")
     ;
     all_desc.add(config_desc);
+
+    // e.g., wukong> logger <args>
+    logger_desc.add_options()
+    (",v", "print loglevel")
+    (",s", value<int>()->value_name("<level>"), "set loglevel to <level> (DEBUG=1, INFO=2, WARNING=4, ERROR=5)")
+    ("help,h", "help message about config")
+    ;
+    all_desc.add(logger_desc);
 
     // e.g., wukong> sparql <args>
     sparql_desc.add_options()
@@ -264,8 +273,8 @@ static void print_help(void)
  */
 static void run_config(Proxy *proxy, int argc, char **argv)
 {
-    // use the main proxy thread on each server to configure system
-    if (proxy->tid != 0)
+    // use the leader proxy thread (0) on each server to configure system
+    if (!LEADER(proxy))
         return;
 
     // parse command
@@ -326,6 +335,71 @@ static void run_config(Proxy *proxy, int argc, char **argv)
     }
 }
 
+/**
+ * run the 'config' command
+ * usage:
+ * config [options]
+ *   -v          print log level config
+ *   -s <str>    set config items by <str> (format: item1=val1&item2=...)
+ */
+static void run_logger(Proxy *proxy, int argc, char **argv)
+{
+    // use the leader proxy thread (0) on each server to configure logger
+    if (!LEADER(proxy))
+        return;
+
+    // parse command
+    variables_map logger_vm;
+    try {
+        store(parse_command_line(argc, argv, logger_desc), logger_vm);
+    } catch (...) {
+        fail_to_parse(proxy, argc, argv);
+        return;
+    }
+    notify(logger_vm);
+
+    // parse options
+    if (logger_vm.count("help")) {
+        if (MASTER(proxy))
+            cout << logger_desc;
+        return;
+    }
+
+    if (logger_vm.count("-v")) {
+        if (MASTER(proxy)) {
+            int level = global_logger().get_log_level();
+            cout << "loglevel: " << level
+                 << " (" << levelname[level] << ")" << endl;
+        }
+        return;
+    }
+
+    if (logger_vm.count("-s")) {
+        int level = global_logger().get_log_level();  // orginal loglevel
+        if (MASTER(proxy)) {
+            level = logger_vm["-s"].as<int>();
+
+            // send <str> to all consoles
+            for (int i = 1; i < global_num_servers; i++)
+                console_send<int>(i, proxy->tid, level);
+        } else {
+            // recieve <str>
+            level = console_recv<int>(proxy->tid);
+        }
+
+        if (level >= LOG_EVERYTHING && level <= LOG_NONE) {
+            global_logger().set_log_level(level);
+            if (MASTER(proxy))
+                cout << "set loglevel to " << level
+                     << " (" << levelname[level] << ")" << endl;
+        } else {
+            if (MASTER(proxy))
+                logstream(LOG_ERROR) << "failed to set loglevel: " << level
+                                     << " (" << levelname[level] << ")" << endl;
+        }
+        return;
+    }
+}
 
 /**
  * run the 'sparql' command
@@ -887,6 +961,8 @@ void run_console(Proxy *proxy)
                 exit(0); // each server exits once (by the leader proxy)
         } else if (cmd_type == "config") {
             run_config(proxy, argc, argv);
+        } else if (cmd_type == "logger") {
+            run_logger(proxy, argc, argv);
         } else if (cmd_type == "sparql") { // handle SPARQL queries
             run_sparql(proxy, argc, argv);
         } else if (cmd_type == "sparql-emu") { // run a SPARQL emulator on each proxy
