@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include <stdint.h> // uint64_t
+#include <stdint.h>
 #include <vector>
 #include <queue>
 #include <iostream>
@@ -75,6 +75,7 @@ class RDMA_Cache {
         item_t items[ASSOCIATIVITY]; // item list
     };
     bucket_t *hashtable;
+
     uint64_t lease;  // only work when DYNAMIC_GSTORE=on
 
 public:
@@ -168,8 +169,8 @@ public:
                     items[pos].v = v;
                     items[pos].expire_time = timer::get_usec() + lease;
 #else
-                    items[pos].v = v;
                     items[pos].cnt = 0;
+                    items[pos].v = v;
 #endif
                     asm volatile("" ::: "memory");
                     ret_ver = wukong::atomic::compare_and_swap(&items[pos].version, 0, old_ver + 1);
@@ -182,7 +183,7 @@ public:
 
 #ifdef DYNAMIC_GSTORE
     /* Set lease.*/
-    void set_lease(uint64_t lease) { this->lease = lease; }
+    void set_lease(uint64_t _lease) { lease = _lease; }
 
     /**
      * Invalidate cache item of the given key.
@@ -216,11 +217,14 @@ public:
 class GStore {
     friend class data_statistic;
     friend class GChecker;
+
 protected:
     static const int NUM_LOCKS = 1024;
 
     int sid;
+
     Mem *mem;
+
     vertex_t *vertices;
     uint64_t num_slots;       // 1 bucket = ASSOCIATIVITY slots
     uint64_t num_buckets;     // main-header region (static)
@@ -228,14 +232,16 @@ protected:
     uint64_t last_ext;
     pthread_spinlock_t bucket_locks[NUM_LOCKS]; // lock virtualization (see paper: vLokc CGO'13)
     pthread_spinlock_t bucket_ext_lock;
+    uint64_t vcount;          // the count of accesses to vertices
 
     edge_t *edges;
     uint64_t num_entries;     // entry region (dynamical)
+    uint64_t ecount;          // the count of accesses to edges
 
     typedef tbb::concurrent_hash_map<sid_t, vector<sid_t>> tbb_hash_map;
-    tbb_hash_map pidx_in_map; // predicate-index (IN)
+    tbb_hash_map pidx_in_map;  // predicate-index (IN)
     tbb_hash_map pidx_out_map; // predicate-index (OUT)
-    tbb_hash_map tidx_map; // type-index
+    tbb_hash_map tidx_map;     // type-index
 
     RDMA_Cache rdma_cache;
 
@@ -531,10 +537,6 @@ public:
         else
             return get_edges_remote(tid, vid, pid, d, sz, type);
     }
-
-    inline vertex_t *vertex_addr() const { return vertices; }
-
-    inline edge_t *edge_addr() const { return edges; }
 
     virtual void print_mem_usage() {
         // TODO
