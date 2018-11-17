@@ -123,40 +123,6 @@ private:
         req.pattern_step++;
     }
 
-    void index_to_unknown(SPARQLQuery &req) {
-        SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ssid_t tpid = pattern.subject;
-        ssid_t id01 = pattern.predicate;
-        dir_t d     = pattern.direction;
-        ssid_t var  = pattern.object;
-        SPARQLQuery::Result &res = req.result;
-
-        ASSERT(id01 == PREDICATE_ID || id01 == TYPE_ID); // predicate or type index
-        ASSERT(res.get_col_num() == 0);
-
-        vector<sid_t> updated_result_table;
-
-        uint64_t sz = 0;
-        edge_t *edges = graph->get_index(tid, tpid, d, sz);
-        int start = req.tid % req.mt_factor;
-        int length = sz / req.mt_factor;
-
-        // every thread takes a part of consecutive edges
-        for (uint64_t k = start * length; k < (start + 1) * length; k++)
-            updated_result_table.push_back(edges[k].val);
-
-        // fixup the last participant
-        if (start == req.mt_factor - 1)
-            for (uint64_t k = (start + 1) * length; k < sz; k++)
-                updated_result_table.push_back(edges[k].val);
-
-        res.result_table.swap(updated_result_table);
-        res.set_col_num(1);
-        res.add_var2col(var, 0);
-        req.pattern_step++;
-        req.local_var = var;
-    }
-
     /// A query whose parent's PGType is UNION may call this pattern
     void const_to_known(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
@@ -200,6 +166,50 @@ private:
         req.pattern_step++;
     }
 
+
+    /// IDX P ?X . (IDX and P are GIVEN, ?X is UNKNOWN)
+    /// e.g., "?X __PREDICATE__ ub:subOrganizationOf" (predicate index)
+    /// e.g., "?X  rdf:type  ub:GraduateStudent"      (type index)
+    ///
+    /// 1) Use [IDX]+[P] to retrieve all of neighbors (?X) on every node
+    void index_to_unknown(SPARQLQuery &req) {
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
+        ssid_t tpid = pattern.subject;
+        ssid_t id01 = pattern.predicate;
+        dir_t d     = pattern.direction;
+        ssid_t var  = pattern.object;
+        SPARQLQuery::Result &res = req.result;
+
+        ASSERT(id01 == PREDICATE_ID || id01 == TYPE_ID); // predicate or type index
+        ASSERT(res.get_col_num() == 0);
+
+        vector<sid_t> updated_result_table;
+
+        uint64_t sz = 0;
+        edge_t *edges = graph->get_index(tid, tpid, d, sz);
+        int start = req.tid % req.mt_factor;
+        int length = sz / req.mt_factor;
+
+        // every thread takes a part of consecutive edges
+        for (uint64_t k = start * length; k < (start + 1) * length; k++)
+            updated_result_table.push_back(edges[k].val);
+
+        // fixup the last participant
+        if (start == req.mt_factor - 1)
+            for (uint64_t k = (start + 1) * length; k < sz; k++)
+                updated_result_table.push_back(edges[k].val);
+
+        res.result_table.swap(updated_result_table);
+        res.set_col_num(1);
+        res.add_var2col(var, 0);
+        req.pattern_step++;
+        req.local_var = var;
+    }
+
+    /// C P ?X . (C/P: GIVEN, ?X: UNKNOWN)
+    /// e.g., "?X  ub:subOrganizationOf  <http://www.University0.edu>"
+    ///
+    /// 1) Use [C]+[P] to retrieve all of neighbors (?X) on a certain (HASH(C)) node
     void const_to_unknown(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
@@ -221,9 +231,9 @@ private:
         req.pattern_step++;
     }
 
-    // all of these means const attribute
-    // query the attribute starts from const
-    // like <Course3> <id> ?X
+    /// C P ?X . (C/P: GIVEN, ?X: UNKNOWN)
+    /// e.g., "<http://www.Department7.University0.edu/Course44>  ub:id  ?X"
+    ///
     void const_to_unknown_attr(SPARQLQuery &req) {
         // prepare for query
         SPARQLQuery::Pattern &pattern = req.get_pattern();
@@ -253,6 +263,11 @@ private:
         req.pattern_step++;
     }
 
+    /// ?X P ?Y . (?X: KNOWN, P: GIVEN, ?X: UNKNOWN)
+    /// e.g., "?X rdf:type ub:GraduateStudent"
+    ///       "?X ub:memberOf ?Y"
+    ///
+    /// 1) Use [?X]+[P] to retrieve all of neighbors (?Y)
     void known_to_unknown(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
@@ -321,7 +336,9 @@ private:
         req.pattern_step++;
     }
 
-    // query the attribute starts from known to attribute value
+    /// ?X P ?Y . (?X: KNOWN, P: GIVEN, ?X: UNKNOWN)
+    /// e.g., "?X rdf:type ub:Course"
+    ///       "?X ub:id ?Y"
     void known_to_unknown_attr(SPARQLQuery &req) {
         // prepare for query
         // the attr_res_table and result_table should be update
@@ -362,11 +379,13 @@ private:
         req.pattern_step++;
     }
 
-    /// ?Y P ?X . (?Y and ?X are KNOWN)
-    /// e.g.,
+    /// ?Y P ?X . (?Y:KNOWN, ?X: KNOWN)
+    /// e.g., "?Z ub:undergraduateDegreeFrom ?X"
+    ///       "?Z ub:memberOf ?Y"
+    ///       "?Y ub:subOrganizationOf ?X"
     ///
-    /// 1) Use [?Y]+P1 to retrieve all of neighbors
-    /// 2) Match [?Y]'s X within above neighbors
+    /// 1) Use [?Y]+[P] to retrieve all of neighbors (X')
+    /// 2) Match KNOWN X with X'
     void known_to_known(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
@@ -421,10 +440,11 @@ private:
     }
 
     /// ?X P C . (?X is KNOWN)
-    /// e.g.,
+    /// e.g., "?X rdf:type ub:FullProfessor"
+    ///       "?X ub:worksFor <http://www.Department0.University0.edu>"
     ///
-    /// 1) Use [?X]+P1 to retrieve all of neighbors
-    /// 2) Match E1 within above neighbors
+    /// 1) Use [?X]+[P] to retrieve all of neighbors (C')
+    /// 2) Match const C with C'
     void known_to_const(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
@@ -486,8 +506,10 @@ private:
     }
 
     /// C ?P ?X . (?P and ?X are UNKNOWN)
-    /// e.g.,
+    /// e.g., "?X ?P <http://www.Department0.University0.edu>"
     ///
+    /// 1) Use [C]+[__PREDICATE__] to retrieve all of predicates (?P)
+    /// 2) Use [C]+[?P] to retrieve all of neighbors (?X)
     void const_unknown_unknown(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
@@ -524,8 +546,11 @@ private:
     }
 
     /// ?X ?P ?Y . (?X is KNOWN; ?P and ?X are UNKNOWN)
-    /// e.g.,
+    /// e.g., "?X ub:subOrganizationOf <http://www.University0.edu>"
+    ///       "?X ?P ?Y"
     ///
+    /// 1) Use [?X]+[__PREDICATE__] to retrieve all of predicates (?P)
+    /// 2) Use [?X]+[?P] to retrieve all of neighbors (?Y)
     void known_unknown_unknown(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
@@ -566,9 +591,12 @@ private:
     }
 
     /// ?X ?P C . (?X is KNOWN; ?P is UNKNOWN)
-    /// e.g., "<http://www.University0.edu> ub:subOrganizationOf ?D"
-    ///       "?D ?P <http://www.Department4.University0.edu>"
+    /// e.g., "<http://www.University0.edu> ub:subOrganizationOf ?X"
+    ///       "?X ?P <http://www.Department4.University0.edu>"
     ///
+    /// 1) Use [?X]+[__PREDICATE__] to retrieve all of predicates (?P)
+    /// 2) Use [?X]+[?P] to retrieve all of neighbors (C')
+    /// 3) Match const C with C'
     void known_unknown_const(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
@@ -610,8 +638,11 @@ private:
     }
 
     /// C1 ?P C2 . (?P is UNKNOWN)
-    /// e.g.,
+    /// e.g., "<http://www.University0.edu> ?P <http://www.Department4.University0.edu>"
     ///
+    /// 1) Use C+[__PREDICATE__] to retrieve all of predicates (?P)
+    /// 2) Use [?X]+[?P] to retrieve all of neighbors (C')
+    /// 3) Match const C with C'
     void const_unknown_const(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
@@ -1002,11 +1033,12 @@ private:
 
     bool execute_patterns(SPARQLQuery &r) {
         logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "] execute patterns of "
-                             << "Q(qid=" << r.qid << ", pqid=" << r.pqid
+                             << "Q(pqid=" << r.pqid << ", qid=" << r.qid
                              << ", step=" << r.pattern_step << ")" << LOG_endl;
         do {
             execute_one_pattern(r);
-            logstream(LOG_DEBUG) << "#rows = " << r.result.get_row_num() << LOG_endl;;
+            logstream(LOG_DEBUG) << "step: " << r.pattern_step
+                                 << " #rows = " << r.result.get_row_num() << LOG_endl;;
 
             // co-run optimization
             if (r.corun_enabled && (r.pattern_step == r.corun_step))
