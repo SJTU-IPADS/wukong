@@ -247,20 +247,67 @@ public:
     private:
         friend class boost::serialization::access;
 
-        struct GPUState {
+#ifdef USE_GPU
+        // intermediate result generated on GPU
+        class GPUResult {
+        private:
             char *result_buf_dp = nullptr;
             uint64_t result_buf_nelems = 0;
+            int col_num = 0;    // copy of parent state
+
+        public:
+            char *rbuf() {
+                return result_buf_dp;
+            }
+
+            uint64_t rbuf_num_elems() {
+                return result_buf_nelems;
+            }
+
+            bool is_rbuf_valid() {
+                return result_buf_dp != nullptr;
+            }
+
+            bool is_rbuf_empty() {
+                return (result_buf_dp == nullptr || result_buf_nelems == 0);
+            }
+
+            void clear_rbuf() {
+                result_buf_dp = nullptr;
+                result_buf_nelems = 0;
+            }
+
+            void set_rbuf(char *rbuf, uint64_t n) {
+                ASSERT(rbuf != nullptr);
+                result_buf_dp = rbuf;
+                result_buf_nelems = n;
+            }
+
+            int get_row_num() {
+                ASSERT(true == is_rbuf_valid());
+                if (col_num == 0)
+                    return 0;
+
+                return result_buf_nelems / col_num;
+            }
+
+            void set_col_num(int c) {
+                col_num = c;
+            }
 
             template <typename Archive>
             void serialize(Archive &ar, const unsigned int version) {
                 ar & result_buf_nelems;
+                ar & col_num;
             }
         };
+#endif
+
 
     public:
         Result() { }
 
-        int col_num = 0;
+        int col_num = 0;  // NOTE: use set_col_num() for modification
         int row_num = 0;  // FIXME: vs. get_row_num()
         int attr_col_num = 0; // FIXME: why not no attr_row_num
 
@@ -271,7 +318,10 @@ public:
 
         vector<sid_t> result_table; // result table for string IDs
         vector<attr_t> attr_res_table; // result table for others
-        GPUState gpu;
+
+#ifdef USE_GPU
+        GPUResult gpu;
+#endif
 
         // OPTIONAL
         vector<bool> optional_matched_rows; // rows matched in optional block
@@ -355,7 +405,12 @@ public:
 
         // TODO unused set get
         // result table for string IDs
-        void set_col_num(int n) { col_num = n; }
+        void set_col_num(int n) {
+            col_num = n;
+#ifdef USE_GPU
+            gpu.set_col_num(col_num);
+#endif
+        }
 
         int get_col_num() { return col_num; }
 
@@ -368,10 +423,6 @@ public:
                     return attr_res_table.size() / attr_col_num;
                 else
                     return 0;
-            }
-
-            if (gpu.result_buf_dp != nullptr) {
-                return gpu.result_buf_nelems / col_num;
             }
 
             return result_table.size() / col_num;
@@ -478,22 +529,6 @@ public:
                                             result.attr_res_table.end());
             }
         }
-
-        bool gpu_result_buf_empty() {
-            return gpu.result_buf_nelems == 0;
-        }
-
-        void clear_gpu_result_buf() {
-            gpu.result_buf_dp = nullptr;
-            gpu.result_buf_nelems = 0;
-        }
-
-        void set_gpu_result_buf(char *rbuf, uint64_t n) {
-            ASSERT(rbuf != nullptr);
-            gpu.result_buf_dp = rbuf;
-            gpu.result_buf_nelems = n;
-        }
-
     };
 
     int qid = -1;   // query id (track engine (sid, tid))
@@ -925,7 +960,9 @@ void save(Archive &ar, const SPARQLQuery::Result &t, unsigned int version) {
     ar << t.nvars;
     ar << t.v2c_map;
     ar << t.optional_matched_rows;
+#ifdef USE_GPU
     ar << t.gpu;
+#endif
     if (!t.blind) ar << t.required_vars;
     // attr_res_table may not be empty if result_table is empty
     if (t.result_table.size() > 0 || t.attr_res_table.size() > 0) {
@@ -947,7 +984,9 @@ void load(Archive & ar, SPARQLQuery::Result &t, unsigned int version) {
     ar >> t.nvars;
     ar >> t.v2c_map;
     ar >> t.optional_matched_rows;
+#ifdef USE_GPU
     ar >> t.gpu;
+#endif
     if (!t.blind) ar >> t.required_vars;
     ar >> temp;
     if (temp == occupied) {

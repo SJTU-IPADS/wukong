@@ -85,7 +85,7 @@ public:
 
     ~GPUEngineCuda() { }
 
-    char* load_result_buf(const SPARQLQuery::Result &r) {
+    char *load_result_buf(const SPARQLQuery::Result &r) {
         CUDA_ASSERT( cudaMemcpy((void**)gmem->res_inbuf(),
                                 &r.result_table[0],
                                 sizeof(r.result_table[0]) * r.result_table.size(),
@@ -94,7 +94,7 @@ public:
         return gmem->res_inbuf();
     }
 
-    char* load_result_buf(const char *rbuf, uint64_t size) {
+    char *load_result_buf(const char *rbuf, uint64_t size) {
         CUDA_ASSERT( cudaMemcpy((void**)gmem->res_inbuf(),
                                 rbuf,
                                 size,
@@ -121,7 +121,7 @@ public:
         param.query.pid = pid;
         param.query.dir = d;
         param.query.col_num = req.result.get_col_num();
-        param.query.row_num = req.result.get_row_num();
+        param.query.row_num = req.result.gpu.get_row_num();
         param.query.segment_edge_start = seg_meta.edge_start;
         param.query.var2col_start = req.result.var2col(start);
 
@@ -158,7 +158,7 @@ public:
         if (req.pattern_step == 0) {
             param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
         } else {    // for sub-query
-            param.set_result_bufs(req.result.gpu.result_buf_dp, gmem->res_outbuf());
+            param.set_result_bufs(req.result.gpu.rbuf(), gmem->res_outbuf());
         }
 
         CUDA_STREAM_SYNC(stream);
@@ -181,7 +181,7 @@ public:
 #endif
 
         ASSERT(WUKONG_GPU_RBUF_SIZE(num_elems) < gmem->res_buf_size());
-        req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, num_elems);
+        req.result.gpu.set_rbuf((char*)param.gpu.d_out_rbuf, num_elems);
 
         // copy the result on GPU to CPU if we come to the last pattern
         if (!has_next_pattern(req)) {
@@ -210,7 +210,7 @@ public:
         param.query.dir = d;
         param.query.end_vid = end;
         param.query.col_num = req.result.get_col_num();
-        param.query.row_num = req.result.get_row_num();
+        param.query.row_num = req.result.gpu.get_row_num();
         param.query.segment_edge_start = seg_meta.edge_start;
         param.query.var2col_start = req.result.var2col(start);
         param.query.var2col_end = req.result.var2col(end);
@@ -245,7 +245,7 @@ public:
         if (req.pattern_step == 0) {
             param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
         } else {
-            param.set_result_bufs(req.result.gpu.result_buf_dp, gmem->res_outbuf());
+            param.set_result_bufs(req.result.gpu.rbuf(), gmem->res_outbuf());
         }
 
         gpu_generate_key_list_k2u(param, stream);
@@ -265,7 +265,7 @@ public:
 #endif
 
         ASSERT(WUKONG_GPU_RBUF_SIZE(num_elems) < gmem->res_buf_size());
-        req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, num_elems);
+        req.result.gpu.set_rbuf((char*)param.gpu.d_out_rbuf, num_elems);
 
         // copy the result on GPU to CPU if we come to the last pattern
         if (!has_next_pattern(req)) {
@@ -291,7 +291,7 @@ public:
         param.query.dir = d;
         param.query.end_vid = end;
         param.query.col_num = req.result.get_col_num();
-        param.query.row_num = req.result.get_row_num();
+        param.query.row_num = req.result.gpu.get_row_num();
         param.query.segment_edge_start = seg_meta.edge_start;
         param.query.var2col_start = req.result.var2col(start);
 
@@ -326,7 +326,7 @@ public:
         if (req.pattern_step == 0) {
             param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
         } else {
-            param.set_result_bufs(req.result.gpu.result_buf_dp, gmem->res_outbuf());
+            param.set_result_bufs(req.result.gpu.rbuf(), gmem->res_outbuf());
         }
 
         gpu_generate_key_list_k2u(param, stream);
@@ -346,7 +346,7 @@ public:
 #endif
 
         ASSERT(WUKONG_GPU_RBUF_SIZE(num_elems) < gmem->res_buf_size());
-        req.result.set_gpu_result_buf((char*)param.gpu.d_out_rbuf, num_elems);
+        req.result.gpu.set_rbuf((char*)param.gpu.d_out_rbuf, num_elems);
 
         // copy the result on GPU to CPU if we come to the last pattern
         if (!has_next_pattern(req)) {
@@ -361,14 +361,13 @@ public:
 
     void generate_sub_query(const SPARQLQuery &req, sid_t start, int num_jobs,
                             vector<sid_t*>& buf_ptrs, vector<int>& buf_sizes) {
-        int query_size = req.result.get_row_num();
         cudaStream_t stream = stream_pool->get_split_query_stream();
 
         ASSERT(req.pattern_step > 0);
 
         param.query.start_vid = start;
         param.query.col_num = req.result.get_col_num();
-        param.query.row_num = req.result.get_row_num();
+        param.query.row_num = req.result.gpu.get_row_num();
         param.query.var2col_start = req.result.var2col(start);
 
         ASSERT(param.query.row_num > 0);
@@ -376,7 +375,7 @@ public:
         if (req.pattern_step == 0) {
             param.set_result_bufs(gmem->res_inbuf(), gmem->res_outbuf());
         } else {
-            param.set_result_bufs(req.result.gpu.result_buf_dp, gmem->res_outbuf());
+            param.set_result_bufs(req.result.gpu.rbuf(), gmem->res_outbuf());
         }
 
         vector<int> buf_heads(num_jobs);
