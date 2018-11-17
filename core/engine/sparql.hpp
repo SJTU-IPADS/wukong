@@ -868,11 +868,12 @@ private:
                              << " step=" << req.pattern_step << LOG_endl;
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ssid_t start     = pattern.subject;
+        ssid_t start = pattern.subject;
         ssid_t predicate = pattern.predicate;
-        dir_t direction  = pattern.direction;
-        ssid_t end       = pattern.object;
+        dir_t direction = pattern.direction;
+        ssid_t end = pattern.object;
 
+        // the first triple pattern from index
         if (req.pattern_step == 0 && req.start_from_index()) {
             if (req.result.var2col(end) != NO_RESULT)
                 index_to_known(req);
@@ -881,7 +882,7 @@ private:
             return true;
         }
 
-        // triple pattern with UNKNOWN predicate/attribute
+        // triple pattern with UNKNOWN/KNOWN predicate/attribute
         if (req.result.var_stat(predicate) != CONST_VAR) {
 #ifdef VERSATILE
             /// Now unsupported UNKNOWN predicate with vertex attribute enabling.
@@ -892,9 +893,9 @@ private:
                 logstream(LOG_ERROR) << "Please turn off the vertex attribute enabling." << LOG_endl;
                 ASSERT(false);
             }
+
             switch (const_pair(req.result.var_stat(start),
                                req.result.var_stat(end))) {
-
             // start from CONST
             case const_pair(CONST_VAR, UNKNOWN_VAR):
                 const_unknown_unknown(req);
@@ -933,77 +934,53 @@ private:
                                      << ")." << LOG_endl;
                 ASSERT(false);
             }
-
-            return true;
 #else
             logstream(LOG_ERROR) << "Unsupported variable at predicate." << LOG_endl;
             logstream(LOG_ERROR) << "Please add definition VERSATILE in CMakeLists.txt." << LOG_endl;
             ASSERT(false);
 #endif
-        }
+        } else {
 
-#if 0
-        // triple pattern with attribute
-        if (global_enable_vattr && req.get_pattern(req.pattern_step).pred_type > 0) {
+            // triple pattern with CONST predicate/attribute
             switch (const_pair(req.result.var_stat(start),
                                req.result.var_stat(end))) {
-            // now support const_to_unknown_attr and known_to_unknown_attr
+
+            // start from CONST
+            case const_pair(CONST_VAR, CONST_VAR):
+                logstream(LOG_ERROR) << "Unsupported triple pattern [CONST|KNOWN|CONST]" << LOG_endl;
+                ASSERT(false);
+            case const_pair(CONST_VAR, KNOWN_VAR):
+                const_to_known(req);
+                break;
             case const_pair(CONST_VAR, UNKNOWN_VAR):
-                const_to_unknown_attr(req);
+                const_to_unknown(req);
+                break;
+
+            // start from KNOWN
+            case const_pair(KNOWN_VAR, CONST_VAR):
+                known_to_const(req);
+                break;
+            case const_pair(KNOWN_VAR, KNOWN_VAR):
+                known_to_known(req);
                 break;
             case const_pair(KNOWN_VAR, UNKNOWN_VAR):
-                known_to_unknown_attr(req);
+                known_to_unknown(req);
                 break;
+
+            // start from UNKNOWN (incorrect query plan)
+            case const_pair(UNKNOWN_VAR, CONST_VAR):
+            case const_pair(UNKNOWN_VAR, KNOWN_VAR):
+            case const_pair(UNKNOWN_VAR, UNKNOWN_VAR):
+                logstream(LOG_ERROR) << "Unsupported triple pattern [UNKNOWN|KNOWN|??]" << LOG_endl;
+                ASSERT(false);
+
             default:
-                logstream(LOG_ERROR) << "Unsupported triple pattern with attribute "
+                logstream(LOG_ERROR) << "Unsupported triple pattern with known predicate "
                                      << "(" << req.result.var_stat(start)
                                      << "|" << req.result.var_stat(end)
                                      << ")" << LOG_endl;
                 ASSERT(false);
             }
-            return true;
-        }
-#endif
-
-        // triple pattern with KNOWN predicate
-        switch (const_pair(req.result.var_stat(start),
-                           req.result.var_stat(end))) {
-
-        // start from CONST
-        case const_pair(CONST_VAR, CONST_VAR):
-            logstream(LOG_ERROR) << "Unsupported triple pattern [CONST|KNOWN|CONST]" << LOG_endl;
-            ASSERT(false);
-        case const_pair(CONST_VAR, KNOWN_VAR):
-            const_to_known(req);
-            break;
-        case const_pair(CONST_VAR, UNKNOWN_VAR):
-            const_to_unknown(req);
-            break;
-
-        // start from KNOWN
-        case const_pair(KNOWN_VAR, CONST_VAR):
-            known_to_const(req);
-            break;
-        case const_pair(KNOWN_VAR, KNOWN_VAR):
-            known_to_known(req);
-            break;
-        case const_pair(KNOWN_VAR, UNKNOWN_VAR):
-            known_to_unknown(req);
-            break;
-
-        // start from UNKNOWN (incorrect query plan)
-        case const_pair(UNKNOWN_VAR, CONST_VAR):
-        case const_pair(UNKNOWN_VAR, KNOWN_VAR):
-        case const_pair(UNKNOWN_VAR, UNKNOWN_VAR):
-            logstream(LOG_ERROR) << "Unsupported triple pattern [UNKNOWN|KNOWN|??]" << LOG_endl;
-            ASSERT(false);
-
-        default:
-            logstream(LOG_ERROR) << "Unsupported triple pattern with known predicate "
-                                 << "(" << req.result.var_stat(start)
-                                 << "|" << req.result.var_stat(end)
-                                 << ")" << LOG_endl;
-            ASSERT(false);
         }
 
         return true;
@@ -1050,9 +1027,11 @@ private:
                              << "Q(pqid=" << r.pqid << ", qid=" << r.qid
                              << ", step=" << r.pattern_step << ")" << LOG_endl;
         do {
+            uint64_t cnt = graph->gstore->access;
             execute_one_pattern(r);
-            logstream(LOG_DEBUG) << "step: " << r.pattern_step
-                                 << " #rows = " << r.result.get_row_num() << LOG_endl;;
+            logstream(LOG_INFO) << "step: " << r.pattern_step
+                                << " #rows = " << r.result.get_row_num()
+                                << " #accesses = " << (graph->gstore->access - cnt) << LOG_endl;;
 
             // co-run optimization
             if (r.corun_enabled && (r.pattern_step == r.corun_step))
@@ -1081,7 +1060,7 @@ private:
     }
 
 
-// relational operator: < <= > >= == !=
+    // relational operator: < <= > >= == !=
     void relational_filter(SPARQLQuery::Filter &filter,
                            SPARQLQuery::Result &result,
                            vector<bool> &is_satisfy) {
@@ -1165,7 +1144,7 @@ private:
         }
     }
 
-// IRI and URI are the same in SPARQL
+    // IRI and URI are the same in SPARQL
     void isIRI_filter(SPARQLQuery::Filter &filter,
                       SPARQLQuery::Result &result,
                       vector<bool> &is_satisfy) {
@@ -1218,7 +1197,7 @@ private:
         }
     }
 
-// regex flag only support "i" option now
+    // regex flag only support "i" option now
     void regex_filter(SPARQLQuery::Filter &filter,
                       SPARQLQuery::Result &result,
                       vector<bool> &is_satisfy) {
@@ -1477,7 +1456,8 @@ public:
 
     void execute_sparql_query(SPARQLQuery &r) {
         // encode the lineage of the query (server & thread)
-        if (r.qid == -1) r.qid = coder->get_and_inc_qid();
+        if (r.qid == -1)
+            r.qid = coder->get_and_inc_qid();
 
         // 0. query has done
         if (r.state == SPARQLQuery::SQState::SQ_REPLY) {
