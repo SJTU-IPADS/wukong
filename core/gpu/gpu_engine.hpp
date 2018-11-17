@@ -212,7 +212,7 @@ private:
         if (!global_use_rdma) return true;
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ASSERT(req.result.var_stat(pattern.subject) == known_var);
+        ASSERT(req.result.var_stat(pattern.subject) == KNOWN_VAR);
         sid_t start = req.get_pattern().subject;
 
         // GPUEngine only supports fork-join mode now
@@ -266,7 +266,7 @@ public:
         }
 
         // triple pattern with UNKNOWN predicate/attribute
-        if (req.result.var_stat(predicate) != const_var) {
+        if (req.result.var_stat(predicate) != CONST_VAR) {
             logstream(LOG_ERROR) << "Unsupported variable at predicate." << LOG_endl;
             logstream(LOG_ERROR) << "Please add definition VERSATILE in CMakeLists.txt." << LOG_endl;
             ASSERT(false);
@@ -282,32 +282,32 @@ public:
                            req.result.var_stat(end))) {
 
         // start from CONST
-        case const_pair(const_var, const_var):
+        case const_pair(CONST_VAR, CONST_VAR):
             logstream(LOG_ERROR) << "Unsupported triple pattern [CONST|KNOWN|CONST]" << LOG_endl;
             ASSERT(false);
-        case const_pair(const_var, known_var):
+        case const_pair(CONST_VAR, KNOWN_VAR):
             logstream(LOG_ERROR) << "Unsupported triple pattern [CONST|KNOWN|KNOWN]" << LOG_endl;
             ASSERT(false);
             break;
-        case const_pair(const_var, unknown_var):
+        case const_pair(CONST_VAR, UNKNOWN_VAR):
             const_to_unknown(req);
             break;
 
         // start from KNOWN
-        case const_pair(known_var, const_var):
+        case const_pair(KNOWN_VAR, CONST_VAR):
             known_to_const(req);
             break;
-        case const_pair(known_var, known_var):
+        case const_pair(KNOWN_VAR, KNOWN_VAR):
             known_to_known(req);
             break;
-        case const_pair(known_var, unknown_var):
+        case const_pair(KNOWN_VAR, UNKNOWN_VAR):
             known_to_unknown(req);
             break;
 
         // start from UNKNOWN (incorrect query plan)
-        case const_pair(unknown_var, const_var):
-        case const_pair(unknown_var, known_var):
-        case const_pair(unknown_var, unknown_var):
+        case const_pair(UNKNOWN_VAR, CONST_VAR):
+        case const_pair(UNKNOWN_VAR, KNOWN_VAR):
+        case const_pair(UNKNOWN_VAR, UNKNOWN_VAR):
             logstream(LOG_ERROR) << "Unsupported triple pattern [UNKNOWN|KNOWN|??]" << LOG_endl;
             ASSERT(false);
 

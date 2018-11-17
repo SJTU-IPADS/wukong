@@ -45,7 +45,7 @@ using namespace boost::archive;
 // defined as constexpr due to switch-case
 constexpr int const_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
-enum vstat { known_var = 0, unknown_var, const_var }; // variable stat
+enum vstat { KNOWN_VAR = 0, UNKNOWN_VAR, CONST_VAR }; // variable stat
 
 // EXT = [ TYPE:16 | COL:16 ]
 #define NBITS_TYPE 16   // column type
@@ -334,11 +334,11 @@ public:
 
         vstat var_stat(ssid_t vid) {
             if (vid >= 0)
-                return const_var;
+                return CONST_VAR;
             else if (var2col(vid) == NO_RESULT)
-                return unknown_var;
+                return UNKNOWN_VAR;
             else
-                return known_var;
+                return KNOWN_VAR;
         }
 
         /// mapping from variable ID (var) to column ID (col)
@@ -728,16 +728,16 @@ public:
                     const_to_unknown_patterns.push_back(pattern);
             } else {
                 switch (const_pair(r.var_stat(start), r.var_stat(end))) {
-                case const_pair(const_var, known_var):
-                case const_pair(known_var, const_var):
-                case const_pair(known_var, known_var):
+                case const_pair(CONST_VAR, KNOWN_VAR):
+                case const_pair(KNOWN_VAR, CONST_VAR):
+                case const_pair(KNOWN_VAR, KNOWN_VAR):
                     // const_to_known, known_to_const, known_to_known
                     updated_patterns.push_back(pattern);
                     break;
-                case const_pair(const_var, unknown_var):
+                case const_pair(CONST_VAR, UNKNOWN_VAR):
                     const_to_unknown_patterns.push_back(pattern);
                     break;
-                case const_pair(known_var, unknown_var):
+                case const_pair(KNOWN_VAR, UNKNOWN_VAR):
                     known_to_unknown_patterns.push_back(pattern);
                     break;
                 default:

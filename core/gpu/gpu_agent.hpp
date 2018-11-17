@@ -154,7 +154,7 @@ public:
         if (!global_use_rdma) return true;
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ASSERT(req.result.var_stat(pattern.subject) == known_var);
+        ASSERT(req.result.var_stat(pattern.subject) == KNOWN_VAR);
         ssid_t start = req.get_pattern().subject;
 
         return ((req.local_var != start)
