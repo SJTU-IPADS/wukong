@@ -38,6 +38,7 @@
 
 // utils
 #include "logger2.hpp"
+#include "variant.hpp"
 
 using namespace std;
 using namespace boost::archive;
@@ -98,9 +99,9 @@ public:
         ssid_t subject;
         ssid_t predicate;
         ssid_t object;
-        dir_t  direction;
+        dir_t direction;
 
-        char  pred_type = 0;
+        char pred_type = (char)SID_t;
 
         Pattern() { }
 
@@ -403,12 +404,11 @@ public:
             return (vtype)ext2type(v2c_map[idx]);
         }
 
-        // TODO unused set get
         // result table for string IDs
         void set_col_num(int n) {
             col_num = n;
 #ifdef USE_GPU
-            gpu.set_col_num(col_num);
+            gpu.set_col_num(col_num); // FIXME: should be avoided
 #endif
         }
 
@@ -438,12 +438,13 @@ public:
                 update.push_back(get_row_col(r, c));
         }
 
-        // result table for others (e.g., integer, float, and double)
+        // ATTRIBUTE (e.g., integer, float, and double)
         int set_attr_col_num(int n) { attr_col_num = n; }
 
-        int get_attr_col_num() { return  attr_col_num; }
+        int get_attr_col_num() { return attr_col_num; }
 
         attr_t get_attr_row_col(int r, int c) {
+            ASSERT(r >= 0 && c >= 0);
             return attr_res_table[attr_col_num * r + c];
         }
 
@@ -452,82 +453,85 @@ public:
                 updated_result_table.push_back(get_attr_row_col(r, c));
         }
 
-        // insert a blank col to result table without updating col_num and v2c_map
-        void insert_blank_col(int col) {
-            vector<sid_t> new_table;
-            for (int i = 0; i < this->get_row_num(); i++) {
-                new_table.insert(new_table.end(),
-                                 this->result_table.begin() + (i * this->col_num),
-                                 this->result_table.begin() + (i * this->col_num + col));
-                new_table.push_back(BLANK_ID);
-                new_table.insert(new_table.end(),
-                                 this->result_table.begin() + (i * this->col_num + col),
-                                 this->result_table.begin() + ((i + 1) * this->col_num));
-            }
-            this->result_table.swap(new_table);
-        }
 
         // UNION
-        void merge_union(SPARQLQuery::Result &result) {
-            this->nvars = result.nvars;
-            this->v2c_map.resize(this->nvars, NO_RESULT);
-            this->blind = result.blind;
-            this->row_num += result.row_num;
-            this->attr_col_num = result.attr_col_num;
-            vector<int> col_map(this->nvars, -1);  // idx: my_col, value: your_col
-
-            for (int i = 0; i < result.v2c_map.size(); i++) {
-                ssid_t vid = -1 - i;
-                if (this->v2c_map[i] == NO_RESULT && result.v2c_map[i] != NO_RESULT) {
-                    this->insert_blank_col(this->col_num);
-                    this->add_var2col(vid, this->col_num);
-                    col_map[this->col_num] = result.var2col(vid);
-                    this->col_num++;
-                } else if (this->v2c_map[i] != NO_RESULT && result.v2c_map[i] == NO_RESULT) {
-                    col_map[this->var2col(vid)] = -1;
-                } else if (this->v2c_map[i] != NO_RESULT && result.v2c_map[i] != NO_RESULT) {
-                    col_map[this->var2col(vid)] = result.var2col(vid);
-                }
+        // append a blank col to result table without updating col_num and v2c_map
+        // FIXME:
+        void append_blank_col(int col) {
+            vector<sid_t> new_table;
+            for (int i = 0; i < get_row_num(); i++) {
+                new_table.insert(new_table.end(),
+                                 result_table.begin() + (i * col_num),
+                                 result_table.begin() + (i * col_num + col));
+                new_table.push_back(BLANK_ID);
+                new_table.insert(new_table.end(),
+                                 result_table.begin() + (i * col_num + col),
+                                 result_table.begin() + ((i + 1) * col_num));
             }
-
-            int new_size = this->col_num * this->row_num;
-            this->result_table.reserve(new_size);
-            for (int i = 0; i < result.row_num; i++) {
-                for (int j = 0; j < this->col_num; j++) {
-                    if (col_map[j] == -1)
-                        this->result_table.push_back(BLANK_ID);
-                    else
-                        this->result_table.push_back(result.result_table[i * result.col_num + col_map[j]]);
-                }
-            }
-            new_size = this->attr_res_table.size() + result.attr_res_table.size();
-            this->attr_res_table.reserve(new_size);
-            this->attr_res_table.insert(this->attr_res_table.end(),
-                                        result.attr_res_table.begin(),
-                                        result.attr_res_table.end());
+            result_table.swap(new_table);
         }
 
-        void append_result(SPARQLQuery::Result &result) {
-            this->col_num = result.col_num;
-            this->blind = result.blind;
-            this->row_num += result.row_num;
-            this->attr_col_num = result.attr_col_num;
-            this->v2c_map = result.v2c_map;
+        void merge_result(SPARQLQuery::Result &r) {
+            nvars = r.nvars;
+            v2c_map.resize(nvars, NO_RESULT);
+            row_num += r.row_num;
+            attr_col_num = r.attr_col_num;
+            blind = r.blind;
 
-            if (!this->blind) {
-                int new_size = this->result_table.size()
-                               + result.result_table.size();
-                this->result_table.reserve(new_size);
-                this->result_table.insert(this->result_table.end(),
-                                          result.result_table.begin(),
-                                          result.result_table.end());
-                new_size = this->attr_res_table.size()
-                           + result.attr_res_table.size();
-                this->attr_res_table.reserve(new_size);
-                this->attr_res_table.insert(this->attr_res_table.end(),
-                                            result.attr_res_table.begin(),
-                                            result.attr_res_table.end());
+            vector<int> col_map(nvars, -1);  // idx: my_col, value: your_col
+
+            for (int i = 0; i < r.v2c_map.size(); i++) {
+                ssid_t vid = -1 - i;
+                if (v2c_map[i] == NO_RESULT && r.v2c_map[i] != NO_RESULT) {
+                    append_blank_col(col_num);
+                    add_var2col(vid, col_num);
+                    col_map[col_num] = r.var2col(vid);
+                    col_num++;
+                } else if (v2c_map[i] != NO_RESULT && r.v2c_map[i] == NO_RESULT) {
+                    col_map[var2col(vid)] = -1;
+                } else if (v2c_map[i] != NO_RESULT && r.v2c_map[i] != NO_RESULT) {
+                    col_map[var2col(vid)] = r.var2col(vid);
+                }
             }
+
+            int new_size = col_num * row_num;
+            result_table.reserve(new_size);
+            for (int i = 0; i < r.row_num; i++) {
+                for (int j = 0; j < col_num; j++) {
+                    if (col_map[j] == -1)
+                        result_table.push_back(BLANK_ID);
+                    else
+                        result_table.push_back(r.result_table[i * r.col_num + col_map[j]]);
+                }
+            }
+            new_size = attr_res_table.size() + r.attr_res_table.size();
+            attr_res_table.reserve(new_size);
+            attr_res_table.insert(attr_res_table.end(),
+                                  r.attr_res_table.begin(),
+                                  r.attr_res_table.end());
+        }
+
+        void append_result(SPARQLQuery::Result &r) {
+            v2c_map = r.v2c_map;
+            col_num = r.col_num;
+            attr_col_num = r.attr_col_num;
+            row_num += r.row_num;
+            blind = r.blind;
+
+            if (blind)
+                return;
+
+            int new_size = result_table.size() + r.result_table.size();
+            result_table.reserve(new_size);
+            result_table.insert(result_table.end(),
+                                r.result_table.begin(),
+                                r.result_table.end());
+
+            new_size = attr_res_table.size() + r.attr_res_table.size();
+            attr_res_table.reserve(new_size);
+            attr_res_table.insert(attr_res_table.end(),
+                                  r.attr_res_table.begin(),
+                                  r.attr_res_table.end());
         }
     };
 

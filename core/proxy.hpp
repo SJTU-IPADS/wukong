@@ -92,7 +92,7 @@ private:
                     ASSERT(false);
                 }
                 SPARQLQuery::Pattern pattern(p, PREDICATE_ID, d, -1);
-                pattern.pred_type = 0;
+                pattern.pred_type = (char)SID_t;
                 request.pattern_group.patterns.push_back(pattern);
 
                 string dir_str = (d == OUT) ? "->" : "<-";
@@ -102,7 +102,7 @@ private:
                 // for example, %GraduateStudent takeCourse ?X .
                 // create a TYPE query to collect constants with the certain type
                 SPARQLQuery::Pattern pattern(str_server->str2id[type], TYPE_ID, IN, -1);
-                pattern.pred_type = 0;
+                pattern.pred_type = (char)SID_t;
                 request.pattern_group.patterns.push_back(pattern);
             }
 

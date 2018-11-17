@@ -273,8 +273,8 @@ public:
         }
 
         // triple pattern with attribute
-        if (global_enable_vattr && req.get_pattern(req.pattern_step).pred_type > 0) {
-            ASSERT("GPUEngine doesn't support attr");
+        if (global_enable_vattr && req.get_pattern(req.pattern_step).pred_type != (char)SID_t) {
+            ASSERT("GPUEngine doesn't support attribute");
         }
 
         // triple pattern with KNOWN predicate

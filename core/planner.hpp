@@ -1585,53 +1585,53 @@ public:
         return generate_for_group(r.pattern_group, r.result.nvars);
     }
 
-    bool test_plan_time(SPARQLQuery &r, data_statistic *statistic){
-    	generate_plan(r, statistic, true);
+    bool test_plan_time(SPARQLQuery &r, data_statistic *statistic) {
+        generate_plan(r, statistic, true);
     }
 
-    void set_ptypes_pos(vector<int> &ptypes_pos, const string &dir, int current_order, int raw_order){
+    void set_ptypes_pos(vector<int> &ptypes_pos, const string &dir, int current_order, int raw_order) {
 
-    	for (int i = 0; i < ptypes_pos.size(); i ++) {
-    		// check if any pos need to be changed
-    		if (ptypes_pos[i] / 4 == raw_order) {
-    	    	if (dir == "<") {
-    	    		switch (ptypes_pos[i] % 4) {
-    	    		case 0:
-    	    			ptypes_pos[i] = current_order * 4 + 3;
-    	    			break;
-    	    		case 1:
-    	    			ptypes_pos[i] = current_order * 4 + 1;
-    	    			break;
-    	    		case 3:
-    	    			ptypes_pos[i] = current_order * 4 + 0;
-    	    			break;
-    	    		default:
-    	    			ptypes_pos[i] = current_order * 4 + ptypes_pos[i] % 4;
-    	    		}
-    	    	} else if (dir == ">") {
-    	    		ptypes_pos[i] = current_order * 4 + ptypes_pos[i] % 4;
-    	    	} else if (dir == "<<") {
-    	    		switch (ptypes_pos[i] % 4) {
-    	    		case 0:
-    	    			ptypes_pos[i] = current_order * 4 + 3;
-    	    			break;
-    	    		case 1:
-    	    			ptypes_pos[i] = current_order * 4 + 0;
-    	    			break;
-    	    		default:
-    	    			ptypes_pos[i] = current_order * 4 + ptypes_pos[i] % 4;
-    	    		}
-    	    	} else if (dir == ">>") {
-    	    		switch (ptypes_pos[i] % 4) {
-    	    		case 1:
-    	    			ptypes_pos[i] = current_order * 4 + 0;
-    	    			break;
-    	    		default:
-    	    			ptypes_pos[i] = current_order * 4 + ptypes_pos[i] % 4;
-    	    		}
-    	    	}
-    		}
-    	}
+        for (int i = 0; i < ptypes_pos.size(); i ++) {
+            // check if any pos need to be changed
+            if (ptypes_pos[i] / 4 == raw_order) {
+                if (dir == "<") {
+                    switch (ptypes_pos[i] % 4) {
+                    case 0:
+                        ptypes_pos[i] = current_order * 4 + 3;
+                        break;
+                    case 1:
+                        ptypes_pos[i] = current_order * 4 + 1;
+                        break;
+                    case 3:
+                        ptypes_pos[i] = current_order * 4 + 0;
+                        break;
+                    default:
+                        ptypes_pos[i] = current_order * 4 + ptypes_pos[i] % 4;
+                    }
+                } else if (dir == ">") {
+                    ptypes_pos[i] = current_order * 4 + ptypes_pos[i] % 4;
+                } else if (dir == "<<") {
+                    switch (ptypes_pos[i] % 4) {
+                    case 0:
+                        ptypes_pos[i] = current_order * 4 + 3;
+                        break;
+                    case 1:
+                        ptypes_pos[i] = current_order * 4 + 0;
+                        break;
+                    default:
+                        ptypes_pos[i] = current_order * 4 + ptypes_pos[i] % 4;
+                    }
+                } else if (dir == ">>") {
+                    switch (ptypes_pos[i] % 4) {
+                    case 1:
+                        ptypes_pos[i] = current_order * 4 + 0;
+                        break;
+                    default:
+                        ptypes_pos[i] = current_order * 4 + ptypes_pos[i] % 4;
+                    }
+                }
+            }
+        }
     }
 
     void set_direction(SPARQLQuery::PatternGroup &group, const vector<int> &orders, const vector<string> &dirs, vector<int> &ptypes_pos = empty_ptypes_pos) {
@@ -1658,8 +1658,8 @@ public:
                 pattern.predicate = PREDICATE_ID;
             }
 
-            if(ptypes_pos.size() != 0)
-            	set_ptypes_pos(ptypes_pos, dirs[i], patterns.size(), orders[i] - 1);
+            if (ptypes_pos.size() != 0)
+                set_ptypes_pos(ptypes_pos, dirs[i], patterns.size(), orders[i] - 1);
             patterns.push_back(pattern);
         }
         group.patterns = patterns;

@@ -48,7 +48,7 @@ public:
     boost::unordered_map<sid_t, string> id2str;
 
     // the data type of predicate/attribute: sid=0, integer=1, float=2, double=3
-    boost::unordered_map<sid_t, int32_t> pid2type;
+    boost::unordered_map<sid_t, char> pid2type;
 
     uint64_t next_index_id;
     uint64_t next_normal_id;
@@ -105,7 +105,7 @@ private:
                     str2id[str] = id;
                     id2str[id] = str;
                     if (boost::ends_with(fname, "/str_index"))
-                        pid2type[id] = SID_t;
+                        pid2type[id] = (char)SID_t;
                 }
                 if (boost::ends_with(fname, "/str_index"))
                     next_index_id = ++id;
@@ -125,11 +125,11 @@ private:
                 ifstream file(fname.c_str());
                 string str;
                 sid_t id;
-                int32_t type;
+                char type;
                 while (file >> str >> id >> type) {
                     str2id[str] = id;
                     id2str[id] = str;
-                    pid2type[id] = type;
+                    pid2type[id] = (char)type;
 
                     // FIXME: dynamic loading (next_index_id)
                     logstream(LOG_INFO) << " attribute[" << id << "] = " << type << LOG_endl;
@@ -158,7 +158,7 @@ private:
                     str2id[str] = id;
                     id2str[id] = str;
                     if (boost::ends_with(fname, "/str_index"))
-                        pid2type[id] = SID_t;
+                        pid2type[id] = (char)SID_t;
                 }
                 if (boost::ends_with(fname, "/str_index"))
                     next_index_id = ++id;
@@ -178,11 +178,11 @@ private:
                 wukong::hdfs::fstream file(hdfs, fname);
                 string str;
                 sid_t id;
-                int32_t type;
+                char type;
                 while (file >> str >> id >> type) {
                     str2id[str] = id;
                     id2str[id] = str;
-                    pid2type[id] = type;
+                    pid2type[id] = (char)type;
 
                     // FIXME: dynamic loading (next_index_id)
                     logstream(LOG_INFO) << " attribute[" << id << "] = " << type << LOG_endl;

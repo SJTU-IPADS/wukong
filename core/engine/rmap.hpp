@@ -65,9 +65,9 @@ public:
         d.cnt--;
 
         // if the PatternGroup of r comes from a query's union part,
-        // use merge_union to put result
+        // use merge_result to put result
         if (r.pg_type == SPARQLQuery::PGType::UNION)
-            whole.merge_union(part);
+            whole.merge_result(part);
         else
             whole.append_result(part);
 
