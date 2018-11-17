@@ -211,6 +211,7 @@ public:
 
 /**
  * Map the Graph model (e.g., vertex, edge, index) to KVS model (e.g., key, value)
+ * Graph store adopts clustring chaining key/value store (see paper: DrTM SOSP'15)
  */
 class GStore {
     friend class data_statistic;
@@ -238,21 +239,27 @@ protected:
 
     RDMA_Cache rdma_cache;
 
+
     // get bucket_id according to key
     virtual uint64_t bucket_local(ikey_t key) = 0;
     virtual uint64_t bucket_remote(ikey_t key, int dst_sid) = 0;
-    // insert key to a slot
-    virtual uint64_t insert_key(ikey_t key, bool check_dup = true) = 0;
+
     // Allocate space to store edges of given size. Return offset of allocated space.
     virtual uint64_t alloc_edges(uint64_t n, int64_t tid = 0) = 0;
-    // Get remote edges according to given vid, dir, pid.
-    // @sz: size of return edges
-    virtual edge_t *get_edges_remote(int tid, sid_t vid,
-                                     sid_t pid, dir_t d, uint64_t &sz, int &type = *(int *)NULL) = 0;
+
+    // Check the validation of given edges according to given vertex.
+    virtual bool edge_is_valid(vertex_t &v, edge_t *edge_ptr) = 0;
+
+    // Get edges of given vertex from dst_sid by RDMA read.
+    virtual edge_t *rdma_get_edges(int tid, int dst_sid, vertex_t &v) = 0;
+
+    // insert key to a slot
+    virtual uint64_t insert_key(ikey_t key, bool check_dup = true) = 0;
+
 
     // Allocate extended buckets
-    // @n number of extended buckets to allocate
-    // @return start offset of allocated extended buckets
+    // @n: number of extended buckets to allocate
+    // @return: start offset of allocated extended buckets
     uint64_t alloc_ext_buckets(uint64_t n) {
         uint64_t orig;
         pthread_spin_lock(&bucket_ext_lock);
@@ -347,10 +354,38 @@ protected:
         }
     }
 
+    // Get remote edges according to given vid, pid, d.
+    // @sz: size of return edges
+    edge_t *get_edges_remote(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t &sz,
+                             int &type = *(int *)NULL) {
+        ikey_t key = ikey_t(vid, pid, d);
+        vertex_t v = get_vertex_remote(tid, key);
+
+        if (v.key.is_empty()) {
+            sz = 0;
+            return NULL; // not found
+        }
+
+        // remote edges
+        int dst_sid = wukong::math::hash_mod(vid, global_num_servers);
+        edge_t *edge_ptr = rdma_get_edges(tid, dst_sid, v);
+        while (!edge_is_valid(v, edge_ptr)) { // check cache validation
+            // invalidate cache and try again
+            rdma_cache.invalidate(key);
+            v = get_vertex_remote(tid, key);
+            edge_ptr = rdma_get_edges(tid, dst_sid, v);
+        }
+
+        sz = v.ptr.size;
+        if (&type != NULL)
+            type = v.ptr.type;
+        return edge_ptr;
+    }
+
     // Get local edges according to given vid, pid, d.
     // @sz: size of return edges
-    edge_t *get_edges_local(int tid, sid_t vid,
-                            sid_t pid, dir_t d, uint64_t &sz, int &type = *(int *)NULL) {
+    edge_t *get_edges_local(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t &sz,
+                            int &type = *(int *)NULL) {
         ikey_t key = ikey_t(vid, pid, d);
         vertex_t v = get_vertex_local(tid, key);
 
@@ -359,10 +394,13 @@ protected:
             return NULL; // not found
         }
 
+        // local edges
+        edge_t *edge_ptr = &(edges[v.ptr.off]);
+
         sz = v.ptr.size;
         if (&type != NULL)
             type = v.ptr.type;
-        return &(edges[v.ptr.off]);
+        return edge_ptr;
     }
 
     // TODO

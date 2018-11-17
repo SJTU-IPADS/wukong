@@ -292,7 +292,8 @@ private:
         // In most time, #attr_res_table table is equal to #result_table
         // reserve size of updated_result_table to #result_table
         updated_result_table.reserve(res.result_table.size());
-        updated_attr_table.reserve(res.result_table.size());
+        if (global_enable_vattr)
+            updated_attr_table.reserve(res.result_table.size());
 
         if (type == SID_t) {
             vector<bool> updated_optional_matched_rows;
