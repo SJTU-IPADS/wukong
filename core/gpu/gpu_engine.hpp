@@ -128,10 +128,9 @@ private:
         std::vector<sid_t> updated_result_table;
 
         logstream(LOG_DEBUG) << "#" << sid
-                             << " [begin] known_to_unknown: row_num=" << res.get_row_num()
+                             << " [begin] known_to_unknown: row_num=" << res.gpu.get_row_num()
                              << ", step=" << req.pattern_step << LOG_endl;
-        if (req.result.get_row_num() != 0) {
-            ASSERT(nullptr != req.result.gpu.result_buf_dp);
+        if (!res.gpu.is_rbuf_empty()) {
             backend.known_to_unknown(req, start, pid, d, updated_result_table);
         }
 
@@ -141,8 +140,8 @@ private:
         req.pattern_step++;
 
         logstream(LOG_DEBUG) << "#" << sid
-                             << "[end] GPU known_to_unknown: table_size=" << res.gpu.result_buf_nelems
-                             << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step
+                             << "[end] GPU known_to_unknown: table_size=" << res.gpu.rbuf_num_elems()
+                             << ", row_num=" << res.gpu.get_row_num() << ", step=" << req.pattern_step
                              << LOG_endl;
     }
 
@@ -162,18 +161,17 @@ private:
         std::vector<sid_t> updated_result_table;
 
         logstream(LOG_DEBUG) << "#" << sid
-                             << " [begin] known_to_known: row_num=" << res.get_row_num()
+                             << " [begin] known_to_known: row_num=" << res.gpu.get_row_num()
                              << ", step=" << req.pattern_step
                              << LOG_endl;
-        if (req.result.get_row_num() != 0) {
-            ASSERT(nullptr != req.result.gpu.result_buf_dp);
+        if (!res.gpu.is_rbuf_empty()) {
             backend.known_to_known(req, start, pid, end, d, updated_result_table);
         }
 
         res.result_table.swap(updated_result_table);
         req.pattern_step++;
-        logstream(LOG_DEBUG) << "#" << sid << "[end] GPU known_to_known: table_size=" << res.gpu.result_buf_nelems
-                             << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step
+        logstream(LOG_DEBUG) << "#" << sid << "[end] GPU known_to_known: table_size=" << res.gpu.rbuf_num_elems()
+                             << ", row_num=" << res.gpu.get_row_num() << ", step=" << req.pattern_step
                              << LOG_endl;
     }
 
@@ -193,17 +191,16 @@ private:
 
         std::vector<sid_t> updated_result_table;
 
-        logstream(LOG_DEBUG) << "#" << sid << " [begin] known_to_const: row_num=" << res.get_row_num()
+        logstream(LOG_DEBUG) << "#" << sid << " [begin] known_to_const: row_num=" << res.gpu.get_row_num()
                              << ", step=" << req.pattern_step << LOG_endl;
-        if (req.result.get_row_num() != 0) {
-            ASSERT(nullptr != req.result.gpu.result_buf_dp);
+        if (!res.gpu.is_rbuf_empty()) {
             backend.known_to_const(req, start, pid, end, d, updated_result_table);
         }
 
         res.result_table.swap(updated_result_table);
         req.pattern_step++;
-        logstream(LOG_DEBUG) << "#" << sid << "[end] GPU known_to_const: table_size=" << res.gpu.result_buf_nelems
-                             << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
+        logstream(LOG_DEBUG) << "#" << sid << "[end] GPU known_to_const: table_size=" << res.gpu.rbuf_num_elems()
+                             << ", row_num=" << res.gpu.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
     }
 
     // when need to access neighbors of a remote vertex, we need to fork the query
@@ -220,7 +217,7 @@ private:
 
         // GPUEngine only supports fork-join mode now
         return ((req.local_var != start)
-                && (req.result.get_row_num() >= 0));
+                && (req.result.gpu.get_row_num() >= 0));
     }
 
 
@@ -232,22 +229,22 @@ public:
 
     ~GPUEngine() { }
 
+    // check whether intermediate result (rbuf) is loaded into GPU
     bool result_buf_ready(const SPARQLQuery &req) {
-        if (req.result.result_table.empty()) {
+        if (req.pattern_step == 0)
             return true;
-        } else {
-            return req.result.gpu.result_buf_dp != nullptr;
-        }
+        else
+            return req.result.gpu.is_rbuf_valid();
     }
 
     void load_result_buf(SPARQLQuery &req) {
         char *rbuf = backend.load_result_buf(req.result);
-        req.result.set_gpu_result_buf(rbuf, req.result.result_table.size());
+        req.result.gpu.set_rbuf(rbuf, req.result.result_table.size());
     }
 
-    char* load_result_buf(SPARQLQuery &req, const string &rbuf_str) {
+    void load_result_buf(SPARQLQuery &req, const string &rbuf_str) {
         char *rbuf = backend.load_result_buf(rbuf_str.c_str(), rbuf_str.size());
-        req.result.set_gpu_result_buf(rbuf, rbuf_str.size() / WUKONG_GPU_ELEM_SIZE);
+        req.result.gpu.set_rbuf(rbuf, rbuf_str.size() / WUKONG_GPU_ELEM_SIZE);
     }
 
     bool execute_one_pattern(SPARQLQuery &req) {
@@ -326,6 +323,8 @@ public:
     }
 
     vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req) {
+        ASSERT(global_num_servers > 1);
+
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         sid_t start = pattern.subject;
 
@@ -345,7 +344,7 @@ public:
             sub_reqs[i].job_type = SPARQLQuery::SubJobType::SPLIT_JOB;
             sub_reqs[i].dev_type = SPARQLQuery::DeviceType::GPU;
 
-            sub_reqs[i].result.col_num = req.result.col_num;
+            sub_reqs[i].result.set_col_num(req.result.col_num);
             sub_reqs[i].result.attr_col_num = req.result.attr_col_num;
             sub_reqs[i].result.blind = req.result.blind;
             sub_reqs[i].result.v2c_map  = req.result.v2c_map;
@@ -354,27 +353,23 @@ public:
 
         ASSERT(req.pg_type != SPARQLQuery::PGType::OPTIONAL);
 
-        if (global_num_servers == 1) {
-            sub_reqs[0].result.set_gpu_result_buf(req.result.gpu.result_buf_dp, req.result.gpu.result_buf_nelems);
-        } else {
-            std::vector<sid_t*> buf_ptrs(global_num_servers);
-            std::vector<int> buf_sizes(global_num_servers);
+        std::vector<sid_t*> buf_ptrs(global_num_servers);
+        std::vector<int> buf_sizes(global_num_servers);
 
-            backend.generate_sub_query(req, start, global_num_servers, buf_ptrs, buf_sizes);
+        backend.generate_sub_query(req, start, global_num_servers, buf_ptrs, buf_sizes);
 
-            logstream(LOG_DEBUG) << "#" << sid << " generate_sub_query for req#" << req.qid << ", parent: " << req.pqid
-                                 << ", step: " << req.pattern_step << LOG_endl;
+        logstream(LOG_DEBUG) << "#" << sid << " generate_sub_query for req#" << req.qid << ", parent: " << req.pqid
+                             << ", step: " << req.pattern_step << LOG_endl;
 
-            for (int i = 0; i < global_num_servers; ++i) {
-                SPARQLQuery &r = sub_reqs[i];
-                r.result.set_gpu_result_buf((char*)buf_ptrs[i], buf_sizes[i]);
+        for (int i = 0; i < global_num_servers; ++i) {
+            SPARQLQuery &r = sub_reqs[i];
+            r.result.gpu.set_rbuf((char*)buf_ptrs[i], buf_sizes[i]);
 
-                // if gpu history table is empty, set it to FULL_QUERY, which
-                // will be sent by native RDMA
-                if (r.result.gpu_result_buf_empty()) {
-                    r.job_type = SPARQLQuery::SubJobType::FULL_JOB;
-                    r.result.clear_gpu_result_buf();
-                }
+            // if gpu history table is empty, set it to FULL_QUERY, which
+            // will be sent by native RDMA
+            if (r.result.gpu.is_rbuf_empty()) {
+                r.job_type = SPARQLQuery::SubJobType::FULL_JOB;
+                r.result.gpu.clear_rbuf();
             }
         }
 
