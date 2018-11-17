@@ -114,10 +114,12 @@ private:
                 file.close();
             }
 
-            // load the attr index from the str_attr_index file
-            // it contains by (string index, id index, predicate type)
-            // predicate type indicates the type of its object
-            // the predicates/attributes in str_attr_index should be exclusive to the predicates/attributes in str_index
+            // load the attribute index from the str_attr_index file
+            // it contains by (string, predicate-ID, predicate-type)
+            // predicate type: SID_t, INT_t, FLOAT_t, DOUBLE_t
+            //
+            // NOTE: the predicates/attributes in str_attr_index should be exclusive
+            //       to the predicates/attributes in str_index
             if (boost::ends_with(fname, "/str_attr_index")) {
                 logstream(LOG_INFO) << "loading ID-mapping (attribute) file: " << fname << LOG_endl;
                 ifstream file(fname.c_str());
@@ -128,6 +130,8 @@ private:
                     str2id[str] = id;
                     id2str[id] = str;
                     pid2type[id] = type;
+
+                    // FIXME: dynamic loading (next_index_id)
                     logstream(LOG_INFO) << " attribute[" << id << "] = " << type << LOG_endl;
                 }
                 file.close();
@@ -162,8 +166,13 @@ private:
                     next_normal_id = ++id;
                 file.close();
             }
-            // like load_from_posixfs
-            // the predicates/attributes in str_attr_index should be exclusive to the predicates/attributes in str_index
+
+            // load the attribute index from the str_attr_index file
+            // it contains by (string, predicate-ID, predicate-type)
+            // predicate type: SID_t, INT_t, FLOAT_t, DOUBLE_t
+            //
+            // NOTE: the predicates/attributes in str_attr_index should be exclusive
+            //       to the predicates/attributes in str_index
             if (boost::ends_with(fname, "/str_attr_index")) {
                 logstream(LOG_INFO) << "loading ID-mapping (attribute) file: " << fname << LOG_endl;
                 wukong::hdfs::fstream file(hdfs, fname);
@@ -174,6 +183,8 @@ private:
                     str2id[str] = id;
                     id2str[id] = str;
                     pid2type[id] = type;
+
+                    // FIXME: dynamic loading (next_index_id)
                     logstream(LOG_INFO) << " attribute[" << id << "] = " << type << LOG_endl;
                 }
                 file.close();
