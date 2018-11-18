@@ -65,7 +65,7 @@ public:
         pthread_spin_lock(&jelock);
         char *ret = (char*)top_of_heap;
 
-        //align the return address
+        // align the return address
         if ((uintptr_t)ret % alignment != 0)
             ret = ret + (alignment - (uintptr_t)ret % alignment);
 
@@ -77,7 +77,7 @@ public:
         }
         top_of_heap = ret + size;
         pthread_spin_unlock(&jelock);
-        if (*zero) //extent should be zeroed
+        if (*zero) // extent should be zeroed
             memset(ret, size, 0);
 
         if ((uintptr_t)ret % alignment != 0)
@@ -88,90 +88,42 @@ public:
 
     static bool extent_dalloc_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
                                    bool committed, unsigned arena_ind) {
-        logstream(LOG_DEBUG) << "(extent_hooks = " << extent_hooks
-                             << " , addr = " << addr << " , size = " << size
-                             << " , committed = " << committed
-                             << " , arena_ind = " << arena_ind << ")" << LOG_endl;
-
-        // opt out from dalloc
-        return true;
+        return true; // opt out
     }
 
     static void extent_destroy_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
                                     bool committed, unsigned arena_ind) {
-        logstream(LOG_DEBUG) << "(extent_hooks = " << extent_hooks
-                             << " , addr = " << addr << " , size = " << size
-                             << " , committed = " << committed
-                             << " , arena_ind = " << arena_ind << ")" << LOG_endl;
-
         return;
     }
 
     static bool extent_commit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
                                    size_t offset, size_t length, unsigned arena_ind) {
-        logstream(LOG_DEBUG) << "(extent_hooks = " << extent_hooks
-                             << " , addr = " << addr << " , size = " << size
-                             << " , offset = " << offset << " , length = " << length
-                             << " , arena_ind = " << arena_ind << ")" << LOG_endl;
-
-        // commit should always succeed
-        return false;
+        return false; // commit should always succeed
     }
 
     static bool extent_decommit_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
                                      size_t offset, size_t length, unsigned arena_ind) {
-        logstream(LOG_DEBUG) << "(extent_hooks = " << extent_hooks
-                             << " , addr = " << addr << " , size = " << size
-                             << " , offset = " << offset << " , length = " << length
-                             << " , arena_ind = " << arena_ind << ")" << LOG_endl;
-
-        // decommit should always succeed
-        return false;
+        return false; // decommit should always succeed
     }
 
     static bool extent_purge_lazy_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
                                        size_t offset, size_t length, unsigned arena_ind) {
-        logstream(LOG_DEBUG) << "(extent_hooks = " << extent_hooks
-                             << " , addr = " << addr << " , size = " << size
-                             << " , offset = " << offset << " , length = " << length
-                             << " , arena_ind = " << arena_ind << ")" << LOG_endl;
-
-        // opt out
-        return true;
+        return true; // opt out
     }
 
     static bool extent_purge_forced_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
                                          size_t offset, size_t length, unsigned arena_ind) {
-        logstream(LOG_DEBUG) << "(extent_hooks = " << extent_hooks
-                             << " , addr = " << addr << " , size = " << size
-                             << " , offset = " << offset << " , length = " << length
-                             << " , arena_ind = " << arena_ind << ")" << LOG_endl;
-
-        // opt out
-        return true;
+        return true; // opt out
     }
 
     static bool extent_split_hook(extent_hooks_t *extent_hooks, void *addr, size_t size,
                                   size_t size_a, size_t size_b, bool committed, unsigned arena_ind) {
-        logstream(LOG_DEBUG) << "(extent_hooks = " << extent_hooks
-                             << " , addr = " << addr << " , size = " << size
-                             << " , size_a = " << size_a << " , size_b = " << size_b
-                             << " , committed = " << committed
-                             << " , arena_ind = " << arena_ind << ")" << LOG_endl;
-
-        // split should always succeed
-        return false;
+        return false; // split should always succeed
     }
 
     static bool extent_merge_hook(extent_hooks_t *extent_hooks, void *addr_a, size_t size_a,
                                   void *addr_b, size_t size_b, bool committed, unsigned arena_ind) {
-        logstream(LOG_DEBUG) << "(extent_hooks = " << extent_hooks
-                             << " , addr_a = " << addr_a << " , size_a = " << size_a
-                             << " , addr_b = " << addr_b << " , size_b = " << size_b
-                             << " , committed = " << committed << " , arena_ind = " << arena_ind << ")" << LOG_endl;
-
-        // merge should always succeed
-        return false;
+        return false; // merge should always succeed
     }
 
     void init(void *start, uint64_t size, uint64_t n) {
@@ -184,12 +136,13 @@ public:
         arena_inds.resize(n);
         tcache_inds.resize(n);
         new_hooks = &hooks;
-        //create new arena for each engine and install custom extent hooks on it
+
+        // create new arena for each engine and install custom extent hooks on it
         for (int i = 0; i < n; i++)
             mallctl("arenas.create", (void *)&arena_inds[i], &sz,
                     (void *)&new_hooks, sizeof(extent_hooks_t *));
 
-        //create thread-specific cache for each engine
+        // create thread-specific cache for each engine
         for (int i = 0; i < n; i++)
             mallctl("tcache.create", (void *)&tcache_inds[i], &sz, NULL, 0);
     }

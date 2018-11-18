@@ -71,15 +71,6 @@ private:
         uint64_t blk_sz = blksz(sz + 1);   // reserve one space for flag
         edges[off + blk_sz - 1].val = flag;
     }
-    /* Check the validation of given edge according to given vertex.
-     * The edge is valid only when the size flag of edge is consistent with the size within the vertex.
-     */
-    inline bool edge_is_valid(vertex_t &v, edge_t *edge_ptr) {
-        if (!global_enable_caching)
-            return true;
-        uint64_t blk_sz = blksz(v.ptr.size + 1);  // reserve one space for flag
-        return (edge_ptr[blk_sz - 1].val == v.ptr.size);
-    }
 
     // Pend the free operation of given block.
     inline void add_pending_free(iptr_t ptr) {
@@ -195,17 +186,6 @@ private:
         }
     }
 
-    // Allocate space to store edges of given size.
-    // Return offset of allocated space.
-    uint64_t alloc_edges(uint64_t n, int64_t tid = 0) {
-        if (global_enable_caching)
-            sweep_free(); // collect free space before allocate
-        uint64_t sz = e2b(n + 1); // reserve one space for sz
-        uint64_t off = b2e(edge_allocator->malloc(sz, tid));
-        insert_sz(n, n, off);
-        return off;
-    }
-
     uint64_t bucket_local(ikey_t key) {
         uint64_t bucket_id;
         bucket_id = key.hash() % num_buckets;
@@ -216,7 +196,28 @@ private:
         return bucket_local(key);
     }
 
-    // cluster chaining hash-table (see paper: DrTM SOSP'15)
+    // Allocate space to store edges of given size.
+    // @return offset of allocated space.
+    uint64_t alloc_edges(uint64_t n, int64_t tid = 0) {
+        if (global_enable_caching)
+            sweep_free(); // collect free space before allocate
+        uint64_t sz = e2b(n + 1); // reserve one space for sz
+        uint64_t off = b2e(edge_allocator->malloc(sz, tid));
+        insert_sz(n, n, off);
+        return off;
+    }
+
+    /* Check the validation of given edge according to given vertex.
+     * The edge is valid only when the size flag of edge is consistent with the size within the vertex.
+     */
+    bool edge_is_valid(vertex_t &v, edge_t *edge_ptr) {
+        if (!global_enable_caching)
+            return true;
+        uint64_t blk_sz = blksz(v.ptr.size + 1);  // reserve one space for flag
+        return (edge_ptr[blk_sz - 1].val == v.ptr.size);
+    }
+
+    // insert key to a slot
     uint64_t insert_key(ikey_t key, bool check_dup = true) {
         uint64_t bucket_id = bucket_local(key);
         uint64_t slot_id = bucket_id * ASSOCIATIVITY;
@@ -560,28 +561,6 @@ done:
         return (edge_t *)buf;
     }
 
-    edge_t *get_edges_remote(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t &sz, int &type = *(int *)NULL) {
-        ikey_t key = ikey_t(vid, pid, d);
-        vertex_t v = get_vertex_remote(tid, key);
-        if (v.key.is_empty()) {
-            sz = 0;
-            return NULL; // not found
-        }
-        // remote edges
-        int dst_sid = wukong::math::hash_mod(vid, global_num_servers);
-        edge_t *edge_ptr = rdma_get_edges(tid, dst_sid, v);
-        // check the validation of remote edges
-        while (!edge_is_valid(v, edge_ptr)) {
-            // invalidate local cache and try again
-            rdma_cache.invalidate(key);
-            v = get_vertex_remote(tid, key);
-            edge_ptr = rdma_get_edges(tid, dst_sid, v);
-        }
-        sz = v.ptr.size;
-        if (&type != NULL)
-            type = v.ptr.type;
-        return edge_ptr;
-    }
 
 public:
     DynamicGStore(int sid, Mem *mem): GStore(sid, mem) {

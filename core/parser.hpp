@@ -153,9 +153,8 @@ private:
             SPARQLQuery::Pattern pattern(subject, predicate, direction, object);
 
             pattern.pred_type = str_server->pid2type[predicate];
-            if (pattern.pred_type > 0
-                    && !global_enable_vattr) {
-                logstream(LOG_ERROR) << "Must change config to enable vertex_attr"
+            if ((pattern.pred_type != (char)SID_t) && !global_enable_vattr) {
+                logstream(LOG_ERROR) << "Must enable attribute support"
                                      << LOG_endl;
                 ASSERT(false);
             }
@@ -247,10 +246,9 @@ private:
                 sqt.ptypes_pos.push_back(pos + 3); // object
             }
 
-            pattern.pred_type = str_server->pid2type[predicate];
-            if (pattern.pred_type > 0
-                    && !global_enable_vattr) {
-                logstream(LOG_ERROR) << "Must change config to enable vertex_attr" << LOG_endl;
+            pattern.pred_type = (char)str_server->pid2type[predicate];
+            if ((pattern.pred_type != (char)SID_t) && !global_enable_vattr) {
+                logstream(LOG_ERROR) << "Must enable attribute support" << LOG_endl;
                 ASSERT(false);
             }
 

@@ -44,11 +44,12 @@
 #include "assertion.hpp"
 #include "math.hpp"
 #include "timer.hpp"
+#include "variant.hpp"
 
 using namespace std;
 
 
-#define QUERY_FROM_PROXY(tid) ((tid) < global_num_proxies)
+#define QUERY_FROM_PROXY(r) (coder->tid_of((r).pqid) < global_num_proxies)
 
 typedef pair<int64_t, int64_t> int64_pair;
 
@@ -73,15 +74,18 @@ private:
     RMap rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
 
+
     /// A query whose parent's PGType is UNION may call this pattern
     void index_to_known(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t tpid = pattern.subject;
         ssid_t id01 = pattern.predicate;
-        dir_t d     = pattern.direction;
-        ssid_t var  = pattern.object;
+        dir_t d = pattern.direction;
+        ssid_t end = pattern.object;
+        ASSERT_MSG((pattern.pred_type == (char)SID_t), "Unsupported triple pattern with attribute");
+
         SPARQLQuery::Result &res = req.result;
-        int col = res.var2col(var);
+        int col = res.var2col(end);
 
         ASSERT(col != NO_RESULT);
         ASSERT(id01 == PREDICATE_ID || id01 == TYPE_ID); // predicate or type index
@@ -123,48 +127,15 @@ private:
         req.pattern_step++;
     }
 
-    void index_to_unknown(SPARQLQuery &req) {
-        SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ssid_t tpid = pattern.subject;
-        ssid_t id01 = pattern.predicate;
-        dir_t d     = pattern.direction;
-        ssid_t var  = pattern.object;
-        SPARQLQuery::Result &res = req.result;
-
-        ASSERT(id01 == PREDICATE_ID || id01 == TYPE_ID); // predicate or type index
-        ASSERT(res.get_col_num() == 0);
-
-        vector<sid_t> updated_result_table;
-
-        uint64_t sz = 0;
-        edge_t *edges = graph->get_index(tid, tpid, d, sz);
-        int start = req.tid % req.mt_factor;
-        int length = sz / req.mt_factor;
-
-        // every thread takes a part of consecutive edges
-        for (uint64_t k = start * length; k < (start + 1) * length; k++)
-            updated_result_table.push_back(edges[k].val);
-
-        // fixup the last participant
-        if (start == req.mt_factor - 1)
-            for (uint64_t k = (start + 1) * length; k < sz; k++)
-                updated_result_table.push_back(edges[k].val);
-
-        res.result_table.swap(updated_result_table);
-        res.set_col_num(1);
-        res.add_var2col(var, 0);
-        req.pattern_step++;
-        req.local_var = var;
-    }
-
     /// A query whose parent's PGType is UNION may call this pattern
     void const_to_known(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
-        ssid_t pid   = pattern.predicate;
-        dir_t d      = pattern.direction;
-        ssid_t end   = pattern.object;
-        std::vector<sid_t> updated_result_table;
+        ssid_t pid = pattern.predicate;
+        dir_t d = pattern.direction;
+        ssid_t end = pattern.object;
+        ASSERT_MSG((pattern.pred_type == (char)SID_t), "Unsupported triple pattern with attribute");
+
         SPARQLQuery::Result &res = req.result;
         int col = res.var2col(end);
 
@@ -190,6 +161,7 @@ private:
                 }
             }
         } else {
+            std::vector<sid_t> updated_result_table;
             for (uint64_t i = 0; i < res.get_row_num(); i++) {
                 // matched
                 if (unique_set.find(res.get_row_col(i, col)) != unique_set.end())
@@ -200,179 +172,230 @@ private:
         req.pattern_step++;
     }
 
+
+    /// IDX P ?X . (IDX and P are GIVEN, ?X is UNKNOWN)
+    /// e.g., "?X __PREDICATE__ ub:subOrganizationOf" (predicate index)
+    /// e.g., "?X  rdf:type  ub:GraduateStudent"      (type index)
+    ///
+    /// 1) Use [IDX]+[P] to retrieve all of neighbors (?X) on every node
+    void index_to_unknown(SPARQLQuery &req) {
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
+        ssid_t tpid = pattern.subject;
+        ssid_t id01 = pattern.predicate;
+        dir_t d = pattern.direction;
+        ssid_t end = pattern.object;
+        ASSERT_MSG((pattern.pred_type == (char)SID_t), "Unsupported triple pattern with attribute");
+
+        SPARQLQuery::Result &res = req.result;
+
+        ASSERT(id01 == PREDICATE_ID || id01 == TYPE_ID); // predicate or type index
+        ASSERT(res.get_col_num() == 0);
+        ASSERT(pattern.pred_type == (char)SID_t);
+
+        vector<sid_t> updated_result_table;
+
+        uint64_t sz = 0;
+        edge_t *edges = graph->get_index(tid, tpid, d, sz);
+        int start = req.tid % req.mt_factor;
+        int length = sz / req.mt_factor;
+
+        // every thread takes a part of consecutive edges
+        for (uint64_t k = start * length; k < (start + 1) * length; k++)
+            updated_result_table.push_back(edges[k].val);
+
+        // fixup the last participant
+        if (start == req.mt_factor - 1)
+            for (uint64_t k = (start + 1) * length; k < sz; k++)
+                updated_result_table.push_back(edges[k].val);
+
+        res.result_table.swap(updated_result_table);
+        res.set_col_num(1);
+        res.add_var2col(end, 0);
+        req.pattern_step++;
+        req.local_var = end;
+    }
+
+    /// C P ?X . (C/P: GIVEN, ?X: UNKNOWN)
+    /// e.g., "?X ub:subOrganizationOf <http://www.University0.edu>"        (Triple)
+    /// e.g., "<http://www.Department7.University0.edu/Course44> ub:id ?X"  (Attribute)
+    ///
+    /// 1) Use [C]+[P] to retrieve all of neighbors (?X) on a certain (HASH(C)) node
     void const_to_unknown(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
-        ssid_t pid   = pattern.predicate;
-        dir_t d      = pattern.direction;
-        ssid_t end   = pattern.object;
-        std::vector<sid_t> updated_result_table;
+        ssid_t pid = pattern.predicate;
+        dir_t d = pattern.direction;
+        ssid_t end = pattern.object;
+
+        char type = pattern.pred_type;
+        ASSERT_MSG(((global_enable_vattr) || (type == (char)SID_t)),
+                   "MUST enable attribute support!");
+
         SPARQLQuery::Result &res = req.result;
 
-        ASSERT(res.get_col_num() == 0);
-        uint64_t sz = 0;
-        edge_t *edges = graph->get_triples(tid, start, pid, d, sz);
-        for (uint64_t k = 0; k < sz; k++)
-            updated_result_table.push_back(edges[k].val);
+        if (type == SID_t) {
+            uint64_t sz = 0;
+            edge_t *edges = graph->get_triples(tid, start, pid, d, sz);
+            std::vector<sid_t> updated_result_table;
+            for (uint64_t k = 0; k < sz; k++)
+                updated_result_table.push_back(edges[k].val);
+            res.result_table.swap(updated_result_table);
 
-        res.result_table.swap(updated_result_table);
-        res.add_var2col(end, res.get_col_num());
-        res.set_col_num(res.get_col_num() + 1);
-        req.pattern_step++;
-    }
+            // MUST be the first triple pattern
+            ASSERT(res.get_col_num() == 0);
+            res.add_var2col(end, res.get_col_num(), type);
+            res.set_col_num(res.get_col_num() + 1);
+        } else {
+            ASSERT(d == OUT); // attribute always uses OUT
 
-    // all of these means const attribute
-    // query the attribute starts from const
-    // like <Course3> <id> ?X
-    void const_to_unknown_attr(SPARQLQuery &req) {
-        // prepare for query
-        SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ssid_t start = pattern.subject;
-        ssid_t aid   = pattern.predicate;
-        dir_t d      = pattern.direction;
-        ssid_t end   = pattern.object;
-        SPARQLQuery::Result &res = req.result;
+            bool has_value;
+            attr_t v = graph->get_attr(tid, start, pid, d, has_value);
+            ASSERT(type == boost::apply_visitor(variant_type(), v));
+            std::vector<attr_t> updated_attr_table;
+            if (has_value)
+                updated_attr_table.push_back(v);
+            res.attr_res_table.swap(updated_attr_table);
 
-        ASSERT(d == OUT); // attribute always uses OUT
-
-        std::vector<attr_t> updated_attr_table;
-
-        int type = INT_t;
-        // get the reusult
-        bool has_value;
-        attr_t v = graph->get_attr(tid, start, aid, d, has_value);
-        if (has_value) {
-            updated_attr_table.push_back(v);
-            type = boost::apply_visitor(variant_type(), v);
+            // MUST be the first triple pattern
+            ASSERT(res.get_attr_col_num() == 0);
+            res.add_var2col(end, res.get_attr_col_num(), type);
+            res.set_attr_col_num(res.get_attr_col_num() + 1);
         }
 
-        // update the result table and metadata
-        res.attr_res_table.swap(updated_attr_table);
-        res.add_var2col(end, 0, type);   //update the unknown_attr to known
-        res.set_attr_col_num(1);
         req.pattern_step++;
     }
 
+    /// ?X P ?Y . (?X: KNOWN, P: GIVEN, ?X: UNKNOWN)
+    /// e.g., "?X rdf:type ub:GraduateStudent"
+    ///       "?X ub:memberOf ?Y"
+    /// e.g., "?Z ub:undergraduateDegreeFrom ?X"
+    ///       "?Z ub:memberOf ?Y"
+    ///       "?Y ub:subOrganizationOf ?X"
+    ///
+    /// 1) Use [?X]+[P] to retrieve all of neighbors (?Y)
     void known_to_unknown(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
-        ssid_t pid   = pattern.predicate;
-        dir_t d      = pattern.direction;
-        ssid_t end   = pattern.object;
+        ssid_t pid = pattern.predicate;
+        dir_t d = pattern.direction;
+        ssid_t end = pattern.object;
+
+        char type = pattern.pred_type;
+        ASSERT_MSG(((global_enable_vattr) || (type == (char)SID_t)),
+                   "MUST enable attribute support!");
+
         SPARQLQuery::Result &res = req.result;
 
         std::vector<sid_t> updated_result_table;
-        updated_result_table.reserve(res.result_table.size());
-        vector<bool> updated_optional_matched_rows;
-        if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
-            updated_optional_matched_rows.reserve(res.optional_matched_rows.size());
-        }
         std::vector<attr_t> updated_attr_table;
-        updated_attr_table.reserve(res.result_table.size());
 
-        // simple dedup for consecutive same vertices
-        sid_t cached = BLANK_ID;
-        edge_t *edges = NULL;
-        uint64_t sz = 0;
-        for (int i = 0; i < res.get_row_num(); i++) {
-            sid_t cur = res.get_row_col(i, res.var2col(start));
-            if (req.pg_type == SPARQLQuery::PGType::OPTIONAL &&
-                    (!res.optional_matched_rows[i] || cur == BLANK_ID)) {
-                res.append_row_to(i, updated_result_table);
-                updated_result_table.push_back(BLANK_ID);
-                updated_optional_matched_rows.push_back(res.optional_matched_rows[i]);
-                continue;
-            }
-            if (cur != cached) {  // a new vertex
-                cached = cur;
-                edges = graph->get_triples(tid, cur, pid, d, sz);
-            }
+        // In most time, #attr_res_table table is equal to #result_table
+        // reserve size of updated_result_table to #result_table
+        updated_result_table.reserve(res.result_table.size());
+        if (global_enable_vattr)
+            updated_attr_table.reserve(res.result_table.size());
 
-            // append a new intermediate result (row)
-            if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
-                if (sz > 0) {
-                    for (uint64_t k = 0; k < sz; k++) {
+        if (type == SID_t) {
+            vector<bool> updated_optional_matched_rows;
+            if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
+                updated_optional_matched_rows.reserve(res.optional_matched_rows.size());
+
+            sid_t cached = BLANK_ID; // simple dedup for consecutive same vertices
+            edge_t *edges = NULL;
+            uint64_t sz = 0;
+            for (int i = 0; i < res.get_row_num(); i++) {
+                sid_t cur = res.get_row_col(i, res.var2col(start));
+
+                // optional
+                if (req.pg_type == SPARQLQuery::PGType::OPTIONAL
+                        && (!res.optional_matched_rows[i] || cur == BLANK_ID)) {
+                    res.append_row_to(i, updated_result_table);
+                    updated_result_table.push_back(BLANK_ID);
+                    updated_optional_matched_rows.push_back(res.optional_matched_rows[i]);
+                    continue;
+                }
+
+                if (cur != cached) { // new KNOWN
+                    cached = cur;
+                    edges = graph->get_triples(tid, cur, pid, d, sz);
+                }
+
+                // append a new intermediate result (row)
+                if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
+                    if (sz > 0) {
+                        for (uint64_t k = 0; k < sz; k++) {
+                            res.append_row_to(i, updated_result_table);
+                            updated_result_table.push_back(edges[k].val);
+                            updated_optional_matched_rows.push_back(true);
+                        }
+                    } else {
                         res.append_row_to(i, updated_result_table);
-                        updated_result_table.push_back(edges[k].val);
+                        updated_result_table.push_back(BLANK_ID);
                         updated_optional_matched_rows.push_back(true);
                     }
                 } else {
-                    res.append_row_to(i, updated_result_table);
-                    updated_result_table.push_back(BLANK_ID);
-                    updated_optional_matched_rows.push_back(true);
-                }
-            } else {
-                for (uint64_t k = 0; k < sz; k++) {
-                    res.append_row_to(i, updated_result_table);
-                    // update attr table to map the result table
-                    if (global_enable_vattr)
-                        res.append_attr_row_to(i, updated_attr_table);
-                    updated_result_table.push_back(edges[k].val);
+                    for (uint64_t k = 0; k < sz; k++) {
+                        res.append_row_to(i, updated_result_table);
+                        // update attribute table to map the result table
+                        if (global_enable_vattr)
+                            res.append_attr_row_to(i, updated_attr_table);
+                        updated_result_table.push_back(edges[k].val);
+                    }
                 }
             }
-        }
-        res.result_table.swap(updated_result_table);
-        if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
-            res.optional_matched_rows.swap(updated_optional_matched_rows);
-        if (global_enable_vattr)
+
+            if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
+                res.optional_matched_rows.swap(updated_optional_matched_rows);
+
+            // update result table and attr_res_table
+            res.result_table.swap(updated_result_table);
+            if (global_enable_vattr)
+                res.attr_res_table.swap(updated_attr_table);
+
+            // update metadata
+            res.add_var2col(end, res.get_col_num(), type);
+            res.set_col_num(res.get_col_num() + 1);
+            req.pattern_step++;
+        } else {
+            ASSERT(d == OUT); // attribute always uses OUT
+            for (int i = 0; i < res.get_row_num(); i++) {
+                sid_t prev_id = res.get_row_col(i, res.var2col(start));
+                bool has_value;
+                attr_t v = graph->get_attr(tid, prev_id, pid, d, has_value);
+                ASSERT(type == boost::apply_visitor(variant_type(), v));
+                if (has_value) {
+                    res.append_row_to(i, updated_result_table);
+                    res.append_attr_row_to(i, updated_attr_table);
+                    updated_attr_table.push_back(v);
+                }
+            }
+
+            // update the result table, attr_res_table and metadata
+            res.result_table.swap(updated_result_table);
             res.attr_res_table.swap(updated_attr_table);
-        res.add_var2col(end, res.get_col_num());
-        res.set_col_num(res.get_col_num() + 1);
-        req.pattern_step++;
-    }
 
-    // query the attribute starts from known to attribute value
-    void known_to_unknown_attr(SPARQLQuery &req) {
-        // prepare for query
-        // the attr_res_table and result_table should be update
-        SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ssid_t start = pattern.subject;
-        ssid_t pid   = pattern.predicate;
-        dir_t d      = pattern.direction;
-        ssid_t end   = pattern.object;
-        SPARQLQuery::Result &res = req.result;
-
-        ASSERT(d == OUT); // attribute always uses OUT
-
-        std::vector<sid_t> updated_result_table;
-        std::vector<attr_t> updated_attr_table;
-
-        // In most time, the size of attr_res_table table is equal to the size of result_table
-        // reserve size of updated_result_table to the size of result_table
-        updated_attr_table.reserve(res.result_table.size());
-        int type = req.get_pattern(req.pattern_step).pred_type ;
-        variant_type get_type;
-        for (int i = 0; i < res.get_row_num(); i++) {
-            sid_t prev_id = res.get_row_col(i, res.var2col(start));
-            bool has_value;
-            attr_t v = graph->get_attr(tid, prev_id, pid, d, has_value);
-            if (has_value) {
-                res.append_row_to(i, updated_result_table);
-                res.append_attr_row_to(i, updated_attr_table);
-                updated_attr_table.push_back(v);
-                type = boost::apply_visitor(get_type, v);
-            }
+            // update metadata
+            res.add_var2col(end, res.get_attr_col_num(), type);
+            res.set_attr_col_num(res.get_attr_col_num() + 1);
+            req.pattern_step++;
         }
-
-        // update the result table, attr_res_table and metadata
-        res.result_table.swap(updated_result_table);
-        res.attr_res_table.swap(updated_attr_table);
-        res.add_var2col(end, res.get_attr_col_num(), type); // update the unknown_attr to known
-        res.set_attr_col_num(res.get_attr_col_num() + 1);
-        req.pattern_step++;
     }
 
-    /// ?Y P ?X . (?Y and ?X are KNOWN)
-    /// e.g.,
+    /// ?Y P ?X . (?Y:KNOWN, ?X: KNOWN)
+    /// e.g., "?Z ub:undergraduateDegreeFrom ?X"
+    ///       "?Z ub:memberOf ?Y"
+    ///       "?Y ub:subOrganizationOf ?X"
     ///
-    /// 1) Use [?Y]+P1 to retrieve all of neighbors
-    /// 2) Match [?Y]'s X within above neighbors
+    /// 1) Use [?Y]+[P] to retrieve all of neighbors (X')
+    /// 2) Match KNOWN X with X'
     void known_to_known(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
-        ssid_t pid   = pattern.predicate;
-        dir_t d      = pattern.direction;
-        ssid_t end   = pattern.object;
+        ssid_t pid = pattern.predicate;
+        dir_t d = pattern.direction;
+        ssid_t end = pattern.object;
+        ASSERT_MSG((pattern.pred_type == (char)SID_t), "Unsupported triple pattern with attribute");
+
         SPARQLQuery::Result &res = req.result;
 
         vector<sid_t> updated_result_table;
@@ -412,6 +435,7 @@ private:
                 }
             }
         }
+
         if (req.pg_type != SPARQLQuery::PGType::OPTIONAL) {
             res.result_table.swap(updated_result_table);
             if (global_enable_vattr)
@@ -421,16 +445,19 @@ private:
     }
 
     /// ?X P C . (?X is KNOWN)
-    /// e.g.,
+    /// e.g., "?X rdf:type ub:FullProfessor"
+    ///       "?X ub:worksFor <http://www.Department0.University0.edu>"
     ///
-    /// 1) Use [?X]+P1 to retrieve all of neighbors
-    /// 2) Match E1 within above neighbors
+    /// 1) Use [?X]+[P] to retrieve all of neighbors (C')
+    /// 2) Match const C with C'
     void known_to_const(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
-        ssid_t pid   = pattern.predicate;
-        dir_t d      = pattern.direction;
-        ssid_t end   = pattern.object;
+        ssid_t pid = pattern.predicate;
+        dir_t d = pattern.direction;
+        ssid_t end = pattern.object;
+        ASSERT_MSG((pattern.pred_type == (char)SID_t), "Unsupported triple pattern with attribute");
+
         SPARQLQuery::Result &res = req.result;
 
         vector<sid_t> updated_result_table;
@@ -486,17 +513,19 @@ private:
     }
 
     /// C ?P ?X . (?P and ?X are UNKNOWN)
-    /// e.g.,
+    /// e.g., "?X ?P <http://www.Department0.University0.edu>"
     ///
+    /// 1) Use [C]+[__PREDICATE__] to retrieve all of predicates (?P)
+    /// 2) Use [C]+[?P] to retrieve all of neighbors (?X)
     void const_unknown_unknown(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
-        ssid_t pid   = pattern.predicate;
-        dir_t d      = pattern.direction;
-        ssid_t end   = pattern.object;
-        SPARQLQuery::Result &res = req.result;
+        ssid_t pid = pattern.predicate;
+        dir_t d = pattern.direction;
+        ssid_t end = pattern.object;
+        ASSERT_MSG((pattern.pred_type == (char)SID_t), "Unsupported triple pattern with attribute");
 
-        vector<sid_t> updated_result_table;
+        SPARQLQuery::Result &res = req.result;
 
         uint64_t npids = 0;
         edge_t *pids = graph->get_triples(tid, start, PREDICATE_ID, d, npids);
@@ -505,6 +534,7 @@ private:
         edge_t *tpids = (edge_t *)malloc(npids * sizeof(edge_t));
         memcpy((char *)tpids, (char *)pids, npids * sizeof(edge_t));
 
+        vector<sid_t> updated_result_table;
         for (uint64_t p = 0; p < npids; p++) {
             uint64_t sz = 0;
             edge_t *res = graph->get_triples(tid, start, tpids[p].val, d, sz);
@@ -524,14 +554,19 @@ private:
     }
 
     /// ?X ?P ?Y . (?X is KNOWN; ?P and ?X are UNKNOWN)
-    /// e.g.,
+    /// e.g., "?X ub:subOrganizationOf <http://www.University0.edu>"
+    ///       "?X ?P ?Y"
     ///
+    /// 1) Use [?X]+[__PREDICATE__] to retrieve all of predicates (?P)
+    /// 2) Use [?X]+[?P] to retrieve all of neighbors (?Y)
     void known_unknown_unknown(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
-        ssid_t pid   = pattern.predicate;
-        dir_t d      = pattern.direction;
-        ssid_t end   = pattern.object;
+        ssid_t pid = pattern.predicate;
+        dir_t d = pattern.direction;
+        ssid_t end = pattern.object;
+        ASSERT_MSG((pattern.pred_type == (char)SID_t), "Unsupported triple pattern with attribute");
+
         SPARQLQuery::Result &res = req.result;
 
         vector<sid_t> updated_result_table;
@@ -566,19 +601,23 @@ private:
     }
 
     /// ?X ?P C . (?X is KNOWN; ?P is UNKNOWN)
-    /// e.g., "<http://www.University0.edu> ub:subOrganizationOf ?D"
-    ///       "?D ?P <http://www.Department4.University0.edu>"
+    /// e.g., "<http://www.University0.edu> ub:subOrganizationOf ?X"
+    ///       "?X ?P <http://www.Department4.University0.edu>"
     ///
+    /// 1) Use [?X]+[__PREDICATE__] to retrieve all of predicates (?P)
+    /// 2) Use [?X]+[?P] to retrieve all of neighbors (C')
+    /// 3) Match const C with C'
     void known_unknown_const(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
-        ssid_t pid   = pattern.predicate;
-        dir_t d      = pattern.direction;
-        ssid_t end   = pattern.object;
+        ssid_t pid = pattern.predicate;
+        dir_t d = pattern.direction;
+        ssid_t end = pattern.object;
+        ASSERT_MSG((pattern.pred_type == (char)SID_t), "Unsupported triple pattern with attribute");
+
         SPARQLQuery::Result &result = req.result;
 
         vector<sid_t> updated_result_table;
-
         for (int i = 0; i < result.get_row_num(); i++) {
             sid_t prev_id = result.get_row_col(i, result.var2col(start));
             uint64_t npids = 0;
@@ -610,15 +649,19 @@ private:
     }
 
     /// C1 ?P C2 . (?P is UNKNOWN)
-    /// e.g.,
+    /// e.g., "<http://www.University0.edu> ?P <http://www.Department4.University0.edu>"
     ///
+    /// 1) Use C+[__PREDICATE__] to retrieve all of predicates (?P)
+    /// 2) Use [?X]+[?P] to retrieve all of neighbors (C')
+    /// 3) Match const C with C'
     void const_unknown_const(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
-        ssid_t pid   = pattern.predicate;
-        dir_t d      = pattern.direction;
-        ssid_t end   = pattern.object;
-        vector<sid_t> updated_result_table;
+        ssid_t pid = pattern.predicate;
+        dir_t d = pattern.direction;
+        ssid_t end = pattern.object;
+        ASSERT_MSG((pattern.pred_type == (char)SID_t), "Unsupported triple pattern with attribute");
+
         SPARQLQuery::Result &result = req.result;
 
         // the query plan is wrong
@@ -631,6 +674,7 @@ private:
         edge_t *tpids = (edge_t *)malloc(npids * sizeof(edge_t));
         memcpy((char *)tpids, (char *)pids, npids * sizeof(edge_t));
 
+        vector<sid_t> updated_result_table;
         for (uint64_t p = 0; p < npids; p++) {
             uint64_t sz = 0;
             edge_t *res = graph->get_triples(tid, start, tpids[p].val, d, sz);
@@ -649,7 +693,6 @@ private:
         result.add_var2col(pid, 0);
         req.pattern_step++;
     }
-
 
     vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
@@ -697,7 +740,7 @@ private:
         if (!global_use_rdma) return true;
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ASSERT(req.result.variable_type(pattern.subject) == known_var);
+        ASSERT(req.result.var_stat(pattern.subject) == KNOWN_VAR);
         ssid_t start = pattern.subject;
         return ((req.local_var != start) // next hop is not local
                 && (req.result.get_row_num() >= global_rdma_threshold)); // FIXME: not consider dedup
@@ -744,7 +787,7 @@ private:
             dir_t direction = pattern.direction;
             ssid_t object = lambda(pattern.object);
             SPARQLQuery::Pattern newPattern(subject, predicate, direction, object);
-            newPattern.pred_type = 0;
+            newPattern.pred_type = (char)SID_t;
             subgroup.patterns.push_back(newPattern);
         }
 
@@ -814,13 +857,6 @@ private:
             t4 = timer::get_usec();
         }
 
-        if (sid == 0 && tid == 0) {
-            logstream(LOG_DEBUG) << "Prepare " << (t1 - t0) << " us" << LOG_endl;
-            logstream(LOG_DEBUG) << "Execute sub-request " << (t2 - t1) << " us" << LOG_endl;
-            logstream(LOG_DEBUG) << "Sort " << (t3 - t2) << " us" << LOG_endl;
-            logstream(LOG_DEBUG) << "Lookup " << (t4 - t3) << " us" << LOG_endl;
-        }
-
         req_result.result_table.swap(updated_result_table);
         req.pattern_step = fetch_step;
     }
@@ -832,11 +868,12 @@ private:
                              << " step=" << req.pattern_step << LOG_endl;
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ssid_t start     = pattern.subject;
+        ssid_t start = pattern.subject;
         ssid_t predicate = pattern.predicate;
-        dir_t direction  = pattern.direction;
-        ssid_t end       = pattern.object;
+        dir_t direction = pattern.direction;
+        ssid_t end = pattern.object;
 
+        // the first triple pattern from index
         if (req.pattern_step == 0 && req.start_from_index()) {
             if (req.result.var2col(end) != NO_RESULT)
                 index_to_known(req);
@@ -845,8 +882,8 @@ private:
             return true;
         }
 
-        // triple pattern with UNKNOWN predicate/attribute
-        if (req.result.variable_type(predicate) != const_var) {
+        // triple pattern with UNKNOWN/KNOWN predicate/attribute
+        if (req.result.var_stat(predicate) != CONST_VAR) {
 #ifdef VERSATILE
             /// Now unsupported UNKNOWN predicate with vertex attribute enabling.
             /// When doing the query, we judge request of vertex attribute by its predicate.
@@ -856,156 +893,145 @@ private:
                 logstream(LOG_ERROR) << "Please turn off the vertex attribute enabling." << LOG_endl;
                 ASSERT(false);
             }
-            switch (const_pair(req.result.variable_type(start),
-                               req.result.variable_type(end))) {
 
+            switch (const_pair(req.result.var_stat(start),
+                               req.result.var_stat(end))) {
             // start from CONST
-            case const_pair(const_var, unknown_var):
+            case const_pair(CONST_VAR, UNKNOWN_VAR):
                 const_unknown_unknown(req);
                 break;
-            case const_pair(const_var, const_var):
+            case const_pair(CONST_VAR, CONST_VAR):
                 const_unknown_const(req);
                 break;
-            case const_pair(const_var, known_var):
+            case const_pair(CONST_VAR, KNOWN_VAR):
                 // FIXME: possible or not?
                 logstream(LOG_ERROR) << "Unsupported triple pattern [CONST|UNKNOWN|KNOWN]." << LOG_endl;
                 ASSERT(false);
 
             // start from KNOWN
-            case const_pair(known_var, unknown_var):
+            case const_pair(KNOWN_VAR, UNKNOWN_VAR):
                 known_unknown_unknown(req);
                 break;
-            case const_pair(known_var, const_var):
+            case const_pair(KNOWN_VAR, CONST_VAR):
                 known_unknown_const(req);
                 break;
-            case const_pair(known_var, known_var):
+            case const_pair(KNOWN_VAR, KNOWN_VAR):
                 // FIXME: possible or not?
                 logstream(LOG_ERROR) << "Unsupported triple pattern [KNOWN|UNKNOWN|KNOWN]." << LOG_endl;
                 ASSERT(false);
 
             // start from UNKNOWN (incorrect query plan)
-            case const_pair(unknown_var, const_var):
-            case const_pair(unknown_var, known_var):
-            case const_pair(unknown_var, unknown_var):
+            case const_pair(UNKNOWN_VAR, CONST_VAR):
+            case const_pair(UNKNOWN_VAR, KNOWN_VAR):
+            case const_pair(UNKNOWN_VAR, UNKNOWN_VAR):
                 logstream(LOG_ERROR) << "Unsupported triple pattern [UNKNOWN|UNKNOWN|??]" << LOG_endl;
                 ASSERT(false);
 
             default:
                 logstream(LOG_ERROR) << "Unsupported triple pattern (UNKNOWN predicate) "
-                                     << "(" << req.result.variable_type(start)
-                                     << "|" << req.result.variable_type(end)
+                                     << "(" << req.result.var_stat(start)
+                                     << "|" << req.result.var_stat(end)
                                      << ")." << LOG_endl;
                 ASSERT(false);
             }
-
-            return true;
 #else
             logstream(LOG_ERROR) << "Unsupported variable at predicate." << LOG_endl;
             logstream(LOG_ERROR) << "Please add definition VERSATILE in CMakeLists.txt." << LOG_endl;
             ASSERT(false);
 #endif
-        }
+        } else {
 
-        // triple pattern with attribute
-        if (global_enable_vattr && req.get_pattern(req.pattern_step).pred_type > 0) {
-            switch (const_pair(req.result.variable_type(start),
-                               req.result.variable_type(end))) {
-            // now support const_to_unknown_attr and known_to_unknown_attr
-            case const_pair(const_var, unknown_var):
-                const_to_unknown_attr(req);
+            // triple pattern with CONST predicate/attribute
+            switch (const_pair(req.result.var_stat(start),
+                               req.result.var_stat(end))) {
+
+            // start from CONST
+            case const_pair(CONST_VAR, CONST_VAR):
+                logstream(LOG_ERROR) << "Unsupported triple pattern [CONST|KNOWN|CONST]" << LOG_endl;
+                ASSERT(false);
+            case const_pair(CONST_VAR, KNOWN_VAR):
+                const_to_known(req);
                 break;
-            case const_pair(known_var, unknown_var):
-                known_to_unknown_attr(req);
+            case const_pair(CONST_VAR, UNKNOWN_VAR):
+                const_to_unknown(req);
                 break;
+
+            // start from KNOWN
+            case const_pair(KNOWN_VAR, CONST_VAR):
+                known_to_const(req);
+                break;
+            case const_pair(KNOWN_VAR, KNOWN_VAR):
+                known_to_known(req);
+                break;
+            case const_pair(KNOWN_VAR, UNKNOWN_VAR):
+                known_to_unknown(req);
+                break;
+
+            // start from UNKNOWN (incorrect query plan)
+            case const_pair(UNKNOWN_VAR, CONST_VAR):
+            case const_pair(UNKNOWN_VAR, KNOWN_VAR):
+            case const_pair(UNKNOWN_VAR, UNKNOWN_VAR):
+                logstream(LOG_ERROR) << "Unsupported triple pattern [UNKNOWN|KNOWN|??]" << LOG_endl;
+                ASSERT(false);
+
             default:
-                logstream(LOG_ERROR) << "Unsupported triple pattern with attribute "
-                                     << "(" << req.result.variable_type(start)
-                                     << "|" << req.result.variable_type(end)
+                logstream(LOG_ERROR) << "Unsupported triple pattern with known predicate "
+                                     << "(" << req.result.var_stat(start)
+                                     << "|" << req.result.var_stat(end)
                                      << ")" << LOG_endl;
                 ASSERT(false);
             }
-            return true;
-        }
-
-        // triple pattern with KNOWN predicate
-        switch (const_pair(req.result.variable_type(start),
-                           req.result.variable_type(end))) {
-
-        // start from CONST
-        case const_pair(const_var, const_var):
-            logstream(LOG_ERROR) << "Unsupported triple pattern [CONST|KNOWN|CONST]" << LOG_endl;
-            ASSERT(false);
-        case const_pair(const_var, known_var):
-            const_to_known(req);
-            break;
-        case const_pair(const_var, unknown_var):
-            const_to_unknown(req);
-            break;
-
-        // start from KNOWN
-        case const_pair(known_var, const_var):
-            known_to_const(req);
-            break;
-        case const_pair(known_var, known_var):
-            known_to_known(req);
-            break;
-        case const_pair(known_var, unknown_var):
-            known_to_unknown(req);
-            break;
-
-        // start from UNKNOWN (incorrect query plan)
-        case const_pair(unknown_var, const_var):
-        case const_pair(unknown_var, known_var):
-        case const_pair(unknown_var, unknown_var):
-            logstream(LOG_ERROR) << "Unsupported triple pattern [UNKNOWN|KNOWN|??]" << LOG_endl;
-            ASSERT(false);
-
-        default:
-            logstream(LOG_ERROR) << "Unsupported triple pattern with known predicate "
-                                 << "(" << req.result.variable_type(start)
-                                 << "|" << req.result.variable_type(end)
-                                 << ")" << LOG_endl;
-            ASSERT(false);
         }
 
         return true;
     }
 
-    bool execute_patterns(SPARQLQuery &r) {
-        logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "]"
-                             << " qid=" << r.qid << " pqid=" << r.pqid << LOG_endl;
-
-        if (r.pattern_step == 0
-                && r.pattern_group.parallel == false
-                && r.start_from_index()
-                && (global_num_servers * r.mt_factor > 1)) {
-            // The mt_factor can be set on proxy side before sending to engine,
-            // but must smaller than global_mt_threshold (Default: mt_factor == 1)
+    bool dispatch(SPARQLQuery &r) {
+        if (QUERY_FROM_PROXY(r)
+                && r.pattern_step == 0  // not started
+                && r.start_from_index()  // heavy query (heuristics)
+                && (global_num_servers * r.mt_factor > 1)) {  // multi-resource
+            logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "] dispatch "
+                                 << "Q(qid=" << r.qid << ", pqid=" << r.pqid
+                                 << ", step=" << r.pattern_step << ")" << LOG_endl;
+            // NOTE: the mt_factor can be set on proxy side before sending to engine,
+            // but must smaller than global_mt_threshold (default: mt_factor == 1)
             // Normally, we will NOT let global_mt_threshold == #engines, which will cause HANG
-            int sub_reqs_size = global_num_servers * r.mt_factor;
-            rmap.put_parent_request(r, sub_reqs_size);
+
+            // register rmap for waiting reply
+            rmap.put_parent_request(r, global_num_servers * r.mt_factor);
+
+            // dispatch (sub)requests
             SPARQLQuery sub_query = r;
             for (int i = 0; i < global_num_servers; i++) {
                 for (int j = 0; j < r.mt_factor; j++) {
-                    sub_query.qid = -1;
                     sub_query.pqid = r.qid;
-                    // start from the next engine thread
-                    int dst_tid = (tid + j + 1 - global_num_proxies) % global_num_engines
-                                  + global_num_proxies;
+                    sub_query.qid = -1;
                     sub_query.tid = j;
-                    sub_query.mt_factor = r.mt_factor;
-                    sub_query.pattern_group.parallel = true;
+
+                    // start from the next engine thread
+                    int dst_tid = global_num_proxies
+                                  + (tid + j + 1 - global_num_proxies) % global_num_engines;
 
                     Bundle bundle(sub_query);
                     msgr->send_msg(bundle, i, dst_tid);
                 }
             }
-
-            return false; //
+            return true;
         }
+        return false;
+    }
 
+    bool execute_patterns(SPARQLQuery &r) {
+        logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "] execute patterns of "
+                             << "Q(pqid=" << r.pqid << ", qid=" << r.qid
+                             << ", step=" << r.pattern_step << ")" << LOG_endl;
         do {
+            uint64_t cnt = graph->gstore->access;
             execute_one_pattern(r);
+            logstream(LOG_INFO) << "step: " << r.pattern_step
+                                << " #rows = " << r.result.get_row_num()
+                                << " #accesses = " << (graph->gstore->access - cnt) << LOG_endl;;
 
             // co-run optimization
             if (r.corun_enabled && (r.pattern_step == r.corun_step))
@@ -1382,11 +1408,10 @@ out:
         vector<ssid_t> attr_var;
         for (int i = 0; i < r.result.required_vars.size(); i++) {
             ssid_t vid = r.result.required_vars[i];
-            if (r.result.is_attr_col(vid)) {
-                attr_var.push_back(vid);
-            } else {
-                normal_var.push_back(vid);
-            }
+            if (r.result.var_type(vid) == ENTITY)
+                normal_var.push_back(vid); // entity
+            else
+                attr_var.push_back(vid); // attributed
         }
 
         int new_row_num = r.result.get_row_num();
@@ -1431,7 +1456,8 @@ public:
 
     void execute_sparql_query(SPARQLQuery &r) {
         // encode the lineage of the query (server & thread)
-        if (r.qid == -1) r.qid = coder->get_and_inc_qid();
+        if (r.qid == -1)
+            r.qid = coder->get_and_inc_qid();
 
         // 0. query has done
         if (r.state == SPARQLQuery::SQState::SQ_REPLY) {
@@ -1451,8 +1477,13 @@ public:
         // 1. Pattern
         if (r.has_pattern() && !r.done(SPARQLQuery::SQState::SQ_PATTERN)) {
             r.state = SPARQLQuery::SQState::SQ_PATTERN;
+
+            // exploit parallelism (multi-server and multi-threading)
+            if (dispatch(r))
+                return; // async waiting reply by rmap
+
             if (!execute_patterns(r))
-                return;
+                return; // outstanding
         }
 
         // 2. Union
@@ -1515,7 +1546,7 @@ public:
         }
 
         // 5. Final
-        if (QUERY_FROM_PROXY(coder->tid_of(r.pqid))) {
+        if (QUERY_FROM_PROXY(r)) {
             r.state = SPARQLQuery::SQState::SQ_FINAL;
             final_process(r);
         }

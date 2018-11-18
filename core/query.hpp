@@ -38,6 +38,7 @@
 
 // utils
 #include "logger2.hpp"
+#include "variant.hpp"
 
 using namespace std;
 using namespace boost::archive;
@@ -45,14 +46,18 @@ using namespace boost::archive;
 // defined as constexpr due to switch-case
 constexpr int const_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
-enum var_type { known_var = 0, unknown_var, const_var };
+enum vstat { KNOWN_VAR = 0, UNKNOWN_VAR, CONST_VAR }; // variable stat
 
 // EXT = [ TYPE:16 | COL:16 ]
-// EXT combine message about the col of attr_res_table and the col of result_table
-// TYPE = 0 means  result_table, 1 means  attr_res_table
-#define NBITS_COL  16
+#define NBITS_TYPE 16   // column type
+#define NBITS_COL  16   // column number
+
+// ENTITY (0): result_table; ATTRIBUTE (1): attr_res_table
+enum vtype { ENTITY = 0, ATTRIBUTE };
+
 // Init COL value with NO_RESULT
 #define NO_RESULT  ((1 << NBITS_COL) - 1)
+
 
 // conversion between col and ext
 int col2ext(int col, int t) { return ((t << NBITS_COL) | col); }
@@ -82,7 +87,7 @@ public:
     /**
      * Indicating what device will be used to handle the query.
      */
-    enum DeviceType {CPU, GPU};
+    enum DeviceType { CPU, GPU };
 
     enum SubJobType { FULL_JOB, SPLIT_JOB };
 
@@ -94,8 +99,9 @@ public:
         ssid_t subject;
         ssid_t predicate;
         ssid_t object;
-        dir_t  direction;
-        char  pred_type;
+        dir_t direction;
+
+        char pred_type = (char)SID_t;
 
         Pattern() { }
 
@@ -178,7 +184,6 @@ public:
         friend class boost::serialization::access;
 
     public:
-        bool parallel = false;
         vector<Pattern> patterns;
         vector<PatternGroup> unions;
         vector<Filter> filters;
@@ -243,20 +248,67 @@ public:
     private:
         friend class boost::serialization::access;
 
-        struct GPUState {
+#ifdef USE_GPU
+        // intermediate result generated on GPU
+        class GPUResult {
+        private:
             char *result_buf_dp = nullptr;
             uint64_t result_buf_nelems = 0;
+            int col_num = 0;    // copy of parent state
+
+        public:
+            char *rbuf() {
+                return result_buf_dp;
+            }
+
+            uint64_t rbuf_num_elems() {
+                return result_buf_nelems;
+            }
+
+            bool is_rbuf_valid() {
+                return result_buf_dp != nullptr;
+            }
+
+            bool is_rbuf_empty() {
+                return (result_buf_dp == nullptr || result_buf_nelems == 0);
+            }
+
+            void clear_rbuf() {
+                result_buf_dp = nullptr;
+                result_buf_nelems = 0;
+            }
+
+            void set_rbuf(char *rbuf, uint64_t n) {
+                ASSERT(rbuf != nullptr);
+                result_buf_dp = rbuf;
+                result_buf_nelems = n;
+            }
+
+            int get_row_num() {
+                ASSERT(true == is_rbuf_valid());
+                if (col_num == 0)
+                    return 0;
+
+                return result_buf_nelems / col_num;
+            }
+
+            void set_col_num(int c) {
+                col_num = c;
+            }
 
             template <typename Archive>
             void serialize(Archive &ar, const unsigned int version) {
                 ar & result_buf_nelems;
+                ar & col_num;
             }
         };
+#endif
+
 
     public:
         Result() { }
 
-        int col_num = 0;
+        int col_num = 0;  // NOTE: use set_col_num() for modification
         int row_num = 0;  // FIXME: vs. get_row_num()
         int attr_col_num = 0; // FIXME: why not no attr_row_num
 
@@ -268,9 +320,12 @@ public:
         vector<sid_t> result_table; // result table for string IDs
         vector<attr_t> attr_res_table; // result table for others
 
+#ifdef USE_GPU
+        GPUResult gpu;
+#endif
 
         // OPTIONAL
-        vector<bool> optional_matched_rows; // mark which rows are matched in optional block
+        vector<bool> optional_matched_rows; // rows matched in optional block
 
         void clear() {
             result_table.clear();
@@ -278,29 +333,34 @@ public:
             required_vars.clear();
         }
 
-        /// mapping from Variable ID(var) to column ID
-        /// var <=> idx <=> ext <=> col
-        /// var <=> idx: var is set like -1,-2 e.g. idx is the index number of v2c_map; idx = -(vid + 1)
-        /// idx <=> ext: ext store the col and result tabe type(attr_res_table or result_table); ext = v2c_map[idx]
-        /// ext <=> col: ext2col and col2ext
-        var_type variable_type(ssid_t vid) {
+        vstat var_stat(ssid_t vid) {
             if (vid >= 0)
-                return const_var;
+                return CONST_VAR;
             else if (var2col(vid) == NO_RESULT)
-                return unknown_var;
+                return UNKNOWN_VAR;
             else
-                return known_var;
+                return KNOWN_VAR;
         }
+
+        /// mapping from variable ID (var) to column ID (col)
+        /// var <=> idx <=> ext <=> col
+        /// var <=> idx: var is set as -1,-2,...; idx (the index number of v2c_map) = - (vid + 1)
+        /// idx <=> ext: ext store the col and type (attr_res_table or result_table); ext = v2c_map[idx]
+        /// ext <=> col: ext2col and col2ext
 
         // get column id from vid (pattern variable)
         int var2col(ssid_t vid) {
+            // number variables from -1 and decrease by 1 for each of rest. (i.e., -1, -2, ...)
             ASSERT(vid < 0);
-            if (v2c_map.size() == 0) // init
-                v2c_map.resize(nvars, NO_RESULT);
 
-            //get idx
+            // the number of variables is known before calling var2col()
+            ASSERT(nvars > 0);
+            if (v2c_map.size() == 0)
+                v2c_map.resize(nvars, NO_RESULT); // init
+
+            // calculate idx
             int idx = - (vid + 1);
-            ASSERT(idx < nvars);
+            ASSERT(idx < nvars && idx >= 0);
 
             // get col
             return ext2col(v2c_map[idx]);
@@ -308,40 +368,49 @@ public:
 
         // add column id to vid (pattern variable)
         void add_var2col(ssid_t vid, int col, int t = SID_t) {
+            // number variables from -1 and decrease by 1 for each of rest. (i.e., -1, -2, ...)
             ASSERT(vid < 0 && col >= 0);
-            if (v2c_map.size() == 0) // init
-                v2c_map.resize(nvars, NO_RESULT);
-            // get index
+
+            // the number of variables is known before calling var2col()
+            ASSERT(nvars > 0);
+            if (v2c_map.size() == 0)
+                v2c_map.resize(nvars, NO_RESULT); // init
+
+            // calculate idx
             int idx = - (vid + 1);
-            ASSERT(idx < nvars);
-            // col should not be set
+            ASSERT(idx < nvars && idx >= 0);
+
+            // variable should not be set
             ASSERT(v2c_map[idx] == NO_RESULT);
-            // set ext
             v2c_map[idx] = col2ext(col, t);
         }
 
         // judge the column id belong to attribute result table or not
 
-        bool is_attr_col(ssid_t vid) {
+        vtype var_type(ssid_t vid) {
+            // number variables from -1 and decrease by 1 for each of rest. (i.e., -1, -2, ...)
             ASSERT(vid < 0);
+
+            // the number of variables is known before calling var2col()
+            ASSERT(nvars > 0);
             if (v2c_map.size() == 0) // init
                 v2c_map.resize(nvars, NO_RESULT);
 
-            //get idx
+            // calculate idx
             int idx = - (vid + 1);
             ASSERT(idx < nvars);
 
             // get type
-            int type = ext2type(v2c_map[idx]);
-            if (type == 0)
-                return false;
-            else
-                return true;
+            return (vtype)ext2type(v2c_map[idx]);
         }
 
-        // TODO unused set get
         // result table for string IDs
-        void set_col_num(int n) { col_num = n; }
+        void set_col_num(int n) {
+            col_num = n;
+#ifdef USE_GPU
+            gpu.set_col_num(col_num); // FIXME: should be avoided
+#endif
+        }
 
         int get_col_num() { return col_num; }
 
@@ -354,10 +423,6 @@ public:
                     return attr_res_table.size() / attr_col_num;
                 else
                     return 0;
-            }
-
-            if (gpu.result_buf_dp != nullptr) {
-                return gpu.result_buf_nelems / col_num;
             }
 
             return result_table.size() / col_num;
@@ -373,12 +438,13 @@ public:
                 update.push_back(get_row_col(r, c));
         }
 
-        // result table for others (e.g., integer, float, and double)
+        // ATTRIBUTE (e.g., integer, float, and double)
         int set_attr_col_num(int n) { attr_col_num = n; }
 
-        int get_attr_col_num() { return  attr_col_num; }
+        int get_attr_col_num() { return attr_col_num; }
 
         attr_t get_attr_row_col(int r, int c) {
+            ASSERT(r >= 0 && c >= 0);
             return attr_res_table[attr_col_num * r + c];
         }
 
@@ -387,107 +453,92 @@ public:
                 updated_result_table.push_back(get_attr_row_col(r, c));
         }
 
-        // insert a blank col to result table without updating col_num and v2c_map
-        void insert_blank_col(int col) {
-            vector<sid_t> new_table;
-            for (int i = 0; i < this->get_row_num(); i++) {
-                new_table.insert(new_table.end(),
-                                 this->result_table.begin() + (i * this->col_num),
-                                 this->result_table.begin() + (i * this->col_num + col));
-                new_table.push_back(BLANK_ID);
-                new_table.insert(new_table.end(),
-                                 this->result_table.begin() + (i * this->col_num + col),
-                                 this->result_table.begin() + ((i + 1) * this->col_num));
-            }
-            this->result_table.swap(new_table);
-        }
 
         // UNION
-        void merge_union(SPARQLQuery::Result &result) {
-            this->nvars = result.nvars;
-            this->v2c_map.resize(this->nvars, NO_RESULT);
-            this->blind = result.blind;
-            this->row_num += result.row_num;
-            this->attr_col_num = result.attr_col_num;
-            vector<int> col_map(this->nvars, -1);  // idx: my_col, value: your_col
+        // append a blank col to result table without updating col_num and v2c_map
+        // FIXME:
+        void append_blank_col(int col) {
+            vector<sid_t> new_table;
+            for (int i = 0; i < get_row_num(); i++) {
+                new_table.insert(new_table.end(),
+                                 result_table.begin() + (i * col_num),
+                                 result_table.begin() + (i * col_num + col));
+                new_table.push_back(BLANK_ID);
+                new_table.insert(new_table.end(),
+                                 result_table.begin() + (i * col_num + col),
+                                 result_table.begin() + ((i + 1) * col_num));
+            }
+            result_table.swap(new_table);
+        }
 
-            for (int i = 0; i < result.v2c_map.size(); i++) {
+        void merge_result(SPARQLQuery::Result &r) {
+            nvars = r.nvars;
+            v2c_map.resize(nvars, NO_RESULT);
+            row_num += r.row_num;
+            attr_col_num = r.attr_col_num;
+            blind = r.blind;
+
+            vector<int> col_map(nvars, -1);  // idx: my_col, value: your_col
+
+            for (int i = 0; i < r.v2c_map.size(); i++) {
                 ssid_t vid = -1 - i;
-                if (this->v2c_map[i] == NO_RESULT && result.v2c_map[i] != NO_RESULT) {
-                    this->insert_blank_col(this->col_num);
-                    this->add_var2col(vid, this->col_num);
-                    col_map[this->col_num] = result.var2col(vid);
-                    this->col_num++;
-                } else if (this->v2c_map[i] != NO_RESULT && result.v2c_map[i] == NO_RESULT) {
-                    col_map[this->var2col(vid)] = -1;
-                } else if (this->v2c_map[i] != NO_RESULT && result.v2c_map[i] != NO_RESULT) {
-                    col_map[this->var2col(vid)] = result.var2col(vid);
+                if (v2c_map[i] == NO_RESULT && r.v2c_map[i] != NO_RESULT) {
+                    append_blank_col(col_num);
+                    add_var2col(vid, col_num);
+                    col_map[col_num] = r.var2col(vid);
+                    col_num++;
+                } else if (v2c_map[i] != NO_RESULT && r.v2c_map[i] == NO_RESULT) {
+                    col_map[var2col(vid)] = -1;
+                } else if (v2c_map[i] != NO_RESULT && r.v2c_map[i] != NO_RESULT) {
+                    col_map[var2col(vid)] = r.var2col(vid);
                 }
             }
 
-            int new_size = this->col_num * this->row_num;
-            this->result_table.reserve(new_size);
-            for (int i = 0; i < result.row_num; i++) {
-                for (int j = 0; j < this->col_num; j++) {
+            int new_size = col_num * row_num;
+            result_table.reserve(new_size);
+            for (int i = 0; i < r.row_num; i++) {
+                for (int j = 0; j < col_num; j++) {
                     if (col_map[j] == -1)
-                        this->result_table.push_back(BLANK_ID);
+                        result_table.push_back(BLANK_ID);
                     else
-                        this->result_table.push_back(result.result_table[i * result.col_num + col_map[j]]);
+                        result_table.push_back(r.result_table[i * r.col_num + col_map[j]]);
                 }
             }
-            new_size = this->attr_res_table.size() + result.attr_res_table.size();
-            this->attr_res_table.reserve(new_size);
-            this->attr_res_table.insert(this->attr_res_table.end(),
-                                        result.attr_res_table.begin(),
-                                        result.attr_res_table.end());
+            new_size = attr_res_table.size() + r.attr_res_table.size();
+            attr_res_table.reserve(new_size);
+            attr_res_table.insert(attr_res_table.end(),
+                                  r.attr_res_table.begin(),
+                                  r.attr_res_table.end());
         }
 
-        void append_result(SPARQLQuery::Result &result) {
-            this->col_num = result.col_num;
-            this->blind = result.blind;
-            this->row_num += result.row_num;
-            this->attr_col_num = result.attr_col_num;
-            this->v2c_map = result.v2c_map;
+        void append_result(SPARQLQuery::Result &r) {
+            v2c_map = r.v2c_map;
+            col_num = r.col_num;
+            attr_col_num = r.attr_col_num;
+            row_num += r.row_num;
+            blind = r.blind;
 
-            if (!this->blind) {
-                int new_size = this->result_table.size()
-                               + result.result_table.size();
-                this->result_table.reserve(new_size);
-                this->result_table.insert(this->result_table.end(),
-                                          result.result_table.begin(),
-                                          result.result_table.end());
-                new_size = this->attr_res_table.size()
-                           + result.attr_res_table.size();
-                this->attr_res_table.reserve(new_size);
-                this->attr_res_table.insert(this->attr_res_table.end(),
-                                            result.attr_res_table.begin(),
-                                            result.attr_res_table.end());
-            }
+            if (blind)
+                return;
+
+            int new_size = result_table.size() + r.result_table.size();
+            result_table.reserve(new_size);
+            result_table.insert(result_table.end(),
+                                r.result_table.begin(),
+                                r.result_table.end());
+
+            new_size = attr_res_table.size() + r.attr_res_table.size();
+            attr_res_table.reserve(new_size);
+            attr_res_table.insert(attr_res_table.end(),
+                                  r.attr_res_table.begin(),
+                                  r.attr_res_table.end());
         }
-
-        GPUState gpu;
-
-        bool gpu_result_buf_empty() {
-            return gpu.result_buf_nelems == 0;
-        }
-
-        void clear_gpu_result_buf() {
-            gpu.result_buf_dp = nullptr;
-            gpu.result_buf_nelems = 0;
-        }
-
-        void set_gpu_result_buf(char *rbuf, uint64_t n) {
-            ASSERT(rbuf != nullptr);
-            gpu.result_buf_dp = rbuf;
-            gpu.result_buf_nelems = n;
-        }
-
     };
 
     int qid = -1;   // query id (track engine (sid, tid))
     int pqid = -1;  // parent qid (track the source (proxy or parent query) of query)
 
-    int tid = 0;    // engine thread id (MT)
+    int tid = 0;    // engine thread number (MT)
 
     PGType pg_type = BASIC;
     SQState state = SQ_PATTERN;
@@ -680,17 +731,17 @@ public:
                 else    // index_to_unknown
                     const_to_unknown_patterns.push_back(pattern);
             } else {
-                switch (const_pair(r.variable_type(start), r.variable_type(end))) {
-                case const_pair(const_var, known_var):
-                case const_pair(known_var, const_var):
-                case const_pair(known_var, known_var):
+                switch (const_pair(r.var_stat(start), r.var_stat(end))) {
+                case const_pair(CONST_VAR, KNOWN_VAR):
+                case const_pair(KNOWN_VAR, CONST_VAR):
+                case const_pair(KNOWN_VAR, KNOWN_VAR):
                     // const_to_known, known_to_const, known_to_known
                     updated_patterns.push_back(pattern);
                     break;
-                case const_pair(const_var, unknown_var):
+                case const_pair(CONST_VAR, UNKNOWN_VAR):
                     const_to_unknown_patterns.push_back(pattern);
                     break;
-                case const_pair(known_var, unknown_var):
+                case const_pair(KNOWN_VAR, UNKNOWN_VAR):
                     known_to_unknown_patterns.push_back(pattern);
                     break;
                 default:
@@ -864,7 +915,6 @@ void load(Archive &ar, SPARQLQuery::Pattern &t, unsigned int version) {
 
 template<class Archive>
 void save(Archive &ar, const SPARQLQuery::PatternGroup &t, unsigned int version) {
-    ar << t.parallel;
     ar << t.patterns;
     ar << t.optional_new_vars;  // it should not be put into the "if (t.optional.size() > 0)" block. The PG itself is from optional
     if (t.filters.size() > 0) {
@@ -886,7 +936,6 @@ void save(Archive &ar, const SPARQLQuery::PatternGroup &t, unsigned int version)
 template<class Archive>
 void load(Archive &ar, SPARQLQuery::PatternGroup &t, unsigned int version) {
     char temp = 2;
-    ar >> t.parallel;
     ar >> t.patterns;
     ar >> t.optional_new_vars;
     ar >> temp;
@@ -915,7 +964,9 @@ void save(Archive &ar, const SPARQLQuery::Result &t, unsigned int version) {
     ar << t.nvars;
     ar << t.v2c_map;
     ar << t.optional_matched_rows;
+#ifdef USE_GPU
     ar << t.gpu;
+#endif
     if (!t.blind) ar << t.required_vars;
     // attr_res_table may not be empty if result_table is empty
     if (t.result_table.size() > 0 || t.attr_res_table.size() > 0) {
@@ -937,7 +988,9 @@ void load(Archive & ar, SPARQLQuery::Result &t, unsigned int version) {
     ar >> t.nvars;
     ar >> t.v2c_map;
     ar >> t.optional_matched_rows;
+#ifdef USE_GPU
     ar >> t.gpu;
+#endif
     if (!t.blind) ar >> t.required_vars;
     ar >> temp;
     if (temp == occupied) {
