@@ -181,7 +181,6 @@ public:
         }
     } // end of insert
 
-#ifdef DYNAMIC_GSTORE
     /* Set lease.*/
     void set_lease(uint64_t _lease) { lease = _lease; }
 
@@ -207,7 +206,6 @@ public:
             }
         }
     }
-#endif
 };
 
 /**
