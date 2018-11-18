@@ -1023,15 +1023,21 @@ private:
     }
 
     bool execute_patterns(SPARQLQuery &r) {
+        uint64_t time, access;
         logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "] execute patterns of "
                              << "Q(pqid=" << r.pqid << ", qid=" << r.qid
                              << ", step=" << r.pattern_step << ")" << LOG_endl;
         do {
-            uint64_t cnt = graph->gstore->access;
+            time = timer::get_usec();
+            access = graph->gstore->access[tid];
+
             execute_one_pattern(r);
-            logstream(LOG_INFO) << "step: " << r.pattern_step
-                                << " #rows = " << r.result.get_row_num()
-                                << " #accesses = " << (graph->gstore->access - cnt) << LOG_endl;;
+            logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "]"
+                                 << " step = " << r.pattern_step
+                                 << " exec-time = " << (timer::get_usec() - time) << " usec"
+                                 << " #rows = " << r.result.get_row_num()
+                                 << " #accesses = " << (graph->gstore->access[tid] - access)
+                                 << LOG_endl;;
 
             // co-run optimization
             if (r.corun_enabled && (r.pattern_step == r.corun_step))
