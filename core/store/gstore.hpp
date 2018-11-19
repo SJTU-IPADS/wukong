@@ -262,7 +262,6 @@ protected:
 
     Mem *mem;
 
-    vertex_t *vertices;
     uint64_t num_slots;       // 1 bucket = ASSOCIATIVITY slots
     uint64_t num_buckets;     // main-header region (static)
     uint64_t num_buckets_ext; // indirect-header region (dynamical)
@@ -270,12 +269,8 @@ protected:
     pthread_spinlock_t bucket_locks[NUM_LOCKS]; // lock virtualization (see paper: vLokc CGO'13)
     pthread_spinlock_t bucket_ext_lock;
 
-    edge_t *edges;
     uint64_t num_entries;     // entry region (dynamical)
 
-    // number of predicates in the whole dataset
-    int num_normal_preds = 0;
-    int num_attr_preds = 0;
 
     typedef tbb::concurrent_hash_map<sid_t, vector<sid_t>> tbb_hash_map;
     tbb_hash_map pidx_in_map;  // predicate-index (IN)
@@ -487,6 +482,12 @@ public:
 
     uint64_t access = 0;        // the number of accesses to gstore
 
+    vertex_t *vertices;
+    edge_t *edges;
+    // number of predicates in the whole dataset
+    int num_normal_preds = 0;
+    int num_attr_preds = 0;
+
     virtual ~GStore() {}
 
     virtual void init(vector<vector<triple_t>> &triple_pso,
@@ -543,18 +544,6 @@ public:
         else
             return get_edges_remote(tid, vid, pid, d, sz, type);
     }
-
-    inline vertex_t *vertex_addr() const { return vertices; }
-
-    inline edge_t *edge_addr() const { return edges; }
-
-    inline void set_num_normal_preds(sid_t n) { num_normal_preds = n; }
-
-    inline int get_num_normal_preds() const { return num_normal_preds; }
-
-    inline void set_num_attr_preds(sid_t n) { num_attr_preds = n; }
-
-    inline int get_num_attr_preds() const { return num_attr_preds; }
 
     // return total num of preds, including normal and attr
     inline int get_num_preds() const { return num_normal_preds + num_attr_preds; }

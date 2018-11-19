@@ -417,9 +417,9 @@ public:
             return count;
         };
 
-        gstore->set_num_normal_preds(count_preds(src + "str_index") - 1); // skip PREDICATE_ID
+        gstore->num_normal_preds = count_preds(src + "str_index") - 1; // skip PREDICATE_ID
         if (global_enable_vattr)
-            gstore->set_num_attr_preds(count_preds(src + "str_attr_index"));
+            gstore->num_attr_preds = count_preds(src + "str_attr_index");
 
         // read_partial_exchange: load partial input files by each server and exchanges triples
         //            according to graph partitioning

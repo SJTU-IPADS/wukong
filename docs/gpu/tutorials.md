@@ -99,7 +99,7 @@ Wukong+G adds a new argument `-g` to the `sparql` command, which tells the conso
 
 ```bash
 wukong> help
-These are common Wukong commands:
+These are common Wukong commands: 
     help                display help infomation
     quit                quit from console
     config <args>       run commands on config

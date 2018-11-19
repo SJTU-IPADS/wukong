@@ -65,3 +65,4 @@ int global_gpu_rdma_buf_size_mb = 64;   // RDMA buffer
 int global_gpu_key_blk_size_mb = 16;
 int global_gpu_value_blk_size_mb = 4;
 bool global_gpu_enable_pipeline = true;
+
