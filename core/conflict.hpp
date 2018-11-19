@@ -27,15 +27,4 @@
 
 static void conflict_detector(void)
 {
-
-#if defined(VERSATILE)
-    if (global_vattr) {
-        logstream(LOG_ERROR) << "Currently, vertex attribute cannot work with VERSATILE. "
-                            << "Please disable global_vattr in config then restart wukong, "
-                            << "or disable VERSATILE then rebuild Wukong."
-                            << LOG_endl;
-        exit(-1);
-    }
-#endif
-
 }
