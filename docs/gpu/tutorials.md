@@ -144,3 +144,6 @@ Although Wukong+G can notably speed up query processing, there is still plenty o
 - If a query produces huge intermediate result that exceeds the size of result buffer on GPU (``global_gpu_rbuf_size_mb``), Wukong+G cannot handle it.
 - If the size of triples of a predicate cannot fit into the key-value cache on GPU, Wukong+G cannot handle it.
 - If pipeline is enabled, there should be enough GPU memory to accommodate two triple patterns, the current pattern and the next pattern.
+
+
+
