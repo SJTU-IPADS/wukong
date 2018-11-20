@@ -425,6 +425,9 @@ protected:
         return edge_ptr;
     }
 
+    // return total num of preds, including normal and attr
+    inline int get_num_preds() const { return num_normal_preds + num_attr_preds; }
+
 public:
     static const int ASSOCIATIVITY = 8;  // the associativity of slots in each bucket
 
@@ -544,9 +547,6 @@ public:
         else
             return get_edges_remote(tid, vid, pid, d, sz, type);
     }
-
-    // return total num of preds, including normal and attr
-    inline int get_num_preds() const { return num_normal_preds + num_attr_preds; }
 
     virtual void print_mem_usage() {
         // TODO
