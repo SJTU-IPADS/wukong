@@ -592,8 +592,9 @@ public:
     }
 
     // shrink the query to reduce communication cost (before sending)
-    void shrink_query() {
+    void shrink() {
         orders.clear();
+
         // the first pattern indicating if this query is starting from index. It can't be removed.
         if (pattern_group.patterns.size() > 0)
             pattern_group.patterns.erase(pattern_group.patterns.begin() + 1,
@@ -603,8 +604,10 @@ public:
         pattern_group.unions.clear();
 
         // discard results if does not care
-        if (result.blind)
+        if (result.blind) {
+            result.row_num = result.get_row_num(); // re-compute the row_num before clear results
             result.clear(); // clear data but reserve metadata (e.g., #rows, #cols)
+        }
     }
 
     bool has_pattern() { return pattern_group.patterns.size() > 0; }

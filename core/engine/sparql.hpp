@@ -53,7 +53,7 @@ using namespace std;
 
 typedef pair<int64_t, int64_t> int64_pair;
 
-int64_t hash_pair(const int64_pair &x) {
+static int64_t hash_pair(const int64_pair &x) {
     int64_t r = x.first;
     r = r << 32;
     r += x.second;
@@ -1043,11 +1043,8 @@ private:
             if (r.corun_enabled && (r.pattern_step == r.corun_step))
                 do_corun(r);
 
-            if (r.done(SPARQLQuery::SQState::SQ_PATTERN)) {
-                // only send back row_num in blind mode
-                r.result.row_num = r.result.get_row_num();
-                return true;
-            }
+            if (r.done(SPARQLQuery::SQState::SQ_PATTERN))
+                return true;  // done
 
             if (need_fork_join(r)) {
                 vector<SPARQLQuery> sub_reqs = generate_sub_query(r);
@@ -1060,7 +1057,7 @@ private:
                         prior_stage.push(sub_reqs[i]);
                     }
                 }
-                return false;
+                return false; // outstanding
             }
         } while (true);
     }
@@ -1558,7 +1555,7 @@ public:
         }
 
         // 6. Reply
-        r.shrink_query();
+        r.shrink();
         r.state = SPARQLQuery::SQState::SQ_REPLY;
         Bundle bundle(r);
         msgr->send_msg(bundle, coder->sid_of(r.pqid), coder->tid_of(r.pqid));
