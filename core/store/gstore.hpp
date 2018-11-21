@@ -555,7 +555,10 @@ public:
         for (int i = 0; i < NUM_LOCKS; i++)
             pthread_spin_init(&bucket_locks[i], 0);
 
-        access.reserve(global_num_engines);
+        // profiling
+        access.reserve(global_num_threads);
+        for (int i = 0; i < global_num_threads; i++)
+            access[i] = 0;
 
         // print gstore usage
         logstream(LOG_INFO) << "gstore = ";
