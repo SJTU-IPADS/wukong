@@ -30,6 +30,7 @@ class GChecker {
 
     uint64_t ivertex_num = 0;
     uint64_t nvertex_num = 0;
+    pthread_spinlock_t counter_lock;
 
     void check2_idx_in(ikey_t key) {
         uint64_t vsz = 0;
@@ -126,7 +127,9 @@ class GChecker {
 
     // check (in) predicate/type index vertices (1 and 2)
     void check_idx_in(ikey_t key) {
+        pthread_spin_lock(&counter_lock);
         ivertex_num ++;
+        pthread_spin_unlock(&counter_lock);
         uint64_t vsz = 0;
         // get the vids which refered by index
         edge_t *vres = gstore->get_edges_local(0, key.vid, key.pid, (dir_t)key.dir, vsz);
@@ -230,7 +233,9 @@ class GChecker {
 
     // check (out) predicate index vertices (1)
     void check_idx_out(ikey_t key) {
+        pthread_spin_lock(&counter_lock);
         ivertex_num ++;
+        pthread_spin_unlock(&counter_lock);
         uint64_t vsz = 0;
         // get the vids which refered by predicate index
         edge_t *vres = gstore->get_edges_local(0, key.vid, key.pid, (dir_t)key.dir, vsz);
@@ -290,7 +295,9 @@ class GChecker {
 
     // check normal types (7)
     void check_type(ikey_t key) {
+        pthread_spin_lock(&counter_lock);
         nvertex_num ++;
+        pthread_spin_unlock(&counter_lock);
         uint64_t tsz = 0;
         // get the vid's all type
         edge_t *tres = gstore->get_edges_local(0, key.vid, key.pid, (dir_t)key.dir, tsz);
@@ -322,7 +329,9 @@ class GChecker {
 
     // check normal vertices (6)
     void check_normal(ikey_t key, dir_t dir) {
+        pthread_spin_lock(&counter_lock);
         nvertex_num ++;
+        pthread_spin_unlock(&counter_lock);
         uint64_t vsz = 0;
         // get the vids which refered by the predicated
         edge_t *vres = gstore->get_edges_local(0, 0, key.pid, dir, vsz);
@@ -366,13 +375,25 @@ public:
                             << gstore->sid << LOG_endl;
         ivertex_num = 0;
         nvertex_num = 0;
-        for (uint64_t bucket_id = 0;
-                bucket_id < gstore->num_buckets + gstore->num_buckets_ext;
-                bucket_id++) {
+        uint64_t total_buckets = gstore->num_buckets + gstore->num_buckets_ext;
+        uint64_t cnt_flag = (total_buckets / 20) + 1;
+        uint64_t buckets_count = 0;
+        pthread_spin_init(&counter_lock, 0);
+
+        #pragma omp parallel for num_threads(global_num_engines)
+        for (uint64_t bucket_id = 0; bucket_id < total_buckets; bucket_id++) {
             uint64_t slot_id = bucket_id * GStore::ASSOCIATIVITY;
             for (int i = 0; i < GStore::ASSOCIATIVITY - 1; i++, slot_id++)
                 if (!gstore->vertices[slot_id].key.is_empty())
                     check(gstore->vertices[slot_id].key, index, normal);
+
+            pthread_spin_lock(&counter_lock);
+            buckets_count ++;
+            if(buckets_count % cnt_flag == 0) {
+                logstream(LOG_INFO) << "Server#" << gstore->sid << " already check "
+                                    << (buckets_count / cnt_flag) * 5 << "%" << LOG_endl;
+            }
+            pthread_spin_unlock(&counter_lock);
         }
 
         logstream(LOG_INFO) << "Server#" << gstore->sid << " has checked "
