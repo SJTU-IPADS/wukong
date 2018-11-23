@@ -345,7 +345,7 @@ done:
      * insert {predicate index OUT, t_set*, p_set*}
      * or {predicate index IN, type index, v_set*}
      */
-    void insert_idx(tbb_hash_map *pidx_map, tbb_hash_map *tidx_map, dir_t d) {
+    void insert_idx(const tbb_hash_map &pidx_map, const tbb_hash_map &tidx_map, dir_t d) {
         tbb_hash_map::const_accessor ca;
         rdf_segment_meta_t &segment = rdf_segment_meta_map[segid_t(1, PREDICATE_ID, d)];
         ASSERT(segment.num_edges > 0);
@@ -354,7 +354,7 @@ done:
 
         for (int i = 0; i < all_local_preds.size(); i++) {
             sid_t pid = all_local_preds[i];
-            bool success = pidx_map->find(ca, pid);
+            bool success = pidx_map.find(ca, pid);
             if (!success)
                 continue;
 
@@ -375,7 +375,7 @@ done:
         }
         // type index
         if (d == IN) {
-            for (auto const &e : *tidx_map) {
+            for (auto const &e : tidx_map) {
                 sid_t pid = e.first;
                 uint64_t sz = e.second.size();
                 ASSERT(sz <= segment.num_edges);
@@ -910,6 +910,9 @@ done:
         tbb_triple_attr_hash_map().swap(attr_triples_map);
         tbb_unordered_set().swap(attr_set);
         tbb::concurrent_unordered_map<sid_t, int>().swap(attr_type_map);
+        tbb_hash_map().swap(pidx_in_map);
+        tbb_hash_map().swap(pidx_out_map);
+        tbb_hash_map().swap(tidx_map);
     }
 
 public:
@@ -976,14 +979,10 @@ public:
 #endif // VERSATILE
         #pragma omp parallel for num_threads(2)
         for (int i = 0; i < 2; i++) {
-            if (i == 0) {
-                insert_idx(&pidx_in_map, &tidx_map, IN);
-                tbb_hash_map().swap(pidx_in_map);
-                tbb_hash_map().swap(tidx_map);
-            } else {
-                insert_idx(&pidx_out_map, nullptr, OUT);
-                tbb_hash_map().swap(pidx_out_map);
-            }
+            if (i == 0)
+                insert_idx(pidx_in_map, tidx_map, IN);
+            else
+                insert_idx(pidx_out_map, tidx_map, OUT);
         }
         end = timer::get_usec();
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
