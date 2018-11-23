@@ -483,7 +483,7 @@ public:
     ///               ?P : (5)
     ///               ?S ?P ?O : (3) +> (7) AND (8) +> (6)
 
-    uint64_t access = 0;        // the number of accesses to gstore
+    vector<uint64_t> access;  // profiling: the number of accesses to gstore by engine
 
     vertex_t *vertices;
     edge_t *edges;
@@ -504,7 +504,7 @@ public:
      * head region is a cluster chaining hash-table (with associativity)
      * entry region is a varying-size array
      */
-    GStore(int sid, Mem *mem): sid(sid), mem(mem), access(0) {
+    GStore(int sid, Mem *mem): sid(sid), mem(mem) {
         uint64_t header_region = mem->kvstore_size() * HD_RATIO / 100;
         uint64_t entry_region = mem->kvstore_size() - header_region;
 
@@ -522,6 +522,11 @@ public:
         for (int i = 0; i < NUM_LOCKS; i++)
             pthread_spin_init(&bucket_locks[i], 0);
 
+        // profiling
+        access.reserve(global_num_threads);
+        for (int i = 0; i < global_num_threads; i++)
+            access[i] = 0;
+
         // print gstore usage
         logstream(LOG_INFO) << "gstore = ";
         logstream(LOG_INFO) << mem->kvstore_size() << " bytes " << LOG_endl;
@@ -535,7 +540,7 @@ public:
     edge_t *get_edges(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t &sz,
                       int &type = *(int *)NULL) {
         // profiling
-        access++;
+        access[tid]++;
 
         // index vertex should be 0 and always local
         if (vid == 0)
