@@ -483,6 +483,14 @@ public:
                 setpid(r);
                 r.result.blind = true; // always not take back results for emulator
 
+                if (r.start_from_index()) {
+#ifdef USE_GPU
+                    r.dev_type = SPARQLQuery::DeviceType::GPU;
+#else
+                    r.mt_factor = global_mt_threshold;
+#endif
+                }
+
                 monitor.start_record(r.pqid, idx);
                 send_request(r);
 
