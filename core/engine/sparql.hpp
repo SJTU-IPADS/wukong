@@ -1082,14 +1082,11 @@ private:
                              << ", step=" << r.pattern_step << ")" << LOG_endl;
         do {
             time = timer::get_usec();
-            access = graph->gstore->access[tid];
-
             execute_one_pattern(r);
             logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "]"
                                  << " step = " << r.pattern_step
                                  << " exec-time = " << (timer::get_usec() - time) << " usec"
                                  << " #rows = " << r.result.get_row_num()
-                                 << " #accesses = " << (graph->gstore->access[tid] - access)
                                  << LOG_endl;;
 
             // co-run optimization
