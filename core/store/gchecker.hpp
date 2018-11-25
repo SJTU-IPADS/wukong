@@ -28,8 +28,8 @@
 class GChecker {
     GStore *gstore;
 
-    uint64_t ivertex_num = 0;
-    uint64_t nvertex_num = 0;
+    volatile uint64_t ivertex_num = 0;
+    volatile uint64_t nvertex_num = 0;
     pthread_spinlock_t counter_lock;
 
     void check2_idx_in(ikey_t key) {
@@ -127,9 +127,6 @@ class GChecker {
 
     // check (in) predicate/type index vertices (1 and 2)
     void check_idx_in(ikey_t key) {
-        pthread_spin_lock(&counter_lock);
-        ivertex_num ++;
-        pthread_spin_unlock(&counter_lock);
         uint64_t vsz = 0;
         // get the vids which refered by index
         edge_t *vres = gstore->get_edges_local(0, key.vid, key.pid, (dir_t)key.dir, vsz);
@@ -161,6 +158,7 @@ class GChecker {
                 }
             }
         }
+        wukong::atomic::add_and_fetch(&ivertex_num, 1);
 
 #ifdef VERSATILE
         check2_idx_in(key);
@@ -233,9 +231,6 @@ class GChecker {
 
     // check (out) predicate index vertices (1)
     void check_idx_out(ikey_t key) {
-        pthread_spin_lock(&counter_lock);
-        ivertex_num ++;
-        pthread_spin_unlock(&counter_lock);
         uint64_t vsz = 0;
         // get the vids which refered by predicate index
         edge_t *vres = gstore->get_edges_local(0, key.vid, key.pid, (dir_t)key.dir, vsz);
@@ -244,6 +239,7 @@ class GChecker {
             if (gstore->get_vertex_local(0, ikey_t(vres[i].val, key.pid, IN)).key.is_empty())
                 logstream(LOG_ERROR) << "The key " << " [ " << vres[i].val << " | "
                                      << key.pid << " | " << " IN ] does not exist." << LOG_endl;
+        wukong::atomic::add_and_fetch(&ivertex_num, 1);
 
 #ifdef VERSATILE
         check2_idx_out(key);
@@ -295,9 +291,6 @@ class GChecker {
 
     // check normal types (7)
     void check_type(ikey_t key) {
-        pthread_spin_lock(&counter_lock);
-        nvertex_num ++;
-        pthread_spin_unlock(&counter_lock);
         uint64_t tsz = 0;
         // get the vid's all type
         edge_t *tres = gstore->get_edges_local(0, key.vid, key.pid, (dir_t)key.dir, tsz);
@@ -321,6 +314,7 @@ class GChecker {
                                      << "[ 0 | " << tres[i].val << " | IN ], "
                                      << "there is no value " << key.vid << LOG_endl;
         }
+        wukong::atomic::add_and_fetch(&nvertex_num, 1);
 
 #ifdef VERSATILE
         check2_type(key);
@@ -329,9 +323,6 @@ class GChecker {
 
     // check normal vertices (6)
     void check_normal(ikey_t key, dir_t dir) {
-        pthread_spin_lock(&counter_lock);
-        nvertex_num ++;
-        pthread_spin_unlock(&counter_lock);
         uint64_t vsz = 0;
         // get the vids which refered by the predicated
         edge_t *vres = gstore->get_edges_local(0, 0, key.pid, dir, vsz);
@@ -351,6 +342,7 @@ class GChecker {
             logstream(LOG_ERROR) << "In the value part of predicate index "
                                  << "[ 0 | " << key.pid << " | " << dir << " ], "
                                  << "there is no value " << key.vid << LOG_endl;
+        wukong::atomic::add_and_fetch(&nvertex_num, 1);
     }
 
     void check(ikey_t key, bool index, bool normal) {
