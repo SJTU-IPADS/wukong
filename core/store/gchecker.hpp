@@ -30,7 +30,6 @@ class GChecker {
 
     volatile uint64_t ivertex_num = 0;
     volatile uint64_t nvertex_num = 0;
-    pthread_spinlock_t counter_lock;
 
     void check2_idx_in(ikey_t key) {
         uint64_t vsz = 0;
@@ -370,7 +369,6 @@ public:
         uint64_t total_buckets = gstore->num_buckets + gstore->num_buckets_ext;
         uint64_t cnt_flag = (total_buckets / 20) + 1;
         uint64_t buckets_count = 0;
-        pthread_spin_init(&counter_lock, 0);
 
         #pragma omp parallel for num_threads(global_num_engines)
         for (uint64_t bucket_id = 0; bucket_id < total_buckets; bucket_id++) {
@@ -379,13 +377,11 @@ public:
                 if (!gstore->vertices[slot_id].key.is_empty())
                     check(gstore->vertices[slot_id].key, index, normal);
 
-            pthread_spin_lock(&counter_lock);
-            buckets_count ++;
-            if(buckets_count % cnt_flag == 0) {
+            uint64_t current_count = wukong::atomic::add_and_fetch(&buckets_count, 1);
+            if(current_count % cnt_flag == 0) {
                 logstream(LOG_INFO) << "Server#" << gstore->sid << " already check "
-                                    << (buckets_count / cnt_flag) * 5 << "%" << LOG_endl;
+                                    << (current_count / cnt_flag) * 5 << "%" << LOG_endl;
             }
-            pthread_spin_unlock(&counter_lock);
         }
 
         logstream(LOG_INFO) << "Server#" << gstore->sid << " has checked "
