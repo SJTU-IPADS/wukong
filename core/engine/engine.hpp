@@ -65,27 +65,23 @@ private:
         } else if (bundle.type == GSTORE_CHECK) {
             GStoreCheck r = bundle.get_gstore_check();
             rdf->execute_gstore_check(r);
-        }
 #ifdef DYNAMIC_GSTORE
-        else if (bundle.type == DYNAMIC_LOAD) {
+        } else if (bundle.type == DYNAMIC_LOAD) {
             RDFLoad r = bundle.get_rdf_load();
             rdf->execute_load_data(r);
-        }
 #endif
-        else
-            // print error msg and just skip the request
+        } else { // print error msg and just skip the request
             logstream(LOG_ERROR) << "Unsupported type of request." << LOG_endl;
+        }
     }
 
     int next_to_oblige(int own_id, int offset) {
-        // pair stealing
-        if (global_stealing_pattern == 0) {
+        if (global_stealing_pattern == 0) { // pair stealing
             if (offset == 1)
                 return ((global_num_engines - 1) - own_id);
             else
                 return -1;
-            // ring stealing
-        } else if (global_stealing_pattern == 1) {
+        } else if (global_stealing_pattern == 1) { // ring stealing
             return ((own_id + offset) % global_num_engines);
         }
         return -1;

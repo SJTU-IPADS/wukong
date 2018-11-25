@@ -91,17 +91,21 @@ public:
         return internal_map[qid].cnt == 0;
     }
 
-    SPARQLQuery get_merged_reply(int qid) {
+    SPARQLQuery get_reply(int qid) {
         SPARQLQuery r = internal_map[qid].parent;
         SPARQLQuery &reply = internal_map[qid].reply;
 
         // copy the result
         // FIXME: implement copy construct of SPARQLQuery::Result
         r.result.col_num = reply.result.col_num;
-        r.result.blind = reply.result.blind;
         r.result.row_num = reply.result.row_num;
         r.result.attr_col_num = reply.result.attr_col_num;
+
+        r.result.blind = reply.result.blind;
+        r.result.nvars = reply.result.nvars;
         r.result.v2c_map = reply.result.v2c_map;
+        r.result.required_vars = reply.result.required_vars;
+
         r.result.result_table.swap(reply.result.result_table);
         r.result.attr_res_table.swap(reply.result.attr_res_table);
 

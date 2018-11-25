@@ -174,14 +174,14 @@ class Planner {
     // get the type of constant using get_edges
     ssid_t get_type(ssid_t constant) {
         uint64_t type_sz = 0;
-        edge_t *res = graph->get_triples(tid, constant, TYPE_ID, OUT, type_sz);
+        edge_t *tids = graph->get_triples(tid, constant, TYPE_ID, OUT, type_sz);
         if (type_sz == 1) {
-            return res[0].val;
+            return tids[0].val;
         } else if (type_sz > 1) {
             unordered_set<int> type_composition;
 
             for (int i = 0; i < type_sz; i ++)
-                type_composition.insert(res[i].val);
+                type_composition.insert(tids[i].val);
 
             type_t type;
             type.set_type_composition(type_composition);
@@ -190,16 +190,16 @@ class Planner {
             unordered_set<int> index_composition;
 
             uint64_t psize1 = 0;
-            edge_t *res1 = graph->get_triples(tid, constant, PREDICATE_ID, OUT, psize1);
+            edge_t *pids1 = graph->get_triples(tid, constant, PREDICATE_ID, OUT, psize1);
             for (uint64_t k = 0; k < psize1; k++) {
-                ssid_t pre = res1[k].val;
+                ssid_t pre = pids1[k].val;
                 index_composition.insert(pre);
             }
 
             uint64_t psize2 = 0;
-            edge_t *res2 = graph->get_triples(tid, constant, PREDICATE_ID, IN, psize2);
+            edge_t *pids2 = graph->get_triples(tid, constant, PREDICATE_ID, IN, psize2);
             for (uint64_t k = 0; k < psize2; k++) {
-                ssid_t pre = res2[k].val;
+                ssid_t pre = pids2[k].val;
                 index_composition.insert(-pre);
             }
 
