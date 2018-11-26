@@ -332,7 +332,7 @@ protected:
         // each thread will scan all triples (from all servers) and pickup certain triples.
         // It ensures that the triples belong to the same vertex will be stored in the same
         // triple_pso/ops. This will simplify the deduplication and insertion to gstore.
-        volatile int progress = 0;
+        volatile uint64_t progress = 0;
         #pragma omp parallel for num_threads(global_num_engines)
         for (int tid = 0; tid < global_num_engines; tid++) {
             int cnt = 0; // per thread count for print progress
@@ -359,7 +359,7 @@ protected:
 
                     // print the progress (step = 5%) of aggregation
                     if (++cnt >= total * 0.05) {
-                        int now = __sync_add_and_fetch(&progress, 1);
+                        uint64_t now = wukong::atomic::add_and_fetch(&progress, 1);
                         if (now % global_num_engines == 0)
                             logstream(LOG_INFO) << "already aggregrate "
                                                 << (now / global_num_engines) * 5

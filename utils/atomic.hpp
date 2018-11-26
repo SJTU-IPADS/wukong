@@ -37,6 +37,14 @@ public:
         return __sync_val_compare_and_swap(ptr, old_val, new_val);
     }
 
+    static uint64_t add_and_fetch(volatile uint64_t *ptr, uint64_t val) {
+        return __sync_add_and_fetch(ptr, val);
+    }
+
+    static uint32_t add_and_fetch(volatile uint32_t *ptr, uint32_t val) {
+        return __sync_add_and_fetch(ptr, val);
+    }
+
 }; // end of class atomic
 
 } // end of namespace wukong

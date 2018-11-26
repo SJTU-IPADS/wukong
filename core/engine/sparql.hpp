@@ -106,7 +106,8 @@ private:
             for (uint64_t k = (start + 1) * length; k < sz; k++)
                 unique_set.insert(edges[k].val);
 
-        for (uint64_t i = 0; i < res.get_row_num(); i++) {
+        int nrows = res.get_row_num();
+        for (int i = 0; i < nrows; i++) {
             if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
                 // matched
                 if (unique_set.find(res.get_row_col(i, col)) != unique_set.end())
@@ -122,8 +123,13 @@ private:
                     res.append_row_to(i, updated_result_table);
             }
         }
-        if (req.pg_type != SPARQLQuery::PGType::OPTIONAL)
+
+        if (req.pg_type != SPARQLQuery::PGType::OPTIONAL) {
+            // update result and metadata
             res.result_table.swap(updated_result_table);
+            res.update_nrows();
+        }
+
         req.pattern_step++;
     }
 
@@ -142,33 +148,39 @@ private:
         ASSERT(col != NO_RESULT);
 
         uint64_t sz = 0;
-        edge_t *edges = graph->get_triples(tid, start, pid, d, sz);
+        edge_t *vids = graph->get_triples(tid, start, pid, d, sz);
 
         boost::unordered_set<sid_t> unique_set;
         for (uint64_t k = 0; k < sz; k++)
-            unique_set.insert(edges[k].val);
+            unique_set.insert(vids[k].val);
 
         if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
-            int row_num = res.get_row_num();
-            ASSERT(row_num == res.optional_matched_rows.size());
-            for (uint64_t i = 0; i < row_num; i++) {
+            int nrows = res.get_row_num();
+            ASSERT(nrows == res.optional_matched_rows.size());
+            for (uint64_t i = 0; i < nrows; i++) {
                 // matched
                 if (unique_set.find(res.get_row_col(i, col)) != unique_set.end()) {
                     res.optional_matched_rows[i] = (true && res.optional_matched_rows[i]);
                 } else {
-                    if (res.optional_matched_rows[i]) req.correct_optional_result(i);
+                    if (res.optional_matched_rows[i])
+                        req.correct_optional_result(i);
                     res.optional_matched_rows[i] = false;
                 }
             }
         } else {
             std::vector<sid_t> updated_result_table;
-            for (uint64_t i = 0; i < res.get_row_num(); i++) {
+            int nrows = res.get_row_num();
+            for (uint64_t i = 0; i < nrows; i++) {
                 // matched
                 if (unique_set.find(res.get_row_col(i, col)) != unique_set.end())
                     res.append_row_to(i, updated_result_table);
             }
+
+            // update result and metadata
             res.result_table.swap(updated_result_table);
+            res.update_nrows();
         }
+
         req.pattern_step++;
     }
 
@@ -208,9 +220,12 @@ private:
             for (uint64_t k = (start + 1) * length; k < sz; k++)
                 updated_result_table.push_back(edges[k].val);
 
+        // update result and metadata
         res.result_table.swap(updated_result_table);
         res.set_col_num(1);
         res.add_var2col(end, 0);
+        res.update_nrows();
+
         req.pattern_step++;
         req.local_var = end;
     }
@@ -234,19 +249,22 @@ private:
         SPARQLQuery::Result &res = req.result;
 
         if (type == SID_t) {
+            ASSERT(res.get_col_num() == 0);  // MUST be the first triple pattern
+
             uint64_t sz = 0;
-            edge_t *edges = graph->get_triples(tid, start, pid, d, sz);
+            edge_t *vids = graph->get_triples(tid, start, pid, d, sz);
             std::vector<sid_t> updated_result_table;
             for (uint64_t k = 0; k < sz; k++)
-                updated_result_table.push_back(edges[k].val);
-            res.result_table.swap(updated_result_table);
+                updated_result_table.push_back(vids[k].val);
 
-            // MUST be the first triple pattern
-            ASSERT(res.get_col_num() == 0);
+            // update result and metadata
+            res.result_table.swap(updated_result_table);
             res.add_var2col(end, res.get_col_num(), type);
             res.set_col_num(res.get_col_num() + 1);
+            res.update_nrows();
         } else {
-            ASSERT(d == OUT); // attribute always uses OUT
+            ASSERT(d == OUT);  // attribute always uses OUT
+            ASSERT(res.get_attr_col_num() == 0);  // MUST be the first triple pattern
 
             bool has_value;
             attr_t v = graph->get_attr(tid, start, pid, d, has_value);
@@ -254,12 +272,12 @@ private:
             std::vector<attr_t> updated_attr_table;
             if (has_value)
                 updated_attr_table.push_back(v);
-            res.attr_res_table.swap(updated_attr_table);
 
-            // MUST be the first triple pattern
-            ASSERT(res.get_attr_col_num() == 0);
+            // update (attribute) result and metadata
+            res.attr_res_table.swap(updated_attr_table);
             res.add_var2col(end, res.get_attr_col_num(), type);
             res.set_attr_col_num(res.get_attr_col_num() + 1);
+            res.update_nrows();
         }
 
         req.pattern_step++;
@@ -301,9 +319,10 @@ private:
                 updated_optional_matched_rows.reserve(res.optional_matched_rows.size());
 
             sid_t cached = BLANK_ID; // simple dedup for consecutive same vertices
-            edge_t *edges = NULL;
+            edge_t *vids = NULL;
             uint64_t sz = 0;
-            for (int i = 0; i < res.get_row_num(); i++) {
+            int nrows = res.get_row_num();
+            for (int i = 0; i < nrows; i++) {
                 sid_t cur = res.get_row_col(i, res.var2col(start));
 
                 // optional
@@ -317,7 +336,7 @@ private:
 
                 if (cur != cached) { // new KNOWN
                     cached = cur;
-                    edges = graph->get_triples(tid, cur, pid, d, sz);
+                    vids = graph->get_triples(tid, cur, pid, d, sz);
                 }
 
                 // append a new intermediate result (row)
@@ -325,7 +344,7 @@ private:
                     if (sz > 0) {
                         for (uint64_t k = 0; k < sz; k++) {
                             res.append_row_to(i, updated_result_table);
-                            updated_result_table.push_back(edges[k].val);
+                            updated_result_table.push_back(vids[k].val);
                             updated_optional_matched_rows.push_back(true);
                         }
                     } else {
@@ -339,7 +358,7 @@ private:
                         // update attribute table to map the result table
                         if (global_enable_vattr)
                             res.append_attr_row_to(i, updated_attr_table);
-                        updated_result_table.push_back(edges[k].val);
+                        updated_result_table.push_back(vids[k].val);
                     }
                 }
             }
@@ -347,7 +366,7 @@ private:
             if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
                 res.optional_matched_rows.swap(updated_optional_matched_rows);
 
-            // update result table and attr_res_table
+            // update result and (attributed) result
             res.result_table.swap(updated_result_table);
             if (global_enable_vattr)
                 res.attr_res_table.swap(updated_attr_table);
@@ -355,10 +374,11 @@ private:
             // update metadata
             res.add_var2col(end, res.get_col_num(), type);
             res.set_col_num(res.get_col_num() + 1);
-            req.pattern_step++;
+            res.update_nrows();
         } else {
             ASSERT(d == OUT); // attribute always uses OUT
-            for (int i = 0; i < res.get_row_num(); i++) {
+            int nrows = res.get_row_num();
+            for (int i = 0; i < nrows; i++) {
                 sid_t prev_id = res.get_row_col(i, res.var2col(start));
                 bool has_value;
                 attr_t v = graph->get_attr(tid, prev_id, pid, d, has_value);
@@ -370,15 +390,17 @@ private:
                 }
             }
 
-            // update the result table, attr_res_table and metadata
+            // update result and attributed result
             res.result_table.swap(updated_result_table);
             res.attr_res_table.swap(updated_attr_table);
 
             // update metadata
             res.add_var2col(end, res.get_attr_col_num(), type);
             res.set_attr_col_num(res.get_attr_col_num() + 1);
-            req.pattern_step++;
+            res.update_nrows();
         }
+
+        req.pattern_step++;
     }
 
     /// ?Y P ?X . (?Y:KNOWN, ?X: KNOWN)
@@ -403,20 +425,22 @@ private:
 
         // simple dedup for consecutive same vertices
         sid_t cached = BLANK_ID;
-        edge_t *edges = NULL;
+        edge_t *vids = NULL;
         uint64_t sz = 0;
-        for (int i = 0; i < res.get_row_num(); i++) {
+
+        int nrows = res.get_row_num();
+        for (int i = 0; i < nrows; i++) {
             sid_t cur = res.get_row_col(i, res.var2col(start));
             if (cur != cached) {  // a new vertex
                 cached = cur;
-                edges = graph->get_triples(tid, cur, pid, d, sz);
+                vids = graph->get_triples(tid, cur, pid, d, sz);
             }
 
             sid_t known = res.get_row_col(i, res.var2col(end));
             if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
                 bool matched = false;
                 for (uint64_t k = 0; k < sz; k++) {
-                    if (edges[k].val == known) {
+                    if (vids[k].val == known) {
                         matched = true;
                         break;
                     }
@@ -425,7 +449,7 @@ private:
                 res.optional_matched_rows[i] = (matched && res.optional_matched_rows[i]);
             } else {
                 for (uint64_t k = 0; k < sz; k++) {
-                    if (edges[k].val == known) {
+                    if (vids[k].val == known) {
                         // append a matched intermediate result
                         res.append_row_to(i, updated_result_table);
                         if (global_enable_vattr)
@@ -437,10 +461,13 @@ private:
         }
 
         if (req.pg_type != SPARQLQuery::PGType::OPTIONAL) {
+            // update result and metadata
             res.result_table.swap(updated_result_table);
             if (global_enable_vattr)
                 res.attr_res_table.swap(updated_attr_table);
+            res.update_nrows();
         }
+
         req.pattern_step++;
     }
 
@@ -465,18 +492,19 @@ private:
 
         // simple dedup for consecutive same vertices
         sid_t cached = BLANK_ID;
-        edge_t *edges = NULL;
+        edge_t *vids = NULL;
         uint64_t sz = 0;
         bool exist = false;
-        for (int i = 0; i < res.get_row_num(); i++) {
+        int nrows = res.get_row_num();
+        for (int i = 0; i < nrows; i++) {
             sid_t cur = res.get_row_col(i, res.var2col(start));
             if (cur != cached) {  // a new vertex
                 exist = false;
                 cached = cur;
-                edges = graph->get_triples(tid, cur, pid, d, sz);
+                vids = graph->get_triples(tid, cur, pid, d, sz);
 
                 for (uint64_t k = 0; k < sz; k++) {
-                    if (edges[k].val == end) {
+                    if (vids[k].val == end) {
                         // append a matched intermediate result
                         exist = true;
                         if (req.pg_type != SPARQLQuery::PGType::OPTIONAL) {
@@ -504,11 +532,15 @@ private:
             }
 
         }
+
         if (req.pg_type != SPARQLQuery::PGType::OPTIONAL) {
+            // update result and metadata
             res.result_table.swap(updated_result_table);
             if (global_enable_vattr)
                 res.attr_res_table.swap(updated_attr_table);
+            res.update_nrows();
         }
+
         req.pattern_step++;
     }
 
@@ -537,19 +569,22 @@ private:
         vector<sid_t> updated_result_table;
         for (uint64_t p = 0; p < npids; p++) {
             uint64_t sz = 0;
-            edge_t *res = graph->get_triples(tid, start, tpids[p].val, d, sz);
+            edge_t *vids = graph->get_triples(tid, start, tpids[p].val, d, sz);
             for (uint64_t k = 0; k < sz; k++) {
                 updated_result_table.push_back(tpids[p].val);
-                updated_result_table.push_back(res[k].val);
+                updated_result_table.push_back(vids[k].val);
             }
         }
 
         free(tpids);
 
+        // update result and metadata
         res.result_table.swap(updated_result_table);
         res.set_col_num(2);
         res.add_var2col(pid, 0);
         res.add_var2col(end, 1);
+        res.update_nrows();
+
         req.pattern_step++;
     }
 
@@ -570,8 +605,8 @@ private:
         SPARQLQuery::Result &res = req.result;
 
         vector<sid_t> updated_result_table;
-
-        for (int i = 0; i < res.get_row_num(); i++) {
+        int nrows = res.get_row_num();
+        for (int i = 0; i < nrows; i++) {
             sid_t cur = res.get_row_col(i, res.var2col(start));
             uint64_t npids = 0;
             edge_t *pids = graph->get_triples(tid, cur, PREDICATE_ID, d, npids);
@@ -582,21 +617,24 @@ private:
 
             for (uint64_t p = 0; p < npids; p++) {
                 uint64_t sz = 0;
-                edge_t *edges = graph->get_triples(tid, cur, tpids[p].val, d, sz);
+                edge_t *vids = graph->get_triples(tid, cur, tpids[p].val, d, sz);
                 for (uint64_t k = 0; k < sz; k++) {
                     res.append_row_to(i, updated_result_table);
                     updated_result_table.push_back(tpids[p].val);
-                    updated_result_table.push_back(edges[k].val);
+                    updated_result_table.push_back(vids[k].val);
                 }
             }
 
             free(tpids);
         }
 
+        // update result and metadata
         res.result_table.swap(updated_result_table);
         res.add_var2col(pid, res.get_col_num());
         res.add_var2col(end, res.get_col_num() + 1);
         res.set_col_num(res.get_col_num() + 2);
+        res.update_nrows();
+
         req.pattern_step++;
     }
 
@@ -615,11 +653,12 @@ private:
         ssid_t end = pattern.object;
         ASSERT_MSG((pattern.pred_type == (char)SID_t), "Unsupported triple pattern with attribute");
 
-        SPARQLQuery::Result &result = req.result;
+        SPARQLQuery::Result &res = req.result;
 
         vector<sid_t> updated_result_table;
-        for (int i = 0; i < result.get_row_num(); i++) {
-            sid_t prev_id = result.get_row_col(i, result.var2col(start));
+        int nrows = res.get_row_num();
+        for (int i = 0; i < nrows; i++) {
+            sid_t prev_id = res.get_row_col(i, res.var2col(start));
             uint64_t npids = 0;
             edge_t *pids = graph->get_triples(tid, prev_id, PREDICATE_ID, d, npids);
 
@@ -629,10 +668,10 @@ private:
 
             for (uint64_t p = 0; p < npids; p++) {
                 uint64_t sz = 0;
-                edge_t *res = graph->get_triples(tid, prev_id, tpids[p].val, d, sz);
+                edge_t *vids = graph->get_triples(tid, prev_id, tpids[p].val, d, sz);
                 for (uint64_t k = 0; k < sz; k++) {
-                    if (res[k].val == end) {
-                        result.append_row_to(i, updated_result_table);
+                    if (vids[k].val == end) {
+                        res.append_row_to(i, updated_result_table);
                         updated_result_table.push_back(tpids[p].val);
                         break;
                     }
@@ -642,9 +681,12 @@ private:
             free(tpids);
         }
 
-        result.result_table.swap(updated_result_table);
-        result.add_var2col(pid, result.get_col_num());
-        result.set_col_num(result.get_col_num() + 1);
+        // update result and metadata
+        res.result_table.swap(updated_result_table);
+        res.add_var2col(pid, res.get_col_num());
+        res.set_col_num(res.get_col_num() + 1);
+        res.update_nrows();
+
         req.pattern_step++;
     }
 
@@ -662,10 +704,10 @@ private:
         ssid_t end = pattern.object;
         ASSERT_MSG((pattern.pred_type == (char)SID_t), "Unsupported triple pattern with attribute");
 
-        SPARQLQuery::Result &result = req.result;
+        SPARQLQuery::Result &res = req.result;
 
         // the query plan is wrong
-        ASSERT(result.get_col_num() == 0);
+        ASSERT(res.get_col_num() == 0);
 
         uint64_t npids = 0;
         edge_t *pids = graph->get_triples(tid, start, PREDICATE_ID, d, npids);
@@ -677,9 +719,9 @@ private:
         vector<sid_t> updated_result_table;
         for (uint64_t p = 0; p < npids; p++) {
             uint64_t sz = 0;
-            edge_t *res = graph->get_triples(tid, start, tpids[p].val, d, sz);
+            edge_t *vids = graph->get_triples(tid, start, tpids[p].val, d, sz);
             for (uint64_t k = 0; k < sz; k++) {
-                if (res[k].val == end) {
+                if (vids[k].val == end) {
                     updated_result_table.push_back(tpids[p].val);
                     break;
                 }
@@ -688,9 +730,12 @@ private:
 
         free(tpids);
 
-        result.result_table.swap(updated_result_table);
-        result.set_col_num(1);
-        result.add_var2col(pid, 0);
+        // update result and metadata
+        res.result_table.swap(updated_result_table);
+        res.set_col_num(1);
+        res.add_var2col(pid, 0);
+        res.update_nrows();
+
         req.pattern_step++;
     }
 
@@ -719,7 +764,8 @@ private:
         }
 
         // group intermediate results to servers
-        for (int i = 0; i < req.result.get_row_num(); i++) {
+        int nrows = req.result.get_row_num();
+        for (int i = 0; i < nrows; i++) {
             int dst_sid = wukong::math::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
                                                  global_num_servers);
             req.result.append_row_to(i, sub_reqs[dst_sid].result.result_table);
@@ -747,7 +793,7 @@ private:
     }
 
     void do_corun(SPARQLQuery &req) {
-        SPARQLQuery::Result &req_result = req.result;
+        SPARQLQuery::Result &res = req.result;
         int corun_step = req.corun_step;
         int fetch_step = req.fetch_step;
 
@@ -757,9 +803,10 @@ private:
         boost::unordered_set<sid_t> unique_set;
         ssid_t vid = req.get_pattern(corun_step).subject;
         ASSERT(vid < 0);
-        int col_idx = req_result.var2col(vid);
-        for (int i = 0; i < req_result.get_row_num(); i++)
-            unique_set.insert(req_result.get_row_col(i, col_idx));
+        int col_idx = res.var2col(vid);
+        int nrows = res.get_row_num();
+        for (int i = 0; i < nrows; i++)
+            unique_set.insert(res.get_row_col(i, col_idx));
 
         // step.2 generate cmd_chain for sub-reqs
         SPARQLQuery::PatternGroup subgroup;
@@ -772,7 +819,7 @@ private:
                 if (sub_pvars.find(id) == sub_pvars.end()) {
                     sid_t new_id = - (sub_pvars.size() + 1); // starts from -1
                     sub_pvars[id] = new_id;
-                    pvars_map.push_back(req_result.var2col(id));
+                    pvars_map.push_back(res.var2col(id));
                 }
                 return sub_pvars[id];
             } else {
@@ -828,36 +875,42 @@ private:
             t3 = timer::get_usec();
             vector<sid_t> tmp_vec;
             tmp_vec.resize(sub_result.get_col_num());
-            for (int i = 0; i < req_result.get_row_num(); i++) {
+            int nrows = res.get_row_num();
+            for (int i = 0; i < nrows; i++) {
                 for (int c = 0; c < pvars_map.size(); c++)
-                    tmp_vec[c] = req_result.get_row_col(i, pvars_map[c]);
+                    tmp_vec[c] = res.get_row_col(i, pvars_map[c]);
 
                 if (wukong::tuple::binary_search_tuple(sub_result.get_col_num(),
                                                        sub_result.result_table, tmp_vec))
-                    req_result.append_row_to(i, updated_result_table);
+                    res.append_row_to(i, updated_result_table);
             }
             t4 = timer::get_usec();
         } else { // hash join
             boost::unordered_set<int64_pair> remote_set;
-            for (int i = 0; i < sub_result.get_row_num(); i++)
+            int nrows = sub_result.get_row_num();
+            for (int i = 0; i < nrows; i++)
                 remote_set.insert(int64_pair(sub_result.get_row_col(i, 0),
                                              sub_result.get_row_col(i, 1)));
 
             t3 = timer::get_usec();
             vector<sid_t> tmp_vec;
             tmp_vec.resize(sub_result.get_col_num());
-            for (int i = 0; i < req_result.get_row_num(); i++) {
+            nrows = res.get_row_num();
+            for (int i = 0; i < nrows; i++) {
                 for (int c = 0; c < pvars_map.size(); c++)
-                    tmp_vec[c] = req_result.get_row_col(i, pvars_map[c]);
+                    tmp_vec[c] = res.get_row_col(i, pvars_map[c]);
 
                 int64_pair target = int64_pair(tmp_vec[0], tmp_vec[1]);
                 if (remote_set.find(target) != remote_set.end())
-                    req_result.append_row_to(i, updated_result_table);
+                    res.append_row_to(i, updated_result_table);
             }
             t4 = timer::get_usec();
         }
 
-        req_result.result_table.swap(updated_result_table);
+        // update result and metadata
+        res.result_table.swap(updated_result_table);
+        res.update_nrows();
+
         req.pattern_step = fetch_step;
     }
 
@@ -1029,14 +1082,11 @@ private:
                              << ", step=" << r.pattern_step << ")" << LOG_endl;
         do {
             time = timer::get_usec();
-            access = graph->gstore->access[tid];
-
             execute_one_pattern(r);
             logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "]"
                                  << " step = " << r.pattern_step
                                  << " exec-time = " << (timer::get_usec() - time) << " usec"
                                  << " #rows = " << r.result.get_row_num()
-                                 << " #accesses = " << (graph->gstore->access[tid] - access)
                                  << LOG_endl;;
 
             // co-run optimization
@@ -1087,44 +1137,45 @@ private:
             return "";
         };
 
+        int nrows = result.get_row_num();
         switch (filter.type) {
         case SPARQLQuery::Filter::Type::Equal:
-            for (int row = 0; row < result.get_row_num(); row ++)
+            for (int row = 0; row < nrows; row ++)
                 if (is_satisfy[row]
                         && (get_str(*filter.arg1, row, col1)
                             != get_str(*filter.arg2, row, col2)))
                     is_satisfy[row] = false;
             break;
         case SPARQLQuery::Filter::Type::NotEqual:
-            for (int row = 0; row < result.get_row_num(); row ++)
+            for (int row = 0; row < nrows; row ++)
                 if (is_satisfy[row]
                         && (get_str(*filter.arg1, row, col1)
                             == get_str(*filter.arg2, row, col2)))
                     is_satisfy[row] = false;
             break;
         case SPARQLQuery::Filter::Type::Less:
-            for (int row = 0; row < result.get_row_num(); row ++)
+            for (int row = 0; row < nrows; row ++)
                 if (is_satisfy[row]
                         && (get_str(*filter.arg1, row, col1)
                             >= get_str(*filter.arg2, row, col2)))
                     is_satisfy[row] = false;
             break;
         case SPARQLQuery::Filter::Type::LessOrEqual:
-            for (int row = 0; row < result.get_row_num(); row ++)
+            for (int row = 0; row < nrows; row ++)
                 if (is_satisfy[row]
                         && (get_str(*filter.arg1, row, col1)
                             > get_str(*filter.arg2, row, col2)))
                     is_satisfy[row] = false;
             break;
         case SPARQLQuery::Filter::Type::Greater:
-            for (int row = 0; row < result.get_row_num(); row ++)
+            for (int row = 0; row < nrows; row ++)
                 if (is_satisfy[row]
                         && (get_str(*filter.arg1, row, col1)
                             <= get_str(*filter.arg2, row, col2)))
                     is_satisfy[row] = false;
             break;
         case SPARQLQuery::Filter::Type::GreaterOrEqual:
-            for (int row = 0; row < result.get_row_num(); row ++)
+            for (int row = 0; row < nrows; row ++)
                 if (is_satisfy[row]
                         && get_str(*filter.arg1, row, col1)
                         < get_str(*filter.arg2, row, col2))
@@ -1273,12 +1324,14 @@ private:
         }
 
         vector<sid_t> new_table;
-        for (int row = 0; row < r.result.get_row_num(); row ++)
+        int nrows = r.result.get_row_num();
+        for (int row = 0; row < nrows; row ++)
             if (is_satisfy[row])
                 r.result.append_row_to(row, new_table);
 
+        // uopdate result and metadata
         r.result.result_table.swap(new_table);
-        r.result.row_num = r.result.get_row_num();
+        r.result.update_nrows();
     }
 
     class Compare {
@@ -1429,12 +1482,13 @@ out:
                 new_result_table[i * new_col_num + j] = r.result.get_row_col(i, col);
             }
         }
-
         r.result.result_table.swap(new_result_table);
-        r.result.col_num = new_col_num;
-        r.result.row_num = r.result.get_row_num();
 
-        // update attribute result table
+        // update metadata
+        r.result.set_col_num(new_col_num);
+        r.result.update_nrows();
+
+        // update (attribute) result
         vector<attr_t> new_attr_result_table(new_row_num * new_attr_col_num);
         for (int i = 0; i < new_row_num; i ++) {
             for (int j = 0; j < new_attr_col_num; j++) {
@@ -1443,7 +1497,9 @@ out:
             }
         }
         r.result.attr_res_table.swap(new_attr_result_table);
-        r.result.attr_col_num = new_attr_col_num;
+
+        // update metadata
+        r.result.set_attr_col_num(new_attr_col_num);
     }
 
 public:
@@ -1473,7 +1529,7 @@ public:
             }
 
             // all sub-queries have done, continue to execute
-            r = rmap.get_merged_reply(r.pqid);
+            r = rmap.get_reply(r.pqid);
             pthread_spin_unlock(&rmap_lock);
         }
 

@@ -185,7 +185,7 @@ public:
             }
 
             // all sub-queries have done, continue to execute
-            req = rmap.get_merged_reply(req.pqid);
+            req = rmap.get_reply(req.pqid);
             pthread_spin_unlock(&rmap_lock);
 
             send_reply(req, coder.sid_of(req.pqid), coder.tid_of(req.pqid));

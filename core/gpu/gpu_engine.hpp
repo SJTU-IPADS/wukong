@@ -88,9 +88,12 @@ private:
             for (uint64_t k = (start + 1) * length; k < sz; k++)
                 updated_result_table.push_back(edges[k].val);
 
+        // update result and metadata
         res.result_table.swap(updated_result_table);
         res.set_col_num(1);
         res.add_var2col(var, 0);
+        res.update_nrows();
+
         req.pattern_step++;
         req.local_var = var;
     }
@@ -107,13 +110,16 @@ private:
         ASSERT(res.get_col_num() == 0);
 
         uint64_t sz = 0;
-        edge_t *edges = graph->get_triples(tid, start, pid, d, sz);
+        edge_t *vids = graph->get_triples(tid, start, pid, d, sz);
         for (uint64_t k = 0; k < sz; k++)
-            updated_result_table.push_back(edges[k].val);
+            updated_result_table.push_back(vids[k].val);
 
+        // update result and metadata
         res.result_table.swap(updated_result_table);
         res.add_var2col(end, res.get_col_num());
         res.set_col_num(res.get_col_num() + 1);
+        res.update_nrows();
+
         req.pattern_step++;
     }
 
@@ -134,11 +140,13 @@ private:
             backend.known_to_unknown(req, start, pid, d, updated_result_table);
         }
 
+        // update result and metadata
         res.result_table.swap(updated_result_table);
         res.add_var2col(end, res.get_col_num());
         res.set_col_num(res.get_col_num() + 1);
-        req.pattern_step++;
+        res.update_nrows();
 
+        req.pattern_step++;
         logstream(LOG_DEBUG) << "#" << sid
                              << "[end] GPU known_to_unknown: table_size=" << res.gpu.rbuf_num_elems()
                              << ", row_num=" << res.gpu.get_row_num() << ", step=" << req.pattern_step
@@ -168,7 +176,10 @@ private:
             backend.known_to_known(req, start, pid, end, d, updated_result_table);
         }
 
+        // update result and metadata
         res.result_table.swap(updated_result_table);
+        res.update_nrows();
+
         req.pattern_step++;
         logstream(LOG_DEBUG) << "#" << sid << "[end] GPU known_to_known: table_size=" << res.gpu.rbuf_num_elems()
                              << ", row_num=" << res.gpu.get_row_num() << ", step=" << req.pattern_step
@@ -197,7 +208,10 @@ private:
             backend.known_to_const(req, start, pid, end, d, updated_result_table);
         }
 
+        // update result and metadata
         res.result_table.swap(updated_result_table);
+        res.update_nrows();
+
         req.pattern_step++;
         logstream(LOG_DEBUG) << "#" << sid << "[end] GPU known_to_const: table_size=" << res.gpu.rbuf_num_elems()
                              << ", row_num=" << res.gpu.get_row_num() << ", step=" << req.pattern_step << LOG_endl;

@@ -428,6 +428,10 @@ public:
             return result_table.size() / col_num;
         }
 
+        void update_nrows() {
+            row_num = result_table.size() / col_num;
+        }
+
         sid_t get_row_col(int r, int c) {
             ASSERT(r >= 0 && c >= 0);
             return result_table[col_num * r + c];
@@ -468,22 +472,22 @@ public:
                                  result_table.begin() + (i * col_num + col),
                                  result_table.begin() + ((i + 1) * col_num));
             }
+
             result_table.swap(new_table);
         }
 
         void merge_result(SPARQLQuery::Result &r) {
             nvars = r.nvars;
             v2c_map.resize(nvars, NO_RESULT);
-            row_num += r.row_num;
-            attr_col_num = r.attr_col_num;
+
             blind = r.blind;
 
             vector<int> col_map(nvars, -1);  // idx: my_col, value: your_col
-
             for (int i = 0; i < r.v2c_map.size(); i++) {
-                ssid_t vid = -1 - i;
+                ssid_t vid = - (i + 1);
                 if (v2c_map[i] == NO_RESULT && r.v2c_map[i] != NO_RESULT) {
                     append_blank_col(col_num);
+
                     add_var2col(vid, col_num);
                     col_map[col_num] = r.var2col(vid);
                     col_num++;
@@ -494,8 +498,8 @@ public:
                 }
             }
 
-            int new_size = col_num * row_num;
-            result_table.reserve(new_size);
+            row_num += r.row_num;
+            result_table.reserve(col_num * row_num);
             for (int i = 0; i < r.row_num; i++) {
                 for (int j = 0; j < col_num; j++) {
                     if (col_map[j] == -1)
@@ -504,8 +508,10 @@ public:
                         result_table.push_back(r.result_table[i * r.col_num + col_map[j]]);
                 }
             }
-            new_size = attr_res_table.size() + r.attr_res_table.size();
-            attr_res_table.reserve(new_size);
+
+            attr_col_num = r.attr_col_num;
+            ASSERT((attr_col_num * row_num) == (attr_res_table.size() + r.attr_res_table.size()));
+            attr_res_table.reserve(attr_col_num * row_num);
             attr_res_table.insert(attr_res_table.end(),
                                   r.attr_res_table.begin(),
                                   r.attr_res_table.end());
@@ -514,21 +520,20 @@ public:
         void append_result(SPARQLQuery::Result &r) {
             v2c_map = r.v2c_map;
             col_num = r.col_num;
-            attr_col_num = r.attr_col_num;
             row_num += r.row_num;
+            attr_col_num = r.attr_col_num;
+
             blind = r.blind;
+            if (blind) return;
 
-            if (blind)
-                return;
-
-            int new_size = result_table.size() + r.result_table.size();
-            result_table.reserve(new_size);
+            ASSERT((col_num * row_num) == (result_table.size() + r.result_table.size()));
+            result_table.reserve(col_num * row_num);
             result_table.insert(result_table.end(),
                                 r.result_table.begin(),
                                 r.result_table.end());
 
-            new_size = attr_res_table.size() + r.attr_res_table.size();
-            attr_res_table.reserve(new_size);
+            ASSERT((attr_col_num * row_num) == (attr_res_table.size() + r.attr_res_table.size()));
+            attr_res_table.reserve(attr_col_num * row_num);
             attr_res_table.insert(attr_res_table.end(),
                                   r.attr_res_table.begin(),
                                   r.attr_res_table.end());
@@ -604,10 +609,8 @@ public:
         pattern_group.unions.clear();
 
         // discard results if does not care
-        if (result.blind) {
-            result.row_num = result.get_row_num(); // re-compute the row_num before clear results
+        if (result.blind)
             result.clear(); // clear data but reserve metadata (e.g., #rows, #cols)
-        }
     }
 
     bool has_pattern() { return pattern_group.patterns.size() > 0; }
