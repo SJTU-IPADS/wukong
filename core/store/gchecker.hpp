@@ -28,8 +28,8 @@
 class GChecker {
     GStore *gstore;
 
-    uint64_t ivertex_num = 0;
-    uint64_t nvertex_num = 0;
+    volatile uint64_t ivertex_num = 0;
+    volatile uint64_t nvertex_num = 0;
 
     void check2_idx_in(ikey_t key) {
         uint64_t vsz = 0;
@@ -126,7 +126,6 @@ class GChecker {
 
     // check (in) predicate/type index vertices (1 and 2)
     void check_idx_in(ikey_t key) {
-        ivertex_num ++;
         uint64_t vsz = 0;
         // get the vids which refered by index
         edge_t *vres = gstore->get_edges_local(0, key.vid, key.pid, (dir_t)key.dir, vsz);
@@ -158,6 +157,7 @@ class GChecker {
                 }
             }
         }
+        wukong::atomic::add_and_fetch(&ivertex_num, 1);
 
 #ifdef VERSATILE
         check2_idx_in(key);
@@ -230,7 +230,6 @@ class GChecker {
 
     // check (out) predicate index vertices (1)
     void check_idx_out(ikey_t key) {
-        ivertex_num ++;
         uint64_t vsz = 0;
         // get the vids which refered by predicate index
         edge_t *vres = gstore->get_edges_local(0, key.vid, key.pid, (dir_t)key.dir, vsz);
@@ -239,6 +238,7 @@ class GChecker {
             if (gstore->get_vertex_local(0, ikey_t(vres[i].val, key.pid, IN)).key.is_empty())
                 logstream(LOG_ERROR) << "The key " << " [ " << vres[i].val << " | "
                                      << key.pid << " | " << " IN ] does not exist." << LOG_endl;
+        wukong::atomic::add_and_fetch(&ivertex_num, 1);
 
 #ifdef VERSATILE
         check2_idx_out(key);
@@ -290,7 +290,6 @@ class GChecker {
 
     // check normal types (7)
     void check_type(ikey_t key) {
-        nvertex_num ++;
         uint64_t tsz = 0;
         // get the vid's all type
         edge_t *tres = gstore->get_edges_local(0, key.vid, key.pid, (dir_t)key.dir, tsz);
@@ -314,6 +313,7 @@ class GChecker {
                                      << "[ 0 | " << tres[i].val << " | IN ], "
                                      << "there is no value " << key.vid << LOG_endl;
         }
+        wukong::atomic::add_and_fetch(&nvertex_num, 1);
 
 #ifdef VERSATILE
         check2_type(key);
@@ -322,7 +322,6 @@ class GChecker {
 
     // check normal vertices (6)
     void check_normal(ikey_t key, dir_t dir) {
-        nvertex_num ++;
         uint64_t vsz = 0;
         // get the vids which refered by the predicated
         edge_t *vres = gstore->get_edges_local(0, 0, key.pid, dir, vsz);
@@ -342,6 +341,7 @@ class GChecker {
             logstream(LOG_ERROR) << "In the value part of predicate index "
                                  << "[ 0 | " << key.pid << " | " << dir << " ], "
                                  << "there is no value " << key.vid << LOG_endl;
+        wukong::atomic::add_and_fetch(&nvertex_num, 1);
     }
 
     void check(ikey_t key, bool index, bool normal) {
@@ -366,13 +366,22 @@ public:
                             << gstore->sid << LOG_endl;
         ivertex_num = 0;
         nvertex_num = 0;
-        for (uint64_t bucket_id = 0;
-                bucket_id < gstore->num_buckets + gstore->num_buckets_ext;
-                bucket_id++) {
+        uint64_t total_buckets = gstore->num_buckets + gstore->num_buckets_ext;
+        uint64_t cnt_flag = (total_buckets / 20) + 1;
+        uint64_t buckets_count = 0;
+
+        #pragma omp parallel for num_threads(global_num_engines)
+        for (uint64_t bucket_id = 0; bucket_id < total_buckets; bucket_id++) {
             uint64_t slot_id = bucket_id * GStore::ASSOCIATIVITY;
             for (int i = 0; i < GStore::ASSOCIATIVITY - 1; i++, slot_id++)
                 if (!gstore->vertices[slot_id].key.is_empty())
                     check(gstore->vertices[slot_id].key, index, normal);
+
+            uint64_t current_count = wukong::atomic::add_and_fetch(&buckets_count, 1);
+            if(current_count % cnt_flag == 0) {
+                logstream(LOG_INFO) << "Server#" << gstore->sid << " already check "
+                                    << (current_count / cnt_flag) * 5 << "%" << LOG_endl;
+            }
         }
 
         logstream(LOG_INFO) << "Server#" << gstore->sid << " has checked "
