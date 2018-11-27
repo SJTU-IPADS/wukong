@@ -49,7 +49,7 @@
 #include "timer.hpp"
 #include "assertion.hpp"
 #include "math.hpp"
-
+#include "variant.hpp"
 
 using namespace std;
 
@@ -270,25 +270,14 @@ protected:
             int type;
             while (file >> s >> a >> type) {
                 switch (type) {
-                case 1:
-                    int i;
-                    file >> i;
-                    v = i;
-                    break;
-                case 2:
-                    float f;
-                    file >> f;
-                    v = f;
-                    break;
-                case 3:
-                    double d;
-                    file >> d;
-                    v = d;
-                    break;
+                case INT_t: { int i; file >> i; v = i; break; }
+                case FLOAT_t: { float f; file >> f; v = f; break; }
+                case DOUBLE_t: { double d; file >> d; v = d; break; }
                 default:
                     logstream(LOG_ERROR) << "Unsupported value type" << LOG_endl;
                     break;
                 }
+
                 if (sid == wukong::math::hash_mod(s, global_num_servers))
                     triple_sav[localtid].push_back(triple_attr_t(s, a, v));
             }
@@ -299,7 +288,6 @@ protected:
         #pragma omp parallel for num_threads(global_num_engines)
         for (int i = 0; i < num_files; i++) {
             int localtid = omp_get_thread_num();
-
 
             //load from hdfs or posix file
             istream *file = init_istream(fnames[i]);
@@ -314,7 +302,9 @@ protected:
             sort(triple_sav[tid].begin(), triple_sav[tid].end(), triple_sort_by_asv());
     }
 
-    void aggregate_data(int num_partitions, vector<vector<triple_t>> &triple_pso, vector<vector<triple_t>> &triple_pos) {
+    void aggregate_data(int num_partitions,
+                        vector<vector<triple_t>> &triple_pso,
+                        vector<vector<triple_t>> &triple_pos) {
         // calculate #triples on the kvstore from all servers
         uint64_t total = 0;
         uint64_t kvs_sz = floor(mem->kvstore_size() / num_partitions - sizeof(uint64_t), sizeof(sid_t));
@@ -382,11 +372,15 @@ protected:
     }
 
 public:
-    BaseLoader(int sid, Mem *mem, String_Server *str_server, GStore *gstore): sid(sid), mem(mem), str_server(str_server), gstore(gstore) {}
+    BaseLoader(int sid, Mem *mem, String_Server *str_server, GStore *gstore)
+        : sid(sid), mem(mem), str_server(str_server), gstore(gstore) { }
 
-    virtual ~BaseLoader() {}
+    virtual ~BaseLoader() { }
 
-    void load(const string &src, vector<vector<triple_t>> &triple_pso, vector<vector<triple_t>> &triple_pos, vector<vector<triple_attr_t>> &triple_sav) {
+    void load(const string &src,
+              vector<vector<triple_t>> &triple_pso,
+              vector<vector<triple_t>> &triple_pos,
+              vector<vector<triple_attr_t>> &triple_sav) {
         uint64_t start, end;
 
         num_triples.resize(global_num_servers);
@@ -444,7 +438,8 @@ public:
         // all triples are partitioned and temporarily stored in the kvstore on each server.
         // the kvstore is split into num_partitions partitions, each contains #triples and triples
         //
-        // Wukong aggregates, sorts and dedups all triples before finally inserting them to gstore (kvstore)
+        // Wukong aggregates, sorts and dedups all triples before finally inserting
+        // them to gstore (kvstore)
         start = timer::get_usec();
         aggregate_data(num_partitons, triple_pso, triple_pos);
         end = timer::get_usec();

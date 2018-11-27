@@ -378,7 +378,7 @@ public:
                     check(gstore->vertices[slot_id].key, index, normal);
 
             uint64_t current_count = wukong::atomic::add_and_fetch(&buckets_count, 1);
-            if(current_count % cnt_flag == 0) {
+            if (current_count % cnt_flag == 0) {
                 logstream(LOG_INFO) << "Server#" << gstore->sid << " already check "
                                     << (current_count / cnt_flag) * 5 << "%" << LOG_endl;
             }
