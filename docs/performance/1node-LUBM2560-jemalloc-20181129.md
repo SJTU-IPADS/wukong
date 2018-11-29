@@ -91,29 +91,45 @@ $./run.sh 1
 
 #### Summary
 
+112 220218  2528
+1   67675   2765067
+110 198343  0
+1   23  10
+0   18  10
+1   73  125
+21  160842  112559
+0   96  8569
+0   20  730
+0   19  5
+0   17  1
+1   117 3101
+
 > Query folder: `sparql_query/lubm/basic`  
 
-| Workload | OPT (us) | Latency (us) | #R (lines) | TH | Query   |
-| :------: | -------: |------------: | ---------: | -: | :------ |
-| Q1       | 285      | 207,018      | 2528       | 16 | lubm_q1 |
-| Q2       |  14      |  63,909      | 2,765,067  | 16 | lubm_q2 |
-| Q3       | 176      | 188,862      | 0          | 16 | lubm_q3 |
-| Q4       |   7      |      24      | 10         |  1 | lubm_q4 |
-| Q5       |   5      |      18      | 10         |  1 | lubm_q5 |
-| Q6       |   8      |      76      | 125        |  1 | lubm_q6 |
-| Q7       | 168      | 153,958      | 112,559    | 16 | lubm_q7 |
-| Q8       |  10      |      97      | 8,569      |  1 | lubm_q8 |
-| Q9       |   4      |      21      | 730        |  1 | lubm_q9 |
+| Workload | OPT (us) | Latency (us) | #R (lines) | TH | Query    |
+| :------: | -------: |------------: | ---------: | -: | :------- |
+| Q1       | 112      | 220,218      | 2528       | 16 | lubm_q1  |
+| Q2       |   1      |  67,675      | 2,765,067  | 16 | lubm_q2  |
+| Q3       | 110      | 198,343      | 0          | 16 | lubm_q3  |
+| Q4       |   1      |      23      | 10         |  1 | lubm_q4  |
+| Q5       |   0      |      18      | 10         |  1 | lubm_q5  |
+| Q6       |   1      |      73      | 125        |  1 | lubm_q6  |
+| Q7       |  21      | 160,842      | 112,559    | 16 | lubm_q7  |
+| Q8       |   0      |      96      | 8,569      |  1 | lubm_q8  |
+| Q9       |   0      |      20      | 730        |  1 | lubm_q9  |
+| Q10      |   0      |      19      | 5          |  1 | lubm_q10 |
+| Q11      |   0      |      17      | 1          |  1 | lubm_q11 |
+| Q12      |   1      |     117      | 3,101      |  1 | lubm_q12 |
 
 > Query folder: `sparql_query/lubm/emulator` 
 
 | Workload | Thpt (q/s) | Configuration    | Config     |
 | :------: | ---------: | :--------------- | :--------- |
-| A1-A6    | 63.9418K   | -d 5 -w 1 -p 1   | mix_config |
-| A1-A6    | 70.2683K   | -d 5 -w 1 -p 5   | mix_config |
-| A1-A6    | 70.1843K   | -d 5 -w 1 -p 10  | mix_config |
-| A1-A6    | 71.5456K   | -d 5 -w 1 -p 20  | mix_config |
-| A1-A6    | 71.5581K   | -d 5 -w 1 -p 30  | mix_config |
+| A1-A6    | 62.9786K   | -d 5 -w 1 -p 1   | mix_config |
+| A1-A6    | 70.5171K   | -d 5 -w 1 -p 5   | mix_config |
+| A1-A6    | 70.8720K   | -d 5 -w 1 -p 10  | mix_config |
+| A1-A6    | 70.3908K   | -d 5 -w 1 -p 20  | mix_config |
+| A1-A6    | 70.5501K   | -d 5 -w 1 -p 30  | mix_config |
 
 
 #### Detail
@@ -202,7 +218,7 @@ INFO:     Parsing a SPARQL query is done.
 INFO:     Parsing time: 32 usec
 INFO:     Optimization time: 0 usec
 INFO:     (last) result size: 5
-INFO:     (average) latency: 20 usec
+INFO:     (average) latency: 19 usec
 wukong> sparql -f sparql_query/lubm/basic/lubm_q11 -n 1000 -N 100
 INFO:     Parsing a SPARQL query is done.
 INFO:     Parsing time: 24 usec
