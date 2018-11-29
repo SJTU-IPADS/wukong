@@ -71,6 +71,9 @@ private:
         atomic<uint64_t> in, out;
     };
 
+    // for a segment, the bucket it will be allocated = num_keys / BUCKET_FACTOR
+    static constexpr double BUCKET_FACTOR = 5;
+
     typedef tbb::concurrent_unordered_set<sid_t> tbb_unordered_set;
 
     // multiple engines will access shared_rdf_segment_meta_map
@@ -409,29 +412,18 @@ done:
     }
 
     void alloc_buckets_to_segment(rdf_segment_meta_t &seg, segid_t segid, uint64_t total_num_keys) {
-        // deduct some buckets from total to prevent overflow
-        static uint64_t num_free_buckets = num_buckets
-                                           - num_normal_preds * PREDICATE_NSEGS
-                                           - INDEX_NSEGS
-                                           - num_attr_preds;
-        static double total_ratio_ = 0.0;
-
         // allocate buckets in main-header region to segments
         uint64_t nbuckets;
         if (seg.num_keys == 0) {
             nbuckets = 0;
         } else {
-            double ratio = static_cast<double>(seg.num_keys) / total_num_keys;
-            nbuckets = ratio * num_free_buckets;
-            total_ratio_ += ratio;
-            logger(LOG_DEBUG, "Seg[%lu|%lu|%lu]: "
-                   "#keys: %lu, nbuckets: %lu, bucket_off: %lu, "
-                   "ratio: %f, total_ratio: %f",
-                   segid.index, segid.pid, segid.dir,
-                   seg.num_keys, nbuckets, main_hdr_off,
-                   ratio, total_ratio_);
+            nbuckets = std::ceil(seg.num_keys / BUCKET_FACTOR);
         }
         seg.num_buckets = (nbuckets > 0 ? nbuckets : 1);
+        logger(LOG_DEBUG, "Seg[%lu|%lu|%lu]: "
+               "#keys: %lu, nbuckets: %lu, bucket_off: %lu, ",
+               segid.index, segid.pid, segid.dir,
+               seg.num_keys, seg.num_buckets, main_hdr_off);
 
         seg.bucket_start = main_hdr_off;
         main_hdr_off += seg.num_buckets;
@@ -556,6 +548,10 @@ done:
                    tid, pid, pos.size());
         }
 
+        logger(LOG_DEBUG, "Seg[%lu|%lu|%lu]: "
+               "#edges: %lu, edge_start: %lu, off: %lu, ",
+               segid.index, segid.pid, segid.dir,
+               segment.num_edges, segment.edge_start, off);
         ASSERT(off <= segment.edge_start + segment.num_edges);
     }
 
