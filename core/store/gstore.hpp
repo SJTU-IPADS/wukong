@@ -254,7 +254,7 @@ public:
  *                ?S ?P ?O : (3) +> (7) AND (8) +> (6)
  */
 class GStore {
-    friend class data_statistic;
+    friend class Stats;
     friend class GChecker;
 
 protected:

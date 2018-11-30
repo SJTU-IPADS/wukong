@@ -837,7 +837,7 @@ static void run_load_stat(Proxy *proxy, int argc, char **argv)
         fname = load_stat_vm["-f"].as<string>();
     }
 
-    proxy->statistic->load_stat_from_file(fname, con_adaptor);
+    proxy->stats->load_stat_from_file(fname, con_adaptor);
 }
 
 /**
@@ -880,7 +880,7 @@ static void run_store_stat(Proxy *proxy, int argc, char **argv)
         fname = store_stat_vm["-f"].as<string>();
     }
 
-    proxy->statistic->store_stat_to_file(fname);
+    proxy->stats->store_stat_to_file(fname);
 }
 
 /**
