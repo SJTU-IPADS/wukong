@@ -1,0 +1,6 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
+
+SELECT ?X WHERE {
+	<http://www.Department7.University0.edu/UndergraduateStudent201>  ?X  <http://www.Department7.University0.edu>  .
+}

@@ -162,7 +162,7 @@ struct type_stat {
 typedef tbb::concurrent_unordered_set<ssid_t> tbb_set;
 typedef tbb::concurrent_hash_map<type_t, ssid_t, type_t_hasher> tbb_map;
 
-class data_statistic {
+class Stats {
 private:
     // after the master server get whole statistics,
     // this method is used to send it to all machines.
@@ -225,9 +225,9 @@ public:
 
     int sid;
 
-    data_statistic(int _sid) : sid(_sid) { }
+    Stats(int sid) : sid(sid) { }
 
-    data_statistic() { }
+    Stats() { }
 
     // for debug usage
     void show_stat_info() {
@@ -409,10 +409,10 @@ public:
         tcp_ad->send(0, 0, ss.str());
 
         if (sid == 0) {
-            vector<data_statistic> all_gather;
+            vector<Stats> all_gather;
             // complex type have different corresponding number on different machine
             // assume type < 0 here
-            auto type_transform = [&](ssid_t type_No, data_statistic & stat) -> ssid_t{
+            auto type_transform = [&](ssid_t type_No, Stats & stat) -> ssid_t{
 
                 type_t complex_type;
                 if (stat.local_int2type.find(type_No) != stat.local_int2type.end())
@@ -432,7 +432,7 @@ public:
             for (int i = 0; i < global_num_servers; i++) {
                 std::string str;
                 str = tcp_ad->recv(0);
-                data_statistic tmp_data;
+                Stats tmp_data;
                 std::stringstream s;
                 s << str;
                 boost::archive::binary_iarchive ia(s);
@@ -632,17 +632,18 @@ public:
     }
 
     // prepare data for planner
-    void generate_statistic(GStore *gstore) {
+    void generate_statistics(GStore *gstore) {
 
         // find if the same raw type have similar predicates
         // unordered_map<ssid_t, unordered_set<type_t,type_t_hasher>> rawType_to_predicates;
         // unordered_map<type_t, int, type_t_hasher> each_predicate_number;
 
 #ifndef VERSATILE
-        logstream(LOG_ERROR) << "please turn off generate_statistics in config "
+        logstream(LOG_ERROR) << "please turn off global_generate_statistics in config file"
                              << "and use stat file cache instead"
                              << " OR "
-                             << "turn on VERSATILE option in CMakefiles to generate_statistic." << LOG_endl;
+                             << "turn on VERSATILE option in CMakefiles to generate statistics."
+                             << LOG_endl;
         exit(-1);
 #endif
 

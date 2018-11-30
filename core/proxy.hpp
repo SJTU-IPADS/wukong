@@ -31,7 +31,7 @@
 #include "query.hpp"
 #include "parser.hpp"
 #include "planner.hpp"
-#include "data_statistic.hpp"
+#include "stats.hpp"
 #include "string_server.hpp"
 #include "monitor.hpp"
 
@@ -183,13 +183,13 @@ public:
     Coder coder;
     Parser parser;
     Planner planner;
-    data_statistic *statistic; // for planner
+    Stats *stats; // for planner
 
 
     Proxy(int sid, int tid, String_Server *str_server, DGraph * graph,
-          Adaptor *adaptor, data_statistic *statistic)
+          Adaptor *adaptor, Stats *stats)
         : sid(sid), tid(tid), str_server(str_server), adaptor(adaptor),
-          coder(sid, tid), parser(str_server), statistic(statistic), planner(graph, tid) { }
+          coder(sid, tid), parser(str_server), stats(stats), planner(graph, tid) { }
 
     void setpid(SPARQLQuery &r) { r.pqid = coder.get_and_inc_qid(); }
 
@@ -317,12 +317,12 @@ public:
         if (global_enable_planner) {
             start = timer::get_usec();
             for (int i = 0; i < nopts; i ++)
-                planner.test_plan_time(request, statistic);
+                planner.test_plan_time(request, stats);
             end = timer::get_usec();
             logstream(LOG_INFO) << "Optimization time: " << (end - start) / nopts << " usec" << LOG_endl;
 
             // A shortcut for contradictory queries (e.g., empty result)
-            if (planner.generate_plan(request, statistic) == false) {
+            if (planner.generate_plan(request, stats) == false) {
                 logstream(LOG_INFO) << "Query has no bindings, no need to execute it." << LOG_endl;
                 return 0; // success, skip execution
             }
@@ -477,7 +477,7 @@ public:
                                 heavy_reqs[idx - nlights]; // heavy query
 
                 if (global_enable_planner) {
-                    planner.generate_plan(r, statistic);
+                    planner.generate_plan(r, stats);
                 }
 
                 setpid(r);
