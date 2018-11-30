@@ -112,7 +112,7 @@ $./build.sh
 
 + **Enable/disable HDFS support** (default: OFF): To support loading input dataset from HDFS, you need to add a parameter `-DUSE_HADOOP=ON` for cmake (i.e., `cmake .. -DUSE_HADOOP=ON` or `./build.sh -DUSE_HADOOP=ON`). You need follow [deps/INSTALL.md](deps/INSTALL.md#hdfs) to configure HDFS. Note that the directory `deps/hadoop` should be copied to all machines (you can run `./syncdeps.sh ../deps/dependencies mpd.hosts` again.)
 
-+ **Enable/disable versatile queries support** (default: OFF): To support versatile queries (e.g., ?S ?P ?O), you need to add a parameter `-DUSE_VERSATILE=ON` for cmake (i.e., `cmake .. -DUSE_VERSATILE=ON` or `./build.sh -DUSE_VERSATILE=ON`). Noted that this feature will use more main memory to store RDF graph.
++ **Enable/disable versatile queries support** (default: ON): To support versatile queries (e.g., ?S ?P ?O), you need to add a parameter `-DUSE_VERSATILE=ON` for cmake (i.e., `cmake .. -DUSE_VERSATILE=ON` or `./build.sh -DUSE_VERSATILE=ON`). Noted that this feature will use more main memory to store RDF graph.
 
 + **Enable/disable 64-bit ID** (default: OFF): The 32-bit ID is enough to support the dataset with more than 2 billion unified strings. If you want to support more large dataset (like LUBM-102400), you need to add a parameter `-DUSE_DTYPE_64BIT=ON` for cmake (i.e., `cmake .. -DUSE_DTYPE_64BIT=ON` or `./build.sh -DUSE_DTYPE_64BIT=ON`). Note that it will consume more memory and slightly increase the query latency.
 
@@ -128,21 +128,36 @@ $./build.sh
 ```bash
 $cd $WUKONG_ROOT/scripts
 $cat config
-global_num_proxies          4
-global_num_engines          16
-global_input_folder         /path/to/input/id_lubm_2
-global_data_port_base       5500
-global_ctrl_port_base       9576
-global_memstore_size_gb     20
-global_rdma_buf_size_mb     128
-global_rdma_rbf_size_mb     32
-global_use_rdma             1
-global_rdma_threshold       300
-global_mt_threshold         16
-global_enable_caching       0
-global_enable_workstealing  0
-global_silent               1
-global_enable_planner       0
+#general
+global_num_proxies              4
+global_num_engines              16
+global_input_folder             /home/datanfs/nfs0/rdfdata/id_lubm_40/
+global_data_port_base           5500
+global_ctrl_port_base           9576
+global_memstore_size_gb         20
+global_mt_threshold             8
+global_enable_workstealing      0
+global_stealing_pattern         0
+global_enable_planner           1
+global_generate_statistics      0
+global_enable_vattr             0
+global_silent                   1
+
+# RDMA
+global_rdma_buf_size_mb         128
+global_rdma_rbf_size_mb         32
+global_use_rdma                 1
+global_rdma_threshold           300
+global_enable_caching           0
+
+# GPU
+global_num_gpus                 0
+global_gpu_rdma_buf_size_mb     64
+global_gpu_rbuf_size_mb         32
+global_gpu_kvcache_size_gb      10
+global_gpu_key_blk_size_mb      16
+global_gpu_value_blk_size_mb    4
+global_gpu_enable_pipeline      1
 ```
 
 The main configuration items:

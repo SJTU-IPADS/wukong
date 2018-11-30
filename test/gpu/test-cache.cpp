@@ -36,7 +36,7 @@
 #include "console.hpp"
 #include "rdma.hpp"
 #include "comm/adaptor.hpp"
-#include "data_statistic.hpp"
+#include "stats.hpp"
 #include "logger2.hpp"
 
 #include "unit.hpp"
@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
     DGraph dgraph(sid, mem, &str_server, global_input_folder);
 
     // prepare statistics for SPARQL optimizer
-    data_statistic stat(sid);
+    Stats stat(sid);
     if (global_enable_planner) {
         if (global_generate_statistics) {
             uint64_t t0 = timer::get_usec();

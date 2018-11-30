@@ -78,7 +78,7 @@ if(USE_DYNAMIC_GSTORE)
 endif(USE_DYNAMIC_GSTORE)
 
 #### Verstile queries (e.g., ?S ?P ?O)
-option (USE_VERSATILE "support versatile queries" OFF)
+option (USE_VERSATILE "support versatile queries" ON)
 if(USE_VERSATILE)
   add_definitions(-DVERSATILE)
 endif(USE_VERSATILE)

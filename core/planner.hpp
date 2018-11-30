@@ -7,7 +7,7 @@
 #include <boost/algorithm/string.hpp>
 #include <math.h>
 
-#include "data_statistic.hpp"
+#include "stats.hpp"
 
 // utils
 #include "timer.hpp"
@@ -75,7 +75,7 @@ vector<int> empty_ptypes_pos;
 class Planner {
     // members
     int tid;
-    data_statistic *statistic ;
+    Stats *statistic ;
     vector<ssid_t> triples;
     double min_cost;
     vector<ssid_t> path;
@@ -1578,14 +1578,14 @@ public:
         return success;
     }
 
-    bool generate_plan(SPARQLQuery &r, data_statistic *statistic, bool test = false) {
+    bool generate_plan(SPARQLQuery &r, Stats *statistic, bool test = false) {
         this->statistic = statistic;
         this->start_time = timer::get_usec();
         this->mt_factor = min(r.mt_factor, global_mt_threshold);
         return generate_for_group(r.pattern_group, r.result.nvars);
     }
 
-    bool test_plan_time(SPARQLQuery &r, data_statistic *statistic) {
+    bool test_plan_time(SPARQLQuery &r, Stats *statistic) {
         generate_plan(r, statistic, true);
     }
 

@@ -1,0 +1,10 @@
+# PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+# PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
+#
+# SELECT ?X ?Y WHERE {
+# 	?X  rdf:type  ub:UndergraduateStudent
+# 	?X  ?Y  <http://www.Department3.University0.edu/FullProfessor1>  .
+# }
+
+1 <
+2 >

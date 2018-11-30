@@ -58,7 +58,7 @@ class RDMA_Cache {
     // cache line
     struct item_t {
         vertex_t v;
-        uint64_t expire_time;  // only work when DYNAMIC_GSTORE=on
+        uint64_t expire_time;  // only work when DYNAMIC_GSTORE=ON
         uint32_t cnt;  // keep track of visit cnt of v
 
         /// Each cache line use a version to detect reader-writer conflict.
@@ -76,7 +76,7 @@ class RDMA_Cache {
     };
     bucket_t *hashtable;
 
-    uint64_t lease;  // only work when DYNAMIC_GSTORE=on
+    uint64_t lease;  // only work when DYNAMIC_GSTORE=ON
 
 public:
     RDMA_Cache() {
@@ -181,7 +181,7 @@ public:
         }
     } // end of insert
 
-    /* Set lease.*/
+    /* Set lease */
     void set_lease(uint64_t _lease) { lease = _lease; }
 
     /**
@@ -252,7 +252,7 @@ public:
  *                ?S ?P ?O : (3) +> (7) AND (8) +> (6)
  */
 class GStore {
-    friend class data_statistic;
+    friend class Stats;
     friend class GChecker;
 
 protected:
