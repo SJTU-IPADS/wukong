@@ -1,3 +1,25 @@
+/*
+ * Copyright (c) 2016 Shanghai Jiao Tong University.
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://ipads.se.sjtu.edu.cn/projects/wukong
+ *
+ */
+
 #pragma once
 
 #include <unordered_map>
@@ -14,6 +36,7 @@
 #include <tbb/concurrent_hash_map.h>
 
 #include "global.hpp"
+
 
 #include "store/gstore.hpp"
 #include "comm/tcp_adaptor.hpp"
@@ -317,7 +340,7 @@ public:
                 global_useful_type.insert(token.first);
         }
 
-# if 0
+#if 0
         // TODO: Using similarity may have better performance for some queries. This strategy may be useful in future.
         auto similarity = [&](type_t t1, type_t t2) -> int{
             if (t1.data_type != t2.data_type) return 0;
@@ -349,7 +372,7 @@ public:
                 a->second = result;
             }
         }
-# endif
+#endif
 
         // useful type2int
         unordered_map<type_t, ssid_t, type_t_hasher> type2int_new;
