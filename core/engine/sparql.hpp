@@ -776,8 +776,8 @@ private:
                 sub_reqs[dst_sid].result.optional_matched_rows.push_back(req.result.optional_matched_rows[i]);
         }
 
-        //for (int i = 0; i < global_num_servers; i++)
-        //    sub_reqs[i].result.update_nrows();
+        for (int i = 0; i < global_num_servers; i++)
+            sub_reqs[i].result.update_nrows();
 
         return sub_reqs;
     }
@@ -1084,7 +1084,9 @@ private:
         uint64_t time, access;
         logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "] execute patterns of "
                              << "Q(pqid=" << r.pqid << ", qid=" << r.qid
-                             << ", step=" << r.pattern_step << ")" << LOG_endl;
+                             << ", step=" << r.pattern_step << ")"
+                             << " #rows = " << r.result.get_row_num()
+                             << LOG_endl;
         do {
             time = timer::get_usec();
             execute_one_pattern(r);
@@ -1092,7 +1094,7 @@ private:
                                  << " step = " << r.pattern_step
                                  << " exec-time = " << (timer::get_usec() - time) << " usec"
                                  << " #rows = " << r.result.get_row_num()
-                                 << LOG_endl;;
+                                 << LOG_endl;
 
             // co-run optimization
             if (r.corun_enabled && (r.pattern_step == r.corun_step))
