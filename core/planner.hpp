@@ -30,8 +30,9 @@ using namespace std;
 
 struct plan {
     double cost;           // min cost
-    vector<ssid_t> orders; // best orders
     double result_num;     // intermediate results
+
+    vector<ssid_t> orders; // best orders
 };
 
 class Type_table {
@@ -75,21 +76,31 @@ vector<int> empty_ptypes_pos;
 class Planner {
     // members
     int tid;
-    Stats *statistic ;
+
+    DGraph *graph;
+    Stats *stats;
+
     vector<ssid_t> triples;
     double min_cost;
     vector<ssid_t> path;
+
     bool is_empty;            // help identify empty queries
-    long start_time;
     //bool enable_merge;        // if non endpoint variable > 3, we enable merge
-    int mt_factor;
+
+    // for type-centric method
+    Type_table type_table;
+    unordered_map<ssid_t, int> var2col;  // convert
+    unordered_map<ssid_t, int> var2ptindex;  // find the first appearance for var
 
     // for dfs
     vector<ssid_t> min_path;
     int _chains_size_div_4 ;
 
     // remove the attr pattern query before doing the planner and transfer pattern to cmd_chains
-    void transfer_to_cmd_chains(vector<SPARQLQuery::Pattern> &p, vector<ssid_t> &attr_pattern, vector<int>& attr_pred_chains, vector<ssid_t> &temp_cmd_chains) {
+    void transfer_to_cmd_chains(vector<SPARQLQuery::Pattern> &p,
+                                vector<ssid_t> &attr_pattern,
+                                vector<int>& attr_pred_chains,
+                                vector<ssid_t> &temp_cmd_chains) {
         for (int i = 0; i < p.size(); i++) {
             SPARQLQuery::Pattern pattern = p[i];
             if (pattern.pred_type == 0) {
@@ -108,12 +119,6 @@ class Planner {
             }
         }
     }
-
-    // for type-centric method
-    Type_table type_table;
-    unordered_map<ssid_t, int> var2col;  // convert
-    unordered_map<ssid_t, int> var2ptindex;  // find the first appearance for var
-    DGraph *graph;
 
     // test whether the variable is an end point of the graph
     inline bool is_end_point(ssid_t var) {
@@ -185,7 +190,7 @@ class Planner {
 
             type_t type;
             type.set_type_composition(type_composition);
-            return statistic->global_type2int[type];
+            return stats->global_type2int[type];
         } else {
             unordered_set<int> index_composition;
 
@@ -205,12 +210,12 @@ class Planner {
 
             type_t type;
             type.set_index_composition(index_composition);
-            return statistic->global_type2int[type];
+            return stats->global_type2int[type];
         }
     }
 
     // type-centric dfs enumeration
-    bool plan_enum(unsigned int pt_bits, double cost, double pre_results) {
+    bool plan_enum(SPARQLQuery &r, unsigned int pt_bits, double cost, double pre_results) {
         //if (is_empty) return false;
         if (pt_bits == ( 1 << _chains_size_div_4 ) - 1) {
             //cout << "estimated cost : " << cost << endl;
@@ -259,10 +264,10 @@ class Planner {
 
                     // selectivity and cost estimation
                     // find all types, push into result table
-                    vector<ty_count> tycountv = statistic->global_tystat.pstype[p];
+                    vector<ty_count> tycountv = stats->global_tystat.pstype[p];
                     for (size_t k = 0; k < tycountv.size(); k++) {
                         ssid_t vtype = tycountv[k].ty;
-                        double vcount = double(tycountv[k].count) / global_num_servers / mt_factor;
+                        double vcount = double(tycountv[k].count) / global_num_servers / r.mt_factor;
                         updated_result_table.push_back(vcount);
                         updated_result_table.push_back(vtype);
                     }
@@ -294,7 +299,7 @@ class Planner {
                     type_table.set_col_num(2);
 
                     // next iteration
-                    bool ctn = plan_enum(pt_bits, new_cost, condprune_results); // next level
+                    bool ctn = plan_enum(r, pt_bits, new_cost, condprune_results); // next level
                     //cout << "back : " << p << " " << "0" << " " << IN << " " << o1
                     //     << "-------------------------------------" << endl;
                     if (!ctn) return ctn;
@@ -317,10 +322,10 @@ class Planner {
 
                     // selectivity and cost estimation
                     // find all types, push into result table
-                    tycountv = statistic->global_tystat.potype[p];
+                    tycountv = stats->global_tystat.potype[p];
                     for (size_t k = 0; k < tycountv.size(); k++) {
                         ssid_t vtype = tycountv[k].ty;
-                        double vcount = double(tycountv[k].count) / global_num_servers / mt_factor;
+                        double vcount = double(tycountv[k].count) / global_num_servers / r.mt_factor;
                         updated_result_table.push_back(vcount);
                         updated_result_table.push_back(vtype);
                     }
@@ -352,7 +357,7 @@ class Planner {
                     type_table.set_col_num(2);
 
                     // next iteration
-                    ctn = plan_enum(pt_bits, new_cost, condprune_results);
+                    ctn = plan_enum(r, pt_bits, new_cost, condprune_results);
                     //cout << "back : " << p << " " << "0" << " " << OUT << " " << o2
                     //     << "-------------------------------------" << endl;
                     if (!ctn) return ctn;
@@ -391,8 +396,8 @@ class Planner {
                     // use o1 get_global_edges
                     ssid_t o1type = get_type(o1);
 
-                    int tycount = statistic->global_tystat.get_pstype_count(p, o1type);
-                    vector<ty_count> tycountv = statistic->global_tystat.fine_type[make_pair(o1type, p)];
+                    int tycount = stats->global_tystat.get_pstype_count(p, o1type);
+                    vector<ty_count> tycountv = stats->global_tystat.fine_type[make_pair(o1type, p)];
                     for (size_t k = 0; k < tycountv.size(); k++) {
                         ssid_t vtype = tycountv[k].ty;
                         double vcount = double(tycountv[k].count) / tycount;
@@ -427,7 +432,7 @@ class Planner {
                     type_table.set_col_num(2);
 
                     // next iteration
-                    bool ctn = plan_enum(pt_bits | (1 << pt_pick), new_cost, condprune_results);
+                    bool ctn = plan_enum(r, (pt_bits | (1 << pt_pick)), new_cost, condprune_results);
                     //cout << "back : " << o1 << " " << p << " " << d << " " << o2
                     //     << "-------------------------------------" << endl;
                     if (!ctn) return ctn;
@@ -456,22 +461,25 @@ class Planner {
                     if (p == TYPE_ID) {
                         // start from ty-index vertex
                         ssid_t vtype = o2;
-                        if (statistic->global_single2complex.find(vtype) == statistic->global_single2complex.end()) {
-                            double vcount = double(statistic->global_tyscount[o2]) / global_num_servers / mt_factor;
+                        if (stats->global_single2complex.find(vtype) == stats->global_single2complex.end()) {
+                            double vcount = double(stats->global_tyscount[o2])
+                                            / global_num_servers / r.mt_factor;
                             updated_result_table.push_back(vcount);
                             updated_result_table.push_back(vtype);
                         }
                         else {
                             // single type o2 may not exist in muititype situation
-                            if (statistic->global_tyscount.find(vtype) != statistic->global_tyscount.end()) {
-                                double vcount = double(statistic->global_tyscount[o2]) / global_num_servers / mt_factor;
+                            if (stats->global_tyscount.find(vtype) != stats->global_tyscount.end()) {
+                                double vcount = double(stats->global_tyscount[o2])
+                                                / global_num_servers / r.mt_factor;
                                 updated_result_table.push_back(vcount);
                                 updated_result_table.push_back(vtype);
                             }
                             // single type o2 may be contained in complex type
-                            unordered_set<ssid_t> type_set = statistic->global_single2complex[vtype];
+                            unordered_set<ssid_t> type_set = stats->global_single2complex[vtype];
                             for (auto iter = type_set.cbegin(); iter != type_set.cend(); ++iter) {
-                                double vcount = double(statistic->global_tyscount[*iter]) / global_num_servers / mt_factor;
+                                double vcount = double(stats->global_tyscount[*iter])
+                                                / global_num_servers / r.mt_factor;
                                 updated_result_table.push_back(vcount);
                                 updated_result_table.push_back(*iter);
                             }
@@ -480,8 +488,8 @@ class Planner {
                         // use o2 get_global_edges
                         ssid_t o2type = get_type(o2);
 
-                        int tycount = statistic->global_tystat.get_potype_count(p, o2type);
-                        vector<ty_count> tycountv = statistic->global_tystat.fine_type[make_pair(p, o2type)];
+                        int tycount = stats->global_tystat.get_potype_count(p, o2type);
+                        vector<ty_count> tycountv = stats->global_tystat.fine_type[make_pair(p, o2type)];
                         for (size_t k = 0; k < tycountv.size(); k++) {
                             ssid_t vtype = tycountv[k].ty;
                             double vcount = double(tycountv[k].count) / tycount;
@@ -518,7 +526,7 @@ class Planner {
                     type_table.set_col_num(2);
 
                     // next iteration and backtrack
-                    bool ctn = plan_enum(pt_bits | (1 << pt_pick), new_cost, condprune_results);
+                    bool ctn = plan_enum(r, (pt_bits | (1 << pt_pick)), new_cost, condprune_results);
                     //cout << "back : " << o2 << " " << p << " " << IN << " " << o1
                     //     << "-------------------------------------" << endl;
                     if (!ctn) return ctn;
@@ -575,8 +583,8 @@ class Planner {
                                 if (pre_tyid != o2) continue;
                             }
                             else {
-                                if (statistic->global_single2complex.find(o2) != statistic->global_single2complex.end()) {
-                                    unordered_set<ssid_t> type_set = statistic->global_single2complex[o2];
+                                if (stats->global_single2complex.find(o2) != stats->global_single2complex.end()) {
+                                    unordered_set<ssid_t> type_set = stats->global_single2complex[o2];
                                     if (type_set.count(pre_tyid) == 0) continue;
                                 }
                                 else continue;
@@ -585,13 +593,13 @@ class Planner {
                             condprune_results += pre_count;
                             continue;
                         }
-                        int tycount = statistic->global_tyscount[pre_tyid];
-                        if (dup_flag) tycount = statistic->global_tystat.get_pstype_count(p, pre_tyid);
-                        prune_ratio = double(statistic->global_tystat.get_pstype_count(p, pre_tyid)) / tycount; // for cost model
+                        int tycount = stats->global_tyscount[pre_tyid];
+                        if (dup_flag) tycount = stats->global_tystat.get_pstype_count(p, pre_tyid);
+                        prune_ratio = double(stats->global_tystat.get_pstype_count(p, pre_tyid)) / tycount; // for cost model
                         double afterprune = pre_count * prune_ratio;
                         early_ret += afterprune;
                         final_ret += pre_count - afterprune;
-                        vector<ty_count> tycountv = statistic->global_tystat.fine_type[make_pair(pre_tyid, p)];
+                        vector<ty_count> tycountv = stats->global_tystat.fine_type[make_pair(pre_tyid, p)];
                         int match_flag = 0; // for constant & var pruning
                         for (size_t k = 0; k < tycountv.size(); k++) {
                             ssid_t vtype = tycountv[k].ty;
@@ -607,7 +615,7 @@ class Planner {
                                 // for variable pruning
                                 ssid_t pretype = type_table.get_row_col(i, var2col[o2]);
                                 if (vtype == pretype) {
-                                    int type_num = statistic->global_tyscount[pretype];
+                                    int type_num = stats->global_tyscount[pretype];
                                     vcount = vcount / type_num;
                                     type_table.append_newv_row_to(i, updated_result_table, vcount);
                                     condprune_results += vcount;
@@ -690,7 +698,7 @@ class Planner {
 #endif
 
                     // next iteration
-                    bool ctn = plan_enum(pt_bits | (1 << pt_pick), new_cost, condprune_results);
+                    bool ctn = plan_enum(r, (pt_bits | (1 << pt_pick)), new_cost, condprune_results);
                     //cout << "back : " << o1 << " " << p << " " << d << " " << o2
                     //     << "-------------------------------------" << endl;
                     if (!ctn) return ctn;
@@ -738,13 +746,13 @@ class Planner {
                         double pre_count = type_table.get_row_col(i, 0);
                         if (100 * pre_count < max || pre_count < MINIMUM_COUNT_THRESHOLD) continue;
                         //cout << "pre_tyid: " << pre_tyid << " pre_count: " << pre_count << endl;
-                        int tycount = statistic->global_tyscount[pre_tyid];
-                        if (dup_flag) tycount = statistic->global_tystat.get_potype_count(p, pre_tyid);
-                        prune_ratio = double(statistic->global_tystat.get_potype_count(p, pre_tyid)) / tycount; // for cost model
+                        int tycount = stats->global_tyscount[pre_tyid];
+                        if (dup_flag) tycount = stats->global_tystat.get_potype_count(p, pre_tyid);
+                        prune_ratio = double(stats->global_tystat.get_potype_count(p, pre_tyid)) / tycount; // for cost model
                         double afterprune = pre_count * prune_ratio;
                         early_ret += afterprune;
                         final_ret += pre_count - afterprune;
-                        vector<ty_count> tycountv = statistic->global_tystat.fine_type[make_pair(p, pre_tyid)];
+                        vector<ty_count> tycountv = stats->global_tystat.fine_type[make_pair(p, pre_tyid)];
                         int match_flag = 0; // for constant & var pruning
                         for (size_t k = 0; k < tycountv.size(); k++) {
                             ssid_t vtype = tycountv[k].ty;
@@ -760,7 +768,7 @@ class Planner {
                                 // for variable pruning
                                 ssid_t pretype = type_table.get_row_col(i, var2col[o1]);
                                 if (vtype == pretype) {
-                                    int type_num = statistic->global_tyscount[pretype];
+                                    int type_num = stats->global_tyscount[pretype];
                                     vcount = vcount / type_num;
                                     type_table.append_newv_row_to(i, updated_result_table, vcount);
                                     condprune_results += vcount;
@@ -841,7 +849,7 @@ class Planner {
 #endif
 
                     // next iteration
-                    bool ctn = plan_enum(pt_bits | (1 << pt_pick), new_cost, condprune_results);
+                    bool ctn = plan_enum(r, (pt_bits | (1 << pt_pick)), new_cost, condprune_results);
                     //cout << "back : " << o2 << " " << p << " " << IN << " " << o1
                     //     << "-------------------------------------" << endl;
                     if (!ctn) return ctn;
@@ -899,7 +907,7 @@ class Planner {
 
                     // selectivity and cost estimation
                     // find all types, push into result table
-                    vector<ty_count> tycountv = statistic->global_tystat.pstype[p];
+                    vector<ty_count> tycountv = stats->global_tystat.pstype[p];
                     for (size_t k = 0; k < tycountv.size(); k++) {
                         ssid_t vtype = tycountv[k].ty;
                         double vcount = double(tycountv[k].count) / global_num_servers;
@@ -949,7 +957,7 @@ class Planner {
 
                     // selectivity and cost estimation
                     // find all types, push into result table
-                    vector<ty_count> tycountv = statistic->global_tystat.potype[p];
+                    vector<ty_count> tycountv = stats->global_tystat.potype[p];
                     for (size_t k = 0; k < tycountv.size(); k++) {
                         ssid_t vtype = tycountv[k].ty;
                         double vcount = double(tycountv[k].count) / global_num_servers;
@@ -1006,8 +1014,8 @@ class Planner {
                     // selectivity and cost estimation
                     // find all types, push into result table
                     ssid_t o1type = get_type(o1);
-                    int tycount = statistic->global_tystat.get_pstype_count(p, o1type);
-                    vector<ty_count> tycountv = statistic->global_tystat.fine_type[make_pair(o1type, p)];
+                    int tycount = stats->global_tystat.get_pstype_count(p, o1type);
+                    vector<ty_count> tycountv = stats->global_tystat.fine_type[make_pair(o1type, p)];
                     for (size_t k = 0; k < tycountv.size(); k++) {
                         ssid_t vtype = tycountv[k].ty;
                         double vcount = double(tycountv[k].count) / tycount;
@@ -1063,22 +1071,22 @@ class Planner {
                     if (p == TYPE_ID) {
                         // start from ty-index vertex
                         ssid_t vtype = o2;
-                        if (statistic->global_single2complex.find(vtype) == statistic->global_single2complex.end()) {
-                            double vcount = double(statistic->global_tyscount[o2]) / global_num_servers;
+                        if (stats->global_single2complex.find(vtype) == stats->global_single2complex.end()) {
+                            double vcount = double(stats->global_tyscount[o2]) / global_num_servers;
                             updated_result_table.push_back(vcount);
                             updated_result_table.push_back(vtype);
                         }
                         else {
                             // single type o2 may not exist in muititype situation
-                            if (statistic->global_tyscount.find(vtype) != statistic->global_tyscount.end()) {
-                                double vcount = double(statistic->global_tyscount[o2]) / global_num_servers;
+                            if (stats->global_tyscount.find(vtype) != stats->global_tyscount.end()) {
+                                double vcount = double(stats->global_tyscount[o2]) / global_num_servers;
                                 updated_result_table.push_back(vcount);
                                 updated_result_table.push_back(vtype);
                             }
                             // single type o2 may be contained in complex type
-                            unordered_set<ssid_t> type_set = statistic->global_single2complex[vtype];
+                            unordered_set<ssid_t> type_set = stats->global_single2complex[vtype];
                             for (auto iter = type_set.cbegin(); iter != type_set.cend(); ++iter) {
-                                double vcount = double(statistic->global_tyscount[*iter]) / global_num_servers;
+                                double vcount = double(stats->global_tyscount[*iter]) / global_num_servers;
                                 updated_result_table.push_back(vcount);
                                 updated_result_table.push_back(*iter);
                             }
@@ -1086,8 +1094,8 @@ class Planner {
 
                     } else { // normal triples
                         ssid_t o2type = get_type(o2);
-                        int tycount = statistic->global_tystat.get_potype_count(p, o2type);
-                        vector<ty_count> tycountv = statistic->global_tystat.fine_type[make_pair(p, o2type)];
+                        int tycount = stats->global_tystat.get_potype_count(p, o2type);
+                        vector<ty_count> tycountv = stats->global_tystat.fine_type[make_pair(p, o2type)];
                         for (size_t k = 0; k < tycountv.size(); k++) {
                             ssid_t vtype = tycountv[k].ty;
                             double vcount = double(tycountv[k].count) / tycount;
@@ -1163,8 +1171,8 @@ class Planner {
                             if (pre_tyid != o2) continue;
                         }
                         else {
-                            if (statistic->global_single2complex.find(o2) != statistic->global_single2complex.end()) {
-                                unordered_set<ssid_t> type_set = statistic->global_single2complex[o2];
+                            if (stats->global_single2complex.find(o2) != stats->global_single2complex.end()) {
+                                unordered_set<ssid_t> type_set = stats->global_single2complex[o2];
                                 if (type_set.count(pre_tyid) == 0) continue;
                             }
                             else continue;
@@ -1174,14 +1182,14 @@ class Planner {
                         condprune_results += pre_count;
                         continue;
                     }
-                    int tycount = statistic->global_tyscount[pre_tyid];
-                    if (dup_flag) tycount = statistic->global_tystat.get_pstype_count(p, pre_tyid);
-                    prune_ratio = double(statistic->global_tystat.get_pstype_count(p, pre_tyid)) / tycount; // for cost model
+                    int tycount = stats->global_tyscount[pre_tyid];
+                    if (dup_flag) tycount = stats->global_tystat.get_pstype_count(p, pre_tyid);
+                    prune_ratio = double(stats->global_tystat.get_pstype_count(p, pre_tyid)) / tycount; // for cost model
                     assert(prune_ratio <= 1);
                     double afterprune = pre_count * prune_ratio;
                     early_ret += afterprune;
                     final_ret += pre_count - afterprune;
-                    vector<ty_count> tycountv = statistic->global_tystat.fine_type[make_pair(pre_tyid, p)];
+                    vector<ty_count> tycountv = stats->global_tystat.fine_type[make_pair(pre_tyid, p)];
                     int match_flag = 0; // for constant & var pruning
                     for (size_t k = 0; k < tycountv.size(); k++) {
                         ssid_t vtype = tycountv[k].ty;
@@ -1196,7 +1204,7 @@ class Planner {
                             // for variable pruning
                             ssid_t pretype = type_table.get_row_col(i, var2col[o2]);
                             if (vtype == pretype) {
-                                int type_num = statistic->global_tyscount[pretype];
+                                int type_num = stats->global_tyscount[pretype];
                                 vcount = vcount / type_num;
                                 type_table.append_newv_row_to(i, updated_result_table, vcount);
                                 condprune_results += vcount;
@@ -1226,9 +1234,9 @@ class Planner {
                 //     ssid_t tmpd = path[fstindex+2];
                 //     double dup_ratio = 1;
                 //     if (tmpd)
-                //         dup_ratio = double(statistic->global_ptcount[tmpp]) / statistic->global_pscount[tmpp];
+                //         dup_ratio = double(stats->global_ptcount[tmpp]) / stats->global_pscount[tmpp];
                 //     else
-                //         dup_ratio = double(statistic->global_ptcount[tmpp]) / statistic->global_pocount[tmpp];
+                //         dup_ratio = double(stats->global_ptcount[tmpp]) / stats->global_pocount[tmpp];
                 //     seq_dup *= dup_ratio;
                 // }
                 // double miss_ratio = 1;
@@ -1313,13 +1321,13 @@ class Planner {
                 for (size_t i = 0; i < row_num; i++) {
                     ssid_t pre_tyid = type_table.get_row_col(i, var_col);
                     double pre_count = type_table.get_row_col(i, 0);
-                    int tycount = statistic->global_tyscount[pre_tyid];
-                    if (dup_flag) tycount = statistic->global_tystat.get_potype_count(p, pre_tyid);
-                    prune_ratio = double(statistic->global_tystat.get_potype_count(p, pre_tyid)) / tycount; // for cost model
+                    int tycount = stats->global_tyscount[pre_tyid];
+                    if (dup_flag) tycount = stats->global_tystat.get_potype_count(p, pre_tyid);
+                    prune_ratio = double(stats->global_tystat.get_potype_count(p, pre_tyid)) / tycount; // for cost model
                     double afterprune = pre_count * prune_ratio;
                     early_ret += afterprune;
                     final_ret += pre_count - afterprune;
-                    vector<ty_count> tycountv = statistic->global_tystat.fine_type[make_pair(p, pre_tyid)];
+                    vector<ty_count> tycountv = stats->global_tystat.fine_type[make_pair(p, pre_tyid)];
                     int match_flag = 0; // for constant & var pruning
                     for (size_t k = 0; k < tycountv.size(); k++) {
                         ssid_t vtype = tycountv[k].ty;
@@ -1334,7 +1342,7 @@ class Planner {
                             // for variable pruning
                             ssid_t pretype = type_table.get_row_col(i, var2col[o1]);
                             if (vtype == pretype) {
-                                int type_num = statistic->global_tyscount[pretype];
+                                int type_num = stats->global_tyscount[pretype];
                                 vcount = vcount / type_num;
                                 type_table.append_newv_row_to(i, updated_result_table, vcount);
                                 condprune_results += vcount;
@@ -1365,9 +1373,9 @@ class Planner {
                 //     ssid_t tmpd = path[fstindex+2];
                 //     double dup_ratio = 1;
                 //     if (tmpd)
-                //         dup_ratio = double(statistic->global_ptcount[tmpp]) / statistic->global_pscount[tmpp];
+                //         dup_ratio = double(stats->global_ptcount[tmpp]) / stats->global_pscount[tmpp];
                 //     else
-                //         dup_ratio = double(statistic->global_ptcount[tmpp]) / statistic->global_pocount[tmpp];
+                //         dup_ratio = double(stats->global_ptcount[tmpp]) / stats->global_pocount[tmpp];
                 //     seq_dup *= dup_ratio;
                 // }
                 // double miss_ratio = 1;
@@ -1428,12 +1436,7 @@ class Planner {
         return true;
     }
 
-public:
-    bool test;
-    Planner() { }
-    Planner(DGraph *graph, int tid): graph(graph), tid(tid) { }
-
-    bool generate_for_patterns(vector<SPARQLQuery::Pattern> &patterns, int nvars) {
+    bool do_patterns(SPARQLQuery &r, vector<SPARQLQuery::Pattern> &patterns, bool test) {
         //input : patterns
         //transform to : _chains_size_div_4, triples, temp_cmd_chains
         vector<ssid_t> temp_cmd_chains;
@@ -1446,7 +1449,6 @@ public:
             else return true;
         }
 
-        this->statistic = statistic;
         min_path.clear();
         path.clear();
         type_table.set_col_num(0);
@@ -1482,6 +1484,7 @@ public:
 
         // test if merge should be enabled
 #if 0
+        //int nvars = r.result.nvars;
         //cout << "nvars: " << nvars << endl;
         int num_no_endpoint = 0;
         for (int i = 1; i <= nvars; i ++) {
@@ -1493,7 +1496,7 @@ public:
         if (num_no_endpoint > 3) enable_merge = true;
 #endif
 
-        plan_enum(0, 0, 0); // the traverse function
+        plan_enum(r, 0, 0, 0); // the traverse function
 
         if (is_empty == true) {
             cout << "identified empty result query." << endl;
@@ -1554,6 +1557,7 @@ public:
             pattern.pred_type = 0;
             patterns.push_back(pattern);
         }
+
         //add_attr_pattern to the end of patterns
         for (int i = 0 ; i < attr_pred_chains.size(); i ++) {
             SPARQLQuery::Pattern pattern(
@@ -1569,28 +1573,29 @@ public:
         return true;
     }
 
-    bool generate_for_group(SPARQLQuery::PatternGroup &group, int nvars) {
+    // generate plan for given pattern group
+    bool do_group(SPARQLQuery &r, SPARQLQuery::PatternGroup &group, bool test) {
         bool success = true;
+
         if (group.patterns.size() > 0)
-            success = generate_for_patterns(group.patterns, nvars);
+            success = do_patterns(r, group.patterns, test);
+
         for (auto &g : group.unions)
-            success = generate_for_group(g, nvars);
+            success = do_group(r, group, test);
+
+        // FIXME: support optional, filter, etc.
+
         return success;
     }
 
-    bool generate_plan(SPARQLQuery &r, Stats *statistic, bool test = false) {
-        this->statistic = statistic;
-        this->start_time = timer::get_usec();
-        this->mt_factor = min(r.mt_factor, global_mt_threshold);
-        return generate_for_group(r.pattern_group, r.result.nvars);
+    // generate/test plan for given query
+    bool do_plan(SPARQLQuery &r, bool test) {
+        // FIXME: only consider pattern group now
+        return do_group(r, r.pattern_group, test);
     }
 
-    bool test_plan_time(SPARQLQuery &r, Stats *statistic) {
-        generate_plan(r, statistic, true);
-    }
-
+    // used by set direction
     void set_ptypes_pos(vector<int> &ptypes_pos, const string &dir, int current_order, int raw_order) {
-
         for (int i = 0; i < ptypes_pos.size(); i ++) {
             // check if any pos need to be changed
             if (ptypes_pos[i] / 4 == raw_order) {
@@ -1634,7 +1639,11 @@ public:
         }
     }
 
-    void set_direction(SPARQLQuery::PatternGroup &group, const vector<int> &orders, const vector<string> &dirs, vector<int> &ptypes_pos = empty_ptypes_pos) {
+    // used by set plan
+    void set_direction(SPARQLQuery::PatternGroup &group,
+                       const vector<int> &orders,
+                       const vector<string> &dirs,
+                       vector<int> &ptypes_pos = empty_ptypes_pos) {
         vector<SPARQLQuery::Pattern> patterns;
         for (int i = 0; i < orders.size(); i++) {
             // number of orders starts from 1
@@ -1665,56 +1674,78 @@ public:
         group.patterns = patterns;
     }
 
-    // Set orders and directions of patterns in SPARQL query according to the query plan file
-    // return false if no plan is set
-    bool set_query_plan(SPARQLQuery::PatternGroup &group, istream &fmt_stream, vector<int> &ptypes_pos = empty_ptypes_pos) {
-        if (fmt_stream.good()) {
-            if (global_enable_planner) {
-                logstream(LOG_WARNING) << "Query plan will not work since planner is on" << LOG_endl;
-                return false;
-            }
+public:
 
-            // read query plan file
-            vector<int> orders;
-            int order;
-            vector<string> dirs;
-            string dir = ">";
-            int nunions = 0, noptionals = 0;
+    Planner() { }
 
-            string line;
-            while (std::getline(fmt_stream, line)) {
-                boost::trim(line);
-                if (boost::starts_with(line, "#") || line.empty()) {
-                    continue; // skip comments and blank lines
-                } else if (line == "{") {
-                    continue;
-                } else if (line == "}") {
-                    break;
-                } else if (boost::starts_with(boost::to_lower_copy(line), "union")) {
-                    set_query_plan(group.unions[nunions], fmt_stream);
-                    nunions ++;
-                    continue;
-                } else if (boost::starts_with(boost::to_lower_copy(line), "optional")) {
-                    set_query_plan(group.optional[noptionals], fmt_stream);
-                    noptionals ++;
-                    continue;
-                }
+    Planner(int tid, DGraph *graph, Stats *stats)
+        : tid(tid), graph(graph), stats(stats) { }
 
-                istringstream iss(line);
-                iss >> order >> dir;
-                dirs.push_back(dir);
-                orders.push_back(order);
-            }
+    // generate optimal query plan by optimizer
+    // @return
+    bool generate_plan(SPARQLQuery &r) {
+        return do_plan(r, false);
+    }
 
-            // correctness check
-            if (orders.size() < group.patterns.size()) {
-                logstream(LOG_ERROR) << "wrong format file content!" << LOG_endl;
-                return false;
-            }
+    // test query optimizing (search an optimal plan)
+    // @return
+    bool test_plan(SPARQLQuery &r) {
+        return do_plan(r, true);
+    }
 
-            set_direction(group, orders, dirs, ptypes_pos);
-            return true;
+    // set user-defuned query plan
+    // @return: false if no plan is set
+    bool set_plan(SPARQLQuery::PatternGroup &group, istream &fmt_stream,
+                  vector<int> &ptypes_pos = empty_ptypes_pos) {
+        if (global_enable_planner) {
+            logstream(LOG_WARNING) << "Query plan will not work since planner is on" << LOG_endl;
+            return false;
         }
-        return false;
+
+        if (!fmt_stream.good()) {
+            logstream(LOG_WARNING) << "Failed to read format file!" << LOG_endl;
+            return false;
+        }
+
+        // read user-defined query plan file
+        vector<int> orders;
+        vector<string> dirs;
+
+        int order;
+        string dir = ">";
+        int nunions = 0, noptionals = 0;
+        string line;
+        while (std::getline(fmt_stream, line)) {
+            boost::trim(line);
+            if (boost::starts_with(line, "#") || line.empty()) {
+                continue; // skip comments and blank lines
+            } else if (line == "{") {
+                continue;
+            } else if (line == "}") {
+                break;
+            } else if (boost::starts_with(boost::to_lower_copy(line), "union")) {
+                set_plan(group.unions[nunions], fmt_stream);
+                nunions ++;
+                continue;
+            } else if (boost::starts_with(boost::to_lower_copy(line), "optional")) {
+                set_plan(group.optional[noptionals], fmt_stream);
+                noptionals ++;
+                continue;
+            }
+
+            istringstream iss(line);
+            iss >> order >> dir;
+            dirs.push_back(dir);
+            orders.push_back(order);
+        }
+
+        // correctness check
+        if (orders.size() < group.patterns.size()) {
+            logstream(LOG_ERROR) << "wrong format file content!" << LOG_endl;
+            return false;
+        }
+
+        set_direction(group, orders, dirs, ptypes_pos);
+        return true;
     }
 };
