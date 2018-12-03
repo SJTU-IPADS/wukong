@@ -476,9 +476,8 @@ public:
                                 tpls[idx].instantiate(coder.get_random()) : // light query
                                 heavy_reqs[idx - nlights]; // heavy query
 
-                if (global_enable_planner) {
+                if (global_enable_planner)
                     planner.generate_plan(r, stats);
-                }
 
                 setpid(r);
                 r.result.blind = true; // always not take back results for emulator

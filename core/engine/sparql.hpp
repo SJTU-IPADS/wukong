@@ -94,7 +94,7 @@ private:
 
         uint64_t sz = 0;
         edge_t *edges = graph->get_index(tid, tpid, d, sz);
-        int start = req.tid % req.mt_factor;
+        int start = req.mt_tid % req.mt_factor;
         int length = sz / req.mt_factor;
 
         boost::unordered_set<sid_t> unique_set;
@@ -208,7 +208,7 @@ private:
 
         uint64_t sz = 0;
         edge_t *edges = graph->get_index(tid, tpid, d, sz);
-        int start = req.tid % req.mt_factor;
+        int start = req.mt_tid % req.mt_factor;
         int length = sz / req.mt_factor;
 
         // every thread takes a part of consecutive edges
@@ -747,7 +747,7 @@ private:
         vector<SPARQLQuery> sub_reqs(global_num_servers);
         for (int i = 0; i < global_num_servers; i++) {
             sub_reqs[i].pqid = req.qid;
-            sub_reqs[i].pg_type = req.pg_type == SPARQLQuery::PGType::UNION ?
+            sub_reqs[i].pg_type = (req.pg_type == SPARQLQuery::PGType::UNION) ?
                                   SPARQLQuery::PGType::BASIC : req.pg_type;
             sub_reqs[i].pattern_group = req.pattern_group;
             sub_reqs[i].pattern_step = req.pattern_step;
@@ -756,6 +756,7 @@ private:
             sub_reqs[i].local_var = start;
             sub_reqs[i].priority = req.priority + 1;
 
+            // metadata
             sub_reqs[i].result.col_num = req.result.col_num;
             sub_reqs[i].result.attr_col_num = req.result.attr_col_num;
             sub_reqs[i].result.blind = req.result.blind;
@@ -769,10 +770,14 @@ private:
             int dst_sid = wukong::math::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
                                                  global_num_servers);
             req.result.append_row_to(i, sub_reqs[dst_sid].result.result_table);
+            req.result.append_attr_row_to(i, sub_reqs[dst_sid].result.attr_res_table);
+
             if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
                 sub_reqs[dst_sid].result.optional_matched_rows.push_back(req.result.optional_matched_rows[i]);
-            req.result.append_attr_row_to(i, sub_reqs[dst_sid].result.attr_res_table);
         }
+
+        for (int i = 0; i < global_num_servers; i++)
+            sub_reqs[i].result.update_nrows();
 
         return sub_reqs;
     }
@@ -1060,7 +1065,7 @@ private:
                 for (int j = 0; j < r.mt_factor; j++) {
                     sub_query.pqid = r.qid;
                     sub_query.qid = -1;
-                    sub_query.tid = j;
+                    sub_query.mt_tid = j;
 
                     // start from the next engine thread
                     int dst_tid = global_num_proxies
@@ -1079,7 +1084,9 @@ private:
         uint64_t time, access;
         logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "] execute patterns of "
                              << "Q(pqid=" << r.pqid << ", qid=" << r.qid
-                             << ", step=" << r.pattern_step << ")" << LOG_endl;
+                             << ", step=" << r.pattern_step << ")"
+                             << " #rows = " << r.result.get_row_num()
+                             << LOG_endl;
         do {
             time = timer::get_usec();
             execute_one_pattern(r);
@@ -1087,7 +1094,7 @@ private:
                                  << " step = " << r.pattern_step
                                  << " exec-time = " << (timer::get_usec() - time) << " usec"
                                  << " #rows = " << r.result.get_row_num()
-                                 << LOG_endl;;
+                                 << LOG_endl;
 
             // co-run optimization
             if (r.corun_enabled && (r.pattern_step == r.corun_step))
@@ -1462,6 +1469,7 @@ out:
         // need to think about attribute result table
         vector<ssid_t> normal_var;
         vector<ssid_t> attr_var;
+        ASSERT_MSG(r.result.required_vars.size() != 0, "NO required variables!");
         for (int i = 0; i < r.result.required_vars.size(); i++) {
             ssid_t vid = r.result.required_vars[i];
             if (r.result.var_type(vid) == ENTITY)
