@@ -57,7 +57,6 @@ struct GPUEngineParam {
 
     struct {
         ikey_t *d_key_list = nullptr;
-        vertex_t *d_vertex_list = nullptr;
         vertex_t* vertex_gaddr = nullptr;
         edge_t *edge_gaddr = nullptr;
 
@@ -73,7 +72,6 @@ struct GPUEngineParam {
 
         uint64_t *d_offset_list = nullptr;
         uint64_t *d_edge_off_list = nullptr;
-        uint64_t *d_bucket_id_list = nullptr;
 
         sid_t* d_in_rbuf;
         sid_t* d_out_rbuf;
@@ -89,10 +87,6 @@ struct GPUEngineParam {
         gpu.edge_blk_sz = nentries;
 
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_key_list, MiB2B(global_gpu_rbuf_size_mb) ));
-        // for inspecting GPU execution
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_vertex_list, MiB2B(global_gpu_rbuf_size_mb) ));
-        CUDA_ASSERT(cudaMemset((void*)gpu.d_vertex_list, 0, MiB2B(global_gpu_rbuf_size_mb)));
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_bucket_id_list, MiB2B(global_gpu_rbuf_size_mb) ));
 
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_slot_id_list, MiB2B(global_gpu_rbuf_size_mb) ));
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_prefix_sum_list, MiB2B(global_gpu_rbuf_size_mb) ));
