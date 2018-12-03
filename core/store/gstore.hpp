@@ -375,9 +375,6 @@ protected:
     // Get edges of given vertex from dst_sid by RDMA read.
     virtual edge_t *rdma_get_edges(int tid, int dst_sid, vertex_t &v) = 0;
 
-    // insert key to a slot
-    virtual uint64_t insert_key(ikey_t key, bool check_dup = true) = 0;
-
     // Allocate extended buckets
     // @n: number of extended buckets to allocate
     // @return: start offset of allocated extended buckets
@@ -822,9 +819,6 @@ protected:
                    "IN[#keys: %lu, #buckets: %lu, #edges: %lu], bucket_off: %lu\n",
                    idx_out_seg.num_keys, idx_out_seg.num_buckets, idx_out_seg.num_edges,
                    idx_in_seg.num_keys, idx_in_seg.num_buckets, idx_in_seg.num_edges, main_hdr_off);
-
-        logger(LOG_DEBUG, "#total_keys: %lu, bucket_off: %lu, #total_entries: %lu",
-               total_num_keys, main_hdr_off, this->last_entry);
     }
 
     /**
