@@ -108,6 +108,10 @@ public:
     }
 
     void send_reply(SPARQLQuery &req, int dst_sid, int dst_tid) {
+        if (req.result.blind) {
+            req.shrink_query();
+        }
+
         req.state = SPARQLQuery::SQState::SQ_REPLY;
         req.job_type = SPARQLQuery::SubJobType::FULL_JOB;
         Bundle bundle(req);
