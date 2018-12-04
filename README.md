@@ -18,6 +18,7 @@ For more details see [Wukong Project](http://ipads.se.sjtu.edu.cn/projects/wukon
 
 * [Installation](docs/INSTALL.md)
 * [Tutorials](docs/TUTORIALS.md)
+* [Q&A](docs/QA.md)
 
 
 ## License
