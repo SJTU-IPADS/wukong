@@ -179,17 +179,16 @@ public:
 
     String_Server *str_server;
     Adaptor *adaptor;
+    Stats *stats;
 
     Coder coder;
     Parser parser;
     Planner planner;
-    Stats *stats; // for planner
-
 
     Proxy(int sid, int tid, String_Server *str_server, DGraph * graph,
           Adaptor *adaptor, Stats *stats)
-        : sid(sid), tid(tid), str_server(str_server), adaptor(adaptor),
-          coder(sid, tid), parser(str_server), stats(stats), planner(graph, tid) { }
+        : sid(sid), tid(tid), str_server(str_server), adaptor(adaptor), stats(stats),
+          coder(sid, tid), parser(str_server), planner(tid, graph, stats) { }
 
     void setpid(SPARQLQuery &r) { r.pqid = coder.get_and_inc_qid(); }
 
@@ -317,18 +316,18 @@ public:
         if (global_enable_planner) {
             start = timer::get_usec();
             for (int i = 0; i < nopts; i ++)
-                planner.test_plan_time(request, stats);
+                planner.test_plan(request);
             end = timer::get_usec();
             logstream(LOG_INFO) << "Optimization time: " << (end - start) / nopts << " usec" << LOG_endl;
 
             // A shortcut for contradictory queries (e.g., empty result)
-            if (planner.generate_plan(request, stats) == false) {
+            if (planner.generate_plan(request) == false) {
                 logstream(LOG_INFO) << "Query has no bindings, no need to execute it." << LOG_endl;
                 return 0; // success, skip execution
             }
         } else {
             ASSERT(fmt_stream.good());
-            planner.set_query_plan(request.pattern_group, fmt_stream);
+            planner.set_plan(request.pattern_group, fmt_stream);
             logstream(LOG_INFO) << "User-defined query plan is enabled" << LOG_endl;
         }
 
@@ -453,9 +452,9 @@ public:
                 }
 
                 if (i < nlights) // light query
-                    planner.set_query_plan(tpls[i].pattern_group, fs, tpls[i].ptypes_pos);
+                    planner.set_plan(tpls[i].pattern_group, fs, tpls[i].ptypes_pos);
                 else // heavy query
-                    planner.set_query_plan(heavy_reqs[i - nlights].pattern_group, fs);
+                    planner.set_plan(heavy_reqs[i - nlights].pattern_group, fs);
             }
         }
 
@@ -477,7 +476,7 @@ public:
                                 heavy_reqs[idx - nlights]; // heavy query
 
                 if (global_enable_planner)
-                    planner.generate_plan(r, stats);
+                    planner.generate_plan(r);
 
                 setpid(r);
                 r.result.blind = true; // always not take back results for emulator
