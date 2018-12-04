@@ -16,6 +16,19 @@
 # command: sparql -f sparql_query/lubm/union/q1 -p sparql_query/lubm/union/manual_plan/q1.fmt
 #
 
+# PLAN
+#
+# SELECT ?X ?Y WHERE {
+#	{
+#		?X  rdf:type  ub:Course <-
+#		?X  ub:name  ?Y  .
+#	} UNION {
+#		?X  rdf:type  ub:University <-
+#		?X  ub:name  ?Y  .
+#	}
+# }
+#
+
 UNION {
     1 <
     2 >

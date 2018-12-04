@@ -17,6 +17,19 @@
 # command: sparql -f sparql_query/lubm/union/q3 -p sparql_query/lubm/union/manual_plan/q3.fmt
 #
 
+# PLAN
+#
+# SELECT ?X ?Y ?Z WHERE {
+#	{
+#		?X  rdf:type  ub:Course <-
+#		?X  ub:name  ?Y  .
+#	} UNION {
+#		?A  ub:name  "FullProfessor8" <-
+#		?A  ub:worksFor  <http://www.Department6.University0.edu> <-
+#		?Z  ub:publicationAuthor  ?A <-
+#	}
+# }
+
 UNION {
     1 <
     2 >

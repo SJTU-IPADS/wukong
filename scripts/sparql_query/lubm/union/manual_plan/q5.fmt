@@ -20,6 +20,22 @@
 # command: sparql -f sparql_query/lubm/union/q5 -p sparql_query/lubm/union/manual_plan/q5.fmt
 #
 
+# PLAN
+#
+# SELECT ?X ?Y ?Z ?N WHERE {
+#	?X  rdf:type    ub:AssociateProfessor <-
+#	?Y  ub:advisor     ?X <-
+#	{
+#		?X ub:worksFor  <http://www.Department8.University0.edu> .
+#		?X ub:teacherOf  ?Z .
+#	}
+#	UNION
+#	{
+#		?X ub:worksFor  <http://www.Department8.University1.edu> .
+#		?X ub:teacherOf  ?N .
+#	}
+# }
+
 1 <
 2 <
 UNION {
