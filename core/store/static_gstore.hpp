@@ -65,7 +65,24 @@ private:
         return bucket_id;
     }
 
-    // insert key to a slot
+    // Allocate space to store edges of given size. Return offset of allocated space.
+    uint64_t alloc_edges(uint64_t n, int64_t tid = 0) {
+        uint64_t orig;
+        pthread_spin_lock(&entry_lock);
+        orig = last_entry;
+        last_entry += n;
+        if (last_entry >= num_entries) {
+            logstream(LOG_ERROR) << "out of entry region." << LOG_endl;
+            ASSERT(last_entry < num_entries);
+        }
+        pthread_spin_unlock(&entry_lock);
+        return orig;
+    }
+
+    /// edge is always valid
+    bool edge_is_valid(vertex_t &v, edge_t *edge_ptr) { return true; }
+
+    /// insert key to a slot
     uint64_t insert_key(ikey_t key, bool check_dup = true) {
         uint64_t bucket_id = bucket_local(key);
         uint64_t slot_id = bucket_id * ASSOCIATIVITY;
@@ -119,7 +136,7 @@ private:
             vertices[slot_id].key.vid = ext_bucket_id;
 #else // !USE_GPU
             vertices[slot_id].key.vid = alloc_ext_buckets(1);
-#endif  // end of USE_GPU
+#endif // end of USE_GPU
 
             slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY; // move to a new bucket_ext
             vertices[slot_id].key = key; // insert to the first slot
@@ -130,20 +147,6 @@ done:
         ASSERT(slot_id < num_slots);
         ASSERT(vertices[slot_id].key == key);
         return slot_id;
-    }
-
-    // Allocate space to store edges of given size. Return offset of allocated space.
-    uint64_t alloc_edges(uint64_t n, int64_t tid = 0) {
-        uint64_t orig;
-        pthread_spin_lock(&entry_lock);
-        orig = last_entry;
-        last_entry += n;
-        if (last_entry >= num_entries) {
-            logstream(LOG_ERROR) << "out of entry region." << LOG_endl;
-            ASSERT(last_entry < num_entries);
-        }
-        pthread_spin_unlock(&entry_lock);
-        return orig;
     }
 
     // Get edges of given vertex from dst_sid by RDMA read.
@@ -162,23 +165,6 @@ done:
         return (edge_t *)buf;
     }
 
-    // Get remote edges according to given vid, dir, pid.
-    // @sz: size of return edges
-    edge_t *get_edges_remote(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t &sz, int &type = *(int *)NULL) {
-        ikey_t key = ikey_t(vid, pid, d);
-        vertex_t v = get_vertex_remote(tid, key);
-        if (v.key.is_empty()) {
-            sz = 0;
-            return NULL; // not found
-        }
-        // remote edges
-        int dst_sid = wukong::math::hash_mod(vid, global_num_servers);
-        edge_t *edge_ptr = rdma_get_edges(tid, dst_sid, v);
-        sz = v.ptr.size;
-        if (&type != NULL)
-            type = v.ptr.type;
-        return edge_ptr;
-    }
 
 #ifdef USE_GPU  // enable GPU support
     int num_predicates;  // number of predicates

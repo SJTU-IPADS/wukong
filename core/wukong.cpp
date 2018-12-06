@@ -33,7 +33,7 @@
 #include "proxy.hpp"
 #include "console.hpp"
 #include "rdma.hpp"
-#include "data_statistic.hpp"
+#include "stats.hpp"
 
 #include "engine/engine.hpp"
 #include "comm/adaptor.hpp"
@@ -183,17 +183,20 @@ main(int argc, char *argv[])
     DGraph dgraph(sid, mem, &str_server, global_input_folder);
 
     // prepare statistics for SPARQL optimizer
-    data_statistic stat(sid);
+    Stats stats(sid);
+    uint64_t t0, t1;
     if (global_generate_statistics) {
-        uint64_t t0 = timer::get_usec();
-        stat.generate_statistic(dgraph.gstore);
-        uint64_t t1 = timer::get_usec();
-        logstream(LOG_EMPH)  << "generate_statistic using time: " << t1 - t0 << "usec" << LOG_endl;
-        stat.gather_stat(con_adaptor);
+        t0 = timer::get_usec();
+        stats.generate_statistics(dgraph.gstore);
+        t1 = timer::get_usec();
+        logstream(LOG_EMPH)  << "generate statistics using time: " << t1 - t0 << "usec" << LOG_endl;
+        stats.gather_stat(con_adaptor);
     } else {
-        // use the dataset name by default
-        string fname = global_input_folder + "/statfile";
-        stat.load_stat_from_file(fname, con_adaptor);
+        t0 = timer::get_usec();
+        string fname = global_input_folder + "/statfile";  // using default name
+        stats.load_stat_from_file(fname, con_adaptor);
+        t1 = timer::get_usec();
+        logstream(LOG_EMPH)  << "load statistics using time: " << t1 - t0 << "usec" << LOG_endl;
     }
 
     // create proxies and engines
@@ -202,7 +205,7 @@ main(int argc, char *argv[])
 
         // TID: proxy = [0, #proxies), engine = [#proxies, #proxies + #engines)
         if (tid < global_num_proxies) {
-            Proxy *proxy = new Proxy(sid, tid, &str_server, &dgraph, adaptor, &stat);
+            Proxy *proxy = new Proxy(sid, tid, &str_server, &dgraph, adaptor, &stats);
             proxies.push_back(proxy);
         } else {
             Engine *engine = new Engine(sid, tid, &str_server, &dgraph, adaptor);
@@ -229,7 +232,7 @@ main(int argc, char *argv[])
 
     // create GPU agent
     GPUStreamPool stream_pool(32);
-    GPUCache gpu_cache(gpu_mem, dgraph.gstore->vertex_addr(), dgraph.gstore->edge_addr(),
+    GPUCache gpu_cache(gpu_mem, dgraph.gstore.vertices, dgraph.gstore->edges,
                        static_cast<StaticGStore *>(dgraph.gstore)->get_rdf_segment_metas());
     GPUEngine gpu_engine(sid, WUKONG_GPU_AGENT_TID, gpu_mem, &gpu_cache, &stream_pool, &dgraph);
     GPUAgent agent(sid, WUKONG_GPU_AGENT_TID, new Adaptor(WUKONG_GPU_AGENT_TID,

@@ -143,7 +143,7 @@ private:
     }
 
     /// SPARQLParser::PatternGroup to SPARQLQuery::PatternGroup
-    void transfer_patterns(SPARQLParser::PatternGroup &src, SPARQLQuery::PatternGroup &dst) {
+    void transfer_pg(SPARQLParser::PatternGroup &src, SPARQLQuery::PatternGroup &dst) {
         // Patterns
         for (auto const &p : src.patterns) {
             ssid_t subject = transfer_element(p.subject);
@@ -153,9 +153,8 @@ private:
             SPARQLQuery::Pattern pattern(subject, predicate, direction, object);
 
             pattern.pred_type = str_server->pid2type[predicate];
-            if (pattern.pred_type > 0
-                    && !global_enable_vattr) {
-                logstream(LOG_ERROR) << "Must change config to enable vertex_attr"
+            if ((pattern.pred_type != (char)SID_t) && !global_enable_vattr) {
+                logstream(LOG_ERROR) << "Must enable attribute support"
                                      << LOG_endl;
                 ASSERT(false);
             }
@@ -172,31 +171,30 @@ private:
         // Unions
         for (auto &u : src.unions) {
             dst.unions.push_back(SPARQLQuery::PatternGroup());
-            transfer_patterns(u, dst.unions.back());
+            transfer_pg(u, dst.unions.back());
         }
 
         // Optional
         for (auto &o : src.optional) {
             dst.optional.push_back(SPARQLQuery::PatternGroup());
-            transfer_patterns(o, dst.optional.back());
+            transfer_pg(o, dst.optional.back());
         }
 
         /// TODO: support other Grammars in PatternGroup
     }
 
     void transfer(const SPARQLParser &sp, SPARQLQuery &sq) {
-        // patterns
-        SPARQLParser::PatternGroup group = sp.getPatterns();
-        transfer_patterns(group, sq.pattern_group);
-
-        // nvars in GP
-        sq.result.nvars = sp.getVariableCount();
-
-        // vars in RD
+        // required varaibles of SELECT clause
         for (SPARQLParser::projection_iterator iter = sp.projectionBegin();
                 iter != sp.projectionEnd();
                 iter ++)
             sq.result.required_vars.push_back(*iter);
+
+        // pattern group (patterns, union, filter, optional)
+        SPARQLParser::PatternGroup group = sp.getPatterns();
+        transfer_pg(group, sq.pattern_group);
+
+        sq.result.nvars = sp.getVariableCount();
 
         // orders
         for (SPARQLParser::order_iterator iter = sp.orderBegin();
@@ -213,7 +211,7 @@ private:
                 || (sp.getProjectionModifier() == SPARQLParser::ProjectionModifier::Modifier_Reduced))
             sq.distinct = true;
 
-        // corun
+        // corun optimization (disabled)
         if (sq.corun_enabled = sp.isCorunEnabled()) {
             sq.corun_step = sp.getCorunStep();
             sq.fetch_step = sp.getFetchStep();
@@ -227,6 +225,14 @@ private:
     }
 
     void transfer_template(const SPARQLParser &sp, SPARQLQuery_Template &sqt) {
+        // required varaibles of SELECT clause
+        for (SPARQLParser::projection_iterator iter = sp.projectionBegin();
+                iter != sp.projectionEnd();
+                iter ++)
+            sqt.required_vars.push_back(*iter);
+
+        // pattern group (patterns)
+        // FIXME: union, filter, optional (unsupported now)
         SPARQLParser::PatternGroup group = sp.getPatterns();
         int pos = 0;
         for (auto &p : group.patterns) {
@@ -247,10 +253,9 @@ private:
                 sqt.ptypes_pos.push_back(pos + 3); // object
             }
 
-            pattern.pred_type = str_server->pid2type[predicate];
-            if (pattern.pred_type > 0
-                    && !global_enable_vattr) {
-                logstream(LOG_ERROR) << "Must change config to enable vertex_attr" << LOG_endl;
+            pattern.pred_type = (char)str_server->pid2type[predicate];
+            if ((pattern.pred_type != (char)SID_t) && !global_enable_vattr) {
+                logstream(LOG_ERROR) << "Must enable attribute support" << LOG_endl;
                 ASSERT(false);
             }
 
@@ -258,8 +263,15 @@ private:
             pos += 4;
         }
 
-        // nvars in GP
         sqt.nvars = sp.getVariableCount();
+
+        // FIXME: orders (unsupported now)
+
+        // FIXME: limit and offset (unsupported now)
+
+        // FIXME: distinct (unsupported now)
+
+        // FIXME: corun optimization (unsupported now)
     }
 
 public:

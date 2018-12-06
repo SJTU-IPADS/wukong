@@ -158,7 +158,7 @@ public:
         if (!global_use_rdma) return true;
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ASSERT(req.result.var_stat(pattern.subject) == known_var);
+        ASSERT(req.result.var_stat(pattern.subject) == KNOWN_VAR);
         ssid_t start = req.get_pattern().subject;
 
         return ((req.local_var != start)
@@ -189,7 +189,7 @@ public:
             }
 
             // all sub-queries have done, continue to execute
-            req = rmap.get_merged_reply(req.pqid);
+            req = rmap.get_reply(req.pqid);
             pthread_spin_unlock(&rmap_lock);
 
             send_reply(req, coder.sid_of(req.pqid), coder.tid_of(req.pqid));

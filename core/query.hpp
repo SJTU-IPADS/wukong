@@ -38,6 +38,7 @@
 
 // utils
 #include "logger2.hpp"
+#include "variant.hpp"
 
 using namespace std;
 using namespace boost::archive;
@@ -45,7 +46,7 @@ using namespace boost::archive;
 // defined as constexpr due to switch-case
 constexpr int const_pair(int t1, int t2) { return ((t1 << 4) | t2); }
 
-enum vstat { known_var = 0, unknown_var, const_var }; // variable stat
+enum vstat { KNOWN_VAR = 0, UNKNOWN_VAR, CONST_VAR }; // variable stat
 
 // EXT = [ TYPE:16 | COL:16 ]
 #define NBITS_TYPE 16   // column type
@@ -98,9 +99,9 @@ public:
         ssid_t subject;
         ssid_t predicate;
         ssid_t object;
-        dir_t  direction;
+        dir_t direction;
 
-        char  pred_type = 0;
+        char pred_type = (char)SID_t;
 
         Pattern() { }
 
@@ -307,24 +308,26 @@ public:
     public:
         Result() { }
 
-        int col_num = 0;    // Note: use set_col_num() for modification
+        // metadata
+        int col_num = 0;  // NOTE: use set_col_num() for modification
         int row_num = 0;  // FIXME: vs. get_row_num()
         int attr_col_num = 0; // FIXME: why not no attr_row_num
 
         bool blind = false;
         int nvars = 0; // the number of variables
-        vector<int> v2c_map; // from variable ID (vid) to column ID, index: vid, value: col
         vector<ssid_t> required_vars; // variables selected to return
+        vector<int> v2c_map; // from variable ID (vid) to column ID, index: vid, value: col
 
+        // OPTIONAL
+        vector<bool> optional_matched_rows; // rows matched in optional block
+
+        // data
         vector<sid_t> result_table; // result table for string IDs
         vector<attr_t> attr_res_table; // result table for others
 
 #ifdef USE_GPU
         GPUResult gpu;
 #endif
-
-        // OPTIONAL
-        vector<bool> optional_matched_rows; // rows matched in optional block
 
         void clear() {
             result_table.clear();
@@ -334,11 +337,11 @@ public:
 
         vstat var_stat(ssid_t vid) {
             if (vid >= 0)
-                return const_var;
+                return CONST_VAR;
             else if (var2col(vid) == NO_RESULT)
-                return unknown_var;
+                return UNKNOWN_VAR;
             else
-                return known_var;
+                return KNOWN_VAR;
         }
 
         /// mapping from variable ID (var) to column ID (col)
@@ -403,29 +406,25 @@ public:
             return (vtype)ext2type(v2c_map[idx]);
         }
 
-        // TODO unused set get
-        // result table for string IDs
+
+        // NORMAL result (i.e., sid)
         void set_col_num(int n) {
             col_num = n;
 #ifdef USE_GPU
-            gpu.set_col_num(col_num);
+            gpu.set_col_num(col_num); // FIXME: should be avoided
 #endif
         }
 
         int get_col_num() { return col_num; }
 
-        // Notes: The return value will be 0 after calling shrink_query()
         int get_row_num() {
-            if (col_num == 0) {
-                // FIXME: impl get_attr_row_num()
-                // it only has attribute resluts
-                if (attr_col_num != 0)
-                    return attr_res_table.size() / attr_col_num;
-                else
-                    return 0;
-            }
+            return (col_num == 0) ?
+                   0 : (result_table.size() / col_num);
+        }
 
-            return result_table.size() / col_num;
+        void update_nrows() {
+            row_num = (col_num == 0) ?
+                      0 : (result_table.size() / col_num);
         }
 
         sid_t get_row_col(int r, int c) {
@@ -438,12 +437,19 @@ public:
                 update.push_back(get_row_col(r, c));
         }
 
-        // result table for others (e.g., integer, float, and double)
+
+        // ATTRIBUTE result (i.e., integer, float, and double)
         int set_attr_col_num(int n) { attr_col_num = n; }
 
-        int get_attr_col_num() { return  attr_col_num; }
+        int get_attr_col_num() { return attr_col_num; }
+
+        int get_attr_row_num() {
+            return (attr_col_num == 0) ?
+                   0 : (attr_res_table.size() / attr_col_num);
+        }
 
         attr_t get_attr_row_col(int r, int c) {
+            ASSERT(r >= 0 && c >= 0);
             return attr_res_table[attr_col_num * r + c];
         }
 
@@ -452,90 +458,92 @@ public:
                 updated_result_table.push_back(get_attr_row_col(r, c));
         }
 
-        // insert a blank col to result table without updating col_num and v2c_map
-        void insert_blank_col(int col) {
-            vector<sid_t> new_table;
-            for (int i = 0; i < this->get_row_num(); i++) {
-                new_table.insert(new_table.end(),
-                                 this->result_table.begin() + (i * this->col_num),
-                                 this->result_table.begin() + (i * this->col_num + col));
-                new_table.push_back(BLANK_ID);
-                new_table.insert(new_table.end(),
-                                 this->result_table.begin() + (i * this->col_num + col),
-                                 this->result_table.begin() + ((i + 1) * this->col_num));
-            }
-            this->result_table.swap(new_table);
-        }
 
         // UNION
-        void merge_union(SPARQLQuery::Result &result) {
-            this->nvars = result.nvars;
-            this->v2c_map.resize(this->nvars, NO_RESULT);
-            this->blind = result.blind;
-            this->row_num += result.row_num;
-            this->attr_col_num = result.attr_col_num;
-            vector<int> col_map(this->nvars, -1);  // idx: my_col, value: your_col
-
-            for (int i = 0; i < result.v2c_map.size(); i++) {
-                ssid_t vid = -1 - i;
-                if (this->v2c_map[i] == NO_RESULT && result.v2c_map[i] != NO_RESULT) {
-                    this->insert_blank_col(this->col_num);
-                    this->add_var2col(vid, this->col_num);
-                    col_map[this->col_num] = result.var2col(vid);
-                    this->col_num++;
-                } else if (this->v2c_map[i] != NO_RESULT && result.v2c_map[i] == NO_RESULT) {
-                    col_map[this->var2col(vid)] = -1;
-                } else if (this->v2c_map[i] != NO_RESULT && result.v2c_map[i] != NO_RESULT) {
-                    col_map[this->var2col(vid)] = result.var2col(vid);
-                }
+        // append a blank col to result table without updating col_num and v2c_map
+        void append_blank_col(int col) {
+            vector<sid_t> new_table;
+            for (int i = 0; i < get_row_num(); i++) {
+                new_table.insert(new_table.end(),
+                                 result_table.begin() + (i * col_num),
+                                 result_table.begin() + (i * col_num + col));
+                new_table.push_back(BLANK_ID);
+                new_table.insert(new_table.end(),
+                                 result_table.begin() + (i * col_num + col),
+                                 result_table.begin() + ((i + 1) * col_num));
             }
 
-            int new_size = this->col_num * this->row_num;
-            this->result_table.reserve(new_size);
-            for (int i = 0; i < result.row_num; i++) {
-                for (int j = 0; j < this->col_num; j++) {
+            result_table.swap(new_table);
+        }
+
+        // For UNION queries, merge two result table into one
+        void merge_result(SPARQLQuery::Result &r) {
+            /// update metadata (i.e., v2c_map, ncols, and nrows)
+            nvars = r.nvars;
+            v2c_map.resize(r.nvars, NO_RESULT);
+            vector<int> col_map(r.nvars, -1);  // idx: my_col, value: your_col
+            for (int i = 0; i < r.v2c_map.size(); i++) {
+                ssid_t vid = - (i + 1);
+                if (v2c_map[i] == NO_RESULT && r.v2c_map[i] != NO_RESULT) {
+                    append_blank_col(col_num);
+
+                    add_var2col(vid, col_num);
+                    col_map[col_num] = r.var2col(vid);
+                    col_num++;
+                } else if (v2c_map[i] != NO_RESULT && r.v2c_map[i] == NO_RESULT) {
+                    col_map[var2col(vid)] = -1;
+                } else if (v2c_map[i] != NO_RESULT && r.v2c_map[i] != NO_RESULT) {
+                    col_map[var2col(vid)] = r.var2col(vid);
+                }
+            }
+            row_num += r.row_num;
+
+            // skip data
+            if (r.blind) return;
+
+            /// aggregate data (i.e., result table and attribute result table)
+            result_table.reserve(col_num * row_num);
+            for (int i = 0; i < r.row_num; i++) {
+                for (int j = 0; j < col_num; j++) {
                     if (col_map[j] == -1)
-                        this->result_table.push_back(BLANK_ID);
+                        result_table.push_back(BLANK_ID);
                     else
-                        this->result_table.push_back(result.result_table[i * result.col_num + col_map[j]]);
+                        result_table.push_back(r.result_table[i * r.col_num + col_map[j]]);
                 }
             }
-            new_size = this->attr_res_table.size() + result.attr_res_table.size();
-            this->attr_res_table.reserve(new_size);
-            this->attr_res_table.insert(this->attr_res_table.end(),
-                                        result.attr_res_table.begin(),
-                                        result.attr_res_table.end());
+
+            // update attribute result table
+            ASSERT_MSG(r.attr_col_num == 0, "Unsupport UNION on attribute results");
         }
 
-        void append_result(SPARQLQuery::Result &result) {
-            this->col_num = result.col_num;
-            this->blind = result.blind;
-            this->row_num += result.row_num;
-            this->attr_col_num = result.attr_col_num;
-            this->v2c_map = result.v2c_map;
+        void append_result(SPARQLQuery::Result &r) {
+            /// update metadata (i.e., v2c_map, ncols, attr_ncols, and nrows)
+            // NOTE: all sub-jobs have the same v2c_map, ncols, and attr_ncols
+            v2c_map = r.v2c_map;
+            col_num = r.col_num;
+            attr_col_num = r.attr_col_num;
+            row_num += r.row_num; // add rows
 
-            if (!this->blind) {
-                int new_size = this->result_table.size()
-                               + result.result_table.size();
-                this->result_table.reserve(new_size);
-                this->result_table.insert(this->result_table.end(),
-                                          result.result_table.begin(),
-                                          result.result_table.end());
-                new_size = this->attr_res_table.size()
-                           + result.attr_res_table.size();
-                this->attr_res_table.reserve(new_size);
-                this->attr_res_table.insert(this->attr_res_table.end(),
-                                            result.attr_res_table.begin(),
-                                            result.attr_res_table.end());
-            }
+            // skip data
+            if (r.blind) return;
+
+            /// aggregate data (i.e., result table and attribute result table)
+            ASSERT((col_num * row_num) == (result_table.size() + r.result_table.size()));
+            result_table.reserve(col_num * row_num);
+            result_table.insert(result_table.end(),
+                                r.result_table.begin(),
+                                r.result_table.end());
+
+            ASSERT((attr_col_num * row_num) == (attr_res_table.size() + r.attr_res_table.size()));
+            attr_res_table.reserve(attr_col_num * row_num);
+            attr_res_table.insert(attr_res_table.end(),
+                                  r.attr_res_table.begin(),
+                                  r.attr_res_table.end());
         }
-
     };
 
     int qid = -1;   // query id (track engine (sid, tid))
     int pqid = -1;  // parent qid (track the source (proxy or parent query) of query)
-
-    int tid = 0;    // engine thread number (MT)
 
     PGType pg_type = BASIC;
     SQState state = SQ_PATTERN;
@@ -543,8 +551,10 @@ public:
     DeviceType dev_type = CPU;
     SubJobType job_type = FULL_JOB;
 
-    int mt_factor = 1;  // use a single engine (thread) by default
     int priority = 0;
+
+    int mt_factor = 1;  // use a single engine (thread) by default
+    int mt_tid = 0;     // engine thread number (MT)
 
     // Pattern
     int pattern_step = 0;
@@ -563,17 +573,19 @@ public:
     unsigned offset = 0;
     bool distinct = false;
 
-    // ID-format triple patterns (Subject, Predicat, Direction, Object)
+    // PatternGroup
     PatternGroup pattern_group;
     vector<Order> orders;
     Result result;
 
     SPARQLQuery() { }
 
-    // build a request by existing triple patterns and variables
-    SPARQLQuery(PatternGroup g, int n) : pattern_group(g) {
-        result.nvars = n;
-        result.v2c_map.resize(n, NO_RESULT);
+    // build a query by existing query template
+    SPARQLQuery(PatternGroup g, int nvars, vector<ssid_t> &required_vars)
+        : pattern_group(g) {
+        result.nvars = nvars;
+        result.required_vars = required_vars;
+        result.v2c_map.resize(nvars, NO_RESULT);
     }
 
     // return the current pattern
@@ -589,15 +601,13 @@ public:
     }
 
     // shrink the query to reduce communication cost (before sending)
-    void shrink_query() {
-        orders.clear();
-        // the first pattern indicating if this query is starting from index. It can't be removed.
-        if (pattern_group.patterns.size() > 0)
-            pattern_group.patterns.erase(pattern_group.patterns.begin() + 1,
-                                         pattern_group.patterns.end());
+    void shrink() {
+        pattern_group.patterns.clear();
         pattern_group.filters.clear();
         pattern_group.optional.clear();
         pattern_group.unions.clear();
+
+        orders.clear();
 
         // discard results if does not care
         if (result.blind)
@@ -657,7 +667,7 @@ public:
 
     void print_sparql_query() {
         logstream(LOG_INFO) << "SPARQLQuery"
-                            << "[ QID=" << qid << " | PQID=" << pqid << " | TID=" << tid << " ]"
+                            << "[ QID=" << qid << " | PQID=" << pqid << " | MT_TID=" << mt_tid << " ]"
                             << LOG_endl;
         pattern_group.print_group();
         /// TODO: print more fields
@@ -666,7 +676,7 @@ public:
 
     void print_SQState() {
         logstream(LOG_INFO) << "SPARQLQuery"
-                            << "[ QID=" << qid << " | PQID=" << pqid << " | TID=" << tid << " ]";
+                            << "[ QID=" << qid << " | PQID=" << pqid << " | MT_TID=" << mt_tid << " ]";
         switch (state) {
         case SQState::SQ_PATTERN: logstream(LOG_INFO) << "\tSQ_PATTERN" << LOG_endl; break;
         case SQState::SQ_REPLY: logstream(LOG_INFO) << "\tSQ_REPLY" << LOG_endl; break;
@@ -729,16 +739,16 @@ public:
                     const_to_unknown_patterns.push_back(pattern);
             } else {
                 switch (const_pair(r.var_stat(start), r.var_stat(end))) {
-                case const_pair(const_var, known_var):
-                case const_pair(known_var, const_var):
-                case const_pair(known_var, known_var):
+                case const_pair(CONST_VAR, KNOWN_VAR):
+                case const_pair(KNOWN_VAR, CONST_VAR):
+                case const_pair(KNOWN_VAR, KNOWN_VAR):
                     // const_to_known, known_to_const, known_to_known
                     updated_patterns.push_back(pattern);
                     break;
-                case const_pair(const_var, unknown_var):
+                case const_pair(CONST_VAR, UNKNOWN_VAR):
                     const_to_unknown_patterns.push_back(pattern);
                     break;
-                case const_pair(known_var, unknown_var):
+                case const_pair(KNOWN_VAR, UNKNOWN_VAR):
                     known_to_unknown_patterns.push_back(pattern);
                     break;
                 default:
@@ -799,6 +809,7 @@ public:
     SPARQLQuery::PatternGroup pattern_group;
 
     int nvars;  // the number of variable in triple patterns
+    vector<ssid_t> required_vars; // variables selected to return
 
     vector<string> ptypes_str; // the Types of random-constants
     vector<int> ptypes_pos; // the locations of random-constants
@@ -824,7 +835,7 @@ public:
             }
         }
 
-        return SPARQLQuery(pattern_group, nvars);
+        return SPARQLQuery(pattern_group, nvars, required_vars);
     }
 };
 
@@ -959,20 +970,19 @@ void save(Archive &ar, const SPARQLQuery::Result &t, unsigned int version) {
     ar << t.attr_col_num;
     ar << t.blind;
     ar << t.nvars;
+    ar << t.required_vars;
     ar << t.v2c_map;
     ar << t.optional_matched_rows;
-#ifdef USE_GPU
-    ar << t.gpu;
-#endif
-    if (!t.blind) ar << t.required_vars;
-    // attr_res_table may not be empty if result_table is empty
-    if (t.result_table.size() > 0 || t.attr_res_table.size() > 0) {
+    if (t.row_num > 0) {
         ar << occupied;
         ar << t.result_table;
         ar << t.attr_res_table;
     } else {
         ar << empty;
     }
+#ifdef USE_GPU
+    ar << t.gpu;
+#endif
 }
 
 template<class Archive>
@@ -983,39 +993,40 @@ void load(Archive & ar, SPARQLQuery::Result &t, unsigned int version) {
     ar >> t.attr_col_num;
     ar >> t.blind;
     ar >> t.nvars;
+    ar >> t.required_vars;
     ar >> t.v2c_map;
     ar >> t.optional_matched_rows;
-#ifdef USE_GPU
-    ar >> t.gpu;
-#endif
-    if (!t.blind) ar >> t.required_vars;
     ar >> temp;
     if (temp == occupied) {
         ar >> t.result_table;
         ar >> t.attr_res_table;
     }
+#ifdef USE_GPU
+    ar >> t.gpu;
+#endif
 }
 
 template<class Archive>
 void save(Archive & ar, const SPARQLQuery &t, unsigned int version) {
     ar << t.qid;
     ar << t.pqid;
-    ar << t.tid;
+    ar << t.pg_type;
+    ar << t.state;
+    ar << t.dev_type;
+    ar << t.job_type;
+    ar << t.priority;
+    ar << t.mt_factor;
+    ar << t.mt_tid;
+    ar << t.pattern_step;
+    ar << t.local_var;
+    ar << t.corun_enabled;
+    ar << t.corun_step;
+    ar << t.fetch_step;
+    ar << t.union_done;
+    ar << t.optional_step;
     ar << t.limit;
     ar << t.offset;
     ar << t.distinct;
-    ar << t.pg_type;
-    ar << t.pattern_step;
-    ar << t.dev_type;
-    ar << t.job_type;
-    ar << t.union_done;
-    ar << t.optional_step;
-    ar << t.corun_step;
-    ar << t.fetch_step;
-    ar << t.local_var;
-    ar << t.mt_factor;
-    ar << t.priority;
-    ar << t.state;
     ar << t.pattern_group;
     if (t.orders.size() > 0) {
         ar << occupied;
@@ -1031,22 +1042,23 @@ void load(Archive & ar, SPARQLQuery &t, unsigned int version) {
     char temp = 2;
     ar >> t.qid;
     ar >> t.pqid;
-    ar >> t.tid;
+    ar >> t.pg_type;
+    ar >> t.state;
+    ar >> t.dev_type;
+    ar >> t.job_type;
+    ar >> t.priority;
+    ar >> t.mt_factor;
+    ar >> t.mt_tid;
+    ar >> t.pattern_step;
+    ar >> t.local_var;
+    ar >> t.corun_enabled;
+    ar >> t.corun_step;
+    ar >> t.fetch_step;
+    ar >> t.union_done;
+    ar >> t.optional_step;
     ar >> t.limit;
     ar >> t.offset;
     ar >> t.distinct;
-    ar >> t.pg_type;
-    ar >> t.pattern_step;
-    ar >> t.dev_type;
-    ar >> t.job_type;
-    ar >> t.union_done;
-    ar >> t.optional_step;
-    ar >> t.corun_step;
-    ar >> t.fetch_step;
-    ar >> t.local_var;
-    ar >> t.mt_factor;
-    ar >> t.priority;
-    ar >> t.state;
     ar >> t.pattern_group;
     ar >> temp;
     if (temp == occupied) ar >> t.orders;

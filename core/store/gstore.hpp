@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include <stdint.h> // uint64_t
+#include <stdint.h>
 #include <vector>
 #include <queue>
 #include <iostream>
@@ -58,7 +58,7 @@ class RDMA_Cache {
     // cache line
     struct item_t {
         vertex_t v;
-        uint64_t expire_time;  // only work when DYNAMIC_GSTORE=on
+        uint64_t expire_time;  // only work when DYNAMIC_GSTORE=ON
         uint32_t cnt;  // keep track of visit cnt of v
 
         /// Each cache line use a version to detect reader-writer conflict.
@@ -75,7 +75,8 @@ class RDMA_Cache {
         item_t items[ASSOCIATIVITY]; // item list
     };
     bucket_t *hashtable;
-    uint64_t lease;  // only work when DYNAMIC_GSTORE=on
+
+    uint64_t lease;  // only work when DYNAMIC_GSTORE=ON
 
 public:
     RDMA_Cache() {
@@ -168,8 +169,8 @@ public:
                     items[pos].v = v;
                     items[pos].expire_time = timer::get_usec() + lease;
 #else
-                    items[pos].v = v;
                     items[pos].cnt = 0;
+                    items[pos].v = v;
 #endif
                     asm volatile("" ::: "memory");
                     ret_ver = wukong::atomic::compare_and_swap(&items[pos].version, 0, old_ver + 1);
@@ -180,9 +181,8 @@ public:
         }
     } // end of insert
 
-#ifdef DYNAMIC_GSTORE
-    /* Set lease.*/
-    void set_lease(uint64_t lease) { this->lease = lease; }
+    /* Set lease */
+    void set_lease(uint64_t _lease) { lease = _lease; }
 
     /**
      * Invalidate cache item of the given key.
@@ -206,20 +206,62 @@ public:
             }
         }
     }
-#endif
 };
 
 /**
  * Map the Graph model (e.g., vertex, edge, index) to KVS model (e.g., key, value)
+ * Graph store adopts clustring chaining key/value store (see paper: DrTM SOSP'15)
+ *
+ *  encoding rules of GStore
+ *  subject/object (vid) >= 2^NBITS_IDX, 2^NBITS_IDX > predicate/type (p/tid) >= 2^1,
+ *  TYPE_ID = 1, PREDICATE_ID = 0, OUT = 1, IN = 0
+ *
+ *  Empty key
+ *  (0)   key = [  0 |            0 |      0]  value = [vid0, vid1, ..]  i.e., init
+ *  INDEX key/value pair
+ *  (1)   key = [  0 |          pid | IN/OUT]  value = [vid0, vid1, ..]  i.e., predicate-index
+ *  (2)   key = [  0 |          tid |     IN]  value = [vid0, vid1, ..]  i.e., type-index
+ *  (3*)  key = [  0 |      TYPE_ID |     IN]  value = [vid0, vid1, ..]  i.e., all local objects/subjects
+ *  (4*)  key = [  0 |      TYPE_ID |    OUT]  value = [pid0, pid1, ..]  i.e., all local types
+ *  (5*)  key = [  0 | PREDICATE_ID |    OUT]  value = [pid0, pid1, ..]  i.e., all local predicates
+ *  NORMAL key/value pair
+ *  (6)   key = [vid |          pid | IN/OUT]  value = [vid0, vid1, ..]  i.e., vid's ngbrs w/ predicate
+ *  (7)   key = [vid |      TYPE_ID |    OUT]  value = [tid0, tid1, ..]  i.e., vid's all types
+ *  (8*)  key = [vid | PREDICATE_ID | IN/OUT]  value = [pid0, pid1, ..]  i.e., vid's all predicates
+ *
+ *  < S,  P, ?O>  ?O : (6)
+ *  <?S,  P,  O>  ?S : (6)
+ *  < S,  1, ?T>  ?T : (7)
+ *  <?S,  1,  T>  ?S : (2)
+ *  < S, ?P,  O>  ?P : (8)
+ *
+ *  <?S,  P, ?O>  ?S : (1)
+ *                ?O : (1)
+ *  <?S,  1, ?O>  ?O : (4)
+ *                ?S : (4) +> (2)
+ *  < S, ?P, ?O>  ?P : (8) AND exist(7)
+ *                ?O : (8) AND exist(7) +> (6)
+ *  <?S, ?P,  O>  ?P : (8)
+ *                ?S : (8) +> (6)
+ *  <?S, ?P,  T>  ?P : exist(2)
+ *                ?S : (2)
+ *
+ *  <?S, ?P, ?O>  ?S : (3)
+ *                ?O : (3) AND (4)
+ *                ?P : (5)
+ *                ?S ?P ?O : (3) +> (7) AND (8) +> (6)
  */
 class GStore {
-    friend class data_statistic;
+    friend class Stats;
     friend class GChecker;
+
 protected:
     static const int NUM_LOCKS = 1024;
 
     int sid;
+
     Mem *mem;
+
     vertex_t *vertices;
     uint64_t num_slots;       // 1 bucket = ASSOCIATIVITY slots
     uint64_t num_buckets;     // main-header region (static)
@@ -232,27 +274,32 @@ protected:
     uint64_t num_entries;     // entry region (dynamical)
 
     typedef tbb::concurrent_hash_map<sid_t, vector<sid_t>> tbb_hash_map;
-    tbb_hash_map pidx_in_map; // predicate-index (IN)
+    tbb_hash_map pidx_in_map;  // predicate-index (IN)
     tbb_hash_map pidx_out_map; // predicate-index (OUT)
-    tbb_hash_map tidx_map; // type-index
+    tbb_hash_map tidx_map;     // type-index
 
     RDMA_Cache rdma_cache;
 
     // get bucket_id according to key
     virtual uint64_t bucket_local(ikey_t key) = 0;
     virtual uint64_t bucket_remote(ikey_t key, int dst_sid) = 0;
-    // insert key to a slot
-    virtual uint64_t insert_key(ikey_t key, bool check_dup = true) = 0;
+
     // Allocate space to store edges of given size. Return offset of allocated space.
     virtual uint64_t alloc_edges(uint64_t n, int64_t tid = 0) = 0;
-    // Get remote edges according to given vid, dir, pid.
-    // @sz: size of return edges
-    virtual edge_t *get_edges_remote(int tid, sid_t vid,
-                                     sid_t pid, dir_t d, uint64_t &sz, int &type = *(int *)NULL) = 0;
+
+    // Check the validation of given edges according to given vertex.
+    virtual bool edge_is_valid(vertex_t &v, edge_t *edge_ptr) = 0;
+
+    // Get edges of given vertex from dst_sid by RDMA read.
+    virtual edge_t *rdma_get_edges(int tid, int dst_sid, vertex_t &v) = 0;
+
+    // insert key to a slot
+    virtual uint64_t insert_key(ikey_t key, bool check_dup = true) = 0;
+
 
     // Allocate extended buckets
-    // @n number of extended buckets to allocate
-    // @return start offset of allocated extended buckets
+    // @n: number of extended buckets to allocate
+    // @return: start offset of allocated extended buckets
     uint64_t alloc_ext_buckets(uint64_t n) {
         uint64_t orig;
         pthread_spin_lock(&bucket_ext_lock);
@@ -347,10 +394,38 @@ protected:
         }
     }
 
+    // Get remote edges according to given vid, pid, d.
+    // @sz: size of return edges
+    edge_t *get_edges_remote(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t &sz,
+                             int &type = *(int *)NULL) {
+        ikey_t key = ikey_t(vid, pid, d);
+        vertex_t v = get_vertex_remote(tid, key);
+
+        if (v.key.is_empty()) {
+            sz = 0;
+            return NULL; // not found
+        }
+
+        // remote edges
+        int dst_sid = wukong::math::hash_mod(vid, global_num_servers);
+        edge_t *edge_ptr = rdma_get_edges(tid, dst_sid, v);
+        while (!edge_is_valid(v, edge_ptr)) { // check cache validation
+            // invalidate cache and try again
+            rdma_cache.invalidate(key);
+            v = get_vertex_remote(tid, key);
+            edge_ptr = rdma_get_edges(tid, dst_sid, v);
+        }
+
+        sz = v.ptr.size;
+        if (&type != NULL)
+            type = v.ptr.type;
+        return edge_ptr;
+    }
+
     // Get local edges according to given vid, pid, d.
     // @sz: size of return edges
-    edge_t *get_edges_local(int tid, sid_t vid,
-                            sid_t pid, dir_t d, uint64_t &sz, int &type = *(int *)NULL) {
+    edge_t *get_edges_local(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t &sz,
+                            int &type = *(int *)NULL) {
         ikey_t key = ikey_t(vid, pid, d);
         vertex_t v = get_vertex_local(tid, key);
 
@@ -359,10 +434,13 @@ protected:
             return NULL; // not found
         }
 
+        // local edges
+        edge_t *edge_ptr = &(edges[v.ptr.off]);
+
         sz = v.ptr.size;
         if (&type != NULL)
             type = v.ptr.type;
-        return &(edges[v.ptr.off]);
+        return edge_ptr;
     }
 
     // TODO
@@ -443,9 +521,11 @@ public:
     ///               ?S ?P ?O : (3) +> (7) AND (8) +> (6)
 
     virtual ~GStore() {}
+
     virtual void init(vector<vector<triple_t>> &triple_pso,
                       vector<vector<triple_t>> &triple_pos,
                       vector<vector<triple_attr_t>> &triple_sav) = 0;
+
     virtual void refresh() = 0;
 
     /**
@@ -493,10 +573,6 @@ public:
         else
             return get_edges_remote(tid, vid, pid, d, sz, type);
     }
-
-    inline vertex_t *vertex_addr() const { return vertices; }
-
-    inline edge_t *edge_addr() const { return edges; }
 
     virtual void print_mem_usage() {
         // TODO

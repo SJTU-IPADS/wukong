@@ -57,7 +57,13 @@ public:
         : sid(sid), tid(tid), graph(graph), coder(coder), msgr(msgr) { }
 
     void execute_gstore_check(GStoreCheck &r) {
+        // unbind the core from the thread (enable OpenMPI multithreading)
+        cpu_set_t mask = unbind_to_core();
+
         r.check_ret = graph->gstore_check(r.index_check, r.normal_check);
+
+        // rebind the thread with the core
+        bind_to_core(mask);
 
         Bundle bundle(r);
         msgr->send_msg(bundle, coder->sid_of(r.pqid), coder->tid_of(r.pqid));

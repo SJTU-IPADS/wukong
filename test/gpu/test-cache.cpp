@@ -36,7 +36,7 @@
 #include "console.hpp"
 #include "rdma.hpp"
 #include "comm/adaptor.hpp"
-#include "data_statistic.hpp"
+#include "stats.hpp"
 #include "logger2.hpp"
 
 #include "unit.hpp"
@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
     DGraph dgraph(sid, mem, &str_server, global_input_folder);
 
     // prepare statistics for SPARQL optimizer
-    data_statistic stat(sid);
+    Stats stat(sid);
     if (global_enable_planner) {
         if (global_generate_statistics) {
             uint64_t t0 = timer::get_usec();
@@ -113,7 +113,7 @@ int main(int argc, char *argv[]) {
         cudaStreamCreate(&stream);
         auto &rsmm = dgraph.gstore.get_rdf_segment_meta_map();
         segid_t seg(0, 2, OUT);
-        GPUCache cache(gpu_mem, dgraph.gstore.vertex_addr(), dgraph.gstore.edge_addr(), rsmm);
+        GPUCache cache(gpu_mem, dgraph.gstore.vertices, dgraph.gstore.edges, rsmm);
 
         vector<segid_t> dummy;
 
