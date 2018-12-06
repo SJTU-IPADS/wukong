@@ -109,7 +109,7 @@ public:
 
     void send_reply(SPARQLQuery &req, int dst_sid, int dst_tid) {
         if (req.result.blind) {
-            req.shrink_query();
+            req.shrink();
         }
 
         req.state = SPARQLQuery::SQState::SQ_REPLY;
@@ -139,7 +139,7 @@ public:
             // start from the next engine thread
             int dst_tid = (tid + 1 - WUKONG_GPU_AGENT_TID) % global_num_gpus
                           + WUKONG_GPU_AGENT_TID;
-            sub_query.tid = 0;
+            sub_query.mt_tid = 0;
             sub_query.mt_factor = 1;
 
             ASSERT(sub_query.job_type != SPARQLQuery::SubJobType::SPLIT_JOB);
