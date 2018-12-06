@@ -262,7 +262,6 @@ protected:
 
     Mem *mem;
 
-    vertex_t *vertices;
     uint64_t num_slots;       // 1 bucket = ASSOCIATIVITY slots
     uint64_t num_buckets;     // main-header region (static)
     uint64_t num_buckets_ext; // indirect-header region (dynamical)
@@ -270,7 +269,6 @@ protected:
     pthread_spinlock_t bucket_locks[NUM_LOCKS]; // lock virtualization (see paper: vLokc CGO'13)
     pthread_spinlock_t bucket_ext_lock;
 
-    edge_t *edges;
     uint64_t num_entries;     // entry region (dynamical)
 
     typedef tbb::concurrent_hash_map<sid_t, vector<sid_t>> tbb_hash_map;
@@ -466,6 +464,9 @@ protected:
 #endif // VERSATILE
 
 public:
+    vertex_t *vertices;
+    edge_t *edges;
+
     static const int ASSOCIATIVITY = 8;  // the associativity of slots in each bucket
 
     // Memory Usage (estimation):
