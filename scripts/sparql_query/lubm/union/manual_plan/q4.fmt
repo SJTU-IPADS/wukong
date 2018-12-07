@@ -20,20 +20,32 @@
 # command: sparql -f sparql_query/lubm/union/q4 -p sparql_query/lubm/union/manual_plan/q4.fmt
 #
 
-#
-# Plan 
+# PLAN
 #
 # SELECT ?X ?Y WHERE {
+#	?X  ub:worksFor  <http://www.Department8.University1.edu> <-
 #	{
 #		?X  rdf:type  ub:Lecturer  .
 #		?X  ub:name  ?Y  .
 #	} UNION {
-#		?X  rdf:type  ub:FullProfessor  .
+#		?X  rdf:type  ub:FullProfessor <-
 #		?X  ub:name  ?Y  .
 #	} UNION {
-#		?X  rdf:type  ub:AssociateProfessor  .
+#		?X  rdf:type  ub:AssociateProfessor <-
 #		?X  ub:name  ?Y  .
 #	}
-#	?X  ub:worksFor  <http://www.Department8.University1.edu>  .
 # }
-#
+
+1 <
+UNION {
+    1 >
+    2 >
+}
+UNION {
+    1 <
+    2 >
+}
+UNION {
+    1 <
+    2 >
+}

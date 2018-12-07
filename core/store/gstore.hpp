@@ -1027,6 +1027,9 @@ done:
     }
 
 public:
+    vertex_t *vertices;
+    edge_t *edges;
+
     static const int ASSOCIATIVITY = 8;  // the associativity of slots in each bucket
 
     // Memory Usage (estimation):

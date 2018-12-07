@@ -76,7 +76,7 @@ private:
 
         uint64_t sz = 0;
         edge_t *edges = graph->get_index(tid, tpid, d, sz);
-        int start = req.tid % req.mt_factor;
+        int start = req.mt_tid % req.mt_factor;
         int length = sz / req.mt_factor;
 
         // every thread takes a part of consecutive edges

@@ -150,8 +150,6 @@ __global__
 void k_get_slot_id_list(vertex_t* vertex_gaddr,
                  ikey_t* d_key_list,
                  uint64_t* d_slot_id_list,
-                 uint64_t* d_bucket_id_list,
-                 vertex_t* d_vertex_list,
                  ikey_t empty_key,
                  rdf_segment_meta_t *seg_meta,
                  uint64_t* vertex_headers,
@@ -175,9 +173,6 @@ void k_get_slot_id_list(vertex_t* vertex_gaddr,
                     if (vertex_gaddr[slot_id].key == key) {
                         // we found it
                         d_slot_id_list[index] = slot_id;
-                        // TODO debug
-                        d_vertex_list[index] = vertex_gaddr[slot_id];
-                        d_bucket_id_list[index] = bucket_id;
                         return;
                     }
                 } else {
@@ -255,8 +250,6 @@ void gpu_get_slot_id_list(GPUEngineParam &param, cudaStream_t stream)
             param.gpu.vertex_gaddr,
             param.gpu.d_key_list,
             param.gpu.d_slot_id_list,
-            param.gpu.d_bucket_id_list,
-            param.gpu.d_vertex_list,
             empty_key,
             param.gpu.d_segment_meta,
             param.gpu.d_vertex_mapping,

@@ -27,4 +27,12 @@
 
 static void conflict_detector(void)
 {
+
+#if defined(USE_GPU) and defined(DYNAMIC_GSTORE)
+    logstream(LOG_ERROR) << "Currently, USE_GPU cannot work with DYNAMIC_GSTORE. "
+                         << "Please disable USE_GPU or DYNAMIC_GSTORE, and then rebuild Wukong."
+                         << LOG_endl;
+    exit(-1);
+#endif
+
 }

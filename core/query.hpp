@@ -476,8 +476,10 @@ public:
             result_table.swap(new_table);
         }
 
+        // For UNION queries, merge two result table into one
         void merge_result(SPARQLQuery::Result &r) {
             /// update metadata (i.e., v2c_map, ncols, and nrows)
+            nvars = r.nvars;
             v2c_map.resize(r.nvars, NO_RESULT);
             vector<int> col_map(r.nvars, -1);  // idx: my_col, value: your_col
             for (int i = 0; i < r.v2c_map.size(); i++) {
