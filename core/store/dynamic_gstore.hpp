@@ -611,7 +611,7 @@ public:
         }
         // step 2: init metadata
         num_normal_preds += 1;
-        num_normal_segments += PREDICATE_NSEGS;
+        num_segments += PREDICATE_NSEGS;
     }
 
     void init(vector<vector<triple_t>> &triple_pso,

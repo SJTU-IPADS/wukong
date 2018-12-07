@@ -1045,8 +1045,6 @@ public:
     // header * 100 / (header + entry)
     static const int HD_RATIO = (128 * 100 / (128 + 3 * std::numeric_limits<sid_t>::digits));
 
-    vertex_t *vertices;
-    edge_t *edges;
     // number of predicates in the whole dataset
     int num_normal_preds = 0;
     int num_attr_preds = 0;
