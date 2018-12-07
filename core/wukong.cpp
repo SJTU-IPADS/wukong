@@ -198,7 +198,6 @@ main(int argc, char *argv[])
         t1 = timer::get_usec();
         logstream(LOG_EMPH)  << "load statistics using time: " << t1 - t0 << "usec" << LOG_endl;
     }
-
     // create proxies and engines
     for (int tid = 0; tid < global_num_proxies + global_num_engines; tid++) {
         Adaptor *adaptor = new Adaptor(tid, tcp_adaptor, rdma_adaptor);

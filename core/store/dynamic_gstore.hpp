@@ -52,6 +52,7 @@ private:
     /// NOTE: the (remote) edges accessed by (local) RDMA cache are valid
     ///       if and only if the size flag of edges is consistent with the size within the pointer.
     static const sid_t INVALID_EDGES = 1 << NBITS_SIZE; // flag indicates invalidate edges
+    static constexpr double RESERVE_FACTOR = 0.5;
 
     queue<free_blk> free_queue;
     pthread_spinlock_t free_queue_lock;
@@ -138,7 +139,7 @@ private:
     }
 
     bool insert_vertex_edge(ikey_t key, sid_t value, bool &dedup_or_isdup, int tid) {
-        uint64_t bucket_id = key.hash() % num_buckets;
+        uint64_t bucket_id = bucket_local(key);
         uint64_t lock_id = bucket_id % NUM_LOCKS;
         uint64_t v_ptr = insert_key(key, false);
         vertex_t *v = &vertices[v_ptr];
@@ -574,5 +575,118 @@ public:
             }
 #endif // end of VERSATILE
         }
+    }
+
+    /**
+     * Used during loading data dynamically
+     */
+    void create_new_segment(sid_t pid, int num_new_preds) {
+        // step 1: insert 2 segments into map
+        rdf_segment_meta_map.insert(make_pair(segid_t(0, pid, IN), rdf_segment_meta_t()));
+        rdf_segment_meta_map.insert(make_pair(segid_t(0, pid, OUT), rdf_segment_meta_t()));
+        auto &in_seg = rdf_segment_meta_map[segid_t(0, pid, IN)];
+        auto &out_seg = rdf_segment_meta_map[segid_t(0, pid, OUT)];
+
+        // step 2: allocate space for the segments
+        in_seg.bucket_start = main_hdr_off;
+        in_seg.num_buckets = ((num_buckets - main_hdr_off) * RESERVE_FACTOR) / (num_new_preds * PREDICATE_NSEGS);
+        main_hdr_off += in_seg.num_buckets;
+        ASSERT(main_hdr_off <= num_buckets);
+        out_seg.bucket_start = main_hdr_off;
+        out_seg.num_buckets = ((num_buckets - main_hdr_off) * RESERVE_FACTOR) / (num_new_preds * PREDICATE_NSEGS);
+        main_hdr_off += out_seg.num_buckets;
+        ASSERT(main_hdr_off <= num_buckets);
+
+        // allocate buckets in indirect-header region to segments
+        // #buckets : #extended buckets = 1 : 0.15
+        if (in_seg.num_buckets > 0) {
+            uint64_t nbuckets = EXT_BUCKET_EXTENT_LEN(in_seg.num_buckets);
+            uint64_t start_off = alloc_ext_buckets(nbuckets);
+            in_seg.add_ext_buckets(ext_bucket_extent_t(nbuckets, start_off));
+        }
+        if (out_seg.num_buckets > 0) {
+            uint64_t nbuckets = EXT_BUCKET_EXTENT_LEN(out_seg.num_buckets);
+            uint64_t start_off = alloc_ext_buckets(nbuckets);
+            out_seg.add_ext_buckets(ext_bucket_extent_t(nbuckets, start_off));
+        }
+        // step 2: init metadata
+        num_normal_preds += 1;
+        num_normal_segments += PREDICATE_NSEGS;
+    }
+
+    void init(vector<vector<triple_t>> &triple_pso,
+              vector<vector<triple_t>> &triple_pos,
+              vector<vector<triple_attr_t>> &triple_sav) {
+        num_segments = num_normal_preds * PREDICATE_NSEGS + INDEX_NSEGS + num_attr_preds;
+        min_buckets_per_seg = (num_buckets * MIN_BKT_FACTOR) / num_segments;
+        uint64_t start, end;
+        start = timer::get_usec();
+        // merge triple_pso and triple_pos into a map
+        init_triples_map(triple_pso, triple_pos, triple_sav);
+        end = timer::get_usec();
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+                            << "for merging triple_pso, triple_pos and triple_sav." << LOG_endl;
+
+        start = timer::get_usec();
+        init_segment_metas(triple_pso, triple_pos, triple_sav);
+        end = timer::get_usec();
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+                            << "for initializing predicate segment statistics." << LOG_endl;
+
+        start = timer::get_usec();
+        logstream(LOG_DEBUG) << "#" << sid << ": all_local_preds: " << all_local_preds.size() << LOG_endl;
+        #pragma omp parallel for num_threads(global_num_engines)
+        for (int i = 0; i < all_local_preds.size(); i++) {
+            int localtid = omp_get_thread_num();
+            sid_t pid = all_local_preds[i];
+            insert_triples_to_segment(localtid, segid_t(0, pid, OUT));
+            insert_triples_to_segment(localtid, segid_t(0, pid, IN));
+        }
+
+        vector<sid_t> aids;
+        for (auto iter = attr_set.begin(); iter != attr_set.end(); iter++) {
+            aids.push_back(*iter);
+        }
+        #pragma omp parallel for num_threads(global_num_engines)
+        for (int i = 0; i < aids.size(); i++) {
+            int localtid = omp_get_thread_num();
+            insert_attr_to_segment(localtid, segid_t(0, aids[i], OUT));
+        }
+        vector<sid_t>().swap(aids);
+
+        edge_allocator->merge_freelists();
+#ifdef VERSATILE
+        #pragma omp parallel for num_threads(2)
+        for (int i = 0; i < 2; i++) {
+            if (i == 0) {
+                for (auto &item : in_preds) {
+                    insert_preds(item.first, item.second, IN);
+                    std::unordered_set<sid_t>().swap(item.second);
+                }
+            } else {
+                for (auto &item : out_preds) {
+                    insert_preds(item.first, item.second, OUT);
+                    std::unordered_set<sid_t>().swap(item.second);
+                }
+            }
+        }
+        tbb::concurrent_unordered_map<sid_t, std::unordered_set<sid_t> >().swap(in_preds);
+        tbb::concurrent_unordered_map<sid_t, std::unordered_set<sid_t> >().swap(out_preds);
+#endif // VERSATILE
+        #pragma omp parallel for num_threads(2)
+        for (int i = 0; i < 2; i++) {
+            if (i == 0)
+                insert_idx(pidx_in_map, tidx_map, IN);
+            else
+                insert_idx(pidx_out_map, tidx_map, OUT);
+        }
+        end = timer::get_usec();
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+                            << "for inserting triples as segments into gstore" << LOG_endl;
+
+        finalize_segment_metas();
+        finalize_init();
+        // synchronize segment metadata among servers
+        sync_metadata();
     }
 };

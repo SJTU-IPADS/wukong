@@ -23,6 +23,7 @@
 #pragma once
 
 #include <string>
+#include <atomic>
 #include <fstream>
 #include <iostream>
 #include <stdio.h>
@@ -31,6 +32,7 @@
 #include <vector>
 #include <algorithm>
 
+#include <tbb/concurrent_vector.h>
 #include <boost/mpi.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/algorithm/string/predicate.hpp>
@@ -110,6 +112,8 @@ private:
     }
 
     void dynamic_load_mappings(string dname) {
+        unordered_set<sid_t> dynamic_loaded_preds;
+
         DIR *dir = opendir(dname.c_str());
 
         if (dir == NULL) {
@@ -133,8 +137,11 @@ private:
                     if (str_server->exist(str)) {
                         id2id[id] = str_server->str2id[str];
                     } else {
-                        if (boost::ends_with(fname, "/str_index"))
+                        if (boost::ends_with(fname, "/str_index")) {
                             id2id[id] = str_server->next_index_id ++;
+                            // if this is a new pred, we should create a new segment for it
+                            dynamic_loaded_preds.insert(id2id[id]);
+                        }
                         else
                             id2id[id] = str_server->next_normal_id ++;
                         str_server->str2id[str] = id2id[id];
@@ -144,14 +151,20 @@ private:
                 file.close();
             }
         }
+        // create new segments for new preds
+        for (auto pid : dynamic_loaded_preds)
+            gstore->create_new_segment(pid, dynamic_loaded_preds.size());
     }
 
 public:
     DynamicLoader(int sid, String_Server *str_server, DynamicGStore *gstore): sid(sid), str_server(str_server), gstore(gstore) {}
 
     int64_t dynamic_load_data(string dname, bool check_dup) {
-        dynamic_load_mappings(dname); // load ID-mapping files and construct id2id mapping
+        uint64_t start, end;
+        // step 1: load ID-mapping files and construct id2id mapping
+        dynamic_load_mappings(dname);
 
+        // step 2: list files to load
         vector<string> dfiles(list_files(dname, "id_"));   // ID-format data files
         vector<string> afiles(list_files(dname, "attr_")); // ID-format attribute files
 
@@ -160,7 +173,6 @@ public:
                                    << ") at server " << sid << LOG_endl;
             return 0;
         }
-
         logstream(LOG_INFO) << dfiles.size() << " data files and " << afiles.size()
                             << " attribute files found in directory (" << dname
                             << ") at server " << sid << LOG_endl;
@@ -169,7 +181,9 @@ public:
 
         int num_dfiles = dfiles.size();
 
-        uint64_t start = timer::get_usec();
+        // step 3: load triples into gstore
+        // FIXME: dynamic loading triples doesn't update segment metadata. eg: num_keys, num_edges
+        start = timer::get_usec();
         #pragma omp parallel for num_threads(global_num_engines)
         for (int i = 0; i < num_dfiles; i++) {
             int64_t cnt = 0;
@@ -198,7 +212,7 @@ public:
             logstream(LOG_INFO) << "load " << cnt << " triples from file " << dfiles[i]
                                 << " at server " << sid << LOG_endl;
         }
-        uint64_t end = timer::get_usec();
+        end = timer::get_usec();
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
                             << "for inserting into gstore" << LOG_endl;
 
@@ -251,6 +265,8 @@ public:
             logstream(LOG_INFO) << "load " << cnt << " attributes from file " << afiles[i]
                                 << " at server " << sid << LOG_endl;
         }
+
+        gstore->sync_metadata();
 
         return 0;
     }

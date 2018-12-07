@@ -354,11 +354,6 @@ protected:
      * usage: allocate buckets to empty segments (num_keys = 0)
      */
     uint64_t min_buckets_per_seg;
-    /**
-     * average num of buckets per segment
-     * usage: allocate buckets to new segments (dynamic)
-     */
-    uint64_t avg_buckets_per_seg;
 
 #ifdef VERSATILE
     /**
@@ -570,14 +565,14 @@ protected:
     }
 
     // Merge triples with same predicate and direction to a vector
-    void init_triples_map(vector<vector<triple_t>> &triple_pso,
-                          vector<vector<triple_t>> &triple_pos,
-                          vector<vector<triple_attr_t>> &triple_sav) {
+    void init_triples_map(const vector<vector<triple_t>> &triple_pso,
+                          const vector<vector<triple_t>> &triple_pos,
+                          const vector<vector<triple_attr_t>> &triple_sav) {
         #pragma omp parallel for num_threads(global_num_engines)
         for (int tid = 0; tid < global_num_engines; tid++) {
-            vector<triple_t> &pso_vec = triple_pso[tid];
-            vector<triple_t> &pos_vec = triple_pos[tid];
-            vector<triple_attr_t> &sav_vec = triple_sav[tid];
+            const vector<triple_t> &pso_vec = triple_pso[tid];
+            const vector<triple_t> &pos_vec = triple_pos[tid];
+            const vector<triple_attr_t> &sav_vec = triple_sav[tid];
 
             int i = 0;
             int current_pid;
@@ -854,12 +849,9 @@ protected:
                    "IN[#keys: %lu, #buckets: %lu, #edges: %lu], bucket_off: %lu\n",
                    idx_out_seg.num_keys, idx_out_seg.num_buckets, idx_out_seg.num_edges,
                    idx_in_seg.num_keys, idx_in_seg.num_buckets, idx_in_seg.num_edges, main_hdr_off);
-
-        // calculate avg_buckets_per_seg
-        avg_buckets_per_seg = (total_num_keys / num_segments) / BUCKET_FACTOR;
     }
 
-    //s insert key to a slot
+    // insert key to a slot
     uint64_t insert_key(ikey_t key, bool check_dup = true) {
         uint64_t bucket_id = bucket_local(key);
         uint64_t slot_id = bucket_id * ASSOCIATIVITY;
@@ -1000,16 +992,14 @@ done:
             SyncSegmentMetaMsg msg;
             ia >> msg;
 
-            shared_rdf_segment_meta_map.insert(make_pair(msg.sender_sid, msg.data));
+            if (shared_rdf_segment_meta_map.find(msg.sender_sid) != shared_rdf_segment_meta_map.end())
+                shared_rdf_segment_meta_map[msg.sender_sid] = msg.data;
+            else
+                shared_rdf_segment_meta_map.insert(make_pair(msg.sender_sid, msg.data));
             logstream(LOG_INFO) << "#" << sid
                                 << " receives segment metadata from server " << msg.sender_sid
                                 << LOG_endl;
         }
-    }
-
-    void sync_metadata(TCP_Adaptor *tcp_ad) {
-        send_segment_meta(tcp_ad);
-        recv_segment_meta(tcp_ad);
     }
 
     // re-adjust attributes of segments
@@ -1065,6 +1055,7 @@ public:
 
     virtual ~GStore() {}
 
+    virtual void init(vector<vector<triple_t>> &triple_pso, vector<vector<triple_t>> &triple_pos, vector<vector<triple_attr_t>> &triple_sav) = 0;
     virtual void refresh() = 0;
 
     /**
@@ -1113,85 +1104,10 @@ public:
             return get_edges_remote(tid, vid, pid, d, sz, type);
     }
 
-    void init(vector<vector<triple_t>> &triple_pso,
-              vector<vector<triple_t>> &triple_pos,
-              vector<vector<triple_attr_t>> &triple_sav) {
-        num_segments = num_normal_preds * PREDICATE_NSEGS + INDEX_NSEGS + num_attr_preds;
-#ifdef DYNAMIC_GSTORE
-        min_buckets_per_seg = (num_buckets * MIN_BKT_FACTOR) / num_segments;
-#else
-        min_buckets_per_seg = 1;
-#endif // DYNAMIC_GSTORE
-        uint64_t start, end;
-        start = timer::get_usec();
-        // merge triple_pso and triple_pos into a map
-        init_triples_map(triple_pso, triple_pos, triple_sav);
-        end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                            << "for merging triple_pso, triple_pos and triple_sav." << LOG_endl;
-
-        start = timer::get_usec();
-        init_segment_metas(triple_pso, triple_pos, triple_sav);
-        end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                            << "for initializing predicate segment statistics." << LOG_endl;
-
-        start = timer::get_usec();
-        logstream(LOG_DEBUG) << "#" << sid << ": all_local_preds: " << all_local_preds.size() << LOG_endl;
-        #pragma omp parallel for num_threads(global_num_engines)
-        for (int i = 0; i < all_local_preds.size(); i++) {
-            int localtid = omp_get_thread_num();
-            sid_t pid = all_local_preds[i];
-            insert_triples_to_segment(localtid, segid_t(0, pid, OUT));
-            insert_triples_to_segment(localtid, segid_t(0, pid, IN));
-        }
-
-        vector<sid_t> aids;
-        for (auto iter = attr_set.begin(); iter != attr_set.end(); iter++) {
-            aids.push_back(*iter);
-        }
-        #pragma omp parallel for num_threads(global_num_engines)
-        for (int i = 0; i < aids.size(); i++) {
-            int localtid = omp_get_thread_num();
-            insert_attr_to_segment(localtid, segid_t(0, aids[i], OUT));
-        }
-        vector<sid_t>().swap(aids);
-
-#ifdef VERSATILE
-        #pragma omp parallel for num_threads(2)
-        for (int i = 0; i < 2; i++) {
-            if (i == 0) {
-                for (auto &item : in_preds) {
-                    insert_preds(item.first, item.second, IN);
-                    std::unordered_set<sid_t>().swap(item.second);
-                }
-            } else {
-                for (auto &item : out_preds) {
-                    insert_preds(item.first, item.second, OUT);
-                    std::unordered_set<sid_t>().swap(item.second);
-                }
-            }
-        }
-        tbb::concurrent_unordered_map<sid_t, std::unordered_set<sid_t> >().swap(in_preds);
-        tbb::concurrent_unordered_map<sid_t, std::unordered_set<sid_t> >().swap(out_preds);
-#endif // VERSATILE
-        #pragma omp parallel for num_threads(2)
-        for (int i = 0; i < 2; i++) {
-            if (i == 0)
-                insert_idx(pidx_in_map, tidx_map, IN);
-            else
-                insert_idx(pidx_out_map, tidx_map, OUT);
-        }
-        end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                            << "for inserting triples as segments into gstore" << LOG_endl;
-
-        finalize_segment_metas();
-        finalize_init();
-
-        // synchronize segment metadata among servers
+    void sync_metadata() {
         extern TCP_Adaptor *con_adaptor;
-        sync_metadata(con_adaptor);
+        send_segment_meta(con_adaptor);
+        recv_segment_meta(con_adaptor);
     }
 
     virtual void print_mem_usage() {
