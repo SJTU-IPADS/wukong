@@ -303,8 +303,6 @@ protected:
     typedef tbb::concurrent_hash_map<ikey_t, vector<triple_attr_t>, ikey_Hasher> tbb_triple_attr_hash_map;
 
     static const int NUM_LOCKS = 1024;
-    // for a segment, the bucket it will be allocated = num_keys / BUCKET_FACTOR
-    static constexpr double BUCKET_FACTOR = 5;
     // min_buckets_per_seg = (num_buckets * MIN_BKT_FACTOR) / num_segments
     static constexpr double MIN_BKT_FACTOR = 0.6;
 
@@ -542,8 +540,22 @@ protected:
         uint64_t nbuckets;
         if (seg.num_keys == 0) {
             nbuckets = 0;
+        } else if (global_auto_bkt_alloc) {
+            // deduct some buckets from total to prevent overflow
+            static uint64_t num_free_buckets = num_buckets - num_segments;
+            static double total_ratio_ = 0.0;
+
+            double ratio = static_cast<double>(seg.num_keys) / total_num_keys;
+            nbuckets = ratio * num_free_buckets;
+            total_ratio_ += ratio;
+            logger(LOG_DEBUG, "Seg[%lu|%lu|%lu]: "
+                   "#keys: %lu, nbuckets: %lu, bucket_off: %lu, "
+                   "ratio: %f, total_ratio: %f",
+                   segid.index, segid.pid, segid.dir,
+                   seg.num_keys, nbuckets, main_hdr_off,
+                   ratio, total_ratio_);
         } else {
-            nbuckets = std::ceil(seg.num_keys / BUCKET_FACTOR);
+            nbuckets = seg.num_keys * (global_bkt_factor / 100.0);
         }
         seg.num_buckets = std::max(nbuckets, min_buckets_per_seg);
         logger(LOG_DEBUG, "Seg[%lu|%lu|%lu]: "

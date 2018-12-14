@@ -37,7 +37,6 @@ string global_input_folder;
 int global_data_port_base = 5500;
 int global_ctrl_port_base = 9576;
 
-int global_memstore_size_gb = 20;
 int global_rdma_buf_size_mb = 64;
 int global_rdma_rbf_size_mb = 16;
 
@@ -57,6 +56,26 @@ bool global_generate_statistics = true;
 
 bool global_enable_vattr = false;  // for attr
 
+// kvstore
+int global_memstore_size_gb = 20;
+/**
+ * global bucket factor
+ * when allocating buckets to segments during initialization,
+ * #buckets = #keys * global_bkt_factor / 100
+ */
+int global_bkt_factor = 40;
+/**
+ * global dynamic reserve factor
+ * when creating new segment during dynamic loading,
+ * #buckets = (#buckets-remain * global_dyn_res_factor / 100) / #new-segments
+ */
+int global_dyn_res_factor = 50;
+/**
+ * automatically alloc buckets to segments, which will use all header region
+ * you should turn it off if you want to dynamically insert new predicates
+ */
+bool global_auto_bkt_alloc = true;
+
 // GPU support
 int global_num_gpus = 1;
 int global_gpu_kvcache_size_gb = 10;    // key-value cache
@@ -65,4 +84,3 @@ int global_gpu_rdma_buf_size_mb = 64;   // RDMA buffer
 int global_gpu_key_blk_size_mb = 16;
 int global_gpu_value_blk_size_mb = 4;
 bool global_gpu_enable_pipeline = true;
-

@@ -131,16 +131,15 @@ private:
             logger(LOG_DEBUG, "Thread(%d): inserted predicate %d pso(%lu triples).",
                    tid, pid, pso.size());
         }
-
-        ASSERT(off <= segment.edge_start + segment.num_edges);
-
+        ASSERT_MSG(off <= segment.edge_start + segment.num_edges, "Seg[%lu|%lu|%lu]: #edges: %lu, edge_start: %lu, off: %lu",
+               segid.index, segid.pid, segid.dir,
+               segment.num_edges, segment.edge_start, off);
         if (has_pos) {
             vector<triple_t> &pos = a->second;
             while (type_triples < pos.size() && is_tpid(pos[type_triples].o))
                 type_triples++;
 
             s = type_triples; // skip type triples
-
             while (s < pos.size()) {
                 // predicate-based key (object + predicate)
                 uint64_t e = s + 1;
@@ -167,11 +166,9 @@ private:
                    tid, pid, pos.size());
         }
 
-        logger(LOG_DEBUG, "Seg[%lu|%lu|%lu]: "
-               "#edges: %lu, edge_start: %lu, off: %lu, ",
+        ASSERT_MSG(off <= segment.edge_start + segment.num_edges, "Seg[%lu|%lu|%lu]: #edges: %lu, edge_start: %lu, off: %lu",
                segid.index, segid.pid, segid.dir,
                segment.num_edges, segment.edge_start, off);
-        ASSERT(off <= segment.edge_start + segment.num_edges);
     }
 
     // insert attributes

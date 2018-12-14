@@ -69,6 +69,14 @@ static bool set_immutable_config(string cfg_name, string value)
     } else if (cfg_name == "global_memstore_size_gb") {
         global_memstore_size_gb = atoi(value.c_str());
         ASSERT(global_memstore_size_gb > 0);
+    } else if (cfg_name == "global_bkt_factor") {
+        global_bkt_factor = atoi(value.c_str());
+        ASSERT(global_bkt_factor > 0);
+    } else if (cfg_name == "global_dyn_res_factor") {
+        global_dyn_res_factor = atoi(value.c_str());
+        ASSERT(global_dyn_res_factor > 0);
+    } else if (cfg_name == "global_auto_bkt_alloc") {
+        global_auto_bkt_alloc = atoi(value.c_str());
     } else if (cfg_name == "global_rdma_buf_size_mb") {
         if (RDMA::get_rdma().has_rdma())
             global_rdma_buf_size_mb = atoi(value.c_str());
@@ -242,9 +250,12 @@ void print_config(void)
     cout << "the number of proxies: "        << global_num_proxies           << LOG_endl;
     cout << "the number of engines: "        << global_num_engines           << LOG_endl;
     cout << "global_input_folder: "          << global_input_folder          << LOG_endl;
+    cout << "global_memstore_size_gb: "      << global_memstore_size_gb      << LOG_endl;
+    cout << "global_bkt_factor: "            << global_bkt_factor            << LOG_endl;
+    cout << "global_dyn_res_factor: "        << global_dyn_res_factor        << LOG_endl;
+    cout << "global_auto_bkt_alloc: "        << global_auto_bkt_alloc        << LOG_endl;
     cout << "global_data_port_base: "        << global_data_port_base        << LOG_endl;
     cout << "global_ctrl_port_base: "        << global_ctrl_port_base        << LOG_endl;
-    cout << "global_memstore_size_gb: "      << global_memstore_size_gb      << LOG_endl;
     cout << "global_rdma_buf_size_mb: "      << global_rdma_buf_size_mb      << LOG_endl;
     cout << "global_rdma_rbf_size_mb: "      << global_rdma_rbf_size_mb      << LOG_endl;
     cout << "global_use_rdma: "              << global_use_rdma              << LOG_endl;

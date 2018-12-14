@@ -52,7 +52,6 @@ private:
     /// NOTE: the (remote) edges accessed by (local) RDMA cache are valid
     ///       if and only if the size flag of edges is consistent with the size within the pointer.
     static const sid_t INVALID_EDGES = 1 << NBITS_SIZE; // flag indicates invalidate edges
-    static constexpr double RESERVE_FACTOR = 0.5;
 
     queue<free_blk> free_queue;
     pthread_spinlock_t free_queue_lock;
@@ -589,11 +588,11 @@ public:
 
         // step 2: allocate space for the segments
         in_seg.bucket_start = main_hdr_off;
-        in_seg.num_buckets = ((num_buckets - main_hdr_off) * RESERVE_FACTOR) / (num_new_preds * PREDICATE_NSEGS);
+        in_seg.num_buckets = ((num_buckets - main_hdr_off) * global_dyn_res_factor / 100) / (num_new_preds * PREDICATE_NSEGS);
         main_hdr_off += in_seg.num_buckets;
         ASSERT(main_hdr_off <= num_buckets);
         out_seg.bucket_start = main_hdr_off;
-        out_seg.num_buckets = ((num_buckets - main_hdr_off) * RESERVE_FACTOR) / (num_new_preds * PREDICATE_NSEGS);
+        out_seg.num_buckets = ((num_buckets - main_hdr_off) * global_dyn_res_factor / 100) / (num_new_preds * PREDICATE_NSEGS);
         main_hdr_off += out_seg.num_buckets;
         ASSERT(main_hdr_off <= num_buckets);
 

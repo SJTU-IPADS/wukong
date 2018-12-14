@@ -106,6 +106,7 @@ struct rdf_segment_meta_t {
     }
 
     void add_ext_buckets(const ext_bucket_extent_t &ext) {
+        ASSERT_MSG(ext_list_sz < EXT_LIST_MAX_LEN, "ext_bucket_list overflow!");
         ext_bucket_list[ext_list_sz++] = ext;
     }
 
