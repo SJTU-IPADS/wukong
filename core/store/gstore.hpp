@@ -32,6 +32,7 @@
 #include <tbb/concurrent_unordered_set.h>
 #include <tbb/concurrent_unordered_map.h>
 #include <unordered_set>
+#include <set>
 #include <atomic>
 
 #include "global.hpp"
@@ -366,10 +367,10 @@ protected:
     tbb_unordered_set v_set;
     tbb_unordered_set t_set;
     tbb_unordered_set p_set;
-    tbb::concurrent_unordered_map<sid_t, std::unordered_set<sid_t> > out_preds;
-    tbb::concurrent_unordered_map<sid_t, std::unordered_set<sid_t> > in_preds;
+    tbb::concurrent_hash_map<sid_t, std::set<sid_t> > out_preds;
+    tbb::concurrent_hash_map<sid_t, std::set<sid_t> > in_preds;
     // insert VERSATILE-related data into gstore
-    virtual void insert_preds(sid_t vid, const unordered_set<sid_t> &preds, dir_t d) = 0;
+    virtual void insert_preds(sid_t vid, const std::set<sid_t> &preds, dir_t d) = 0;
 #endif // VERSATILE
 
     // Allocate space to store edges of given size. Return offset of allocated space.
@@ -679,7 +680,10 @@ protected:
 #ifdef VERSATILE
                 v_set.insert(pso[s].s);
                 p_set.insert(pso[s].p);
-                out_preds[pso[s].s].insert(pso[s].p);
+                tbb::concurrent_hash_map<sid_t, std::set<sid_t> >::accessor oa;
+                out_preds.insert(oa, pso[s].s);
+                oa->second.insert(pso[s].p);
+                oa.release();
                 // count vid's all predicates OUT (number of value in the segment)
                 normal_cnt_map[PREDICATE_ID].out++;
 #endif
@@ -718,7 +722,10 @@ protected:
 #ifdef VERSATILE
                 v_set.insert(pos[s].o);
                 p_set.insert(pos[s].p);
-                in_preds[pos[s].o].insert(pos[s].p);
+                tbb::concurrent_hash_map<sid_t, std::set<sid_t> >::accessor ia;
+                in_preds.insert(ia, pos[s].o);
+                ia->second.insert(pos[s].p);
+                ia.release();
                 // count vid's all predicates IN (number of value in the segment)
                 normal_cnt_map[PREDICATE_ID].in++;
 #endif

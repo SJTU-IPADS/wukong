@@ -290,7 +290,7 @@ private:
 
 #ifdef VERSATILE
     // insert vid's preds into gstore
-    void insert_preds(sid_t vid, const unordered_set<sid_t> &preds, dir_t d) {
+    void insert_preds(sid_t vid, const std::set<sid_t> &preds, dir_t d) {
         uint64_t sz = preds.size();
         auto &seg = rdf_segment_meta_map[segid_t(0, PREDICATE_ID, d)];
         uint64_t off = seg.edge_start + seg.edge_off;
@@ -359,17 +359,17 @@ public:
             if (i == 0) {
                 for (auto &item : in_preds) {
                     insert_preds(item.first, item.second, IN);
-                    std::unordered_set<sid_t>().swap(item.second);
+                    std::set<sid_t>().swap(item.second);
                 }
             } else {
                 for (auto &item : out_preds) {
                     insert_preds(item.first, item.second, OUT);
-                    std::unordered_set<sid_t>().swap(item.second);
+                    std::set<sid_t>().swap(item.second);
                 }
             }
         }
-        tbb::concurrent_unordered_map<sid_t, std::unordered_set<sid_t> >().swap(in_preds);
-        tbb::concurrent_unordered_map<sid_t, std::unordered_set<sid_t> >().swap(out_preds);
+        tbb::concurrent_hash_map<sid_t, std::set<sid_t> >().swap(in_preds);
+        tbb::concurrent_hash_map<sid_t, std::set<sid_t> >().swap(out_preds);
 #endif // VERSATILE
         #pragma omp parallel for num_threads(2)
         for (int i = 0; i < 2; i++) {
