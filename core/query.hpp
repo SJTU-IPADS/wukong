@@ -529,13 +529,11 @@ public:
 
             /// aggregate data (i.e., result table and attribute result table)
             ASSERT((col_num * row_num) == (result_table.size() + r.result_table.size()));
-            result_table.reserve(col_num * row_num);
             result_table.insert(result_table.end(),
                                 r.result_table.begin(),
                                 r.result_table.end());
 
             ASSERT((attr_col_num * row_num) == (attr_res_table.size() + r.attr_res_table.size()));
-            attr_res_table.reserve(attr_col_num * row_num);
             attr_res_table.insert(attr_res_table.end(),
                                   r.attr_res_table.begin(),
                                   r.attr_res_table.end());
