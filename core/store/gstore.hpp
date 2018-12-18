@@ -32,7 +32,7 @@
 #include <tbb/concurrent_unordered_set.h>
 #include <tbb/concurrent_unordered_map.h>
 #include <unordered_set>
-#include <set>
+#include <unordered_map>
 #include <atomic>
 
 #include "global.hpp"
@@ -305,7 +305,7 @@ protected:
 
     static const int NUM_LOCKS = 1024;
     // min_buckets_per_seg = (num_buckets * MIN_BKT_FACTOR) / num_segments
-    static constexpr double MIN_BKT_FACTOR = 0.6;
+    static constexpr double MIN_BKT_FACTOR = 0.1;
 
     int sid;
 
@@ -367,10 +367,14 @@ protected:
     tbb_unordered_set v_set;
     tbb_unordered_set t_set;
     tbb_unordered_set p_set;
-    tbb::concurrent_hash_map<sid_t, std::set<sid_t> > out_preds;
-    tbb::concurrent_hash_map<sid_t, std::set<sid_t> > in_preds;
+    tbb::concurrent_hash_map<sid_t, uint64_t> vp_meta[2];
+    tbb::concurrent_hash_map<sid_t, uint64_t> vp_off[2];
+    unordered_map<sid_t, pthread_spinlock_t> vp_lock[2];
+
     // insert VERSATILE-related data into gstore
-    virtual void insert_preds(sid_t vid, const std::set<sid_t> &preds, dir_t d) = 0;
+    virtual void insert_preds(sid_t vid, sid_t pid, dir_t d, int tid = 0) = 0;
+
+    virtual void alloc_vp_edges(dir_t d) = 0;
 #endif // VERSATILE
 
     // Allocate space to store edges of given size. Return offset of allocated space.
@@ -466,7 +470,7 @@ protected:
 
     // Get local vertex of given key.
     vertex_t get_vertex_local(int tid, ikey_t key) {
-        uint64_t bucket_id = bucket_local(key);;
+        uint64_t bucket_id = bucket_local(key);
         while (true) {
             for (int i = 0; i < ASSOCIATIVITY; i++) {
                 uint64_t slot_id = bucket_id * ASSOCIATIVITY + i;
@@ -479,6 +483,30 @@ protected:
                 } else {
                     if (vertices[slot_id].key.is_empty())
                         return vertex_t(); // not found
+
+                    bucket_id = vertices[slot_id].key.vid; // move to next bucket
+                    break; // break for-loop
+                }
+            }
+        }
+    }
+
+    // Attention: not thread safe. The safety is guarenteed by caller
+    bool get_slot_id(ikey_t key, uint64_t &res) {
+        uint64_t bucket_id = bucket_local(key);
+        while (true) {
+            for (int i = 0; i < ASSOCIATIVITY; i++) {
+                uint64_t slot_id = bucket_id * ASSOCIATIVITY + i;
+                if (i < ASSOCIATIVITY - 1) {
+                    //data part
+                    if (vertices[slot_id].key == key) {
+                        //we found it
+                        res = slot_id;
+                        return true;
+                    }
+                } else {
+                    if (vertices[slot_id].key.is_empty())
+                        return false; // not found
 
                     bucket_id = vertices[slot_id].key.vid; // move to next bucket
                     break; // break for-loop
@@ -624,9 +652,9 @@ protected:
     }
 
     // init metadata for each segment
-    void init_segment_metas(const vector<vector<triple_t>> &triple_pso,
-                            const vector<vector<triple_t>> &triple_pos,
-                            const vector<vector<triple_attr_t>> &triple_sav) {
+    void init_segment_metas(vector<vector<triple_t> > &triple_pso,
+                            vector<vector<triple_t> > &triple_pos,
+                            vector<vector<triple_attr_t> > &triple_sav) {
         /**
          * count(|pred| means number of local predicates):
          * 1. normal vertices [vid|pid|IN/OUT], key: pid, cnt_t: in&out, #item: |pred|
@@ -656,9 +684,9 @@ protected:
 
         #pragma omp parallel for num_threads(global_num_engines)
         for (int tid = 0; tid < global_num_engines; tid++) {
-            const vector<triple_t> &pso = triple_pso[tid];
-            const vector<triple_t> &pos = triple_pos[tid];
-            const vector<triple_attr_t> &sav = triple_sav[tid];
+            vector<triple_t> &pso = triple_pso[tid];
+            vector<triple_t> &pos = triple_pos[tid];
+            vector<triple_attr_t> &sav = triple_sav[tid];
 
             uint64_t s = 0;
             while (s < pso.size()) {
@@ -680,9 +708,13 @@ protected:
 #ifdef VERSATILE
                 v_set.insert(pso[s].s);
                 p_set.insert(pso[s].p);
-                tbb::concurrent_hash_map<sid_t, std::set<sid_t> >::accessor oa;
-                out_preds.insert(oa, pso[s].s);
-                oa->second.insert(pso[s].p);
+
+                // vid's preds count
+                tbb::concurrent_hash_map<sid_t, uint64_t>::accessor oa;
+                if (vp_meta[OUT].insert(oa, pso[s].s))
+                    oa->second = 1;
+                else
+                    oa->second += 1;
                 oa.release();
                 // count vid's all predicates OUT (number of value in the segment)
                 normal_cnt_map[PREDICATE_ID].out++;
@@ -703,6 +735,8 @@ protected:
                 }
                 s = e;
             }
+            // release mem
+            vector<triple_t>().swap(pso);
 
             uint64_t type_triples = 0;
             triple_t tp;
@@ -722,9 +756,11 @@ protected:
 #ifdef VERSATILE
                 v_set.insert(pos[s].o);
                 p_set.insert(pos[s].p);
-                tbb::concurrent_hash_map<sid_t, std::set<sid_t> >::accessor ia;
-                in_preds.insert(ia, pos[s].o);
-                ia->second.insert(pos[s].p);
+                tbb::concurrent_hash_map<sid_t, uint64_t>::accessor ia;
+                if (vp_meta[IN].insert(ia, pos[s].o))
+                    ia->second = 1;
+                else
+                    ia->second += 1;
                 ia.release();
                 // count vid's all predicates IN (number of value in the segment)
                 normal_cnt_map[PREDICATE_ID].in++;
@@ -735,6 +771,8 @@ protected:
                 index_cnt_map[ pos[s].p ].out++;
                 s = e;
             }
+            // release mem
+            vector<triple_t>().swap(pos);
 
             s = 0;
             while (s < sav.size()) {
@@ -750,6 +788,8 @@ protected:
 
                 s = e;
             }
+            // release mem
+            vector<triple_attr_t>().swap(sav);
         }
 
         // count the total number of keys
@@ -757,7 +797,7 @@ protected:
 #ifdef VERSATILE
         logger(LOG_DEBUG, "pid: %d: normal: #IN: %lu, #OUT: %lu", PREDICATE_ID,
                normal_cnt_map[PREDICATE_ID].in.load(), normal_cnt_map[PREDICATE_ID].out.load());
-        total_num_keys += out_preds.size() + in_preds.size();
+        total_num_keys += vp_meta[OUT].size() + vp_meta[IN].size();
 #endif
         for (int i = 1; i <= get_num_preds(); ++i) {
             logger(LOG_DEBUG, "pid: %d: normal: #IN: %lu, #OUT: %lu; index: #ALL: %lu, #IN: %lu, #OUT: %lu",
@@ -795,14 +835,19 @@ protected:
         rdf_segment_meta_t &pred_out_seg = rdf_segment_meta_map[segid_t(0, PREDICATE_ID, OUT)];
         pred_out_seg.num_edges = normal_cnt_map[PREDICATE_ID].out.load();
         pred_out_seg.edge_start = alloc_edges_to_segment(pred_out_seg.num_edges);
-        pred_out_seg.num_keys = out_preds.size();
+        pred_out_seg.num_keys = vp_meta[OUT].size();
         alloc_buckets_to_segment(pred_out_seg, segid_t(0, PREDICATE_ID, OUT), total_num_keys);
         // vid's all predicates IN
         rdf_segment_meta_t &pred_in_seg = rdf_segment_meta_map[segid_t(0, PREDICATE_ID, IN)];
         pred_in_seg.num_edges = normal_cnt_map[PREDICATE_ID].in.load();
         pred_in_seg.edge_start = alloc_edges_to_segment(pred_in_seg.num_edges);
-        pred_in_seg.num_keys = in_preds.size();
+        pred_in_seg.num_keys = vp_meta[IN].size();
         alloc_buckets_to_segment(pred_in_seg, segid_t(0, PREDICATE_ID, IN), total_num_keys);
+
+        #pragma omp parallel for num_threads(2)
+        for (int tid = 0; tid < 2; tid++) {
+            alloc_vp_edges((dir_t)tid);
+        }
 
         // all local entities
         idx_in_seg.num_edges += v_set.size();
@@ -1043,6 +1088,13 @@ done:
         tbb_hash_map().swap(pidx_in_map);
         tbb_hash_map().swap(pidx_out_map);
         tbb_hash_map().swap(tidx_map);
+#ifdef VERSATILE
+        for (int i = 0; i < 2; i++) {
+            tbb::concurrent_hash_map<sid_t, uint64_t>().swap(vp_meta[i]);
+            tbb::concurrent_hash_map<sid_t, uint64_t>().swap(vp_off[i]);
+            unordered_map<sid_t, pthread_spinlock_t>().swap(vp_lock[i]);
+        }
+#endif // VERSATILE
     }
 
 public:

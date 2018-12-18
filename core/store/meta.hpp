@@ -80,13 +80,6 @@ struct rdf_segment_meta_t {
     int ext_list_sz = 0;        // the length of ext_bucket_list
     uint64_t num_edges = 0;     // #edges of the segment
     uint64_t edge_start = 0;    // start offset in the entry region of gstore
-#ifdef VERSATILE
-    /**
-     * before inserting some vid's predicates: edge offset = (edge_start + edge_off)
-     * after inserting: edge_off += #preds
-     */
-    uint64_t edge_off = 0;
-#endif // VERSATILE
 
     int num_key_blks = 0;       // #key-blocks needed in gcache
     int num_value_blks = 0;     // #value-blocks needed in gcache

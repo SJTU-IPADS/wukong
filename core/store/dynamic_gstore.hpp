@@ -276,6 +276,11 @@ private:
                 for (uint64_t i = s; i < e; i++)
                     edges[off++].val = pso[i].o;
 
+#ifdef VERSATILE
+                // vid's predicate
+                insert_preds(pso[s].s, pso[s].p, OUT, tid);
+#endif // VERSATILE
+
                 collect_index_info(slot_id);
                 s = e;
             }
@@ -309,6 +314,11 @@ private:
                 // insert edges
                 for (uint64_t i = s; i < e; i++)
                     edges[off++].val = pos[i].s;
+
+#ifdef VERSATILE
+                // vid's predicate
+                insert_preds(pos[s].o, pos[s].p, IN, tid);
+#endif // VERSATILE
 
                 collect_index_info(slot_id);
                 s = e;
@@ -428,19 +438,40 @@ private:
     }
 
 #ifdef VERSATILE
+    void alloc_vp_edges(dir_t d) {
+        vp_off[d] = vp_meta[d];
+        for (auto iter = vp_off[d].begin(); iter != vp_off[d].end(); iter++) {
+            iter->second = 0;
+            vp_lock[d].insert(std::make_pair(iter->first, pthread_spinlock_t()));
+            pthread_spin_init(&vp_lock[d][iter->first], 0);
+        }
+    }
+
     // insert vid's preds into gstore
-    void insert_preds(sid_t vid, const std::set<sid_t> &preds, dir_t d) {
-        uint64_t sz = preds.size();
-        auto &seg = rdf_segment_meta_map[segid_t(0, PREDICATE_ID, d)];
-        uint64_t off = alloc_edges(sz, d);
+    void insert_preds(sid_t vid, sid_t pid, dir_t d, int tid = 0) {
+        pthread_spin_lock(&vp_lock[d][vid]);
+        tbb::concurrent_hash_map<sid_t, uint64_t>::accessor a;
+        vp_off[d].find(a, vid);
+        uint64_t off = a->second;
+        a->second += 1;
+        a.release();
 
         ikey_t key = ikey_t(vid, PREDICATE_ID, d);
-        uint64_t slot_id = insert_key(key);
-        iptr_t ptr = iptr_t(sz, off);
-        vertices[slot_id].ptr = ptr;
-
-        for (auto const &e : preds)
-            edges[off++].val = e;
+        uint64_t slot_id = 0;
+        uint64_t edge_start = 0;
+        bool exist = get_slot_id(key, slot_id);
+        if (!exist) {
+            slot_id = insert_key(key);
+            vp_meta[d].find(a, vid);
+            edge_start = alloc_edges(a->second, tid);
+            iptr_t ptr = iptr_t(a->second, edge_start);
+            a.release();
+            vertices[slot_id].ptr = ptr;
+        } else {
+            edge_start = vertices[slot_id].ptr.off;
+        }
+        edges[edge_start + off].val = pid;
+        pthread_spin_unlock(&vp_lock[d][vid]);
     }
 #endif // VERSATILE
 
@@ -617,7 +648,7 @@ public:
               vector<vector<triple_t>> &triple_pos,
               vector<vector<triple_attr_t>> &triple_sav) {
         num_segments = num_normal_preds * PREDICATE_NSEGS + INDEX_NSEGS + num_attr_preds;
-        min_buckets_per_seg = (num_buckets * MIN_BKT_FACTOR) / num_segments;
+        min_buckets_per_seg = global_auto_bkt_alloc ? 1 : ((num_buckets * MIN_BKT_FACTOR) / num_segments);
         uint64_t start, end;
         start = timer::get_usec();
         // merge triple_pso and triple_pos into a map
@@ -654,24 +685,6 @@ public:
         vector<sid_t>().swap(aids);
 
         edge_allocator->merge_freelists();
-#ifdef VERSATILE
-        #pragma omp parallel for num_threads(2)
-        for (int i = 0; i < 2; i++) {
-            if (i == 0) {
-                for (auto &item : in_preds) {
-                    insert_preds(item.first, item.second, IN);
-                    std::set<sid_t>().swap(item.second);
-                }
-            } else {
-                for (auto &item : out_preds) {
-                    insert_preds(item.first, item.second, OUT);
-                    std::set<sid_t>().swap(item.second);
-                }
-            }
-        }
-        tbb::concurrent_hash_map<sid_t, std::set<sid_t> >().swap(in_preds);
-        tbb::concurrent_hash_map<sid_t, std::set<sid_t> >().swap(out_preds);
-#endif // VERSATILE
         #pragma omp parallel for num_threads(2)
         for (int i = 0; i < 2; i++) {
             if (i == 0)
