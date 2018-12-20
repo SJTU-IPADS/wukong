@@ -198,7 +198,7 @@ private:
     }
 
     // dynamic store doesn't group edges into segments
-    uint64_t alloc_edges_to_segment(uint64_t num_edges) {
+    uint64_t alloc_edges_to_seg(uint64_t num_edges) {
         return 0;
     }
 
@@ -212,24 +212,12 @@ private:
         return (edge_ptr[blk_sz - 1].val == v.ptr.size);
     }
 
-    // Get edges of given vertex from dst_sid by RDMA read.
-    edge_t *rdma_get_edges(int tid, int dst_sid, vertex_t &v) {
-        ASSERT(global_use_rdma);
-        char *buf = mem->buffer(tid);
-        uint64_t r_off = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
-        // the size of entire blk
-        uint64_t r_sz = blksz(v.ptr.size + 1) * sizeof(edge_t);
-        uint64_t buf_sz = mem->buffer_size();
-        ASSERT(r_sz < buf_sz); // enough space to host the edges
-        RDMA &rdma = RDMA::get_rdma();
-        rdma.dev->RdmaRead(tid, dst_sid, buf, r_sz, r_off);
-        return (edge_t *)buf;
-    }
+    uint64_t rdma_get_r_sz(const vertex_t &v) { return blksz(v.ptr.size + 1) * sizeof(edge_t); }
 
-    void insert_triples_to_segment(int tid, segid_t segid) {
+    void insert_triples(int tid, segid_t segid) {
         ASSERT(!segid.index);
 
-        auto &segment = rdf_segment_meta_map[segid];
+        auto &segment = rdf_seg_meta_map[segid];
         int index = segid.index;
         sid_t pid = segid.pid;
         int dir = segid.dir;
@@ -278,10 +266,10 @@ private:
 
 #ifdef VERSATILE
                 // vid's predicate
-                insert_preds(pso[s].s, pso[s].p, OUT, tid);
+                insert_vp(pso[s].s, pso[s].p, OUT, tid);
 #endif // VERSATILE
 
-                collect_index_info(slot_id);
+                collect_idx_info(slot_id);
                 s = e;
             }
             logger(LOG_DEBUG, "Thread(%d): inserted predicate %d pso(%lu triples).",
@@ -317,10 +305,10 @@ private:
 
 #ifdef VERSATILE
                 // vid's predicate
-                insert_preds(pos[s].o, pos[s].p, IN, tid);
+                insert_vp(pos[s].o, pos[s].p, IN, tid);
 #endif // VERSATILE
 
-                collect_index_info(slot_id);
+                collect_idx_info(slot_id);
                 s = e;
             }
             logger(LOG_DEBUG, "Thread(%d): inserted predicate %d pos(%lu triples).",
@@ -329,8 +317,8 @@ private:
 
     }
 
-    void insert_attr_to_segment(int tid, segid_t segid) {
-        auto &segment = rdf_segment_meta_map[segid];
+    void insert_attr(int tid, segid_t segid) {
+        auto &segment = rdf_seg_meta_map[segid];
         sid_t aid = segid.pid;
         int dir = segid.dir;
 
@@ -376,7 +364,7 @@ private:
 
     void insert_idx(const tbb_hash_map &pidx_map, const tbb_hash_map &tidx_map, dir_t d) {
         tbb_hash_map::const_accessor ca;
-        rdf_segment_meta_t &segment = rdf_segment_meta_map[segid_t(1, PREDICATE_ID, d)];
+        rdf_seg_meta_t &segment = rdf_seg_meta_map[segid_t(1, PREDICATE_ID, d)];
         // it is possible that num_edges = 0 if loading an empty dataset
         // ASSERT(segment.num_edges > 0);
 
@@ -448,7 +436,7 @@ private:
     }
 
     // insert vid's preds into gstore
-    void insert_preds(sid_t vid, sid_t pid, dir_t d, int tid = 0) {
+    void insert_vp(sid_t vid, sid_t pid, dir_t d, int tid = 0) {
         pthread_spin_lock(&vp_lock[d][vid]);
         tbb::concurrent_hash_map<sid_t, uint64_t>::accessor a;
         vp_off[d].find(a, vid);
@@ -610,12 +598,12 @@ public:
     /**
      * Used during loading data dynamically
      */
-    void create_new_segment(sid_t pid, int num_new_preds) {
+    void create_new_seg(sid_t pid, int num_new_preds) {
         // step 1: insert 2 segments into map
-        rdf_segment_meta_map.insert(make_pair(segid_t(0, pid, IN), rdf_segment_meta_t()));
-        rdf_segment_meta_map.insert(make_pair(segid_t(0, pid, OUT), rdf_segment_meta_t()));
-        auto &in_seg = rdf_segment_meta_map[segid_t(0, pid, IN)];
-        auto &out_seg = rdf_segment_meta_map[segid_t(0, pid, OUT)];
+        rdf_seg_meta_map.insert(make_pair(segid_t(0, pid, IN), rdf_seg_meta_t()));
+        rdf_seg_meta_map.insert(make_pair(segid_t(0, pid, OUT), rdf_seg_meta_t()));
+        auto &in_seg = rdf_seg_meta_map[segid_t(0, pid, IN)];
+        auto &out_seg = rdf_seg_meta_map[segid_t(0, pid, OUT)];
 
         // step 2: allocate space for the segments
         in_seg.bucket_start = main_hdr_off;
@@ -658,7 +646,7 @@ public:
                             << "for merging triple_pso, triple_pos and triple_sav." << LOG_endl;
 
         start = timer::get_usec();
-        init_segment_metas(triple_pso, triple_pos, triple_sav);
+        init_seg_metas(triple_pso, triple_pos, triple_sav);
         end = timer::get_usec();
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
                             << "for initializing predicate segment statistics." << LOG_endl;
@@ -669,8 +657,8 @@ public:
         for (int i = 0; i < all_local_preds.size(); i++) {
             int localtid = omp_get_thread_num();
             sid_t pid = all_local_preds[i];
-            insert_triples_to_segment(localtid, segid_t(0, pid, OUT));
-            insert_triples_to_segment(localtid, segid_t(0, pid, IN));
+            insert_triples(localtid, segid_t(0, pid, OUT));
+            insert_triples(localtid, segid_t(0, pid, IN));
         }
 
         vector<sid_t> aids;
@@ -680,7 +668,7 @@ public:
         #pragma omp parallel for num_threads(global_num_engines)
         for (int i = 0; i < aids.size(); i++) {
             int localtid = omp_get_thread_num();
-            insert_attr_to_segment(localtid, segid_t(0, aids[i], OUT));
+            insert_attr(localtid, segid_t(0, aids[i], OUT));
         }
         vector<sid_t>().swap(aids);
 
@@ -696,7 +684,7 @@ public:
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
                             << "for inserting triples as segments into gstore" << LOG_endl;
 
-        finalize_segment_metas();
+        finalize_seg_metas();
         finalize_init();
         // synchronize segment metadata among servers
         sync_metadata();

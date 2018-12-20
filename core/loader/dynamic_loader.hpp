@@ -153,7 +153,7 @@ private:
         }
         // create new segments for new preds
         for (auto pid : dynamic_loaded_preds)
-            gstore->create_new_segment(pid, dynamic_loaded_preds.size());
+            gstore->create_new_seg(pid, dynamic_loaded_preds.size());
     }
 
 public:

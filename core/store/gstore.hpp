@@ -331,10 +331,10 @@ protected:
     // attr triples grouped by (attr pred, direction), free after gstore init
     tbb_triple_attr_hash_map attr_triples_map;
 
-    // multiple engines will access shared_rdf_segment_meta_map
+    // multiple engines will access shared_rdf_seg_meta_map
     // key: server id, value: segment metadata of the server
-    tbb::concurrent_unordered_map <int, map<segid_t, rdf_segment_meta_t> > shared_rdf_segment_meta_map;
-    std::map<segid_t, rdf_segment_meta_t> rdf_segment_meta_map;
+    tbb::concurrent_unordered_map <int, map<segid_t, rdf_seg_meta_t> > shared_rdf_seg_meta_map;
+    std::map<segid_t, rdf_seg_meta_t> rdf_seg_meta_map;
 
     // id of all local normal preds, free after gstore init
     vector<sid_t> all_local_preds;
@@ -372,7 +372,7 @@ protected:
     unordered_map<sid_t, pthread_spinlock_t> vp_lock[2];
 
     // insert VERSATILE-related data into gstore
-    virtual void insert_preds(sid_t vid, sid_t pid, dir_t d, int tid = 0) = 0;
+    virtual void insert_vp(sid_t vid, sid_t pid, dir_t d, int tid = 0) = 0;
 
     virtual void alloc_vp_edges(dir_t d) = 0;
 #endif // VERSATILE
@@ -380,23 +380,23 @@ protected:
     // Allocate space to store edges of given size. Return offset of allocated space.
     virtual uint64_t alloc_edges(uint64_t n, int64_t tid = 0) = 0;
 
-    virtual uint64_t alloc_edges_to_segment(uint64_t num_edges) = 0;
+    virtual uint64_t alloc_edges_to_seg(uint64_t num_edges) = 0;
 
     // insert normal triples, attr triples, index into gstore
-    virtual void insert_triples_to_segment(int tid, segid_t segid) = 0;
-    virtual void insert_attr_to_segment(int tid, segid_t segid) = 0;
+    virtual void insert_triples(int tid, segid_t segid) = 0;
+    virtual void insert_attr(int tid, segid_t segid) = 0;
     virtual void insert_idx(const tbb_hash_map &pidx_map, const tbb_hash_map &tidx_map, dir_t d) = 0;
 
     // Check the validation of given edges according to given vertex.
     virtual bool edge_is_valid(vertex_t &v, edge_t *edge_ptr) = 0;
 
-    // Get edges of given vertex from dst_sid by RDMA read.
-    virtual edge_t *rdma_get_edges(int tid, int dst_sid, vertex_t &v) = 0;
+    // used in rdma_get_edges(), get r_sz
+    virtual uint64_t rdma_get_r_sz(const vertex_t &v) = 0;
 
     // get bucket_id according to key
     uint64_t bucket_local(ikey_t key) {
         uint64_t bucket_id;
-        auto &seg = rdf_segment_meta_map[segid_t(key)];
+        auto &seg = rdf_seg_meta_map[segid_t(key)];
         ASSERT(seg.num_buckets > 0);
         bucket_id = seg.bucket_start + key.hash() % seg.num_buckets;
         return bucket_id;
@@ -404,27 +404,51 @@ protected:
 
     uint64_t bucket_remote(ikey_t key, int dst_sid) {
         uint64_t bucket_id;
-        auto &remote_meta_map = shared_rdf_segment_meta_map[dst_sid];
+        auto &remote_meta_map = shared_rdf_seg_meta_map[dst_sid];
         auto &seg = remote_meta_map[segid_t(key)];
         ASSERT(seg.num_buckets > 0);
         bucket_id = seg.bucket_start + key.hash() % seg.num_buckets;
         return bucket_id;
     }
 
-    // Allocate extended buckets
-    // @n: number of extended buckets to allocate
-    // @return: start offset of allocated extended buckets
-    uint64_t alloc_ext_buckets(uint64_t n) {
-        uint64_t orig;
-        pthread_spin_lock(&bucket_ext_lock);
-        orig = last_ext;
-        last_ext += n;
-        if (last_ext >= num_buckets_ext) {
-            logstream(LOG_ERROR) << "out of indirect-header region." << LOG_endl;
-            ASSERT(last_ext < num_buckets_ext);
+    // Get edges of given vertex from dst_sid by RDMA read.
+    edge_t *rdma_get_edges(int tid, int dst_sid, vertex_t &v) {
+        ASSERT(global_use_rdma);
+
+        char *buf = mem->buffer(tid);
+        uint64_t r_off = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
+        // the size of edges
+        uint64_t r_sz = rdma_get_r_sz(v);
+        uint64_t buf_sz = mem->buffer_size();
+        ASSERT(r_sz < buf_sz); // enough space to host the edges
+
+        RDMA &rdma = RDMA::get_rdma();
+        rdma.dev->RdmaRead(tid, dst_sid, buf, r_sz, r_off);
+        return (edge_t *)buf;
+    }
+
+    // Attention: not thread safe. The safety is guarenteed by caller
+    bool get_slot_id(ikey_t key, uint64_t &res) {
+        uint64_t bucket_id = bucket_local(key);
+        while (true) {
+            for (int i = 0; i < ASSOCIATIVITY; i++) {
+                uint64_t slot_id = bucket_id * ASSOCIATIVITY + i;
+                if (i < ASSOCIATIVITY - 1) {
+                    //data part
+                    if (vertices[slot_id].key == key) {
+                        //we found it
+                        res = slot_id;
+                        return true;
+                    }
+                } else {
+                    if (vertices[slot_id].key.is_empty())
+                        return false; // not found
+
+                    bucket_id = vertices[slot_id].key.vid; // move to next bucket
+                    break; // break for-loop
+                }
+            }
         }
-        pthread_spin_unlock(&bucket_ext_lock);
-        return num_buckets + orig;
     }
 
     // Get remote vertex of given key. This func will fail if RDMA is disabled.
@@ -466,7 +490,7 @@ protected:
                 }
             }
         }
-    } // end of get_vertex_remote
+    }
 
     // Get local vertex of given key.
     vertex_t get_vertex_local(int tid, ikey_t key) {
@@ -483,30 +507,6 @@ protected:
                 } else {
                     if (vertices[slot_id].key.is_empty())
                         return vertex_t(); // not found
-
-                    bucket_id = vertices[slot_id].key.vid; // move to next bucket
-                    break; // break for-loop
-                }
-            }
-        }
-    }
-
-    // Attention: not thread safe. The safety is guarenteed by caller
-    bool get_slot_id(ikey_t key, uint64_t &res) {
-        uint64_t bucket_id = bucket_local(key);
-        while (true) {
-            for (int i = 0; i < ASSOCIATIVITY; i++) {
-                uint64_t slot_id = bucket_id * ASSOCIATIVITY + i;
-                if (i < ASSOCIATIVITY - 1) {
-                    //data part
-                    if (vertices[slot_id].key == key) {
-                        //we found it
-                        res = slot_id;
-                        return true;
-                    }
-                } else {
-                    if (vertices[slot_id].key.is_empty())
-                        return false; // not found
 
                     bucket_id = vertices[slot_id].key.vid; // move to next bucket
                     break; // break for-loop
@@ -564,7 +564,23 @@ protected:
         return edge_ptr;
     }
 
-    void alloc_buckets_to_segment(rdf_segment_meta_t &seg, segid_t segid, uint64_t total_num_keys) {
+    // Allocate extended buckets
+    // @n: number of extended buckets to allocate
+    // @return: start offset of allocated extended buckets
+    uint64_t alloc_ext_buckets(uint64_t n) {
+        uint64_t orig;
+        pthread_spin_lock(&bucket_ext_lock);
+        orig = last_ext;
+        last_ext += n;
+        if (last_ext >= num_buckets_ext) {
+            logstream(LOG_ERROR) << "out of indirect-header region." << LOG_endl;
+            ASSERT(last_ext < num_buckets_ext);
+        }
+        pthread_spin_unlock(&bucket_ext_lock);
+        return num_buckets + orig;
+    }
+
+    void alloc_buckets_to_seg(rdf_seg_meta_t &seg, segid_t segid, uint64_t total_num_keys) {
         // allocate buckets in main-header region to segments
         uint64_t nbuckets;
         if (seg.num_keys == 0) {
@@ -652,7 +668,7 @@ protected:
     }
 
     // init metadata for each segment
-    void init_segment_metas(vector<vector<triple_t> > &triple_pso,
+    void init_seg_metas(vector<vector<triple_t> > &triple_pso,
                             vector<vector<triple_t> > &triple_pos,
                             vector<vector<triple_attr_t> > &triple_sav) {
         /**
@@ -676,11 +692,11 @@ protected:
             index_cnt_map.insert(make_pair(i, cnt_t()));
             normal_cnt_map.insert(make_pair(i, cnt_t()));
             for (int dir = 0; dir <= 1; dir++)
-                rdf_segment_meta_map.insert(make_pair(segid_t(0, i, dir), rdf_segment_meta_t()));
+                rdf_seg_meta_map.insert(make_pair(segid_t(0, i, dir), rdf_seg_meta_t()));
         }
         // init index segment
-        rdf_segment_meta_map.insert(make_pair(segid_t(1, PREDICATE_ID, IN), rdf_segment_meta_t()));
-        rdf_segment_meta_map.insert(make_pair(segid_t(1, PREDICATE_ID, OUT), rdf_segment_meta_t()));
+        rdf_seg_meta_map.insert(make_pair(segid_t(1, PREDICATE_ID, IN), rdf_seg_meta_t()));
+        rdf_seg_meta_map.insert(make_pair(segid_t(1, PREDICATE_ID, OUT), rdf_seg_meta_t()));
 
         #pragma omp parallel for num_threads(global_num_engines)
         for (int tid = 0; tid < global_num_engines; tid++) {
@@ -827,22 +843,22 @@ protected:
         total_num_keys += all_local_preds.size() * 2 + num_typeid;
 
         // allocate buckets and edges to segments
-        rdf_segment_meta_t &idx_out_seg = rdf_segment_meta_map[segid_t(1, PREDICATE_ID, OUT)];
-        rdf_segment_meta_t &idx_in_seg = rdf_segment_meta_map[segid_t(1, PREDICATE_ID, IN)];
+        rdf_seg_meta_t &idx_out_seg = rdf_seg_meta_map[segid_t(1, PREDICATE_ID, OUT)];
+        rdf_seg_meta_t &idx_in_seg = rdf_seg_meta_map[segid_t(1, PREDICATE_ID, IN)];
 
 #ifdef VERSATILE
         // vid's all predicates OUT
-        rdf_segment_meta_t &pred_out_seg = rdf_segment_meta_map[segid_t(0, PREDICATE_ID, OUT)];
+        rdf_seg_meta_t &pred_out_seg = rdf_seg_meta_map[segid_t(0, PREDICATE_ID, OUT)];
         pred_out_seg.num_edges = normal_cnt_map[PREDICATE_ID].out.load();
-        pred_out_seg.edge_start = alloc_edges_to_segment(pred_out_seg.num_edges);
+        pred_out_seg.edge_start = alloc_edges_to_seg(pred_out_seg.num_edges);
         pred_out_seg.num_keys = vp_meta[OUT].size();
-        alloc_buckets_to_segment(pred_out_seg, segid_t(0, PREDICATE_ID, OUT), total_num_keys);
+        alloc_buckets_to_seg(pred_out_seg, segid_t(0, PREDICATE_ID, OUT), total_num_keys);
         // vid's all predicates IN
-        rdf_segment_meta_t &pred_in_seg = rdf_segment_meta_map[segid_t(0, PREDICATE_ID, IN)];
+        rdf_seg_meta_t &pred_in_seg = rdf_seg_meta_map[segid_t(0, PREDICATE_ID, IN)];
         pred_in_seg.num_edges = normal_cnt_map[PREDICATE_ID].in.load();
-        pred_in_seg.edge_start = alloc_edges_to_segment(pred_in_seg.num_edges);
+        pred_in_seg.edge_start = alloc_edges_to_seg(pred_in_seg.num_edges);
         pred_in_seg.num_keys = vp_meta[IN].size();
-        alloc_buckets_to_segment(pred_in_seg, segid_t(0, PREDICATE_ID, IN), total_num_keys);
+        alloc_buckets_to_seg(pred_in_seg, segid_t(0, PREDICATE_ID, IN), total_num_keys);
 
         #pragma omp parallel for num_threads(2)
         for (int tid = 0; tid < 2; tid++) {
@@ -864,8 +880,8 @@ protected:
 #endif
 
         for (sid_t pid = 1; pid <= get_num_preds(); ++pid) {
-            rdf_segment_meta_t &out_seg = rdf_segment_meta_map[segid_t(0, pid, OUT)];
-            rdf_segment_meta_t &in_seg = rdf_segment_meta_map[segid_t(0, pid, IN)];
+            rdf_seg_meta_t &out_seg = rdf_seg_meta_map[segid_t(0, pid, OUT)];
+            rdf_seg_meta_t &in_seg = rdf_seg_meta_map[segid_t(0, pid, IN)];
 
             out_seg.num_edges = normal_cnt_map[pid].out.load();
             in_seg.num_edges = normal_cnt_map[pid].in.load();
@@ -888,11 +904,11 @@ protected:
             }
 
             // allocate space for edges in entry-region
-            out_seg.edge_start = alloc_edges_to_segment(out_seg.num_edges);
-            in_seg.edge_start = alloc_edges_to_segment(in_seg.num_edges);
+            out_seg.edge_start = alloc_edges_to_seg(out_seg.num_edges);
+            in_seg.edge_start = alloc_edges_to_seg(in_seg.num_edges);
 
-            alloc_buckets_to_segment(out_seg, segid_t(0, pid, OUT), total_num_keys);
-            alloc_buckets_to_segment(in_seg, segid_t(0, pid, IN), total_num_keys);
+            alloc_buckets_to_seg(out_seg, segid_t(0, pid, OUT), total_num_keys);
+            alloc_buckets_to_seg(in_seg, segid_t(0, pid, IN), total_num_keys);
 
             logger(LOG_DEBUG, "Predicate[%d]: normal: OUT[#keys: %lu, #buckets: %lu, #edges: %lu] "
                    "IN[#keys: %lu, #buckets: %lu, #edges: %lu];",
@@ -901,13 +917,13 @@ protected:
 
         }
 
-        idx_out_seg.edge_start = alloc_edges_to_segment(idx_out_seg.num_edges);
+        idx_out_seg.edge_start = alloc_edges_to_seg(idx_out_seg.num_edges);
         idx_out_seg.num_keys = all_local_preds.size();
-        alloc_buckets_to_segment(idx_out_seg, segid_t(1, PREDICATE_ID, OUT), total_num_keys);
+        alloc_buckets_to_seg(idx_out_seg, segid_t(1, PREDICATE_ID, OUT), total_num_keys);
 
-        idx_in_seg.edge_start = alloc_edges_to_segment(idx_in_seg.num_edges);
+        idx_in_seg.edge_start = alloc_edges_to_seg(idx_in_seg.num_edges);
         idx_in_seg.num_keys = all_local_preds.size() + num_typeid;
-        alloc_buckets_to_segment(idx_in_seg, segid_t(1, PREDICATE_ID, IN), total_num_keys);
+        alloc_buckets_to_seg(idx_in_seg, segid_t(1, PREDICATE_ID, IN), total_num_keys);
 
         logger(LOG_DEBUG, "index: OUT[#keys: %lu, #buckets: %lu, #edges: %lu], "
                    "IN[#keys: %lu, #buckets: %lu, #edges: %lu], bucket_off: %lu\n",
@@ -957,7 +973,7 @@ protected:
             }
 
             // allocate and link a new indirect header
-            rdf_segment_meta_t &seg = rdf_segment_meta_map[segid_t(key)];
+            rdf_seg_meta_t &seg = rdf_seg_meta_map[segid_t(key)];
             uint64_t ext_bucket_id = seg.get_ext_bucket();
             if (ext_bucket_id == 0) {
                 uint64_t nbuckets = EXT_BUCKET_EXTENT_LEN(seg.num_buckets);
@@ -978,7 +994,7 @@ done:
         return slot_id;
     }
 
-    void collect_index_info(uint64_t slot_id) {
+    void collect_idx_info(uint64_t slot_id) {
         sid_t vid = vertices[slot_id].key.vid;
         sid_t pid = vertices[slot_id].key.pid;
         uint64_t sz = vertices[slot_id].ptr.size;
@@ -1025,11 +1041,11 @@ done:
     }
 #endif // VERSATILE
 
-    void send_segment_meta(TCP_Adaptor *tcp_ad) {
+    void send_seg_meta(TCP_Adaptor *tcp_ad) {
         std::stringstream ss;
         std::string str;
         boost::archive::binary_oarchive oa(ss);
-        SyncSegmentMetaMsg msg(rdf_segment_meta_map);
+        SyncSegmentMetaMsg msg(rdf_seg_meta_map);
 
         msg.sender_sid = sid;
         oa << msg;
@@ -1043,7 +1059,7 @@ done:
         }
     }
 
-    void recv_segment_meta(TCP_Adaptor *tcp_ad) {
+    void recv_seg_meta(TCP_Adaptor *tcp_ad) {
         std::string str;
         // receive global_num_servers - 1 messages
         for (int i = 0; i < global_num_servers; ++i) {
@@ -1056,10 +1072,10 @@ done:
             SyncSegmentMetaMsg msg;
             ia >> msg;
 
-            if (shared_rdf_segment_meta_map.find(msg.sender_sid) != shared_rdf_segment_meta_map.end())
-                shared_rdf_segment_meta_map[msg.sender_sid] = msg.data;
+            if (shared_rdf_seg_meta_map.find(msg.sender_sid) != shared_rdf_seg_meta_map.end())
+                shared_rdf_seg_meta_map[msg.sender_sid] = msg.data;
             else
-                shared_rdf_segment_meta_map.insert(make_pair(msg.sender_sid, msg.data));
+                shared_rdf_seg_meta_map.insert(make_pair(msg.sender_sid, msg.data));
             logstream(LOG_INFO) << "#" << sid
                                 << " receives segment metadata from server " << msg.sender_sid
                                 << LOG_endl;
@@ -1067,12 +1083,12 @@ done:
     }
 
     // re-adjust attributes of segments
-    void finalize_segment_metas() {
+    void finalize_seg_metas() {
         uint64_t nbuckets_per_blk = MiB2B(global_gpu_key_blk_size_mb) / (sizeof(vertex_t) * ASSOCIATIVITY);
         uint64_t nentries_per_blk = MiB2B(global_gpu_value_blk_size_mb) / sizeof(edge_t);
 
         // set the number of cache blocks needed by each segment
-        for (auto &e : rdf_segment_meta_map) {
+        for (auto &e : rdf_seg_meta_map) {
             e.second.num_key_blks = ceil(((double) e.second.get_total_num_buckets()) / nbuckets_per_blk);
             e.second.num_value_blks = ceil(((double) e.second.num_edges) / nentries_per_blk);
         }
@@ -1123,7 +1139,7 @@ public:
     // return total num of preds, including normal and attr
     inline int get_num_preds() const { return num_normal_preds + num_attr_preds; }
 
-    inline const std::map<segid_t, rdf_segment_meta_t> &get_rdf_segment_metas() { return rdf_segment_meta_map; }
+    inline const std::map<segid_t, rdf_seg_meta_t> &get_rdf_seg_metas() { return rdf_seg_meta_map; }
 
     virtual ~GStore() {}
 
@@ -1178,8 +1194,8 @@ public:
 
     void sync_metadata() {
         extern TCP_Adaptor *con_adaptor;
-        send_segment_meta(con_adaptor);
-        recv_segment_meta(con_adaptor);
+        send_seg_meta(con_adaptor);
+        recv_seg_meta(con_adaptor);
     }
 
     virtual void print_mem_usage() {

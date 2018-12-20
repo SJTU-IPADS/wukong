@@ -151,7 +151,7 @@ void k_get_slot_id_list(vertex_t* vertex_gaddr,
                  ikey_t* d_key_list,
                  uint64_t* d_slot_id_list,
                  ikey_t empty_key,
-                 rdf_segment_meta_t *seg_meta,
+                 rdf_seg_meta_t *seg_meta,
                  uint64_t* vertex_headers,
                  uint64_t vertex_blk_sz,
                  int query_size)
@@ -201,7 +201,7 @@ void d_get_slot_id_list(int index,
                 ikey_t* d_key_list,
                 uint64_t* d_slot_id_list,
                 ikey_t empty_key,
-                rdf_segment_meta_t *seg_meta,
+                rdf_seg_meta_t *seg_meta,
                 uint64_t* vertex_headers,
                 uint64_t vertex_blk_sz,
                 int query_size)
@@ -832,7 +832,3 @@ int gpu_update_result_buf_k2u(GPUEngineParam& param, cudaStream_t stream)
     CUDA_STREAM_SYNC(stream);
     return table_size*(param.query.col_num + 1);
 }
-
-
-
-

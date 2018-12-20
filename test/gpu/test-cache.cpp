@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
         edge_t *d_ea = (edge_t *)(gpu_mem->kvcache() + (gpu_mem->kvcache_size() * GStore::HD_RATIO / 100));
         cudaStream_t stream;
         cudaStreamCreate(&stream);
-        auto &rsmm = dgraph.gstore.get_rdf_segment_meta_map();
+        auto &rsmm = dgraph.gstore.get_rdf_seg_meta_map();
         segid_t seg(0, 2, OUT);
         GPUCache cache(gpu_mem, dgraph.gstore.vertices, dgraph.gstore.edges, rsmm);
 

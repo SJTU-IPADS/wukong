@@ -48,7 +48,7 @@ private:
      * each predicate has 4 segments: in/out normal/index
      * GPUCache load data in segments
      */
-    map<segid_t, rdf_segment_meta_t> rdf_metas;
+    map<segid_t, rdf_seg_meta_t> rdf_metas;
 
     // number of buckets per gpu key block
     uint64_t nbuckets_kblk;
@@ -421,7 +421,7 @@ private:
     } // end of _load_segment
 
 public:
-    GPUCache(GPUMem * gmem, vertex_t *v_a, edge_t *e_a, const map<segid_t, rdf_segment_meta_t> &rdf_metas):
+    GPUCache(GPUMem * gmem, vertex_t *v_a, edge_t *e_a, const map<segid_t, rdf_seg_meta_t> &rdf_metas):
         gmem(gmem), vertex_addr(v_a), edge_addr(e_a), rdf_metas(rdf_metas) {
 
         // step 1: calculate #slots, #buckets, #entries
@@ -473,7 +473,7 @@ public:
         return false;
     }
 
-    rdf_segment_meta_t get_segment_meta(segid_t seg) {
+    rdf_seg_meta_t get_segment_meta(segid_t seg) {
         auto it = rdf_metas.find(seg);
         if (it != rdf_metas.end())
             return rdf_metas[seg];

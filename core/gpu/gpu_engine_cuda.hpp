@@ -111,7 +111,7 @@ public:
     void known_to_unknown(SPARQLQuery &req, ssid_t start, ssid_t pid, dir_t d, vector<sid_t> &new_table) {
         cudaStream_t stream = stream_pool->get_stream(pid);
         segid_t current_seg = pattern_to_segid(req, req.pattern_step);
-        rdf_segment_meta_t seg_meta = gcache->get_segment_meta(current_seg);
+        rdf_seg_meta_t seg_meta = gcache->get_segment_meta(current_seg);
 
         logstream(LOG_DEBUG) << "known_to_unknown: segment: #buckets: " << seg_meta.num_buckets
                              << ", #edges: " << seg_meta.num_edges << "." << LOG_endl;
@@ -199,7 +199,7 @@ public:
 
         cudaStream_t stream = stream_pool->get_stream(pid);
         segid_t current_seg = pattern_to_segid(req, req.pattern_step);
-        rdf_segment_meta_t seg_meta = gcache->get_segment_meta(current_seg);
+        rdf_seg_meta_t seg_meta = gcache->get_segment_meta(current_seg);
 
         logstream(LOG_DEBUG) << "known_to_known: segment: #buckets: " << seg_meta.num_buckets
                              << ", #edges: " << seg_meta.num_edges << "." << LOG_endl;
@@ -282,7 +282,7 @@ public:
                         ssid_t end, dir_t d, vector<sid_t> &new_table) {
         cudaStream_t stream = stream_pool->get_stream(pid);
         segid_t current_seg = pattern_to_segid(req, req.pattern_step);
-        rdf_segment_meta_t seg_meta = gcache->get_segment_meta(current_seg);
+        rdf_seg_meta_t seg_meta = gcache->get_segment_meta(current_seg);
 
         logstream(LOG_DEBUG) << "known_to_const: segment: #buckets: " << seg_meta.num_buckets
                              << ", #edges: " << seg_meta.num_edges << "." << LOG_endl;
