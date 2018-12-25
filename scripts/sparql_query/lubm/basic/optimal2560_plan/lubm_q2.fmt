@@ -1,0 +1,22 @@
+#
+# SPARQL
+#
+# SELECT ?X ?Y WHERE {
+#	?X  rdf:type    ub:Course .
+#	?X  ub:name     ?Y .
+# }
+#
+# command: sparql -f sparql_query/lubm/basic/lubm_q2 -p sparql_query/lubm/basic/osdi16_plan/lubm_q2.fmt -m 16 -n 10
+#
+
+#
+# Plan (OPTIMAL2560)
+#
+# SELECT ?X ?Y WHERE {
+#	?X  rdf:type  ub:Course  <-
+#	?X  ub:name  ?Y  .
+# }
+#
+1 <
+2 >
+
