@@ -1,0 +1,35 @@
+#
+# SPARQL
+#
+# SELECT ?X ?Y ?Z WHERE {
+#	?Y  rdf:type  ub:FullProfessor  .
+#	?X  ub:advisor  ?Y  .
+#	?X  rdf:type  ub:UndergraduateStudent  .
+#	?X  ub:takesCourse  ?Z  .
+#	?Z  rdf:type  ub:Course  .
+#	?Y  ub:teacherOf  ?Z  .
+# }
+#
+# command: sparql -f sparql_query/lubm/basic/lubm_q7 -p sparql_query/lubm/basic/osdi16_plan/lubm_q7.fmt -m 16 -n 10
+#
+
+#
+# Plan (OPTIMAL10240)
+#
+# SELECT ?X ?Y ?Z WHERE{
+#   ?Y  __PREDICATE__ ub:teacherOf <-
+#   ?Y  rdf:type ub:FullProfessor .
+#   ?X  ub:advisor    ?Y <-
+#   ?X  rdf:type ub:UndergraduateStudent .
+#   ?X  ub:takesCourse ?Z .
+#   ?Y  ub:teacherOf ?Z .
+#   ?Z  rdf:type ub:Course .
+# }
+#
+6 <<
+1 >
+2 <
+3 >
+4 >
+6 >
+5 >

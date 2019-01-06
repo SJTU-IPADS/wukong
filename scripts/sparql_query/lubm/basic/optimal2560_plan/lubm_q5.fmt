@@ -1,0 +1,21 @@
+#
+# SPARQL
+#
+# SELECT ?X WHERE {
+#	?X  ub:subOrganizationOf   <http://www.Department0.University0.edu>    .
+#	?X  rdf:type   ub:ResearchGroup .
+# }
+#
+# command: sparql -f sparql_query/lubm/basic/lubm_q5 -p sparql_query/lubm/basic/osdi16_plan/lubm_q5.fmt -n 1000
+#
+
+#
+# Plan (OPTIMAL2560)
+#
+# SELECT ?X WHERE {
+#	?X  ub:subOrganizationOf  <http://www.Department0.University0.edu>  <-
+#	?X  rdf:type  ub:ResearchGroup  .
+# }
+#
+1 <
+2 >

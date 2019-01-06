@@ -1,0 +1,89 @@
+#
+# SPARQL
+#
+# SELECT ?X ?Y ?Z WHERE {
+#	?Y  rdf:type  ub:FullProfessor  .
+#	?X  ub:advisor  ?Y  .
+#	?X  rdf:type  ub:UndergraduateStudent  .
+#	?X  ub:takesCourse  ?Z  .
+#	?Z  rdf:type  ub:Course  .
+#	?Y  ub:teacherOf  ?Z  .
+# }
+#
+# command: sparql -f sparql_query/lubm/basic/lubm_q7 -p sparql_query/lubm/basic/osdi16_plan/lubm_q7.fmt -m 16 -n 10
+#
+
+#
+# Plan (OPTIMAL2560)
+#
+# SELECT ?X ?Y ?Z WHERE {
+# ?Y  rdf:type ub:FullProfessor <-
+# ?Y  ub:teacherOf ?Z .
+# ?Z  rdf:type ub:Course .
+# ?X  ub:advisor    ?Y <-
+# ?X  ub:takesCourse ?Z .
+# ?X  rdf:type ub:UndergraduateStudent .
+# }
+#
+1 <
+6 >
+5 >
+2 <
+4 >
+3 >
+
+# several other plans have almost the same least latency according to test
+#
+# SELECT ?X ?Y ?Z
+# WHERE{
+# ?Y  rdf:type ub:FullProfessor <-
+# ?Y  ub:teacherOf ?Z .
+# ?Z  rdf:type ub:Course .
+# ?X  ub:advisor    ?Y <-
+# ?X  ub:takesCourse ?Z <-
+# ?X  rdf:type ub:UndergraduateStudent .
+# }
+#
+# SELECT ?X ?Y ?Z
+# WHERE{
+# ?Y  __PREDICATE__ ub:teacherOf <-
+# ?Y  rdf:type ub:FullProfessor .
+# ?X  ub:advisor    ?Y <-
+# ?X  rdf:type ub:UndergraduateStudent .
+# ?X  ub:takesCourse ?Z .
+# ?Y  ub:teacherOf ?Z .
+# ?Z  rdf:type ub:Course .
+# }
+#
+# SELECT ?X ?Y ?Z
+# WHERE{
+# ?Y  __PREDICATE__ ub:teacherOf <-
+# ?Y  rdf:type ub:FullProfessor .
+# ?X  ub:advisor    ?Y <-
+# ?X  rdf:type ub:UndergraduateStudent .
+# ?Y  ub:teacherOf ?Z .
+# ?X  ub:takesCourse ?Z .
+# ?Z  rdf:type ub:Course .
+# }
+#
+# SELECT ?X ?Y ?Z
+# WHERE{
+# ?Y  __PREDICATE__ ub:teacherOf <-
+# ?Y  rdf:type ub:FullProfessor .
+# ?Y  ub:teacherOf ?Z .
+# ?Z  rdf:type ub:Course .
+# ?X  ub:advisor    ?Y <-
+# ?X  ub:takesCourse ?Z .
+# ?X  rdf:type ub:UndergraduateStudent .
+# }
+#
+# SELECT ?X ?Y ?Z
+# WHERE{
+# ?Y  __PREDICATE__ ub:teacherOf <-
+# ?Y  rdf:type ub:FullProfessor .
+# ?Y  ub:teacherOf ?Z .
+# ?Z  rdf:type ub:Course .
+# ?X  ub:advisor    ?Y <-
+# ?X  ub:takesCourse ?Z <-
+# ?X  rdf:type ub:UndergraduateStudent .
+#}
