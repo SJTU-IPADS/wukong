@@ -53,6 +53,13 @@ private:
     ///       if and only if the size flag of edges is consistent with the size within the pointer.
     static const sid_t INVALID_EDGES = 1 << NBITS_SIZE; // flag indicates invalidate edges
 
+    /**
+     * global dynamic reserve factor
+     * when creating new segment during dynamic loading,
+     * #buckets = (#buckets-remain * global_dyn_res_factor / 100) / #new-segments
+     */
+    int global_dyn_res_factor = 50;
+
     queue<free_blk> free_queue;
     pthread_spinlock_t free_queue_lock;
 
@@ -636,7 +643,6 @@ public:
               vector<vector<triple_t>> &triple_pos,
               vector<vector<triple_attr_t>> &triple_sav) {
         num_segments = num_normal_preds * PREDICATE_NSEGS + INDEX_NSEGS + num_attr_preds;
-        min_buckets_per_seg = global_auto_bkt_alloc ? 1 : ((num_buckets * MIN_BKT_FACTOR) / num_segments);
         uint64_t start, end;
         start = timer::get_usec();
         // merge triple_pso and triple_pos into a map

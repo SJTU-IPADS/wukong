@@ -304,8 +304,14 @@ protected:
     typedef tbb::concurrent_hash_map<ikey_t, vector<triple_attr_t>, ikey_Hasher> tbb_triple_attr_hash_map;
 
     static const int NUM_LOCKS = 1024;
-    // min_buckets_per_seg = (num_buckets * MIN_BKT_FACTOR) / num_segments
-    static constexpr double MIN_BKT_FACTOR = 0.1;
+
+    /**
+     * automatically alloc buckets to segments, which will use all header region
+     * you should turn it off if:
+     * 1. you want to dynamically insert new predicates
+     * 2. you don't want to use up all header region
+     */
+    bool global_auto_bkt_alloc = true;
 
     int sid;
 
@@ -352,7 +358,7 @@ protected:
      * minimum num of buckets per segment
      * usage: allocate buckets to empty segments (num_keys = 0)
      */
-    uint64_t min_buckets_per_seg;
+    uint64_t min_buckets_per_seg = 1;
 
 #ifdef VERSATILE
     /**
@@ -600,7 +606,7 @@ protected:
                    seg.num_keys, nbuckets, main_hdr_off,
                    ratio, total_ratio_);
         } else {
-            nbuckets = seg.num_keys * (global_bkt_factor / 100.0);
+            nbuckets = seg.num_keys * (100.0 / (global_est_load_factor * ASSOCIATIVITY));
         }
         seg.num_buckets = std::max(nbuckets, min_buckets_per_seg);
         logger(LOG_DEBUG, "Seg[%lu|%lu|%lu]: "
@@ -990,7 +996,6 @@ protected:
 done:
         pthread_spin_unlock(&bucket_locks[lock_id]);
         ASSERT(slot_id < num_slots);
-        ASSERT(vertices[slot_id].key == key);
         return slot_id;
     }
 

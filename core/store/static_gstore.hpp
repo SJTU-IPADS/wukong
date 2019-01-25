@@ -335,7 +335,6 @@ public:
               vector<vector<triple_t>> &triple_pos,
               vector<vector<triple_attr_t>> &triple_sav) {
         num_segments = num_normal_preds * PREDICATE_NSEGS + INDEX_NSEGS + num_attr_preds;
-        min_buckets_per_seg = 1;
 
         uint64_t start, end;
         start = timer::get_usec();

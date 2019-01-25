@@ -59,22 +59,12 @@ bool global_enable_vattr = false;  // for attr
 // kvstore
 int global_memstore_size_gb = 20;
 /**
- * global bucket factor
+ * global estimate load factor
  * when allocating buckets to segments during initialization,
- * #buckets = #keys * global_bkt_factor / 100
+ * #keys / #slots = global_est_load_factor / 100, so
+ * #buckets = (#keys * 100) / (ASSOCIATIVITY * global_est_load_factor)
  */
-int global_bkt_factor = 40;
-/**
- * global dynamic reserve factor
- * when creating new segment during dynamic loading,
- * #buckets = (#buckets-remain * global_dyn_res_factor / 100) / #new-segments
- */
-int global_dyn_res_factor = 50;
-/**
- * automatically alloc buckets to segments, which will use all header region
- * you should turn it off if you want to dynamically insert new predicates
- */
-bool global_auto_bkt_alloc = true;
+int global_est_load_factor = 55;
 
 // GPU support
 int global_num_gpus = 1;
