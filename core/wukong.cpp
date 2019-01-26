@@ -198,7 +198,6 @@ main(int argc, char *argv[])
         t1 = timer::get_usec();
         logstream(LOG_EMPH)  << "load statistics using time: " << t1 - t0 << "usec" << LOG_endl;
     }
-
     // create proxies and engines
     for (int tid = 0; tid < global_num_proxies + global_num_engines; tid++) {
         Adaptor *adaptor = new Adaptor(tid, tcp_adaptor, rdma_adaptor);
@@ -233,7 +232,7 @@ main(int argc, char *argv[])
     // create GPU agent
     GPUStreamPool stream_pool(32);
     GPUCache gpu_cache(gpu_mem, dgraph.gstore->vertices, dgraph.gstore->edges,
-                       static_cast<StaticGStore *>(dgraph.gstore)->get_rdf_segment_metas());
+                       static_cast<StaticGStore *>(dgraph.gstore)->get_rdf_seg_metas());
     GPUEngine gpu_engine(sid, WUKONG_GPU_AGENT_TID, gpu_mem, &gpu_cache, &stream_pool, &dgraph);
     GPUAgent agent(sid, WUKONG_GPU_AGENT_TID, new Adaptor(WUKONG_GPU_AGENT_TID,
                    tcp_adaptor, rdma_adaptor), &gpu_engine);

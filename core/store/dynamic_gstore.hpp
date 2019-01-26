@@ -53,6 +53,13 @@ private:
     ///       if and only if the size flag of edges is consistent with the size within the pointer.
     static const sid_t INVALID_EDGES = 1 << NBITS_SIZE; // flag indicates invalidate edges
 
+    /**
+     * global dynamic reserve factor
+     * when creating new segment during dynamic loading,
+     * #buckets = (#buckets-remain * global_dyn_res_factor / 100) / #new-segments
+     */
+    int global_dyn_res_factor = 50;
+
     queue<free_blk> free_queue;
     pthread_spinlock_t free_queue_lock;
 
@@ -138,7 +145,7 @@ private:
     }
 
     bool insert_vertex_edge(ikey_t key, sid_t value, bool &dedup_or_isdup, int tid) {
-        uint64_t bucket_id = key.hash() % num_buckets;
+        uint64_t bucket_id = bucket_local(key);
         uint64_t lock_id = bucket_id % NUM_LOCKS;
         uint64_t v_ptr = insert_key(key, false);
         vertex_t *v = &vertices[v_ptr];
@@ -186,16 +193,6 @@ private:
         }
     }
 
-    uint64_t bucket_local(ikey_t key) {
-        uint64_t bucket_id;
-        bucket_id = key.hash() % num_buckets;
-        return bucket_id;
-    }
-
-    uint64_t bucket_remote(ikey_t key, int dst_sid) {
-        return bucket_local(key);
-    }
-
     // Allocate space to store edges of given size.
     // @return offset of allocated space.
     uint64_t alloc_edges(uint64_t n, int64_t tid = 0) {
@@ -205,6 +202,11 @@ private:
         uint64_t off = b2e(edge_allocator->malloc(sz, tid));
         insert_sz(n, n, off);
         return off;
+    }
+
+    // dynamic store doesn't group edges into segments
+    uint64_t alloc_edges_to_seg(uint64_t num_edges) {
+        return 0;
     }
 
     /* Check the validation of given edge according to given vertex.
@@ -217,183 +219,132 @@ private:
         return (edge_ptr[blk_sz - 1].val == v.ptr.size);
     }
 
-    // insert key to a slot
-    uint64_t insert_key(ikey_t key, bool check_dup = true) {
-        uint64_t bucket_id = bucket_local(key);
-        uint64_t slot_id = bucket_id * ASSOCIATIVITY;
-        uint64_t lock_id = bucket_id % NUM_LOCKS;
+    uint64_t rdma_get_r_sz(const vertex_t &v) { return blksz(v.ptr.size + 1) * sizeof(edge_t); }
 
-        bool found = false;
-        pthread_spin_lock(&bucket_locks[lock_id]);
-        while (slot_id < num_slots) {
-            // the last slot of each bucket is always reserved for pointer to indirect header
-            /// TODO: add type info to slot and reuse the last slot to store key
-            /// TODO: key.vid is reused to store the bucket_id of indirect header rather than ptr.off,
-            ///       since the is_empty() is not robust.
-            for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
-                //ASSERT(vertices[slot_id].key != key); // no duplicate key
-                if (vertices[slot_id].key == key) {
-                    if (check_dup) {
-                        key.print_key();
-                        vertices[slot_id].key.print_key();
-                        logstream(LOG_ERROR) << "conflict at slot["
-                                             << slot_id << "] of bucket["
-                                             << bucket_id << "]" << LOG_endl;
-                        ASSERT(false);
-                    } else {
-                        goto done;
-                    }
-                }
-                // insert to an empty slot
-                if (vertices[slot_id].key.is_empty()) {
-                    vertices[slot_id].key = key;
-                    goto done;
-                }
-            }
+    void insert_triples(int tid, segid_t segid) {
+        ASSERT(!segid.index);
 
-            // whether the bucket_ext (indirect-header region) is used
-            if (!vertices[slot_id].key.is_empty()) {
-                slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY;
-                continue; // continue and jump to next bucket
-            }
-            // allocate and link a new indirect header
-            vertices[slot_id].key.vid = alloc_ext_buckets(1);
-            slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY; // move to a new bucket_ext
-            vertices[slot_id].key = key; // insert to the first slot
-            goto done;
+        auto &segment = rdf_seg_meta_map[segid];
+        int index = segid.index;
+        sid_t pid = segid.pid;
+        int dir = segid.dir;
+
+        if (segment.num_edges == 0) {
+            logger(LOG_DEBUG, "Thread(%d): abort! segment(%d|%d|%d) is empty.\n",
+                   tid, segid.index, segid.pid, segid.dir);
+            return;
         }
-done:
-        pthread_spin_unlock(&bucket_locks[lock_id]);
-        ASSERT(slot_id < num_slots);
-        ASSERT(vertices[slot_id].key == key);
-        return slot_id;
-    }
 
-    /// skip all TYPE triples (e.g., <http://www.Department0.University0.edu> rdf:type ub:University)
-    /// because Wukong treats all TYPE triples as index vertices. In addition, the triples in triple_pos
-    /// has been sorted by the vid of object, and IDs of types are always smaller than normal vertex IDs.
-    /// Consequently, all TYPE triples are aggregated at the beggining of triple_pos
-    void insert_normal(vector<triple_t> &pso, vector<triple_t> &pos, int tid) {
-        // treat type triples as index vertices
-        uint64_t type_triples = 0;
-        while (type_triples < pos.size() && is_tpid(pos[type_triples].o))
-            type_triples++;
+        // get OUT edges and IN edges from triples map
+        tbb_triple_hash_map::accessor a;
+        bool has_pso, has_pos;
+        bool success = triples_map.find(a, ikey_t(0, pid, (dir_t) dir));
 
-#ifdef VERSATILE
-        /// The following code is used to support a rare case where the predicate is unknown
-        /// (e.g., <http://www.Department0.University0.edu> ?P ?O). Each normal vertex should
-        /// add two key/value pairs with a reserved ID (i.e., PREDICATE_ID) as the predicate
-        /// to store the IN and OUT lists of its predicates.
-        /// e.g., key=(vid, PREDICATE_ID, IN/OUT), val=(predicate0, predicate1, ...)
-        ///
-        /// NOTE, it is disabled by default in order to save memory.
-        vector<sid_t> predicates;
-#endif // end of VERSATILE
+        has_pso = (segid.dir == OUT) ? success : false;
+        has_pos = (segid.dir == IN) ? success : false;
+
+        // a segment only contains triples of one direction
+        ASSERT((has_pso == true && has_pos == false) || (has_pso == false && has_pos == true));
 
         uint64_t s = 0;
-        while (s < pso.size()) {
-            // predicate-based key (subject + predicate)
-            uint64_t e = s + 1;
-            while ((e < pso.size())
-                    && (pso[s].s == pso[e].s)
-                    && (pso[s].p == pso[e].p))  { e++; }
+        uint64_t type_triples = 0;
 
-            // allocate a vertex and edges
-            ikey_t key = ikey_t(pso[s].s, pso[s].p, OUT);
-            uint64_t off = alloc_edges(e - s, tid);
+        if (has_pso) {
+            vector<triple_t> &pso = a->second;
+            while (s < pso.size()) {
+                // predicate-based key (subject + predicate)
+                uint64_t e = s + 1;
+                while ((e < pso.size())
+                        && (pso[s].s == pso[e].s)
+                        && (pso[s].p == pso[e].p))  { e++; }
 
-            // insert a vertex
-            uint64_t slot_id = insert_key(key);
-            iptr_t ptr = iptr_t(e - s, off);
-            vertices[slot_id].ptr = ptr;
-
-            // insert edges
-            for (uint64_t i = s; i < e; i++)
-                edges[off++].val = pso[i].o;
-
-#ifdef VERSATILE
-            // add a new predicate
-            predicates.push_back(pso[s].p);
-
-            // insert a special PREDICATE triple (OUT)
-            if (e >= pso.size() || pso[s].s != pso[e].s) {
                 // allocate a vertex and edges
-                ikey_t key = ikey_t(pso[s].s, PREDICATE_ID, OUT);
-                uint64_t sz = predicates.size();
-                uint64_t off = alloc_edges(sz, tid);
+                ikey_t key = ikey_t(pso[s].s, pso[s].p, OUT);
+                uint64_t off = alloc_edges(e - s, tid);
 
                 // insert a vertex
                 uint64_t slot_id = insert_key(key);
-                iptr_t ptr = iptr_t(sz, off);
+                iptr_t ptr = iptr_t(e - s, off);
                 vertices[slot_id].ptr = ptr;
 
                 // insert edges
-                for (auto const &p : predicates)
-                    edges[off++].val = p;
-
-                predicates.clear();
-            }
-#endif // end of VERSATILE
-
-            s = e;
-        }
-
-        s = type_triples; // skip type triples
-        while (s < pos.size()) {
-            // predicate-based key (object + predicate)
-            uint64_t e = s + 1;
-            while ((e < pos.size())
-                    && (pos[s].o == pos[e].o)
-                    && (pos[s].p == pos[e].p)) { e++; }
-
-            // allocate a vertex and edges
-            ikey_t key = ikey_t(pos[s].o, pos[s].p, IN);
-            uint64_t off = alloc_edges(e - s, tid);
-
-            // insert a vertex
-            uint64_t slot_id = insert_key(key);
-            iptr_t ptr = iptr_t(e - s, off);
-            vertices[slot_id].ptr = ptr;
-
-            // insert edges
-            for (uint64_t i = s; i < e; i++)
-                edges[off++].val = pos[i].s;
+                for (uint64_t i = s; i < e; i++)
+                    edges[off++].val = pso[i].o;
 
 #ifdef VERSATILE
-            // add a new predicate
-            predicates.push_back(pos[s].p);
+                // vid's predicate
+                insert_vp(pso[s].s, pso[s].p, OUT, tid);
+#endif // VERSATILE
 
-            // insert a special PREDICATE triple (OUT)
-            if (e >= pos.size() || pos[s].o != pos[e].o) {
+                collect_idx_info(slot_id);
+                s = e;
+            }
+            logger(LOG_DEBUG, "Thread(%d): inserted predicate %d pso(%lu triples).",
+                   tid, pid, pso.size());
+        }
+
+        if (has_pos) {
+            vector<triple_t> &pos = a->second;
+            while (type_triples < pos.size() && is_tpid(pos[type_triples].o))
+                type_triples++;
+
+            s = type_triples; // skip type triples
+
+            while (s < pos.size()) {
+                // predicate-based key (object + predicate)
+                uint64_t e = s + 1;
+                while ((e < pos.size())
+                        && (pos[s].o == pos[e].o)
+                        && (pos[s].p == pos[e].p)) { e++; }
+
                 // allocate a vertex and edges
-                ikey_t key = ikey_t(pos[s].o, PREDICATE_ID, IN);
-                uint64_t sz = predicates.size();
-                uint64_t off = alloc_edges(sz, tid);
+                ikey_t key = ikey_t(pos[s].o, pos[s].p, IN);
+                uint64_t off = alloc_edges(e - s, tid);
 
                 // insert a vertex
                 uint64_t slot_id = insert_key(key);
-                iptr_t ptr = iptr_t(sz, off);
+                iptr_t ptr = iptr_t(e - s, off);
                 vertices[slot_id].ptr = ptr;
 
                 // insert edges
-                for (auto const &p : predicates)
-                    edges[off++].val = p;
+                for (uint64_t i = s; i < e; i++)
+                    edges[off++].val = pos[i].s;
 
-                predicates.clear();
+#ifdef VERSATILE
+                // vid's predicate
+                insert_vp(pos[s].o, pos[s].p, IN, tid);
+#endif // VERSATILE
+
+                collect_idx_info(slot_id);
+                s = e;
             }
-#endif // end of VERSATILE
-            s = e;
+            logger(LOG_DEBUG, "Thread(%d): inserted predicate %d pos(%lu triples).",
+                   tid, pid, pos.size());
         }
+
     }
 
-    // insert attributes
-    void insert_attr(vector<triple_attr_t> &attrs, int64_t tid) {
-        variant_type get_type;
-        for (auto const &attr : attrs) {
+    void insert_attr(int tid, segid_t segid) {
+        auto &segment = rdf_seg_meta_map[segid];
+        sid_t aid = segid.pid;
+        int dir = segid.dir;
+
+        if (segment.num_edges == 0) {
+            logger(LOG_DEBUG, "Segment(%d|%d|%d) is empty.\n",
+                   segid.index, segid.pid, segid.dir);
+            return;
+        }
+        // get OUT edges and IN edges from triples map
+        tbb_triple_attr_hash_map::accessor a;
+        bool success = attr_triples_map.find(a, ikey_t(0, aid, (dir_t) dir));
+        ASSERT(success);
+        vector<triple_attr_t> &asv = a->second;
+        int type = attr_type_map[aid];
+        uint64_t sz = (get_sizeof(type) - 1) / sizeof(edge_t) + 1;   // get the ceil size;
+
+        for (auto &attr : asv) {
             // allocate a vertex and edges
             ikey_t key = ikey_t(attr.s, attr.a, OUT);
-            int type = boost::apply_visitor(get_type, attr.v);
-            uint64_t sz = (get_sizeof(type) - 1) / sizeof(edge_t) + 1;   // get the ceil size;
             uint64_t off = alloc_edges(sz, tid);
 
             // insert a vertex
@@ -401,128 +352,123 @@ done:
             iptr_t ptr = iptr_t(sz, off, type);
             vertices[slot_id].ptr = ptr;
 
-            // insert edges (attributes)
+            // insert edges
             switch (type) {
-            case INT_t:
-                *(int *)(edges + off) = boost::get<int>(attr.v);
-                break;
-            case FLOAT_t:
-                *(float *)(edges + off) = boost::get<float>(attr.v);
-                break;
-            case DOUBLE_t:
-                *(double *)(edges + off) = boost::get<double>(attr.v);
-                break;
-            default:
-                logstream(LOG_ERROR) << "Unsupported value type of attribute" << LOG_endl;
+                case INT_t:
+                    *(int *)(edges + off) = boost::get<int>(attr.v);
+                    break;
+                case FLOAT_t:
+                    *(float *)(edges + off) = boost::get<float>(attr.v);
+                    break;
+                case DOUBLE_t:
+                    *(double *)(edges + off) = boost::get<double>(attr.v);
+                    break;
+                default:
+                    logstream(LOG_ERROR) << "Unsupported value type of attribute" << LOG_endl;
             }
         }
     }
 
-    void insert_index() {
-        uint64_t t1 = timer::get_usec();
-        logstream(LOG_INFO) << " start (parallel) prepare index info " << LOG_endl;
-        edge_allocator->merge_freelists();
+    void insert_idx(const tbb_hash_map &pidx_map, const tbb_hash_map &tidx_map, dir_t d) {
+        tbb_hash_map::const_accessor ca;
+        rdf_seg_meta_t &segment = rdf_seg_meta_map[segid_t(1, PREDICATE_ID, d)];
+        // it is possible that num_edges = 0 if loading an empty dataset
+        // ASSERT(segment.num_edges > 0);
 
-        // scan raw data to generate index data in parallel
-        #pragma omp parallel for num_threads(global_num_engines)
-        for (uint64_t bucket_id = 0; bucket_id < num_buckets + last_ext; bucket_id++) {
-            uint64_t slot_id = bucket_id * ASSOCIATIVITY;
-            for (int i = 0; i < ASSOCIATIVITY - 1; i++, slot_id++) {
-                // skip empty slot
-                if (vertices[slot_id].key.is_empty()) break;
+        for (int i = 0; i < all_local_preds.size(); i++) {
+            sid_t pid = all_local_preds[i];
+            bool success = pidx_map.find(ca, pid);
+            if (!success)
+                continue;
 
-                sid_t vid = vertices[slot_id].key.vid;
-                sid_t pid = vertices[slot_id].key.pid;
+            uint64_t sz = ca->second.size();
+            ASSERT(sz <= segment.num_edges);
 
-                uint64_t sz = vertices[slot_id].ptr.size;
-                uint64_t off = vertices[slot_id].ptr.off;
+            ikey_t key = ikey_t(0, pid, d);
+            uint64_t off = alloc_edges(sz, d);
+            logger(LOG_DEBUG, "insert_pidx[%s]: key: [%lu|%lu|%lu] sz: %lu",
+                (d == IN) ? "IN" : "OUT", key.vid, key.pid, key.dir, sz);
+            uint64_t slot_id = insert_key(key);
+            iptr_t ptr = iptr_t(sz, off);
+            vertices[slot_id].ptr = ptr;
 
-                if (vertices[slot_id].key.dir == IN) {
-                    if (pid == PREDICATE_ID) {
-#ifdef VERSATILE
-                        // every subject/object has at least one predicate or one type
-                        v_set.insert(vid); // collect all local objects w/ predicate
-                        for (uint64_t e = 0; e < sz; e++)
-                            p_set.insert(edges[off + e].val); // collect all local predicates
-#endif
-                    } else if (pid == TYPE_ID) {
-                        ASSERT(false); // (IN) type triples should be skipped
-                    } else { // predicate-index (OUT) vid
-                        tbb_hash_map::accessor a;
-                        pidx_out_map.insert(a, pid);
-                        a->second.push_back(vid);
-                    }
-                } else {
-                    if (pid == PREDICATE_ID) {
-#ifdef VERSATILE
-                        // every subject/object has at least one predicate or one type
-                        v_set.insert(vid); // collect all local subjects w/ predicate
-                        for (uint64_t e = 0; e < sz; e++)
-                            p_set.insert(edges[off + e].val); // collect all local predicates
-#endif
-                    } else if (pid == TYPE_ID) {
-#ifdef VERSATILE
-                        // every subject/object has at least one predicate or one type
-                        v_set.insert(vid); // collect all local subjects w/ type
-#endif
-                        // type-index (IN) vid
-                        for (uint64_t e = 0; e < sz; e++) {
-                            tbb_hash_map::accessor a;
-                            tidx_map.insert(a, edges[off + e].val);
-                            a->second.push_back(vid);
-#ifdef VERSATILE
-                            t_set.insert(edges[off + e].val); // collect all local types
-#endif
-                        }
-                    } else { // predicate-index (IN) vid
-                        tbb_hash_map::accessor a;
-                        pidx_in_map.insert(a, pid);
-                        a->second.push_back(vid);
-                    }
-                }
+            for (auto const &vid : ca->second)
+                edges[off++].val = vid;
+        }
+        // type index
+        if (d == IN) {
+            for (auto const &e : tidx_map) {
+                sid_t pid = e.first;
+                uint64_t sz = e.second.size();
+                ASSERT(sz <= segment.num_edges);
+                logger(LOG_DEBUG, "insert_tidx: pid: %lu, sz: %lu", pid, sz);
+
+                ikey_t key = ikey_t(0, pid, IN);
+                uint64_t off = alloc_edges(sz, d);
+                uint64_t slot_id = insert_key(key);
+                iptr_t ptr = iptr_t(sz, off);
+                vertices[slot_id].ptr = ptr;
+
+                for (auto const &vid : e.second)
+                    edges[off++].val = vid;
             }
         }
-        uint64_t t2 = timer::get_usec();
-        logstream(LOG_DEBUG) << (t2 - t1) / 1000 << " ms for preparing index info (in parallel)" << LOG_endl;
-
-        /// TODO: parallelize index insertion
-
-        // add type/predicate index vertices
-        insert_index_map(tidx_map, IN);
-        insert_index_map(pidx_in_map, IN);
-        insert_index_map(pidx_out_map, OUT);
-
-        tbb_hash_map().swap(pidx_in_map);
-        tbb_hash_map().swap(pidx_out_map);
-        tbb_hash_map().swap(tidx_map);
+#ifdef VERSATILE
+        if (d == IN) {
+            // all local entities, key: [0 | TYPE_ID | IN]
+            uint64_t off = alloc_edges(v_set.size(), d);
+            insert_idx_set(v_set, off, TYPE_ID, IN);
+            tbb_unordered_set().swap(v_set);
+        } else {
+            uint64_t off = alloc_edges(t_set.size(), d);
+            // all local types, key: [0 | TYPE_ID | OUT]
+            insert_idx_set(t_set, off, TYPE_ID, OUT);
+            tbb_unordered_set().swap(t_set);
+            off = alloc_edges(p_set.size(), d);
+            // all local predicates, key: [0 | PREDICATE_ID | OUT]
+            insert_idx_set(p_set, off, PREDICATE_ID, OUT);
+            tbb_unordered_set().swap(p_set);
+        }
+#endif // VERSATILE
+    }
 
 #ifdef VERSATILE
-        insert_index_set(v_set, TYPE_ID, IN);
-        insert_index_set(t_set, TYPE_ID, OUT);
-        insert_index_set(p_set, PREDICATE_ID, OUT);
-
-        tbb_unordered_set().swap(v_set);
-        tbb_unordered_set().swap(t_set);
-        tbb_unordered_set().swap(p_set);
-#endif
-
-        uint64_t t3 = timer::get_usec();
-        logstream(LOG_DEBUG) << (t3 - t2) / 1000 << " ms for inserting index data into gstore" << LOG_endl;
+    void alloc_vp_edges(dir_t d) {
+        vp_off[d] = vp_meta[d];
+        for (auto iter = vp_off[d].begin(); iter != vp_off[d].end(); iter++) {
+            iter->second = 0;
+            vp_lock[d].insert(std::make_pair(iter->first, pthread_spinlock_t()));
+            pthread_spin_init(&vp_lock[d][iter->first], 0);
+        }
     }
 
-    // Get edges of given vertex from dst_sid by RDMA read.
-    edge_t *rdma_get_edges(int tid, int dst_sid, vertex_t &v) {
-        ASSERT(global_use_rdma);
-        char *buf = mem->buffer(tid);
-        uint64_t r_off = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
-        // the size of entire blk
-        uint64_t r_sz = blksz(v.ptr.size + 1) * sizeof(edge_t);
-        uint64_t buf_sz = mem->buffer_size();
-        ASSERT(r_sz < buf_sz); // enough space to host the edges
-        RDMA &rdma = RDMA::get_rdma();
-        rdma.dev->RdmaRead(tid, dst_sid, buf, r_sz, r_off);
-        return (edge_t *)buf;
+    // insert vid's preds into gstore
+    void insert_vp(sid_t vid, sid_t pid, dir_t d, int tid = 0) {
+        pthread_spin_lock(&vp_lock[d][vid]);
+        tbb::concurrent_hash_map<sid_t, uint64_t>::accessor a;
+        vp_off[d].find(a, vid);
+        uint64_t off = a->second;
+        a->second += 1;
+        a.release();
+
+        ikey_t key = ikey_t(vid, PREDICATE_ID, d);
+        uint64_t slot_id = 0;
+        uint64_t edge_start = 0;
+        bool exist = get_slot_id(key, slot_id);
+        if (!exist) {
+            slot_id = insert_key(key);
+            vp_meta[d].find(a, vid);
+            edge_start = alloc_edges(a->second, tid);
+            iptr_t ptr = iptr_t(a->second, edge_start);
+            a.release();
+            vertices[slot_id].ptr = ptr;
+        } else {
+            edge_start = vertices[slot_id].ptr.off;
+        }
+        edges[edge_start + off].val = pid;
+        pthread_spin_unlock(&vp_lock[d][vid]);
     }
+#endif // VERSATILE
 
 
 public:
@@ -538,41 +484,6 @@ public:
     }
 
     ~DynamicGStore() {}
-
-    void init(vector<vector<triple_t>> &triple_pso,
-              vector<vector<triple_t>> &triple_pos,
-              vector<vector<triple_attr_t>> &triple_sav) {
-        uint64_t start, end;
-        start = timer::get_usec();
-        #pragma omp parallel for num_threads(global_num_engines)
-        for (int t = 0; t < global_num_engines; t++) {
-            insert_normal(triple_pso[t], triple_pos[t], t);
-            // release memory
-            vector<triple_t>().swap(triple_pso[t]);
-            vector<triple_t>().swap(triple_pos[t]);
-        }
-        end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                            << "for inserting normal data into gstore" << LOG_endl;
-
-        start = timer::get_usec();
-        #pragma omp parallel for num_threads(global_num_engines)
-        for (int t = 0; t < global_num_engines; t++) {
-            insert_attr(triple_sav[t], t);
-
-            // release memory
-            vector<triple_attr_t>().swap(triple_sav[t]);
-        }
-        end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                            << "for inserting attributes into gstore" << LOG_endl;
-
-        start = timer::get_usec();
-        insert_index();
-        end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                            << "for inserting index data into gstore" << LOG_endl;
-    }
 
     void refresh() {
         #pragma omp parallel for num_threads(global_num_engines)
@@ -689,5 +600,99 @@ public:
             }
 #endif // end of VERSATILE
         }
+    }
+
+    /**
+     * Used during loading data dynamically
+     */
+    void create_new_seg(sid_t pid, int num_new_preds) {
+        // step 1: insert 2 segments into map
+        rdf_seg_meta_map.insert(make_pair(segid_t(0, pid, IN), rdf_seg_meta_t()));
+        rdf_seg_meta_map.insert(make_pair(segid_t(0, pid, OUT), rdf_seg_meta_t()));
+        auto &in_seg = rdf_seg_meta_map[segid_t(0, pid, IN)];
+        auto &out_seg = rdf_seg_meta_map[segid_t(0, pid, OUT)];
+
+        // step 2: allocate space for the segments
+        in_seg.bucket_start = main_hdr_off;
+        in_seg.num_buckets = ((num_buckets - main_hdr_off) * global_dyn_res_factor / 100) / (num_new_preds * PREDICATE_NSEGS);
+        main_hdr_off += in_seg.num_buckets;
+        ASSERT(main_hdr_off <= num_buckets);
+        out_seg.bucket_start = main_hdr_off;
+        out_seg.num_buckets = ((num_buckets - main_hdr_off) * global_dyn_res_factor / 100) / (num_new_preds * PREDICATE_NSEGS);
+        main_hdr_off += out_seg.num_buckets;
+        ASSERT(main_hdr_off <= num_buckets);
+
+        // allocate buckets in indirect-header region to segments
+        // #buckets : #extended buckets = 1 : 0.15
+        if (in_seg.num_buckets > 0) {
+            uint64_t nbuckets = EXT_BUCKET_EXTENT_LEN(in_seg.num_buckets);
+            uint64_t start_off = alloc_ext_buckets(nbuckets);
+            in_seg.add_ext_buckets(ext_bucket_extent_t(nbuckets, start_off));
+        }
+        if (out_seg.num_buckets > 0) {
+            uint64_t nbuckets = EXT_BUCKET_EXTENT_LEN(out_seg.num_buckets);
+            uint64_t start_off = alloc_ext_buckets(nbuckets);
+            out_seg.add_ext_buckets(ext_bucket_extent_t(nbuckets, start_off));
+        }
+        // step 2: init metadata
+        num_normal_preds += 1;
+        num_segments += PREDICATE_NSEGS;
+    }
+
+    void init(vector<vector<triple_t>> &triple_pso,
+              vector<vector<triple_t>> &triple_pos,
+              vector<vector<triple_attr_t>> &triple_sav) {
+        num_segments = num_normal_preds * PREDICATE_NSEGS + INDEX_NSEGS + num_attr_preds;
+        uint64_t start, end;
+        start = timer::get_usec();
+        // merge triple_pso and triple_pos into a map
+        init_triples_map(triple_pso, triple_pos, triple_sav);
+        end = timer::get_usec();
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+                            << "for merging triple_pso, triple_pos and triple_sav." << LOG_endl;
+
+        start = timer::get_usec();
+        init_seg_metas(triple_pso, triple_pos, triple_sav);
+        end = timer::get_usec();
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+                            << "for initializing predicate segment statistics." << LOG_endl;
+
+        start = timer::get_usec();
+        logstream(LOG_DEBUG) << "#" << sid << ": all_local_preds: " << all_local_preds.size() << LOG_endl;
+        #pragma omp parallel for num_threads(global_num_engines)
+        for (int i = 0; i < all_local_preds.size(); i++) {
+            int localtid = omp_get_thread_num();
+            sid_t pid = all_local_preds[i];
+            insert_triples(localtid, segid_t(0, pid, OUT));
+            insert_triples(localtid, segid_t(0, pid, IN));
+        }
+
+        vector<sid_t> aids;
+        for (auto iter = attr_set.begin(); iter != attr_set.end(); iter++) {
+            aids.push_back(*iter);
+        }
+        #pragma omp parallel for num_threads(global_num_engines)
+        for (int i = 0; i < aids.size(); i++) {
+            int localtid = omp_get_thread_num();
+            insert_attr(localtid, segid_t(0, aids[i], OUT));
+        }
+        vector<sid_t>().swap(aids);
+
+        edge_allocator->merge_freelists();
+        #pragma omp parallel for num_threads(2)
+        for (int i = 0; i < 2; i++) {
+            if (i == 0)
+                insert_idx(pidx_in_map, tidx_map, IN);
+            else
+                insert_idx(pidx_out_map, tidx_map, OUT);
+        }
+        end = timer::get_usec();
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+                            << "for inserting triples as segments into gstore" << LOG_endl;
+
+        finalize_seg_metas();
+        finalize_init();
+        // synchronize segment metadata among servers
+        sync_metadata();
     }
 };

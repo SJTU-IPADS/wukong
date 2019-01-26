@@ -76,7 +76,7 @@ struct GPUEngineParam {
         sid_t* d_in_rbuf;
         sid_t* d_out_rbuf;
 
-        rdf_segment_meta_t *d_segment_meta;
+        rdf_seg_meta_t *d_segment_meta;
     } gpu;
 
     GPUEngineParam(vertex_t *d_vertices, edge_t *d_edges, uint64_t nkey_blks,
@@ -96,13 +96,13 @@ struct GPUEngineParam {
 
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_vertex_mapping, sizeof(uint64_t) * nkey_blks));
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_edge_mapping, sizeof(uint64_t) * nvalue_blks));
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_segment_meta, sizeof(rdf_segment_meta_t) ));
+        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_segment_meta, sizeof(rdf_seg_meta_t) ));
     }
 
 
     void load_segment_mappings(const std::vector<uint64_t>& vertex_mapping,
                                const std::vector<uint64_t>& edge_mapping,
-                               const rdf_segment_meta_t &seg, cudaStream_t stream = 0) {
+                               const rdf_seg_meta_t &seg, cudaStream_t stream = 0) {
 
         CUDA_ASSERT(cudaMemcpyAsync(gpu.d_vertex_mapping,
                                     &(vertex_mapping[0]),
@@ -117,7 +117,7 @@ struct GPUEngineParam {
                                     stream));
     }
 
-    void load_segment_meta(rdf_segment_meta_t seg_meta, cudaStream_t stream = 0) {
+    void load_segment_meta(rdf_seg_meta_t seg_meta, cudaStream_t stream = 0) {
         CUDA_ASSERT(cudaMemcpyAsync(gpu.d_segment_meta,
                                     &seg_meta,
                                     sizeof(seg_meta),

@@ -1,10 +1,8 @@
 #general
 global_num_proxies              4
 global_num_engines              16
-global_input_folder             /home/datanfs/nfs0/rdfdata/id_lubm_40/
 global_data_port_base           5500
 global_ctrl_port_base           9576
-global_memstore_size_gb         20
 global_mt_threshold             8
 global_enable_workstealing      0
 global_stealing_pattern         0
@@ -12,6 +10,12 @@ global_enable_planner           1
 global_generate_statistics      1
 global_enable_vattr             0
 global_silent                   1
+
+# kvstore
+global_input_folder             /home/datanfs/nfs0/rdfdata/id_lubm_40/
+global_memstore_size_gb         40
+# global_est_load_factor is used to calculate how many buckets one segment should be allocated.
+global_est_load_factor          55
 
 # RDMA
 global_rdma_buf_size_mb         128

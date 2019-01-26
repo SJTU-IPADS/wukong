@@ -43,12 +43,7 @@
 
 // loader
 #include "loader_interface.hpp"
-
-#ifdef USE_GPU
-#include "store/static_gstore.hpp"
-#else
 #include "store/gstore.hpp"
-#endif
 
 // utils
 #include "timer.hpp"
@@ -376,21 +371,6 @@ protected:
         }
     }
 
-#ifdef USE_GPU
-    int count_predicates(const string &file_str_index) {
-        string line, predicate;
-        int pid, count = 0;
-        ifstream ifs(file_str_index.c_str());
-
-        getline(ifs, line); // skip the "__PREDICATE__"
-        while (ifs >> predicate >> pid)
-            count++;
-
-        ifs.close();
-        return count;
-    }
-#endif  // USE_GPU
-
 public:
     BaseLoader(int sid, Mem *mem, String_Server *str_server, GStore *gstore)
         : sid(sid), mem(mem), str_server(str_server), gstore(gstore) { }
@@ -420,21 +400,31 @@ public:
                                 << ") at server " << sid << LOG_endl;
         }
 
-#ifdef USE_GPU
-        sid_t num_preds = count_predicates(src + "str_index");
-        static_cast<StaticGStore *>(gstore)->set_num_predicates(num_preds);
-#endif  // end of USE_GPU
+        auto count_preds = [](const string str_idx_file) {
+            string pred;
+            int pid, count = 0;
+            ifstream ifs(str_idx_file.c_str());
+            while (ifs >> pred >> pid) {
+                count++;
+            }
+            ifs.close();
+            return count;
+        };
 
-        // load_data: load partial input files by each server and exchanges triples
+        gstore->num_normal_preds = count_preds(src + "str_index") - 1; // skip PREDICATE_ID
+        if (global_enable_vattr)
+            gstore->num_attr_preds = count_preds(src + "str_attr_index");
+
+        // read_partial_exchange: load partial input files by each server and exchanges triples
         //            according to graph partitioning
-        // load_data_from_allfiles: load all files by each server and select triples
+        // read_all_files: load all files by each server and select triples
         //                          according to graph partitioning
         //
-        // Trade-off: load_data_from_allfiles avoids network traffic and memory,
+        // Trade-off: read_all_files avoids network traffic and memory,
         //            but it requires more I/O from distributed FS.
         //
-        // Wukong adopts load_data_from_allfiles for slow network (w/o RDMA) and
-        //        adopts load_data for fast network (w/ RDMA).
+        // Wukong adopts read_all_files for slow network (w/o RDMA) and
+        //        adopts read_partial_exchange for fast network (w/ RDMA).
         start = timer::get_usec();
         int num_partitons = 0;
         if (global_use_rdma)

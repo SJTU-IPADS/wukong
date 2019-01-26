@@ -37,7 +37,6 @@ string global_input_folder;
 int global_data_port_base = 5500;
 int global_ctrl_port_base = 9576;
 
-int global_memstore_size_gb = 20;
 int global_rdma_buf_size_mb = 64;
 int global_rdma_rbf_size_mb = 16;
 
@@ -57,6 +56,16 @@ bool global_generate_statistics = true;
 
 bool global_enable_vattr = false;  // for attr
 
+// kvstore
+int global_memstore_size_gb = 20;
+/**
+ * global estimate load factor
+ * when allocating buckets to segments during initialization,
+ * #keys / #slots = global_est_load_factor / 100, so
+ * #buckets = (#keys * 100) / (ASSOCIATIVITY * global_est_load_factor)
+ */
+int global_est_load_factor = 55;
+
 // GPU support
 int global_num_gpus = 1;
 int global_gpu_kvcache_size_gb = 10;    // key-value cache
@@ -65,4 +74,3 @@ int global_gpu_rdma_buf_size_mb = 64;   // RDMA buffer
 int global_gpu_key_blk_size_mb = 16;
 int global_gpu_value_blk_size_mb = 4;
 bool global_gpu_enable_pipeline = true;
-

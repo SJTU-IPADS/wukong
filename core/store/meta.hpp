@@ -22,8 +22,6 @@
 
 #pragma once
 
-#ifdef USE_GPU
-
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/serialization/string.hpp>
@@ -32,6 +30,7 @@
 #include <sstream>
 
 #include "type.hpp"
+#include "vertex.hpp"
 
 using namespace std;
 using namespace boost::archive;
@@ -39,9 +38,12 @@ using namespace boost::archive;
 
 #define EXT_LIST_MAX_LEN 1
 #define EXT_BUCKET_EXTENT_LEN(num_buckets) (num_buckets * 15 / 100 + 1)
-#define PREDICATE_NSEGS 4
-
-
+#define PREDICATE_NSEGS 2
+#ifdef VERSATILE
+#define INDEX_NSEGS 4   // index(2) + vid's all preds(2)
+#else // VERSATILE
+#define INDEX_NSEGS 2   // index(2)
+#endif // VERSATILE
 /**
  * A contiguous space in the indirect-header region
  */
@@ -70,7 +72,7 @@ struct ext_bucket_extent_t {
  * Normal segments are for normal vertices, while index segments for index vertices.
  * And the IN/OUT indicates the direction of triples in the segment.
  */
-struct rdf_segment_meta_t {
+struct rdf_seg_meta_t {
     uint64_t num_keys = 0;      // #keys of the segment
     uint64_t num_buckets = 0;   // allocated main headers (hash space)
     uint64_t bucket_start = 0;  // start offset of main-header region of gstore
@@ -82,7 +84,7 @@ struct rdf_segment_meta_t {
     int num_key_blks = 0;       // #key-blocks needed in gcache
     int num_value_blks = 0;     // #value-blocks needed in gcache
 
-    rdf_segment_meta_t() {
+    rdf_seg_meta_t() {
         memset(&ext_bucket_list, 0, sizeof(ext_bucket_list));
     }
 
@@ -97,6 +99,7 @@ struct rdf_segment_meta_t {
     }
 
     void add_ext_buckets(const ext_bucket_extent_t &ext) {
+        ASSERT_MSG(ext_list_sz < EXT_LIST_MAX_LEN, "ext_bucket_list overflow!");
         ext_bucket_list[ext_list_sz++] = ext;
     }
 
@@ -128,6 +131,17 @@ struct segid_t {
     sid_t pid;  // predicate id
     segid_t(): index(0), pid(0), dir(0) { }
     segid_t(int idx, sid_t p, int d) : index(idx), pid(p), dir(d) { }
+    segid_t(const ikey_t &key) {
+        dir = key.dir;
+        // index
+        if (key.vid == 0) {
+            index = 1;
+            pid = PREDICATE_ID;
+        } else {
+            index = 0;
+            pid = key.pid;
+        }
+    }
 
     bool operator == (const segid_t &s) const {
         return (index == s.index && dir == s.dir && pid == s.pid);
@@ -169,11 +183,11 @@ struct segid_t {
 class SyncSegmentMetaMsg {
 public:
     int sender_sid;
-    map<segid_t, rdf_segment_meta_t> data;
+    map<segid_t, rdf_seg_meta_t> data;
 
     SyncSegmentMetaMsg() { }
 
-    SyncSegmentMetaMsg(map<segid_t, rdf_segment_meta_t> data) {
+    SyncSegmentMetaMsg(map<segid_t, rdf_seg_meta_t> data) {
         this->data = data;
     }
 
@@ -183,5 +197,3 @@ public:
         ar & data;
     }
 };
-
-#endif  // USE_GPU
