@@ -34,6 +34,7 @@
 #include <cstring>
 #include <string>
 
+#include "errors.hpp"
 #include "type.hpp"
 
 // utils
@@ -163,19 +164,17 @@ public:
             delete arg3;
         }
 
-        void print_filter() {
-            // print info
-            logstream(LOG_INFO) << "[filter]" << LOG_endl;
-            logstream(LOG_INFO) << "TYPE: " << this->type << LOG_endl;
+        void print_filter() const{
+            // print info type | value | valueArg
+            logstream(LOG_INFO) << "\t" << this->type << "\t" << valueArg;
             if (this->value != "")
-                logstream(LOG_INFO) << "value: " << this->value << LOG_endl;
-            logstream(LOG_INFO) << "valueArg: " << this->valueArg << LOG_endl;
+                logstream(LOG_INFO) << "\t" << this->value << LOG_endl;
+            else
+                logstream(LOG_INFO) << "\t" << "--" << LOG_endl;
 
             if (arg1 != NULL) arg1->print_filter();
             if (arg2 != NULL) arg2->print_filter();
             if (arg3 != NULL) arg3->print_filter();
-
-            logstream(LOG_INFO) << "[filter end]" << LOG_endl;
         }
     };
 
@@ -208,7 +207,12 @@ public:
             for (auto const &g : optional)
                 g.print_group();
 
-            // FIXME: filter
+            logstream(LOG_INFO) << "filters[" << filters.size() << "]:" << LOG_endl;
+            logstream(LOG_INFO) << "\ttype"
+                                << "\tvalueArg"
+                                << "\tvalue" << LOG_endl;
+            for (auto const &f : filters) 
+                f.print_filter();
         }
 
         // used to calculate dst_sid
@@ -220,7 +224,7 @@ public:
             else if (this->optional.size() > 0)
                 return this->optional[0].get_start();
             else
-                ASSERT(false);
+                ASSERT_ERROR_CODE(false, UNKNOWN_PATTERN);
             return BLANK_ID;
         }
     };
@@ -312,6 +316,7 @@ public:
         int col_num = 0;  // NOTE: use set_col_num() for modification
         int row_num = 0;  // FIXME: vs. get_row_num()
         int attr_col_num = 0; // FIXME: why not no attr_row_num
+        int status_code = 0;
 
         bool blind = false;
         int nvars = 0; // the number of variables
@@ -353,7 +358,7 @@ public:
         // get column id from vid (pattern variable)
         int var2col(ssid_t vid) {
             // number variables from -1 and decrease by 1 for each of rest. (i.e., -1, -2, ...)
-            ASSERT(vid < 0);
+            ASSERT_ERROR_CODE(vid < 0, VERTEX_INVALID);
 
             // the number of variables is known before calling var2col()
             ASSERT(nvars > 0);
@@ -362,7 +367,7 @@ public:
 
             // calculate idx
             int idx = - (vid + 1);
-            ASSERT(idx < nvars && idx >= 0);
+            ASSERT_ERROR_CODE(idx < nvars && idx >= 0, VERTEX_INVALID);
 
             // get col
             return ext2col(v2c_map[idx]);
@@ -443,6 +448,11 @@ public:
 
         int get_attr_col_num() { return attr_col_num; }
 
+        void set_status_code(int code){
+            status_code = code;
+        }
+        int get_status_code() { return status_code; }
+
         int get_attr_row_num() {
             return (attr_col_num == 0) ?
                    0 : (attr_res_table.size() / attr_col_num);
@@ -513,7 +523,7 @@ public:
             }
 
             // update attribute result table
-            ASSERT_MSG(r.attr_col_num == 0, "Unsupport UNION on attribute results");
+            ASSERT_ERROR_CODE(r.attr_col_num == 0, UNSUPPORT_UNION);
         }
 
         void append_result(SPARQLQuery::Result &r) {
@@ -656,8 +666,9 @@ public:
          */
         if (pattern_group.patterns.size() == 0) return false;
         else if (is_tpid(pattern_group.patterns[0].subject)) {
-            ASSERT(pattern_group.patterns[0].predicate == PREDICATE_ID
-                   || pattern_group.patterns[0].predicate == TYPE_ID);
+            // When the subject is index, predicate must be TYPE or PREDICATE
+            ASSERT_ERROR_CODE(pattern_group.patterns[0].predicate == PREDICATE_ID
+                   || pattern_group.patterns[0].predicate == TYPE_ID, OBJ_ERROR);
             return true;
         }
         return false;
@@ -966,6 +977,7 @@ void save(Archive &ar, const SPARQLQuery::Result &t, unsigned int version) {
     ar << t.col_num;
     ar << t.row_num;
     ar << t.attr_col_num;
+    ar << t.status_code;
     ar << t.blind;
     ar << t.nvars;
     ar << t.required_vars;
@@ -989,6 +1001,7 @@ void load(Archive & ar, SPARQLQuery::Result &t, unsigned int version) {
     ar >> t.col_num;
     ar >> t.row_num;
     ar >> t.attr_col_num;
+    ar >> t.status_code;
     ar >> t.blind;
     ar >> t.nvars;
     ar >> t.required_vars;

@@ -34,6 +34,7 @@
 
 #include "global.hpp"
 #include "config.hpp"
+#include "errors.hpp"
 #include "proxy.hpp"
 #include "monitor.hpp"
 
@@ -520,12 +521,13 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         /// do sparql
         SPARQLQuery reply;
         Monitor monitor;
-        int ret = proxy->run_single_query(ifs, fmt_stream, nopts,
-                                          mfactor, snd2gpu, cnt,
-                                          nlines, ofname, reply, monitor);
-        if (ret != 0) {
-            logstream(LOG_ERROR) << "Failed to run the query (ERRNO: " << ret << ")!" << LOG_endl;
-            fail_to_parse(proxy, argc, argv); // invalid cmd
+        try{
+            proxy->run_single_query(ifs, fmt_stream, nopts, mfactor, snd2gpu,
+                                    cnt, nlines, ofname, reply, monitor);
+        }catch (WukongException ex){
+            logstream(LOG_ERROR) << "Failed to run the query (ERRNO " << ex.get_status_code()
+                                 << "): " << ex.msg() << LOG_endl;
+            fail_to_parse(proxy, argc, argv);  // invalid cmd
             return;
         }
         monitor.print_latency(cnt);
@@ -953,32 +955,37 @@ void run_console(Proxy *proxy)
 
         // run commmand on all proxies according to the keyword
         string cmd_type = argv[0];
-        if (cmd_type == "help" || cmd_type == "h") {
-            if (MASTER(proxy))
-                print_help();
-        } else if (cmd_type == "quit" || cmd_type == "q") {
-            if (LEADER(proxy))
-                exit(0); // each server exits once (by the leader proxy)
-        } else if (cmd_type == "config") {
-            run_config(proxy, argc, argv);
-        } else if (cmd_type == "logger") {
-            run_logger(proxy, argc, argv);
-        } else if (cmd_type == "sparql") { // handle SPARQL queries
-            run_sparql(proxy, argc, argv);
-        } else if (cmd_type == "sparql-emu") { // run a SPARQL emulator on each proxy
-            run_sparql_emu(proxy, argc, argv);
-        } else if (cmd_type == "load") {
-            run_load(proxy, argc, argv);
-        } else if (cmd_type == "gsck") {
-            run_gsck(proxy, argc, argv);
-        } else if (cmd_type == "load-stat") {
-            run_load_stat(proxy, argc, argv);
-        } else if (cmd_type == "store-stat") {
-            run_store_stat(proxy, argc, argv);
-        } else {
-            // the same invalid command dispatch to all proxies, print error msg once
-            if (MASTER(proxy))
-                fail_to_parse(proxy, argc, argv);
+        try{
+            if (cmd_type == "help" || cmd_type == "h") {
+                if (MASTER(proxy)) print_help();
+            } else if (cmd_type == "quit" || cmd_type == "q") {
+                if (LEADER(proxy))
+                    exit(0);  // each server exits once (by the leader proxy)
+            } else if (cmd_type == "config") {
+                run_config(proxy, argc, argv);
+            } else if (cmd_type == "logger") {
+                run_logger(proxy, argc, argv);
+            } else if (cmd_type == "sparql") {  // handle SPARQL queries
+                run_sparql(proxy, argc, argv);
+            } else if (cmd_type == "sparql-emu") {  // run a SPARQL emulator on each proxy
+                run_sparql_emu(proxy, argc, argv);
+            } else if (cmd_type == "load") {
+                run_load(proxy, argc, argv);
+            } else if (cmd_type == "gsck") {
+                run_gsck(proxy, argc, argv);
+            } else if (cmd_type == "load-stat") {
+                run_load_stat(proxy, argc, argv);
+            } else if (cmd_type == "store-stat") {
+                run_store_stat(proxy, argc, argv);
+            } else {
+                // the same invalid command dispatch to all proxies, print error
+                // msg once
+                if (MASTER(proxy)) fail_to_parse(proxy, argc, argv);
+            }
+        }catch (WukongException ex){
+            logstream(LOG_ERROR)
+                << "ERRNO " << ex.get_status_code() << ": " << ex.msg() << LOG_endl;
+            fail_to_parse(proxy, argc, argv);
         }
     }
 }

@@ -77,6 +77,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "errors.hpp"
 #include "logger2.hpp"
 
 // failed option control
@@ -90,13 +91,14 @@
  * ------assertion will abort the program
  */
 //#define WUKONG_LOGGER_FAIL_METHOD
-//#define WUKONG_LOGGER_THROW_ON_FAILURE
+#define WUKONG_LOGGER_THROW_ON_FAILURE
 // failed option
 #ifndef WUKONG_LOGGER_FAIL_METHOD
 #ifdef WUKONG_LOGGER_THROW_ON_FAILURE
-#define WUKONG_LOGGER_FAIL_METHOD(str) throw(str)
+#define WUKONG_LOGGER_FAIL_METHOD(status_code) \
+    throw(WukongException(status_code))
 #else
-#define WUKONG_LOGGER_FAIL_METHOD(str) abort()
+#define WUKONG_LOGGER_FAIL_METHOD(status_code) abort()
 #endif
 #endif
 
@@ -111,7 +113,7 @@
       logstream(LOG_ERROR) << "Assertion: " << __FILE__ << "(" << __func__     \
                            << ":" << __LINE__ << ")"                           \
                            << ": \'" << #condition << "\' failed" << LOG_endl; \
-      WUKONG_LOGGER_FAIL_METHOD("assertion failure");                          \
+      WUKONG_LOGGER_FAIL_METHOD(UNKNOWN_ERROR);                                \
     }                                                                          \
   } while (0)
 
@@ -128,7 +130,7 @@
                            << " [ " << val1 << " " << #op << " " << val2    \
                            << " ]\'"                                        \
                            << " failed" << LOG_endl;                        \
-      WUKONG_LOGGER_FAIL_METHOD("assertion failure");                       \
+      WUKONG_LOGGER_FAIL_METHOD(UNKNOWN_ERROR);                             \
     }                                                                       \
   } while (0)
 
@@ -164,6 +166,17 @@
                            << ":" << __LINE__ << ")"                           \
                            << ": \'" << #condition << "\' failed" << LOG_endl; \
       logger(LOG_ERROR, fmt, ##__VA_ARGS__);                                   \
-      WUKONG_LOGGER_FAIL_METHOD("assertion failure");                          \
+      WUKONG_LOGGER_FAIL_METHOD(fmt);                                          \
     }                                                                          \
   } while (0)
+
+#define ASSERT_ERROR_CODE(condition, error_code)                     \
+    do {                                                               \
+        if (__builtin_expect(!(condition), 0)) {                       \
+            logstream(LOG_DEBUG)                                       \
+                << "Assertion: " << __FILE__ << "(" << __func__ << ":" \
+                << __LINE__ << ")"                                     \
+                << ": \'" << #condition << "\' failed" << LOG_endl;    \
+            WUKONG_LOGGER_FAIL_METHOD(error_code);                    \
+        }                                                              \
+    } while (0)

@@ -38,6 +38,7 @@
 #include "comm/adaptor.hpp"
 
 // utils
+#include "errors.hpp"
 #include "math.hpp"
 #include "timer.hpp"
 
@@ -303,10 +304,10 @@ public:
         // Parse the SPARQL query
         start = timer::get_usec();
         if (!parser.parse(is, request)) {
-            logstream(LOG_ERROR) << "Parsing failed! (" << parser.strerror << ")" << LOG_endl;
+            // logstream(LOG_ERROR) << "Parsing failed! (" << parser.strerror << ")" << LOG_endl;
             is.clear();
             is.seekg(0);
-            return -2; // parsing failed
+            ASSERT_ERROR_CODE(false, SYNTAX_ERROR);
         }
         end = timer::get_usec();
         logstream(LOG_INFO) << "Parsing time: " << (end - start) << " usec" << LOG_endl;
@@ -362,14 +363,22 @@ public:
             reply = recv_reply();
         }
         monitor.finish();
-        logstream(LOG_INFO) << "(last) result size: " << reply.result.row_num << LOG_endl;
 
-        // print or dump results
-        if (!global_silent) {
-            if (nlines > 0)
-                print_result(reply, min(nlines, reply.result.row_num));
-            if (ofname != "")
-                dump_result(ofname, reply, reply.result.row_num);
+        // Check result status 
+        if (reply.result.status_code < ERROR_FIRST) {
+            logstream(LOG_INFO) << "(last) result size: " << reply.result.row_num << LOG_endl;
+
+            // print or dump results
+            if (!global_silent) {
+                if (nlines > 0)
+                    print_result(reply, min(nlines, reply.result.row_num));
+                if (ofname != "")
+                    dump_result(ofname, reply, reply.result.row_num);
+            }
+        } else {
+            logstream(LOG_ERROR)
+                << "Query failed [ERROR NO " << reply.result.status_code << "]: "
+                << ERR_MSG(reply.result.status_code) << LOG_endl;
         }
 
         return 0; // success
