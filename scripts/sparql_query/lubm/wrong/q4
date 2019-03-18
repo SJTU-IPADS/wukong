@@ -1,0 +1,9 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
+
+SELECT DISTINCT ?Y1 WHERE {
+	?X  ub:worksFor  <http://www.Department0.University0.edu>  .
+	?X  rdf:type  ub:FullProfessor  .
+	?X  ub:name  ?Y1  .
+	FILTER  regex(?Y1, "FullProfe(ssoR.*", "i")
+}

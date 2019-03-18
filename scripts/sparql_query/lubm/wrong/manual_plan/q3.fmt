@@ -1,0 +1,13 @@
+# query.hpp(start_from_index): 'pattern_group.patterns[0].predicate == PREDICATE_ID || pattern_group.patterns[0].predicate == TYPE_ID' failed
+# object should not be index
+# 
+# PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
+# 
+# SELECT ?X ?Y WHERE {
+#     ?X  ?Y  ub:Course  .
+# }
+# 
+# 
+# command: sparql -f sparql_query/lubm/wrong/q3 -p sparql_query/lubm/wrong/manual_plan/q3.fmt
+#
+1 <

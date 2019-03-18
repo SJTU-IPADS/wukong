@@ -1,0 +1,16 @@
+# sparql.hpp(const_to_unknown:251): 'res.get_col_num() == 0' failed
+# when use default planner: query.hpp(get_start:227): 'false' failed
+# 
+# PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+# PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
+# 
+# SELECT ?X ?D WHERE {
+# 	 ?D  ub:subOrganizationOf  <http://www.University0.edu>  .
+#    ?X  rdf:type  ub:FullProfessor .
+# }
+# 
+# command: sparql -f sparql_query/lubm/wrong/q2 -p sparql_query/lubm/wrong/manual_plan/q2.fmt
+# 
+# 
+1 <
+2 <
