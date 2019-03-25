@@ -80,26 +80,21 @@
 #include "errors.hpp"
 #include "logger2.hpp"
 
-// failed option control
+// failure handling option
 /*
- * if set WUKONG_LOGGER_FAIL_METHOD
- * ---assertion won't abort or throw any message
+ * if set WUKONG_LOGGER_THROW_ON_FAILURE
+ * ---assertion will throw fail message
  * else
- * ---if set WUKONG_LOGGER_THROW_ON_FAILURE
- * ------assertion will throw fail message
- * ---else
- * ------assertion will abort the program
+ * ---assertion will abort the program
  */
 //#define WUKONG_LOGGER_FAIL_METHOD
 #define WUKONG_LOGGER_THROW_ON_FAILURE
-// failed option
-#ifndef WUKONG_LOGGER_FAIL_METHOD
+
 #ifdef WUKONG_LOGGER_THROW_ON_FAILURE
-#define WUKONG_LOGGER_FAIL_METHOD(status_code) \
-    throw(WukongException(status_code))
+  #define WUKONG_LOGGER_FAIL_METHOD(status_code) \
+      throw(WukongException(status_code))
 #else
-#define WUKONG_LOGGER_FAIL_METHOD(status_code) abort()
-#endif
+  #define WUKONG_LOGGER_FAIL_METHOD(status_code) abort()
 #endif
 
 /*

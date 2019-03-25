@@ -378,7 +378,7 @@ public:
         } else {
             logstream(LOG_ERROR)
                 << "Query failed [ERROR NO " << reply.result.status_code << "]: "
-                << ERR_MSG(reply.result.status_code) << LOG_endl;
+                << err_msgs[reply.result.status_code-1] << LOG_endl;
         }
 
         return 0; // success

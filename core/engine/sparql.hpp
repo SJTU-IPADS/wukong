@@ -1628,8 +1628,8 @@ public:
 
         } catch (const char *msg) {
             r.result.set_status_code(UNKNOWN_ERROR);
-        } catch (WukongException ex) {
-            r.result.set_status_code(ex.get_status_code());
+        } catch (WukongException &ex) {
+            r.result.set_status_code(ex.code());
         }
         // 6. Reply
         r.shrink();
