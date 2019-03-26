@@ -525,8 +525,8 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
             proxy->run_single_query(ifs, fmt_stream, nopts, mfactor, snd2gpu,
                                     cnt, nlines, ofname, reply, monitor);
         }catch (WukongException &ex){
-            logstream(LOG_ERROR) << "Failed to run the query (ERRNO " << ex.code()
-                                 << "): " << ex.what() << LOG_endl;
+            logstream(LOG_ERROR) << "Query failed [ERRNO " << ex.code()
+                                 << "]: " << ex.what() << LOG_endl;
             fail_to_parse(proxy, argc, argv);  // invalid cmd
             return;
         }
@@ -955,7 +955,7 @@ void run_console(Proxy *proxy)
 
         // run commmand on all proxies according to the keyword
         string cmd_type = argv[0];
-        try{
+        try {
             if (cmd_type == "help" || cmd_type == "h") {
                 if (MASTER(proxy)) print_help();
             } else if (cmd_type == "quit" || cmd_type == "q") {

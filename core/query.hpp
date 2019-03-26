@@ -316,7 +316,7 @@ public:
         int col_num = 0;  // NOTE: use set_col_num() for modification
         int row_num = 0;  // FIXME: vs. get_row_num()
         int attr_col_num = 0; // FIXME: why not no attr_row_num
-        int status_code = 0;
+        int status_code = SUCCESS;
 
         bool blind = false;
         int nvars = 0; // the number of variables

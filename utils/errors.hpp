@@ -22,11 +22,12 @@
 #pragma once
 #include <exception>
 
-#define ERROR_FIRST 1
+#define ERR_MSG(n) (err_msgs[n])
 
 // error begin with 1, no error can be 0
 enum {
-    UNKNOWN_ERROR = ERROR_FIRST,
+    SUCCESS, 
+    UNKNOWN_ERROR,
     SYNTAX_ERROR,
     UNKNOWN_PATTERN,
     ATTR_DISABLE,
@@ -42,7 +43,8 @@ enum {
 };
 
 // error_messages
-const char *err_msgs[ERROR_LAST-1] = {
+const char *err_msgs[ERROR_LAST] = {
+    "Everythong is ok",
     "Something wrong happened",
     "Something wrong in the query syntax, fail to parse!",
     "Unsupported triple pattern.",
@@ -68,7 +70,7 @@ struct WukongException : public exception {
     WukongException(const char *message)
         : message(message), status_code(UNKNOWN_ERROR) {}
 
-    const char *what() const throw() { return err_msgs[(errno)-1]; }
+    const char *what() const throw() { return ERR_MSG(status_code); }
 
     int code() { return status_code; }
 

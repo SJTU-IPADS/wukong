@@ -365,7 +365,7 @@ public:
         monitor.finish();
 
         // Check result status 
-        if (reply.result.status_code < ERROR_FIRST) {
+        if (reply.result.status_code == SUCCESS) {
             logstream(LOG_INFO) << "(last) result size: " << reply.result.row_num << LOG_endl;
 
             // print or dump results
@@ -377,8 +377,8 @@ public:
             }
         } else {
             logstream(LOG_ERROR)
-                << "Query failed [ERROR NO " << reply.result.status_code << "]: "
-                << err_msgs[reply.result.status_code-1] << LOG_endl;
+                << "Query failed [ERRNO " << reply.result.status_code << "]: "
+                << ERR_MSG(reply.result.status_code) << LOG_endl;
         }
 
         return 0; // success
