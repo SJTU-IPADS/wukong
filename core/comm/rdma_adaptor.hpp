@@ -383,6 +383,17 @@ public:
         pthread_spin_lock(&rmeta->lock);
         if (rbf_full(tid, dst_sid, dst_tid, msg_sz)) { // detect overflow
             pthread_spin_unlock(&rmeta->lock);
+
+            //avoid not enough space (remote ring buffer)
+            //without this, it will always fail, and retry, 
+            //which will cause dead loop
+            uint64_t rbf_sz = mem->ring_size();
+            if( msg_sz > rbf_sz ) {
+                logstream(LOG_ERROR) << "Size of ring buffer is smaller than message, please check your configure" << LOG_endl;
+                ASSERT(false);
+            }
+
+            // enough space (remote ring buffer)
             return false;
         }
         uint64_t off = rmeta->tail;
