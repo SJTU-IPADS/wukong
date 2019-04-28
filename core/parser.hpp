@@ -99,7 +99,7 @@ private:
 
             if (!str_server->exist(str)) {
                 logstream(LOG_ERROR) << "Unknown Literal: " + str << LOG_endl;
-                return DUMMY_ID;
+                throw WukongException(SYNTAX_ERROR);
             }
             return str_server->str2id[str];
         }
@@ -108,7 +108,7 @@ private:
             string str = "<" + e.value + ">"; // IRI
             if (!str_server->exist(str)) {
                 logstream(LOG_ERROR) << "Unknown IRI: " + str << LOG_endl;
-                return DUMMY_ID;
+                throw WukongException(SYNTAX_ERROR);
             }
             return str_server->str2id[str];
         }
@@ -117,10 +117,10 @@ private:
         case SPARQLParser::Element::Predicate:
             return PREDICATE_ID;
         default:
-            return DUMMY_ID;
+            throw WukongException(SYNTAX_ERROR);
         }
 
-        return DUMMY_ID;
+        throw WukongException(SYNTAX_ERROR);
     }
 
     /// SPARQLParser::Filter to SPARQLQuery::Filter
