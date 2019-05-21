@@ -11,6 +11,9 @@ set(ROOT $ENV{WUKONG_ROOT})
 ## Use C++11 features
 add_definitions(-std=c++11)
 
+set(ggtest_DIR "${ROOT}/deps/googletest")
+add_subdirectory(${ROOT}/deps/googletest)
+include_directories({ggtest_DIR}/googletest/include)
 
 ## Set dependencies
 set(CMAKE_CXX_COMPILER ${ROOT}/deps/openmpi-1.6.5-install/bin/mpic++)
@@ -94,3 +97,16 @@ set(WUKONG_LIBS ${WUKONG_LIBS} zmq rt ibverbs tbb hwloc)
 
 ## Build Wukong
 target_link_libraries(wukong ${WUKONG_LIBS} ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a ${BOOST_LIB}/libboost_program_options.a)
+
+file(GLOB TS  "${ROOT}/tests/*.cc")
+add_executable(coretest ${TS} )
+target_link_libraries(coretest gtest gtest_main ${WUKONG_LIBS} ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a ${BOOST_LIB}/libboost_program_options.a)
+
+## tests
+enable_testing()
+
+add_test(NAME test COMMAND coretest)
+add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --verbose
+                  DEPENDS coretest )
+
+
