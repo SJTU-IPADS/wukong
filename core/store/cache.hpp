@@ -25,25 +25,26 @@
 #include "global.hpp"
 #include "store/vertex.hpp"
 // util
-#include "unit.hpp"  //SEC
+#include "unit.hpp"
 #include "atomic.hpp"
 #include "logger2.hpp"
 #include "timer.hpp"
 
 using namespace std;
 
-/* Cache remote vertex(location) of the given key, eleminating one RDMA read.
+/**
+ * Cache remote vertex(location) of the given key, eleminating one RDMA read.
  * This only works when RDMA enabled.
  */
 class RDMA_Cache {
     static const int NUM_BUCKETS = 1 << 20;
-    static const int ASSOCIATIVITY = 8;  // the associativity of items in each bucket
+    static const int ASSOCIATIVITY = 8;  /// associativity of items in a bucket
 
-    // cache line
+    /// cache line
     struct item_t {
         vertex_t v;
-        uint64_t expire_time;  // only work when DYNAMIC_GSTORE=ON
-        uint32_t cnt;  // keep track of visit cnt of v
+        uint64_t expire_time;  /// only work when DYNAMIC_GSTORE = ON
+        uint32_t cnt;          /// track visit cnt of v
 
         /// Each cache line use a version to detect reader-writer conflict.
         /// Version == 0, when an insertion occurs.
@@ -54,39 +55,43 @@ class RDMA_Cache {
         item_t() : expire_time(0), cnt(0), version(1) { }
     };
 
-    // bucket whose items share the same index
+    /// bucket whose items share the same index
     struct bucket_t {
-        item_t items[ASSOCIATIVITY]; // item list
+        item_t items[ASSOCIATIVITY]; /// item list
     };
     bucket_t *hashtable;
 
-    uint64_t lease;  // only work when DYNAMIC_GSTORE=ON
+    uint64_t lease;  /// only work when DYNAMIC_GSTORE=ON
 
 public:
     RDMA_Cache() {
-        // init hashtable
         size_t mem_size = sizeof(bucket_t) * NUM_BUCKETS;
         hashtable = new bucket_t[NUM_BUCKETS];
         logstream(LOG_INFO) << "cache allocate " << mem_size << " memory" << LOG_endl;
         lease = SEC(120);
     }
 
-    /* Lookup a vertex in cache according to the given key.*/
+    /**
+     * Lookup a vertex in cache according to the given key.
+     * @param key the key to be looked up.
+     * @param ret a reference vertex_t, store found vertex.
+     * @return Found or not
+     */
     bool lookup(ikey_t key, vertex_t &ret) {
         if (!global_enable_caching)
             return false;
 
-        int idx = key.hash() % NUM_BUCKETS; // find bucket
+        int idx = key.hash() % NUM_BUCKETS;
         item_t *items = hashtable[idx].items;
         bool found = false;
         uint32_t ver;
 
-        // lookup vertex in item list
+        /// Lookup vertex in item list.
         for (int i = 0; i < ASSOCIATIVITY; i++) {
             if (items[i].v.key == key) {
                 while (true) {
                     ver = items[i].version;
-                    // re-check
+                    /// Re-check key since key may be replaced.
                     if (items[i].v.key == key) {
 #ifdef DYNAMIC_GSTORE
                         if (timer::get_usec() < items[i].expire_time) {
@@ -101,7 +106,7 @@ public:
 #endif
                         asm volatile("" ::: "memory");
 
-                        // check version
+                        /// Check version.
                         if (ver != 0 && items[i].version == ver)
                             return found;
                     } else
@@ -112,7 +117,10 @@ public:
         return false;
     } // end of lookup
 
-    /* Insert a vertex into cache. */
+    /**
+     * Insert a vertex into cache.
+     * @param v the item to be inserted.
+     */
     void insert(vertex_t &v) {
         if (!global_enable_caching)
             return;
@@ -166,12 +174,16 @@ public:
         }
     } // end of insert
 
-    /* Set lease */
+    /** 
+     * Set lease term.
+     * @param _lease the length of lease.
+     */
     void set_lease(uint64_t _lease) { lease = _lease; }
 
     /**
      * Invalidate cache item of the given key.
      * Only work when the corresponding vertex exists.
+     * @param key an ikey_t argument.
      */
     void invalidate(ikey_t key) {
         if (!global_enable_caching)
