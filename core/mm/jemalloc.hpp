@@ -78,7 +78,7 @@ public:
         top_of_heap = ret + size;
         pthread_spin_unlock(&jelock);
         if (*zero) // extent should be zeroed
-            memset(ret, size, 0);
+            memset(ret, 0, size);
 
         if ((uintptr_t)ret % alignment != 0)
             logstream(LOG_ERROR) << "Alignment error." << LOG_endl;
