@@ -43,10 +43,11 @@ using namespace std;
 
 
 class String_Server {
-public:
+private:
     boost::unordered_map<string, sid_t> str2id;
     boost::unordered_map<sid_t, string> id2str;
 
+public:
     // the data type of predicate/attribute: sid=0, integer=1, float=2, double=3
     boost::unordered_map<sid_t, char> pid2type;
 
@@ -75,9 +76,29 @@ public:
                             << (end - start) / 1000 << " ms)" << LOG_endl;
     }
 
-    bool exist(sid_t sid) { return id2str.find(sid) != id2str.end(); }
+    bool exist(sid_t sid) { 
+        return id2str.find(sid) != id2str.end();
+    }
 
-    bool exist(string str) { return str2id.find(str) != str2id.end(); }
+    bool exist(string str) {
+        return str2id.find(str) != str2id.end(); 
+    }
+
+    string get_str(sid_t sid) {
+        return id2str[sid];
+    }
+
+    sid_t get_id(string str) {
+        return str2id[str];
+    }
+
+    void insert_bidirect_mapping(string str, sid_t sid) { 
+        str2id[str] = sid;
+        id2str[sid] = str;
+    }
+
+    void string_server_shrink_to_fit() {
+    }
 
 private:
     /* load ID mapping files from a shared filesystem (e.g., NFS) */
@@ -102,8 +123,8 @@ private:
                 string str;
                 sid_t id;
                 while (file >> str >> id) {
-                    str2id[str] = id;
-                    id2str[id] = str;
+                    // Insert bidirectional mapping of str and id into string server
+                    insert_bidirect_mapping(str, id);
                     if (boost::ends_with(fname, "/str_index"))
                         pid2type[id] = (char)SID_t;
                 }
@@ -127,8 +148,8 @@ private:
                 sid_t id;
                 char type;
                 while (file >> str >> id >> type) {
-                    str2id[str] = id;
-                    id2str[id] = str;
+                    // Insert bidirectional mapping of str and id into string server
+                    insert_bidirect_mapping(str, id);
                     pid2type[id] = (char)type;
 
                     // FIXME: dynamic loading (next_index_id)
@@ -137,6 +158,7 @@ private:
                 file.close();
             }
         }
+        string_server_shrink_to_fit();
     }
 
     /* load ID mapping files from HDFS */
@@ -155,8 +177,8 @@ private:
                 string str;
                 sid_t id;
                 while (file >> str >> id) {
-                    str2id[str] = id;
-                    id2str[id] = str;
+                    // Insert bidirectional mapping of str and id into string server
+                    insert_bidirect_mapping(str, id);
                     if (boost::ends_with(fname, "/str_index"))
                         pid2type[id] = (char)SID_t;
                 }
@@ -180,8 +202,8 @@ private:
                 sid_t id;
                 char type;
                 while (file >> str >> id >> type) {
-                    str2id[str] = id;
-                    id2str[id] = str;
+                    // Insert bidirectional mapping of str and id into string server
+                    insert_bidirect_mapping(str, id);
                     pid2type[id] = (char)type;
 
                     // FIXME: dynamic loading (next_index_id)
@@ -190,5 +212,6 @@ private:
                 file.close();
             }
         }
+        string_server_shrink_to_fit();
     }
 };

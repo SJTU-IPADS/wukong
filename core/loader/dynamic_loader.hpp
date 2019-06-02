@@ -135,7 +135,7 @@ private:
                 sid_t id;
                 while (file >> str >> id) {
                     if (str_server->exist(str)) {
-                        id2id[id] = str_server->str2id[str];
+                        id2id[id] = str_server->get_id(str);
                     } else {
                         if (boost::ends_with(fname, "/str_index")) {
                             id2id[id] = str_server->next_index_id ++;
@@ -144,8 +144,11 @@ private:
                         }
                         else
                             id2id[id] = str_server->next_normal_id ++;
-                        str_server->str2id[str] = id2id[id];
-                        str_server->id2str[id2id[id]] = str;
+
+                        // if the str-id-mapping or id-str-mapping should
+                        // be modified, the string_server will handle the
+                        // str-id-mapping and id-str-mapping update
+                        str_server->insert_bidirect_mapping(str, id2id[id]);
                     }
                 }
                 file.close();
