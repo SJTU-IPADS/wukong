@@ -92,6 +92,11 @@ if(USE_DTYPE_64BIT)
   add_definitions(-DDTYPE_64BIT)
 endif(USE_DTYPE_64BIT)
 
+#### Memory-efficient string server (Use bi-trie instead of boost::unordered_map)
+option (USE_BI_TRIE "use memory-efficient string_server" OFF)
+if(USE_BI_TRIE)
+  add_definitions(-DUSE_BI_TRIE)
+endif(USE_BI_TRIE)
 
 set(WUKONG_LIBS ${WUKONG_LIBS} zmq rt ibverbs tbb hwloc)
 

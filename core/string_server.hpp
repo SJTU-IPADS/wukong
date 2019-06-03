@@ -36,6 +36,10 @@
 #include "hdfs.hpp"
 #include "type.hpp"
 
+#ifdef USE_BI_TRIE
+#include "store/bi_trie.hpp"
+#endif
+
 // utils
 #include "assertion.hpp"
 
@@ -44,8 +48,12 @@ using namespace std;
 
 class String_Server {
 private:
+#ifdef USE_BI_TRIE
+    bi_trie<char, sid_t> str_id_bitrie;
+#else
     boost::unordered_map<string, sid_t> str2id;
     boost::unordered_map<sid_t, string> id2str;
+#endif
 
 public:
     // the data type of predicate/attribute: sid=0, integer=1, float=2, double=3
@@ -77,27 +85,50 @@ public:
     }
 
     bool exist(sid_t sid) { 
+#ifdef USE_BI_TRIE
+        return str_id_bitrie.exist(sid);
+#else
         return id2str.find(sid) != id2str.end();
+#endif
     }
 
     bool exist(string str) {
+#ifdef USE_BI_TRIE
+        return str_id_bitrie.exist(str); 
+#else
         return str2id.find(str) != str2id.end(); 
+#endif
     }
 
     string get_str(sid_t sid) {
+#ifdef USE_BI_TRIE
+        return str_id_bitrie[sid];
+#else
         return id2str[sid];
+#endif
     }
 
     sid_t get_id(string str) {
+#ifdef USE_BI_TRIE
+        return str_id_bitrie[str];
+#else
         return str2id[str];
+#endif
     }
 
     void insert_bidirect_mapping(string str, sid_t sid) { 
+#ifdef USE_BI_TRIE
+        str_id_bitrie.insert_kv(str, sid);
+#else
         str2id[str] = sid;
         id2str[sid] = str;
+#endif
     }
 
     void string_server_shrink_to_fit() {
+#ifdef USE_BI_TRIE
+        str_id_bitrie.storage_resize();
+#endif
     }
 
 private:
