@@ -43,7 +43,7 @@ private:
 
 public:
     Coder(int sid, int tid): sid(sid), tid(tid) {
-        qid = global_num_threads * sid + tid;
+        qid = Global::num_threads * sid + tid;
         seed = qid;
     }
 
@@ -53,16 +53,16 @@ public:
 
     int get_and_inc_qid() {
         int _id = qid;
-        qid += global_num_servers * global_num_threads;
-        if (qid < 0) qid = global_num_threads * sid + tid; // reset
+        qid += Global::num_servers * Global::num_threads;
+        if (qid < 0) qid = Global::num_threads * sid + tid; // reset
         return _id;
     }
 
     int sid_of(int qid) {
-        return (qid % (global_num_servers * global_num_threads)) / global_num_threads;
+        return (qid % (Global::num_servers * Global::num_threads)) / Global::num_threads;
     }
 
     int tid_of(int qid) {
-        return qid % global_num_threads;
+        return qid % Global::num_threads;
     }
 };

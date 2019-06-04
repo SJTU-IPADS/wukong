@@ -37,7 +37,7 @@ public:
     ~Broadcast_Master() { }
 
     bool send(int dst_sid, const string &str) {
-        if (global_use_rdma && rdma->init)
+        if (Global::use_rdma && rdma->init)
             return rdma->send(dst_sid, str);
         else
             return tcp->send(dst_sid, str);
@@ -50,7 +50,7 @@ public:
 
     Bundle recv() {
         std::string str;
-        if (global_use_rdma && rdma->init)
+        if (Global::use_rdma && rdma->init)
             str = rdma->recv();
         else
             str = tcp->recv();
@@ -58,7 +58,7 @@ public:
     }
 
     bool tryrecv(string &str) {
-        if (global_use_rdma && rdma->init)
+        if (Global::use_rdma && rdma->init)
             return rdma->tryrecv(str);
         else
             return tcp->tryrecv(str);
@@ -83,7 +83,7 @@ public:
     ~Broadcast_Slave() { }
 
     bool send(const string &str) {
-        if (global_use_rdma && rdma->init)
+        if (Global::use_rdma && rdma->init)
             return rdma->send(str);
         else
             return tcp->send(str);
@@ -96,7 +96,7 @@ public:
 
     Bundle recv() {
         std::string str;
-        if (global_use_rdma && rdma->init)
+        if (Global::use_rdma && rdma->init)
             str = rdma->recv();
         else
             str = tcp->recv();
@@ -104,7 +104,7 @@ public:
     }
 
     bool tryrecv(string &str) {
-        if (global_use_rdma && rdma->init)
+        if (Global::use_rdma && rdma->init)
             return rdma->tryrecv(str);
         else
             return tcp->tryrecv(str);

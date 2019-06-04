@@ -258,7 +258,7 @@ protected:
 
     // Get edges of given vertex from dst_sid by RDMA read.
     edge_t *rdma_get_edges(int tid, int dst_sid, vertex_t &v) {
-        ASSERT(global_use_rdma);
+        ASSERT(Global::use_rdma);
 
         char *buf = mem->buffer(tid);
         uint64_t r_off = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
@@ -298,12 +298,12 @@ protected:
 
     // Get remote vertex of given key. This func will fail if RDMA is disabled.
     vertex_t get_vertex_remote(int tid, ikey_t key) {
-        int dst_sid = wukong::math::hash_mod(key.vid, global_num_servers);
+        int dst_sid = wukong::math::hash_mod(key.vid, Global::num_servers);
         uint64_t bucket_id = bucket_remote(key, dst_sid);
         vertex_t vert;
 
         // FIXME: wukong doesn't support to directly get remote vertex/edge without RDMA
-        ASSERT(global_use_rdma);
+        ASSERT(Global::use_rdma);
 
         // check cache
         if (rdma_cache.lookup(key, vert))
@@ -373,7 +373,7 @@ protected:
         }
 
         // remote edges
-        int dst_sid = wukong::math::hash_mod(vid, global_num_servers);
+        int dst_sid = wukong::math::hash_mod(vid, Global::num_servers);
         edge_t *edge_ptr = rdma_get_edges(tid, dst_sid, v);
         while (!edge_is_valid(v, edge_ptr)) { // check cache validation
             // invalidate cache and try again
@@ -445,7 +445,7 @@ protected:
                    seg.num_keys, nbuckets, main_hdr_off,
                    ratio, total_ratio_);
         } else {
-            nbuckets = seg.num_keys * (100.0 / (global_est_load_factor * ASSOCIATIVITY));
+            nbuckets = seg.num_keys * (100.0 / (Global::est_load_factor * ASSOCIATIVITY));
         }
         seg.num_buckets = std::max(nbuckets, min_buckets_per_seg);
         logger(LOG_DEBUG, "Seg[%lu|%lu|%lu]: "
@@ -470,8 +470,8 @@ protected:
     void init_triples_map(const vector<vector<triple_t>> &triple_pso,
                           const vector<vector<triple_t>> &triple_pos,
                           const vector<vector<triple_attr_t>> &triple_sav) {
-        #pragma omp parallel for num_threads(global_num_engines)
-        for (int tid = 0; tid < global_num_engines; tid++) {
+        #pragma omp parallel for num_threads(Global::num_engines)
+        for (int tid = 0; tid < Global::num_engines; tid++) {
             const vector<triple_t> &pso_vec = triple_pso[tid];
             const vector<triple_t> &pos_vec = triple_pos[tid];
             const vector<triple_attr_t> &sav_vec = triple_sav[tid];
@@ -514,8 +514,8 @@ protected:
 
     // init metadata for each segment
     void init_seg_metas(vector<vector<triple_t> > &triple_pso,
-                            vector<vector<triple_t> > &triple_pos,
-                            vector<vector<triple_attr_t> > &triple_sav) {
+                        vector<vector<triple_t> > &triple_pos,
+                        vector<vector<triple_attr_t> > &triple_sav) {
         /**
          * count(|pred| means number of local predicates):
          * 1. normal vertices [vid|pid|IN/OUT], key: pid, cnt_t: in&out, #item: |pred|
@@ -543,8 +543,8 @@ protected:
         rdf_seg_meta_map.insert(make_pair(segid_t(1, PREDICATE_ID, IN), rdf_seg_meta_t()));
         rdf_seg_meta_map.insert(make_pair(segid_t(1, PREDICATE_ID, OUT), rdf_seg_meta_t()));
 
-        #pragma omp parallel for num_threads(global_num_engines)
-        for (int tid = 0; tid < global_num_engines; tid++) {
+        #pragma omp parallel for num_threads(Global::num_engines)
+        for (int tid = 0; tid < Global::num_engines; tid++) {
             vector<triple_t> &pso = triple_pso[tid];
             vector<triple_t> &pos = triple_pos[tid];
             vector<triple_attr_t> &sav = triple_sav[tid];
@@ -721,7 +721,7 @@ protected:
         idx_out_seg.num_keys += 1;
 
         logstream(LOG_DEBUG) <<  "s_set: " << pred_out_seg.num_keys << ", o_set: " << pred_in_seg.num_keys
-            << ", v_set: " << v_set.size() << ", p_set: " << p_set.size() << ", t_set: " << t_set.size() << LOG_endl;
+                             << ", v_set: " << v_set.size() << ", p_set: " << p_set.size() << ", t_set: " << t_set.size() << LOG_endl;
 #endif
 
         for (sid_t pid = 1; pid <= get_num_preds(); ++pid) {
@@ -771,9 +771,9 @@ protected:
         alloc_buckets_to_seg(idx_in_seg, segid_t(1, PREDICATE_ID, IN), total_num_keys);
 
         logger(LOG_DEBUG, "index: OUT[#keys: %lu, #buckets: %lu, #edges: %lu], "
-                   "IN[#keys: %lu, #buckets: %lu, #edges: %lu], bucket_off: %lu\n",
-                   idx_out_seg.num_keys, idx_out_seg.num_buckets, idx_out_seg.num_edges,
-                   idx_in_seg.num_keys, idx_in_seg.num_buckets, idx_in_seg.num_edges, main_hdr_off);
+               "IN[#keys: %lu, #buckets: %lu, #edges: %lu], bucket_off: %lu\n",
+               idx_out_seg.num_keys, idx_out_seg.num_buckets, idx_out_seg.num_edges,
+               idx_in_seg.num_keys, idx_in_seg.num_buckets, idx_in_seg.num_edges, main_hdr_off);
     }
 
     // insert key to a slot
@@ -895,7 +895,7 @@ done:
         oa << msg;
 
         // send pred_metas to other servers
-        for (int i = 0; i < global_num_servers; ++i) {
+        for (int i = 0; i < Global::num_servers; ++i) {
             if (i == sid)
                 continue;
             tcp_ad->send(i, 0, ss.str());
@@ -905,8 +905,8 @@ done:
 
     void recv_seg_meta(TCP_Adaptor *tcp_ad) {
         std::string str;
-        // receive global_num_servers - 1 messages
-        for (int i = 0; i < global_num_servers; ++i) {
+        // receive Global::num_servers - 1 messages
+        for (int i = 0; i < Global::num_servers; ++i) {
             if (i == sid)
                 continue;
             std::stringstream ss;
@@ -928,8 +928,8 @@ done:
 
     // re-adjust attributes of segments
     void finalize_seg_metas() {
-        uint64_t nbuckets_per_blk = MiB2B(global_gpu_key_blk_size_mb) / (sizeof(vertex_t) * ASSOCIATIVITY);
-        uint64_t nentries_per_blk = MiB2B(global_gpu_value_blk_size_mb) / sizeof(edge_t);
+        uint64_t nbuckets_per_blk = MiB2B(Global::gpu_key_blk_size_mb) / (sizeof(vertex_t) * ASSOCIATIVITY);
+        uint64_t nentries_per_blk = MiB2B(Global::gpu_value_blk_size_mb) / sizeof(edge_t);
 
         // set the number of cache blocks needed by each segment
         for (auto &e : rdf_seg_meta_map) {
@@ -1030,7 +1030,7 @@ public:
             return get_edges_local(tid, 0, pid, d, sz);
 
         // normal vertex
-        if (wukong::math::hash_mod(vid, global_num_servers) == sid)
+        if (wukong::math::hash_mod(vid, Global::num_servers) == sid)
             return get_edges_local(tid, vid, pid, d, sz, type);
         else
             return get_edges_remote(tid, vid, pid, d, sz, type);

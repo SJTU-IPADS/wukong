@@ -46,27 +46,27 @@ int main(int argc, char *argv[]) {
     vector<RDMA::MemoryRegion> mrs;
 
     // CPU (host) memory
-    Mem *mem = new Mem(global_num_servers, global_num_threads);
+    Mem *mem = new Mem(Global::num_servers, Global::num_threads);
     logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(mem->size()) << "GB memory" << LOG_endl;
     RDMA::MemoryRegion mr_cpu = { RDMA::MemType::CPU, mem->address(), mem->size(), mem };
     mrs.push_back(mr_cpu);
 
     // GPU (device) memory
     int devid = 0; // FIXME: it means one GPU device?
-    GPUMem *gpu_mem = new GPUMem(devid, global_num_servers, global_num_gpus);
+    GPUMem *gpu_mem = new GPUMem(devid, Global::num_servers, Global::num_gpus);
     logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(gpu_mem->size()) << "GB GPU memory" << LOG_endl;
     RDMA::MemoryRegion mr_gpu = { RDMA::MemType::GPU, gpu_mem->address(), gpu_mem->size(), gpu_mem };
     mrs.push_back(mr_gpu);
 
     // init RDMA devices and connections
-    RDMA_init(global_num_servers, global_num_threads, sid, mrs, host_fname);
+    RDMA_init(Global::num_servers, Global::num_threads, sid, mrs, host_fname);
 
     // init communication
-    RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mrs, global_num_servers, global_num_threads);
+    RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mrs, Global::num_servers, Global::num_threads);
 
     // create proxies and engines
     vector<Adaptor *> adaptors;
-    for (int tid = 0; tid < global_num_threads; tid++) {
+    for (int tid = 0; tid < Global::num_threads; tid++) {
         Adaptor *adaptor = new Adaptor(tid, nullptr, rdma_adaptor);
         adaptors.push_back(adaptor);
     }

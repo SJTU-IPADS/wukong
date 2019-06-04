@@ -76,13 +76,13 @@ private:
     }
 
     int next_to_oblige(int own_id, int offset) {
-        if (global_stealing_pattern == 0) { // pair stealing
+        if (Global::stealing_pattern == 0) { // pair stealing
             if (offset == 1)
-                return ((global_num_engines - 1) - own_id);
+                return ((Global::num_engines - 1) - own_id);
             else
                 return -1;
-        } else if (global_stealing_pattern == 1) { // ring stealing
-            return ((own_id + offset) % global_num_engines);
+        } else if (Global::stealing_pattern == 1) { // ring stealing
+            return ((own_id + offset) % Global::num_engines);
         }
         return -1;
     }
@@ -120,7 +120,7 @@ public:
     void run() {
         // NOTE: the 'tid' of engine is not start from 0,
         // which can not be used by engines[] directly
-        int own_id = tid - global_num_proxies;
+        int own_id = tid - Global::num_proxies;
 
         uint64_t snooze_interval = MIN_SNOOZE_TIME;
 
@@ -183,7 +183,7 @@ public:
             //        If we could steal jobs from adaptor, it will significantly improve the effect
             //        Howeverm, we could not know the type of jobs in advance, and our work-obliger
             //        mechanism only works well with SPARQL queries.
-            if (global_enable_workstealing) {
+            if (Global::enable_workstealing) {
                 bool success;
                 int offset = 1;
                 int next_engine;

@@ -38,7 +38,6 @@
 #include "unit.hpp"
 
 struct GPUMem;
-extern int global_gpu_rbuf_size_mb;
 
 struct GPUEngineParam {
     struct {
@@ -86,13 +85,13 @@ struct GPUEngineParam {
         gpu.vertex_blk_sz = nbuckets;
         gpu.edge_blk_sz = nentries;
 
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_key_list, MiB2B(global_gpu_rbuf_size_mb) ));
+        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_key_list, MiB2B(Global::gpu_rbuf_size_mb) ));
 
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_slot_id_list, MiB2B(global_gpu_rbuf_size_mb) ));
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_prefix_sum_list, MiB2B(global_gpu_rbuf_size_mb) ));
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_edge_size_list, MiB2B(global_gpu_rbuf_size_mb) ));
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_offset_list, MiB2B(global_gpu_rbuf_size_mb) ));
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_edge_off_list, MiB2B(global_gpu_rbuf_size_mb) ));
+        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_slot_id_list, MiB2B(Global::gpu_rbuf_size_mb) ));
+        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_prefix_sum_list, MiB2B(Global::gpu_rbuf_size_mb) ));
+        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_edge_size_list, MiB2B(Global::gpu_rbuf_size_mb) ));
+        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_offset_list, MiB2B(Global::gpu_rbuf_size_mb) ));
+        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_edge_off_list, MiB2B(Global::gpu_rbuf_size_mb) ));
 
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_vertex_mapping, sizeof(uint64_t) * nkey_blks));
         CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_edge_mapping, sizeof(uint64_t) * nvalue_blks));

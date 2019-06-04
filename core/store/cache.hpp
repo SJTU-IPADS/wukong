@@ -78,7 +78,7 @@ public:
      * @return Found or not
      */
     bool lookup(ikey_t key, vertex_t &ret) {
-        if (!global_enable_caching)
+        if (!Global::enable_caching)
             return false;
 
         int idx = key.hash() % NUM_BUCKETS;
@@ -122,7 +122,7 @@ public:
      * @param v the item to be inserted.
      */
     void insert(vertex_t &v) {
-        if (!global_enable_caching)
+        if (!Global::enable_caching)
             return;
 
         int idx = v.key.hash() % NUM_BUCKETS;
@@ -174,7 +174,7 @@ public:
         }
     } // end of insert
 
-    /** 
+    /**
      * Set lease term.
      * @param _lease the length of lease.
      */
@@ -186,7 +186,7 @@ public:
      * @param key an ikey_t argument.
      */
     void invalidate(ikey_t key) {
-        if (!global_enable_caching)
+        if (!Global::enable_caching)
             return;
 
         int idx = key.hash() % NUM_BUCKETS;

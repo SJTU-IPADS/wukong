@@ -83,7 +83,7 @@ static void console_barrier(int tid)
     __sync_fetch_and_add(&_curr, 1);
     while (_curr < _next)
         usleep(1); // wait
-    _next += global_num_proxies; // next barrier
+    _next += Global::num_proxies; // next barrier
 }
 
 // the master proxy is the 1st proxy of the 1st server (i.e., sid == 0 and tid == 0)
@@ -320,7 +320,7 @@ static void run_config(Proxy *proxy, int argc, char **argv)
         }
 
         // send <str> to all consoles
-        for (int i = 1; i < global_num_servers; i++)
+        for (int i = 1; i < Global::num_servers; i++)
             console_send<string>(i, 0, str);
     } else {
         // recieve <str>
@@ -381,7 +381,7 @@ static void run_logger(Proxy *proxy, int argc, char **argv)
             level = logger_vm["-s"].as<int>();
 
             // send <str> to all consoles
-            for (int i = 1; i < global_num_servers; i++)
+            for (int i = 1; i < Global::num_servers; i++)
                 console_send<int>(i, proxy->tid, level);
         } else {
             // recieve <str>
@@ -464,8 +464,8 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         int cnt = sparql_vm["-n"].as<int>();     // the number of executions
 
         // option: -p <fname>, -N <num>
-        if (!(sparql_vm.count("-p") ^ global_enable_planner)) {
-            if (global_enable_planner) {
+        if (!(sparql_vm.count("-p") ^ Global::enable_planner)) {
+            if (Global::enable_planner) {
                 logstream(LOG_WARNING) << "Optimizer is enabled, "
                                        << "your plan file (-p) will be ignored." << LOG_endl;
             } else {
@@ -477,7 +477,7 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         }
 
         ifstream fmt_stream;
-        if (global_enable_planner) {
+        if (Global::enable_planner) {
             fmt_stream.setstate(std::ios::failbit);
         } else {
             string fmt_fname = sparql_vm["-p"].as<string>();
@@ -499,7 +499,7 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         if (sparql_vm.count("-o"))
             ofname = sparql_vm["-o"].as<string>();
 
-        if (global_silent) { // not retrieve the query results
+        if (Global::silent) { // not retrieve the query results
             if (nlines > 0 || sparql_vm.count("-o")) {
                 logstream(LOG_ERROR) << "Can't print/output results (-v/-o) with global_silent."
                                      << LOG_endl;
@@ -521,10 +521,10 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
         /// do sparql
         SPARQLQuery reply;
         Monitor monitor;
-        try{
+        try {
             proxy->run_single_query(ifs, fmt_stream, nopts, mfactor, snd2gpu,
                                     cnt, nlines, ofname, reply, monitor);
-        }catch (WukongException &ex){
+        } catch (WukongException &ex) {
             logstream(LOG_ERROR) << "Query failed [ERRNO " << ex.code()
                                  << "]: " << ex.what() << LOG_endl;
             fail_to_parse(proxy, argc, argv);  // invalid cmd
@@ -606,8 +606,8 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
     }
 
     // option: -p <fname>
-    if (!(sparql_emu_vm.count("-p") ^ global_enable_planner)) {
-        if (global_enable_planner) {
+    if (!(sparql_emu_vm.count("-p") ^ Global::enable_planner)) {
+        if (Global::enable_planner) {
             logstream(LOG_WARNING) << "Optimizer is enabled, "
                                    << "your config file of plans (-p) will be ignored." << LOG_endl;
         } else {
@@ -619,7 +619,7 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
     }
 
     ifstream fmt_stream;
-    if (global_enable_planner) {
+    if (Global::enable_planner) {
         fmt_stream.setstate(std::ios::failbit);
     } else {
         string fmt_fname = sparql_emu_vm["-p"].as<string>();
@@ -678,7 +678,7 @@ static void run_sparql_emu(Proxy * proxy, int argc, char **argv)
 
     // aggregate and print performance statistics for running emulators on all servers
     if (MASTER(proxy)) {
-        for (int i = 1; i < global_num_servers * global_num_proxies; i++) {
+        for (int i = 1; i < Global::num_servers * Global::num_proxies; i++) {
             Monitor other = console_recv<Monitor>(proxy->tid);
             monitor.merge(other);
         }
@@ -834,7 +834,7 @@ static void run_load_stat(Proxy *proxy, int argc, char **argv)
     string fname;
     if (!load_stat_vm.count("-f")) {
         // if fname is not given, try the dataset name by default
-        fname = global_input_folder + "/statfile";
+        fname = Global::input_folder + "/statfile";
     } else {
         fname = load_stat_vm["-f"].as<string>();
     }
@@ -875,7 +875,7 @@ static void run_store_stat(Proxy *proxy, int argc, char **argv)
     string fname;
     if (!store_stat_vm.count("-f")) {
         vector<string> strs;
-        boost::split(strs, global_input_folder, boost::is_any_of("/"));
+        boost::split(strs, Global::input_folder, boost::is_any_of("/"));
         // if fname is not given, use the dataset name by default
         fname = strs[strs.size() - 2] + ".statfile";
     } else {
@@ -937,8 +937,8 @@ void run_console(Proxy *proxy)
 
 
             // send <cmd> to all proxies
-            for (int i = 0; i < global_num_servers; i++) {
-                for (int j = 0; j < global_num_proxies; j++) {
+            for (int i = 0; i < Global::num_servers; i++) {
+                for (int j = 0; j < Global::num_proxies; j++) {
                     if (i == 0 && j == 0) continue ;
                     console_send<string>(i, j, cmd);
                 }
@@ -982,9 +982,9 @@ void run_console(Proxy *proxy)
                 // msg once
                 if (MASTER(proxy)) fail_to_parse(proxy, argc, argv);
             }
-        }catch (WukongException &ex){
+        } catch (WukongException &ex) {
             logstream(LOG_ERROR)
-                << "ERRNO " << ex.code() << ": " << ex.what() << LOG_endl;
+                    << "ERRNO " << ex.code() << ": " << ex.what() << LOG_endl;
             fail_to_parse(proxy, argc, argv);
         }
     }

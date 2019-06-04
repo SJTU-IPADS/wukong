@@ -74,13 +74,14 @@ private:
     uint64_t s_rrbf_hd_off;
 
 public:
-    Broadcast_Mem (int num_servers, int start_tid) : num_servers(num_servers), start_tid(start_tid) {
-        if (RDMA::get_rdma().has_rdma()) {
+    Broadcast_Mem (int num_servers, int start_tid)
+        : num_servers(num_servers), start_tid(start_tid) {
+        if (RDMA::get_rdma().has_rdma())
             // only used by RDMA device
-            buf_sz = rbf_sz = MiB2B(global_rdma_rbf_size_mb);
-        } else {
+            buf_sz = rbf_sz = MiB2B(Global::rdma_rbf_size_mb);
+        else
             buf_sz = rbf_sz = 0;
-        }
+
         lrbf_hd_sz = rrbf_hd_sz = sizeof(uint64_t);
 
         num_threads = 2;
@@ -196,12 +197,12 @@ public:
         : num_servers(num_servers), num_threads(num_threads), bc_mems(bc_ms) {
 
         // calculate memory usage
-        kvs_sz = GiB2B(global_memstore_size_gb);
+        kvs_sz = GiB2B(Global::memstore_size_gb);
 
         // only used by RDMA device (NOTE: global variable should be set to 0 if no RDMA)
         if (RDMA::get_rdma().has_rdma()) {
-            buf_sz = MiB2B(global_rdma_buf_size_mb);
-            rbf_sz = MiB2B(global_rdma_rbf_size_mb);
+            buf_sz = MiB2B(Global::rdma_buf_size_mb);
+            rbf_sz = MiB2B(Global::rdma_rbf_size_mb);
         } else {
             buf_sz = rbf_sz = 0;
         }

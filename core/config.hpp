@@ -42,67 +42,67 @@ using namespace std;
 static bool set_immutable_config(string cfg_name, string value)
 {
     if (cfg_name == "global_num_proxies") {
-        global_num_proxies = atoi(value.c_str());
-        ASSERT(global_num_proxies > 0);
+        Global::num_proxies = atoi(value.c_str());
+        ASSERT(Global::num_proxies > 0);
     } else if (cfg_name == "global_num_engines") {
-        global_num_engines = atoi(value.c_str());
-        ASSERT(global_num_engines > 0);
+        Global::num_engines = atoi(value.c_str());
+        ASSERT(Global::num_engines > 0);
     } else if (cfg_name == "global_input_folder") {
-        global_input_folder = value;
+        Global::input_folder = value;
 
-        // make sure to check that the global_input_folder is non-empty.
-        if (global_input_folder.length() == 0) {
+        // make sure to check that the Global::input_folder is non-empty.
+        if (Global::input_folder.length() == 0) {
             logstream(LOG_ERROR) << "the directory path of RDF data can not be empty!"
                                  << "You should set \"global_input_folder\" in config file." << LOG_endl;
             exit(-1);
         }
 
-        // force a "/" at the end of global_input_folder.
-        if (global_input_folder[global_input_folder.length() - 1] != '/')
-            global_input_folder = global_input_folder + "/";
+        // force a "/" at the end of Global::input_folder.
+        if (Global::input_folder[Global::input_folder.length() - 1] != '/')
+            Global::input_folder = Global::input_folder + "/";
     } else if (cfg_name == "global_data_port_base") {
-        global_data_port_base = atoi(value.c_str());
-        ASSERT(global_data_port_base > 0);
+        Global::data_port_base = atoi(value.c_str());
+        ASSERT(Global::data_port_base > 0);
     } else if (cfg_name == "global_ctrl_port_base") {
-        global_ctrl_port_base = atoi(value.c_str());
-        ASSERT(global_ctrl_port_base > 0);
+        Global::ctrl_port_base = atoi(value.c_str());
+        ASSERT(Global::ctrl_port_base > 0);
     } else if (cfg_name == "global_memstore_size_gb") {
-        global_memstore_size_gb = atoi(value.c_str());
-        ASSERT(global_memstore_size_gb > 0);
+        Global::memstore_size_gb = atoi(value.c_str());
+        ASSERT(Global::memstore_size_gb > 0);
     } else if (cfg_name == "global_est_load_factor") {
-        global_est_load_factor = atoi(value.c_str());
-        ASSERT(global_est_load_factor > 0 && global_est_load_factor < 100);
+        Global::est_load_factor = atoi(value.c_str());
+        ASSERT(Global::est_load_factor > 0 && Global::est_load_factor < 100);
     } else if (cfg_name == "global_rdma_buf_size_mb") {
         if (RDMA::get_rdma().has_rdma())
-            global_rdma_buf_size_mb = atoi(value.c_str());
+            Global::rdma_buf_size_mb = atoi(value.c_str());
         else
-            global_rdma_buf_size_mb = 0;
-        ASSERT(global_rdma_buf_size_mb >= 0);
+            Global::rdma_buf_size_mb = 0;
+        ASSERT(Global::rdma_buf_size_mb >= 0);
     } else if (cfg_name == "global_rdma_rbf_size_mb") {
         if (RDMA::get_rdma().has_rdma())
-            global_rdma_rbf_size_mb = atoi(value.c_str());
+            Global::rdma_rbf_size_mb = atoi(value.c_str());
         else
-            global_rdma_buf_size_mb = 0;
-        ASSERT(global_rdma_rbf_size_mb >= 0);
+            Global::rdma_rbf_size_mb = 0;
+        ASSERT(Global::rdma_rbf_size_mb >= 0);
     } else if (cfg_name == "global_generate_statistics") {
-        global_generate_statistics = atoi(value.c_str());
+        Global::generate_statistics = atoi(value.c_str());
 #ifdef USE_GPU
     } else if (cfg_name == "global_num_gpus") {
-        global_num_gpus = atoi(value.c_str());
+        Global::num_gpus = atoi(value.c_str());
     } else if (cfg_name == "global_gpu_rdma_buf_size_mb") {
         if (RDMA::get_rdma().has_rdma())
-            global_gpu_rdma_buf_size_mb = atoi(value.c_str());
+            Global::gpu_rdma_buf_size_mb = atoi(value.c_str());
         else
-            global_gpu_rdma_buf_size_mb = 0;
-        ASSERT(global_gpu_rdma_buf_size_mb >= 0);
+            Global::gpu_rdma_buf_size_mb = 0;
+        ASSERT(Global::gpu_rdma_buf_size_mb >= 0);
     } else if (cfg_name == "global_gpu_rbuf_size_mb") {
-        global_gpu_rbuf_size_mb = atoi(value.c_str());
+        Global::gpu_rbuf_size_mb = atoi(value.c_str());
     } else if (cfg_name == "global_gpu_kvcache_size_gb") {
-        global_gpu_kvcache_size_gb = atoi(value.c_str());
+        Global::gpu_kvcache_size_gb = atoi(value.c_str());
     } else if (cfg_name == "global_gpu_key_blk_size_mb") {
-        global_gpu_key_blk_size_mb = atoi(value.c_str());
+        Global::gpu_key_blk_size_mb = atoi(value.c_str());
     } else if (cfg_name == "global_gpu_value_blk_size_mb") {
-        global_gpu_value_blk_size_mb = atoi(value.c_str());
+        Global::gpu_value_blk_size_mb = atoi(value.c_str());
 #endif // USE_GPU
     } else {
         return false;
@@ -118,31 +118,31 @@ static bool set_mutable_config(string cfg_name, string value)
             if (!RDMA::get_rdma().has_rdma()) {
                 logstream(LOG_ERROR) << "can't enable RDMA due to building Wukong w/o RDMA support!\n"
                                      << "HINT: please disable global_use_rdma in config file." << LOG_endl;
-                global_use_rdma = false; // disable RDMA if no RDMA device
+                Global::use_rdma = false; // disable RDMA if no RDMA device
                 return true;
             }
 
-            global_use_rdma = true;
+            Global::use_rdma = true;
         } else {
-            global_use_rdma = false;
+            Global::use_rdma = false;
         }
     } else if (cfg_name == "global_rdma_threshold") {
-        global_rdma_threshold = atoi(value.c_str());
+        Global::rdma_threshold = atoi(value.c_str());
     } else if (cfg_name == "global_mt_threshold") {
-        global_mt_threshold = atoi(value.c_str());
-        ASSERT(global_mt_threshold > 0);
+        Global::mt_threshold = atoi(value.c_str());
+        ASSERT(Global::mt_threshold > 0);
     } else if (cfg_name == "global_enable_caching") {
-        global_enable_caching = atoi(value.c_str());
+        Global::enable_caching = atoi(value.c_str());
     } else if (cfg_name == "global_enable_workstealing") {
-        global_enable_workstealing = atoi(value.c_str());
+        Global::enable_workstealing = atoi(value.c_str());
     } else if (cfg_name == "global_stealing_pattern") {
-        global_stealing_pattern = atoi(value.c_str());
+        Global::stealing_pattern = atoi(value.c_str());
     } else if (cfg_name == "global_silent") {
-        global_silent = atoi(value.c_str());
+        Global::silent = atoi(value.c_str());
     } else if (cfg_name == "global_enable_planner") {
-        global_enable_planner = atoi(value.c_str());
+        Global::enable_planner = atoi(value.c_str());
     } else if (cfg_name == "global_enable_vattr") {
-        global_enable_vattr = atoi(value.c_str());
+        Global::enable_vattr = atoi(value.c_str());
 #ifdef USE_GPU
     } else if (cfg_name == "global_gpu_enable_pipeline") {
         global_gpu_enable_pipeline = atoi(value.c_str());
@@ -196,7 +196,7 @@ void reload_config(string str)
         set_mutable_config(entry.first, entry.second);
 
     // limited the number of engines
-    global_mt_threshold = max(1, min(global_mt_threshold, global_num_engines));
+    Global::mt_threshold = max(1, min(Global::mt_threshold, Global::num_engines));
 
     return;
 }
@@ -204,10 +204,10 @@ void reload_config(string str)
 /**
  * load config
  */
-void load_config(string fname, int num_servers)
+void load_config(string fname, int nsrvs)
 {
-    global_num_servers = num_servers;
-    ASSERT(num_servers > 0);
+    ASSERT(nsrvs > 0);
+    Global::num_servers = nsrvs;
 
     // load config file
     map<string, string> items;
@@ -222,14 +222,14 @@ void load_config(string fname, int num_servers)
     }
 
     // set the total number of threads
-    global_num_threads = global_num_engines + global_num_proxies;
+    Global::num_threads = Global::num_engines + Global::num_proxies;
 #ifdef USE_GPU
     // each GPU card needs one (dedicated) agent thread
-    global_num_threads += global_num_gpus;
+    Global::num_threads += Global::num_gpus;
 #endif // USE_GPU
 
     // limited the number of engines
-    global_mt_threshold = max(1, min(global_mt_threshold, global_num_engines));
+    Global::mt_threshold = max(1, min(Global::mt_threshold, Global::num_engines));
 
     return;
 }
@@ -242,38 +242,38 @@ void print_config(void)
     cout << "------ global configurations ------" << LOG_endl;
 
     // setting by config file
-    cout << "the number of proxies: "        << global_num_proxies           << LOG_endl;
-    cout << "the number of engines: "        << global_num_engines           << LOG_endl;
-    cout << "global_input_folder: "          << global_input_folder          << LOG_endl;
-    cout << "global_memstore_size_gb: "      << global_memstore_size_gb      << LOG_endl;
-    cout << "global_est_load_factor: "       << global_est_load_factor       << LOG_endl;
-    cout << "global_data_port_base: "        << global_data_port_base        << LOG_endl;
-    cout << "global_ctrl_port_base: "        << global_ctrl_port_base        << LOG_endl;
-    cout << "global_rdma_buf_size_mb: "      << global_rdma_buf_size_mb      << LOG_endl;
-    cout << "global_rdma_rbf_size_mb: "      << global_rdma_rbf_size_mb      << LOG_endl;
-    cout << "global_use_rdma: "              << global_use_rdma              << LOG_endl;
-    cout << "global_enable_caching: "        << global_enable_caching        << LOG_endl;
-    cout << "global_enable_workstealing: "   << global_enable_workstealing   << LOG_endl;
-    cout << "global_stealing_pattern: "      << global_stealing_pattern      << LOG_endl;
-    cout << "global_rdma_threshold: "        << global_rdma_threshold        << LOG_endl;
-    cout << "global_mt_threshold: "          << global_mt_threshold          << LOG_endl;
-    cout << "global_silent: "                << global_silent                << LOG_endl;
-    cout << "global_enable_planner: "        << global_enable_planner        << LOG_endl;
-    cout << "global_generate_statistics: "   << global_generate_statistics   << LOG_endl;
-    cout << "global_enable_vattr: "          << global_enable_vattr          << LOG_endl;
+    cout << "the number of proxies: "        << Global::num_proxies           << LOG_endl;
+    cout << "the number of engines: "        << Global::num_engines           << LOG_endl;
+    cout << "global_input_folder: "          << Global::input_folder          << LOG_endl;
+    cout << "global_memstore_size_gb: "      << Global::memstore_size_gb      << LOG_endl;
+    cout << "global_est_load_factor: "       << Global::est_load_factor       << LOG_endl;
+    cout << "global_data_port_base: "        << Global::data_port_base        << LOG_endl;
+    cout << "global_ctrl_port_base: "        << Global::ctrl_port_base        << LOG_endl;
+    cout << "global_rdma_buf_size_mb: "      << Global::rdma_buf_size_mb      << LOG_endl;
+    cout << "global_rdma_rbf_size_mb: "      << Global::rdma_rbf_size_mb      << LOG_endl;
+    cout << "global_use_rdma: "              << Global::use_rdma              << LOG_endl;
+    cout << "global_enable_caching: "        << Global::enable_caching        << LOG_endl;
+    cout << "global_enable_workstealing: "   << Global::enable_workstealing   << LOG_endl;
+    cout << "global_stealing_pattern: "      << Global::stealing_pattern      << LOG_endl;
+    cout << "global_rdma_threshold: "        << Global::rdma_threshold        << LOG_endl;
+    cout << "global_mt_threshold: "          << Global::mt_threshold          << LOG_endl;
+    cout << "global_silent: "                << Global::silent                << LOG_endl;
+    cout << "global_enable_planner: "        << Global::enable_planner        << LOG_endl;
+    cout << "global_generate_statistics: "   << Global::generate_statistics   << LOG_endl;
+    cout << "global_enable_vattr: "          << Global::enable_vattr          << LOG_endl;
 #ifdef USE_GPU
-    cout << "global_num_gpus: "              << global_num_gpus              << LOG_endl;
-    cout << "global_gpu_rdma_buf_size_mb: "  << global_gpu_rdma_buf_size_mb  << LOG_endl;
-    cout << "global_gpu_rbuf_size_mb: "      << global_gpu_rbuf_size_mb      << LOG_endl;
-    cout << "global_gpu_kvcache_size_gb: "   << global_gpu_kvcache_size_gb   << LOG_endl;
-    cout << "global_gpu_key_blk_size_mb: "   << global_gpu_key_blk_size_mb   << LOG_endl;
-    cout << "global_gpu_value_blk_size_mb: " << global_gpu_value_blk_size_mb << LOG_endl;
-    cout << "global_gpu_enable_pipeline: "   << global_gpu_enable_pipeline   << LOG_endl;
+    cout << "global_num_gpus: "              << Global::num_gpus              << LOG_endl;
+    cout << "global_gpu_rdma_buf_size_mb: "  << Global::gpu_rdma_buf_size_mb  << LOG_endl;
+    cout << "global_gpu_rbuf_size_mb: "      << Global::gpu_rbuf_size_mb      << LOG_endl;
+    cout << "global_gpu_kvcache_size_gb: "   << Global::gpu_kvcache_size_gb   << LOG_endl;
+    cout << "global_gpu_key_blk_size_mb: "   << Global::gpu_key_blk_size_mb   << LOG_endl;
+    cout << "global_gpu_value_blk_size_mb: " << Global::gpu_value_blk_size_mb << LOG_endl;
+    cout << "global_gpu_enable_pipeline: "   << Global::gpu_enable_pipeline   << LOG_endl;
 #endif
     cout << "--" << LOG_endl;
 
     // compute from other settings
-    cout << "the number of servers: "        << global_num_servers           << LOG_endl;
-    cout << "the number of threads: "        << global_num_threads           << LOG_endl;
+    cout << "the number of servers: "        << Global::num_servers           << LOG_endl;
+    cout << "the number of threads: "        << Global::num_threads           << LOG_endl;
 
 }

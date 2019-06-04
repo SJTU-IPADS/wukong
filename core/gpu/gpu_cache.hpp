@@ -162,7 +162,7 @@ private:
         } // end of worst case
 
         logstream(LOG_WARNING) << "GPU Cache: evict_key_blocks() cannot provide enough free key blocks."
-                             << LOG_endl;
+                               << LOG_endl;
     } // end of evict_key_blocks
 
     void evict_value_blocks(const vector<segid_t> &conflicts,
@@ -366,8 +366,8 @@ private:
                 }
                 // crash if it is not preload
                 logstream(LOG_WARNING) << "GPU Cache: No enough free key blocks. "
-                                     << "segment_to_load: " << seg_to_load.to_string()
-                                     << ", seg_in_use: " << seg_in_use.to_string() << LOG_endl;
+                                       << "segment_to_load: " << seg_to_load.to_string()
+                                       << ", seg_in_use: " << seg_in_use.to_string() << LOG_endl;
                 ASSERT(false);
             }
             // load one block
@@ -404,8 +404,8 @@ private:
                 }
                 // crash if it is not preload
                 logstream(LOG_WARNING) << "GPU Cache: No enough free value blocks. "
-                                     << "segment_to_load: " << seg_to_load.to_string()
-                                     << ", seg_in_use: " << seg_in_use.to_string() << LOG_endl;
+                                       << "segment_to_load: " << seg_to_load.to_string()
+                                       << ", seg_in_use: " << seg_in_use.to_string() << LOG_endl;
                 ASSERT(false);
             }
             // load one block
@@ -425,12 +425,12 @@ public:
         gmem(gmem), vertex_addr(v_a), edge_addr(e_a), rdf_metas(rdf_metas) {
 
         // step 1: calculate #slots, #buckets, #entries
-        uint64_t num_slots = (GiB2B(global_gpu_kvcache_size_gb) * GStore::HD_RATIO) / (100 * sizeof(vertex_t));
+        uint64_t num_slots = (GiB2B(Global::gpu_kvcache_size_gb) * GStore::HD_RATIO) / (100 * sizeof(vertex_t));
         uint64_t num_buckets = num_slots / GStore::ASSOCIATIVITY;
-        uint64_t num_entries = (GiB2B(global_gpu_kvcache_size_gb) - num_slots * sizeof(vertex_t)) / sizeof(edge_t);
+        uint64_t num_entries = (GiB2B(Global::gpu_kvcache_size_gb) - num_slots * sizeof(vertex_t)) / sizeof(edge_t);
 
-        nbuckets_kblk = MiB2B(global_gpu_key_blk_size_mb) / (sizeof(vertex_t) * GStore::ASSOCIATIVITY);
-        nentries_vblk = MiB2B(global_gpu_value_blk_size_mb) / sizeof(edge_t);
+        nbuckets_kblk = MiB2B(Global::gpu_key_blk_size_mb) / (sizeof(vertex_t) * GStore::ASSOCIATIVITY);
+        nentries_vblk = MiB2B(Global::gpu_value_blk_size_mb) / sizeof(edge_t);
 
         num_key_blks = num_buckets / nbuckets_kblk;
         num_value_blks = num_entries / nentries_vblk;

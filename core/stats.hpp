@@ -199,7 +199,7 @@ private:
                   << global_type2int
                   << global_single2complex;
 
-            for (int i = 1; i < global_num_servers; i++)
+            for (int i = 1; i < Global::num_servers; i++)
                 tcp_ad->send(i, 0, ss.str());
 
         } else {
@@ -452,7 +452,7 @@ public:
             };
 
             // receive from all proxies
-            for (int i = 0; i < global_num_servers; i++) {
+            for (int i = 0; i < Global::num_servers; i++) {
                 std::string str;
                 str = tcp_ad->recv(0);
                 Stats tmp_data;

@@ -50,7 +50,7 @@
 using namespace std;
 
 
-#define QUERY_FROM_PROXY(r) (coder->tid_of((r).pqid) < global_num_proxies)
+#define QUERY_FROM_PROXY(r) (coder->tid_of((r).pqid) < Global::num_proxies)
 
 typedef pair<int64_t, int64_t> int64_pair;
 
@@ -83,7 +83,7 @@ private:
         ssid_t id01 = pattern.predicate;
         dir_t d = pattern.direction;
         ssid_t end = pattern.object;
-        ASSERT_ERROR_CODE((pattern.pred_type == (char)SID_t),UNKNOWN_PATTERN);
+        ASSERT_ERROR_CODE((pattern.pred_type == (char)SID_t), UNKNOWN_PATTERN);
 
         SPARQLQuery::Result &res = req.result;
         int col = res.var2col(end);
@@ -141,7 +141,7 @@ private:
         ssid_t pid = pattern.predicate;
         dir_t d = pattern.direction;
         ssid_t end = pattern.object;
-        ASSERT_ERROR_CODE((pattern.pred_type == (char)SID_t),UNKNOWN_PATTERN);
+        ASSERT_ERROR_CODE((pattern.pred_type == (char)SID_t), UNKNOWN_PATTERN);
 
         SPARQLQuery::Result &res = req.result;
         int col = res.var2col(end);
@@ -243,13 +243,13 @@ private:
         ssid_t end = pattern.object;
 
         char type = pattern.pred_type;
-        ASSERT_ERROR_CODE(((global_enable_vattr) || (type == (char)SID_t)), ATTR_DISABLE);
+        ASSERT_ERROR_CODE(((Global::enable_vattr) || (type == (char)SID_t)), ATTR_DISABLE);
 
         SPARQLQuery::Result &res = req.result;
 
         if (type == SID_t) {
             ASSERT_ERROR_CODE(res.get_col_num() == 0,
-                   FIRST_PATTERN_ERROR);  // MUST be the first triple pattern
+                              FIRST_PATTERN_ERROR);  // MUST be the first triple pattern
 
             uint64_t sz = 0;
             edge_t *vids = graph->get_triples(tid, start, pid, d, sz);
@@ -265,7 +265,7 @@ private:
         } else {
             ASSERT(d == OUT);  // attribute always uses OUT
             ASSERT_ERROR_CODE(res.get_attr_col_num() == 0,
-                   FIRST_PATTERN_ERROR);  // MUST be the first triple pattern
+                              FIRST_PATTERN_ERROR);  // MUST be the first triple pattern
 
             bool has_value;
             attr_t v = graph->get_attr(tid, start, pid, d, has_value);
@@ -300,7 +300,7 @@ private:
         ssid_t end = pattern.object;
 
         char type = pattern.pred_type;
-        ASSERT_ERROR_CODE(((global_enable_vattr) || (type == (char)SID_t)), ATTR_DISABLE);
+        ASSERT_ERROR_CODE(((Global::enable_vattr) || (type == (char)SID_t)), ATTR_DISABLE);
 
         SPARQLQuery::Result &res = req.result;
 
@@ -310,7 +310,7 @@ private:
         // In most time, #attr_res_table table is equal to #result_table
         // reserve size of updated_result_table to #result_table
         updated_result_table.reserve(res.result_table.size());
-        if (global_enable_vattr)
+        if (Global::enable_vattr)
             updated_attr_table.reserve(res.result_table.size());
 
         if (type == SID_t) {
@@ -356,7 +356,7 @@ private:
                     for (uint64_t k = 0; k < sz; k++) {
                         res.append_row_to(i, updated_result_table);
                         // update attribute table to map the result table
-                        if (global_enable_vattr)
+                        if (Global::enable_vattr)
                             res.append_attr_row_to(i, updated_attr_table);
                         updated_result_table.push_back(vids[k].val);
                     }
@@ -368,7 +368,7 @@ private:
 
             // update result and (attributed) result
             res.result_table.swap(updated_result_table);
-            if (global_enable_vattr)
+            if (Global::enable_vattr)
                 res.attr_res_table.swap(updated_attr_table);
 
             // update metadata
@@ -445,14 +445,15 @@ private:
                         break;
                     }
                 }
-                if (res.optional_matched_rows[i] && (!matched)) req.correct_optional_result(i);
+                if (res.optional_matched_rows[i] && (!matched))
+                    req.correct_optional_result(i);
                 res.optional_matched_rows[i] = (matched && res.optional_matched_rows[i]);
             } else {
                 for (uint64_t k = 0; k < sz; k++) {
                     if (vids[k].val == known) {
                         // append a matched intermediate result
                         res.append_row_to(i, updated_result_table);
-                        if (global_enable_vattr)
+                        if (Global::enable_vattr)
                             res.append_attr_row_to(i, updated_attr_table);
                         break;
                     }
@@ -463,7 +464,7 @@ private:
         if (req.pg_type != SPARQLQuery::PGType::OPTIONAL) {
             // update result and metadata
             res.result_table.swap(updated_result_table);
-            if (global_enable_vattr)
+            if (Global::enable_vattr)
                 res.attr_res_table.swap(updated_attr_table);
             res.update_nrows();
         }
@@ -509,7 +510,7 @@ private:
                         exist = true;
                         if (req.pg_type != SPARQLQuery::PGType::OPTIONAL) {
                             res.append_row_to(i, updated_result_table);
-                            if (global_enable_vattr)
+                            if (Global::enable_vattr)
                                 res.append_attr_row_to(i, updated_attr_table);
                         }
                         break;
@@ -523,7 +524,7 @@ private:
                 // the matching result can also be reused
                 if (exist && req.pg_type != SPARQLQuery::PGType::OPTIONAL) {
                     res.append_row_to(i, updated_result_table);
-                    if (global_enable_vattr)
+                    if (Global::enable_vattr)
                         res.append_attr_row_to(i, updated_attr_table);
                 } else if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
                     if (res.optional_matched_rows[i] && (!exist)) req.correct_optional_result(i);
@@ -536,7 +537,7 @@ private:
         if (req.pg_type != SPARQLQuery::PGType::OPTIONAL) {
             // update result and metadata
             res.result_table.swap(updated_result_table);
-            if (global_enable_vattr)
+            if (Global::enable_vattr)
                 res.attr_res_table.swap(updated_attr_table);
             res.update_nrows();
         }
@@ -744,8 +745,8 @@ private:
         ssid_t start = pattern.subject;
 
         // generate sub requests for all servers
-        vector<SPARQLQuery> sub_reqs(global_num_servers);
-        for (int i = 0; i < global_num_servers; i++) {
+        vector<SPARQLQuery> sub_reqs(Global::num_servers);
+        for (int i = 0; i < Global::num_servers; i++) {
             sub_reqs[i].pqid = req.qid;
             sub_reqs[i].pg_type = (req.pg_type == SPARQLQuery::PGType::UNION) ?
                                   SPARQLQuery::PGType::BASIC : req.pg_type;
@@ -768,7 +769,7 @@ private:
         int nrows = req.result.get_row_num();
         for (int i = 0; i < nrows; i++) {
             int dst_sid = wukong::math::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
-                                                 global_num_servers);
+                                                 Global::num_servers);
             req.result.append_row_to(i, sub_reqs[dst_sid].result.result_table);
             req.result.append_attr_row_to(i, sub_reqs[dst_sid].result.attr_res_table);
 
@@ -776,7 +777,7 @@ private:
                 sub_reqs[dst_sid].result.optional_matched_rows.push_back(req.result.optional_matched_rows[i]);
         }
 
-        for (int i = 0; i < global_num_servers; i++)
+        for (int i = 0; i < Global::num_servers; i++)
             sub_reqs[i].result.update_nrows();
 
         return sub_reqs;
@@ -785,16 +786,16 @@ private:
     // fork-join or in-place execution
     bool need_fork_join(SPARQLQuery &req) {
         // always need NOT fork-join when executing on single machine
-        if (global_num_servers == 1) return false;
+        if (Global::num_servers == 1) return false;
 
         // always need fork-join w/o RDMA
-        if (!global_use_rdma) return true;
+        if (!Global::use_rdma) return true;
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ASSERT_ERROR_CODE(req.result.var_stat(pattern.subject) == KNOWN_VAR, OBJ_ERROR);
         ssid_t start = pattern.subject;
         return ((req.local_var != start) // next hop is not local
-                && (req.result.get_row_num() >= global_rdma_threshold)); // FIXME: not consider dedup
+                && (req.result.get_row_num() >= Global::rdma_threshold)); // FIXME: not consider dedup
     }
 
     void do_corun(SPARQLQuery &req) {
@@ -946,7 +947,7 @@ private:
             /// Now unsupported UNKNOWN predicate with vertex attribute enabling.
             /// When doing the query, we judge request of vertex attribute by its predicate.
             /// Therefore we should known the predicate.
-            if (global_enable_vattr) {
+            if (Global::enable_vattr) {
                 logstream(LOG_ERROR) << "Unsupported UNKNOWN predicate with vertex attribute enabling." << LOG_endl;
                 logstream(LOG_ERROR) << "Please turn off the vertex attribute enabling." << LOG_endl;
                 ASSERT_ERROR_CODE(false, SETTING_ERROR);
@@ -1048,7 +1049,7 @@ private:
         if (QUERY_FROM_PROXY(r)
                 && r.pattern_step == 0  // not started
                 && r.start_from_index()  // heavy query (heuristics)
-                && (global_num_servers * r.mt_factor > 1)) {  // multi-resource
+                && (Global::num_servers * r.mt_factor > 1)) {  // multi-resource
             logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "] dispatch "
                                  << "Q(qid=" << r.qid << ", pqid=" << r.pqid
                                  << ", step=" << r.pattern_step << ")" << LOG_endl;
@@ -1057,19 +1058,19 @@ private:
             // Normally, we will NOT let global_mt_threshold == #engines, which will cause HANG
 
             // register rmap for waiting reply
-            rmap.put_parent_request(r, global_num_servers * r.mt_factor);
+            rmap.put_parent_request(r, Global::num_servers * r.mt_factor);
 
             // dispatch (sub)requests
             SPARQLQuery sub_query = r;
-            for (int i = 0; i < global_num_servers; i++) {
+            for (int i = 0; i < Global::num_servers; i++) {
                 for (int j = 0; j < r.mt_factor; j++) {
                     sub_query.pqid = r.qid;
                     sub_query.qid = -1;
                     sub_query.mt_tid = j;
 
                     // start from the next engine thread
-                    int dst_tid = global_num_proxies
-                                  + (tid + j + 1 - global_num_proxies) % global_num_engines;
+                    int dst_tid = Global::num_proxies
+                                  + (tid + j + 1 - Global::num_proxies) % Global::num_engines;
 
                     Bundle bundle(sub_query);
                     msgr->send_msg(bundle, i, dst_tid);
@@ -1313,11 +1314,11 @@ private:
         } else if (filter.type == SPARQLQuery::Filter::Type::Builtin_isliteral) {
             isliteral_filter(filter, result, is_satisfy);
         } else if (filter.type == SPARQLQuery::Filter::Type::Builtin_regex) {
-            try{
+            try {
                 regex_filter(filter, result, is_satisfy);
             } catch (regex_error err) {
                 logstream(LOG_ERROR)
-                    << "Something wrong with filter regex." << LOG_endl;
+                        << "Something wrong with filter regex." << LOG_endl;
                 throw WukongException(UNKNOWN_FILTER);
             }
         } else {
@@ -1555,7 +1556,7 @@ public:
                 if (dispatch(r)) return;  // async waiting reply by rmap
 
                 if (!execute_patterns(r)) return;  // outstanding
-            } 
+            }
 
             // 2. Union
             if (r.has_union() && !r.done(SPARQLQuery::SQState::SQ_UNION)) {
@@ -1567,8 +1568,8 @@ public:
                     SPARQLQuery union_req;
                     union_req.inherit_union(r, i);
                     int dst_sid = wukong::math::hash_mod(
-                        union_req.pattern_group.get_start(),
-                        global_num_servers);
+                                      union_req.pattern_group.get_start(),
+                                      Global::num_servers);
                     if (dst_sid != sid) {
                         Bundle bundle(union_req);
                         msgr->send_msg(bundle, dst_sid, tid);
@@ -1581,7 +1582,7 @@ public:
 
             // 3. Optional
             if (r.has_optional() &&
-                !r.done(SPARQLQuery::SQState::SQ_OPTIONAL)) {
+                    !r.done(SPARQLQuery::SQState::SQ_OPTIONAL)) {
                 r.state = SPARQLQuery::SQState::SQ_OPTIONAL;
                 SPARQLQuery optional_req;
                 optional_req.inherit_optional(r);
@@ -1602,8 +1603,8 @@ public:
                 } else {
                     rmap.put_parent_request(r, 1);
                     int dst_sid = wukong::math::hash_mod(
-                        optional_req.pattern_group.get_start(),
-                        global_num_servers);
+                                      optional_req.pattern_group.get_start(),
+                                      Global::num_servers);
                     if (dst_sid != sid) {
                         Bundle bundle(optional_req);
                         msgr->send_msg(bundle, dst_sid, tid);

@@ -370,7 +370,7 @@ public:
         uint64_t cnt_flag = (total_buckets / 20) + 1;
         uint64_t buckets_count = 0;
 
-        #pragma omp parallel for num_threads(global_num_engines)
+        #pragma omp parallel for num_threads(Global::num_engines)
         for (uint64_t bucket_id = 0; bucket_id < total_buckets; bucket_id++) {
             uint64_t slot_id = bucket_id * GStore::ASSOCIATIVITY;
             for (int i = 0; i < GStore::ASSOCIATIVITY - 1; i++, slot_id++)

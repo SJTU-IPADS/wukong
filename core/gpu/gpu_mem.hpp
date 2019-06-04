@@ -65,13 +65,13 @@ public:
     GPUMem(int devid, int num_servers, int num_agents)
         : devid(devid), num_servers(num_servers), num_agents(num_agents) {
 
-        kvc_sz = GiB2B(global_gpu_kvcache_size_gb);
+        kvc_sz = GiB2B(Global::gpu_kvcache_size_gb);
 
-        rbuf_sz = MiB2B(global_gpu_rbuf_size_mb);
+        rbuf_sz = MiB2B(Global::gpu_rbuf_size_mb);
 
         // only used by RDMA device
         if (RDMA::get_rdma().has_rdma())
-            buf_sz = MiB2B(global_gpu_rdma_buf_size_mb);
+            buf_sz = MiB2B(Global::gpu_rdma_buf_size_mb);
         else
             buf_sz = 0;
 

@@ -220,10 +220,10 @@ private:
     // when need to access neighbors of a remote vertex, we need to fork the query
     bool need_fork_join(SPARQLQuery &req) {
         // always need NOT fork-join when executing on single machine
-        if (global_num_servers == 1) return false;
+        if (Global::num_servers == 1) return false;
 
         // always need fork-join mode w/o RDMA
-        if (!global_use_rdma) return true;
+        if (!Global::use_rdma) return true;
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ASSERT(req.result.var_stat(pattern.subject) == KNOWN_VAR);
@@ -287,7 +287,7 @@ public:
         }
 
         // triple pattern with attribute
-        if (global_enable_vattr && req.get_pattern(req.pattern_step).pred_type != (char)SID_t) {
+        if (Global::enable_vattr && req.get_pattern(req.pattern_step).pred_type != (char)SID_t) {
             ASSERT("GPUEngine doesn't support attribute");
         }
 
@@ -337,14 +337,14 @@ public:
     }
 
     vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req) {
-        ASSERT(global_num_servers > 1);
+        ASSERT(Global::num_servers > 1);
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         sid_t start = pattern.subject;
 
         // generate sub requests for all servers
-        vector<SPARQLQuery> sub_reqs(global_num_servers);
-        for (int i = 0; i < global_num_servers; i++) {
+        vector<SPARQLQuery> sub_reqs(Global::num_servers);
+        for (int i = 0; i < Global::num_servers; i++) {
             sub_reqs[i].pqid = req.qid;
             sub_reqs[i].pg_type = req.pg_type == SPARQLQuery::PGType::UNION ?
                                   SPARQLQuery::PGType::BASIC : req.pg_type;
@@ -367,15 +367,15 @@ public:
 
         ASSERT(req.pg_type != SPARQLQuery::PGType::OPTIONAL);
 
-        std::vector<sid_t*> buf_ptrs(global_num_servers);
-        std::vector<int> buf_sizes(global_num_servers);
+        std::vector<sid_t*> buf_ptrs(Global::num_servers);
+        std::vector<int> buf_sizes(Global::num_servers);
 
-        backend.generate_sub_query(req, start, global_num_servers, buf_ptrs, buf_sizes);
+        backend.generate_sub_query(req, start, Global::num_servers, buf_ptrs, buf_sizes);
 
         logstream(LOG_DEBUG) << "#" << sid << " generate_sub_query for req#" << req.qid << ", parent: " << req.pqid
                              << ", step: " << req.pattern_step << LOG_endl;
 
-        for (int i = 0; i < global_num_servers; ++i) {
+        for (int i = 0; i < Global::num_servers; ++i) {
             SPARQLQuery &r = sub_reqs[i];
             r.result.gpu.set_rbuf((char*)buf_ptrs[i], buf_sizes[i]);
 

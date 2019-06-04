@@ -122,22 +122,22 @@ public:
     void sweep_msgs() { }
 
     bool need_parallel(const SPARQLQuery& r) {
-        return (coder.tid_of((r).pqid) < global_num_proxies
+        return (coder.tid_of((r).pqid) < Global::num_proxies
                 && r.pattern_step == 0
                 && r.start_from_index()
-                && (global_num_servers > 1)
+                && (Global::num_servers > 1)
                 && (r.job_type != SPARQLQuery::SubJobType::SPLIT_JOB));
     }
 
     void send_to_workers(SPARQLQuery& req) {
-        rmap.put_parent_request(req, global_num_servers);
+        rmap.put_parent_request(req, Global::num_servers);
         SPARQLQuery sub_query = req;
         ASSERT(req.mt_factor == 1);
-        for (int i = 0; i < global_num_servers; i++) {
+        for (int i = 0; i < Global::num_servers; i++) {
             sub_query.qid = -1;
             sub_query.pqid = req.qid;
             // start from the next engine thread
-            int dst_tid = (tid + 1 - WUKONG_GPU_AGENT_TID) % global_num_gpus
+            int dst_tid = (tid + 1 - WUKONG_GPU_AGENT_TID) % Global::num_gpus
                           + WUKONG_GPU_AGENT_TID;
             sub_query.mt_tid = 0;
             sub_query.mt_factor = 1;
@@ -152,10 +152,10 @@ public:
     // fork-join or in-place execution
     bool need_fork_join(SPARQLQuery &req) {
         // always need NOT fork-join when executing on single machine
-        if (global_num_servers == 1) return false;
+        if (Global::num_serverss == 1) return false;
 
         // always need fork-join mode w/o RDMA
-        if (!global_use_rdma) return true;
+        if (!Global::use_rdma) return true;
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ASSERT(req.result.var_stat(pattern.subject) == KNOWN_VAR);
@@ -220,7 +220,7 @@ public:
                 logstream(LOG_DEBUG) << "#" << sid << " GPUAgent: fork query r.qid=" << req.qid << ", r.pqid="
                                      << req.pqid << LOG_endl;
                 vector<SPARQLQuery> sub_reqs = gpu_engine->generate_sub_query(req);
-                ASSERT(sub_reqs.size() == global_num_servers);
+                ASSERT(sub_reqs.size() == Global::num_servers);
 
                 // clear parent's result buf after generating sub-jobs
                 req.result.gpu.clear_rbuf();

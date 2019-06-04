@@ -153,7 +153,7 @@ private:
             SPARQLQuery::Pattern pattern(subject, predicate, direction, object);
 
             pattern.pred_type = str_server->pid2type[predicate];
-            if ((pattern.pred_type != (char)SID_t) && !global_enable_vattr) {
+            if ((pattern.pred_type != (char)SID_t) && !Global::enable_vattr) {
                 logstream(LOG_ERROR) << "Must enable attribute support"
                                      << LOG_endl;
                 ASSERT(false);
@@ -216,7 +216,7 @@ private:
             sq.corun_step = sp.getCorunStep();
             sq.fetch_step = sp.getFetchStep();
 
-            if (!global_use_rdma) {
+            if (!Global::use_rdma) {
                 // TODO: corun optimization is not supported w/o RDMA
                 logstream(LOG_WARNING) << "RDMA is not enabled, skip corun optimization!" << LOG_endl;
                 sq.corun_enabled = false; // skip
@@ -254,7 +254,7 @@ private:
             }
 
             pattern.pred_type = (char)str_server->pid2type[predicate];
-            if ((pattern.pred_type != (char)SID_t) && !global_enable_vattr) {
+            if ((pattern.pred_type != (char)SID_t) && !Global::enable_vattr) {
                 logstream(LOG_ERROR) << "Must enable attribute support" << LOG_endl;
                 ASSERT(false);
             }
@@ -296,7 +296,7 @@ public:
         }
 
         // check if using custom grammar when planner is on
-        if (parser.isUsingCustomGrammar() && global_enable_planner) {
+        if (parser.isUsingCustomGrammar() && Global::enable_planner) {
             logstream(LOG_ERROR) << "Unsupported custom grammar in SPARQL planner!"
                                  << LOG_endl;
             return false;

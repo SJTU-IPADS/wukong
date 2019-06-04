@@ -26,51 +26,99 @@
 
 using namespace std;
 
-int global_num_servers = 1;    // the number of servers
-int global_num_threads = 2;    // the number of threads per server (incl. proxy and engine)
+class Global {
+public:
+    // another choice
+    // e.g., static int &num_threads() { static int _num_threads = 2; return _num_threads; }
 
-int global_num_proxies = 1;    // the number of proxies
-int global_num_engines = 1;    // the number of engines
+    static int num_servers;
+    static int num_threads;
 
-string global_input_folder;
+    static int num_proxies;
+    static int num_engines;
 
-int global_data_port_base = 5500;
-int global_ctrl_port_base = 9576;
+    static string input_folder;
 
-int global_rdma_buf_size_mb = 64;
-int global_rdma_rbf_size_mb = 16;
+    static int data_port_base;
+    static int ctrl_port_base;
 
-bool global_use_rdma = true;
-int global_rdma_threshold = 300;
+    static int rdma_buf_size_mb;
+    static int rdma_rbf_size_mb;
 
-int global_mt_threshold = 16;
+    static bool use_rdma;
+    static int rdma_threshold;
 
-bool global_enable_caching = true;
-bool global_enable_workstealing = false;
-int global_stealing_pattern = 0;  // 0 = pair stealing,  1 = ring stealing
+    static int mt_threshold;
 
-bool global_silent = true;  // don't take back results by default
+    static bool enable_caching;
+    static bool enable_workstealing;
+    static int stealing_pattern;
 
-bool global_enable_planner = true;  // for planner
-bool global_generate_statistics = true;
+    static bool silent;
 
-bool global_enable_vattr = false;  // for attr
+    static bool enable_planner;
+    static bool generate_statistics;
+
+    static bool enable_vattr;
+
+    static int memstore_size_gb;
+    static int est_load_factor;
+
+    static int num_gpus;
+    static int gpu_kvcache_size_gb;
+    static int gpu_rbuf_size_mb;
+    static int gpu_rdma_buf_size_mb;
+    static int gpu_key_blk_size_mb;
+    static int gpu_value_blk_size_mb;
+    static bool gpu_enable_pipeline;
+};
+
+
+int Global::num_servers = 1;    // the number of servers
+int Global::num_threads = 2;    // the number of threads per server (incl. proxy and engine)
+
+int Global::num_proxies = 1;    // the number of proxies
+int Global::num_engines = 1;    // the number of engines
+
+string Global::input_folder;
+
+int Global::data_port_base = 5500;
+int Global::ctrl_port_base = 9576;
+
+int Global::rdma_buf_size_mb = 64;
+int Global::rdma_rbf_size_mb = 16;
+
+bool Global::use_rdma = true;
+int Global::rdma_threshold = 300;
+
+int Global::mt_threshold = 16;
+
+bool Global::enable_caching = true;
+bool Global::enable_workstealing = false;
+int Global::stealing_pattern = 0;  // 0 = pair stealing,  1 = ring stealing
+
+bool Global::silent = true;  // don't take back results by default
+
+bool Global::enable_planner = true;  // for planner
+bool Global::generate_statistics = true;
+
+bool Global::enable_vattr = false;  // for attr
 
 // kvstore
-int global_memstore_size_gb = 20;
+int Global::memstore_size_gb = 20;
 /**
  * global estimate load factor
  * when allocating buckets to segments during initialization,
  * #keys / #slots = global_est_load_factor / 100, so
  * #buckets = (#keys * 100) / (ASSOCIATIVITY * global_est_load_factor)
  */
-int global_est_load_factor = 55;
+int Global::est_load_factor = 55;
 
 // GPU support
-int global_num_gpus = 1;
-int global_gpu_kvcache_size_gb = 10;    // key-value cache
-int global_gpu_rbuf_size_mb =  32;      // result (dual) buffer
-int global_gpu_rdma_buf_size_mb = 64;   // RDMA buffer
-int global_gpu_key_blk_size_mb = 16;
-int global_gpu_value_blk_size_mb = 4;
-bool global_gpu_enable_pipeline = true;
+int Global::num_gpus = 1;
+int Global::gpu_kvcache_size_gb = 10;    // key-value cache
+int Global::gpu_rbuf_size_mb =  32;      // result (dual) buffer
+int Global::gpu_rdma_buf_size_mb = 64;   // RDMA buffer
+int Global::gpu_key_blk_size_mb = 16;
+int Global::gpu_value_blk_size_mb = 4;
+bool Global::gpu_enable_pipeline = true;

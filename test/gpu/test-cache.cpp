@@ -57,41 +57,41 @@ int main(int argc, char *argv[]) {
     vector<RDMA::MemoryRegion> mrs;
 
     // CPU (host) memory
-    Mem *mem = new Mem(global_num_servers, global_num_threads);
+    Mem *mem = new Mem(Global::num_servers, Global::num_threads);
     logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(mem->size()) << "GB memory" << LOG_endl;
     RDMA::MemoryRegion mr_cpu = { RDMA::MemType::CPU, mem->address(), mem->size(), mem };
     mrs.push_back(mr_cpu);
 
     // GPU (device) memory
     int devid = 0; // FIXME: it means one GPU device?
-    GPUMem *gpu_mem = new GPUMem(devid, global_num_servers, global_num_gpus);
+    GPUMem *gpu_mem = new GPUMem(devid, Global::num_servers, Global::num_gpus);
     logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(gpu_mem->size()) << "GB GPU memory" << LOG_endl;
     RDMA::MemoryRegion mr_gpu = { RDMA::MemType::GPU, gpu_mem->address(), gpu_mem->size(), gpu_mem };
     mrs.push_back(mr_gpu);
 
     // init RDMA devices and connections
-    RDMA_init(global_num_servers, global_num_threads, sid, mrs, host_fname);
+    RDMA_init(Global::num_servers, Global::num_threads, sid, mrs, host_fname);
 
     // init communication
     RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mrs,
-            global_num_servers, global_num_threads);
-    TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_data_port_base,
-            global_num_servers, global_num_threads);
+            Global::num_servers, Global::num_threads);
+    TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, Global::data_port_base,
+            Global::num_servers, Global::num_threads);
 
     // init control communicaiton
-    con_adaptor = new TCP_Adaptor(sid, host_fname, global_ctrl_port_base,
-                                  global_num_servers, global_num_proxies);
+    con_adaptor = new TCP_Adaptor(sid, host_fname, Global::ctrl_port_base,
+                                  Global::num_servers, Global::num_proxies);
 
     // load string server (read-only, shared by all proxies and all engines)
-    String_Server str_server(global_input_folder);
+    String_Server str_server(Global::input_folder);
 
     // load RDF graph (shared by all engines and proxies)
-    DGraph dgraph(sid, mem, &str_server, global_input_folder);
+    DGraph dgraph(sid, mem, &str_server, Global::input_folder);
 
     // prepare statistics for SPARQL optimizer
     Stats stat(sid);
-    if (global_enable_planner) {
-        if (global_generate_statistics) {
+    if (Global::enable_planner) {
+        if (Global::generate_statistics) {
             uint64_t t0 = timer::get_usec();
             dgraph.gstore.generate_statistic(stat);
             uint64_t t1 = timer::get_usec();
@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
             stat.gather_stat(con_adaptor);
         } else {
             // use the dataset name by default
-            string fname = global_input_folder + "/statfile";
+            string fname = Global::input_folder + "/statfile";
             stat.load_stat_from_file(fname, con_adaptor);
         }
     }

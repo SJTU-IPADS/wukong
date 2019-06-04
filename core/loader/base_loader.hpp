@@ -95,7 +95,8 @@ protected:
     }
 
     void flush_triples(int tid, int dst_sid) {
-        uint64_t buf_sz = floor(mem->buffer_size() / global_num_servers - sizeof(uint64_t), sizeof(sid_t));
+        uint64_t buf_sz = floor(mem->buffer_size() / Global::num_servers - sizeof(uint64_t),
+                                sizeof(sid_t));
         uint64_t *pn = (uint64_t *)(mem->buffer(tid) + (buf_sz + sizeof(uint64_t)) * dst_sid);
         sid_t *buf = (sid_t *)(pn + 1);
 
@@ -104,7 +105,8 @@ protected:
 
         // the kvstore is temporally split into #servers pieces.
         // hence, the kvstore can be directly RDMA write in parallel by all servers
-        uint64_t kvs_sz = floor(mem->kvstore_size() / global_num_servers - sizeof(uint64_t), sizeof(sid_t));
+        uint64_t kvs_sz = floor(mem->kvstore_size() / Global::num_servers - sizeof(uint64_t),
+                                sizeof(sid_t));
 
         // serialize the RDMA WRITEs by multiple threads
         uint64_t exist = __sync_fetch_and_add(&num_triples[dst_sid], n);
@@ -139,7 +141,7 @@ protected:
         // the RDMA buffer is first split into #threads partitions
         // each partition is further split into #servers pieces
         // each piece: #triples, tirple, triple, . . .
-        uint64_t buf_sz = floor(mem->buffer_size() / global_num_servers - sizeof(uint64_t), sizeof(sid_t));
+        uint64_t buf_sz = floor(mem->buffer_size() / Global::num_servers - sizeof(uint64_t), sizeof(sid_t));
         uint64_t *pn = (uint64_t *)(mem->buffer(tid) + (buf_sz + sizeof(uint64_t)) * dst_sid);
         sid_t *buf = (sid_t *)(pn + 1);
 
@@ -167,8 +169,8 @@ protected:
         auto lambda = [&](istream & file, int localtid) {
             sid_t s, p, o;
             while (file >> s >> p >> o) {
-                int s_sid = wukong::math::hash_mod(s, global_num_servers);
-                int o_sid = wukong::math::hash_mod(o, global_num_servers);
+                int s_sid = wukong::math::hash_mod(s, Global::num_servers);
+                int o_sid = wukong::math::hash_mod(o, Global::num_servers);
                 if (s_sid == o_sid) {
                     send_triple(localtid, s_sid, s, p, o);
                 } else {
@@ -180,12 +182,12 @@ protected:
 
         // load input data and assign to different severs in parallel
         int num_files = fnames.size();
-        #pragma omp parallel for num_threads(global_num_engines)
+        #pragma omp parallel for num_threads(Global::num_engines)
         for (int i = 0; i < num_files; i++) {
             int localtid = omp_get_thread_num();
 
             // each server only load a part of files
-            if (i % global_num_servers != sid) continue;
+            if (i % Global::num_servers != sid) continue;
 
             istream *file = init_istream(fnames[i]);
             lambda(*file, localtid);
@@ -193,16 +195,16 @@ protected:
         }
 
         // flush the rest triples within each RDMA buffer
-        for (int s = 0; s < global_num_servers; s++)
-            for (int t = 0; t < global_num_engines; t++)
+        for (int s = 0; s < Global::num_servers; s++)
+            for (int t = 0; t < Global::num_engines; t++)
                 flush_triples(t, s);
 
         // exchange #triples among all servers
-        for (int s = 0; s < global_num_servers; s++) {
+        for (int s = 0; s < Global::num_servers; s++) {
             uint64_t *buf = (uint64_t *)mem->buffer(0);
             buf[0] = num_triples[s];
 
-            uint64_t kvs_sz = floor(mem->kvstore_size() / global_num_servers, sizeof(sid_t));
+            uint64_t kvs_sz = floor(mem->kvstore_size() / Global::num_servers, sizeof(sid_t));
             uint64_t offset = kvs_sz * sid;
             if (s != sid) {
                 RDMA &rdma = RDMA::get_rdma();
@@ -213,7 +215,7 @@ protected:
         }
         MPI_Barrier(MPI_COMM_WORLD);
 
-        return global_num_servers;
+        return Global::num_servers;
     }
 
     // selectively load own partitioned data from all files
@@ -223,8 +225,8 @@ protected:
         auto lambda = [&](istream & file, uint64_t &n, uint64_t kvs_sz, sid_t * kvs) {
             sid_t s, p, o;
             while (file >> s >> p >> o) {
-                int s_sid = wukong::math::hash_mod(s, global_num_servers);
-                int o_sid = wukong::math::hash_mod(o, global_num_servers);
+                int s_sid = wukong::math::hash_mod(s, Global::num_servers);
+                int o_sid = wukong::math::hash_mod(o, Global::num_servers);
                 if ((s_sid == sid) || (o_sid == sid)) {
                     ASSERT((n * 3 + 3) * sizeof(sid_t) <= kvs_sz);
                     // buffer the triple and update the counter
@@ -237,10 +239,11 @@ protected:
         };
 
         int num_files = fnames.size();
-        #pragma omp parallel for num_threads(global_num_engines)
+        #pragma omp parallel for num_threads(Global::num_engines)
         for (int i = 0; i < num_files; i++) {
             int localtid = omp_get_thread_num();
-            uint64_t kvs_sz = floor(mem->kvstore_size() / global_num_engines - sizeof(uint64_t), sizeof(sid_t));
+            uint64_t kvs_sz = floor(mem->kvstore_size() / Global::num_engines - sizeof(uint64_t),
+                                    sizeof(sid_t));
             uint64_t *pn = (uint64_t *)(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * localtid);
             sid_t *kvs = (sid_t *)(pn + 1);
 
@@ -254,7 +257,7 @@ protected:
             *pn = n;
         }
 
-        return global_num_engines;
+        return Global::num_engines;
     }
 
     // selectively load own partitioned data (attributes) from all files
@@ -278,14 +281,14 @@ protected:
                     break;
                 }
 
-                if (sid == wukong::math::hash_mod(s, global_num_servers))
+                if (sid == wukong::math::hash_mod(s, Global::num_servers))
                     triple_sav[localtid].push_back(triple_attr_t(s, a, v));
             }
         };
 
         //parallel load from all files
         int num_files = fnames.size();
-        #pragma omp parallel for num_threads(global_num_engines)
+        #pragma omp parallel for num_threads(Global::num_engines)
         for (int i = 0; i < num_files; i++) {
             int localtid = omp_get_thread_num();
 
@@ -297,8 +300,8 @@ protected:
     }
 
     void sort_attr(vector<vector<triple_attr_t>> &triple_sav) {
-        #pragma omp parallel for num_threads(global_num_engines)
-        for (int tid = 0; tid < global_num_engines; tid++)
+        #pragma omp parallel for num_threads(Global::num_engines)
+        for (int tid = 0; tid < Global::num_engines; tid++)
             sort(triple_sav[tid].begin(), triple_sav[tid].end(), triple_sort_by_asv());
     }
 
@@ -315,16 +318,16 @@ protected:
 
         // pre-expand to avoid frequent reallocation (maybe imbalance)
         for (int i = 0; i < triple_pso.size(); i++) {
-            triple_pso[i].reserve(total / global_num_engines);
-            triple_pos[i].reserve(total / global_num_engines);
+            triple_pso[i].reserve(total / Global::num_engines);
+            triple_pos[i].reserve(total / Global::num_engines);
         }
 
         // each thread will scan all triples (from all servers) and pickup certain triples.
         // It ensures that the triples belong to the same vertex will be stored in the same
         // triple_pso/ops. This will simplify the deduplication and insertion to gstore.
         volatile uint64_t progress = 0;
-        #pragma omp parallel for num_threads(global_num_engines)
-        for (int tid = 0; tid < global_num_engines; tid++) {
+        #pragma omp parallel for num_threads(Global::num_engines)
+        for (int tid = 0; tid < Global::num_engines; tid++) {
             int cnt = 0; // per thread count for print progress
             for (int id = 0; id < num_partitions; id++) {
                 uint64_t *pn = (uint64_t *)(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * id);
@@ -338,21 +341,21 @@ protected:
                     sid_t o = kvs[i * 3 + 2];
 
                     // out-edges
-                    if (wukong::math::hash_mod(s, global_num_servers) == sid)
-                        if ((s % global_num_engines) == tid)
+                    if (wukong::math::hash_mod(s, Global::num_servers) == sid)
+                        if ((s % Global::num_engines) == tid)
                             triple_pso[tid].push_back(triple_t(s, p, o));
 
                     // in-edges
-                    if (wukong::math::hash_mod(o, global_num_servers) == sid)
-                        if ((o % global_num_engines) == tid)
+                    if (wukong::math::hash_mod(o, Global::num_servers) == sid)
+                        if ((o % Global::num_engines) == tid)
                             triple_pos[tid].push_back(triple_t(s, p, o));
 
                     // print the progress (step = 5%) of aggregation
                     if (++cnt >= total * 0.05) {
                         uint64_t now = wukong::atomic::add_and_fetch(&progress, 1);
-                        if (now % global_num_engines == 0)
+                        if (now % Global::num_engines == 0)
                             logstream(LOG_INFO) << "already aggregrate "
-                                                << (now / global_num_engines) * 5
+                                                << (now / Global::num_engines) * 5
                                                 << "%" << LOG_endl;
                         cnt = 0;
                     }
@@ -383,10 +386,10 @@ public:
               vector<vector<triple_attr_t>> &triple_sav) {
         uint64_t start, end;
 
-        num_triples.resize(global_num_servers);
-        triple_pso.resize(global_num_engines);
-        triple_pos.resize(global_num_engines);
-        triple_sav.resize(global_num_engines);
+        num_triples.resize(Global::num_servers);
+        triple_pso.resize(Global::num_engines);
+        triple_pos.resize(Global::num_engines);
+        triple_sav.resize(Global::num_engines);
 
         vector<string> dfiles(list_files(src, "id_"));   // ID-format data files
         vector<string> afiles(list_files(src, "attr_")); // ID-format attribute files
@@ -412,7 +415,7 @@ public:
         };
 
         gstore->num_normal_preds = count_preds(src + "str_index") - 1; // skip PREDICATE_ID
-        if (global_enable_vattr)
+        if (Global::enable_vattr)
             gstore->num_attr_preds = count_preds(src + "str_attr_index");
 
         // read_partial_exchange: load partial input files by each server and exchanges triples
@@ -427,7 +430,7 @@ public:
         //        adopts read_partial_exchange for fast network (w/ RDMA).
         start = timer::get_usec();
         int num_partitons = 0;
-        if (global_use_rdma)
+        if (Global::use_rdma)
             num_partitons = read_partial_exchange(dfiles);
         else
             num_partitons = read_all_files(dfiles);

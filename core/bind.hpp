@@ -162,7 +162,7 @@ bool load_core_binding(string fname)
         logstream(LOG_WARNING) << "#bindings (in \'core.bind\') exceeds number of the NUMANODEs!"
                                << LOG_endl;
 
-    if (nbs < global_num_threads)
+    if (nbs < Global::num_threads)
         logstream(LOG_WARNING) << "#threads (in \'config\') exceeds #bindings (in \'bind\')!"
                                << LOG_endl;
 

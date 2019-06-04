@@ -184,7 +184,7 @@ public:
         // step 3: load triples into gstore
         // FIXME: dynamic loading triples doesn't update segment metadata. eg: num_keys, num_edges
         start = timer::get_usec();
-        #pragma omp parallel for num_threads(global_num_engines)
+        #pragma omp parallel for num_threads(Global::num_engines)
         for (int i = 0; i < num_dfiles; i++) {
             int64_t cnt = 0;
 
@@ -197,12 +197,12 @@ public:
                 /// FIXME: just check and print warning
                 check_sid(s); check_sid(p); check_sid(o);
 
-                if (sid == wukong::math::hash_mod(s, global_num_servers)) {
+                if (sid == wukong::math::hash_mod(s, Global::num_servers)) {
                     gstore->insert_triple_out(triple_t(s, p, o), check_dup, tid);
                     cnt ++;
                 }
 
-                if (sid == wukong::math::hash_mod(o, global_num_servers)) {
+                if (sid == wukong::math::hash_mod(o, Global::num_servers)) {
                     gstore->insert_triple_in(triple_t(s, p, o), check_dup, tid);
                     cnt ++;
                 }
@@ -220,7 +220,7 @@ public:
 
         sort(afiles.begin(), afiles.end());
         int num_afiles = afiles.size();
-        #pragma omp parallel for num_threads(global_num_engines)
+        #pragma omp parallel for num_threads(Global::num_engines)
         for (int i = 0; i < num_afiles; i++) {
             int64_t cnt = 0;
 
@@ -254,7 +254,7 @@ public:
                     break;
                 }
 
-                if (sid == wukong::math::hash_mod(s, global_num_servers)) {
+                if (sid == wukong::math::hash_mod(s, Global::num_servers)) {
                     /// Support attribute files
                     // gstore->insert_triple_attribute(triple_sav_t(s, a, v));
                     cnt ++;

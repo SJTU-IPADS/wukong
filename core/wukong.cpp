@@ -139,10 +139,10 @@ main(int argc, char *argv[])
 
     // rdma broadcast memory
     vector<Broadcast_Mem *> bcast_mems;
-    Broadcast_Mem *ss_bcast_mem = new Broadcast_Mem(global_num_servers, global_num_threads);
+    Broadcast_Mem *ss_bcast_mem = new Broadcast_Mem(Global::num_servers, Global::num_threads);
     bcast_mems.push_back(ss_bcast_mem);
     // CPU (host) memory
-    Mem *mem = new Mem(global_num_servers, global_num_threads, bcast_mems);
+    Mem *mem = new Mem(Global::num_servers, Global::num_threads, bcast_mems);
     logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(mem->size())
                         << "GB memory" << LOG_endl;
     RDMA::MemoryRegion mr_cpu = { RDMA::MemType::CPU, mem->address(), mem->size(), mem };
@@ -151,7 +151,7 @@ main(int argc, char *argv[])
 #ifdef USE_GPU
     // GPU (device) memory
     int devid = 0; // FIXME: it means one GPU device?
-    GPUMem *gpu_mem = new GPUMem(devid, global_num_servers, global_num_gpus);
+    GPUMem *gpu_mem = new GPUMem(devid, Global::num_servers, Global::num_gpus);
     logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(gpu_mem->size())
                         << "GB GPU memory" << LOG_endl;
     RDMA::MemoryRegion mr_gpu = { RDMA::MemType::GPU, gpu_mem->address(), gpu_mem->size(), gpu_mem };
@@ -159,33 +159,33 @@ main(int argc, char *argv[])
 #endif
 
     // RDMA full-link communication
-    int flink_nthreads = global_num_proxies + global_num_engines;
+    int flink_nthreads = Global::num_proxies + Global::num_engines;
     // RDMA broadcast communication
     int bcast_nthreads = 2;
     int rdma_init_nthreads = flink_nthreads + bcast_nthreads;
     // init RDMA devices and connections
-    RDMA_init(global_num_servers, rdma_init_nthreads, sid, mrs, host_fname);
+    RDMA_init(Global::num_servers, rdma_init_nthreads, sid, mrs, host_fname);
 
     // init communication
     RDMA_Adaptor *rdma_adaptor = new RDMA_Adaptor(sid, mrs,
-            global_num_servers, global_num_threads);
-    TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, global_data_port_base,
-            global_num_servers, global_num_threads);
+            Global::num_servers, Global::num_threads);
+    TCP_Adaptor *tcp_adaptor = new TCP_Adaptor(sid, host_fname, Global::data_port_base,
+            Global::num_servers, Global::num_threads);
 
     // init control communicaiton
-    con_adaptor = new TCP_Adaptor(sid, host_fname, global_ctrl_port_base,
-                                  global_num_servers, global_num_proxies);
+    con_adaptor = new TCP_Adaptor(sid, host_fname, Global::ctrl_port_base,
+                                  Global::num_servers, Global::num_proxies);
 
     // load string server (read-only, shared by all proxies and all engines)
-    String_Server str_server(global_input_folder);
+    String_Server str_server(Global::input_folder);
 
     // load RDF graph (shared by all engines and proxies)
-    DGraph dgraph(sid, mem, &str_server, global_input_folder);
+    DGraph dgraph(sid, mem, &str_server, Global::input_folder);
 
     // prepare statistics for SPARQL optimizer
     Stats stats(sid);
     uint64_t t0, t1;
-    if (global_generate_statistics) {
+    if (Global::generate_statistics) {
         t0 = timer::get_usec();
         stats.generate_statistics(dgraph.gstore);
         t1 = timer::get_usec();
@@ -193,17 +193,17 @@ main(int argc, char *argv[])
         stats.gather_stat(con_adaptor);
     } else {
         t0 = timer::get_usec();
-        string fname = global_input_folder + "/statfile";  // using default name
+        string fname = Global::input_folder + "/statfile";  // using default name
         stats.load_stat_from_file(fname, con_adaptor);
         t1 = timer::get_usec();
         logstream(LOG_EMPH)  << "load statistics using time: " << t1 - t0 << "usec" << LOG_endl;
     }
     // create proxies and engines
-    for (int tid = 0; tid < global_num_proxies + global_num_engines; tid++) {
+    for (int tid = 0; tid < Global::num_proxies + Global::num_engines; tid++) {
         Adaptor *adaptor = new Adaptor(tid, tcp_adaptor, rdma_adaptor);
 
         // TID: proxy = [0, #proxies), engine = [#proxies, #proxies + #engines)
-        if (tid < global_num_proxies) {
+        if (tid < Global::num_proxies) {
             Proxy *proxy = new Proxy(sid, tid, &str_server, &dgraph, adaptor, &stats);
             proxies.push_back(proxy);
         } else {
@@ -213,21 +213,23 @@ main(int argc, char *argv[])
     }
 
     // launch all proxies and engines
-    pthread_t *threads  = new pthread_t[global_num_threads];
-    for (int tid = 0; tid < global_num_proxies + global_num_engines; tid++) {
+    pthread_t *threads  = new pthread_t[Global::num_threads];
+    for (int tid = 0; tid < Global::num_proxies + Global::num_engines; tid++) {
         // TID: proxy = [0, #proxies), engine = [#proxies, #proxies + #engines)
-        if (tid < global_num_proxies)
-            pthread_create(&(threads[tid]), NULL, proxy_thread, (void *)proxies[tid]);
+        if (tid < Global::num_proxies)
+            pthread_create(&(threads[tid]), NULL, proxy_thread,
+                           (void *)proxies[tid]);
         else
-            pthread_create(&(threads[tid]), NULL, engine_thread, (void *)engines[tid - global_num_proxies]);
+            pthread_create(&(threads[tid]), NULL, engine_thread,
+                           (void *)engines[tid - Global::num_proxies]);
     }
 
 #ifdef USE_GPU
     logstream(LOG_INFO) << "#" << sid
-                        << " #threads:" << global_num_threads
-                        << ", #proxies:" << global_num_proxies
-                        << ", #engines:" << global_num_engines
-                        << ", #agent:" << global_num_gpus << LOG_endl;
+                        << " #threads:" << Global::num_threads
+                        << ", #proxies:" << Global::num_proxies
+                        << ", #engines:" << Global::num_engines
+                        << ", #agent:" << Global::num_gpus << LOG_endl;
 
     // create GPU agent
     GPUStreamPool stream_pool(32);
@@ -240,7 +242,7 @@ main(int argc, char *argv[])
 #endif
 
     // wait to all threads termination
-    for (size_t t = 0; t < global_num_threads; t++) {
+    for (size_t t = 0; t < Global::num_threads; t++) {
         if (int rc = pthread_join(threads[t], NULL)) {
             logger(LOG_ERROR, "return code from pthread_join() is %d\n", rc);
             exit(-1);

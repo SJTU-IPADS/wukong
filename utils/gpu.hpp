@@ -22,6 +22,8 @@
 
 #pragma once
 
+#include "global.hpp"
+
 #ifdef USE_GPU
 #include <cuda_runtime.h>
 
@@ -29,27 +31,24 @@
 
 inline void check_cuda_result(cudaError_t code, const char *file, int line, bool abort = true)
 {
-    if (code != cudaSuccess) {
-        fprintf(stderr, "CUDA_ASSERT: code:%d, %s %s:%d\n", code, cudaGetErrorString(code), file, line);
-        if (abort) assert(false);
-    }
+	if (code != cudaSuccess) {
+		fprintf(stderr, "CUDA_ASSERT: code:%d, %s %s:%d\n",
+		        code, cudaGetErrorString(code), file, line);
+		if (abort) assert(false);
+	}
 }
 
 
-#define CUDA_STREAM_SYNC(stream) (CUDA_ASSERT( cudaStreamSynchronize(stream) ))
-#define CUDA_DEVICE_SYNC (CUDA_ASSERT( cudaDeviceSynchronize() ))
+#define CUDA_STREAM_SYNC(stream) (CUDA_ASSERT(cudaStreamSynchronize(stream)))
+#define CUDA_DEVICE_SYNC (CUDA_ASSERT(cudaDeviceSynchronize()))
 
-
-extern int global_gpu_rbuf_size_mb;
-extern int global_num_proxies;
-
-#define WUKONG_GPU_AGENT_TID (global_num_proxies + global_num_engines)
+#define WUKONG_GPU_AGENT_TID (Global::num_proxies + Global::num_engines)
 
 #define WUKONG_CUDA_NUM_THREADS 512
 #define WUKONG_GPU_ELEM_SIZE sizeof(sid_t)
 
 inline int WUKONG_GET_BLOCKS(const int n) {
-    return (n + WUKONG_CUDA_NUM_THREADS - 1) / WUKONG_CUDA_NUM_THREADS;
+	return (n + WUKONG_CUDA_NUM_THREADS - 1) / WUKONG_CUDA_NUM_THREADS;
 }
 
 #define WUKONG_GPU_RBUF_SIZE(num_elems) (WUKONG_GPU_ELEM_SIZE * num_elems)

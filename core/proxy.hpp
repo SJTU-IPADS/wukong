@@ -142,11 +142,11 @@ private:
     // Return false if it fails. Bundle is pending in pending_msgs.
     inline bool send(Bundle &bundle, int dst_sid) {
         // NOTE: the partitioned mapping has better tail latency in batch mode
-        int range = global_num_engines / global_num_proxies;
-        // FIXME: BUG if global_num_engines < global_num_proxies
+        int range = Global::num_engines / Global::num_proxies;
+        // FIXME: BUG if Global::num_engines < Global::num_proxies
         ASSERT(range > 0);
 
-        int base = global_num_proxies + (range * tid);
+        int base = Global::num_proxies + (range * tid);
         // randomly choose engine without preferred one
         int dst_eid = coder.get_random() % range;
 
@@ -202,7 +202,7 @@ public:
         ASSERT(r.pqid != -1);
 
         // submit the request to a certain server
-        int start_sid = wukong::math::hash_mod(r.pattern_group.get_start(), global_num_servers);
+        int start_sid = wukong::math::hash_mod(r.pattern_group.get_start(), Global::num_servers);
         Bundle bundle(r);
 
         if (r.dev_type == SPARQLQuery::DeviceType::CPU) {
@@ -314,7 +314,7 @@ public:
 
         // Generate query plan if SPARQL optimizer is enabled.
         // FIXME: currently, the optimizater only works for standard SPARQL query.
-        if (global_enable_planner) {
+        if (Global::enable_planner) {
             start = timer::get_usec();
             for (int i = 0; i < nopts; i ++)
                 planner.test_plan(request);
@@ -332,13 +332,13 @@ public:
             logstream(LOG_INFO) << "User-defined query plan is enabled" << LOG_endl;
         }
 
-        request.mt_factor = min(mt_factor, global_mt_threshold);
+        request.mt_factor = min(mt_factor, Global::mt_threshold);
 
         // Print a WARNING to enable multi-threading for potential (heavy) query
         // TODO: optimizer could recognize the real heavy query
         if (request.start_from_index() // HINT: start from index
                 && !snd2gpu  // accelerated by GPU
-                && (mt_factor == 1 && global_mt_threshold > 1) ) {
+                && (mt_factor == 1 && Global::mt_threshold > 1) ) {
             logstream(LOG_EMPH) << "The query starts from an index vertex, "
                                 << "you could use option -m to accelerate it."
                                 << LOG_endl;
@@ -357,19 +357,19 @@ public:
         for (int i = 0; i < cnt; i++) {
             setpid(request);
             // only take back results of the last request if not silent
-            request.result.blind = i < (cnt - 1) ? true : global_silent;
+            request.result.blind = i < (cnt - 1) ? true : Global::silent;
 
             send_request(request);
             reply = recv_reply();
         }
         monitor.finish();
 
-        // Check result status 
+        // Check result status
         if (reply.result.status_code == SUCCESS) {
             logstream(LOG_INFO) << "(last) result size: " << reply.result.row_num << LOG_endl;
 
             // print or dump results
-            if (!global_silent) {
+            if (!Global::silent) {
                 if (nlines > 0)
                     print_result(reply, min(nlines, reply.result.row_num));
                 if (ofname != "")
@@ -377,8 +377,8 @@ public:
             }
         } else {
             logstream(LOG_ERROR)
-                << "Query failed [ERRNO " << reply.result.status_code << "]: "
-                << ERR_MSG(reply.result.status_code) << LOG_endl;
+                    << "Query failed [ERRNO " << reply.result.status_code << "]: "
+                    << ERR_MSG(reply.result.status_code) << LOG_endl;
         }
 
         return 0; // success
@@ -408,7 +408,7 @@ public:
 
         // read plan files according to config file of plans
         vector<string> fmt_fnames;
-        if (!global_enable_planner) {
+        if (!Global::enable_planner) {
             ASSERT(fmt_stream.good());
 
             fmt_fnames.resize(ntypes);
@@ -453,7 +453,7 @@ public:
                 fill_template(tpls[i]);
 
             // adapt user-defined plan according
-            if (!global_enable_planner) {
+            if (!Global::enable_planner) {
                 ifstream fs(fmt_fnames[i]);
                 if (!fs.good()) {
                     logstream(LOG_ERROR) << "Plan file not found: " << fmt_fnames[i] << LOG_endl;
@@ -484,7 +484,7 @@ public:
                                 tpls[idx].instantiate(coder.get_random()) : // light query
                                 heavy_reqs[idx - nlights]; // heavy query
 
-                if (global_enable_planner)
+                if (Global::enable_planner)
                     planner.generate_plan(r);
 
                 setpid(r);
@@ -494,7 +494,7 @@ public:
 #ifdef USE_GPU
                     r.dev_type = SPARQLQuery::DeviceType::GPU;
 #else
-                    r.mt_factor = global_mt_threshold;
+                    r.mt_factor = Global::mt_threshold;
 #endif
                 }
 
@@ -550,13 +550,13 @@ public:
 
         RDFLoad request(dname, check_dup);
         setpid(request);
-        for (int i = 0; i < global_num_servers; i++) {
+        for (int i = 0; i < Global::num_servers; i++) {
             Bundle bundle(request);
             send(bundle, i);
         }
 
         int ret = 0;
-        for (int i = 0; i < global_num_servers; i++) {
+        for (int i = 0; i < Global::num_servers; i++) {
             Bundle bundle = adaptor->recv();
             ASSERT(bundle.type == DYNAMIC_LOAD);
 
@@ -576,13 +576,13 @@ public:
 
         GStoreCheck request(i_enable, n_enable);
         setpid(request);
-        for (int i = 0; i < global_num_servers; i++) {
+        for (int i = 0; i < Global::num_servers; i++) {
             Bundle bundle(request);
             send(bundle, i);
         }
 
         int ret = 0;
-        for (int i = 0; i < global_num_servers; i++) {
+        for (int i = 0; i < Global::num_servers; i++) {
             Bundle bundle = adaptor->recv();
             ASSERT(bundle.type == GSTORE_CHECK);
 

@@ -164,7 +164,7 @@ public:
             delete arg3;
         }
 
-        void print_filter() const{
+        void print_filter() const {
             // print info type | value | valueArg
             logstream(LOG_INFO) << "\t" << this->type << "\t" << valueArg;
             if (this->value != "")
@@ -211,7 +211,7 @@ public:
             logstream(LOG_INFO) << "\ttype"
                                 << "\tvalueArg"
                                 << "\tvalue" << LOG_endl;
-            for (auto const &f : filters) 
+            for (auto const &f : filters)
                 f.print_filter();
         }
 
@@ -448,7 +448,7 @@ public:
 
         int get_attr_col_num() { return attr_col_num; }
 
-        void set_status_code(int code){
+        void set_status_code(int code) {
             status_code = code;
         }
         int get_status_code() { return status_code; }
@@ -668,7 +668,7 @@ public:
         else if (is_tpid(pattern_group.patterns[0].subject)) {
             // When the subject is index, predicate must be TYPE or PREDICATE
             ASSERT_ERROR_CODE(pattern_group.patterns[0].predicate == PREDICATE_ID
-                   || pattern_group.patterns[0].predicate == TYPE_ID, OBJ_ERROR);
+                              || pattern_group.patterns[0].predicate == TYPE_ID, OBJ_ERROR);
             return true;
         }
         return false;
@@ -703,7 +703,7 @@ public:
         pg_type = SPARQLQuery::PGType::UNION;
         pattern_group = r.pattern_group.unions[idx];
         if (start_from_index()
-                && (global_mt_threshold * global_num_servers > 1)) {
+                && (Global::mt_threshold * Global::num_servers > 1)) {
             mt_factor = r.mt_factor;
         }
         result = r.result;
@@ -785,7 +785,7 @@ public:
         pattern_group = r.pattern_group.optional[r.optional_step];
 
         if (start_from_index()
-                && (global_mt_threshold * global_num_servers > 1))
+                && (Global::mt_threshold * Global::num_servers > 1))
             mt_factor = r.mt_factor;
 
         count_optional_new_vars(r.result);

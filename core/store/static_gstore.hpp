@@ -123,8 +123,8 @@ private:
                    tid, pid, pso.size());
         }
         ASSERT_MSG(off <= segment.edge_start + segment.num_edges, "Seg[%lu|%lu|%lu]: #edges: %lu, edge_start: %lu, off: %lu",
-               segid.index, segid.pid, segid.dir,
-               segment.num_edges, segment.edge_start, off);
+                   segid.index, segid.pid, segid.dir,
+                   segment.num_edges, segment.edge_start, off);
         if (has_pos) {
             vector<triple_t> &pos = a->second;
             while (type_triples < pos.size() && is_tpid(pos[type_triples].o))
@@ -163,8 +163,8 @@ private:
         }
 
         ASSERT_MSG(off <= segment.edge_start + segment.num_edges, "Seg[%lu|%lu|%lu]: #edges: %lu, edge_start: %lu, off: %lu",
-               segid.index, segid.pid, segid.dir,
-               segment.num_edges, segment.edge_start, off);
+                   segid.index, segid.pid, segid.dir,
+                   segment.num_edges, segment.edge_start, off);
     }
 
     // insert attributes
@@ -198,17 +198,17 @@ private:
 
             // insert edges
             switch (type) {
-                case INT_t:
-                    *(int *)(edges + off) = boost::get<int>(attr.v);
-                    break;
-                case FLOAT_t:
-                    *(float *)(edges + off) = boost::get<float>(attr.v);
-                    break;
-                case DOUBLE_t:
-                    *(double *)(edges + off) = boost::get<double>(attr.v);
-                    break;
-                default:
-                    logstream(LOG_ERROR) << "Unsupported value type of attribute" << LOG_endl;
+            case INT_t:
+                *(int *)(edges + off) = boost::get<int>(attr.v);
+                break;
+            case FLOAT_t:
+                *(float *)(edges + off) = boost::get<float>(attr.v);
+                break;
+            case DOUBLE_t:
+                *(double *)(edges + off) = boost::get<double>(attr.v);
+                break;
+            default:
+                logstream(LOG_ERROR) << "Unsupported value type of attribute" << LOG_endl;
             }
             off += sz;
         }
@@ -239,7 +239,7 @@ private:
 
             ikey_t key = ikey_t(0, pid, d);
             logger(LOG_DEBUG, "insert_pidx[%s]: key: [%lu|%lu|%lu] sz: %lu",
-                (d == IN) ? "IN" : "OUT", key.vid, key.pid, key.dir, sz);
+                   (d == IN) ? "IN" : "OUT", key.vid, key.pid, key.dir, sz);
             uint64_t slot_id = insert_key(key);
             iptr_t ptr = iptr_t(sz, off);
             vertices[slot_id].ptr = ptr;
@@ -352,7 +352,7 @@ public:
 
         start = timer::get_usec();
         logstream(LOG_DEBUG) << "#" << sid << ": all_local_preds: " << all_local_preds.size() << LOG_endl;
-        #pragma omp parallel for num_threads(global_num_engines)
+        #pragma omp parallel for num_threads(Global::num_engines)
         for (int i = 0; i < all_local_preds.size(); i++) {
             int localtid = omp_get_thread_num();
             sid_t pid = all_local_preds[i];
@@ -361,10 +361,10 @@ public:
         }
 
         vector<sid_t> aids;
-        for (auto iter = attr_set.begin(); iter != attr_set.end(); iter++) {
+        for (auto iter = attr_set.begin(); iter != attr_set.end(); iter++)
             aids.push_back(*iter);
-        }
-        #pragma omp parallel for num_threads(global_num_engines)
+
+        #pragma omp parallel for num_threads(Global::num_engines)
         for (int i = 0; i < aids.size(); i++) {
             int localtid = omp_get_thread_num();
             insert_attr(localtid, segid_t(0, aids[i], OUT));
@@ -389,7 +389,7 @@ public:
     }
 
     void refresh() {
-        #pragma omp parallel for num_threads(global_num_engines)
+        #pragma omp parallel for num_threads(Global::num_engines)
         for (uint64_t i = 0; i < num_slots; i++) {
             vertices[i].key = ikey_t();
             vertices[i].ptr = iptr_t();

@@ -267,7 +267,7 @@ class Planner {
                     vector<ty_count> tycountv = stats->global_tystat.pstype[p];
                     for (size_t k = 0; k < tycountv.size(); k++) {
                         ssid_t vtype = tycountv[k].ty;
-                        double vcount = double(tycountv[k].count) / global_num_servers / r.mt_factor;
+                        double vcount = double(tycountv[k].count) / Global::num_servers / r.mt_factor;
                         updated_result_table.push_back(vcount);
                         updated_result_table.push_back(vtype);
                     }
@@ -325,7 +325,7 @@ class Planner {
                     tycountv = stats->global_tystat.potype[p];
                     for (size_t k = 0; k < tycountv.size(); k++) {
                         ssid_t vtype = tycountv[k].ty;
-                        double vcount = double(tycountv[k].count) / global_num_servers / r.mt_factor;
+                        double vcount = double(tycountv[k].count) / Global::num_servers / r.mt_factor;
                         updated_result_table.push_back(vcount);
                         updated_result_table.push_back(vtype);
                     }
@@ -463,7 +463,7 @@ class Planner {
                         ssid_t vtype = o2;
                         if (stats->global_single2complex.find(vtype) == stats->global_single2complex.end()) {
                             double vcount = double(stats->global_tyscount[o2])
-                                            / global_num_servers / r.mt_factor;
+                                            / Global::num_servers / r.mt_factor;
                             updated_result_table.push_back(vcount);
                             updated_result_table.push_back(vtype);
                         }
@@ -471,7 +471,7 @@ class Planner {
                             // single type o2 may not exist in muititype situation
                             if (stats->global_tyscount.find(vtype) != stats->global_tyscount.end()) {
                                 double vcount = double(stats->global_tyscount[o2])
-                                                / global_num_servers / r.mt_factor;
+                                                / Global::num_servers / r.mt_factor;
                                 updated_result_table.push_back(vcount);
                                 updated_result_table.push_back(vtype);
                             }
@@ -479,7 +479,7 @@ class Planner {
                             unordered_set<ssid_t> type_set = stats->global_single2complex[vtype];
                             for (auto iter = type_set.cbegin(); iter != type_set.cend(); ++iter) {
                                 double vcount = double(stats->global_tyscount[*iter])
-                                                / global_num_servers / r.mt_factor;
+                                                / Global::num_servers / r.mt_factor;
                                 updated_result_table.push_back(vcount);
                                 updated_result_table.push_back(*iter);
                             }
@@ -910,7 +910,7 @@ class Planner {
                     vector<ty_count> tycountv = stats->global_tystat.pstype[p];
                     for (size_t k = 0; k < tycountv.size(); k++) {
                         ssid_t vtype = tycountv[k].ty;
-                        double vcount = double(tycountv[k].count) / global_num_servers;
+                        double vcount = double(tycountv[k].count) / Global::num_servers;
                         updated_result_table.push_back(vcount);
                         updated_result_table.push_back(vtype);
                     }
@@ -960,7 +960,7 @@ class Planner {
                     vector<ty_count> tycountv = stats->global_tystat.potype[p];
                     for (size_t k = 0; k < tycountv.size(); k++) {
                         ssid_t vtype = tycountv[k].ty;
-                        double vcount = double(tycountv[k].count) / global_num_servers;
+                        double vcount = double(tycountv[k].count) / Global::num_servers;
                         updated_result_table.push_back(vcount);
                         updated_result_table.push_back(vtype);
                     }
@@ -1072,21 +1072,21 @@ class Planner {
                         // start from ty-index vertex
                         ssid_t vtype = o2;
                         if (stats->global_single2complex.find(vtype) == stats->global_single2complex.end()) {
-                            double vcount = double(stats->global_tyscount[o2]) / global_num_servers;
+                            double vcount = double(stats->global_tyscount[o2]) / Global::num_servers;
                             updated_result_table.push_back(vcount);
                             updated_result_table.push_back(vtype);
                         }
                         else {
                             // single type o2 may not exist in muititype situation
                             if (stats->global_tyscount.find(vtype) != stats->global_tyscount.end()) {
-                                double vcount = double(stats->global_tyscount[o2]) / global_num_servers;
+                                double vcount = double(stats->global_tyscount[o2]) / Global::num_servers;
                                 updated_result_table.push_back(vcount);
                                 updated_result_table.push_back(vtype);
                             }
                             // single type o2 may be contained in complex type
                             unordered_set<ssid_t> type_set = stats->global_single2complex[vtype];
                             for (auto iter = type_set.cbegin(); iter != type_set.cend(); ++iter) {
-                                double vcount = double(stats->global_tyscount[*iter]) / global_num_servers;
+                                double vcount = double(stats->global_tyscount[*iter]) / Global::num_servers;
                                 updated_result_table.push_back(vcount);
                                 updated_result_table.push_back(*iter);
                             }
@@ -1697,7 +1697,7 @@ public:
     // @return: false if no plan is set
     bool set_plan(SPARQLQuery::PatternGroup &group, istream &fmt_stream,
                   vector<int> &ptypes_pos = empty_ptypes_pos) {
-        if (global_enable_planner) {
+        if (Global::enable_planner) {
             logstream(LOG_WARNING) << "Query plan will not work since planner is on" << LOG_endl;
             return false;
         }

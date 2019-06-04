@@ -43,7 +43,7 @@ public:
     ~Adaptor() { }
 
     bool send(int dst_sid, int dst_tid, const string &str) {
-        if (global_use_rdma && rdma->init)
+        if (Global::use_rdma && rdma->init)
             return rdma->send(tid, dst_sid, dst_tid, str);
         else
             return tcp->send(dst_sid, dst_tid, str);
@@ -57,7 +57,7 @@ public:
     // gpu-direct send, from gpu mem to remote ring buffer
     bool send_dev2host(int dst_sid, int dst_tid, char *data, uint64_t sz) {
 #ifdef USE_GPU
-        if (global_use_rdma && rdma->init)
+        if (Global::use_rdma && rdma->init)
             return rdma->send_dev2host(tid, dst_sid, dst_tid, data, sz);
 
         // TODO: support dev2host w/o RDMA
@@ -71,7 +71,7 @@ public:
 
     Bundle recv() {
         std::string str;
-        if (global_use_rdma && rdma->init)
+        if (Global::use_rdma && rdma->init)
             str = rdma->recv(tid);
         else
             str = tcp->recv(tid);
@@ -79,7 +79,7 @@ public:
     }
 
     bool tryrecv(string &str) {
-        if (global_use_rdma && rdma->init)
+        if (Global::use_rdma && rdma->init)
             return rdma->tryrecv(tid, str);
         else
             return tcp->tryrecv(tid, str);
@@ -96,7 +96,7 @@ public:
     // Receive msg from a designated server
     string recv(int sender) {
         std::string str;
-        if (global_use_rdma && rdma->init)
+        if (Global::use_rdma && rdma->init)
             str = rdma->recv(tid, sender);
         else
             str = tcp->recv(tid, sender);
@@ -107,7 +107,7 @@ public:
     bool tryrecv(Bundle &b, int &sender) {
         string str;
         bool success = false;
-        if (global_use_rdma && rdma->init)
+        if (Global::use_rdma && rdma->init)
             success = rdma->tryrecv(tid, str, sender);
         else
             success = tcp->tryrecv(tid, str, sender);
