@@ -22,7 +22,7 @@ $sudo apt-get install gcc g++ build-essential cmake git libreadline6-dev wget li
 You can download Wukong directly from the Github Repository.
 
 ```bash
-$git clone https://github.com/SJTU-IPADS/wukong.git
+$git clone https://github.com/SJTU-IPADS/wukong.git --recursive
 $cd wukong
 ```
 
