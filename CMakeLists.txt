@@ -11,9 +11,6 @@ set(ROOT $ENV{WUKONG_ROOT})
 ## Use C++11 features
 add_definitions(-std=c++11)
 
-set(ggtest_DIR "${ROOT}/deps/googletest")
-add_subdirectory(${ROOT}/deps/googletest)
-include_directories({ggtest_DIR}/googletest/include)
 
 ## Set dependencies
 set(CMAKE_CXX_COMPILER ${ROOT}/deps/openmpi-1.6.5-install/bin/mpic++)
@@ -25,6 +22,10 @@ include_directories(deps/boost_1_67_0-install/include)
 include_directories(core)
 include_directories(utils)
 include_directories(rdma_lib)
+include_directories(deps/googletest/googletest/include)
+
+## Add sub-directories
+add_subdirectory(${ROOT}/deps/googletest)
 
 
 ## Source code
