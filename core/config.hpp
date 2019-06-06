@@ -86,7 +86,6 @@ static bool set_immutable_config(string cfg_name, string value)
         ASSERT(Global::rdma_rbf_size_mb >= 0);
     } else if (cfg_name == "global_generate_statistics") {
         Global::generate_statistics = atoi(value.c_str());
-#ifdef USE_GPU
     } else if (cfg_name == "global_num_gpus") {
         Global::num_gpus = atoi(value.c_str());
     } else if (cfg_name == "global_gpu_rdma_buf_size_mb") {
@@ -103,7 +102,6 @@ static bool set_immutable_config(string cfg_name, string value)
         Global::gpu_key_blk_size_mb = atoi(value.c_str());
     } else if (cfg_name == "global_gpu_value_blk_size_mb") {
         Global::gpu_value_blk_size_mb = atoi(value.c_str());
-#endif // USE_GPU
     } else {
         return false;
     }
@@ -143,10 +141,8 @@ static bool set_mutable_config(string cfg_name, string value)
         Global::enable_planner = atoi(value.c_str());
     } else if (cfg_name == "global_enable_vattr") {
         Global::enable_vattr = atoi(value.c_str());
-#ifdef USE_GPU
     } else if (cfg_name == "global_gpu_enable_pipeline") {
-        global_gpu_enable_pipeline = atoi(value.c_str());
-#endif // USE_GPU
+        Global::gpu_enable_pipeline = atoi(value.c_str());
     } else {
         return false;
     }
@@ -223,10 +219,8 @@ void load_config(string fname, int nsrvs)
 
     // set the total number of threads
     Global::num_threads = Global::num_engines + Global::num_proxies;
-#ifdef USE_GPU
     // each GPU card needs one (dedicated) agent thread
     Global::num_threads += Global::num_gpus;
-#endif // USE_GPU
 
     // limited the number of engines
     Global::mt_threshold = max(1, min(Global::mt_threshold, Global::num_engines));
@@ -261,7 +255,6 @@ void print_config(void)
     cout << "global_enable_planner: "        << Global::enable_planner        << LOG_endl;
     cout << "global_generate_statistics: "   << Global::generate_statistics   << LOG_endl;
     cout << "global_enable_vattr: "          << Global::enable_vattr          << LOG_endl;
-#ifdef USE_GPU
     cout << "global_num_gpus: "              << Global::num_gpus              << LOG_endl;
     cout << "global_gpu_rdma_buf_size_mb: "  << Global::gpu_rdma_buf_size_mb  << LOG_endl;
     cout << "global_gpu_rbuf_size_mb: "      << Global::gpu_rbuf_size_mb      << LOG_endl;
@@ -269,7 +262,6 @@ void print_config(void)
     cout << "global_gpu_key_blk_size_mb: "   << Global::gpu_key_blk_size_mb   << LOG_endl;
     cout << "global_gpu_value_blk_size_mb: " << Global::gpu_value_blk_size_mb << LOG_endl;
     cout << "global_gpu_enable_pipeline: "   << Global::gpu_enable_pipeline   << LOG_endl;
-#endif
     cout << "--" << LOG_endl;
 
     // compute from other settings

@@ -25,7 +25,7 @@ global_rdma_threshold           300
 global_enable_caching           0
 
 # GPU
-global_num_gpus                 1
+global_num_gpus                 0
 global_gpu_rdma_buf_size_mb     64
 global_gpu_rbuf_size_mb         32
 global_gpu_kvcache_size_gb      10

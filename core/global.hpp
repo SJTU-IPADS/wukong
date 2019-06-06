@@ -115,7 +115,7 @@ int Global::memstore_size_gb = 20;
 int Global::est_load_factor = 55;
 
 // GPU support
-int Global::num_gpus = 1;
+int Global::num_gpus = 0;
 int Global::gpu_kvcache_size_gb = 10;    // key-value cache
 int Global::gpu_rbuf_size_mb =  32;      // result (dual) buffer
 int Global::gpu_rdma_buf_size_mb = 64;   // RDMA buffer

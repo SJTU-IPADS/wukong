@@ -385,10 +385,10 @@ public:
             pthread_spin_unlock(&rmeta->lock);
 
             //avoid not enough space (remote ring buffer)
-            //without this, it will always fail, and retry, 
+            //without this, it will always fail, and retry,
             //which will cause dead loop
             uint64_t rbf_sz = mem->ring_size();
-            if( msg_sz > rbf_sz ) {
+            if ( msg_sz > rbf_sz ) {
                 logstream(LOG_ERROR) << "Size of ring buffer is smaller than message, please check your configure" << LOG_endl;
                 ASSERT(false);
             }
@@ -413,59 +413,58 @@ public:
 
         while (true) {
             // each thread has a logical-queue (#servers physical-queues)
-            int dst_sid = (schedulers[tid].rr_cnt++) % num_servers; // round-robin
-            uint64_t data_sz = check(tid, dst_sid);
+            int src_sid = (schedulers[tid].rr_cnt++) % num_servers; // round-robin
+            uint64_t data_sz = check(tid, src_sid);
             if (data_sz != 0) {
                 std::string data;
-                if (fetch(tid, dst_sid, data, data_sz))
+                if (fetch(tid, src_sid, data, data_sz))
                     return data;
             }
         }
     }
 
-    std::string recv(int tid, int dst_sid) {
+    std::string recv(int tid, int src_sid) {
         ASSERT(init);
+        ASSERT(src_sid >= 0);
 
         while (true) {
             // each thread has a logical-queue (#servers physical-queues)
-            uint64_t data_sz = check(tid, dst_sid);
+            uint64_t data_sz = check(tid, src_sid);
             if (data_sz != 0) {
                 std::string data;
-                if (fetch(tid, dst_sid, data, data_sz))
+                if (fetch(tid, src_sid, data, data_sz))
                     return data;
             }
         }
     }
 
-#ifdef USE_GPU
-    // Try to recv data of given thread
-    bool tryrecv(int tid, std::string &data, int& sender) {
-        ASSERT(init);
-
-        // check all physical-queues of tid once
-        for (int dst_sid = 0; dst_sid < num_servers; dst_sid++) {
-            uint64_t data_sz = check(tid, dst_sid);
-            if (data_sz != 0) {
-                sender = dst_sid;
-                if (fetch(tid, dst_sid, data, data_sz))
-                    return true;
-            }
-        }
-
-        return false;
-    }
-#endif
-
-    // Try to recv data of given thread
+    // try to recv data of given thread
     bool tryrecv(int tid, std::string &data) {
         ASSERT(init);
 
         // check all physical-queues of tid once
-        for (int dst_sid = 0; dst_sid < num_servers; dst_sid++) {
-            uint64_t data_sz = check(tid, dst_sid);
+        for (int sid = 0; sid < num_servers; sid++) {
+            uint64_t data_sz = check(tid, sid);
             if (data_sz != 0)
-                if (fetch(tid, dst_sid, data, data_sz))
+                if (fetch(tid, sid, data, data_sz))
                     return true;
+        }
+
+        return false;
+    }
+
+    // try to recv data of given thread and retrieve the server ID
+    bool tryrecv(int tid, std::string &data, int &src_sid) {
+        ASSERT(init);
+
+        // check all physical-queues of tid once
+        for (int sid = 0; sid < num_servers; sid++) {
+            uint64_t data_sz = check(tid, sid);
+            if (data_sz != 0) {
+                src_sid = sid;
+                if (fetch(tid, sid, data, data_sz))
+                    return true;
+            }
         }
 
         return false;

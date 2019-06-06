@@ -148,19 +148,13 @@ public:
         return string((char *)msg.data(), msg.size());
     }
 
-#ifdef USE_GPU
-    string recv(int tid, int dst_sid) {
-        ASSERT_MSG(false, "not implemented");
 
-        return nullptr;
+    string recv(int tid, int src_sid) {
+        logstream(LOG_WARNING) << "recv() from a specified server (sid=" << src_sid
+                               << ") is unsuppored by TCP adaptor now!"
+                               << LOG_endl;
+        return recv(tid);
     }
-
-    bool tryrecv(int tid, string &str, int &sender) {
-        ASSERT_MSG(false, "not implemented");
-
-        return false;
-    }
-#endif
 
     bool tryrecv(int tid, string &str) {
         zmq::message_t msg;
@@ -175,4 +169,13 @@ public:
 
         return success;
     }
+
+    bool tryrecv(int tid, string &str, int &src_sid) {
+        logstream(LOG_WARNING) << "tryrecv() and retrieve the server ID "
+                               << "is unsuppored by TCP adaptor now!"
+                               << LOG_endl;
+        src_sid = -1;
+        return tryrecv(tid, str);
+    }
+
 };

@@ -78,6 +78,16 @@ public:
         return Bundle(str);
     }
 
+    // receive msg from a specified server
+    string recv(int specified) {
+        std::string str;
+        if (Global::use_rdma && rdma->init)
+            str = rdma->recv(tid, specified);
+        else
+            str = tcp->recv(tid, specified);
+        return str;
+    }
+
     bool tryrecv(string &str) {
         if (Global::use_rdma && rdma->init)
             return rdma->tryrecv(tid, str);
@@ -92,31 +102,19 @@ public:
         return true;
     }
 
-#ifdef USE_GPU
-    // Receive msg from a designated server
-    string recv(int sender) {
-        std::string str;
+    // Receive msg and return the sender
+    bool tryrecv(string &str, int &sender) {
         if (Global::use_rdma && rdma->init)
-            str = rdma->recv(tid, sender);
+            return rdma->tryrecv(tid, str, sender);
         else
-            str = tcp->recv(tid, sender);
-        return str;
+            return tcp->tryrecv(tid, str, sender);
     }
 
     // Receive msg and return the sender
     bool tryrecv(Bundle &b, int &sender) {
         string str;
-        bool success = false;
-        if (Global::use_rdma && rdma->init)
-            success = rdma->tryrecv(tid, str, sender);
-        else
-            success = tcp->tryrecv(tid, str, sender);
-
-        if (success)
-            b.init(str);
-
-        return success;
+        if (!tryrecv(str, sender)) return false;
+        b.init(str);
+        return true;
     }
-#endif
-
 };
