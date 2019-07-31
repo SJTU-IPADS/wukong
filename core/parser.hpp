@@ -101,7 +101,7 @@ private:
                 logstream(LOG_ERROR) << "Unknown Literal: " + str << LOG_endl;
                 throw WukongException(SYNTAX_ERROR);
             }
-            return str_server->str2id[str];
+            return str_server->get_id(str);
         }
         case SPARQLParser::Element::IRI:
         {
@@ -110,7 +110,7 @@ private:
                 logstream(LOG_ERROR) << "Unknown IRI: " + str << LOG_endl;
                 throw WukongException(SYNTAX_ERROR);
             }
-            return str_server->str2id[str];
+            return str_server->get_id(str);
         }
         case SPARQLParser::Element::Template:
             return PTYPE_PH;

@@ -36,6 +36,10 @@
 #include "hdfs.hpp"
 #include "type.hpp"
 
+#ifdef USE_BI_TRIE
+#include "store/bi_trie.hpp"
+#endif
+
 // utils
 #include "assertion.hpp"
 
@@ -43,10 +47,15 @@ using namespace std;
 
 
 class String_Server {
-public:
+private:
+#ifdef USE_BI_TRIE
+    bi_trie<char, sid_t> str_id_bitrie;
+#else
     boost::unordered_map<string, sid_t> str2id;
     boost::unordered_map<sid_t, string> id2str;
+#endif
 
+public:
     // the data type of predicate/attribute: sid=0, integer=1, float=2, double=3
     boost::unordered_map<sid_t, char> pid2type;
 
@@ -75,9 +84,52 @@ public:
                             << (end - start) / 1000 << " ms)" << LOG_endl;
     }
 
-    bool exist(sid_t sid) { return id2str.find(sid) != id2str.end(); }
+    bool exist(sid_t sid) { 
+#ifdef USE_BI_TRIE
+        return str_id_bitrie.exist(sid);
+#else
+        return id2str.find(sid) != id2str.end();
+#endif
+    }
 
-    bool exist(string str) { return str2id.find(str) != str2id.end(); }
+    bool exist(string str) {
+#ifdef USE_BI_TRIE
+        return str_id_bitrie.exist(str); 
+#else
+        return str2id.find(str) != str2id.end(); 
+#endif
+    }
+
+    string get_str(sid_t sid) {
+#ifdef USE_BI_TRIE
+        return str_id_bitrie[sid];
+#else
+        return id2str[sid];
+#endif
+    }
+
+    sid_t get_id(string str) {
+#ifdef USE_BI_TRIE
+        return str_id_bitrie[str];
+#else
+        return str2id[str];
+#endif
+    }
+
+    void insert_bidirect_mapping(string str, sid_t sid) { 
+#ifdef USE_BI_TRIE
+        str_id_bitrie.insert_kv(str, sid);
+#else
+        str2id[str] = sid;
+        id2str[sid] = str;
+#endif
+    }
+
+    void string_server_shrink_to_fit() {
+#ifdef USE_BI_TRIE
+        str_id_bitrie.storage_resize();
+#endif
+    }
 
 private:
     /* load ID mapping files from a shared filesystem (e.g., NFS) */
@@ -102,8 +154,8 @@ private:
                 string str;
                 sid_t id;
                 while (file >> str >> id) {
-                    str2id[str] = id;
-                    id2str[id] = str;
+                    // Insert bidirectional mapping of str and id into string server
+                    insert_bidirect_mapping(str, id);
                     if (boost::ends_with(fname, "/str_index"))
                         pid2type[id] = (char)SID_t;
                 }
@@ -127,8 +179,8 @@ private:
                 sid_t id;
                 char type;
                 while (file >> str >> id >> type) {
-                    str2id[str] = id;
-                    id2str[id] = str;
+                    // Insert bidirectional mapping of str and id into string server
+                    insert_bidirect_mapping(str, id);
                     pid2type[id] = (char)type;
 
                     // FIXME: dynamic loading (next_index_id)
@@ -137,6 +189,7 @@ private:
                 file.close();
             }
         }
+        string_server_shrink_to_fit();
     }
 
     /* load ID mapping files from HDFS */
@@ -155,8 +208,8 @@ private:
                 string str;
                 sid_t id;
                 while (file >> str >> id) {
-                    str2id[str] = id;
-                    id2str[id] = str;
+                    // Insert bidirectional mapping of str and id into string server
+                    insert_bidirect_mapping(str, id);
                     if (boost::ends_with(fname, "/str_index"))
                         pid2type[id] = (char)SID_t;
                 }
@@ -180,8 +233,8 @@ private:
                 sid_t id;
                 char type;
                 while (file >> str >> id >> type) {
-                    str2id[str] = id;
-                    id2str[id] = str;
+                    // Insert bidirectional mapping of str and id into string server
+                    insert_bidirect_mapping(str, id);
                     pid2type[id] = (char)type;
 
                     // FIXME: dynamic loading (next_index_id)
@@ -190,5 +243,6 @@ private:
                 file.close();
             }
         }
+        string_server_shrink_to_fit();
     }
 };
