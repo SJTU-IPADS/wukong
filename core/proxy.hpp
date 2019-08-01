@@ -97,12 +97,12 @@ private:
                 request.pattern_group.patterns.push_back(pattern);
 
                 string dir_str = (d == OUT) ? "->" : "<-";
-                type = "#Predicate [" + str_server->get_str(p) + " | " + dir_str + "]";
+                type = "#Predicate [" + str_server->id2str(p) + " | " + dir_str + "]";
             } else {
                 // templates are defined by type
                 // for example, %GraduateStudent takeCourse ?X .
                 // create a TYPE query to collect constants with the certain type
-                SPARQLQuery::Pattern pattern(str_server->get_id(type), TYPE_ID, IN, -1);
+                SPARQLQuery::Pattern pattern(str_server->str2id(type), TYPE_ID, IN, -1);
                 pattern.pred_type = (char)SID_t;
                 request.pattern_group.patterns.push_back(pattern);
             }
@@ -252,7 +252,7 @@ public:
             for (int j = 0; j < q.result.col_num; j++) {
                 int id = q.result.get_row_col(i, j);
                 if (str_server->exist(id))
-                    stream << str_server->get_str(id) << "\t";
+                    stream << str_server->id2str(id) << "\t";
                 else
                     stream << id << "\t";
             }

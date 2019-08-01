@@ -1135,7 +1135,7 @@ private:
             switch (filter.type) {
             case SPARQLQuery::Filter::Type::Variable:
                 id = result.get_row_col(row, col);
-                return str_server->exist(id) ? str_server->get_str(id) : "";
+                return str_server->exist(id) ? str_server->id2str(id) : "";
             case SPARQLQuery::Filter::Type::Literal:
                 return "\"" + filter.value + "\"";
             default:
@@ -1222,7 +1222,7 @@ private:
                 continue;
 
             int id = result.get_row_col(row, col);
-            string str = str_server->exist(id) ? str_server->get_str(id) : "";
+            string str = str_server->exist(id) ? str_server->id2str(id) : "";
             if (!regex_match(str, IRI_pattern))
                 is_satisfy[row] = false;
         }
@@ -1253,7 +1253,7 @@ private:
                 continue;
 
             int id = result.get_row_col(row, col);
-            string str = str_server->exist(id) ? str_server->get_str(id) : "";
+            string str = str_server->exist(id) ? str_server->id2str(id) : "";
             if (!regex_match(str, RDFLiteral_pattern))
                 is_satisfy[row] = false;
         }
@@ -1275,7 +1275,7 @@ private:
                 continue;
 
             int id = result.get_row_col(row, col);
-            string str = str_server->exist(id) ? str_server->get_str(id) : "";
+            string str = str_server->exist(id) ? str_server->id2str(id) : "";
             if (str.front() != '\"' || str.back() != '\"')
                 logstream(LOG_ERROR) << "The first parameter of function regex must be string"
                                      << LOG_endl;
@@ -1360,8 +1360,8 @@ private:
             int cmp = 0;
             for (int i = 0; i < query.orders.size(); i ++) {
                 int col = query.result.var2col(query.orders[i].id);
-                string str_a = str_server->exist(a[col]) ? str_server->get_str(a[col]) : "";
-                string str_b = str_server->exist(a[col]) ? str_server->get_str(b[col]) : "";
+                string str_a = str_server->exist(a[col]) ? str_server->id2str(a[col]) : "";
+                string str_b = str_server->exist(a[col]) ? str_server->id2str(b[col]) : "";
                 cmp = str_a.compare(str_b);
                 if (cmp != 0) {
                     cmp = query.orders[i].descending ? -cmp : cmp;
