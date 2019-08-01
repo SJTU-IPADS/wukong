@@ -68,19 +68,17 @@ using namespace std;
 template <class K_unit, class T, size_t BUCKET_NUM = DEFAULT_BUCKET_NUM,
           size_t ASSOCIATIVITY = DEFAULT_ASSOCIATIVITY,
           size_t FAST_PATH_NODE_NUM = DEFAULT_FAST_PATH_NODE_NUM>
-class bi_trie {
+class bitrie {
 private:
     static bool key_equal(const K_unit* key_lhs, const size_t key_size_lhs,
                 const K_unit* key_rhs, const size_t key_size_rhs) {
-        if (key_size_lhs == 0 && key_size_rhs == 0) {
+        if (key_size_lhs == 0 && key_size_rhs == 0)
             return true;
-        }
-        if (key_size_lhs != key_size_rhs) {
+        
+        if (key_size_lhs != key_size_rhs)
             return false;
-        } else {
-            return memcmp(key_lhs, key_rhs, key_size_lhs * sizeof(K_unit)) ==
-                0;
-        }
+        else
+            return (memcmp(key_lhs, key_rhs, key_size_lhs * sizeof(K_unit)) == 0);
     }
 
     // For fasthash64:
@@ -169,13 +167,13 @@ private:
 
     /* helper function */
     static inline const group_type get_group_type(const size_t key_size) {
-        return key_size < MAX_NORMAL_LEN ? group_type::NORMAL_GROUP
-                                        : group_type::SPECIAL_GROUP;
+        return (key_size < MAX_NORMAL_LEN) ? group_type::NORMAL_GROUP
+                                           : group_type::SPECIAL_GROUP;
     }
 
     static inline const group_type get_group_type(const slot* s) {
-        return s->get_length() < MAX_NORMAL_LEN ? group_type::NORMAL_GROUP
-                                                : group_type::SPECIAL_GROUP;
+        return (s->get_length() < MAX_NORMAL_LEN) ? group_type::NORMAL_GROUP
+                                                  : group_type::SPECIAL_GROUP;
     }
 
 private:
@@ -191,6 +189,7 @@ private:
 
     public:
         slot() : encode(0) { }
+
         slot(bool is_special, uint64_t length, uint64_t pos, uint64_t page_id) : 
             encode(encode_slot(is_special, length, pos, page_id)) { }
 
@@ -271,9 +270,9 @@ private:
 
         void print_slot(page_manager_agent &pm_agent) {
             cout << get_special() << "," << get_length() << "," << get_pos()
-                << "," << get_page_id() << ","
-                << string(pm_agent.get_content_pointer(this), get_length()) << ","
-                << pm_agent.get_value(this) << endl;
+                 << "," << get_page_id() << ","
+                 << string(pm_agent.get_content_pointer(this), get_length()) << ","
+                 << pm_agent.get_value(this) << endl;
         }
     };
 
@@ -361,7 +360,7 @@ private:
          * @param bt Bi-trie that manages 'this' node.
          */
         void insert_value_in_node(const string& prefix, const T v,
-                                          bi_trie* const bt) {
+                                  bitrie* const bt) {
             value_ = v;
             have_value_ = true;
             bt->set_v2k(v, this, -1);
@@ -379,7 +378,7 @@ private:
         }
 
         /**
-         * @brief Deleting 'this' node. (For bi_trie deconstructor).
+         * @brief Deleting 'this' node. (For bitrie deconstructor).
          * 
          */
         virtual void delete_me() = 0;
@@ -396,7 +395,7 @@ private:
      * node, the leaf node, in normal trie searching way.
      */
     class trie_node : public node {
-        friend class bi_trie;
+        friend class bitrie;
 
     private:
         /**
@@ -415,11 +414,9 @@ private:
                 string fast_path_string_;
                 node* dest_node_;
 
-        public:
+            public:
                 fast_path(const unsigned int hash_val, const string &fast_path_string, node* dest_node)
-                    : hash_val_(hash_val),
-                    fast_path_string_(fast_path_string),
-                    dest_node_(dest_node) {}
+                    : hash_val_(hash_val), fast_path_string_(fast_path_string), dest_node_(dest_node) { }
 
                 inline void set_dest_node(node *dest_node) { dest_node_ = dest_node; }
 
@@ -515,17 +512,16 @@ private:
          *      std::map:       |          8        |       5       |
          */
         class child_representation {
-          
         public:
             /* List node class */
             struct child_node {
-               public:
+            public:
                 char child_node_char;
                 node* current;
                 child_node* next;
 
                 child_node(char cnc, node* cur)
-                    : child_node_char(cnc), current(cur), next(nullptr) {}
+                    : child_node_char(cnc), current(cur), next(nullptr) { }
 
                 inline bool have_next() const { return next != nullptr; }
 
@@ -552,7 +548,7 @@ private:
              * @param c Char of a child node's being lookuped.
              * @return node*& Reference to the requested element.
              */
-            node*& operator[](const char c) {
+            node *& operator[](const char c) {
                 child_node* current_child_node = first_child_;
                 child_node* last_child_node = nullptr;
 
@@ -587,7 +583,7 @@ private:
              * @param c Char of a child node's being lookuped.
              * @return node* Destination child node of char c.
              */
-            node* find(const char c) const {
+            node * find(const char c) const {
                 child_node* current_child_node = first_child_;
                 while(current_child_node != nullptr) {
                     if (current_child_node->child_node_char == c)
@@ -625,8 +621,8 @@ private:
         child_representation childs_;  // Store the suffix node of hash_node or trie_node
 
     public:
-        trie_node(trie_node* p, const char* key, size_t key_size)
-            : node(node_type::TRIE_NODE, p, key, key_size), fpm_(nullptr) {}
+        trie_node(trie_node *p, const char *key, size_t key_size)
+            : node(node_type::TRIE_NODE, p, key, key_size), fpm_(nullptr) { }
 
         /**
          * @brief Add a fast path of string(key, key_size) in fast path manager
@@ -642,7 +638,7 @@ private:
             return;
         }
 
-        // For bi_trie deconstructor
+        // For bitrie deconstructor
         virtual void delete_me() {
             typename child_representation::child_node* cur_child = childs_.get_first_node();
             while(cur_child != nullptr) {
@@ -668,7 +664,7 @@ private:
         void traverse_for_pgm_resize(page_manager* old_pm, page_manager* new_pm,
                                      group_type resize_type) {
             typename child_representation::child_node* cur_child = childs_.get_first_node();
-            while(cur_child != nullptr) {
+            while (cur_child != nullptr) {
                 node* cur_node = cur_child->get_node();
                 cur_node->traverse_for_pgm_resize(old_pm, new_pm, resize_type);
                 cur_child = cur_child->next_child();
@@ -702,8 +698,8 @@ private:
          * @param bt Bi-trie that manages 'this' node.
          * @return node* The target child node.
          */
-        node* find_trie_node_child(const K_unit* key, size_t& ref_pos,
-                                   size_t key_size, const bi_trie* bt) const {
+        node * find_trie_node_child(const K_unit* key, size_t& ref_pos,
+                                   size_t key_size, const bitrie* bt) const {
             // Find in fast path
             // If find the target node in fpm(fast path manager), we return the
             // fast_path_node
@@ -731,10 +727,10 @@ private:
      * element, the value, in hashtable searching way.
      */
     class hash_node : public node {
-        friend class bi_trie;
+        friend class bitrie;
 
     private:
-        slot* key_metas_;
+        slot *key_metas_;
         size_t elem_num_;
 
         size_t cur_associativity_;
@@ -747,7 +743,7 @@ private:
     public:
         /* Debug helper function */
         void print_slot(int i, int j, page_manager_agent &pm_agent) {
-            slot* s = get_slot(i, j);
+            slot *s = get_slot(i, j);
             cout << i * cur_associativity_ + j << ":" << s->get_special() << ","
                  << s->get_length() << "," << s->get_pos() << ","
                  << s->get_page_id() << ",";
@@ -827,10 +823,8 @@ private:
             }
         }
 
-        // For bi_trie deconstructor
-        virtual void delete_me() {
-            delete this;
-        }
+        // For bitrie deconstructor
+        virtual void delete_me() { delete this; }
 
         // Deconstructor
         ~hash_node() { delete[] key_metas_; }
@@ -969,7 +963,7 @@ private:
          * @param bt Bi-trie that manages 'this' node.
          * @return int A empty slot_id in bucketid.
          */
-        int cuckoo_hash(size_t bucketid, bi_trie* bt) {
+        int cuckoo_hash(size_t bucketid, bitrie* bt) {
             // Set up the backup for recovery if the cuckoo hash fail
             slot* key_metas_backup = new slot[BUCKET_NUM * cur_associativity_]();
             memcpy(key_metas_backup, key_metas_,
@@ -1132,7 +1126,7 @@ private:
          * @param v Value of searching element's string.
          * @param fr Found result that contains the inserting bucketid, slotid, existence information.
          */
-        void insert_kv_in_hashnode(const K_unit* key, size_t key_size, bi_trie* bt,
+        void insert_kv_in_hashnode(const K_unit* key, size_t key_size, bitrie* bt,
                                    T v, found_result fr) {
             size_t bucketid = fr.get_bucketid();
             int slotid = fr.get_slotid();
@@ -1736,8 +1730,7 @@ private:
          * @param bt Bi-trie that manages this page manager
          * @param expand_ratio The resizing ratio.
          */
-        void resize(group_type resize_type, bi_trie* bt,
-                    size_t expand_ratio = 1) {
+        void resize(group_type resize_type, bitrie* bt, size_t expand_ratio = 1) {
             page_manager* new_pm;
             if (resize_type == group_type::SPECIAL_GROUP) {
                 new_pm = new page_manager(0, s_size << expand_ratio);
@@ -2116,11 +2109,11 @@ private:
     node* t_root;
 
 public:
-    bi_trie():pm(new page_manager(1, 1)),
-                t_root(new hash_node(nullptr, string(), pm)) {}
+    bitrie():pm(new page_manager(1, 1)),
+                t_root(new hash_node(nullptr, string(), pm)) { }
 
     // Deconstructor
-    ~bi_trie() {
+    ~bitrie() {
         t_root->delete_me();
         delete pm;
     }

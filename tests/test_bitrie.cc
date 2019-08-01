@@ -1,7 +1,8 @@
 #include <string>
 #include <sstream>
 #include <gtest/gtest.h>
-#include "store/bi_trie.hpp"
+
+#include "bitrie.hpp"
 
 namespace test {
     
@@ -26,7 +27,7 @@ using namespace std;
 #define TEST_ONLY_ASSOCIATIVITY 2
 #define TEST_ONLY_FAST_PATH_NODE 2
 
-class Bi_trie : public ::testing::Test {
+class Test_BiTrie : public ::testing::Test {
    protected:
     static void SetUpTestCase() {
         dataset_ptr = new vector<pair<string, unsigned int>>();
@@ -37,7 +38,7 @@ class Bi_trie : public ::testing::Test {
         stringstream ss;
         ss << string_dataset;
 
-        // Load data into bi_trie
+        // Load data into bitrie
         while (ss >> url >> v) {
             dataset_ptr->push_back(pair<string, unsigned int>(url, v));
         }
@@ -50,11 +51,11 @@ class Bi_trie : public ::testing::Test {
     // Some expensive resource shared by all tests.
     static vector<pair<string, unsigned int>> *dataset_ptr;
 };
-vector<pair<string, unsigned int>>* Bi_trie::dataset_ptr = NULL;
+vector<pair<string, unsigned int>>* Test_BiTrie::dataset_ptr = NULL;
 
 // External interfaces(Insert, access, exist)
-TEST_F(Bi_trie, External_interfaces) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, External_interfaces) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     for(auto &it:dataset) {
@@ -71,8 +72,8 @@ TEST_F(Bi_trie, External_interfaces) {
 }
 
 // Resize(page manager resizeing)
-TEST_F(Bi_trie, Storage_resize) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Storage_resize) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     for(auto &it:dataset) {
@@ -91,8 +92,8 @@ TEST_F(Bi_trie, Storage_resize) {
 }
 
 // Test whether dynamic expand() will fail the test
-TEST_F(Bi_trie, Dynamic_expand) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Dynamic_expand) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -114,8 +115,8 @@ TEST_F(Bi_trie, Dynamic_expand) {
 }
 
 // Test whether cuckoo hash() will fail the test
-TEST_F(Bi_trie, Cuckoo_hashing) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Cuckoo_hashing) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -137,8 +138,8 @@ TEST_F(Bi_trie, Cuckoo_hashing) {
 }
 
 // Test whether Burst() will fail the test
-TEST_F(Bi_trie, Bursting) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Bursting) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -158,8 +159,8 @@ TEST_F(Bi_trie, Bursting) {
 }
 
 // Test the element that locate on a trie node
-TEST_F(Bi_trie, Search_element_on_trie_node) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Search_element_on_trie_node) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -177,8 +178,8 @@ TEST_F(Bi_trie, Search_element_on_trie_node) {
 }
 
 // Test the element that locate on a hash node
-TEST_F(Bi_trie, Search_element_on_hash_node) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Search_element_on_hash_node) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -196,8 +197,8 @@ TEST_F(Bi_trie, Search_element_on_hash_node) {
 }
 
 // Test the element that locate in a hash node
-TEST_F(Bi_trie, Search_element_in_hash_node) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Search_element_in_hash_node) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -215,8 +216,8 @@ TEST_F(Bi_trie, Search_element_in_hash_node) {
 }
 
 // Test the duplicate element inserting on trie node
-TEST_F(Bi_trie, Insert_duplicate_element_on_trie_node) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Insert_duplicate_element_on_trie_node) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -236,8 +237,8 @@ TEST_F(Bi_trie, Insert_duplicate_element_on_trie_node) {
 }
 
 // Test the duplicate element inserting on hash node
-TEST_F(Bi_trie, Insert_duplicate_element_on_hash_node) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Insert_duplicate_element_on_hash_node) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -257,8 +258,8 @@ TEST_F(Bi_trie, Insert_duplicate_element_on_hash_node) {
 }
 
 // Test the duplicate element inserting in hash node
-TEST_F(Bi_trie, Insert_duplicate_element_in_hash_node) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Insert_duplicate_element_in_hash_node) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -278,8 +279,8 @@ TEST_F(Bi_trie, Insert_duplicate_element_in_hash_node) {
 }
 
 // Test the element that contains a fast path searching
-TEST_F(Bi_trie, Using_normal_path) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Using_normal_path) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -297,8 +298,8 @@ TEST_F(Bi_trie, Using_normal_path) {
 }
 
 // Test the element that contains a fast path searching
-TEST_F(Bi_trie, Using_fast_path) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Using_fast_path) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -316,8 +317,8 @@ TEST_F(Bi_trie, Using_fast_path) {
 }
 
 // Test the element that with a suffix in hash_node
-TEST_F(Bi_trie, Get_string_with_suffix) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Get_string_with_suffix) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -335,8 +336,8 @@ TEST_F(Bi_trie, Get_string_with_suffix) {
 }
 
 // Test the element that without a suffix in hash_node
-TEST_F(Bi_trie, Get_string_without_suffix) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Get_string_without_suffix) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -354,8 +355,8 @@ TEST_F(Bi_trie, Get_string_without_suffix) {
 }
 
 // Test the element that value doesn't exist
-TEST_F(Bi_trie, Insert_empty_key_element) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Insert_empty_key_element) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -373,8 +374,8 @@ TEST_F(Bi_trie, Insert_empty_key_element) {
 }
 
 // Test the element that key is empty
-TEST_F(Bi_trie, Get_value_with_empty_key) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Get_value_with_empty_key) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -389,8 +390,8 @@ TEST_F(Bi_trie, Get_value_with_empty_key) {
 }
 
 // Test the element that key is non-empty
-TEST_F(Bi_trie, Get_value_with_nonempty_key) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Get_value_with_nonempty_key) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -407,8 +408,8 @@ TEST_F(Bi_trie, Get_value_with_nonempty_key) {
 
 
 // Test the element that value doesn't exist
-TEST_F(Bi_trie, Get_string_with_exist_value) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Get_string_with_exist_value) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -424,8 +425,8 @@ TEST_F(Bi_trie, Get_string_with_exist_value) {
 }
 
 // Test the element that value doesn't exist
-TEST_F(Bi_trie, Get_string_with_unexist_value) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+TEST_F(Test_BiTrie, Get_string_with_unexist_value) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -440,9 +441,9 @@ TEST_F(Bi_trie, Get_string_with_unexist_value) {
 }
 
 // Test the element with long key
-// In bi_trie, the long key will be inserted into the special group
-TEST_F(Bi_trie, Get_string_with_long_key) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+// In bitrie, the long key will be inserted into the special group
+TEST_F(Test_BiTrie, Get_string_with_long_key) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;
@@ -460,9 +461,9 @@ TEST_F(Bi_trie, Get_string_with_long_key) {
 }
 
 // Test the element with long key
-// In bi_trie, the long key will be inserted into the special group
-TEST_F(Bi_trie, Get_value_with_long_key) {
-    bi_trie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
+// In bitrie, the long key will be inserted into the special group
+TEST_F(Test_BiTrie, Get_value_with_long_key) {
+    bitrie<char, uint32_t, TEST_ONLY_BUCKET, TEST_ONLY_ASSOCIATIVITY, TEST_ONLY_FAST_PATH_NODE> bt;
     const vector<pair<string, unsigned int>> &dataset = *dataset_ptr;
 
     int i = 0;

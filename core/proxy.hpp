@@ -178,7 +178,7 @@ public:
     int sid;    // server id
     int tid;    // thread id
 
-    String_Server *str_server;
+    StringServer *str_server;
     Adaptor *adaptor;
     Stats *stats;
 
@@ -186,7 +186,7 @@ public:
     Parser parser;
     Planner planner;
 
-    Proxy(int sid, int tid, String_Server *str_server, DGraph * graph,
+    Proxy(int sid, int tid, StringServer *str_server, DGraph * graph,
           Adaptor *adaptor, Stats *stats)
         : sid(sid), tid(tid), str_server(str_server), adaptor(adaptor), stats(stats),
           coder(sid, tid), parser(str_server), planner(tid, graph, stats) { }

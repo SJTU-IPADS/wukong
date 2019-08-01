@@ -55,7 +55,7 @@ using namespace std;
 class DynamicLoader {
 private:
     int sid;
-    String_Server *str_server;
+    StringServer *str_server;
     DynamicGStore *gstore;
 
     inline vector<string> list_files(string dname, string prefix) {
@@ -158,7 +158,8 @@ private:
     }
 
 public:
-    DynamicLoader(int sid, String_Server *str_server, DynamicGStore *gstore): sid(sid), str_server(str_server), gstore(gstore) {}
+    DynamicLoader(int sid, StringServer *str_server, DynamicGStore *gstore)
+        : sid(sid), str_server(str_server), gstore(gstore) { }
 
     int64_t dynamic_load_data(string dname, bool check_dup) {
         uint64_t start, end;

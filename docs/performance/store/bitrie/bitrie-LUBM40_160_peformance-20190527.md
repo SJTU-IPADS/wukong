@@ -1,4 +1,4 @@
-# Bi_trie Performance
+# BiTrie Performance
 
 - Date: May. 27, 2019
 - Author: Yaozeng Zeng
@@ -50,7 +50,7 @@ Flags:                 fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca 
 
 ### Wukong Version
 
-- Version 1: 2ec4de (port bi_trie into stringserver)
+- Version 1: 2ec4de (port BiTrie into StringServer)
 
 ### Config
 
@@ -65,7 +65,7 @@ associativity   8
 
 Baseline is boost::unordered_map.
 
-### Version 1: 2ec4de (port bi_trie into stringserver)
+### Version 1: 2ec4de (port BiTrie into StringServer)
 
 Get memory information from mallinfo(diff between uordblks and hblkhd).
 

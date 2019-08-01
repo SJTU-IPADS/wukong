@@ -77,7 +77,7 @@ private:
 
     // str2id mapping for pattern constants
     // (e.g., <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> 1)
-    String_Server *str_server;
+    StringServer *str_server;
 
     /// SPARQLParser::Element to ssid
     ssid_t transfer_element(const SPARQLParser::Element &e) {
@@ -278,7 +278,7 @@ public:
     // the stat of query parsing
     std::string strerror;
 
-    Parser(String_Server *_ss): str_server(_ss) { }
+    Parser(StringServer *_ss): str_server(_ss) { }
 
     /// a single query
     bool parse(istream &is, SPARQLQuery &sq) {

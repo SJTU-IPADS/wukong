@@ -59,8 +59,8 @@ protected:
     }
 
 public:
-    PosixLoader(int sid, Mem *mem, String_Server *str_server, GStore *gstore)
+    PosixLoader(int sid, Mem *mem, StringServer *str_server, GStore *gstore)
         : BaseLoader(sid, mem, str_server, gstore) { }
 
-    ~PosixLoader() {}
+    ~PosixLoader() { }
 };

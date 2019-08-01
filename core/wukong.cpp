@@ -177,7 +177,7 @@ main(int argc, char *argv[])
                                   Global::num_servers, Global::num_proxies);
 
     // load string server (read-only, shared by all proxies and all engines)
-    String_Server str_server(Global::input_folder);
+    StringServer str_server(Global::input_folder);
 
     // load RDF graph (shared by all engines and proxies)
     DGraph dgraph(sid, mem, &str_server, Global::input_folder);

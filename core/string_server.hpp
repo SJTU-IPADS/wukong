@@ -36,21 +36,21 @@
 #include "hdfs.hpp"
 #include "type.hpp"
 
-// #define USE_BITRIE  // use bi-tire to store ID-STR mapping (reduce memory usage)
-#ifdef USE_BITRIE
-#include "store/bi_trie.hpp"
-#endif
-
 // utils
 #include "assertion.hpp"
+
+// #define USE_BITRIE  // use bi-tire to store ID-STR mapping (reduce memory usage)
+#ifdef USE_BITRIE
+#include "bitrie.hpp"
+#endif
 
 
 using namespace std;
 
-class String_Server {
+class StringServer {
 private:
 #ifdef USE_BITRIE
-    bi_trie<char, sid_t> bimap;  // ID-STRING (bi-)map
+    bitrie<char, sid_t> bimap;  // ID-STRING (bi-)map
 #else
     boost::unordered_map<string, sid_t> simap;  // STRING to ID
     boost::unordered_map<sid_t, string> ismap;  // ID to STRING
@@ -63,7 +63,7 @@ public:
     uint64_t next_index_id;
     uint64_t next_normal_id;
 
-    String_Server(string dname) {
+    StringServer(string dname) {
         uint64_t start = timer::get_usec();
 
         next_index_id = 0;

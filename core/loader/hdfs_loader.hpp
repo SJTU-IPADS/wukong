@@ -42,15 +42,18 @@ protected:
 
     vector<string> list_files(const string &src, string prefix) {
         if (!wukong::hdfs::has_hadoop()) {
-            logstream(LOG_ERROR) << "attempting to load data files from HDFS but Wukong was built without HDFS." << LOG_endl;
+            logstream(LOG_ERROR) << "attempting to load data files from HDFS "
+                                 << "but Wukong was built without HDFS." << LOG_endl;
             exit(-1);
         }
+        
         wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
         return vector<string>(hdfs.list_files(src, prefix));
     }
 
 public:
-    HDFSLoader(int sid, Mem *mem, String_Server *str_server, GStore *gstore): BaseLoader(sid, mem, str_server, gstore) {}
+    HDFSLoader(int sid, Mem *mem, StringServer *str_server, GStore *gstore)
+        : BaseLoader(sid, mem, str_server, gstore) { }
 
-    ~HDFSLoader() {}
+    ~HDFSLoader() { }
 };

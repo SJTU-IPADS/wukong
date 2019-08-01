@@ -93,7 +93,7 @@ public:
     int sid;    // server id
     int tid;    // thread id
 
-    String_Server *str_server;
+    StringServer *str_server;
     DGraph *graph;
     Adaptor *adaptor;
 
@@ -107,7 +107,7 @@ public:
 
     tbb::concurrent_queue<SPARQLQuery> runqueue; // task queue for sparql queries
 
-    Engine(int sid, int tid, String_Server *str_server, DGraph *graph, Adaptor *adaptor)
+    Engine(int sid, int tid, StringServer *str_server, DGraph *graph, Adaptor *adaptor)
         : sid(sid), tid(tid), last_time(timer::get_usec()),
           str_server(str_server), graph(graph), adaptor(adaptor) {
 

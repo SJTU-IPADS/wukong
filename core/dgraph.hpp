@@ -52,7 +52,7 @@ public:
     DynamicLoader *dynamic_loader;
 #endif
 
-    DGraph(int sid, Mem *mem, String_Server *str_server, string dname): sid(sid) {
+    DGraph(int sid, Mem *mem, StringServer *str_server, string dname): sid(sid) {
 #ifdef DYNAMIC_GSTORE
         gstore = new DynamicGStore(sid, mem);
         dynamic_loader = new DynamicLoader(sid, str_server, static_cast<DynamicGStore *>(gstore));

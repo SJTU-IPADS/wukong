@@ -67,7 +67,7 @@ private:
     int sid;    // server id
     int tid;    // thread id
 
-    String_Server *str_server;
+    StringServer *str_server;
     DGraph *graph;
     Coder *coder;
     Messenger *msgr;
@@ -1351,9 +1351,9 @@ private:
     class Compare {
     private:
         SPARQLQuery &query;
-        String_Server *str_server;
+        StringServer *str_server;
     public:
-        Compare(SPARQLQuery &query, String_Server *str_server)
+        Compare(SPARQLQuery &query, StringServer *str_server)
             : query(query), str_server(str_server) { }
 
         bool operator()(const int* a, const int* b) {
@@ -1520,7 +1520,7 @@ out:
 public:
     tbb::concurrent_queue<SPARQLQuery> prior_stage;
 
-    SPARQLEngine(int sid, int tid, String_Server *str_server,
+    SPARQLEngine(int sid, int tid, StringServer *str_server,
                  DGraph *graph, Coder *coder, Messenger *msgr)
         : sid(sid), tid(tid), str_server(str_server),
           graph(graph), coder(coder), msgr(msgr) {

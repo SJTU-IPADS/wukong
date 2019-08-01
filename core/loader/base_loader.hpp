@@ -57,7 +57,7 @@ class BaseLoader : public LoaderInterface {
 protected:
     int sid;
     Mem *mem;
-    String_Server *str_server;
+    StringServer *str_server;
     GStore *gstore;
 
     vector<uint64_t> num_triples;  // record #triples loaded from input data for each server
@@ -375,7 +375,7 @@ protected:
     }
 
 public:
-    BaseLoader(int sid, Mem *mem, String_Server *str_server, GStore *gstore)
+    BaseLoader(int sid, Mem *mem, StringServer *str_server, GStore *gstore)
         : sid(sid), mem(mem), str_server(str_server), gstore(gstore) { }
 
     virtual ~BaseLoader() { }
