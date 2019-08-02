@@ -195,7 +195,7 @@ private:
 
     // Allocate space to store edges of given size.
     // @return offset of allocated space.
-    uint64_t alloc_edges(uint64_t n, int64_t tid = 0) {
+    uint64_t alloc_edges(uint64_t n, int64_t tid) {
         if (Global::enable_caching)
             sweep_free(); // collect free space before allocate
 
@@ -369,6 +369,7 @@ private:
     }
 
     void insert_idx(const tbb_hash_map &pidx_map, const tbb_hash_map &tidx_map, dir_t d) {
+        int tid = omp_get_thread_num();
         tbb_hash_map::const_accessor ca;
         rdf_seg_meta_t &segment = rdf_seg_meta_map[segid_t(1, PREDICATE_ID, d)];
         // it is possible that num_edges = 0 if loading an empty dataset
@@ -384,7 +385,7 @@ private:
             ASSERT(sz <= segment.num_edges);
 
             ikey_t key = ikey_t(0, pid, d);
-            uint64_t off = alloc_edges(sz, d);
+            uint64_t off = alloc_edges(sz, tid);
             logger(LOG_DEBUG, "insert_pidx[%s]: key: [%lu|%lu|%lu] sz: %lu",
                    (d == IN) ? "IN" : "OUT", key.vid, key.pid, key.dir, sz);
             uint64_t slot_id = insert_key(key);
@@ -403,7 +404,7 @@ private:
                 logger(LOG_DEBUG, "insert_tidx: pid: %lu, sz: %lu", pid, sz);
 
                 ikey_t key = ikey_t(0, pid, IN);
-                uint64_t off = alloc_edges(sz, d);
+                uint64_t off = alloc_edges(sz, tid);
                 uint64_t slot_id = insert_key(key);
                 iptr_t ptr = iptr_t(sz, off);
                 vertices[slot_id].ptr = ptr;
@@ -415,15 +416,15 @@ private:
 #ifdef VERSATILE
         if (d == IN) {
             // all local entities, key: [0 | TYPE_ID | IN]
-            uint64_t off = alloc_edges(v_set.size(), d);
+            uint64_t off = alloc_edges(v_set.size(), tid);
             insert_idx_set(v_set, off, TYPE_ID, IN);
             tbb_unordered_set().swap(v_set);
         } else {
-            uint64_t off = alloc_edges(t_set.size(), d);
+            uint64_t off = alloc_edges(t_set.size(), tid);
             // all local types, key: [0 | TYPE_ID | OUT]
             insert_idx_set(t_set, off, TYPE_ID, OUT);
             tbb_unordered_set().swap(t_set);
-            off = alloc_edges(p_set.size(), d);
+            off = alloc_edges(p_set.size(), tid);
             // all local predicates, key: [0 | PREDICATE_ID | OUT]
             insert_idx_set(p_set, off, PREDICATE_ID, OUT);
             tbb_unordered_set().swap(p_set);
@@ -679,7 +680,7 @@ public:
         vector<sid_t>().swap(aids);
 
         edge_allocator->merge_freelists();
-        #pragma omp parallel for num_threads(2)
+        #pragma omp parallel for num_threads(Global::num_engines)
         for (int i = 0; i < 2; i++) {
             if (i == 0)
                 insert_idx(pidx_in_map, tidx_map, IN);
