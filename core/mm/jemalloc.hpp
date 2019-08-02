@@ -32,6 +32,8 @@ private:
     vector<unsigned> arena_inds;
     vector<unsigned> tcache_inds;
     uint64_t memsize;
+    int pfactor;
+
     extent_hooks_t *new_hooks;
 
 public:
@@ -63,20 +65,21 @@ public:
                              << " , arena_ind = " << arena_ind << ")" << LOG_endl;
 
         pthread_spin_lock(&jelock);
-        char *ret = (char*)top_of_heap;
+        char *ret = top_of_heap;
 
         // align the return address
         if ((uintptr_t)ret % alignment != 0)
-            ret = ret + (alignment - (uintptr_t)ret % alignment);
+            ret += (alignment - (uintptr_t)ret % alignment);
 
-        if ((char*)ret + size >= (char*)end_ptr) {
-            logstream(LOG_ERROR) << "Out of memory, cannot allocate any extent." << LOG_endl;
-            ASSERT(false);
+        if (ret + size >= end_ptr) {
+            ASSERT_MSG(false, "Out of memory, cannot allocate any extent.");
             pthread_spin_unlock(&jelock);
             return NULL;
         }
+
         top_of_heap = ret + size;
         pthread_spin_unlock(&jelock);
+
         if (*zero) // extent should be zeroed
             memset(ret, 0, size);
 
@@ -126,45 +129,46 @@ public:
         return false; // merge should always succeed
     }
 
-    void init(void *start, uint64_t size, uint64_t n) {
-        start_ptr = top_of_heap = (char*)start;
+    void init(void *start, uint64_t size, uint64_t p) {
+        start_ptr = top_of_heap = (char *)start;
         memsize = size;
         end_ptr = start_ptr + memsize;
+        pfactor = p;
+
         pthread_spin_init(&jelock, 0);
+
         size_t hooks_len = sizeof(extent_hooks_t *);
-        size_t  sz = sizeof(unsigned);
-        arena_inds.resize(n);
-        tcache_inds.resize(n);
+        size_t sz = sizeof(unsigned);
+        arena_inds.resize(pfactor);
+        tcache_inds.resize(pfactor);
         new_hooks = &hooks;
 
         // create new arena for each engine and install custom extent hooks on it
-        for (int i = 0; i < n; i++)
+        for (int i = 0; i < pfactor; i++)
             mallctl("arenas.create", (void *)&arena_inds[i], &sz,
                     (void *)&new_hooks, sizeof(extent_hooks_t *));
 
         // create thread-specific cache for each engine
-        for (int i = 0; i < n; i++)
+        for (int i = 0; i < pfactor; i++)
             mallctl("tcache.create", (void *)&tcache_inds[i], &sz, NULL, 0);
     }
 
     uint64_t malloc(uint64_t size, int64_t tid) {
-        if (tid >= arena_inds.size())
-            logstream(LOG_ERROR) << "Parameter tid is out of range initiliazed, tid: "
-                << tid << " range: [0-" << arena_inds.size() - 1 << "]." << LOG_endl;
-        ASSERT(false);
+        ASSERT_MSG((tid >= 0) && (tid < pfactor), "Exceed the parallel factor.");
+
         // malloc from engine's own arena and tcache
         void *ptr = mallocx(size, MALLOCX_ARENA(arena_inds[tid]) | MALLOCX_TCACHE(tcache_inds[tid]));
-        if ((char*)ptr < start_ptr || (char*)ptr + size > end_ptr) {
-            logstream(LOG_ERROR) << "memory range false" << LOG_endl;
+        if ((char *)ptr < start_ptr || (char *)ptr + size >= end_ptr) {
+            logstream(LOG_ERROR) << "Out of memory range" << LOG_endl;
             ASSERT(false);
         }
-        uint64_t ret = (uint64_t)((char*)ptr - start_ptr);
-        return ret;
+
+        return (uint64_t)((char *)ptr - start_ptr); // offset
     }
 
-    void free(uint64_t idx) {
-        void* ptr = (void*)(start_ptr + idx);
-        dallocx(ptr, 0); // make the memory be available for future allocations
+    void free(uint64_t offset) {
+        ASSERT_MSG(start_ptr + offset < end_ptr, "Out of memory range");
+        dallocx((void *)(start_ptr + offset), 0);
         return;
     }
 
@@ -174,18 +178,18 @@ public:
     void merge_freelists() { return; }
 
     void print_memory_usage() {
-        uint64_t allocated_size = ((char*)top_of_heap - (char*)start_ptr) / (1024 * 1024);
+        uint64_t size = ((uintptr_t)top_of_heap - (uintptr_t)start_ptr) / (1024 * 1024);
 
         logstream(LOG_INFO) << "graph_storage edge memory status:" << LOG_endl;
-        logstream(LOG_INFO) << "allocated " << allocated_size << " MB" << LOG_endl;
+        logstream(LOG_INFO) << "allocated " << size << " MB" << LOG_endl;
         return;
     }
 };
 
 // needed to provide a definition for static member variables
-char* JeMalloc::start_ptr = NULL;
-char* JeMalloc::end_ptr = NULL;
-char* JeMalloc::top_of_heap = NULL;
+char *JeMalloc::start_ptr = NULL;
+char *JeMalloc::end_ptr = NULL;
+char *JeMalloc::top_of_heap = NULL;
 pthread_spinlock_t JeMalloc::jelock;
 
 #endif
