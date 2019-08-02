@@ -414,7 +414,11 @@ public:
             return count;
         };
 
-        gstore->num_normal_preds = count_preds(src + "str_index") - 1; // skip PREDICATE_ID
+        int num_normal_preds = count_preds(src + "str_index");
+        if (num_normal_preds == 0)
+            logstream(LOG_ERROR) << "Encoding file of predicates should be named as \"str_index\". Graph loading failed. Please quit and try again." << LOG_endl;
+        else
+            gstore->num_normal_preds = num_normal_preds - 1; // skip PREDICATE_ID
         if (Global::enable_vattr)
             gstore->num_attr_preds = count_preds(src + "str_attr_index");
 

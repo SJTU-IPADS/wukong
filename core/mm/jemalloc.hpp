@@ -148,6 +148,10 @@ public:
     }
 
     uint64_t malloc(uint64_t size, int64_t tid) {
+        if (tid >= arena_inds.size())
+            logstream(LOG_ERROR) << "Parameter tid is out of range initiliazed, tid: "
+                << tid << " range: [0-" << arena_inds.size() - 1 << "]." << LOG_endl;
+        ASSERT(false);
         // malloc from engine's own arena and tcache
         void *ptr = mallocx(size, MALLOCX_ARENA(arena_inds[tid]) | MALLOCX_TCACHE(tcache_inds[tid]));
         if ((char*)ptr < start_ptr || (char*)ptr + size > end_ptr) {

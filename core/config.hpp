@@ -219,8 +219,11 @@ void load_config(string fname, int nsrvs)
 
     // set the total number of threads
     Global::num_threads = Global::num_engines + Global::num_proxies;
+
+#ifdef USE_GPU
     // each GPU card needs one (dedicated) agent thread
     Global::num_threads += Global::num_gpus;
+#endif
 
     // limited the number of engines
     Global::mt_threshold = max(1, min(Global::mt_threshold, Global::num_engines));
