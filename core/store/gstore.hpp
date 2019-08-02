@@ -222,21 +222,22 @@ protected:
     virtual void alloc_vp_edges(dir_t d) = 0;
 #endif // VERSATILE
 
-    // Allocate space to store edges of given size. Return offset of allocated space.
-    virtual uint64_t alloc_edges(uint64_t n, int64_t tid = 0) = 0;
+    // allocate space to store edges of given size. Return offset of allocated space.
+    virtual uint64_t alloc_edges(uint64_t n, int tid = 0) = 0;
 
     virtual uint64_t alloc_edges_to_seg(uint64_t num_edges) = 0;
 
     // insert normal triples, attr triples, index into gstore
     virtual void insert_triples(int tid, segid_t segid) = 0;
     virtual void insert_attr(int tid, segid_t segid) = 0;
-    virtual void insert_idx(const tbb_hash_map &pidx_map, const tbb_hash_map &tidx_map, dir_t d) = 0;
+    virtual void insert_idx(const tbb_hash_map &pidx_map, const tbb_hash_map &tidx_map, 
+                            dir_t d, int tid = 0) = 0;
 
-    // Check the validation of given edges according to given vertex.
+    // check the validation of given edges according to given vertex.
     virtual bool edge_is_valid(vertex_t &v, edge_t *edge_ptr) = 0;
 
-    // used in rdma_get_edges(), get r_sz
-    virtual uint64_t rdma_get_r_sz(const vertex_t &v) = 0;
+    // get the capacity of edges
+    virtual uint64_t get_edge_sz(const vertex_t &v) = 0;
 
     // get bucket_id according to key
     uint64_t bucket_local(ikey_t key) {
@@ -263,7 +264,7 @@ protected:
         char *buf = mem->buffer(tid);
         uint64_t r_off = num_slots * sizeof(vertex_t) + v.ptr.off * sizeof(edge_t);
         // the size of edges
-        uint64_t r_sz = rdma_get_r_sz(v);
+        uint64_t r_sz = get_edge_sz(v);
         uint64_t buf_sz = mem->buffer_size();
         ASSERT(r_sz < buf_sz); // enough space to host the edges
 

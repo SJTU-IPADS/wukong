@@ -33,7 +33,7 @@ private:
     pthread_spinlock_t entry_lock;
 
     // Allocate space to store edges of given size. Return offset of allocated space.
-    uint64_t alloc_edges(uint64_t n, int64_t tid = 0) {
+    uint64_t alloc_edges(uint64_t n, int tid = 0) {
         uint64_t orig;
         pthread_spin_lock(&entry_lock);
         orig = last_entry;
@@ -53,7 +53,7 @@ private:
     /// edge is always valid
     bool edge_is_valid(vertex_t &v, edge_t *edge_ptr) { return true; }
 
-    uint64_t rdma_get_r_sz(const vertex_t &v) { return v.ptr.size * sizeof(edge_t); }
+    uint64_t get_edge_sz(const vertex_t &v) { return v.ptr.size * sizeof(edge_t); }
 
     /**
      * Insert triples beloging to the segment identified by segid to store
@@ -220,7 +220,8 @@ private:
      * insert {predicate index OUT, t_set*, p_set*}
      * or {predicate index IN, type index, v_set*}
      */
-    void insert_idx(const tbb_hash_map &pidx_map, const tbb_hash_map &tidx_map, dir_t d) {
+    void insert_idx(const tbb_hash_map &pidx_map, const tbb_hash_map &tidx_map, 
+                    dir_t d, int tid = 0) {
         tbb_hash_map::const_accessor ca;
         rdf_seg_meta_t &segment = rdf_seg_meta_map[segid_t(1, PREDICATE_ID, d)];
         // it is possible that num_edges = 0 if loading an empty dataset
@@ -370,13 +371,15 @@ public:
             insert_attr(localtid, segid_t(0, aids[i], OUT));
         }
         vector<sid_t>().swap(aids);
-        #pragma omp parallel for num_threads(2)
+
+
+        // insert type-index edges in parallel
+        #pragma omp parallel for num_threads(Global::num_engines)
         for (int i = 0; i < 2; i++) {
-            if (i == 0)
-                insert_idx(pidx_in_map, tidx_map, IN);
-            else
-                insert_idx(pidx_out_map, tidx_map, OUT);
+            if (i == 0) insert_idx(pidx_in_map, tidx_map, IN);
+            else insert_idx(pidx_out_map, tidx_map, OUT);
         }
+
         end = timer::get_usec();
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
                             << "for inserting triples as segments into gstore" << LOG_endl;

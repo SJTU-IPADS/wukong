@@ -195,7 +195,7 @@ private:
 
     // Allocate space to store edges of given size.
     // @return offset of allocated space.
-    uint64_t alloc_edges(uint64_t n, int64_t tid) {
+    uint64_t alloc_edges(uint64_t n, int tid = 0) {
         if (Global::enable_caching)
             sweep_free(); // collect free space before allocate
 
@@ -214,11 +214,12 @@ private:
     bool edge_is_valid(vertex_t &v, edge_t *edge_ptr) {
         if (!Global::enable_caching)
             return true;
+
         uint64_t blk_sz = blksz(v.ptr.size + 1);  // reserve one space for flag
-        return (edge_ptr[blk_sz - 1].val == v.ptr.size);
+        return (edges[blk_sz - 1].val == v.ptr.size);
     }
 
-    uint64_t rdma_get_r_sz(const vertex_t &v) { return blksz(v.ptr.size + 1) * sizeof(edge_t); }
+    uint64_t get_edge_sz(const vertex_t &v) { return blksz(v.ptr.size + 1) * sizeof(edge_t); }
 
     void insert_triples(int tid, segid_t segid) {
         ASSERT(!segid.index);
@@ -368,8 +369,8 @@ private:
         }
     }
 
-    void insert_idx(const tbb_hash_map &pidx_map, const tbb_hash_map &tidx_map, dir_t d) {
-        int tid = omp_get_thread_num();
+    void insert_idx(const tbb_hash_map &pidx_map, const tbb_hash_map &tidx_map, 
+                    dir_t d, int tid = 0) {
         tbb_hash_map::const_accessor ca;
         rdf_seg_meta_t &segment = rdf_seg_meta_map[segid_t(1, PREDICATE_ID, d)];
         // it is possible that num_edges = 0 if loading an empty dataset
@@ -491,6 +492,7 @@ public:
             vertices[i].key = ikey_t();
             vertices[i].ptr = iptr_t();
         }
+
         last_ext = 0;
         edge_allocator->init((void *)edges, num_entries * sizeof(edge_t), Global::num_engines);
     }
@@ -678,15 +680,15 @@ public:
             insert_attr(localtid, segid_t(0, aids[i], OUT));
         }
         vector<sid_t>().swap(aids);
-
         edge_allocator->merge_freelists();
+
+        // insert type-index edges in parallel
         #pragma omp parallel for num_threads(Global::num_engines)
         for (int i = 0; i < 2; i++) {
-            if (i == 0)
-                insert_idx(pidx_in_map, tidx_map, IN);
-            else
-                insert_idx(pidx_out_map, tidx_map, OUT);
+            if (i == 0) insert_idx(pidx_in_map, tidx_map, IN, i);
+            else insert_idx(pidx_out_map, tidx_map, OUT, i);
         }
+
         end = timer::get_usec();
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
                             << "for inserting triples as segments into gstore" << LOG_endl;
