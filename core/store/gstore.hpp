@@ -509,6 +509,14 @@ protected:
                 }
             }
         }
+
+        for (auto it = triples_map.begin(); it != triples_map.end(); it++) {
+            (it->second).shrink_to_fit();
+        }
+
+        for (auto it = attr_triples_map.begin(); it != attr_triples_map.end(); it++) {
+            (it->second).shrink_to_fit();
+        }
     }
 
     // init metadata for each segment
