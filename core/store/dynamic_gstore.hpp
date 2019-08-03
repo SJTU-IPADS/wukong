@@ -271,11 +271,6 @@ private:
                 for (uint64_t i = s; i < e; i++)
                     edges[off++].val = pso[i].o;
 
-#ifdef VERSATILE
-                // vid's predicate
-                insert_vp(pso[s].s, pso[s].p, OUT, tid);
-#endif // VERSATILE
-
                 collect_idx_info(slot_id);
                 s = e;
             }
@@ -309,11 +304,6 @@ private:
                 // insert edges
                 for (uint64_t i = s; i < e; i++)
                     edges[off++].val = pos[i].s;
-
-#ifdef VERSATILE
-                // vid's predicate
-                insert_vp(pos[s].o, pos[s].p, IN, tid);
-#endif // VERSATILE
 
                 collect_idx_info(slot_id);
                 s = e;
@@ -369,7 +359,7 @@ private:
         }
     }
 
-    void insert_idx(const tbb_hash_map &pidx_map, const tbb_hash_map &tidx_map, 
+    void insert_idx(const tbb_hash_map &pidx_map, const tbb_hash_map &tidx_map,
                     dir_t d, int tid = 0) {
         tbb_hash_map::const_accessor ca;
         rdf_seg_meta_t &segment = rdf_seg_meta_map[segid_t(1, PREDICATE_ID, d)];
@@ -435,39 +425,80 @@ private:
 
 #ifdef VERSATILE
     void alloc_vp_edges(dir_t d) {
-        vp_off[d] = vp_meta[d];
-        for (auto iter = vp_off[d].begin(); iter != vp_off[d].end(); iter++) {
-            iter->second = 0;
-            vp_lock[d].insert(std::make_pair(iter->first, pthread_spinlock_t()));
-            pthread_spin_init(&vp_lock[d][iter->first], 0);
-        }
+        return;
     }
 
     // insert vid's preds into gstore
-    void insert_vp(sid_t vid, sid_t pid, dir_t d, int tid = 0) {
-        pthread_spin_lock(&vp_lock[d][vid]);
-        tbb::concurrent_hash_map<sid_t, uint64_t>::accessor a;
-        vp_off[d].find(a, vid);
-        uint64_t off = a->second;
-        a->second += 1;
-        a.release();
+    void insert_vp(int tid, const vector<triple_t> &pso, const vector<triple_t> &pos) {
+        vector<sid_t> preds;
 
-        ikey_t key = ikey_t(vid, PREDICATE_ID, d);
-        uint64_t slot_id = 0;
-        uint64_t edge_start = 0;
-        bool exist = get_slot_id(key, slot_id);
-        if (!exist) {
-            slot_id = insert_key(key);
-            vp_meta[d].find(a, vid);
-            edge_start = alloc_edges(a->second, tid);
-            iptr_t ptr = iptr_t(a->second, edge_start);
-            a.release();
-            vertices[slot_id].ptr = ptr;
-        } else {
-            edge_start = vertices[slot_id].ptr.off;
+        uint64_t s = 0;
+        while (s < pso.size()) {
+            // predicate-based key (subject + predicate)
+            uint64_t e = s + 1;
+            while ((e < pso.size())
+                    && (pso[s].s == pso[e].s)
+                    && (pso[s].p == pso[e].p))  { e++; }
+
+            preds.push_back(pso[s].p);
+
+            // insert a vp key-value pair (OUT)
+            if (e >= pso.size() || pso[s].s != pso[e].s) {
+                // allocate a vertex and edges
+                ikey_t key = ikey_t(pso[s].s, PREDICATE_ID, OUT);
+                uint64_t sz = preds.size();
+                uint64_t off = alloc_edges(sz, tid);
+
+                // insert a vertex
+                uint64_t slot_id = insert_key(key);
+                iptr_t ptr = iptr_t(sz, off);
+                vertices[slot_id].ptr = ptr;
+
+                // insert edges
+                for (auto const &p : preds)
+                    edges[off++].val = p;
+
+                preds.clear();
+            }
+            s = e;
         }
-        edges[edge_start + off].val = pid;
-        pthread_spin_unlock(&vp_lock[d][vid]);
+
+        // treat type triples as index vertices
+        uint64_t type_triples = 0;
+        while (type_triples < pos.size() && is_tpid(pos[type_triples].o))
+            type_triples++;
+
+        s = type_triples; // skip type triples
+        while (s < pos.size()) {
+            // predicate-based key (object + predicate)
+            uint64_t e = s + 1;
+            while ((e < pos.size())
+                    && (pos[s].o == pos[e].o)
+                    && (pos[s].p == pos[e].p)) { e++; }
+
+            // add a new predicate
+            preds.push_back(pos[s].p);
+
+            // insert a vp key-value pair (IN)
+            if (e >= pos.size() || pos[s].o != pos[e].o) {
+                // allocate a vertex and edges
+                ikey_t key = ikey_t(pos[s].o, PREDICATE_ID, IN);
+                uint64_t sz = preds.size();
+                uint64_t off = alloc_edges(sz, tid);
+
+                // insert a vertex
+                uint64_t slot_id = insert_key(key);
+                iptr_t ptr = iptr_t(sz, off);
+                vertices[slot_id].ptr = ptr;
+
+                // insert edges
+                for (auto const &p : preds)
+                    edges[off++].val = p;
+
+                preds.clear();
+            }
+            s = e;
+        }
     }
 #endif // VERSATILE
 
@@ -658,6 +689,21 @@ public:
         end = timer::get_usec();
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
                             << "for initializing predicate segment statistics." << LOG_endl;
+
+#ifdef VERSATILE
+        start = timer::get_usec();
+        #pragma omp parallel for num_threads(Global::num_engines)
+        for (int tid = 0; tid < Global::num_engines; tid++) {
+            sort(triple_pso[tid].begin(), triple_pso[tid].end(), triple_sort_by_spo());
+            sort(triple_pos[tid].begin(), triple_pos[tid].end(), triple_sort_by_ops());
+            insert_vp(tid, triple_pso[tid], triple_pos[tid]);
+            vector<triple_t>().swap(triple_pso[tid]);
+            vector<triple_t>().swap(triple_pos[tid]);
+        }
+        end = timer::get_usec();
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+                            << "for inserting vid's predicates." << LOG_endl;
+#endif // VERSATILE
 
         start = timer::get_usec();
         logstream(LOG_DEBUG) << "#" << sid << ": all_local_preds: "

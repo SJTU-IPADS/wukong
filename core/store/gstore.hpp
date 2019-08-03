@@ -213,11 +213,9 @@ protected:
     tbb_unordered_set t_set;
     tbb_unordered_set p_set;
     tbb::concurrent_hash_map<sid_t, uint64_t> vp_meta[2];
-    tbb::concurrent_hash_map<sid_t, uint64_t> vp_off[2];
-    unordered_map<sid_t, pthread_spinlock_t> vp_lock[2];
 
     // insert VERSATILE-related data into gstore
-    virtual void insert_vp(sid_t vid, sid_t pid, dir_t d, int tid = 0) = 0;
+    virtual void insert_vp(int tid, const vector<triple_t> &pso, const vector<triple_t> &pos) = 0;
 
     virtual void alloc_vp_edges(dir_t d) = 0;
 #endif // VERSATILE
@@ -230,7 +228,7 @@ protected:
     // insert normal triples, attr triples, index into gstore
     virtual void insert_triples(int tid, segid_t segid) = 0;
     virtual void insert_attr(int tid, segid_t segid) = 0;
-    virtual void insert_idx(const tbb_hash_map &pidx_map, const tbb_hash_map &tidx_map, 
+    virtual void insert_idx(const tbb_hash_map &pidx_map, const tbb_hash_map &tidx_map,
                             dir_t d, int tid = 0) = 0;
 
     // check the validation of given edges according to given vertex.
@@ -597,8 +595,6 @@ protected:
                 }
                 s = e;
             }
-            // release mem
-            vector<triple_t>().swap(pso);
 
             uint64_t type_triples = 0;
             triple_t tp;
@@ -633,8 +629,6 @@ protected:
                 index_cnt_map[ pos[s].p ].out++;
                 s = e;
             }
-            // release mem
-            vector<triple_t>().swap(pos);
 
             s = 0;
             while (s < sav.size()) {
@@ -952,8 +946,6 @@ done:
 #ifdef VERSATILE
         for (int i = 0; i < 2; i++) {
             tbb::concurrent_hash_map<sid_t, uint64_t>().swap(vp_meta[i]);
-            tbb::concurrent_hash_map<sid_t, uint64_t>().swap(vp_off[i]);
-            unordered_map<sid_t, pthread_spinlock_t>().swap(vp_lock[i]);
         }
 #endif // VERSATILE
     }
