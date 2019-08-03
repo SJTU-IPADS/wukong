@@ -400,8 +400,6 @@ public:
         start = timer::get_usec();
         #pragma omp parallel for num_threads(Global::num_engines)
         for (int tid = 0; tid < Global::num_engines; tid++) {
-            sort(triple_pso[tid].begin(), triple_pso[tid].end(), triple_sort_by_spo());
-            sort(triple_pos[tid].begin(), triple_pos[tid].end(), triple_sort_by_ops());
             insert_vp(tid, triple_pso[tid], triple_pos[tid]);
             vector<triple_t>().swap(triple_pso[tid]);
             vector<triple_t>().swap(triple_pos[tid]);
