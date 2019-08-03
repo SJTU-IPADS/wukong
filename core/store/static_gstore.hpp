@@ -465,7 +465,7 @@ public:
     void print_mem_usage() {
         GStore::print_mem_usage();
         logstream(LOG_INFO) << "\tused: " << 100.0 * last_entry / num_entries
-                            << " % (" << last_entry << " entries)" << LOG_endl;
+                            << " % (last edge position: " << last_entry << ")" << LOG_endl;
     }
 
 };

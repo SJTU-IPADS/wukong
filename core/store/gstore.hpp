@@ -1040,14 +1040,15 @@ public:
     }
 
     virtual void print_mem_usage() {
-        // TODO
         uint64_t used_slots = 0;
+        uint64_t used_edges = 0;
         for (uint64_t x = 0; x < num_buckets; x++) {
             uint64_t slot_id = x * ASSOCIATIVITY;
             for (int y = 0; y < ASSOCIATIVITY - 1; y++, slot_id++) {
                 if (vertices[slot_id].key.is_empty())
                     continue;
                 used_slots++;
+                used_edges += vertices[slot_id].ptr.size;
             }
         }
 
@@ -1064,7 +1065,7 @@ public:
             for (int y = 0; y < ASSOCIATIVITY - 1; y++, slot_id++) {
                 if (vertices[slot_id].key.is_empty())
                     continue;
-                used_slots++;
+                used_edges += vertices[slot_id].ptr.size;
             }
         }
 
@@ -1077,5 +1078,7 @@ public:
 
         logstream(LOG_INFO) << "entry: " << B2MiB(num_entries * sizeof(edge_t))
                             << " MB (" << num_entries << " entries)" << LOG_endl;
+        logstream(LOG_INFO) << "\tused edges: " << B2MiB(used_edges * sizeof(edge_t))
+                            << " MB (" << used_edges << " edges)" << LOG_endl;
     }
 };
