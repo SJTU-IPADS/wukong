@@ -236,7 +236,7 @@ private:
         }
 
         // get OUT edges and IN edges from triples map
-        tbb_triple_hash_map::accessor a;
+        tbb_triple_hash_map::const_accessor a;
         bool has_pso, has_pos;
         bool success = triples_map.find(a, ikey_t(0, pid, (dir_t) dir));
 
@@ -250,7 +250,7 @@ private:
         uint64_t type_triples = 0;
 
         if (has_pso) {
-            vector<triple_t> &pso = a->second;
+            const vector<triple_t> &pso = a->second;
             while (s < pso.size()) {
                 // predicate-based key (subject + predicate)
                 uint64_t e = s + 1;
@@ -279,7 +279,7 @@ private:
         }
 
         if (has_pos) {
-            vector<triple_t> &pos = a->second;
+            const vector<triple_t> &pos = a->second;
             while (type_triples < pos.size() && is_tpid(pos[type_triples].o))
                 type_triples++;
 
