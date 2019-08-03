@@ -162,6 +162,7 @@ protected:
     uint64_t last_ext;
     pthread_spinlock_t bucket_locks[NUM_LOCKS]; // lock virtualization (see paper: vLokc CGO'13)
     pthread_spinlock_t bucket_ext_lock;
+    pthread_spinlock_t seg_ext_locks[NUM_LOCKS]; // used for ext blocks allocation and ext bucket acquire
 
     uint64_t num_entries;     // entry region (dynamical)
 
@@ -459,9 +460,8 @@ protected:
         // allocate buckets in indirect-header region to segments
         // #buckets : #extended buckets = 1 : 0.15
         if (seg.num_buckets > 0) {
-            uint64_t nbuckets = EXT_BUCKET_EXTENT_LEN(seg.num_buckets);
-            uint64_t start_off = alloc_ext_buckets(nbuckets);
-            seg.add_ext_buckets(ext_bucket_extent_t(nbuckets, start_off));
+            uint64_t start_off = alloc_ext_buckets(EXT_BUCKET_EXTENT_LEN);
+            seg.add_ext_buckets(ext_bucket_extent_t(EXT_BUCKET_EXTENT_LEN, start_off));
         }
     }
 
@@ -776,6 +776,7 @@ protected:
         uint64_t bucket_id = bucket_local(key);
         uint64_t slot_id = bucket_id * ASSOCIATIVITY;
         uint64_t lock_id = bucket_id % NUM_LOCKS;
+        uint64_t seg_ext_lock_id = segid_t(key).hash() % NUM_LOCKS;
 
         bool found = false;
         pthread_spin_lock(&bucket_locks[lock_id]);
@@ -813,14 +814,15 @@ protected:
             }
 
             // allocate and link a new indirect header
+            pthread_spin_lock(&seg_ext_locks[seg_ext_lock_id]);
             rdf_seg_meta_t &seg = rdf_seg_meta_map[segid_t(key)];
             uint64_t ext_bucket_id = seg.get_ext_bucket();
             if (ext_bucket_id == 0) {
-                uint64_t nbuckets = EXT_BUCKET_EXTENT_LEN(seg.num_buckets);
-                uint64_t start_off = alloc_ext_buckets(nbuckets);
-                seg.add_ext_buckets(ext_bucket_extent_t(nbuckets, start_off));
+                uint64_t start_off = alloc_ext_buckets(EXT_BUCKET_EXTENT_LEN);
+                seg.add_ext_buckets(ext_bucket_extent_t(EXT_BUCKET_EXTENT_LEN, start_off));
                 ext_bucket_id = seg.get_ext_bucket();
             }
+            pthread_spin_unlock(&seg_ext_locks[seg_ext_lock_id]);
             vertices[slot_id].key.vid = ext_bucket_id;
 
             slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY; // move to a new bucket_ext
@@ -1003,8 +1005,10 @@ public:
         edges = (edge_t *)(mem->kvstore() + num_slots * sizeof(vertex_t));
 
         pthread_spin_init(&bucket_ext_lock, 0);
-        for (int i = 0; i < NUM_LOCKS; i++)
+        for (int i = 0; i < NUM_LOCKS; i++) {
             pthread_spin_init(&bucket_locks[i], 0);
+            pthread_spin_init(&seg_ext_locks[i], 0);
+        }
 
         // print gstore usage
         logstream(LOG_INFO) << "gstore = ";

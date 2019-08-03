@@ -125,7 +125,8 @@ public:
         param.query.segment_edge_start = seg_meta.edge_start;
         param.query.var2col_start = req.result.var2col(start);
 
-        logstream(LOG_DEBUG) << "known_to_unknown: #ext_buckets: " << seg_meta.ext_list_sz << LOG_endl;
+        logstream(LOG_DEBUG) << "known_to_unknown: #ext_buckets: "
+            << seg_meta.ext_bucket_list.size() << LOG_endl;
 
         ASSERT(gmem->res_inbuf() != gmem->res_outbuf());
         ASSERT(nullptr != gmem->res_inbuf());

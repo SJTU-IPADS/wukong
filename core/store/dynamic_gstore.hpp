@@ -658,14 +658,12 @@ public:
         // allocate buckets in indirect-header region to segments
         // #buckets : #extended buckets = 1 : 0.15
         if (in_seg.num_buckets > 0) {
-            uint64_t nbuckets = EXT_BUCKET_EXTENT_LEN(in_seg.num_buckets);
-            uint64_t start_off = alloc_ext_buckets(nbuckets);
-            in_seg.add_ext_buckets(ext_bucket_extent_t(nbuckets, start_off));
+            uint64_t start_off = alloc_ext_buckets(EXT_BUCKET_EXTENT_LEN);
+            in_seg.add_ext_buckets(ext_bucket_extent_t(EXT_BUCKET_EXTENT_LEN, start_off));
         }
         if (out_seg.num_buckets > 0) {
-            uint64_t nbuckets = EXT_BUCKET_EXTENT_LEN(out_seg.num_buckets);
-            uint64_t start_off = alloc_ext_buckets(nbuckets);
-            out_seg.add_ext_buckets(ext_bucket_extent_t(nbuckets, start_off));
+            uint64_t start_off = alloc_ext_buckets(EXT_BUCKET_EXTENT_LEN);
+            out_seg.add_ext_buckets(ext_bucket_extent_t(EXT_BUCKET_EXTENT_LEN, start_off));
         }
         // step 2: init metadata
         num_normal_preds += 1;
