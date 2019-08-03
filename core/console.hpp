@@ -133,8 +133,8 @@ void init_options_desc()
     // e.g., wukong> logger <args>
     logger_desc.add_options()
     (",v", "print loglevel")
-    (",s", value<int>()->value_name("<level>"), "set loglevel to <level> (DEBUG=1, INFO=2, WARNING=4, ERROR=5)")
-    ("help,h", "help message about config")
+    (",s", value<int>()->value_name("<level>"), "set loglevel to <level> (e.g., DEBUG=1, INFO=2, WARNING=4, ERROR=5)")
+    ("help,h", "help message about logger")
     ;
     all_desc.add(logger_desc);
 
@@ -337,11 +337,12 @@ static void run_config(Proxy *proxy, int argc, char **argv)
 }
 
 /**
- * run the 'config' command
+ * run the 'logger' command
  * usage:
- * config [options]
- *   -v          print log level config
- *   -s <str>    set config items by <str> (format: item1=val1&item2=...)
+ * logger [options]
+ *   -v          print current log level
+ *   -s <level>  set log level to <level> (i.e., EVERYTHING=0, DEBUG=1, INFO=2, EMPH=3,
+ *                                               WARNING=4, ERROR=5, FATAL=6, NONE=7)
  */
 static void run_logger(Proxy *proxy, int argc, char **argv)
 {
