@@ -36,8 +36,7 @@ using namespace std;
 using namespace boost::archive;
 
 
-#define EXT_LIST_MAX_LEN 1
-#define EXT_BUCKET_EXTENT_LEN(num_buckets) (num_buckets * 15 / 100 + 1)
+#define EXT_BUCKET_EXTENT_LEN 256
 #define PREDICATE_NSEGS 2
 #ifdef VERSATILE
 #define INDEX_NSEGS 4   // index(2) + vid's all preds(2)
@@ -76,20 +75,15 @@ struct rdf_seg_meta_t {
     uint64_t num_keys = 0;      // #keys of the segment
     uint64_t num_buckets = 0;   // allocated main headers (hash space)
     uint64_t bucket_start = 0;  // start offset of main-header region of gstore
-    ext_bucket_extent_t ext_bucket_list[EXT_LIST_MAX_LEN];
-    int ext_list_sz = 0;        // the length of ext_bucket_list
+    vector<ext_bucket_extent_t> ext_bucket_list;
     uint64_t num_edges = 0;     // #edges of the segment
     uint64_t edge_start = 0;    // start offset in the entry region of gstore
 
     int num_key_blks = 0;       // #key-blocks needed in gcache
     int num_value_blks = 0;     // #value-blocks needed in gcache
 
-    rdf_seg_meta_t() {
-        memset(&ext_bucket_list, 0, sizeof(ext_bucket_list));
-    }
-
     uint64_t get_ext_bucket() {
-        for (int i = 0; i < ext_list_sz; ++i) {
+        for (int i = 0; i < ext_bucket_list.size(); ++i) {
             ext_bucket_extent_t &ext = ext_bucket_list[i];
             if (ext.off < ext.num_ext_buckets) {
                 return ext.start + ext.off++;
@@ -99,13 +93,12 @@ struct rdf_seg_meta_t {
     }
 
     void add_ext_buckets(const ext_bucket_extent_t &ext) {
-        ASSERT_MSG(ext_list_sz < EXT_LIST_MAX_LEN, "ext_bucket_list overflow!");
-        ext_bucket_list[ext_list_sz++] = ext;
+        ext_bucket_list.push_back(ext);
     }
 
     inline uint64_t get_total_num_buckets() const {
         uint64_t total = num_buckets;
-        for (int i = 0; i < ext_list_sz; ++i) {
+        for (int i = 0; i < ext_bucket_list.size(); ++i) {
             total += ext_bucket_list[i].num_ext_buckets;
         }
         return total;
@@ -116,7 +109,6 @@ struct rdf_seg_meta_t {
         ar & num_buckets;
         ar & bucket_start;
         ar & ext_bucket_list;
-        ar & ext_list_sz;
         ar & num_edges;
         ar & edge_start;
     }
@@ -142,6 +134,17 @@ struct segid_t {
             pid = key.pid;
         }
     }
+
+    uint64_t hash() const {
+        uint64_t r = 0;
+        if (index != 0) {
+            r = dir;
+        } else {
+            r = ((pid + 1) << 1) + dir;
+        }
+        return wukong::math::hash_u64(r); // the standard hash is too slow (i.e., std::hash<uint64_t>()(r))
+    }
+
 
     bool operator == (const segid_t &s) const {
         return (index == s.index && dir == s.dir && pid == s.pid);

@@ -371,6 +371,9 @@ protected:
 #endif
             dedup_triples(triple_pos[tid]);
             dedup_triples(triple_pso[tid]);
+
+            triple_pos[tid].shrink_to_fit();
+            triple_pso[tid].shrink_to_fit();
         }
     }
 

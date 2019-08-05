@@ -162,6 +162,7 @@ protected:
     uint64_t last_ext;
     pthread_spinlock_t bucket_locks[NUM_LOCKS]; // lock virtualization (see paper: vLokc CGO'13)
     pthread_spinlock_t bucket_ext_lock;
+    pthread_spinlock_t seg_ext_locks[NUM_LOCKS]; // used for ext blocks allocation and ext bucket acquire
 
     uint64_t num_entries;     // entry region (dynamical)
 
@@ -213,11 +214,9 @@ protected:
     tbb_unordered_set t_set;
     tbb_unordered_set p_set;
     tbb::concurrent_hash_map<sid_t, uint64_t> vp_meta[2];
-    tbb::concurrent_hash_map<sid_t, uint64_t> vp_off[2];
-    unordered_map<sid_t, pthread_spinlock_t> vp_lock[2];
 
     // insert VERSATILE-related data into gstore
-    virtual void insert_vp(sid_t vid, sid_t pid, dir_t d, int tid = 0) = 0;
+    virtual void insert_vp(int tid, const vector<triple_t> &pso, const vector<triple_t> &pos) = 0;
 
     virtual void alloc_vp_edges(dir_t d) = 0;
 #endif // VERSATILE
@@ -230,7 +229,7 @@ protected:
     // insert normal triples, attr triples, index into gstore
     virtual void insert_triples(int tid, segid_t segid) = 0;
     virtual void insert_attr(int tid, segid_t segid) = 0;
-    virtual void insert_idx(const tbb_hash_map &pidx_map, const tbb_hash_map &tidx_map, 
+    virtual void insert_idx(const tbb_hash_map &pidx_map, const tbb_hash_map &tidx_map,
                             dir_t d, int tid = 0) = 0;
 
     // check the validation of given edges according to given vertex.
@@ -461,9 +460,8 @@ protected:
         // allocate buckets in indirect-header region to segments
         // #buckets : #extended buckets = 1 : 0.15
         if (seg.num_buckets > 0) {
-            uint64_t nbuckets = EXT_BUCKET_EXTENT_LEN(seg.num_buckets);
-            uint64_t start_off = alloc_ext_buckets(nbuckets);
-            seg.add_ext_buckets(ext_bucket_extent_t(nbuckets, start_off));
+            uint64_t start_off = alloc_ext_buckets(EXT_BUCKET_EXTENT_LEN);
+            seg.add_ext_buckets(ext_bucket_extent_t(EXT_BUCKET_EXTENT_LEN, start_off));
         }
     }
 
@@ -510,6 +508,14 @@ protected:
                     ac->second.push_back(sav_vec[i]);
                 }
             }
+        }
+
+        for (auto it = triples_map.begin(); it != triples_map.end(); it++) {
+            (it->second).shrink_to_fit();
+        }
+
+        for (auto it = attr_triples_map.begin(); it != attr_triples_map.end(); it++) {
+            (it->second).shrink_to_fit();
         }
     }
 
@@ -597,8 +603,6 @@ protected:
                 }
                 s = e;
             }
-            // release mem
-            vector<triple_t>().swap(pso);
 
             uint64_t type_triples = 0;
             triple_t tp;
@@ -633,8 +637,6 @@ protected:
                 index_cnt_map[ pos[s].p ].out++;
                 s = e;
             }
-            // release mem
-            vector<triple_t>().swap(pos);
 
             s = 0;
             while (s < sav.size()) {
@@ -782,6 +784,7 @@ protected:
         uint64_t bucket_id = bucket_local(key);
         uint64_t slot_id = bucket_id * ASSOCIATIVITY;
         uint64_t lock_id = bucket_id % NUM_LOCKS;
+        uint64_t seg_ext_lock_id = segid_t(key).hash() % NUM_LOCKS;
 
         bool found = false;
         pthread_spin_lock(&bucket_locks[lock_id]);
@@ -819,14 +822,15 @@ protected:
             }
 
             // allocate and link a new indirect header
+            pthread_spin_lock(&seg_ext_locks[seg_ext_lock_id]);
             rdf_seg_meta_t &seg = rdf_seg_meta_map[segid_t(key)];
             uint64_t ext_bucket_id = seg.get_ext_bucket();
             if (ext_bucket_id == 0) {
-                uint64_t nbuckets = EXT_BUCKET_EXTENT_LEN(seg.num_buckets);
-                uint64_t start_off = alloc_ext_buckets(nbuckets);
-                seg.add_ext_buckets(ext_bucket_extent_t(nbuckets, start_off));
+                uint64_t start_off = alloc_ext_buckets(EXT_BUCKET_EXTENT_LEN);
+                seg.add_ext_buckets(ext_bucket_extent_t(EXT_BUCKET_EXTENT_LEN, start_off));
                 ext_bucket_id = seg.get_ext_bucket();
             }
+            pthread_spin_unlock(&seg_ext_locks[seg_ext_lock_id]);
             vertices[slot_id].key.vid = ext_bucket_id;
 
             slot_id = vertices[slot_id].key.vid * ASSOCIATIVITY; // move to a new bucket_ext
@@ -952,8 +956,6 @@ done:
 #ifdef VERSATILE
         for (int i = 0; i < 2; i++) {
             tbb::concurrent_hash_map<sid_t, uint64_t>().swap(vp_meta[i]);
-            tbb::concurrent_hash_map<sid_t, uint64_t>().swap(vp_off[i]);
-            unordered_map<sid_t, pthread_spinlock_t>().swap(vp_lock[i]);
         }
 #endif // VERSATILE
     }
@@ -1011,8 +1013,10 @@ public:
         edges = (edge_t *)(mem->kvstore() + num_slots * sizeof(vertex_t));
 
         pthread_spin_init(&bucket_ext_lock, 0);
-        for (int i = 0; i < NUM_LOCKS; i++)
+        for (int i = 0; i < NUM_LOCKS; i++) {
             pthread_spin_init(&bucket_locks[i], 0);
+            pthread_spin_init(&seg_ext_locks[i], 0);
+        }
 
         // print gstore usage
         logstream(LOG_INFO) << "gstore = ";
@@ -1044,14 +1048,15 @@ public:
     }
 
     virtual void print_mem_usage() {
-        // TODO
         uint64_t used_slots = 0;
+        uint64_t used_edges = 0;
         for (uint64_t x = 0; x < num_buckets; x++) {
             uint64_t slot_id = x * ASSOCIATIVITY;
             for (int y = 0; y < ASSOCIATIVITY - 1; y++, slot_id++) {
                 if (vertices[slot_id].key.is_empty())
                     continue;
                 used_slots++;
+                used_edges += vertices[slot_id].ptr.size;
             }
         }
 
@@ -1068,7 +1073,7 @@ public:
             for (int y = 0; y < ASSOCIATIVITY - 1; y++, slot_id++) {
                 if (vertices[slot_id].key.is_empty())
                     continue;
-                used_slots++;
+                used_edges += vertices[slot_id].ptr.size;
             }
         }
 
@@ -1081,5 +1086,7 @@ public:
 
         logstream(LOG_INFO) << "entry: " << B2MiB(num_entries * sizeof(edge_t))
                             << " MB (" << num_entries << " entries)" << LOG_endl;
+        logstream(LOG_INFO) << "\tused edges: " << B2MiB(used_edges * sizeof(edge_t))
+                            << " MB (" << used_edges << " edges)" << LOG_endl;
     }
 };
