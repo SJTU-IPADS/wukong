@@ -195,7 +195,7 @@ private:
 
     // Allocate space to store edges of given size.
     // @return offset of allocated space.
-    uint64_t alloc_edges(uint64_t n, int tid = 0) {
+    uint64_t alloc_edges(uint64_t n, int tid) {
         if (Global::enable_caching)
             sweep_free(); // collect free space before allocate
 
@@ -216,7 +216,7 @@ private:
             return true;
 
         uint64_t blk_sz = blksz(v.ptr.size + 1);  // reserve one space for flag
-        return (edges[blk_sz - 1].val == v.ptr.size);
+        return (edge_ptr[blk_sz - 1].val == v.ptr.size);
     }
 
     uint64_t get_edge_sz(const vertex_t &v) { return blksz(v.ptr.size + 1) * sizeof(edge_t); }
@@ -525,7 +525,8 @@ public:
         }
 
         last_ext = 0;
-        edge_allocator->init((void *)edges, num_entries * sizeof(edge_t), Global::num_engines);
+        // Since tid of engines is not from 0, allocator should init num_threads.
+        edge_allocator->init((void *)edges, num_entries * sizeof(edge_t), Global::num_threads);
     }
 
     void print_mem_usage() {
@@ -679,13 +680,13 @@ public:
         // merge triple_pso and triple_pos into a map
         init_triples_map(triple_pso, triple_pos, triple_sav);
         end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+        logstream(LOG_DEBUG) << "#" << sid << ": " << (end - start) / 1000 << "ms "
                             << "for merging triple_pso, triple_pos and triple_sav." << LOG_endl;
 
         start = timer::get_usec();
         init_seg_metas(triple_pso, triple_pos, triple_sav);
         end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+        logstream(LOG_DEBUG) << "#" << sid << ": " << (end - start) / 1000 << "ms "
                             << "for initializing predicate segment statistics." << LOG_endl;
 
 #ifdef VERSATILE
@@ -697,7 +698,7 @@ public:
             vector<triple_t>().swap(triple_pos[tid]);
         }
         end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+        logstream(LOG_DEBUG) << "#" << sid << ": " << (end - start) / 1000 << "ms "
                             << "for inserting vid's predicates." << LOG_endl;
 #endif // VERSATILE
 
@@ -732,7 +733,7 @@ public:
         }
 
         end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
+        logstream(LOG_DEBUG) << "#" << sid << ": " << (end - start) / 1000 << "ms "
                             << "for inserting triples as segments into gstore" << LOG_endl;
 
         finalize_seg_metas();
