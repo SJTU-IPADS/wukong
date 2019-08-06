@@ -681,13 +681,13 @@ public:
         init_triples_map(triple_pso, triple_pos, triple_sav);
         end = timer::get_usec();
         logstream(LOG_DEBUG) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                            << "for merging triple_pso, triple_pos and triple_sav." << LOG_endl;
+                             << "for merging triple_pso, triple_pos and triple_sav." << LOG_endl;
 
         start = timer::get_usec();
         init_seg_metas(triple_pso, triple_pos, triple_sav);
         end = timer::get_usec();
         logstream(LOG_DEBUG) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                            << "for initializing predicate segment statistics." << LOG_endl;
+                             << "for initializing predicate segment statistics." << LOG_endl;
 
 #ifdef VERSATILE
         start = timer::get_usec();
@@ -699,7 +699,7 @@ public:
         }
         end = timer::get_usec();
         logstream(LOG_DEBUG) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                            << "for inserting vid's predicates." << LOG_endl;
+                             << "for inserting vid's predicates." << LOG_endl;
 #endif // VERSATILE
 
         start = timer::get_usec();
@@ -734,7 +734,7 @@ public:
 
         end = timer::get_usec();
         logstream(LOG_DEBUG) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                            << "for inserting triples as segments into gstore" << LOG_endl;
+                             << "for inserting triples as segments into gstore" << LOG_endl;
 
         finalize_seg_metas();
         finalize_init();
