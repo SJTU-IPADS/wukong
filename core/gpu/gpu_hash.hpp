@@ -56,12 +56,12 @@ struct GPUEngineParam {
 
     struct {
         ikey_t *d_key_list = nullptr;
-        vertex_t* vertex_gaddr = nullptr;
+        vertex_t *vertex_gaddr = nullptr;
         edge_t *edge_gaddr = nullptr;
 
-        uint64_t* d_slot_id_list = nullptr;
-        uint64_t* d_vertex_mapping = nullptr;
-        uint64_t* d_edge_mapping = nullptr;
+        uint64_t *d_slot_id_list = nullptr;
+        uint64_t *d_vertex_mapping = nullptr;
+        uint64_t *d_edge_mapping = nullptr;
 
         uint64_t vertex_blk_sz;
         uint64_t edge_blk_sz;
@@ -72,8 +72,8 @@ struct GPUEngineParam {
         uint64_t *d_offset_list = nullptr;
         uint64_t *d_edge_off_list = nullptr;
 
-        sid_t* d_in_rbuf;
-        sid_t* d_out_rbuf;
+        sid_t *d_in_rbuf;
+        sid_t *d_out_rbuf;
 
         rdf_seg_meta_t *d_segment_meta;
     } gpu;
@@ -85,22 +85,22 @@ struct GPUEngineParam {
         gpu.vertex_blk_sz = nbuckets;
         gpu.edge_blk_sz = nentries;
 
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_key_list, MiB2B(Global::gpu_rbuf_size_mb) ));
+        CUDA_ASSERT(cudaMalloc( (void **)&gpu.d_key_list, MiB2B(Global::gpu_rbuf_size_mb) ));
 
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_slot_id_list, MiB2B(Global::gpu_rbuf_size_mb) ));
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_prefix_sum_list, MiB2B(Global::gpu_rbuf_size_mb) ));
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_edge_size_list, MiB2B(Global::gpu_rbuf_size_mb) ));
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_offset_list, MiB2B(Global::gpu_rbuf_size_mb) ));
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_edge_off_list, MiB2B(Global::gpu_rbuf_size_mb) ));
+        CUDA_ASSERT(cudaMalloc( (void **)&gpu.d_slot_id_list, MiB2B(Global::gpu_rbuf_size_mb) ));
+        CUDA_ASSERT(cudaMalloc( (void **)&gpu.d_prefix_sum_list, MiB2B(Global::gpu_rbuf_size_mb) ));
+        CUDA_ASSERT(cudaMalloc( (void **)&gpu.d_edge_size_list, MiB2B(Global::gpu_rbuf_size_mb) ));
+        CUDA_ASSERT(cudaMalloc( (void **)&gpu.d_offset_list, MiB2B(Global::gpu_rbuf_size_mb) ));
+        CUDA_ASSERT(cudaMalloc( (void **)&gpu.d_edge_off_list, MiB2B(Global::gpu_rbuf_size_mb) ));
 
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_vertex_mapping, sizeof(uint64_t) * nkey_blks));
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_edge_mapping, sizeof(uint64_t) * nvalue_blks));
-        CUDA_ASSERT(cudaMalloc( (void**)&gpu.d_segment_meta, sizeof(rdf_seg_meta_t) ));
+        CUDA_ASSERT(cudaMalloc( (void **)&gpu.d_vertex_mapping, sizeof(uint64_t) * nkey_blks));
+        CUDA_ASSERT(cudaMalloc( (void **)&gpu.d_edge_mapping, sizeof(uint64_t) * nvalue_blks));
+        CUDA_ASSERT(cudaMalloc( (void **)&gpu.d_segment_meta, sizeof(rdf_seg_meta_t) ));
     }
 
 
-    void load_segment_mappings(const std::vector<uint64_t>& vertex_mapping,
-                               const std::vector<uint64_t>& edge_mapping,
+    void load_segment_mappings(const std::vector<uint64_t> &vertex_mapping,
+                               const std::vector<uint64_t> &edge_mapping,
                                const rdf_seg_meta_t &seg, cudaStream_t stream = 0) {
 
         CUDA_ASSERT(cudaMemcpyAsync(gpu.d_vertex_mapping,
@@ -125,16 +125,16 @@ struct GPUEngineParam {
     }
 
     void set_result_bufs(char *d_in_rbuf, char *d_out_rbuf) {
-        gpu.d_in_rbuf = (sid_t*) d_in_rbuf;
-        gpu.d_out_rbuf = (sid_t*) d_out_rbuf;
+        gpu.d_in_rbuf = (sid_t *) d_in_rbuf;
+        gpu.d_out_rbuf = (sid_t *) d_out_rbuf;
     }
 
 };
 
-void gpu_shuffle_result_buf(GPUEngineParam& param, int num_servers, std::vector<int>& buf_sizes,
-                            std::vector<int>& buf_heads, cudaStream_t stream = 0);
+void gpu_shuffle_result_buf(GPUEngineParam &param, int num_servers, std::vector<int> &buf_sizes,
+                            std::vector<int> &buf_heads, cudaStream_t stream = 0);
 void gpu_split_result_buf(GPUEngineParam &param, int num_servers, cudaStream_t stream = 0);
-void gpu_calc_prefix_sum(GPUEngineParam& param, cudaStream_t stream = 0);
+void gpu_calc_prefix_sum(GPUEngineParam &param, cudaStream_t stream = 0);
 
 void gpu_generate_key_list_k2u(GPUEngineParam &param, cudaStream_t stream = 0);
 void gpu_get_slot_id_list(GPUEngineParam &param, cudaStream_t stream = 0);
@@ -143,10 +143,10 @@ void gpu_get_edge_list(GPUEngineParam &param, cudaStream_t stream = 0);
 void gpu_get_edge_list_k2k(GPUEngineParam &param, cudaStream_t stream = 0);
 void gpu_get_edge_list_k2c(GPUEngineParam &param, cudaStream_t stream = 0);
 
-int gpu_update_result_buf_i2u(GPUEngineParam& param, cudaStream_t stream = 0);
-int gpu_update_result_buf_k2k(GPUEngineParam& param, cudaStream_t stream = 0);
-int gpu_update_result_buf_k2u(GPUEngineParam& param, cudaStream_t stream = 0);
-int gpu_update_result_buf_k2c(GPUEngineParam& param, cudaStream_t stream = 0);
+int gpu_update_result_buf_i2u(GPUEngineParam &param, cudaStream_t stream = 0);
+int gpu_update_result_buf_k2k(GPUEngineParam &param, cudaStream_t stream = 0);
+int gpu_update_result_buf_k2u(GPUEngineParam &param, cudaStream_t stream = 0);
+int gpu_update_result_buf_k2c(GPUEngineParam &param, cudaStream_t stream = 0);
 
 
 #endif // end of USE_GPU

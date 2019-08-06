@@ -126,7 +126,7 @@ public:
         param.query.var2col_start = req.result.var2col(start);
 
         logstream(LOG_DEBUG) << "known_to_unknown: #ext_buckets: "
-            << seg_meta.ext_bucket_list.size() << LOG_endl;
+                             << seg_meta.ext_bucket_list.size() << LOG_endl;
 
         ASSERT(gmem->res_inbuf() != gmem->res_outbuf());
         ASSERT(nullptr != gmem->res_inbuf());
@@ -176,8 +176,8 @@ public:
 
 #ifdef GPU_DEBUG
         logstream(LOG_INFO) << "#" << sid
-                            << " GPU_update_result_buf_k2u done. num_elems=" << num_elems
-                            << ", col_num=" << param.query.col_num
+                            << " GPU_update_result_buf_k2u done. #elems: " << num_elems
+                            << ", #cols: " << param.query.col_num
                             << LOG_endl;
 #endif
 
@@ -261,7 +261,7 @@ public:
 
 #ifdef GPU_DEBUG
         logstream(LOG_INFO) << "#" << sid
-                            << " GPU_update_result_buf_k2k done. num_elems=" << num_elems
+                            << " GPU_update_result_buf_k2k done. #elems: " << num_elems
                             << LOG_endl;
 #endif
 
@@ -342,7 +342,7 @@ public:
 
 #ifdef GPU_DEBUG
         logstream(LOG_INFO) << "#" << sid
-                            << " GPU_update_result_buf_k2c done. num_elems=" << num_elems
+                            << " GPU_update_result_buf_k2c done. #elems: " << num_elems
                             << LOG_endl;
 #endif
 

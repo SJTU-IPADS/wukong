@@ -98,7 +98,8 @@ public:
 
         logstream(LOG_INFO) << "GPUMem: devid: " << devid
                             << ", num_servers: " << num_servers
-                            << ", num_agents: " << num_agents << LOG_endl;
+                            << ", num_agents: " << num_agents
+                            << LOG_endl;
     }
 
     ~GPUMem() { CUDA_ASSERT(cudaFree(mem_gpu)); }

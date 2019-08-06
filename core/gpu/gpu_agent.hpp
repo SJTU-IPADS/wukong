@@ -44,7 +44,7 @@
 using namespace std;
 
 /**
- * An agent thread will assist the GPU with query handling
+ * An agent thread will assist query processing on GPUs
  */
 class GPUAgent {
 private:
@@ -169,9 +169,12 @@ public:
         // encode the lineage of the query (server & thread)
         if (req.qid == -1) req.qid = coder.get_and_inc_qid();
 
-        logstream(LOG_DEBUG) << "#" << sid << " GPUAgent: " << "[" << sid << "-" << tid << "]"
-                             << " got a req: r.qid=" << req.qid << ", pqid=" << req.pqid << ", r.state="
-                             << (req.state == SPARQLQuery::SQState::SQ_REPLY ? "REPLY" : "REQUEST") << LOG_endl;
+        logstream(LOG_DEBUG) << "#" << sid << " GPUAgent: "
+                             << "[" << sid << "-" << tid << "]"
+                             << " got a req: r.qid=" << req.qid
+                             << ", pqid=" << req.pqid << ", r.state="
+                             << (req.state == SPARQLQuery::SQState::SQ_REPLY ? "REPLY" : "REQUEST")
+                             << LOG_endl;
 
         if (need_parallel(req)) {
             send_to_workers(req);
@@ -217,7 +220,8 @@ public:
             }
 
             if (need_fork_join(req)) {
-                logstream(LOG_DEBUG) << "#" << sid << " GPUAgent: fork query r.qid=" << req.qid << ", r.pqid="
+                logstream(LOG_DEBUG) << "#" << sid << " GPUAgent: fork query r.qid="
+                                     << req.qid << ", r.pqid="
                                      << req.pqid << LOG_endl;
                 vector<SPARQLQuery> sub_reqs = gpu_engine->generate_sub_query(req);
                 ASSERT(sub_reqs.size() == Global::num_servers);

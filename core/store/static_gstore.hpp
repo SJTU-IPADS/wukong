@@ -84,7 +84,8 @@ private:
         has_pos = (segid.dir == IN) ? success : false;
 
         // a segment only contains triples of one direction
-        ASSERT((has_pso == true && has_pos == false) || (has_pso == false && has_pos == true));
+        ASSERT((has_pso == true && has_pos == false)
+               || (has_pso == false && has_pos == true));
 
         uint64_t off = segment.edge_start;
         uint64_t s = 0;
@@ -118,9 +119,9 @@ private:
                    tid, pid, pso.size());
         }
         ASSERT_MSG(off <= segment.edge_start + segment.num_edges,
-            "Seg[%lu|%lu|%lu]: #edges: %lu, edge_start: %lu, off: %lu",
-            segid.index, segid.pid, segid.dir,
-            segment.num_edges, segment.edge_start, off);
+                   "Seg[%lu|%lu|%lu]: #edges: %lu, edge_start: %lu, off: %lu",
+                   segid.index, segid.pid, segid.dir,
+                   segment.num_edges, segment.edge_start, off);
         if (has_pos) {
             const vector<triple_t> &pos = a->second;
             while (type_triples < pos.size() && is_tpid(pos[type_triples].o))
@@ -153,7 +154,8 @@ private:
                    tid, pid, pos.size());
         }
 
-        ASSERT_MSG(off <= segment.edge_start + segment.num_edges, "Seg[%lu|%lu|%lu]: #edges: %lu, edge_start: %lu, off: %lu",
+        ASSERT_MSG(off <= segment.edge_start + segment.num_edges,
+                   "Seg[%lu|%lu|%lu]: #edges: %lu, edge_start: %lu, off: %lu",
                    segid.index, segid.pid, segid.dir,
                    segment.num_edges, segment.edge_start, off);
     }
@@ -169,6 +171,7 @@ private:
                    segid.index, segid.pid, segid.dir);
             return;
         }
+
         // get OUT edges and IN edges from triples map
         tbb_triple_attr_hash_map::accessor a;
         bool success = attr_triples_map.find(a, ikey_t(0, aid, (dir_t) dir));

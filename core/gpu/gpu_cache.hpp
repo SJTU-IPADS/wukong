@@ -40,7 +40,7 @@
 using namespace std;
 
 /*
- * Manage GPU kvstore(cache)
+ * Manage GPU kvstore (cache)
  */
 class GPUCache {
 private:
