@@ -222,7 +222,7 @@ protected:
 #endif // VERSATILE
 
     // allocate space to store edges of given size. Return offset of allocated space.
-    virtual uint64_t alloc_edges(uint64_t n, int tid = 0) = 0;
+    virtual uint64_t alloc_edges(uint64_t n, int tid) = 0;
 
     virtual uint64_t alloc_edges_to_seg(uint64_t num_edges) = 0;
 
