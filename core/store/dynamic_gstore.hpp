@@ -111,7 +111,7 @@ private:
     }
 
     bool check_key_exist(ikey_t key) {
-        uint64_t bucket_id = key.hash() % num_buckets;
+        uint64_t bucket_id = bucket_local(key);
         uint64_t slot_id = bucket_id * ASSOCIATIVITY;
         uint64_t lock_id = bucket_id % NUM_LOCKS;
 
