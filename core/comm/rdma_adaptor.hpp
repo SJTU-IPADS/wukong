@@ -287,8 +287,8 @@ private:
 public:
     bool init = false;
 
-    RDMA_Adaptor(int sid, vector<RDMA::MemoryRegion> &mrs, int num_servers, int num_threads)
-        : sid(sid), num_servers(num_servers), num_threads(num_threads) {
+    RDMA_Adaptor(int sid, vector<RDMA::MemoryRegion> &mrs, int nsrvs, int nthds)
+        : sid(sid), num_servers(nsrvs), num_threads(nthds) {
         // no RDMA device
         if (!RDMA::get_rdma().has_rdma()) return;
 

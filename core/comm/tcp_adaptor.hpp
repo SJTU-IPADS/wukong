@@ -68,9 +68,9 @@ private:
     inline int port_code(int dst_sid, int dst_tid) { return dst_sid * 200 + dst_tid; }
 
 public:
-    TCP_Adaptor(int sid, string fname, int port_base, int num_servers, int num_threads)
+    TCP_Adaptor(int sid, string fname, int port_base, int nsrvs, int nthds)
         : sid(sid), port_base(port_base), context(1),
-          num_servers(num_servers), num_threads(num_threads) {
+          num_servers(nsrvs), num_threads(nthds) {
 
         ifstream hostfile(fname);
         string ip;
