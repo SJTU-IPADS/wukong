@@ -87,15 +87,15 @@ public:
 
 #ifdef USE_BITRIE
     bool exist(sid_t sid) { return bimap.exist(sid); }
-    
+
     bool exist(string str) { return bimap.exist(str); }
 
     string id2str(sid_t sid) { return bimap[sid]; }
-    
+
     sid_t str2id(string str) { return bimap[str]; }
-    
+
     void add(string str, sid_t sid) { bimap.insert_kv(str, sid); }
-    
+
     void shrink() { bimap.storage_resize(); }
 #else
     bool exist(sid_t sid) { return ismap.find(sid) != ismap.end(); }
