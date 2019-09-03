@@ -24,7 +24,8 @@
 
 #include "global.hpp"
 #include "store/vertex.hpp"
-// util
+
+// utils
 #include "unit.hpp"
 #include "atomic.hpp"
 #include "logger2.hpp"
@@ -33,42 +34,43 @@
 using namespace std;
 
 /**
- * Cache remote vertex(location) of the given key, eleminating one RDMA read.
- * This only works when RDMA enabled.
+ * An RDMA-frienldy cache for distributed key-value store,
+ * which caches the key (location) to skip one RDMA READ for retrieving one remote key-value pair.
  */
 class RDMA_Cache {
     static const int NUM_BUCKETS = 1 << 20;
     static const int ASSOCIATIVITY = 8;  /// associativity of items in a bucket
 
-    /// cache line
     struct item_t {
-        vertex_t v;
-        uint64_t expire_time;  /// only work when DYNAMIC_GSTORE = ON
-        uint32_t cnt;          /// track visit cnt of v
+        vertex_t v;  /// the key (location) of the key-value pair
 
-        /// Each cache line use a version to detect reader-writer conflict.
-        /// Version == 0, when an insertion occurs.
+        uint64_t expire_time;  /// expire time (DYNAMIC_GSTORE=ON)
+        uint32_t cnt;          /// access count
+
+        /// The version is used to detect reader-writer conflict.
+        /// version == 0, when an insertion occurs.
         /// Init value is set to 1.
-        /// Version always increments after an insertion.
+        /// version always increases after an insertion.
         uint32_t version;
 
         item_t() : expire_time(0), cnt(0), version(1) { }
     };
 
-    /// bucket whose items share the same index
     struct bucket_t {
-        item_t items[ASSOCIATIVITY]; /// item list
+        item_t items[ASSOCIATIVITY]; /// associativity
     };
-    bucket_t *hashtable;
 
-    uint64_t lease;  /// only work when DYNAMIC_GSTORE=ON
+    bucket_t *hashtable; /// a hash-based 1-to-1 mapping cache
+
+    uint64_t lease;  /// the period of cache invalidation (DYNAMIC_GSTORE=ON)
 
 public:
     RDMA_Cache() {
-        size_t mem_size = sizeof(bucket_t) * NUM_BUCKETS;
         hashtable = new bucket_t[NUM_BUCKETS];
-        logstream(LOG_INFO) << "cache allocate " << mem_size << " memory" << LOG_endl;
         lease = SEC(120);
+
+        size_t mem_size = sizeof(bucket_t) * NUM_BUCKETS;
+        logstream(LOG_INFO) << "allocate " << B2MiB(mem_size) << "MB RDMA cache" << LOG_endl;
     }
 
     /**
@@ -94,19 +96,17 @@ public:
                     /// Re-check key since key may be replaced.
                     if (items[i].v.key == key) {
 #ifdef DYNAMIC_GSTORE
-                        if (timer::get_usec() < items[i].expire_time) {
+                        if (timer::get_usec() < items[i].expire_time)
+#endif
+                        {
                             ret = items[i].v;
                             items[i].cnt++;
                             found = true;
                         }
-#else
-                        ret = items[i].v;
-                        items[i].cnt++;
-                        found = true;
-#endif
-                        asm volatile("" ::: "memory");
 
-                        /// Check version.
+                        asm volatile("" ::: "memory"); // barrier
+
+                        // invalidation check
                         if (ver != 0 && items[i].version == ver)
                             return found;
                     } else
