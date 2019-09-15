@@ -1,0 +1,33 @@
+#
+# SPARQL
+# 
+# SELECT ?v0 ?v1 ?v2 ?v4 ?v5 ?v6 WHERE {
+# 	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre>  <http://db.uwaterloo.ca/~galuc/wsdbm/SubGenre47>  .
+# 	?v0  <http://schema.org/contentRating>  ?v1  .
+# 	?v0  <http://schema.org/contentSize>  ?v2  .
+# 	?v5  <http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor>  ?v0  .
+# 	?v5  <http://db.uwaterloo.ca/~galuc/wsdbm/purchaseDate>  ?v6  .
+# 	?v4  <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase>  ?v5  .
+# }
+#
+# command: sparql -f sparql_query/watdiv/watdiv_f3 -p optimal
+#
+#
+# Plan
+#
+# SELECT ?v0 ?v1 ?v2 ?v4 ?v5 ?v6 WHERE {
+# 	?v0  __PREDICATE__  <http://schema.org/contentSize>  <-
+# 	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre>  <http://db.uwaterloo.ca/~galuc/wsdbm/SubGenre47>  .
+# 	?v0  <http://schema.org/contentRating>  ?v1  .
+# 	?v5  <http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor>  ?v0  <-
+# 	?v5  <http://db.uwaterloo.ca/~galuc/wsdbm/purchaseDate>  ?v6  .
+# 	?v0  <http://schema.org/contentSize>  ?v2  .
+# 	?v4  <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase>  ?v5  <-
+# }
+#
+1 <
+3 >
+2 >
+4 <
+5 >
+6 <

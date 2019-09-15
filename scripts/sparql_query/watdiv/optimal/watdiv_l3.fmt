@@ -1,0 +1,20 @@
+#
+# SPARQL
+# 
+# SELECT ?v0 ?v1 WHERE {
+# 	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/subscribes>  <http://db.uwaterloo.ca/~galuc/wsdbm/Website31184>  .
+# 	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/likes>  ?v1  .
+# }
+#
+# command: sparql -f sparql_query/watdiv/watdiv_l3 -p optimal
+#
+#
+# Plan
+#
+# SELECT ?v0 ?v1 WHERE {
+# 	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/subscribes>  <http://db.uwaterloo.ca/~galuc/wsdbm/Website31184>  <-
+# 	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/likes>  ?v1  .
+# }
+#
+1 <
+2 >
