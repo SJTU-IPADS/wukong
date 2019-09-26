@@ -46,8 +46,8 @@ class TCP_Adaptor {
 private:
 
     int sid;            // unused in TCP communication
-    int num_servers;    // unused in TCP communication
-    int num_threads;    // unused in TCP communication
+    int num_servers;    // used to check parameter
+    int num_threads;
 
     int port_base;
 
@@ -65,7 +65,8 @@ private:
 
     vector<string> ipset;
 
-    inline int port_code(int dst_sid, int dst_tid) { return dst_sid * 200 + dst_tid; }
+    inline int port_code(int dst_tid) { return port_base + dst_tid; }
+    inline int socket_code(int dst_sid, int dst_tid) { return dst_sid * num_threads + dst_tid; }
 
 public:
     TCP_Adaptor(int sid, string fname, int port_base, int num_servers, int num_threads)
@@ -81,7 +82,7 @@ public:
         for (int tid = 0; tid < num_threads; tid++) {
             receivers[tid] = new zmq::socket_t(context, ZMQ_PULL);
             char address[32] = "";
-            snprintf(address, 32, "tcp://*:%d", port_base + port_code(sid, tid));
+            snprintf(address, 32, "tcp://*:%d", port_code(tid));
             receivers[tid]->bind(address);
         }
 
@@ -109,7 +110,14 @@ public:
     string ip_of(int dst_sid) { return ipset[dst_sid]; }
 
     bool send(int dst_sid, int dst_tid, const string &str) {
-        int pid = port_code(dst_sid, dst_tid);
+        // check parameters 
+        ASSERT_MSG((dst_sid >= 0 && dst_sid < num_servers),
+                   "server id: %d, num servers: %d\n", dst_sid, num_servers);
+        ASSERT_MSG((dst_tid >= 0 && dst_tid < num_threads),
+                  "thread id: %d, num threads: %d\n", dst_tid, num_threads);
+
+        int pid = port_code(dst_tid);
+        int id = socket_code(dst_sid, dst_tid); // socket id
 
         zmq::message_t msg(str.length());
         memcpy((void *)msg.data(), str.c_str(), str.length());
@@ -118,22 +126,28 @@ public:
         // 1) add the 'equal' sockets to the set (overwrite)
         // 2) use the same socket by multiple proxy threads simultaneously.
         pthread_spin_lock(&send_locks[dst_tid]);
-        if (senders.find(pid) == senders.end()) {
+        if (senders.find(id) == senders.end()) {
             // new socket on-demand
             char address[32] = "";
-            snprintf(address, 32, "tcp://%s:%d", ipset[dst_sid].c_str(), port_base + pid);
-            senders[pid] = new zmq::socket_t(context, ZMQ_PUSH);
-            /// FIXME: check return value
-            senders[pid]->connect(address);
+            snprintf(address, 32, "tcp://%s:%d", ipset[dst_sid].c_str(), pid);
+            senders[id] = new zmq::socket_t(context, ZMQ_PUSH);
+            senders[id]->connect(address);
         }
 
-        bool result = senders[pid]->send(msg, ZMQ_DONTWAIT);
+        int result = senders[id]->send(msg, ZMQ_DONTWAIT);
+        if (unlikely(result < 0)) {
+            logstream(LOG_ERROR) << " Fails to send msg to ["
+                << dst_sid << ", " << dst_tid << "] "
+                << strerror(errno) << LOG_endl;
+        }
         pthread_spin_unlock(&send_locks[dst_tid]);
 
         return result;
     }
 
     string recv(int tid) {
+        ASSERT_MSG((tid >= 0 && tid < num_threads),
+                  "thread id: %d, num threads: %d\n", tid, num_threads);
         zmq::message_t msg;
 
         // multiple engine threads may recv the same msg simultaneously (no case)
@@ -157,6 +171,8 @@ public:
     }
 
     bool tryrecv(int tid, string &str) {
+        ASSERT_MSG((tid >= 0 && tid < num_threads),
+                  "thread id: %d, num threads: %d\n", tid, num_threads);
         zmq::message_t msg;
         bool success = false;
 
