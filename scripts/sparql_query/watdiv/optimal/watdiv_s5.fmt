@@ -1,0 +1,26 @@
+#
+# SPARQL
+# 
+# SELECT ?v0 ?v2 ?v3 WHERE {
+# 	?v0  <http://www.w3.org/1999/02/22-rdf-syntax-ns#type>  <http://db.uwaterloo.ca/~galuc/wsdbm/ProductCategory14>  .
+# 	?v0  <http://schema.org/description>  ?v2  .
+# 	?v0  <http://schema.org/keywords>  ?v3  .
+# 	?v0  <http://schema.org/language>  <http://db.uwaterloo.ca/~galuc/wsdbm/Language0>  .
+# }
+#
+# command: sparql -f sparql_query/watdiv/watdiv_s5 -p optimal
+#
+#
+# Plan
+#
+# SELECT ?v0 ?v2 ?v3 WHERE {
+# 	?v0  <http://www.w3.org/1999/02/22-rdf-syntax-ns#type>  <http://db.uwaterloo.ca/~galuc/wsdbm/ProductCategory14>  <-
+# 	?v0  <http://schema.org/language>  <http://db.uwaterloo.ca/~galuc/wsdbm/Language0>  .
+# 	?v0  <http://schema.org/keywords>  ?v3  .
+# 	?v0  <http://schema.org/description>  ?v2  .
+# }
+#
+1 <
+4 >
+3 >
+2 >

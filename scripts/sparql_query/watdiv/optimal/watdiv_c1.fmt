@@ -1,0 +1,39 @@
+#
+# SPARQL
+#
+# SELECT ?v0 ?v4 ?v6 ?v7 WHERE {
+#  	?v0  <http://schema.org/text>  ?v2  .
+# 	?v0  <http://schema.org/contentRating>  ?v3  .
+# 	?v0  <http://schema.org/caption>  ?v1  .
+# 	?v0  <http://purl.org/stuff/rev#hasReview>  ?v4  .
+# 	?v4  <http://purl.org/stuff/rev#title>  ?v5  .
+# 	?v4  <http://purl.org/stuff/rev#reviewer>  ?v6  .
+# 	?v7  <http://schema.org/actor>  ?v6  .
+# 	?v7  <http://schema.org/language>  ?v8  .
+# }
+# 
+# command: sparql -f sparql_query/watdiv/watdiv_c1 -p optimal
+# 
+#
+# Plan
+#
+# SELECT ?v0 ?v4 ?v6 ?v7 WHERE {
+#   ?v0  __PREDICATE__  <http://schema.org/caption>  <-
+#  	?v0  <http://schema.org/text>  ?v2  .
+# 	?v0  <http://schema.org/contentRating>  ?v3  .
+#   ?v0  <http://purl.org/stuff/rev#hasReview>  ?v4  .
+#   ?v4  <http://purl.org/stuff/rev#title>  ?v5  .
+# 	?v4  <http://purl.org/stuff/rev#reviewer>  ?v6  .
+# 	?v7  <http://schema.org/actor>  ?v6  <-
+# 	?v7  <http://schema.org/language>  ?v8  .
+# 	?v0  <http://schema.org/caption>  ?v1  .
+# }
+3 <<
+1 >
+2 >
+4 >
+5 >
+6 >
+7 <
+8 >
+3 >
