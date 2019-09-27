@@ -110,11 +110,11 @@ public:
     string ip_of(int dst_sid) { return ipset[dst_sid]; }
 
     bool send(int dst_sid, int dst_tid, const string &str) {
-        // check parameters 
+        // check parameters
         ASSERT_MSG((dst_sid >= 0 && dst_sid < num_servers),
-                   "server id: %d, num servers: %d\n", dst_sid, num_servers);
+                   "server ID: %d (#servers: %d)\n", dst_sid, num_servers);
         ASSERT_MSG((dst_tid >= 0 && dst_tid < num_threads),
-                  "thread id: %d, num threads: %d\n", dst_tid, num_threads);
+                   "thread ID: %d (#threads: %d)\n", dst_tid, num_threads);
 
         int pid = port_code(dst_tid);
         int id = socket_code(dst_sid, dst_tid); // socket id
@@ -136,9 +136,9 @@ public:
 
         int result = senders[id]->send(msg, ZMQ_DONTWAIT);
         if (unlikely(result < 0)) {
-            logstream(LOG_ERROR) << " Fails to send msg to ["
-                << dst_sid << ", " << dst_tid << "] "
-                << strerror(errno) << LOG_endl;
+            logstream(LOG_ERROR) << "failed to send msg to ["
+                                 << dst_sid << ", " << dst_tid << "] "
+                                 << strerror(errno) << LOG_endl;
         }
         pthread_spin_unlock(&send_locks[dst_tid]);
 
@@ -147,13 +147,14 @@ public:
 
     string recv(int tid) {
         ASSERT_MSG((tid >= 0 && tid < num_threads),
-                  "thread id: %d, num threads: %d\n", tid, num_threads);
+                   "thread ID: %d (#threads: %d)\n", tid, num_threads);
+
         zmq::message_t msg;
 
         // multiple engine threads may recv the same msg simultaneously (no case)
         pthread_spin_lock(&receive_locks[tid]);
         if (receivers[tid]->recv(&msg) < 0) {
-            logstream(LOG_ERROR) << "Failed to recv msg ("
+            logstream(LOG_ERROR) << "failed to recv msg ("
                                  << strerror(errno) << ")" << LOG_endl;
             assert(false);
         }
@@ -165,14 +166,15 @@ public:
 
     string recv(int tid, int src_sid) {
         logstream(LOG_WARNING) << "recv() from a specified server (sid=" << src_sid
-                               << ") is unsuppored by TCP adaptor now!"
+                               << ") is unsupported by TCP adaptor now!"
                                << LOG_endl;
         return recv(tid);
     }
 
     bool tryrecv(int tid, string &str) {
         ASSERT_MSG((tid >= 0 && tid < num_threads),
-                  "thread id: %d, num threads: %d\n", tid, num_threads);
+                   "thread ID: %d (#threads: %d)\n", tid, num_threads);
+
         zmq::message_t msg;
         bool success = false;
 
