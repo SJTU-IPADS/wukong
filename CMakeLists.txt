@@ -39,6 +39,7 @@ file(GLOB SOURCES "core/*.hpp" "utils/*.hpp" "rdma_lib/*.hpp")
 option (USE_RDMA "enable RDMA support" ON)
 if(USE_RDMA)
   add_definitions(-DHAS_RDMA)
+  set(WUKONG_LIBS ${WUKONG_LIBS} ibverbs)
 endif(USE_RDMA)
 
 #### GPU (NOT YET READY)
@@ -94,7 +95,7 @@ if(USE_DTYPE_64BIT)
 endif(USE_DTYPE_64BIT)
 
 
-set(WUKONG_LIBS ${WUKONG_LIBS} zmq rt ibverbs tbb hwloc)
+set(WUKONG_LIBS ${WUKONG_LIBS} zmq rt tbb hwloc)
 
 ## Build Wukong
 target_link_libraries(wukong ${WUKONG_LIBS} ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a ${BOOST_LIB}/libboost_program_options.a)
