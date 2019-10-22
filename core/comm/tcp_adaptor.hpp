@@ -135,7 +135,7 @@ public:
         }
 
         int result = senders[id]->send(msg, ZMQ_DONTWAIT);
-        if (unlikely(result < 0)) {
+        if (result < 0) {
             logstream(LOG_ERROR) << "failed to send msg to ["
                                  << dst_sid << ", " << dst_tid << "] "
                                  << strerror(errno) << LOG_endl;
