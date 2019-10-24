@@ -214,6 +214,7 @@ wukong>
 
 <br>
 <a name="data"></a>
+
 ## Preparing RDF datasets
 
 Use [LUBM](http://swat.cse.lehigh.edu/projects/lubm) (SWAT Projects - the Lehigh University Benchmark) as an example to introduce how to prepare RDF datasets for Wukong.
@@ -235,7 +236,7 @@ $cp uba1.7/src/edu/lehigh/swat/bench/uba/*.class uba1.7/classes/edu/lehigh/swat/
 
 > Note: one patch is used to fix a bug about linux file path
 
-2) Generate LUBM datasets (2 Universities) with RAW format.
+2) Generate LUBM datasets (2 Universities) with RDF/XML format.
 
 ```bash
 $cd ~/uba1.7
@@ -250,27 +251,28 @@ PROPERTY INSTANCE #: 6896, TOTAL SO FAR: 6896
 
 ##### Step 2: *Convert LUBM datasets to NT format*
 
-1) Download the rdfcat tool of Apache Jena.
+1) [Download](https://jena.apache.org/download/index.cgi) the riot tool provided by Apache Jena. Then uncompress it. Assume the path to Jena is `JENA_HOME`. It is not necessary to set the environment variable.
+
+The code below is an example of this step.
 
 ```bash
 $cd ~;
-$wget http://archive.apache.org/dist/jena/binaries/apache-jena-2.7.4.zip
-$unzip apache-jena-2.7.4.zip -d .
-$export JENA_HOME=~/apache-jena-2.7.4/
+$wget http://mirrors.tuna.tsinghua.edu.cn/apache/jena/binaries/apache-jena-3.13.1.tar.gz
+$tar zxvf apache-jena-3.13.1.tar.gz
 ```
 
-2) Generate LUBM dataset (2 Universities) with NT format.
+2) Generate LUBM dataset (2 Universities) with N-Triples format.
 
 ```bash
 $cd ~/uba1.7
-$find . -type f -name "University0_*.owl" -exec $JENA_HOME/bin/rdfcat -out N-TRIPLE -x {} >> uni0.nt \;
-$find . -type f -name "University1_*.owl" -exec $JENA_HOME/bin/rdfcat -out N-TRIPLE -x {} >> uni1.nt \;
+$JENA_HOME/bin/riot -output=N-Triples University0_*.owl >> uni0.nt
+$JENA_HOME/bin/riot -output=N-Triples University1_*.owl >> uni1.nt
 ```
 
-Each row in LUBM dataset with NT format (e.g., `uni0.nt`) consists of subject (S), predicate (P), object (O), and '.', like`<http://www.University97.edu> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://swat.cse.lehigh.edu/onto/univ-bench.owl#University> .`.
+Each row in LUBM dataset with N-Triples format (e.g., `uni0.nt`) consists of subject (S), predicate (P), object (O), and '.', like`<http://www.University97.edu> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://swat.cse.lehigh.edu/onto/univ-bench.owl#University> .`.
 
 
-##### Step 3: *Convert LUBM datasets to ID format*
+##### Step 3: *Convert N-Triples format datasets to ID format*
 
 ```bash
 $cd ${WUKONG_ROOT}/datagen;
