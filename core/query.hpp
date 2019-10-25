@@ -526,7 +526,7 @@ public:
             ASSERT_ERROR_CODE(r.attr_col_num == 0, UNSUPPORT_UNION);
         }
 
-        void append_result(SPARQLQuery::Result &r) {
+        void append_result(SPARQLQuery::Result &r, bool skip_data = true) {
             /// update metadata (i.e., v2c_map, ncols, attr_ncols, and nrows)
             // NOTE: all sub-jobs have the same v2c_map, ncols, and attr_ncols
             v2c_map = r.v2c_map;
@@ -535,7 +535,7 @@ public:
             row_num += r.row_num; // add rows
 
             // skip data
-            if (r.blind) return;
+            if (r.blind && skip_data) return;
 
             /// aggregate data (i.e., result table and attribute result table)
             ASSERT((col_num * row_num) == (result_table.size() + r.result_table.size()));

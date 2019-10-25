@@ -336,7 +336,10 @@ private:
 
                 if (cur != cached) { // new KNOWN
                     cached = cur;
-                    vids = graph->get_triples(tid, cur, pid, d, sz);
+                    if (pid == TYPE_ID && d == IN)
+                        vids = graph->get_index(tid, cur, d, sz);
+                    else
+                        vids = graph->get_triples(tid, cur, pid, d, sz);
                 }
 
                 // append a new intermediate result (row)
@@ -740,7 +743,7 @@ private:
         req.pattern_step++;
     }
 
-    vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req) {
+    vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req, bool need_split=true)  {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
 
@@ -767,6 +770,12 @@ private:
 
         // group intermediate results to servers
         int nrows = req.result.get_row_num();
+        if (!need_split) {
+            for (int i = 0; i < Global::num_servers; i++)
+                sub_reqs[i].result.append_result(req.result, false);
+            return sub_reqs;
+        }
+
         for (int i = 0; i < nrows; i++) {
             int dst_sid = wukong::math::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
                                                  Global::num_servers);
@@ -796,6 +805,18 @@ private:
         ssid_t start = pattern.subject;
         return ((req.local_var != start) // next hop is not local
                 && (req.result.get_row_num() >= Global::rdma_threshold)); // FIXME: not consider dedup
+    }
+
+    // meet index in centre of query plan
+    bool need_dispatch(SPARQLQuery &req) {
+        if (Global::num_servers == 1) return false;
+
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
+        ssid_t start = pattern.subject;
+        ssid_t p = pattern.predicate;
+        dir_t d = pattern.direction;
+
+        return (p == TYPE_ID && d == IN);
     }
 
     void do_corun(SPARQLQuery &req) {
@@ -1103,6 +1124,20 @@ private:
 
             if (r.done(SPARQLQuery::SQState::SQ_PATTERN))
                 return true;  // done
+
+            if (need_dispatch(r)) {
+                vector<SPARQLQuery> sub_reqs = generate_sub_query(r, false);
+                rmap.put_parent_request(r, sub_reqs.size());
+                for (int i = 0; i < sub_reqs.size(); i++) {
+                    if (i != sid) {
+                        Bundle bundle(sub_reqs[i]);
+                        msgr->send_msg(bundle, i, tid);
+                    } else {
+                        prior_stage.push(sub_reqs[i]);
+                    }
+                }
+                return false;
+            }
 
             if (need_fork_join(r)) {
                 vector<SPARQLQuery> sub_reqs = generate_sub_query(r);
