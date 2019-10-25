@@ -50,4 +50,7 @@ If you use Wukong in your research, please cite our paper:
 
 [**USENIX ATC**] [Fast and Concurrent RDF Queries using RDMA-assisted GPU Graph Exploration](docs/papers/wukong+g-atc18.pdf). Siyuan Wang, Chang Lou, Rong Chen, and Haibo Chen. Proceedings of 2018 USENIX Annual Technical Conference, Boston, MA, US, July 2018.
 
+[**USENIX ATC**] [Pragh: Locality-preserving Graph Traversal with Split Live Migration](docs/papers/wukong+m-atc19.pdf). Xiating Xie, Xingda Wei, Rong Chen, and Haibo Chen. Proceedings of 2019 USENIX Annual Technical Conference, Renton, WA, US, July 2019.
+
+
 
