@@ -22,8 +22,6 @@
 
 #pragma once
 
-#include "global.hpp"
-
 #ifdef USE_GPU
 #include <cuda_runtime.h>
 

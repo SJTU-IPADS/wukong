@@ -152,7 +152,7 @@ public:
     // fork-join or in-place execution
     bool need_fork_join(SPARQLQuery &req) {
         // always need NOT fork-join when executing on single machine
-        if (Global::num_serverss == 1) return false;
+        if (Global::num_servers == 1) return false;
 
         // always need fork-join mode w/o RDMA
         if (!Global::use_rdma) return true;

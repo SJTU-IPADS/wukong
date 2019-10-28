@@ -31,46 +31,46 @@ public:
     // another choice
     // e.g., static int &num_threads() { static int _num_threads = 2; return _num_threads; }
 
-    static int num_servers;
-    static int num_threads;
+    static int num_servers __attribute__((weak));
+    static int num_threads __attribute__((weak));
 
-    static int num_proxies;
-    static int num_engines;
+    static int num_proxies __attribute__((weak));
+    static int num_engines __attribute__((weak));
 
-    static string input_folder;
+    static string input_folder __attribute__((weak));
 
-    static int data_port_base;
-    static int ctrl_port_base;
+    static int data_port_base __attribute__((weak));
+    static int ctrl_port_base __attribute__((weak));
 
-    static int rdma_buf_size_mb;
-    static int rdma_rbf_size_mb;
+    static int rdma_buf_size_mb __attribute__((weak));
+    static int rdma_rbf_size_mb __attribute__((weak));
 
-    static bool use_rdma;
-    static int rdma_threshold;
+    static bool use_rdma __attribute__((weak));
+    static int rdma_threshold __attribute__((weak));
 
-    static int mt_threshold;
+    static int mt_threshold __attribute__((weak));
 
-    static bool enable_caching;
-    static bool enable_workstealing;
-    static int stealing_pattern;
+    static bool enable_caching __attribute__((weak));
+    static bool enable_workstealing __attribute__((weak));
+    static int stealing_pattern __attribute__((weak));
 
-    static bool silent;
+    static bool silent __attribute__((weak));
 
-    static bool enable_planner;
-    static bool generate_statistics;
+    static bool enable_planner __attribute__((weak));
+    static bool generate_statistics __attribute__((weak));
 
-    static bool enable_vattr;
+    static bool enable_vattr __attribute__((weak));
 
-    static int memstore_size_gb;
-    static int est_load_factor;
+    static int memstore_size_gb __attribute__((weak));
+    static int est_load_factor __attribute__((weak));
 
-    static int num_gpus;
-    static int gpu_kvcache_size_gb;
-    static int gpu_rbuf_size_mb;
-    static int gpu_rdma_buf_size_mb;
-    static int gpu_key_blk_size_mb;
-    static int gpu_value_blk_size_mb;
-    static bool gpu_enable_pipeline;
+    static int num_gpus __attribute__((weak));
+    static int gpu_kvcache_size_gb __attribute__((weak));
+    static int gpu_rbuf_size_mb __attribute__((weak));
+    static int gpu_rdma_buf_size_mb __attribute__((weak));
+    static int gpu_key_blk_size_mb __attribute__((weak));
+    static int gpu_value_blk_size_mb __attribute__((weak));
+    static bool gpu_enable_pipeline __attribute__((weak));
 };
 
 

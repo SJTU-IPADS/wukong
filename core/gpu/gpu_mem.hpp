@@ -24,13 +24,13 @@
 
 #ifdef USE_GPU
 
-#include "global.hpp"
 #include "rdma.hpp"
 #include "type.hpp"
 
 // utils
 #include "unit.hpp"
 #include "gpu.hpp"
+#include "global.hpp"
 
 class GPUMem {
 private:
