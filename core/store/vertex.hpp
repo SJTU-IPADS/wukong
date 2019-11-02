@@ -23,6 +23,9 @@
 #pragma once
 #include <sstream>
 
+// definitions of "__host__" and "__device__"
+#include <cuda_runtime.h>
+
 // utils
 #include "math.hpp"
 
