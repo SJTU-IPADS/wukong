@@ -807,18 +807,6 @@ private:
                 && (req.result.get_row_num() >= Global::rdma_threshold)); // FIXME: not consider dedup
     }
 
-    // meet index in centre of query plan
-    bool need_dispatch(SPARQLQuery &req) {
-        if (Global::num_servers == 1) return false;
-
-        SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ssid_t start = pattern.subject;
-        ssid_t p = pattern.predicate;
-        dir_t d = pattern.direction;
-
-        return (p == TYPE_ID && d == IN);
-    }
-
     void do_corun(SPARQLQuery &req) {
         SPARQLQuery::Result &res = req.result;
         int corun_step = req.corun_step;
@@ -1066,22 +1054,17 @@ private:
         return true;
     }
 
-    bool dispatch(SPARQLQuery &r) {
-        if (QUERY_FROM_PROXY(r)
-                && r.pattern_step == 0  // not started
-                && r.start_from_index()  // heavy query (heuristics)
-                && (Global::num_servers * r.mt_factor > 1)) {  // multi-resource
+    // deal with pattern wich start from index
+    bool dispatch(SPARQLQuery &r, bool is_start=true) {
+        if (Global::num_servers * r.mt_factor == 1) return false;
+
+        // first pattern need dispatch, to all servers and multi-threads threads
+        if (is_start && QUERY_FROM_PROXY(r) && r.pattern_step == 0 && r.start_from_index() ) { 
             logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "] dispatch "
                                  << "Q(qid=" << r.qid << ", pqid=" << r.pqid
                                  << ", step=" << r.pattern_step << ")" << LOG_endl;
-            // NOTE: the mt_factor can be set on proxy side before sending to engine,
-            // but must smaller than global_mt_threshold (default: mt_factor == 1)
-            // Normally, we will NOT let global_mt_threshold == #engines, which will cause HANG
-
-            // register rmap for waiting reply
             rmap.put_parent_request(r, Global::num_servers * r.mt_factor);
 
-            // dispatch (sub)requests
             SPARQLQuery sub_query = r;
             for (int i = 0; i < Global::num_servers; i++) {
                 for (int j = 0; j < r.mt_factor; j++) {
@@ -1089,12 +1072,31 @@ private:
                     sub_query.qid = -1;
                     sub_query.mt_tid = j;
 
-                    // start from the next engine thread
                     int dst_tid = Global::num_proxies
                                   + (tid + j + 1 - Global::num_proxies) % Global::num_engines;
 
                     Bundle bundle(sub_query);
                     msgr->send_msg(bundle, i, dst_tid);
+                }
+            }
+            return true;
+        } 
+
+        // not first pattern need dispatch, to all servers but each single thread
+        SPARQLQuery::Pattern &pattern = r.get_pattern();
+        ssid_t start = pattern.subject;
+        ssid_t p = pattern.predicate;
+        dir_t d = pattern.direction;
+
+        if (!is_start && Global::num_servers != 1 && p == TYPE_ID && d == IN){
+            vector<SPARQLQuery> sub_reqs = generate_sub_query(r, false);
+            rmap.put_parent_request(r, sub_reqs.size());
+            for (int i = 0; i < sub_reqs.size(); i++) {
+                if (i != sid) {
+                    Bundle bundle(sub_reqs[i]);
+                    msgr->send_msg(bundle, i, tid);
+                } else {
+                    prior_stage.push(sub_reqs[i]);
                 }
             }
             return true;
@@ -1125,17 +1127,7 @@ private:
             if (r.done(SPARQLQuery::SQState::SQ_PATTERN))
                 return true;  // done
 
-            if (need_dispatch(r)) {
-                vector<SPARQLQuery> sub_reqs = generate_sub_query(r, false);
-                rmap.put_parent_request(r, sub_reqs.size());
-                for (int i = 0; i < sub_reqs.size(); i++) {
-                    if (i != sid) {
-                        Bundle bundle(sub_reqs[i]);
-                        msgr->send_msg(bundle, i, tid);
-                    } else {
-                        prior_stage.push(sub_reqs[i]);
-                    }
-                }
+            if (dispatch(r, false)) {
                 return false;
             }
 
