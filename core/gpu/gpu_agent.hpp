@@ -96,8 +96,10 @@ public:
         Bundle b(req);
         if (adaptor->send(dst_sid, dst_tid, b)) {
             // #2 send result buffer
-            adaptor->send_dev2host(dst_sid, dst_tid, req.result.gpu.rbuf(),
-                                   WUKONG_GPU_ELEM_SIZE * req.result.gpu.rbuf_num_elems());
+            if (req.result.gpu.rbuf_num_elems() > 0) {
+                adaptor->send_dev2host(dst_sid, dst_tid, req.result.gpu.rbuf(),
+                                       WUKONG_GPU_ELEM_SIZE * req.result.gpu.rbuf_num_elems());
+            }
             return true;
         }
 
