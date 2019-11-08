@@ -16,19 +16,19 @@
 # Plan
 #
 # SELECT ?v0 ?v2 ?v3 ?v4 ?v5 WHERE {
-#	?v0  __PREDICATE__  <http://www.w3.org/1999/02/22-rdf-syntax-ns#type>  <-
-#	?v3  <http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre>  ?v0  <-
-#	?v0  <http://ogp.me/ns#tag>  <http://db.uwaterloo.ca/~galuc/wsdbm/Topic192>  .
-#	?v0  <http://www.w3.org/1999/02/22-rdf-syntax-ns#type>  ?v2  .
-#	?v3  <http://schema.org/trailer>  ?v4  .
+#	<http://schema.org/trailer>  __PREDICATE__  ?v3  .
 #	?v3  <http://schema.org/keywords>  ?v5  .
 #	?v3  <http://www.w3.org/1999/02/22-rdf-syntax-ns#type>  <http://db.uwaterloo.ca/~galuc/wsdbm/ProductCategory2>  .
+#	?v3  <http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre>  ?v0  .
+#	?v0  <http://ogp.me/ns#tag>  <http://db.uwaterloo.ca/~galuc/wsdbm/Topic192>  .
+#	?v3  <http://schema.org/trailer>  ?v4  .
+#	?v0  <http://www.w3.org/1999/02/22-rdf-syntax-ns#type>  ?v2  .
 # }
 #
-6 <<
-4 <
-5 >
-6 >
-3 >
+3 <<
 1 >
 2 >
+4 >
+5 >
+3 >
+6 >

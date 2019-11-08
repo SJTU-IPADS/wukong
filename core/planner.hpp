@@ -253,7 +253,7 @@ class Planner {
                     //count00++;
 
                     if (p == TYPE_ID){
-                        return false;
+                        continue;
                     }
 
                     // use index vertex, find subject first
