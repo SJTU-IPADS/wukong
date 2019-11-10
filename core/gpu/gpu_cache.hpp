@@ -36,6 +36,7 @@
 // utils
 #include "unit.hpp"
 #include "gpu.hpp"
+#include "global.hpp"
 
 using namespace std;
 
@@ -287,7 +288,7 @@ private:
             // step 4.2 traverse the ext_bucket_list and load
             uint64_t passed_buckets = 0;
 
-            for (int i = 0; i < rdf_metas[seg].ext_bucket_list.size(); i++) {
+            for (int i = 0; i < rdf_metas[seg].get_ext_bucket_list_size(); i++) {
                 ext_bucket_extent_t ext = rdf_metas[seg].ext_bucket_list[i];
                 /* load from this ext
                  * inside_off: the offset inside the ext

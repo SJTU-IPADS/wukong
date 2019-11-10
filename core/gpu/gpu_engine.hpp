@@ -28,7 +28,6 @@
 #include <boost/unordered_map.hpp>
 #include <vector>
 
-#include "config.hpp"
 #include "type.hpp"
 #include "dgraph.hpp"
 #include "query.hpp"

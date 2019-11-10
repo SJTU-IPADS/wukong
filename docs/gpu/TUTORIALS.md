@@ -21,7 +21,7 @@ export CPATH=${CUDA_HOME}/include:$CPATH
 
 And edit the **CMakeLists.txt** in the `$WUKONG_ROOT` to enable the `USE_GPU` option. Then go to `$WUKONG_ROOT/scripts` and run `./build.sh` to build Wukong+G. Or you can just run `./build.sh -DUSE_GPU=ON` to build with GPU support. Currently, the `USE_GPU` option **conflicts with** `USE_JEMALLOC`, `USE_DYNAMIC_GSTORE` and  `USE_VERSATILE`.
 
-Next, we need to install the [kernel module for GPUDirect RDMA](http://www.mellanox.com/page/products_dyn?product_family=295&mtag=gpudirect). Download it from the web and install it to **each server** in the cluster.
+Next, we need to install the [kernel module for GPUDirect RDMA](http://www.mellanox.com/page/products_dyn?product_family=295&mtag=gpudirect). Download it from the web and install it to **each machine** in the cluster.
 
 ```bash
 tar xzf nvidia-peer-memory-1.0-3.tar.gz
@@ -140,10 +140,10 @@ wukong>
 Although Wukong+G can notably speed up query processing, there is still plenty of room for improvement:
 
 - We only tested Wukong+G in a RDMA-capable cluster with NVIDIA Tesla K40m and CUDA 8.0.
-- Wukong+G assumes the predicate of triple patterns in a query is known, queries with unknown predicates cannot be handled.
-- If a query produces huge intermediate result that exceeds the size of result buffer on GPU (``global_gpu_rbuf_size_mb``), Wukong+G cannot handle it.
+- Wukong+G assumes the predicate of triple patterns in a query is known, queries with unknown predicates cannot be handled by GPU engine.
+- If a query produces huge intermediate result that exceeds the size of result buffer on GPU (``global_gpu_rbuf_size_mb``), Wukong+G cannot handle it (may crash or return wrong results).
 - If the size of triples of a predicate cannot fit into the key-value cache on GPU, Wukong+G cannot handle it.
-- If pipeline is enabled, there should be enough GPU memory to accommodate two triple patterns, the current pattern and the next pattern.
+- If pipeline is enabled, there should be enough GPU memory to accommodate two triple patterns, the current pattern and the prefetched pattern.
 
 
 

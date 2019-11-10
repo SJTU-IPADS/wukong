@@ -460,8 +460,14 @@ protected:
         // allocate buckets in indirect-header region to segments
         // #buckets : #extended buckets = 1 : 0.15
         if (seg.num_buckets > 0) {
-            uint64_t start_off = alloc_ext_buckets(EXT_BUCKET_EXTENT_LEN);
-            seg.add_ext_buckets(ext_bucket_extent_t(EXT_BUCKET_EXTENT_LEN, start_off));
+            uint64_t nbuckets = 0;
+#ifdef USE_GPU
+            nbuckets = EXT_BUCKET_EXTENT_LEN(seg.num_buckets);
+#else
+            nbuckets = EXT_BUCKET_EXTENT_LEN;
+#endif
+            uint64_t start_off = alloc_ext_buckets(nbuckets);
+            seg.add_ext_buckets(ext_bucket_extent_t(nbuckets, start_off));
         }
     }
 
@@ -826,8 +832,14 @@ protected:
             rdf_seg_meta_t &seg = rdf_seg_meta_map[segid_t(key)];
             uint64_t ext_bucket_id = seg.get_ext_bucket();
             if (ext_bucket_id == 0) {
-                uint64_t start_off = alloc_ext_buckets(EXT_BUCKET_EXTENT_LEN);
-                seg.add_ext_buckets(ext_bucket_extent_t(EXT_BUCKET_EXTENT_LEN, start_off));
+                uint64_t nbuckets = 0;
+#ifdef USE_GPU
+                nbuckets = EXT_BUCKET_EXTENT_LEN(seg.num_buckets);
+#else
+                nbuckets = EXT_BUCKET_EXTENT_LEN;
+#endif
+                uint64_t start_off = alloc_ext_buckets(nbuckets);
+                seg.add_ext_buckets(ext_bucket_extent_t(nbuckets, start_off));
                 ext_bucket_id = seg.get_ext_bucket();
             }
             pthread_spin_unlock(&seg_ext_locks[seg_ext_lock_id]);

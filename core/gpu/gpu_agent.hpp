@@ -96,8 +96,10 @@ public:
         Bundle b(req);
         if (adaptor->send(dst_sid, dst_tid, b)) {
             // #2 send result buffer
-            adaptor->send_dev2host(dst_sid, dst_tid, req.result.gpu.rbuf(),
-                                   WUKONG_GPU_ELEM_SIZE * req.result.gpu.rbuf_num_elems());
+            if (req.result.gpu.rbuf_num_elems() > 0) {
+                adaptor->send_dev2host(dst_sid, dst_tid, req.result.gpu.rbuf(),
+                                       WUKONG_GPU_ELEM_SIZE * req.result.gpu.rbuf_num_elems());
+            }
             return true;
         }
 
@@ -152,7 +154,7 @@ public:
     // fork-join or in-place execution
     bool need_fork_join(SPARQLQuery &req) {
         // always need NOT fork-join when executing on single machine
-        if (Global::num_serverss == 1) return false;
+        if (Global::num_servers == 1) return false;
 
         // always need fork-join mode w/o RDMA
         if (!Global::use_rdma) return true;

@@ -27,6 +27,7 @@
 #include <vector>
 #include <utility>
 
+#include "global.hpp"
 #include "assertion.hpp"
 #include "query.hpp"
 
@@ -126,7 +127,7 @@ public:
         param.query.var2col_start = req.result.var2col(start);
 
         logstream(LOG_DEBUG) << "known_to_unknown: #ext_buckets: "
-                             << seg_meta.ext_bucket_list.size() << LOG_endl;
+                             << seg_meta.get_ext_bucket_list_size() << LOG_endl;
 
         ASSERT(gmem->res_inbuf() != gmem->res_outbuf());
         ASSERT(nullptr != gmem->res_inbuf());
@@ -139,7 +140,7 @@ public:
 
 
         // prefetch segment of next pattern
-        if (global_gpu_enable_pipeline && has_next_pattern(req)) {
+        if (Global::gpu_enable_pipeline && has_next_pattern(req)) {
             auto next_seg = pattern_to_segid(req, req.pattern_step + 1);
             auto stream2 = stream_pool->get_stream(next_seg.pid);
 
@@ -227,7 +228,7 @@ public:
 
 
         // preload next predicate
-        if (global_gpu_enable_pipeline && has_next_pattern(req)) {
+        if (Global::gpu_enable_pipeline && has_next_pattern(req)) {
             auto next_seg = pattern_to_segid(req, req.pattern_step + 1);
             auto stream2 = stream_pool->get_stream(next_seg.pid);
 
@@ -308,7 +309,7 @@ public:
 
 
         // preload next predicate
-        if (global_gpu_enable_pipeline && has_next_pattern(req)) {
+        if (Global::gpu_enable_pipeline && has_next_pattern(req)) {
             auto next_seg = pattern_to_segid(req, req.pattern_step + 1);
             auto stream2 = stream_pool->get_stream(next_seg.pid);
 

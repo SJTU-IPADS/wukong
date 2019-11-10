@@ -223,6 +223,11 @@ void load_config(string fname, int nsrvs)
 #ifdef USE_GPU
     // each GPU card needs one (dedicated) agent thread
     Global::num_threads += Global::num_gpus;
+    if (Global::num_gpus != 1) {
+        logstream(LOG_ERROR) << "Wrong config: please config num_gpus with 1 to enable GPU extension."
+                             << LOG_endl;
+        exit(-1);
+    }
 #endif
 
     // limited the number of engines

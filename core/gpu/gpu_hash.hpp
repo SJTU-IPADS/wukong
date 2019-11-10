@@ -34,6 +34,7 @@
 #include "store/vertex.hpp"
 
 // utils
+#include "global.hpp"
 #include "gpu.hpp"
 #include "unit.hpp"
 

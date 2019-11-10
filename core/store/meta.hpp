@@ -35,8 +35,12 @@
 using namespace std;
 using namespace boost::archive;
 
-
+#ifdef USE_GPU
+#define EXT_BUCKET_LIST_CAPACITY 1
+#define EXT_BUCKET_EXTENT_LEN(num_buckets) (num_buckets * 15 / 100 + 1)
+#else
 #define EXT_BUCKET_EXTENT_LEN 256
+#endif
 #define PREDICATE_NSEGS 2
 #ifdef VERSATILE
 #define INDEX_NSEGS 4   // index(2) + vid's all preds(2)
@@ -75,15 +79,39 @@ struct rdf_seg_meta_t {
     uint64_t num_keys = 0;      // #keys of the segment
     uint64_t num_buckets = 0;   // allocated main headers (hash space)
     uint64_t bucket_start = 0;  // start offset of main-header region of gstore
-    vector<ext_bucket_extent_t> ext_bucket_list;
     uint64_t num_edges = 0;     // #edges of the segment
     uint64_t edge_start = 0;    // start offset in the entry region of gstore
 
     int num_key_blks = 0;       // #key-blocks needed in gcache
     int num_value_blks = 0;     // #value-blocks needed in gcache
 
+#ifdef USE_GPU
+    ext_bucket_extent_t ext_bucket_list[EXT_BUCKET_LIST_CAPACITY];
+    size_t ext_bucket_list_sz = 0;
+
+    rdf_seg_meta_t() {
+        memset(&ext_bucket_list, 0, sizeof(ext_bucket_list));
+    }
+
+    size_t get_ext_bucket_list_size() const { return ext_bucket_list_sz; }
+
+    void add_ext_buckets(const ext_bucket_extent_t &ext) {
+        assert(ext_bucket_list_sz < EXT_BUCKET_LIST_CAPACITY);
+        ext_bucket_list[ext_bucket_list_sz++] = ext;
+    }
+#else
+    vector<ext_bucket_extent_t> ext_bucket_list;
+
+    size_t get_ext_bucket_list_size() const { return ext_bucket_list.size(); }
+
+    void add_ext_buckets(const ext_bucket_extent_t &ext) {
+        ext_bucket_list.push_back(ext);
+    }
+
+#endif
+
     uint64_t get_ext_bucket() {
-        for (int i = 0; i < ext_bucket_list.size(); ++i) {
+        for (int i = 0; i < get_ext_bucket_list_size(); ++i) {
             ext_bucket_extent_t &ext = ext_bucket_list[i];
             if (ext.off < ext.num_ext_buckets) {
                 return ext.start + ext.off++;
@@ -92,13 +120,9 @@ struct rdf_seg_meta_t {
         return 0;
     }
 
-    void add_ext_buckets(const ext_bucket_extent_t &ext) {
-        ext_bucket_list.push_back(ext);
-    }
-
     inline uint64_t get_total_num_buckets() const {
         uint64_t total = num_buckets;
-        for (int i = 0; i < ext_bucket_list.size(); ++i) {
+        for (int i = 0; i < get_ext_bucket_list_size(); ++i) {
             total += ext_bucket_list[i].num_ext_buckets;
         }
         return total;
@@ -109,6 +133,9 @@ struct rdf_seg_meta_t {
         ar & num_buckets;
         ar & bucket_start;
         ar & ext_bucket_list;
+#ifdef USE_GPU
+        ar & ext_bucket_list_sz;
+#endif
         ar & num_edges;
         ar & edge_start;
     }
