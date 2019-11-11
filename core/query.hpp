@@ -442,6 +442,9 @@ public:
                 update.push_back(get_row_col(r, c));
         }
 
+        void dep_rows(vector<sid_t> &update){
+            result_table.assign(update.begin(), update.end());
+        }
 
         // ATTRIBUTE result (i.e., integer, float, and double)
         int set_attr_col_num(int n) { attr_col_num = n; }
@@ -466,6 +469,10 @@ public:
         void append_attr_row_to(int r, vector<attr_t> &updated_result_table) {
             for (int c = 0; c < attr_col_num; c++)
                 updated_result_table.push_back(get_attr_row_col(r, c));
+        }
+
+        void dep_attr_rows(vector<attr_t> &update) {
+            attr_res_table.assign(update.begin(), update.end());
         }
 
 
@@ -526,7 +533,7 @@ public:
             ASSERT_ERROR_CODE(r.attr_col_num == 0, UNSUPPORT_UNION);
         }
 
-        void append_result(SPARQLQuery::Result &r, bool skip_data = true) {
+        void append_result(SPARQLQuery::Result &r) {
             /// update metadata (i.e., v2c_map, ncols, attr_ncols, and nrows)
             // NOTE: all sub-jobs have the same v2c_map, ncols, and attr_ncols
             v2c_map = r.v2c_map;
@@ -535,7 +542,7 @@ public:
             row_num += r.row_num; // add rows
 
             // skip data
-            if (r.blind && skip_data) return;
+            if (r.blind) return;
 
             /// aggregate data (i.e., result table and attribute result table)
             ASSERT((col_num * row_num) == (result_table.size() + r.result_table.size()));

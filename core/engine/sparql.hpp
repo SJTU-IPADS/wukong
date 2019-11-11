@@ -770,24 +770,29 @@ private:
 
         // group intermediate results to servers
         int nrows = req.result.get_row_num();
+        // result table need to be duplicated to all sub-queries
         if (!need_split) {
+            for (int i = 0; i < Global::num_servers; i++){
+                sub_reqs[i].result.dep_rows(req.result.result_table);
+                sub_reqs[i].result.dep_attr_rows(req.result.attr_res_table);
+            }
+
+        }
+        // result table need to be separated to ditterent sub-queries
+        else {
+            for (int i = 0; i < nrows; i++) {
+                int dst_sid = wukong::math::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
+                                                    Global::num_servers);
+                req.result.append_row_to(i, sub_reqs[dst_sid].result.result_table);
+                req.result.append_attr_row_to(i, sub_reqs[dst_sid].result.attr_res_table);
+
+                if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
+                    sub_reqs[dst_sid].result.optional_matched_rows.push_back(req.result.optional_matched_rows[i]);
+            }
+
             for (int i = 0; i < Global::num_servers; i++)
-                sub_reqs[i].result.append_result(req.result, false);
-            return sub_reqs;
+                sub_reqs[i].result.update_nrows();
         }
-
-        for (int i = 0; i < nrows; i++) {
-            int dst_sid = wukong::math::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
-                                                 Global::num_servers);
-            req.result.append_row_to(i, sub_reqs[dst_sid].result.result_table);
-            req.result.append_attr_row_to(i, sub_reqs[dst_sid].result.attr_res_table);
-
-            if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
-                sub_reqs[dst_sid].result.optional_matched_rows.push_back(req.result.optional_matched_rows[i]);
-        }
-
-        for (int i = 0; i < Global::num_servers; i++)
-            sub_reqs[i].result.update_nrows();
 
         return sub_reqs;
     }
