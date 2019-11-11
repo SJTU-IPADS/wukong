@@ -775,6 +775,7 @@ private:
             for (int i = 0; i < Global::num_servers; i++){
                 sub_reqs[i].result.dep_rows(req.result.result_table);
                 sub_reqs[i].result.dep_attr_rows(req.result.attr_res_table);
+                sub_reqs[i].result.update_nrows();
             }
 
         }
