@@ -24,7 +24,9 @@
 #include <sstream>
 
 // definitions of "__host__" and "__device__"
+#ifdef USE_GPU
 #include <cuda_runtime.h>
+#endif
 
 // utils
 #include "math.hpp"
