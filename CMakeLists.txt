@@ -101,14 +101,13 @@ set(WUKONG_LIBS ${WUKONG_LIBS} zmq rt tbb hwloc)
 target_link_libraries(wukong ${WUKONG_LIBS} ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a ${BOOST_LIB}/libboost_program_options.a)
 
 file(GLOB TS  "${ROOT}/tests/*.cc")
-add_executable(coretest ${TS} )
+add_executable(coretest ${TS})
 target_link_libraries(coretest gtest gtest_main ${WUKONG_LIBS} ${BOOST_LIB}/libboost_mpi.a ${BOOST_LIB}/libboost_serialization.a ${BOOST_LIB}/libboost_program_options.a)
 
 ## tests
 enable_testing()
 
 add_test(NAME test COMMAND coretest)
-add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --verbose
-                  DEPENDS coretest )
+add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --verbose DEPENDS coretest)
 
 
