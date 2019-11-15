@@ -442,7 +442,7 @@ public:
                 update.push_back(get_row_col(r, c));
         }
 
-        void dep_rows(vector<sid_t> &update){
+        void dup_rows(vector<sid_t> &update){
             result_table.assign(update.begin(), update.end());
         }
 
@@ -471,7 +471,7 @@ public:
                 updated_result_table.push_back(get_attr_row_col(r, c));
         }
 
-        void dep_attr_rows(vector<attr_t> &update) {
+        void dup_attr_rows(vector<attr_t> &update) {
             attr_res_table.assign(update.begin(), update.end());
         }
 
