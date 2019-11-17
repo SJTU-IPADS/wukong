@@ -12,7 +12,7 @@ $cat mpd.hosts
 10.0.0.103
 ```
 
-### Uage
+### Usage
 * build  and sync the file
 
 ```

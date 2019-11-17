@@ -19,19 +19,17 @@
  *      http://ipads.se.sjtu.edu.cn/projects/wukong
  *
  */
-
-#include "logger2.hpp"
-#include "tcp_adaptor.hpp"
+#include "comm/tcp_adaptor.hpp"
 #include <boost/mpi.hpp>
 #include <iostream>
 #include <map>
 #include "timer.hpp"
 #include <boost/program_options.hpp>
-#include <nng/nng.h>
+//#include <nng/nng.h>
 //#include <nng/protocol/pipeline0/push.h>
 //#include <nng/protocol/pipeline0/pull.h>
-#include <nng/protocol/reqrep0/rep.h>
-#include <nng/protocol/reqrep0/req.h>
+//#include <nng/protocol/reqrep0/rep.h>
+//#include <nng/protocol/reqrep0/req.h>
 using namespace std;
 using namespace boost::program_options;
 
@@ -45,13 +43,14 @@ int sid;
 #define slave_sid (1)
 #define IS_MASTER(_p) ((_p) == 0 )
 #define thread_num (1)
+#define server_num (2)
 #define global_port_base (9576)
 
 // init socket
 void init_socket(string host_fname)
 {
     // init the tcp TCP_Adaptor
-    test_adaptor = new TCP_Adaptor(sid, host_fname, thread_num, global_port_base);
+    test_adaptor = new TCP_Adaptor(sid, host_fname, global_port_base, server_num, thread_num);
 }
 
 //implement the send method

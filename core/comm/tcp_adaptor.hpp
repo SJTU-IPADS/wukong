@@ -39,6 +39,7 @@
 
 // utils
 #include "logger2.hpp"
+#include "assertion.hpp"
 
 using namespace std;
 
