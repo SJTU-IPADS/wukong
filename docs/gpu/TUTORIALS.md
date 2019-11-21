@@ -99,40 +99,66 @@ Wukong+G adds a new argument `-g` to the `sparql` command, which tells the conso
 
 ```bash
 wukong> help
-These are common Wukong commands: 
-    help                display help infomation
-    quit                quit from console
-    config <args>       run commands on config
-        -v                  print current config
-        -l <file>           load config items from <file>
-        -s <string>         set config items by <str> (format: item1=val1&item2=...)
-    sparql <args>       run SPARQL queries
-        -f <file> [<args>]  a single query from <file>
-           -n <num>            run <num> times
-           -v <num>            print at most <num> lines of results
-           -o <file>           output results into <file>
-           -g                  send the quer to GPU
+These are common Wukong commands: :
+
+help                display help infomation:
+
+quit                quit from the console:
+
+config <args>       run commands for configueration:
+  -v                     print current config
+  -l <fname>             load config items from <fname>
+  -s <string>            set config items by <str> (e.g., item1=val1&item2=...)
+  -h [ --help ]          help message about config
+
+logger <args>       run commands for logger:
+  -v                     print loglevel
+  -s <level>             set loglevel to <level> (e.g., DEBUG=1, INFO=2,
+                         WARNING=4, ERROR=5)
+  -h [ --help ]          help message about logger
+
+sparql <args>       run SPARQL queries in single or batch mode:
+  -f <fname>             run a [single] SPARQL query from <fname>
+  -m <factor> (=1)       set multi-threading <factor> for heavy query
+                         processing
+  -n <num> (=1)          repeat query processing <num> times
+  -p <fname>             adopt user-defined query plan from <fname> for running
+                         a single query
+  -N <num> (=1)          do query optimization <num> times
+  -v <lines> (=0)        print at most <lines> of results
+  -o <fname>             output results into <fname>
+  -g                     leverage GPU to accelerate heavy query processing
+  -b <fname>             run a [batch] of SPARQL queries configured by <fname>
+  -h [ --help ]          help message about sparql
+  ...
 ```
 
 2) run a single SPARQL query.
 
-There are query examples in `$WUKONG_ROOT/scripts/query`. For example, input `sparql -f query/lubm_q7` to run the query `lubm_q7`.
+There are query examples in `$WUKONG_ROOT/scripts/sparql_query`. For example, enter `sparql -f sparql_query/lubm/basic/lubm_q7` to run the query `lubm_q7`.
+Please note that if you didn't enable the planner, you should specify a query plan manually.
+
 
 ```bash
-wukong> sparql -f query/lubm/lubm_q7 -g -v 5
-INFO:     The query will be sent to GPU
-INFO:     (average) latency: 941 usec
-INFO:     (last) result size: 73
-INFO:     The first 5 rows of results:
-1: <http://www.Department7.University1.edu/FullProfessor5>	<http://www.Department7.University1.edu/UndergraduateStudent42>	<http://www.Department7.University1.edu/Course8>
-2: <http://www.Department7.University1.edu/FullProfessor5>	<http://www.Department7.University1.edu/UndergraduateStudent380>	<http://www.Department7.University1.edu/Course8>
-3: <http://www.Department11.University1.edu/FullProfessor1>	<http://www.Department11.University1.edu/UndergraduateStudent134>	<http://www.Department11.University1.edu/Course2>
-4: <http://www.Department2.University1.edu/FullProfessor4>	<http://www.Department2.University1.edu/UndergraduateStudent6>	<http://www.Department2.University1.edu/Course7>
-5: <http://www.Department11.University0.edu/FullProfessor4>	<http://www.Department11.University0.edu/UndergraduateStudent265>	<http://www.Department11.University0.edu/Course7>
-wukong>
+wukong> sparql -f sparql_query/lubm/basic/lubm_q7 -g
+INFO:     Parsing a SPARQL query is done.
+INFO:     Parsing time: 172 usec
+INFO:     Optimization time: 507 usec
+INFO:     Leverage GPU to accelerate query processing.
+INFO:     (last) result size: 1763
+INFO:     (average) latency: 1452 usec
+
+
+wukong> sparql -f sparql_query/lubm/basic/lubm_q7 -p sparql_query/lubm/basic/osdi16_plan/lubm_q7.fmt -g
+INFO:     Parsing a SPARQL query is done.
+INFO:     Parsing time: 111 usec
+INFO:     User-defined query plan is enabled
+INFO:     Leverage GPU to accelerate query processing.
+INFO:     (last) result size: 1763
+INFO:     (average) latency: 1908 usec
 ```
 
-
+Performance data can be found in `docs/performance` folder.
 
 <a name="caveat"></a>
 
