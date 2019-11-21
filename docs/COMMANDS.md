@@ -531,18 +531,18 @@ The command `logger <args>` can configure log-level and check current log-level.
 
 1) The log levels in Wukong
 
-Wukong provides 7 log levels and the current logger level configuration controls the message printing in Wukong.
+Wukong provides 7 log levels and the current log-level configuration controls the message printing in Wukong.
 
-log level | log level name | meaning
-:-:|:-:|:-:
-0|LOG_EVERYTHING|Log everything.
-1|LOG_DEBUG|Debugging purposes only.
-2|LOG_INFO|Used for providing general useful information.
-3|LOG_EMPH|Outputs as LOG_INFO, but in LOG_WARNING colors. Useful foroutputting information you want to emphasize.
-4|LOG_WARNING|Logs interesting conditions which are probably not fatal.
-5|LOG_ERROR|Used for errors which are recoverable within the scope of the function.
-6|LOG_FATAL|Used for fatal and probably irrecoverable conditions.
-7|LOG_NONE|Log nothing.
+Log-Level | Name         | Description
+:--------:|:-------------|-----------------------------
+0         |LOG_EVERYTHING|Log everything
+1         |LOG_DEBUG     |Log debug information
+2         |LOG_INFO      |Log general useful information.
+3         |LOG_EMPH      |Log important information
+4         |LOG_WARNING   |Log warning conditions.
+5         |LOG_ERROR     |Log recoverable conditions
+6         |LOG_FATAL     |Log fatal and probably irrecoverable conditions
+7         |LOG_NONE      |Log nothing
 
 2) Show the current log-level
 
