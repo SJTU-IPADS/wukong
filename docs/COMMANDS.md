@@ -1,342 +1,25 @@
 # Wukong Commands
 
 ## Table of Contents
-- [Getting help information in Wukong](#help)
-- [Terminating current Wukong process](#quit)
-- [Configuring Wukong](#config)
-- [Configuring logger in Wukong](#logger)
+### SPARQL query relative
+- [Running SPARQL queries in single or batch mode](#sparql)
+- [Emulating clients to continuously send SPARQL queries](#sparql-emu)
+
+### Dataset load/store
 - [Loading RDF data into dynamic (in-memory) graph store](#load)
 - [Graph storage integrity check on Wukong](#gsck)
 - [Loading statistics of SPARQL query optimizer](#load-stat)
 - [Storing statistics of SPARQL query optimizer](#store-stat)
-- [Running SPARQL queries in single or batch mode](#sparql)
-- [Emulating clients to continuously send SPARQL queries](#sparql-emu)
 
-<a name="help"></a>
+### Configurations
+- [Configuring Wukong](#config)
+- [Configuring logger in Wukong](#logger)
 
-## Getting help information in Wukong
+### And
+- [Getting help information in Wukong](#help)
+- [Terminating current Wukong process](#quit)
 
-The command `help` lists the usage of common Wukong commands.
-
-```
-wukong> help
-These are common Wukong commands: :
-
-help                display help infomation:
-
-quit                quit from the console:
-
-config <args>       run commands for configueration:
-  -v                     print current config
-  -l <fname>             load config items from <fname>
-  -s <string>            set config items by <str> (e.g., item1=val1&item2=...)
-  -h [ --help ]          help message about config
-
-logger <args>       run commands for logger:
-  -v                     print loglevel
-  -s <level>             set loglevel to <level> (e.g., DEBUG=1, INFO=2,
-                         WARNING=4, ERROR=5)
-  -h [ --help ]          help message about logger
-
-sparql <args>       run SPARQL queries in single or batch mode:
-  -f <fname>             run a [single] SPARQL query from <fname>
-  -m <factor> (=1)       set multi-threading <factor> for heavy query
-                         processing
-  -n <num> (=1)          repeat query processing <num> times
-  -p <fname>             adopt user-defined query plan from <fname> for running
-                         a single query
-  -N <num> (=1)          do query optimization <num> times
-  -v <lines> (=0)        print at most <lines> of results
-  -o <fname>             output results info <fname>
-  -g                     leverage GPU to accelerate heavy query processing
-  -b <fname>             run a [batch] of SPARQL queries configured by <fname>
-  -h [ --help ]          help message about sparql
-
-sparql-emu <args>   emulate clients to continuously send SPARQL queries:
-  -f <fname>             run queries generated from temples configured by
-                         <fname>
-  -p <fname>             adopt user-defined query plans from <fname> for
-                         running queries
-  -d <sec> (=10)         eval <sec> seconds (default: 10)
-  -w <sec> (=5)          warmup <sec> seconds (default: 5)
-  -n <num> (=20)         keep <num> queries being processed (default: 20)
-  -h [ --help ]          help message about sparql-emu
-
-load <args>         load RDF data into dynamic (in-memmory) graph store:
-  -d <dname>             load data from directory <dname>
-  -c                     check and skip duplicate RDF triples
-  -h [ --help ]          help message about load
-
-gsck <args>         check the integrity of (in-memmory) graph storage:
-  -i                     check from index key/value pair to normal key/value
-                         pair
-  -n                     check from normal key/value pair to index key/value
-                         pair
-  -h [ --help ]          help message about gsck
-
-load-stat           load statistics of SPARQL query optimizer:
-  -f <fname>             load statistics from <fname> located at data folder
-  -h [ --help ]          help message about load-stat
-
-store-stat          store statistics of SPARQL query optimizer:
-  -f <fname>             store statistics to <fname> located at data folder
-  -h [ --help ]          help message about store-stat
-```
-
-<a name="quit"></a>
-
-## Terminating current Wukong process
-
-The command `quit` can help you terminate the current Wukong process.
-
-```
-wukong> quit
-...
-```
-
-<a name="config"></a>
-
-## Configuring Wukong
-
-The command `config <args> ` can help you configure Wukong in runtime and print current configuration of Wukong.
-
-1) Print configuration
-
-Use command `config -v` to print current configuration of Wukong.
-
-```
-wukong> config -v
------- global configurations ------
-the number of proxies: 1
-the number of engines: 2
-global_input_folder: path/to/input/id_lubm_2
-global_memstore_size_gb: 2
-global_est_load_factor: 55
-global_data_port_base: 5500
-global_ctrl_port_base: 9576
-global_rdma_buf_size_mb: 0
-global_rdma_rbf_size_mb: 0
-global_use_rdma: 0
-global_enable_caching: 0
-global_enable_workstealing: 0
-global_stealing_pattern: 0
-global_rdma_threshold: 300
-global_mt_threshold: 2
-global_silent: 0
-global_enable_planner: 0
-global_generate_statistics: 0
-global_enable_vattr: 1
-global_num_gpus: 0
-global_gpu_rdma_buf_size_mb: 0
-global_gpu_rbuf_size_mb: 32
-global_gpu_kvcache_size_gb: 10
-global_gpu_key_blk_size_mb: 16
-global_gpu_value_blk_size_mb: 4
-global_gpu_enable_pipeline: 1
---
-the number of servers: 1
-the number of threads: 3
-```
-
-2) Configuring Wukong by file
-
-Use command `config -l <fname>` to configure Wukong by loading configuration file `<fname>`.
-
-```
-wukong> config -l newConfigFile
-```
-
-3) Configure Wukong by string
-
-Use command `config -s <str>` to configure Wukong by string `<str>`.
-
->Note: You can use `&` to set several configurations in one string (e.g., item1=val1&item2=...).
-
-```
-wukong> config -l global_mt_threshold=1
-wukong> config -s global_mt_threshold=2&global_silent=1
-```
-
-4) Get help message about config
-
-Use command `config -h` or `config --help` to print help message of command `config`.
-
-```
-wukong> config -h
-config <args>       run commands for configueration:
-  -v                    print current config
-  -l <fname>            load config items from <fname>
-  -s <string>           set config items by <str> (e.g., item1=val1&item2=...)
-  -h [ --help ]         help message about config
-```
-
-<a name="logger"></a>
-
-## Configuring logger in Wukong
-
-The command `logger <args>` can help you configure log level and check current logger level.
-
-1) Wukong log levels
-
-Wukong provides 7 log levels and the current logger level configuration controls the message printing in Wukong.
-
-log level | log level name | meaning
-:-:|:-:|:-:
-0|LOG_EVERYTHING|Log everything.
-1|LOG_DEBUG|Debugging purposes only.
-2|LOG_INFO|Used for providing general useful information.
-3|LOG_EMPH|Outputs as LOG_INFO, but in LOG_WARNING colors. Useful foroutputting information you want to emphasize.
-4|LOG_WARNING|Logs interesting conditions which are probably not fatal.
-5|LOG_ERROR|Used for errors which are recoverable within the scope of the function.
-6|LOG_FATAL|Used for fatal and probably irrecoverable conditions.
-7|LOG_NONE|Log nothing.
-
-2) Log level printing
-
-Use command `logger -v` to print current configuration of log level.
-
-```
-wukong> logger -v
-loglevel: 2 (INFO)
-```
-
-3) Log level configuring
-
-Use command `logger -s <level>` to switch current log level to `<level>`.
-
-```
-wukong> logger -s 0
-set loglevel to 0 (EVERYTHING)
-wukong> logger -s 1
-set loglevel to 1 (DEBUG)
-wukong> logger -s 2
-set loglevel to 2 (INFO)
-wukong> logger -s 3
-set loglevel to 3 (EMPH)
-wukong> logger -s 4
-set loglevel to 4 (WARNING)
-wukong> logger -s 5
-set loglevel to 5 (ERROR)
-wukong> logger -s 6
-set loglevel to 6 (FATAL)
-wukong> logger -s 7
-set loglevel to 7 (NONE)
-```
-
-4) Get help message about logger
-
-```
-wukong> logger -h
-logger <args>       run commands for logger:
-  -v                    print loglevel
-  -s <level>            set loglevel to <level> (e.g., DEBUG=1, INFO=2,
-                        WARNING=4, ERROR=5)
-  -h [ --help ]         help message about logger
-```
-
-<a name="load"></a>
-
-## Loading RDF data into dynamic (in-memory) graph store
-
-The command `load` can help you load data into Wukong.
-
-1) Use command `load -d <dname>` to load new dataset from directory `<dname>`, the structure of directory is just the same as which used to initialize.
-
-```
-wukong> load -d path/to/input/id_lubm_2/
-INFO:     loading ID-mapping file: path/to/input/id_lubm_2/str_normal
-INFO:     loading ID-mapping file: path/to/input/id_lubm_2/str_index
-INFO:     2 data files and 0 attribute files found in directory (path/to/input/id_lubm_2/) at server 0
-INFO:     load 205474 triples from file path/to/input/id_lubm_2/id_uni0.nt at server 0
-INFO:     load 267198 triples from file path/to/input/id_lubm_2/id_uni1.nt at server 0
-INFO:     #0: 72ms for inserting into gstore
-INFO:     (average) latency: 106384 usec
-```
-
-2) Add `-c` option to check and skip duplicate triples in the dataset.
-
-```
-wukong> load -c -d path/to/input/id_lubm_2/
-INFO:     loading ID-mapping file: path/to/input/id_lubm_2/str_normal
-INFO:     loading ID-mapping file: path/to/input/id_lubm_2/str_index
-INFO:     2 data files and 0 attribute files found in directory (path/to/input/id_lubm_2/) at server 0
-INFO:     load 205474 triples from file path/to/input/id_lubm_2/id_uni0.nt at server 0
-INFO:     load 267198 triples from file path/to/input/id_lubm_2/id_uni1.nt at server 0
-INFO:     #0: 93ms for inserting into gstore
-INFO:     (average) latency: 160743 usec
-```
-
-> Note: Make sure that you have enable dynamic data loading support with parameter `-USE_DYNAMIC_GSTORE=ON`. Otherwise you will get a error message like:
-
-```
-wukong> load
-ERROR:    Can't load data into static graph store.
-ERROR:    You can enable it by building Wukong with -DUSE_DYNAMIC_GSTORE=ON.
-```
-
-<a name="gsck"></a>
-
-## Graph storage integrity check on Wukong
-
-The command `gsck` can help you make sure the correctness of current graph storage.
-
-1) Use command `gsck` to check the storage integrity related with both index vertex and normal vertex.
-
-```
-wukong> gsck
-INFO:     Graph storage intergity check has started on server 0
-INFO:     Server#0 already check 5%
-...
-INFO:     Server#0 already check 95%
-INFO:     Server#0 has checked 49 index vertices and 220128 normal vertices.
-INFO:     (average) latency: 3436217 usec
-```
-
-2) Add `-i` option to check the storage integrity related with index vertex.
-
-```
-wukong> gsck -i
-INFO:     Graph storage intergity check has started on server 0
-INFO:     Server#0 already check 5%
-...
-INFO:     Server#0 already check 95%
-INFO:     Server#0 has checked 49 index vertices and 0 normal vertices.
-INFO:     (average) latency: 3081938 usec
-```
-
-3) Add `-n` option to check the storage integrity related with normal vertex.
-
-```
-wukong> gsck -n
-INFO:     Graph storage intergity check has started on server 0
-INFO:     Server#0 already check 5%
-...
-INFO:     Server#0 already check 95%
-INFO:     Server#0 has checked 0 index vertices and 220128 normal vertices.
-INFO:     (average) latency: 2094172 usec
-```
-
-<a name="load-stat"></a>
-
-## Loading statistics of SPARQL query optimizer
-
-The command `load-stat -f <fname>` can help you load statistics of SPARQL query optimizer from file `<fname>` .
-
-```
-wukong> load-stat -f path/to/input/id_lubm_40/statfile
-INFO:     1 ms for loading statistics at server 0
-```
-
-<a name="store-stat"></a>
-
-## Storing statistics of SPARQL query optimizer
-
-The command `load-stat -f <fname>` can help you store statistics of SPARQL query optimizer to file `<fname>`.
-
-```
-wukong> store-stat -f newStatfile
-INFO:     store statistics to file newStatfile is finished.
-```
+---
 
 <a name="sparql"></a>
 
@@ -652,4 +335,330 @@ INFO:     1	46	47	105	58	48	45
 INFO:     ...
 INFO:     100	4388	1641	4403	1205	2161	1629
 INFO:     Throughput: 49.7075K queries/sec
+```
+
+<a name="load"></a>
+
+## Loading RDF data into dynamic (in-memory) graph store
+
+The command `load` can help you load data into Wukong.
+
+1) Use command `load -d <dname>` to load new dataset from directory `<dname>`, the structure of directory is just the same as which used to initialize.
+
+```
+wukong> load -d path/to/input/id_lubm_2/
+INFO:     loading ID-mapping file: path/to/input/id_lubm_2/str_normal
+INFO:     loading ID-mapping file: path/to/input/id_lubm_2/str_index
+INFO:     2 data files and 0 attribute files found in directory (path/to/input/id_lubm_2/) at server 0
+INFO:     load 205474 triples from file path/to/input/id_lubm_2/id_uni0.nt at server 0
+INFO:     load 267198 triples from file path/to/input/id_lubm_2/id_uni1.nt at server 0
+INFO:     #0: 72ms for inserting into gstore
+INFO:     (average) latency: 106384 usec
+```
+
+2) Add `-c` option to check and skip duplicate triples in the dataset.
+
+```
+wukong> load -c -d path/to/input/id_lubm_2/
+INFO:     loading ID-mapping file: path/to/input/id_lubm_2/str_normal
+INFO:     loading ID-mapping file: path/to/input/id_lubm_2/str_index
+INFO:     2 data files and 0 attribute files found in directory (path/to/input/id_lubm_2/) at server 0
+INFO:     load 205474 triples from file path/to/input/id_lubm_2/id_uni0.nt at server 0
+INFO:     load 267198 triples from file path/to/input/id_lubm_2/id_uni1.nt at server 0
+INFO:     #0: 93ms for inserting into gstore
+INFO:     (average) latency: 160743 usec
+```
+
+> Note: Make sure that you have enable dynamic data loading support with parameter `-USE_DYNAMIC_GSTORE=ON`. Otherwise you will get a error message like:
+
+```
+wukong> load
+ERROR:    Can't load data into static graph store.
+ERROR:    You can enable it by building Wukong with -DUSE_DYNAMIC_GSTORE=ON.
+```
+
+<a name="gsck"></a>
+
+## Graph storage integrity check on Wukong
+
+The command `gsck` can help you make sure the correctness of current graph storage.
+
+1) Use command `gsck` to check the storage integrity related with both index vertex and normal vertex.
+
+```
+wukong> gsck
+INFO:     Graph storage intergity check has started on server 0
+INFO:     Server#0 already check 5%
+...
+INFO:     Server#0 already check 95%
+INFO:     Server#0 has checked 49 index vertices and 220128 normal vertices.
+INFO:     (average) latency: 3436217 usec
+```
+
+2) Add `-i` option to check the storage integrity related with index vertex.
+
+```
+wukong> gsck -i
+INFO:     Graph storage intergity check has started on server 0
+INFO:     Server#0 already check 5%
+...
+INFO:     Server#0 already check 95%
+INFO:     Server#0 has checked 49 index vertices and 0 normal vertices.
+INFO:     (average) latency: 3081938 usec
+```
+
+3) Add `-n` option to check the storage integrity related with normal vertex.
+
+```
+wukong> gsck -n
+INFO:     Graph storage intergity check has started on server 0
+INFO:     Server#0 already check 5%
+...
+INFO:     Server#0 already check 95%
+INFO:     Server#0 has checked 0 index vertices and 220128 normal vertices.
+INFO:     (average) latency: 2094172 usec
+```
+
+<a name="load-stat"></a>
+
+## Loading statistics of SPARQL query optimizer
+
+The command `load-stat -f <fname>` can help you load statistics of SPARQL query optimizer from file `<fname>` .
+
+```
+wukong> load-stat -f path/to/input/id_lubm_40/statfile
+INFO:     1 ms for loading statistics at server 0
+```
+
+<a name="store-stat"></a>
+
+## Storing statistics of SPARQL query optimizer
+
+The command `load-stat -f <fname>` can help you store statistics of SPARQL query optimizer to file `<fname>`.
+
+```
+wukong> store-stat -f newStatfile
+INFO:     store statistics to file newStatfile is finished.
+```
+
+<a name="config"></a>
+
+## Configuring Wukong
+
+The command `config <args> ` can help you configure Wukong in runtime and print current configuration of Wukong.
+
+1) Print configuration
+
+Use command `config -v` to print current configuration of Wukong.
+
+```
+wukong> config -v
+------ global configurations ------
+the number of proxies: 1
+the number of engines: 2
+global_input_folder: path/to/input/id_lubm_2
+global_memstore_size_gb: 2
+global_est_load_factor: 55
+global_data_port_base: 5500
+global_ctrl_port_base: 9576
+global_rdma_buf_size_mb: 0
+global_rdma_rbf_size_mb: 0
+global_use_rdma: 0
+global_enable_caching: 0
+global_enable_workstealing: 0
+global_stealing_pattern: 0
+global_rdma_threshold: 300
+global_mt_threshold: 2
+global_silent: 0
+global_enable_planner: 0
+global_generate_statistics: 0
+global_enable_vattr: 1
+global_num_gpus: 0
+global_gpu_rdma_buf_size_mb: 0
+global_gpu_rbuf_size_mb: 32
+global_gpu_kvcache_size_gb: 10
+global_gpu_key_blk_size_mb: 16
+global_gpu_value_blk_size_mb: 4
+global_gpu_enable_pipeline: 1
+--
+the number of servers: 1
+the number of threads: 3
+```
+
+2) Configuring Wukong by file
+
+Use command `config -l <fname>` to configure Wukong by loading configuration file `<fname>`.
+
+```
+wukong> config -l newConfigFile
+```
+
+3) Configure Wukong by string
+
+Use command `config -s <str>` to configure Wukong by string `<str>`.
+
+>Note: You can use `&` to set several configurations in one string (e.g., item1=val1&item2=...).
+
+```
+wukong> config -l global_mt_threshold=1
+wukong> config -s global_mt_threshold=2&global_silent=1
+```
+
+4) Get help message about config
+
+Use command `config -h` or `config --help` to print help message of command `config`.
+
+```
+wukong> config -h
+config <args>       run commands for configueration:
+  -v                    print current config
+  -l <fname>            load config items from <fname>
+  -s <string>           set config items by <str> (e.g., item1=val1&item2=...)
+  -h [ --help ]         help message about config
+```
+
+<a name="logger"></a>
+
+## Configuring logger in Wukong
+
+The command `logger <args>` can help you configure log level and check current logger level.
+
+1) Wukong log levels
+
+Wukong provides 7 log levels and the current logger level configuration controls the message printing in Wukong.
+
+log level | log level name | meaning
+:-:|:-:|:-:
+0|LOG_EVERYTHING|Log everything.
+1|LOG_DEBUG|Debugging purposes only.
+2|LOG_INFO|Used for providing general useful information.
+3|LOG_EMPH|Outputs as LOG_INFO, but in LOG_WARNING colors. Useful foroutputting information you want to emphasize.
+4|LOG_WARNING|Logs interesting conditions which are probably not fatal.
+5|LOG_ERROR|Used for errors which are recoverable within the scope of the function.
+6|LOG_FATAL|Used for fatal and probably irrecoverable conditions.
+7|LOG_NONE|Log nothing.
+
+2) Log level printing
+
+Use command `logger -v` to print current configuration of log level.
+
+```
+wukong> logger -v
+loglevel: 2 (INFO)
+```
+
+3) Log level configuring
+
+Use command `logger -s <level>` to switch current log level to `<level>`.
+
+```
+wukong> logger -s 0
+set loglevel to 0 (EVERYTHING)
+wukong> logger -s 1
+set loglevel to 1 (DEBUG)
+wukong> logger -s 2
+set loglevel to 2 (INFO)
+wukong> logger -s 3
+set loglevel to 3 (EMPH)
+wukong> logger -s 4
+set loglevel to 4 (WARNING)
+wukong> logger -s 5
+set loglevel to 5 (ERROR)
+wukong> logger -s 6
+set loglevel to 6 (FATAL)
+wukong> logger -s 7
+set loglevel to 7 (NONE)
+```
+
+4) Get help message about logger
+
+```
+wukong> logger -h
+logger <args>       run commands for logger:
+  -v                    print loglevel
+  -s <level>            set loglevel to <level> (e.g., DEBUG=1, INFO=2,
+                        WARNING=4, ERROR=5)
+  -h [ --help ]         help message about logger
+```
+
+<a name="help"></a>
+
+## Getting help information in Wukong
+
+The command `help` lists the usage of common Wukong commands.
+
+```
+wukong> help
+These are common Wukong commands: :
+
+help                display help infomation:
+
+quit                quit from the console:
+
+config <args>       run commands for configueration:
+  -v                     print current config
+  -l <fname>             load config items from <fname>
+  -s <string>            set config items by <str> (e.g., item1=val1&item2=...)
+  -h [ --help ]          help message about config
+
+logger <args>       run commands for logger:
+  -v                     print loglevel
+  -s <level>             set loglevel to <level> (e.g., DEBUG=1, INFO=2,
+                         WARNING=4, ERROR=5)
+  -h [ --help ]          help message about logger
+
+sparql <args>       run SPARQL queries in single or batch mode:
+  -f <fname>             run a [single] SPARQL query from <fname>
+  -m <factor> (=1)       set multi-threading <factor> for heavy query
+                         processing
+  -n <num> (=1)          repeat query processing <num> times
+  -p <fname>             adopt user-defined query plan from <fname> for running
+                         a single query
+  -N <num> (=1)          do query optimization <num> times
+  -v <lines> (=0)        print at most <lines> of results
+  -o <fname>             output results info <fname>
+  -g                     leverage GPU to accelerate heavy query processing
+  -b <fname>             run a [batch] of SPARQL queries configured by <fname>
+  -h [ --help ]          help message about sparql
+
+sparql-emu <args>   emulate clients to continuously send SPARQL queries:
+  -f <fname>             run queries generated from temples configured by
+                         <fname>
+  -p <fname>             adopt user-defined query plans from <fname> for
+                         running queries
+  -d <sec> (=10)         eval <sec> seconds (default: 10)
+  -w <sec> (=5)          warmup <sec> seconds (default: 5)
+  -n <num> (=20)         keep <num> queries being processed (default: 20)
+  -h [ --help ]          help message about sparql-emu
+
+load <args>         load RDF data into dynamic (in-memmory) graph store:
+  -d <dname>             load data from directory <dname>
+  -c                     check and skip duplicate RDF triples
+  -h [ --help ]          help message about load
+
+gsck <args>         check the integrity of (in-memmory) graph storage:
+  -i                     check from index key/value pair to normal key/value
+                         pair
+  -n                     check from normal key/value pair to index key/value
+                         pair
+  -h [ --help ]          help message about gsck
+
+load-stat           load statistics of SPARQL query optimizer:
+  -f <fname>             load statistics from <fname> located at data folder
+  -h [ --help ]          help message about load-stat
+
+store-stat          store statistics of SPARQL query optimizer:
+  -f <fname>             store statistics to <fname> located at data folder
+  -h [ --help ]          help message about store-stat
+```
+
+<a name="quit"></a>
+
+## Terminating current Wukong process
+
+The command `quit` can help you terminate the current Wukong process.
+
+```
+wukong> quit
+...
 ```
