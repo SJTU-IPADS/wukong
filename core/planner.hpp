@@ -252,6 +252,10 @@ class Planner {
                 if (o1 < 0 && o2 < 0) {
                     //count00++;
 
+                    if (p == TYPE_ID){
+                        continue;
+                    }
+
                     // use index vertex, find subject first
                     path.push_back(p); path.push_back(0); path.push_back(IN); path.push_back(o1);
                     //cout << "pick : " << p << " " << "0" << " " << IN << " " << o1

@@ -336,7 +336,10 @@ private:
 
                 if (cur != cached) { // new KNOWN
                     cached = cur;
-                    vids = graph->get_triples(tid, cur, pid, d, sz);
+                    if (pid == TYPE_ID && d == IN)
+                        vids = graph->get_index(tid, cur, d, sz);
+                    else
+                        vids = graph->get_triples(tid, cur, pid, d, sz);
                 }
 
                 // append a new intermediate result (row)
@@ -740,7 +743,7 @@ private:
         req.pattern_step++;
     }
 
-    vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req) {
+    vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req, bool need_split=true)  {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
 
@@ -767,18 +770,30 @@ private:
 
         // group intermediate results to servers
         int nrows = req.result.get_row_num();
-        for (int i = 0; i < nrows; i++) {
-            int dst_sid = wukong::math::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
-                                                 Global::num_servers);
-            req.result.append_row_to(i, sub_reqs[dst_sid].result.result_table);
-            req.result.append_attr_row_to(i, sub_reqs[dst_sid].result.attr_res_table);
+        // result table need to be duplicated to all sub-queries
+        if (!need_split) {
+            for (int i = 0; i < Global::num_servers; i++){
+                sub_reqs[i].result.dup_rows(req.result.result_table);
+                sub_reqs[i].result.dup_attr_rows(req.result.attr_res_table);
+                sub_reqs[i].result.update_nrows();
+            }
 
-            if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
-                sub_reqs[dst_sid].result.optional_matched_rows.push_back(req.result.optional_matched_rows[i]);
         }
+        // result table need to be separated to ditterent sub-queries
+        else {
+            for (int i = 0; i < nrows; i++) {
+                int dst_sid = wukong::math::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
+                                                    Global::num_servers);
+                req.result.append_row_to(i, sub_reqs[dst_sid].result.result_table);
+                req.result.append_attr_row_to(i, sub_reqs[dst_sid].result.attr_res_table);
 
-        for (int i = 0; i < Global::num_servers; i++)
-            sub_reqs[i].result.update_nrows();
+                if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
+                    sub_reqs[dst_sid].result.optional_matched_rows.push_back(req.result.optional_matched_rows[i]);
+            }
+
+            for (int i = 0; i < Global::num_servers; i++)
+                sub_reqs[i].result.update_nrows();
+        }
 
         return sub_reqs;
     }
@@ -1045,22 +1060,17 @@ private:
         return true;
     }
 
-    bool dispatch(SPARQLQuery &r) {
-        if (QUERY_FROM_PROXY(r)
-                && r.pattern_step == 0  // not started
-                && r.start_from_index()  // heavy query (heuristics)
-                && (Global::num_servers * r.mt_factor > 1)) {  // multi-resource
+    // deal with pattern wich start from index
+    bool dispatch(SPARQLQuery &r, bool is_start=true) {
+        if (Global::num_servers * r.mt_factor == 1) return false;
+
+        // first pattern need dispatch, to all servers and multi-threads threads
+        if (is_start && QUERY_FROM_PROXY(r) && r.pattern_step == 0 && r.start_from_index() ) { 
             logstream(LOG_DEBUG) << "[" << sid << "-" << tid << "] dispatch "
                                  << "Q(qid=" << r.qid << ", pqid=" << r.pqid
                                  << ", step=" << r.pattern_step << ")" << LOG_endl;
-            // NOTE: the mt_factor can be set on proxy side before sending to engine,
-            // but must smaller than global_mt_threshold (default: mt_factor == 1)
-            // Normally, we will NOT let global_mt_threshold == #engines, which will cause HANG
-
-            // register rmap for waiting reply
             rmap.put_parent_request(r, Global::num_servers * r.mt_factor);
 
-            // dispatch (sub)requests
             SPARQLQuery sub_query = r;
             for (int i = 0; i < Global::num_servers; i++) {
                 for (int j = 0; j < r.mt_factor; j++) {
@@ -1068,12 +1078,31 @@ private:
                     sub_query.qid = -1;
                     sub_query.mt_tid = j;
 
-                    // start from the next engine thread
                     int dst_tid = Global::num_proxies
                                   + (tid + j + 1 - Global::num_proxies) % Global::num_engines;
 
                     Bundle bundle(sub_query);
                     msgr->send_msg(bundle, i, dst_tid);
+                }
+            }
+            return true;
+        } 
+
+        // not first pattern need dispatch, to all servers but each single thread
+        SPARQLQuery::Pattern &pattern = r.get_pattern();
+        ssid_t start = pattern.subject;
+        ssid_t p = pattern.predicate;
+        dir_t d = pattern.direction;
+
+        if (!is_start && Global::num_servers != 1 && p == TYPE_ID && d == IN){
+            vector<SPARQLQuery> sub_reqs = generate_sub_query(r, false);
+            rmap.put_parent_request(r, sub_reqs.size());
+            for (int i = 0; i < sub_reqs.size(); i++) {
+                if (i != sid) {
+                    Bundle bundle(sub_reqs[i]);
+                    msgr->send_msg(bundle, i, tid);
+                } else {
+                    prior_stage.push(sub_reqs[i]);
                 }
             }
             return true;
@@ -1103,6 +1132,10 @@ private:
 
             if (r.done(SPARQLQuery::SQState::SQ_PATTERN))
                 return true;  // done
+
+            if (dispatch(r, false)) {
+                return false;
+            }
 
             if (need_fork_join(r)) {
                 vector<SPARQLQuery> sub_reqs = generate_sub_query(r);

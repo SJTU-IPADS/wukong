@@ -1,0 +1,9 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT ?v0 ?v1 ?v2 ?v3 WHERE {
+	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/hasGenre>  ?v1.
+    ?v0  rdf:type  <http://db.uwaterloo.ca/~galuc/wsdbm/ProductCategory2>  .
+    ?v1  rdf:type  ?v2.
+    ?v3  <http://ogp.me/ns#tag>  <http://db.uwaterloo.ca/~galuc/wsdbm/Topic192>  .
+    ?v3  rdf:type  ?v2.
+}

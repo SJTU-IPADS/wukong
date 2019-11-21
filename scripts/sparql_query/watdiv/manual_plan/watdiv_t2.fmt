@@ -1,0 +1,35 @@
+#
+# SPARQL
+# 
+# SELECT ?v0 ?v1 ?v2 WHERE {
+# 	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/friendOf>  ?v1  .
+#   ?v1  <http://schema.org/nationality>  <http://db.uwaterloo.ca/~galuc/wsdbm/Country0>  .
+# 	?v1  <http://xmlns.com/foaf/age>  <http://db.uwaterloo.ca/~galuc/wsdbm/AgeGroup8>  .
+# 	?v0  <http://schema.org/nationality>  <http://db.uwaterloo.ca/~galuc/wsdbm/Country7>  .
+#   ?v0  <http://xmlns.com/foaf/age>  <http://db.uwaterloo.ca/~galuc/wsdbm/AgeGroup3>  .
+# 	?v1  rdf:type  ?v2  .
+# 	?v0  rdf:type  ?v2  .
+# }
+#
+# command: sparql -f sparql_query/watdiv/watdiv_t1 -p sparql_query/watdiv/manual_plan/watdiv_t1.fmt
+#
+#
+# Plan
+#
+# SELECT ?v0 ?v1 ?v2 WHERE {
+#   ?v1  <http://schema.org/nationality>  <http://db.uwaterloo.ca/~galuc/wsdbm/Country0>  <-
+# 	?v1  <http://xmlns.com/foaf/age>  <http://db.uwaterloo.ca/~galuc/wsdbm/AgeGroup8>  .
+# 	?v0  <http://db.uwaterloo.ca/~galuc/wsdbm/friendOf>  ?v1  .
+# 	?v0  <http://schema.org/nationality>  <http://db.uwaterloo.ca/~galuc/wsdbm/Country7>  .
+#   ?v0  <http://xmlns.com/foaf/age>  <http://db.uwaterloo.ca/~galuc/wsdbm/AgeGroup3>  .
+# 	?v1  rdf:type  ?v2  .
+# 	?v0  rdf:type  ?v2  .
+# }
+#
+2 <
+3 >
+1 <
+4 >
+5 >
+6 >
+7 >

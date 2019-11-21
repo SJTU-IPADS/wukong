@@ -442,6 +442,9 @@ public:
                 update.push_back(get_row_col(r, c));
         }
 
+        void dup_rows(vector<sid_t> &update){
+            result_table.assign(update.begin(), update.end());
+        }
 
         // ATTRIBUTE result (i.e., integer, float, and double)
         int set_attr_col_num(int n) { attr_col_num = n; }
@@ -466,6 +469,10 @@ public:
         void append_attr_row_to(int r, vector<attr_t> &updated_result_table) {
             for (int c = 0; c < attr_col_num; c++)
                 updated_result_table.push_back(get_attr_row_col(r, c));
+        }
+
+        void dup_attr_rows(vector<attr_t> &update) {
+            attr_res_table.assign(update.begin(), update.end());
         }
 
 
