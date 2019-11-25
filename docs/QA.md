@@ -2,44 +2,36 @@
 
 ## Table of Contents
 
-* [Performance has a large range of error](#performance_error)
+* [Performance has a large range of error](#THP)
 
  
-<a name="performance_error"></a>
-## Q1 
-My evaluation result has a large range of error. The result is shown following in detail. Is there something wrong?
+<a name="THP"></a>
+## Q1: Enable the transparent hugepage (THP)
+The results of SPARQL queries on my machine has a large difference to the results in docs/performance and/or research papers. How to tune the performance of SPARQL queries on Wukong?
 
 ```bash
-wukong> sparql -f query/lubm/lubm_q1 -m 16 -n 10
-INFO:     Parsing a SPARQL query is done.
-INFO:     Parsing time: 362 usec
-INFO:     No query plan is set
+wukong> sparql -f sparql_query/lubm/basic/lubm_q1 -m 16 -n 10
+...
 INFO:     (average) latency: 2113299 usec
 INFO:     (last) result size: 2528
-wukong> sparql -f query/lubm/lubm_q1 -m 16 -n 10
-INFO:     Parsing a SPARQL query is done.
-INFO:     Parsing time: 159 usec
-INFO:     No query plan is set
+wukong> sparql -f sparql_query/lubm/basic/lubm_q1 -m 16 -n 10
+...
 INFO:     (average) latency: 5234887 usec
 INFO:     (last) result size: 2528
-wukong> sparql -f query/lubm/lubm_q1 -m 16 -n 10
-INFO:     Parsing a SPARQL query is done.
-INFO:     Parsing time: 163 usec
-INFO:     No query plan is set
+wukong> sparql -f sparql_query/lubm/basic/lubm_q1 -m 16 -n 10
+...
 INFO:     (average) latency: 1793383 usec
 INFO:     (last) result size: 2528
 ```
 ### Answer
-Check if transparent hugepages(THP) usage is enabled.
-If enabled is [never] as follows, then enable THP before evaluation. 
+Please check if transparent hugepages (THP) is enabled.
+If it has been disabled (i.e., [never]), then you should enable THP before running Wukong. 
 
 ```bash
 $ cat /sys/kernel/mm/transparent_hugepage/enabled
 always madvise [never]
 ```
-Transparent Hugepage Support can be enabled system wide 
-or only enabled inside MADV_HUGEPAGE regions (to avoid the risk of consuming more memory resources)
-or disabled entirely. This can be achieved with one of:
+Transparent Hugepage Support can be enabled in system wide or only enabled inside `MADV_HUGEPAGE` regions (to avoid the risk of consuming more memory resources) or disabled entirely. This can be achieved with one of:
 
 ```bash
 $ echo always > /sys/kernel/mm/transparent_hugepage/enabled

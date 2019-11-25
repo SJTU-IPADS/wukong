@@ -287,7 +287,7 @@ public:
         SPARQLParser parser(lexer);
 
         try {
-            parser.parse(); //e.g., sparql -f query/lubm_q1
+            parser.parse(); //e.g., sparql -f sparql_query/lubm/basic/lubm_q1
             transfer(parser, sq);
         } catch (const SPARQLParser::ParserException &e) {
             logstream(LOG_ERROR) << "Failed to parse a SPARQL query: "
