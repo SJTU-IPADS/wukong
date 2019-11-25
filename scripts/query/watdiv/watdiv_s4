@@ -1,7 +1,0 @@
-SELECT ?v0 ?v2 ?v3 WHERE {
-	<http://purl.org/ontology/mo/artist> __PREDICATE__ ?v0 .
-	?v0 <http://schema.org/nationality> <http://db.uwaterloo.ca/~galuc/wsdbm/Country1> .
-	?v0 <http://xmlns.com/foaf/age> <http://db.uwaterloo.ca/~galuc/wsdbm/AgeGroup7> .
-	?v0 <http://xmlns.com/foaf/familyName> ?v2 .
-	?v3 <http://purl.org/ontology/mo/artist> ?v0 <-
-}

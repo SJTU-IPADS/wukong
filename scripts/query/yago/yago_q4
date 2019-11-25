@@ -1,6 +1,0 @@
-SELECT * WHERE {
-	y:hasExternalWikipediaLinkTo __PREDICATE__ ?e .
-	?p y:hasExternalWikipediaLinkTo ?e <-
-	?p y:hasInternalWikipediaLinkTo ?p1 .
-	?p1 y:hasExternalWikipediaLinkTo ?e1 .
-}

@@ -1,3 +1,0 @@
-sparql -f query/lubm/no_such_file1
-sparql -f query/lubm/no_such_file2
-sparql -f query/lubm/no_such_file3

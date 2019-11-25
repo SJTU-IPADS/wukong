@@ -1,5 +1,0 @@
-SELECT ?v0 ?v1 ?v2 WHERE {
-	<http://db.uwaterloo.ca/~galuc/wsdbm/User751232> <http://db.uwaterloo.ca/~galuc/wsdbm/likes> ?v0 .
-	?v0 <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?v1 .
-	?v0 <http://schema.org/text> ?v2 .
-}
