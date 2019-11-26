@@ -1,4 +1,4 @@
-sparql -f sparql_query/lubm/lubm_q2 -n 3
-sparql -f sparql_query/lubm/lubm_q3 -n 4
-sparql -f sparql_query/lubm/lubm_q4 -n 5
-sparql -f sparql_query/lubm/lubm_q5 -n 10
+sparql -f sparql_query/lubm/basic/lubm_q2 -n 3
+sparql -f sparql_query/lubm/basic/lubm_q3 -n 4
+sparql -f sparql_query/lubm/basic/lubm_q4 -n 5
+sparql -f sparql_query/lubm/basic/lubm_q5 -n 10
