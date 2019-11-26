@@ -1,7 +1,8 @@
 6   0
-query/watdiv/emulator/q1  1
-query/watdiv/emulator/q2  25
-query/watdiv/emulator/q3  10
-query/watdiv/emulator/q4  25
-query/watdiv/emulator/q5  25
-query/watdiv/emulator/q6  1
+sparql_query/watdiv/emulator/q1  1
+sparql_query/watdiv/emulator/q2  25
+sparql_query/watdiv/emulator/q3  10
+sparql_query/watdiv/emulator/q4  25
+sparql_query/watdiv/emulator/q5  25
+sparql_query/watdiv/emulator/q6  1
+
