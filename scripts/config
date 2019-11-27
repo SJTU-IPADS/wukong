@@ -12,9 +12,8 @@ global_enable_vattr             0
 global_silent                   1
 
 # kvstore
-global_input_folder             /home/datanfs/nfs0/rdfdata/id_lubm_40/
+global_input_folder             /path/to/input/rdfdata/id_lubm_40/
 global_memstore_size_gb         40
-# global_est_load_factor is used to calculate how many buckets one segment should be allocated.
 global_est_load_factor          55
 
 # RDMA
