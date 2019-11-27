@@ -32,7 +32,7 @@ Committers are people who have made substantial contribution to the project and 
   + Add semi-automatic proxy/engine-thread binding (hwloc)
   + Add configurable compile options
   + Enable user-defined SPARQL query plan (format)
-- [Yaozeng Zeng]() @Alibaba (2019)
+- [Yaozeng Zeng]() @PayPal (2019)
   + Implement new data structure (i.e., bitrie) for string server
 - [Ning Wang](https://github.com/aswasn) @Huawei (2019)
   + Download and install dependencies automatically
