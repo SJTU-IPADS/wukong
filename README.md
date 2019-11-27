@@ -6,10 +6,10 @@ Wukong is a fast and distributed graph-structured store that leverages efficient
 ## Feature Highlights
 
 * High-performance and scalable in-memory graph store
-* Fast and concurrent query processing by graph exloration
+* Fast and concurrent SPARQL query processing by graph exloration
 * Fast communication by leveraging RDMA feature of InfiniBand network
-* (coming soon) A GPU extension of query engine for heterogenous (CPU/GPU) cluster
-* (coming soon) Fast and accurate SPARQL query plan optimizer
+* A GPU extension of query engine for heterogenous (CPU/GPU) cluster
+* A type-centric SPARQL query plan optimizer
 
 For more details see [Wukong Project](http://ipads.se.sjtu.edu.cn/projects/wukong), including new features, roadmap, instructions, etc.
 
@@ -18,8 +18,9 @@ For more details see [Wukong Project](http://ipads.se.sjtu.edu.cn/projects/wukon
 
 * [Installation](docs/INSTALL.md)
 * [Tutorials](docs/TUTORIALS.md)
-* [Q&A](docs/QA.md)
+* [Manual](docs/COMMANDS.md)
 * [GPU extension](docs/gpu/TUTORIALS.md)
+* [Q&A](docs/QA.md)
 
 
 ## License
