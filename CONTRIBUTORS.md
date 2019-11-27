@@ -27,7 +27,7 @@ Committers are people who have made substantial contribution to the project and 
   + Add RDMAlib and refine RDMA support
   + Add Gogole Unit-Test
 
-**Semi-retired**
+*Semi-retired*
 - [Jiaqi Li]() (2019)
   + Add semi-automatic proxy/engine-thread binding (hwloc)
   + Add configurable compile options
