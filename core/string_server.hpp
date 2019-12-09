@@ -157,7 +157,7 @@ private:
                 ifstream file(fname.c_str());
                 string str;
                 sid_t id;
-                char type;
+                int type;
                 while (file >> str >> id >> type) {
                     add(str, id);  // add a new ID-STRING (bi-direction) pair
                     pid2type[id] = (char)type;
