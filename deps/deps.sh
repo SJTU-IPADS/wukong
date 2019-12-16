@@ -7,7 +7,7 @@ tbb="tbb44_20151115oss"
 zeromq="zeromq-4.0.5"
 nanomsg="nanomsg-1.1.4"
 hwloc="hwloc-1.11.7"
-jemalloc="jemalloc-5.1.0"
+jemalloc="jemalloc-5.2.1"
 
 write_log(){
     divider='-----------------------------'
@@ -201,13 +201,17 @@ install_jemalloc(){
         mkdir "${jemalloc}-install"
         if [ ! -d "${jemalloc}" ]; then
             if [ ! -f "${jemalloc}.tar.gz" ]; then
-                wget "https://github.com/jemalloc/jemalloc/releases/download/5.1.0/${jemalloc}.tar.bz2"
+                wget "https://github.com/jemalloc/jemalloc/releases/download/5.2.1/${jemalloc}.tar.bz2"
             fi
             tar jxf "${jemalloc}.tar.bz2"
         fi
         cd "$WUKONG_ROOT/deps/${jemalloc}"
         trap - ERR
-        ./configure --prefix="$WUKONG_ROOT/deps/${jemalloc}-install/" 2>>install_deps.log
+        ./configure --with-jemalloc-prefix=je --prefix="$WUKONG_ROOT/deps/${jemalloc}-install/" 2>>install_deps.log
+# Option --with-jemalloc-prefix=je configures prefix which renames jemalloc's API.
+# This helps to use glibc's malloc API distinctly from jemalloc's versions.
+# To disable jemalloc's new/delete API overload, add --disable-cxx as follows.
+#        ./configure --disable-cxx --with-jemalloc-prefix=je --prefix="$WUKONG_ROOT/deps/${jemalloc}-install/" 2>>install_deps.log
         make 2>>install_deps.log
         make install 2>>install_deps.log
     else
