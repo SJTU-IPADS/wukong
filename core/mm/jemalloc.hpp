@@ -24,6 +24,11 @@
 
 #ifdef USE_JEMALLOC
 #include <jemalloc/jemalloc.h>
+/*
+ * To use jemalloc API distinctly from glibc API, 
+ * jemalloc API has prefix(je) configured in deps/deps.sh.
+ * e.g. API mallctl is named as jemallctl.
+ * */
 
 #include "mm/malloc_interface.hpp"
 
@@ -145,19 +150,19 @@ public:
 
         // create new arena for each engine and install custom extent hooks on it
         for (int i = 0; i < pfactor; i++)
-            mallctl("arenas.create", (void *)&arena_inds[i], &sz,
+            jemallctl("arenas.create", (void *)&arena_inds[i], &sz,
                     (void *)&new_hooks, sizeof(extent_hooks_t *));
 
         // create thread-specific cache for each engine
         for (int i = 0; i < pfactor; i++)
-            mallctl("tcache.create", (void *)&tcache_inds[i], &sz, NULL, 0);
+            jemallctl("tcache.create", (void *)&tcache_inds[i], &sz, NULL, 0);
     }
 
     uint64_t malloc(uint64_t size, int64_t tid) {
         ASSERT_MSG((tid >= 0) && (tid < pfactor), "Exceed the parallel factor.");
 
         // malloc from engine's own arena and tcache
-        void *ptr = mallocx(size, MALLOCX_ARENA(arena_inds[tid]) | MALLOCX_TCACHE(tcache_inds[tid]));
+        void *ptr = jemallocx(size, MALLOCX_ARENA(arena_inds[tid]) | MALLOCX_TCACHE(tcache_inds[tid]));
         if ((char *)ptr < start_ptr || (char *)ptr + size >= end_ptr) {
             logstream(LOG_ERROR) << "Out of memory range" << LOG_endl;
             ASSERT(false);
@@ -168,11 +173,11 @@ public:
 
     void free(uint64_t offset) {
         ASSERT_MSG(start_ptr + offset < end_ptr, "Out of memory range");
-        dallocx((void *)(start_ptr + offset), 0);
+        jedallocx((void *)(start_ptr + offset), 0);
         return;
     }
 
-    uint64_t sz_to_blksz(uint64_t size) { return (uint64_t)nallocx(size, 0); }
+    uint64_t sz_to_blksz(uint64_t size) { return (uint64_t)jenallocx(size, 0); }
 
     //to be suited with buddy malloc
     void merge_freelists() { return; }

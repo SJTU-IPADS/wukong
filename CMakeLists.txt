@@ -69,11 +69,14 @@ if(USE_HADOOP)
 endif(USE_HADOOP)
 
 #### JEMALLOC
+## Currently, all malloc APIs(e.g. malloc/free, new/delete) are jemalloc versions by default.
+## To change it, go to deps/deps.sh, modify configuration.
+target_link_libraries(wukong jemalloc)
+set(WUKONG_LIBS ${WUKONG_LIBS} jemalloc)
+
 option (USE_JEMALLOC "enable jemalloc support" ON)
 if(USE_JEMALLOC)
   add_definitions(-DUSE_JEMALLOC)
-  target_link_libraries(wukong jemalloc)
-  set(WUKONG_LIBS ${WUKONG_LIBS} jemalloc)
 endif(USE_JEMALLOC)
 
 #### Dynamic GStore

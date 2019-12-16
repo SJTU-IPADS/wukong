@@ -217,8 +217,8 @@ public:
                  + rrbf_hd_sz * num_servers * num_threads;
         for (int i = 0; i < bc_mems.size(); i++)
             mem_sz += bc_mems[i]->mem_size();
-
-        mem = (char *)malloc(mem_sz);
+        // allocate mem_sz bytes.
+        mem = new char[mem_sz / sizeof(char)];
         memset(mem, 0, mem_sz);
 
         // kvstore

@@ -137,14 +137,15 @@ export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/hwloc-1.11.7-install/lib:$LD_LIBRARY_PA
 
 
 <a name="jemalloc"></a>
-### Jemalloc v5.1.0
+### Jemalloc v5.2.1
 
 ```bash
 $cd $WUKONG_ROOT/deps/
-$mkdir jemalloc-5.1.0-install
-$tar jxvf jemalloc-5.1.0.tar.bz2
+$wget "https://github.com/jemalloc/jemalloc/releases/download/5.2.1/jemalloc-5.2.1.tar.bz2"
+$mkdir jemalloc-5.2.1-install
+$tar jxvf jemalloc-5.2.1.tar.bz2
 $cd jemalloc-5.1.0/
-$./configure --prefix=$WUKONG_ROOT/deps/jemalloc-5.1.0-install/
+$./configure --with-jemalloc-prefix=je --prefix=$WUKONG_ROOT/deps/jemalloc-5.2.1-install/
 $make
 $make install
 ```
