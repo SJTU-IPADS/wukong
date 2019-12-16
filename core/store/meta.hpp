@@ -81,6 +81,7 @@ struct rdf_seg_meta_t {
     uint64_t bucket_start = 0;  // start offset of main-header region of gstore
     uint64_t num_edges = 0;     // #edges of the segment
     uint64_t edge_start = 0;    // start offset in the entry region of gstore
+    uint64_t edge_off = 0;      // current available offset in the entry region, only used by static gstore
 
     int num_key_blks = 0;       // #key-blocks needed in gcache
     int num_value_blks = 0;     // #value-blocks needed in gcache
@@ -146,12 +147,12 @@ struct rdf_seg_meta_t {
  */
 struct segid_t {
     int index;  // normal or index segment
-    int dir;  // direction of triples in the segment
+    dir_t dir;  // direction of triples in the segment
     sid_t pid;  // predicate id
-    segid_t(): index(0), pid(0), dir(0) { }
-    segid_t(int idx, sid_t p, int d) : index(idx), pid(p), dir(d) { }
+    segid_t(): index(0), pid(0), dir(IN) { }
+    segid_t(int idx, sid_t p, dir_t d) : index(idx), pid(p), dir(d) { }
     segid_t(const ikey_t &key) {
-        dir = key.dir;
+        dir = (dir_t)key.dir;
         // index
         if (key.vid == 0) {
             index = 1;
