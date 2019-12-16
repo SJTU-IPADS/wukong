@@ -172,11 +172,6 @@ protected:
 
     RDMA_Cache rdma_cache;
 
-    // triples grouped by (predicate, direction), free after gstore init
-    tbb_triple_hash_map triples_map;
-    // attr triples grouped by (attr pred, direction), free after gstore init
-    tbb_triple_attr_hash_map attr_triples_map;
-
     // multiple engines will access shared_rdf_seg_meta_map
     // key: server id, value: segment metadata of the server
     tbb::concurrent_unordered_map <int, map<segid_t, rdf_seg_meta_t> > shared_rdf_seg_meta_map;
@@ -222,13 +217,10 @@ protected:
 #endif // VERSATILE
 
     // allocate space to store edges of given size. Return offset of allocated space.
-    virtual uint64_t alloc_edges(uint64_t n, int tid) = 0;
+    virtual uint64_t alloc_edges(uint64_t n, int tid, rdf_seg_meta_t *seg) = 0;
 
     virtual uint64_t alloc_edges_to_seg(uint64_t num_edges) = 0;
 
-    // insert normal triples, attr triples, index into gstore
-    virtual void insert_triples(int tid, segid_t segid) = 0;
-    virtual void insert_attr(int tid, segid_t segid) = 0;
     virtual void insert_idx(const tbb_hash_map &pidx_map, const tbb_hash_map &tidx_map,
                             dir_t d, int tid = 0) = 0;
 
@@ -471,64 +463,174 @@ protected:
         }
     }
 
-    // Merge triples with same predicate and direction to a vector
-    void init_triples_map(const vector<vector<triple_t>> &triple_pso,
-                          const vector<vector<triple_t>> &triple_pos,
-                          const vector<vector<triple_attr_t>> &triple_sav) {
+    // Index arrays which stores start offset of each predicate(attr)'s data.
+    typedef vector<unordered_map<sid_t, size_t>> triple_map_t;
+    // Build index of each predicate's data to accelerate insert triples.
+    triple_map_t init_triple_map(const vector<vector<triple_t>> &triples) {
+        triple_map_t triple_map(Global::num_engines);
+
         #pragma omp parallel for num_threads(Global::num_engines)
         for (int tid = 0; tid < Global::num_engines; tid++) {
-            const vector<triple_t> &pso_vec = triple_pso[tid];
-            const vector<triple_t> &pos_vec = triple_pos[tid];
-            const vector<triple_attr_t> &sav_vec = triple_sav[tid];
-
-            int i = 0;
-            int current_pid;
-            while (!pso_vec.empty() && i < pso_vec.size()) {
-                current_pid = pso_vec[i].p;
-                tbb_triple_hash_map::accessor a;
-                triples_map.insert(a, ikey_t(0, current_pid, OUT));
-
-                for (; i < pso_vec.size() && pso_vec[i].p == current_pid; i++) {
-                    a->second.push_back(pso_vec[i]);
-                }
+            const vector<triple_t> &local = triples[tid];
+            for (size_t i = 0; i < local.size();) {
+                sid_t pid = local[i].p;
+                triple_map[tid].emplace(pid, i);
+                // skip current predicate's data
+                for (; i < local.size() && local[i].p == pid; i++);
             }
+        }
+        return triple_map;
+    }
 
-            i = 0;
-            while (!pos_vec.empty() && i < pos_vec.size()) {
-                current_pid = pos_vec[i].p;
-                tbb_triple_hash_map::accessor a;
-                triples_map.insert(a, ikey_t(0, current_pid, IN));
+    // Build index of each attr's data to accelerate insert triples attr.
+    triple_map_t init_triple_map(const vector<vector<triple_attr_t>> &triples) {
+        triple_map_t triple_map(Global::num_engines);
 
-                for (; i < pos_vec.size() &&  pos_vec[i].p == current_pid; i++) {
-                    a->second.push_back(pos_vec[i]);
-                }
+        #pragma omp parallel for num_threads(Global::num_engines)
+        for (int tid = 0; tid < Global::num_engines; tid++) {
+            const vector<triple_attr_t> &local = triples[tid];
+            for (size_t i = 0; i < local.size();) {
+                sid_t aid = local[i].a;
+                triple_map[tid].emplace(aid, i);
+                // skip current attr's data
+                for (; i < local.size() && local[i].a == aid; i++);
             }
+        }
+        return triple_map;
+    }
 
-            i = 0;
-            while (!sav_vec.empty() && i < sav_vec.size()) {
-                current_pid = sav_vec[i].a;
-                tbb_triple_attr_hash_map::accessor ac;
-                attr_triples_map.insert(ac, ikey_t(0, current_pid, OUT));
+    /**
+     * Helper function of insert_triples.
+     * Insert normal predicate-based triples and return start offset of next triples.
+     * @param s: start offset
+     */
+    size_t insert_normal_triples(int tid, const vector<triple_t> &triples,
+                                 rdf_seg_meta_t &seg, size_t s, dir_t dir) {
+        ikey_t key;
+        size_t e = s + 1;  // end offset
+        if (dir == OUT) {  // pso triples
+            // find end of triples with current (subject + predicate)
+            while ((e < triples.size())
+                    && (triples[s].s == triples[e].s)
+                    && (triples[s].p == triples[e].p)) { e++; }
+            // allocate a vertex
+            key = ikey_t(triples[s].s, triples[s].p, OUT);
 
-                for (; i < sav_vec.size() && sav_vec[i].a == current_pid; i++) {
-                    ac->second.push_back(sav_vec[i]);
+        } else {           // pos triples
+            while ((e < triples.size())
+                    && (triples[s].o == triples[e].o)
+                    && (triples[s].p == triples[e].p)) { e++; }
+            key = ikey_t(triples[s].o, triples[s].p, IN);
+        }
+        // alloc edges
+        uint64_t off = alloc_edges(e - s, tid, &seg);
+        // insert vertex
+        uint64_t slot_id = insert_key(key);
+        iptr_t ptr = iptr_t(e - s, off);
+        vertices[slot_id].ptr = ptr;
+
+        // insert edges
+        for (uint32_t i = s; i < e; i++)
+            edges[off++].val = (dir == OUT) ? triples[i].o : triples[i].s;
+
+        collect_idx_info(slot_id);
+        return e;
+    }
+
+    /**
+     * Insert triples beloging to the segment identified by segid to store
+     * Notes: This function only insert triples belonging to normal segment
+     */
+    void insert_triples(int tid, segid_t segid, const triple_map_t &triple_maps,
+            const vector<vector<triple_t>> &triples) {
+        auto &segment = rdf_seg_meta_map[segid];
+        sid_t pid = segid.pid;
+        uint64_t off = segment.edge_start;
+
+        ASSERT(segid.index == 0);
+        if (segment.num_edges == 0) {
+            logger(LOG_DEBUG, "Thread(%d): abort! segment(%d|%d|%d) is empty.\n",
+                   tid, segid.index, segid.pid, segid.dir);
+            return;
+        }
+
+        for (int i = 0; i < Global::num_engines; i++) {
+            auto &pmap = triple_maps[i];
+            auto &vec = triples[i];
+
+            // current thread's local triples has predicate data
+            auto it = pmap.find(pid);
+            if (it != pmap.end()) {
+                size_t s = it->second;
+                while (s < vec.size() && vec[s].p == pid) {
+                    if (segid.dir == IN) {
+                        // pos triples skip type triples
+                        while (s < vec.size() && vec[s].p == pid && is_tpid(vec[s].o))
+                            s++;
+                    }
+                    s = insert_normal_triples(tid, vec, segment, s, segid.dir);
                 }
             }
         }
+    }
 
-        for (auto it = triples_map.begin(); it != triples_map.end(); it++) {
-            (it->second).shrink_to_fit();
+    /**
+     * Insert attr triples beloging to the segment identified by segid to store
+     */
+    void insert_attr(int tid, segid_t segid, const triple_map_t &triple_maps,
+            const vector<vector<triple_attr_t>> &attr_triples) {
+        auto &segment = rdf_seg_meta_map[segid];
+        sid_t aid = segid.pid;
+        int type = attr_type_map[aid];
+        uint64_t sz = (get_sizeof(type) - 1) / sizeof(edge_t) + 1;   // get the ceil size;
+
+        if (segment.num_edges == 0) {
+            logger(LOG_DEBUG, "Segment(%d|%d|%d) is empty.\n",
+                   segid.index, segid.pid, segid.dir);
+            return;
         }
 
-        for (auto it = attr_triples_map.begin(); it != attr_triples_map.end(); it++) {
-            (it->second).shrink_to_fit();
+        for (int i = 0; i < Global::num_engines; i++) {
+            auto &pmap = triple_maps[i];
+            auto &asv = attr_triples[i];
+            // current thread's local triples has attr data
+            auto it = pmap.find(aid);
+            if (it != pmap.end()) {
+                size_t s = it->second;
+                while (s < asv.size() && asv[s].a == aid) {
+                    // allocate a vertex
+                    ikey_t key = ikey_t(asv[s].s, asv[s].a, OUT);
+                    // allocate edges
+                    uint64_t off = alloc_edges(sz, tid, &segment);
+                    // insert vertex
+                    uint64_t slot_id = insert_key(key);
+                    iptr_t ptr = iptr_t(sz, off, type);
+                    vertices[slot_id].ptr = ptr;
+
+                    // insert edges
+                    switch (type) {
+                        case INT_t:
+                            *(int *)(edges + off) = boost::get<int>(asv[s].v);
+                            break;
+                        case FLOAT_t:
+                            *(float *)(edges + off) = boost::get<float>(asv[s].v);
+                            break;
+                        case DOUBLE_t:
+                            *(double *)(edges + off) = boost::get<double>(asv[s].v);
+                            break;
+                        default:
+                            logstream(LOG_ERROR) << "Unsupported value type of attribute" << LOG_endl;
+                    }
+                    s++;
+                }
+            }
         }
     }
 
     // init metadata for each segment
-    void init_seg_metas(vector<vector<triple_t> > &triple_pso,
-                        vector<vector<triple_t> > &triple_pos,
-                        vector<vector<triple_attr_t> > &triple_sav) {
+    void init_seg_metas(const vector<vector<triple_t>> &triple_pso,
+                        const vector<vector<triple_t>> &triple_pos,
+                        const vector<vector<triple_attr_t>> &triple_sav) {
         /**
          * count(|pred| means number of local predicates):
          * 1. normal vertices [vid|pid|IN/OUT], key: pid, cnt_t: in&out, #item: |pred|
@@ -549,8 +651,8 @@ protected:
         for (int i = 0; i <= get_num_preds(); ++i) {
             index_cnt_map.insert(make_pair(i, cnt_t()));
             normal_cnt_map.insert(make_pair(i, cnt_t()));
-            for (int dir = 0; dir <= 1; dir++)
-                rdf_seg_meta_map.insert(make_pair(segid_t(0, i, dir), rdf_seg_meta_t()));
+            rdf_seg_meta_map.insert(make_pair(segid_t(0, i, IN), rdf_seg_meta_t()));
+            rdf_seg_meta_map.insert(make_pair(segid_t(0, i, OUT), rdf_seg_meta_t()));
         }
         // init index segment
         rdf_seg_meta_map.insert(make_pair(segid_t(1, PREDICATE_ID, IN), rdf_seg_meta_t()));
@@ -558,9 +660,9 @@ protected:
 
         #pragma omp parallel for num_threads(Global::num_engines)
         for (int tid = 0; tid < Global::num_engines; tid++) {
-            vector<triple_t> &pso = triple_pso[tid];
-            vector<triple_t> &pos = triple_pos[tid];
-            vector<triple_attr_t> &sav = triple_sav[tid];
+            const vector<triple_t> &pso = triple_pso[tid];
+            const vector<triple_t> &pos = triple_pos[tid];
+            const vector<triple_attr_t> &sav = triple_sav[tid];
 
             uint64_t s = 0;
             while (s < pso.size()) {
@@ -658,8 +760,6 @@ protected:
 
                 s = e;
             }
-            // release mem
-            vector<triple_attr_t>().swap(sav);
         }
 
         // count the total number of keys
@@ -803,11 +903,12 @@ protected:
                 //ASSERT(vertices[slot_id].key != key); // no duplicate key
                 if (vertices[slot_id].key == key) {
                     if (check_dup) {
-                        key.print_key();
-                        vertices[slot_id].key.print_key();
                         logstream(LOG_ERROR) << "conflict at slot["
                                              << slot_id << "] of bucket["
-                                             << bucket_id << "]" << LOG_endl;
+                                             << bucket_id << "], "
+                                             << key.to_string() << ", "
+                                             << vertices[slot_id].key.to_string()
+                                             << LOG_endl;
                         ASSERT(false);
                     } else {
                         goto done;
@@ -958,8 +1059,6 @@ done:
     // release memory after gstore init
     void finalize_init() {
         vector<sid_t>().swap(all_local_preds);
-        tbb_triple_hash_map().swap(triples_map);
-        tbb_triple_attr_hash_map().swap(attr_triples_map);
         tbb_unordered_set().swap(attr_set);
         tbb::concurrent_unordered_map<sid_t, int>().swap(attr_type_map);
         tbb_hash_map().swap(pidx_in_map);
@@ -1002,7 +1101,9 @@ public:
 
     virtual ~GStore() {}
 
-    virtual void init(vector<vector<triple_t>> &triple_pso, vector<vector<triple_t>> &triple_pos, vector<vector<triple_attr_t>> &triple_sav) = 0;
+    virtual void init(vector<vector<triple_t>> &triple_pso,
+                      vector<vector<triple_t>> &triple_pos,
+                      vector<vector<triple_attr_t>> &triple_sav) = 0;
     virtual void refresh() = 0;
 
     /**

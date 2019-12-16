@@ -32,12 +32,27 @@ private:
     uint64_t last_entry;
     pthread_spinlock_t entry_lock;
 
+    // Allocate space in given segment.
+    // NOTICE! This function is not thread-safe.
+    uint64_t alloc_edges(uint64_t n, int tid = 0, rdf_seg_meta_t *seg = NULL) {
+        ASSERT(seg != NULL);
+        // Init offset if first visited.
+        if (seg->edge_off == 0)
+            seg->edge_off = seg->edge_start;
+        uint64_t orig = seg->edge_off;
+        seg->edge_off += n;
+        ASSERT(seg->edge_off <= seg->edge_start + seg->num_edges);
+        return orig;
+    }
+
     // Allocate space to store edges of given size. Return offset of allocated space.
-    uint64_t alloc_edges(uint64_t n, int tid = 0) {
+    uint64_t alloc_edges_to_seg(uint64_t num_edges) {
+        if (num_edges == 0)
+            return 0;
         uint64_t orig;
         pthread_spin_lock(&entry_lock);
         orig = last_entry;
-        last_entry += n;
+        last_entry += num_edges;
         if (last_entry >= num_entries) {
             logstream(LOG_ERROR) << "out of entry region." << LOG_endl;
             ASSERT(last_entry < num_entries);
@@ -46,169 +61,10 @@ private:
         return orig;
     }
 
-    uint64_t alloc_edges_to_seg(uint64_t num_edges) {
-        return (num_edges > 0) ? alloc_edges(num_edges) : 0;
-    }
-
     /// edge is always valid
     bool edge_is_valid(vertex_t &v, edge_t *edge_ptr) { return true; }
 
     uint64_t get_edge_sz(const vertex_t &v) { return v.ptr.size * sizeof(edge_t); }
-
-    /**
-     * Insert triples beloging to the segment identified by segid to store
-     * Notes: This function only insert triples belonging to normal segment
-     * @tid
-     * @segid
-     */
-    void insert_triples(int tid, segid_t segid) {
-        ASSERT(!segid.index);
-
-        auto &segment = rdf_seg_meta_map[segid];
-        int index = segid.index;
-        sid_t pid = segid.pid;
-        int dir = segid.dir;
-
-        if (segment.num_edges == 0) {
-            logger(LOG_DEBUG, "Thread(%d): abort! segment(%d|%d|%d) is empty.\n",
-                   tid, segid.index, segid.pid, segid.dir);
-            return;
-        }
-
-        // get OUT edges and IN edges from triples map
-        tbb_triple_hash_map::const_accessor a;
-        bool has_pso, has_pos;
-        bool success = triples_map.find(a, ikey_t(0, pid, (dir_t) dir));
-
-        has_pso = (segid.dir == OUT) ? success : false;
-        has_pos = (segid.dir == IN) ? success : false;
-
-        // a segment only contains triples of one direction
-        ASSERT((has_pso == true && has_pos == false)
-               || (has_pso == false && has_pos == true));
-
-        uint64_t off = segment.edge_start;
-        uint64_t s = 0;
-        uint64_t type_triples = 0;
-
-        if (has_pso) {
-            const vector<triple_t> &pso = a->second;
-            while (s < pso.size()) {
-                // predicate-based key (subject + predicate)
-                uint64_t e = s + 1;
-                while ((e < pso.size())
-                        && (pso[s].s == pso[e].s)
-                        && (pso[s].p == pso[e].p))  { e++; }
-
-                // allocate a vertex and edges
-                ikey_t key = ikey_t(pso[s].s, pso[s].p, OUT);
-
-                // insert a vertex
-                uint64_t slot_id = insert_key(key);
-                iptr_t ptr = iptr_t(e - s, off);
-                vertices[slot_id].ptr = ptr;
-
-                // insert edges
-                for (uint64_t i = s; i < e; i++)
-                    edges[off++].val = pso[i].o;
-
-                collect_idx_info(slot_id);
-                s = e;
-            }
-            logger(LOG_DEBUG, "Thread(%d): inserted predicate %d pso(%lu triples).",
-                   tid, pid, pso.size());
-        }
-        ASSERT_MSG(off <= segment.edge_start + segment.num_edges,
-                   "Seg[%lu|%lu|%lu]: #edges: %lu, edge_start: %lu, off: %lu",
-                   segid.index, segid.pid, segid.dir,
-                   segment.num_edges, segment.edge_start, off);
-        if (has_pos) {
-            const vector<triple_t> &pos = a->second;
-            while (type_triples < pos.size() && is_tpid(pos[type_triples].o))
-                type_triples++;
-
-            s = type_triples; // skip type triples
-            while (s < pos.size()) {
-                // predicate-based key (object + predicate)
-                uint64_t e = s + 1;
-                while ((e < pos.size())
-                        && (pos[s].o == pos[e].o)
-                        && (pos[s].p == pos[e].p)) { e++; }
-
-                // allocate a vertex and edges
-                ikey_t key = ikey_t(pos[s].o, pos[s].p, IN);
-
-                // insert a vertex
-                uint64_t slot_id = insert_key(key);
-                iptr_t ptr = iptr_t(e - s, off);
-                vertices[slot_id].ptr = ptr;
-
-                // insert edges
-                for (uint64_t i = s; i < e; i++)
-                    edges[off++].val = pos[i].s;
-
-                collect_idx_info(slot_id);
-                s = e;
-            }
-            logger(LOG_DEBUG, "Thread(%d): inserted predicate %d pos(%lu triples).",
-                   tid, pid, pos.size());
-        }
-
-        ASSERT_MSG(off <= segment.edge_start + segment.num_edges,
-                   "Seg[%lu|%lu|%lu]: #edges: %lu, edge_start: %lu, off: %lu",
-                   segid.index, segid.pid, segid.dir,
-                   segment.num_edges, segment.edge_start, off);
-    }
-
-    // insert attributes
-    void insert_attr(int tid, segid_t segid) {
-        auto &segment = rdf_seg_meta_map[segid];
-        sid_t aid = segid.pid;
-        int dir = segid.dir;
-
-        if (segment.num_edges == 0) {
-            logger(LOG_DEBUG, "Segment(%d|%d|%d) is empty.\n",
-                   segid.index, segid.pid, segid.dir);
-            return;
-        }
-
-        // get OUT edges and IN edges from triples map
-        tbb_triple_attr_hash_map::accessor a;
-        bool success = attr_triples_map.find(a, ikey_t(0, aid, (dir_t) dir));
-        ASSERT(success);
-        vector<triple_attr_t> &asv = a->second;
-        uint64_t off = segment.edge_start;
-        int type = attr_type_map[aid];
-        uint64_t sz = (get_sizeof(type) - 1) / sizeof(edge_t) + 1;   // get the ceil size;
-
-        for (auto &attr : asv) {
-            // allocate a vertex and edges
-            ikey_t key = ikey_t(attr.s, attr.a, OUT);
-
-            // insert a vertex
-            uint64_t slot_id = insert_key(key);
-            iptr_t ptr = iptr_t(sz, off, type);
-            vertices[slot_id].ptr = ptr;
-
-            // insert edges
-            switch (type) {
-            case INT_t:
-                *(int *)(edges + off) = boost::get<int>(attr.v);
-                break;
-            case FLOAT_t:
-                *(float *)(edges + off) = boost::get<float>(attr.v);
-                break;
-            case DOUBLE_t:
-                *(double *)(edges + off) = boost::get<double>(attr.v);
-                break;
-            default:
-                logstream(LOG_ERROR) << "Unsupported value type of attribute" << LOG_endl;
-            }
-            off += sz;
-        }
-
-        ASSERT(off <= segment.edge_start + segment.num_edges);
-    }
 
     /**
      * insert {predicate index OUT, t_set*, p_set*}
@@ -387,13 +243,6 @@ public:
 
         uint64_t start, end;
         start = timer::get_usec();
-        // merge triple_pso and triple_pos into a map
-        init_triples_map(triple_pso, triple_pos, triple_sav);
-        end = timer::get_usec();
-        logstream(LOG_DEBUG) << "#" << sid << ": " << (end - start) / 1000 << "ms "
-                             << "for merging triple_pso, triple_pos and triple_sav." << LOG_endl;
-
-        start = timer::get_usec();
         init_seg_metas(triple_pso, triple_pos, triple_sav);
         end = timer::get_usec();
         logstream(LOG_DEBUG) << "#" << sid << ": " << (end - start) / 1000 << "ms "
@@ -404,8 +253,9 @@ public:
         #pragma omp parallel for num_threads(Global::num_engines)
         for (int tid = 0; tid < Global::num_engines; tid++) {
             insert_vp(tid, triple_pso[tid], triple_pos[tid]);
-            vector<triple_t>().swap(triple_pso[tid]);
-            vector<triple_t>().swap(triple_pos[tid]);
+            // Re-sort triples array by pso to accelarate normal triples insert. 
+            sort(triple_pso[tid].begin(), triple_pso[tid].end(), triple_sort_by_pso());
+            sort(triple_pos[tid].begin(), triple_pos[tid].end(), triple_sort_by_pos());
         }
         end = timer::get_usec();
         logstream(LOG_DEBUG) << "#" << sid << ": " << (end - start) / 1000 << "ms "
@@ -415,25 +265,27 @@ public:
 
         start = timer::get_usec();
         logstream(LOG_DEBUG) << "#" << sid << ": all_local_preds: " << all_local_preds.size() << LOG_endl;
+        // insert normal triples
+        auto out_triple_map = init_triple_map(triple_pso);
+        auto in_triple_map = init_triple_map(triple_pos);
         #pragma omp parallel for num_threads(Global::num_engines)
         for (int i = 0; i < all_local_preds.size(); i++) {
             int localtid = omp_get_thread_num();
             sid_t pid = all_local_preds[i];
-            insert_triples(localtid, segid_t(0, pid, OUT));
-            insert_triples(localtid, segid_t(0, pid, IN));
+            insert_triples(localtid, segid_t(0, pid, OUT), out_triple_map, triple_pso);
+            insert_triples(localtid, segid_t(0, pid, IN), in_triple_map, triple_pos);
         }
 
         vector<sid_t> aids;
         for (auto iter = attr_set.begin(); iter != attr_set.end(); iter++)
             aids.push_back(*iter);
 
+        auto attr_map = init_triple_map(triple_sav);
         #pragma omp parallel for num_threads(Global::num_engines)
         for (int i = 0; i < aids.size(); i++) {
             int localtid = omp_get_thread_num();
-            insert_attr(localtid, segid_t(0, aids[i], OUT));
+            insert_attr(localtid, segid_t(0, aids[i], OUT), attr_map, triple_sav);
         }
-        vector<sid_t>().swap(aids);
-
 
         // insert type-index edges in parallel
         #pragma omp parallel for num_threads(Global::num_engines)
