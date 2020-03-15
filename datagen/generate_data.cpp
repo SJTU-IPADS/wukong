@@ -83,10 +83,8 @@ string find_value(string str) {
 int
 main(int argc, char** argv)
 {
-    unordered_map<string, int64_t> str_to_id;
-    vector<string> normal_str;  // normal-vertex id table (vid)
-    vector<string> index_str;   // index-vertex (i.e, predicate or type) id  table (p/tid)
-    vector<string> attr_index_str; // index-vertex (i.e attr predicate)
+    unordered_map<string, int64_t> str2id_normal;  // normal-vertex id table (vid)
+    unordered_map<string, int64_t> str2id_index;   // index-vertex (i.e, predicate or type) id table (p/tid)
     unordered_map<string, int> index_to_type; //store the attr_index type mapping
 
     if (argc != 3) {
@@ -111,12 +109,10 @@ main(int argc, char** argv)
     }
 
     // reserve t/pid[0] to predicate-index
-    str_to_id["__PREDICATE__"] = 0;
-    index_str.push_back("__PREDICATE__");
+    str2id_index["__PREDICATE__"] = 0;
 
     // reserve t/pid[1] to type-index
-    str_to_id["<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"] = 1;
-    index_str.push_back("<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>");
+    str2id_index["<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"] = 1;
 
     // reserve the first two ids for the class of index vertex (i.e, predicate and type)
     int64_t next_index_id = 2;
@@ -151,21 +147,19 @@ main(int argc, char** argv)
             int type = 0;
             // the attr triple
             if ((type = find_type(object)) != 0) {
-                if (str_to_id.find(subject) == str_to_id.end()) {
-                    str_to_id[subject] = next_normal_id;
+                if (str2id_normal.find(subject) == str2id_normal.end()) {
+                    str2id_normal[subject] = next_normal_id;
                     next_normal_id ++;
-                    normal_str.push_back(subject);
                 }
-                if (str_to_id.find(predicate) == str_to_id.end()) {
-                    str_to_id[predicate] = next_index_id;
+                if (str2id_index.find(predicate) == str2id_index.end()) {
+                    str2id_index[predicate] = next_index_id;
                     next_index_id ++;
-                    attr_index_str.push_back(predicate);
-                    index_to_type [predicate] = type;
+                    index_to_type[predicate] = type;
                 }
                 string obj = find_value(object);
 
-                attr_file << str_to_id[subject] << "\t"
-                          << str_to_id[predicate] << "\t"
+                attr_file << str2id_normal[subject] << "\t"
+                          << str2id_index[predicate] << "\t"
                           << type << "\t" << obj << endl;
 
                 //the normal triple
@@ -194,40 +188,41 @@ main(int argc, char** argv)
                 }
 
                 // add a new normal vertex (i.e., vid)
-                if (str_to_id.find(subject) == str_to_id.end()) {
-                    str_to_id[subject] = next_normal_id;
+                if (str2id_normal.find(subject) == str2id_normal.end()) {
+                    str2id_normal[subject] = next_normal_id;
                     next_normal_id ++;
-                    normal_str.push_back(subject);
+                    //normal_str.push_back(subject);
                 }
                 // add a new (predicate) index vertex (i.e., pid)
-                if (str_to_id.find(predicate) == str_to_id.end()) {
-                    str_to_id[predicate] = next_index_id;
+                if (str2id_index.find(predicate) == str2id_index.end()) {
+                    str2id_index[predicate] = next_index_id;
                     next_index_id ++;
-                    index_str.push_back(predicate);
+                    //index_str.push_back(predicate);
                 }
 
+                bool is_type_index = (predicate == "<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>");
                 // treat different types as individual indexes
-                if (predicate == "<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>") {
+                if (is_type_index) {
                     // add a new (type) index vertex (i.e., tidx)
-                    if (str_to_id.find(object) == str_to_id.end()) {
-                        str_to_id[object] = next_index_id;
+                    if (str2id_index.find(object) == str2id_index.end()) {
+                        str2id_index[object] = next_index_id;
                         next_index_id ++;
-                        index_str.push_back(object);
+                        //index_str.push_back(object);
                     }
                 } else {
                     // add a new normal vertex (i.e., vid)
-                    if (str_to_id.find(object) == str_to_id.end()) {
-                        str_to_id[object] = next_normal_id;
+                    if (str2id_normal.find(object) == str2id_normal.end()) {
+                        str2id_normal[object] = next_normal_id;
                         next_normal_id ++;
-                        normal_str.push_back(object);
+                        //normal_str.push_back(object);
                     }
                 }
 
                 // write (id-format) output file
                 int64_t triple[3];
-                triple[0] = str_to_id[subject];
-                triple[1] = str_to_id[predicate];
-                triple[2] = str_to_id[object];
+                triple[0] = str2id_normal[subject];
+                triple[1] = str2id_index[predicate];
+                triple[2] = (is_type_index) ? str2id_index[object] : str2id_normal[object];
                 ofile << triple[0] << "\t" << triple[1] << "\t" << triple[2] << endl;
             }
         }
@@ -237,30 +232,31 @@ main(int argc, char** argv)
     /* build ID-mapping (str2id) table file for normal vertices */
     {
         ofstream f_normal((string(ddir_name) + "/str_normal").c_str());
-        for (int64_t i = 0; i < normal_str.size(); i++)
-            f_normal << normal_str[i] << "\t" << str_to_id[normal_str[i]] << endl;
+        for (auto it : str2id_normal) 
+            f_normal << it.first << "\t" << it.second << endl;
     }
 
     /* build ID-mapping (str2id) table file for index vertices */
     {
         ofstream f_index((string(ddir_name) + "/str_index").c_str());
-        for (int64_t i = 0; i < index_str.size(); i++)
-            f_index << index_str[i] << "\t" << str_to_id[index_str[i]] << endl;
+        for (auto it : str2id_index)
+            f_index << it.first << "\t" << it.second << endl;
     }
 
     /* build ID-mapping (str2id) table file for attr vertices */
+    if (!str2id_index.empty())
     {
         ofstream f_attr((string(ddir_name) + "/str_attr_index").c_str());
-        for (int64_t i = 0; i < attr_index_str.size(); i++)
-            f_attr << attr_index_str[i] << "\t"
-                   << str_to_id[attr_index_str[i]] << "\t"
-                   << index_to_type[attr_index_str[i]] << endl;
+        for (auto it : index_to_type)
+            f_attr << it.first << "\t"
+                   << str2id_index[it.first] << "\t"
+                   << it.second << endl;
     }
 
-    cout << "#total_vertex = " << str_to_id.size() << endl;
-    cout << "#normal_vertex = " << normal_str.size() << endl;
-    cout << "#index_vertex = " << index_str.size() << endl;
-    cout << "#attr_vertex = " << attr_index_str.size() << endl;
+    cout << "#total_vertex = " << str2id_normal.size() + str2id_index.size() << endl;
+    cout << "#normal_vertex = " << str2id_normal.size() << endl;
+    cout << "#index_vertex = " << str2id_index.size() << endl;
+    cout << "#attr_vertex = " << index_to_type.size() << endl;
 
     return 0;
 }
