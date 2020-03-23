@@ -30,7 +30,23 @@ Assume we want to convert RDF/XML format files to N-Triples, and the file name i
 $JENA_HOME/bin/riot --syntax=RDF/XML --output=N-Triples SRC.owl > OUT.nt
 ```
 
+When there are many RDF/XML format files to convert, you can use our tool: convert.py.
+Assume the directory of RDF/XML format files is rdf_dir. The output directory is nt_dir. The number of files to convert is 40.
+
+```bash
+$python convert.py -i rdf_dir -s 40 -o nt_dir
+```
+
 ### Step 2: Convert N-Triples to ID-Triples
+
+Use python tool, the convert project will be tried for times until all encoding completes.
+It can recover from failure automatically. Suppose input directory is nt_dir and output directory is id_dir.
+
+```bash
+$python encode.py -i nt_dir -o id_dir.
+```
+
+Or, you can do it manually.
 
 **Step 2.1: Compile the code**
 
@@ -49,6 +65,8 @@ Process No.2 input file: uni0.nt.
 #total_vertex = 58455
 #normal_vertex = 58421
 #index_vertex = 34
+$cd id_lubm_2
+$rm log*
 $ls id_lubm_2
 id_uni0.nt  id_uni1.nt  str_index  str_normal
 ```
