@@ -55,6 +55,11 @@ typedef unordered_map<string, int64_t> table64_t;
 typedef unordered_map<string, int> table_t;
 
 class Encoder{
+    // Skip strings which indicate comments in RDF/XML files.
+    const vector<string> skip_strs = 
+            {"<http://www.w3.org/2002/07/owl#Ontology>",
+             "<http://www.w3.org/2002/07/owl#imports>"};
+
     string sdir_name;  // source directory
     string ddir_name;  // destination directory
 
@@ -218,6 +223,14 @@ class Encoder{
         }
     }
 
+    bool skip_triple(string &sub, string &pre, string &obj) {
+        for (auto s : skip_strs) {
+            if (sub == s || pre == s || obj == s)
+                return true;
+        }
+        return false;
+    }
+
     void process_file(string fname) {
         ifstream ifile((string(sdir_name) + "/" + fname).c_str());
         ofstream ofile((string(ddir_name) + "/id_" + fname).c_str());
@@ -236,6 +249,8 @@ class Encoder{
                 str_to_str[prekey] = object;
                 continue;
             }
+            if (skip_triple(subject, predicate, object))
+                continue;
 
             int type = 0;
             // the attr triple
@@ -274,6 +289,10 @@ class Encoder{
                         object = prev.substr(0, prev.size()-1) + lefts + '>';
                     }
                 }
+
+                // skip triples replacing prefix
+                if (skip_triple(subject, predicate, object))
+                    continue;
 
                 // add a new normal vertex (i.e., vid)
                 i64 sid = insert(normal_table, local_normal_table, subject, next_normal_id);
