@@ -22,6 +22,7 @@ include_directories(deps/boost_1_67_0-install/include)
 include_directories(core)
 include_directories(utils)
 include_directories(rdma_lib)
+include_directories(deps/eigen-3.3.7)
 include_directories(deps/googletest/googletest/include)
 
 ## Add sub-directories
