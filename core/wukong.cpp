@@ -33,7 +33,7 @@
 #include "proxy.hpp"
 #include "console.hpp"
 #include "rdma.hpp"
-#include "stats.hpp"
+#include "optimizer/stats.hpp"
 
 #include "engine/engine.hpp"
 #include "comm/adaptor.hpp"
