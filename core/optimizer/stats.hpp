@@ -451,7 +451,7 @@ public:
 
         if (iter == local_type2int.end()) {
             ssid_t number = local_type2int.size();
-            number ++;
+            number++;
             number = -number;
             local_type2int[type] = number;
             local_int2type[number] = type;
@@ -508,7 +508,10 @@ public:
             // if(index_composition.size() == 0){
             //     cout << "empty index, may be type" << endl;
             // }
-            return get_simple_type(type);
+            ssid_t result;
+            #pragma omp critical
+            result = get_simple_type(type);
+            return result;
         };
 
         //use type_composition as type of no_type
@@ -519,7 +522,10 @@ public:
                 type_composition.insert(res[i].val);
 
             type.set_type_composition(type_composition);
-            return get_simple_type(type);
+            ssid_t result;
+            #pragma omp critical
+            result = get_simple_type(type);
+            return result;
         };
 
         // return success or not, because one id can only be recorded once
@@ -537,14 +543,12 @@ public:
             }
         };
 
-        int percent_number = 1;
-        for (uint64_t bucket_id = 0; bucket_id < gstore->num_buckets + gstore->num_buckets_ext; bucket_id++) {
-            // print progress percent info
-            if (bucket_id * 1.0 / (gstore->num_buckets + gstore->num_buckets_ext) > percent_number * 1.0 / 10) {
-                logstream(LOG_INFO) << "#" << sid << ": already generate statistics " << percent_number << "0%" << LOG_endl;
-                percent_number ++;
-            }
-
+        volatile uint64_t bucket_number = 0;
+        volatile uint32_t percent_number = 1;
+        uint64_t total_buckets = gstore->num_buckets + gstore->num_buckets_ext;
+        
+        #pragma omp parallel for num_threads(Global::num_engines)
+        for (uint64_t bucket_id = 0; bucket_id < total_buckets; bucket_id++) {
             uint64_t slot_id = bucket_id * gstore->ASSOCIATIVITY;
             for (int i = 0; i < gstore->ASSOCIATIVITY - 1; i++, slot_id++) {
                 // skip empty slot
@@ -589,15 +593,18 @@ public:
                     } else {
                         if (type_sz == 0) {
                             type = generate_no_type(vid);
+                            #pragma omp critical
                             insert_no_type_count(vid, type);
                         } else {
                             type = res[0].val;
                         }
                     }
-
+                    #pragma omp critical 
+                    {
                     ty_stat.insert_otype(pid, type, 1);
                     for (int j = 0; j < res_type.size(); j++)
                         ty_stat.insert_finetype(pid, type, res_type[j], 1);
+                    }
                 } else {
                     // no_type only need to be counted in one direction (using OUT)
                     // get types of values found by key (Objects)
@@ -633,16 +640,19 @@ public:
                     } else {
                         if (type_sz == 0) {
                             type = generate_no_type(vid);
+                            #pragma omp critical
                             insert_no_type_count(vid, type);
                         } else {
                             type = res[0].val;
                         }
                     }
-
+                    #pragma omp critical 
+                    {
                     ty_stat.insert_stype(pid, type, 1);
                     for (int j = 0; j < res_type.size(); j++)
                         ty_stat.insert_finetype(type, pid, res_type[j], 1);
-
+                    }
+                    
                     // count type predicate
                     if (pid == TYPE_ID) {
                         // multi-type
@@ -653,23 +663,38 @@ public:
                                 type_composition.insert(gstore->edges[off + i].val);
 
                             complex_type.set_type_composition(type_composition);
+                            #pragma omp critical 
+                            {
                             ssid_t type_number = get_simple_type(complex_type);
 
                             if (tyscount.find(type_number) == tyscount.end())
                                 tyscount[type_number] = 1;
                             else
                                 tyscount[type_number]++;
+                            }
                         } else if (sz == 1) { // single type
                             sid_t obid = gstore->edges[off].val;
-
+                            #pragma omp critical 
+                            {
                             if (tyscount.find(obid) == tyscount.end())
                                 tyscount[obid] = 1;
                             else
                                 tyscount[obid]++;
+                            }
                         }
                     }
                 }
             }
+
+            // print progress percent info
+            if ((bucket_number * 1.0 / total_buckets) > percent_number * 1.0 / 10) {
+                uint32_t now = wukong::atomic::add_and_fetch(&percent_number, 1);
+                logstream(LOG_INFO)
+                    << "#" << sid << ": already generate statistics "
+                    << (now-1) << "0%" << LOG_endl;
+                
+            }
+            wukong::atomic::add_and_fetch(&bucket_number, 1);
         }
 
         logstream(LOG_INFO) << "server#" << sid << ": generating stats is finished." << endl;
