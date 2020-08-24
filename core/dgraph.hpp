@@ -118,7 +118,7 @@ public:
         attr_t r;
 
         // get the pointer of edge
-        edge_t *edge_ptr = gstore->get_edges(tid, vid, pid, d, sz, type);
+        edge_t *edge_ptr = gstore->get_edges(tid, vid, pid, d, sz, &type);
         if (edge_ptr == NULL) {
             has_value = false; // not found
             return r;

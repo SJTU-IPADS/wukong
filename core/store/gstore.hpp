@@ -355,7 +355,7 @@ protected:
     // Get remote edges according to given vid, pid, d.
     // @sz: size of return edges
     edge_t *get_edges_remote(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t &sz,
-                             int &type = *(int *)NULL) {
+                             int *type = NULL) {
         ikey_t key = ikey_t(vid, pid, d);
         vertex_t v = get_vertex_remote(tid, key);
 
@@ -375,15 +375,15 @@ protected:
         }
 
         sz = v.ptr.size;
-        if (&type != NULL)
-            type = v.ptr.type;
+        if (type != NULL)
+            *type = v.ptr.type;
         return edge_ptr;
     }
 
     // Get local edges according to given vid, pid, d.
     // @sz: size of return edges
     edge_t *get_edges_local(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t &sz,
-                            int &type = *(int *)NULL) {
+                            int *type = NULL) {
         ikey_t key = ikey_t(vid, pid, d);
         vertex_t v = get_vertex_local(tid, key);
 
@@ -396,8 +396,8 @@ protected:
         edge_t *edge_ptr = &(edges[v.ptr.off]);
 
         sz = v.ptr.size;
-        if (&type != NULL)
-            type = v.ptr.type;
+        if (type != NULL)
+            *type = v.ptr.type;
         return edge_ptr;
     }
 
@@ -1142,7 +1142,7 @@ public:
 
     // FIXME: refine return value with type of subject/object
     edge_t *get_edges(int tid, sid_t vid, sid_t pid, dir_t d, uint64_t &sz,
-                      int &type = *(int *)NULL) {
+                      int *type = NULL) {
         // index vertex should be 0 and always local
         if (vid == 0)
             return get_edges_local(tid, 0, pid, d, sz);
