@@ -1,19 +1,17 @@
+## Set root directory of Wukong
+set(ROOT $ENV{WUKONG_ROOT})
+set(CMAKE_CXX_COMPILER ${ROOT}/deps/openmpi-1.6.5-install/bin/mpic++)
+
 project (wukong)
 
 ## CMake version
 cmake_minimum_required(VERSION 2.8)
-
-
-## Set root directory of Wukong
-set(ROOT $ENV{WUKONG_ROOT})
-
 
 ## Use C++11 features
 add_definitions(-std=c++11)
 
 
 ## Set dependencies
-set(CMAKE_CXX_COMPILER ${ROOT}/deps/openmpi-1.6.5-install/bin/mpic++)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -fopenmp")
 set(BOOST_LIB "${ROOT}/deps/boost_1_67_0-install/lib")
 
