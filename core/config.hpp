@@ -139,6 +139,8 @@ static bool set_mutable_config(string cfg_name, string value)
         Global::silent = atoi(value.c_str());
     } else if (cfg_name == "global_enable_planner") {
         Global::enable_planner = atoi(value.c_str());
+    } else if (cfg_name == "global_enable_budget") {
+        Global::enable_budget = atoi(value.c_str());
     } else if (cfg_name == "global_enable_vattr") {
         Global::enable_vattr = atoi(value.c_str());
     } else if (cfg_name == "global_gpu_enable_pipeline") {
@@ -262,6 +264,7 @@ void print_config(void)
     cout << "global_silent: "                << Global::silent                << LOG_endl;
     cout << "global_enable_planner: "        << Global::enable_planner        << LOG_endl;
     cout << "global_generate_statistics: "   << Global::generate_statistics   << LOG_endl;
+    cout << "global_enable_budget: "         << Global::enable_budget         << LOG_endl;
     cout << "global_enable_vattr: "          << Global::enable_vattr          << LOG_endl;
     cout << "global_num_gpus: "              << Global::num_gpus              << LOG_endl;
     cout << "global_gpu_rdma_buf_size_mb: "  << Global::gpu_rdma_buf_size_mb  << LOG_endl;

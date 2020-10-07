@@ -58,6 +58,7 @@ public:
 
     static bool enable_planner __attribute__((weak));
     static bool generate_statistics __attribute__((weak));
+    static bool enable_budget __attribute__((weak));
 
     static bool enable_vattr __attribute__((weak));
 
@@ -100,7 +101,8 @@ int Global::stealing_pattern = 0;  // 0 = pair stealing,  1 = ring stealing
 bool Global::silent = true;  // don't take back results by default
 
 bool Global::enable_planner = true;  // for planner
-bool Global::generate_statistics = true;
+bool Global::generate_statistics = true;  // for planner
+bool Global::enable_budget = true;  // for planner
 
 bool Global::enable_vattr = false;  // for attr
 

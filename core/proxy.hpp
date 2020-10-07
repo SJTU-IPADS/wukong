@@ -30,8 +30,8 @@
 #include "coder.hpp"
 #include "query.hpp"
 #include "parser.hpp"
-#include "planner.hpp"
-#include "stats.hpp"
+#include "optimizer/planner.hpp"
+#include "optimizer/stats.hpp"
 #include "string_server.hpp"
 #include "monitor.hpp"
 
@@ -311,6 +311,7 @@ public:
         }
         end = timer::get_usec();
         logstream(LOG_INFO) << "Parsing time: " << (end - start) << " usec" << LOG_endl;
+        request.mt_factor = min(mt_factor, Global::mt_threshold);
 
         // Generate query plan if SPARQL optimizer is enabled.
         // FIXME: currently, the optimizater only works for standard SPARQL query.
@@ -331,8 +332,6 @@ public:
             planner.set_plan(request.pattern_group, fmt_stream);
             logstream(LOG_INFO) << "User-defined query plan is enabled" << LOG_endl;
         }
-
-        request.mt_factor = min(mt_factor, Global::mt_threshold);
 
         // Print a WARNING to enable multi-threading for potential (heavy) query
         // TODO: optimizer could recognize the real heavy query
