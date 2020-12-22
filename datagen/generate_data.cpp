@@ -39,8 +39,8 @@
  * transfer str-format RDF data into id-format RDF data (triple rows)
  *
  * A simple manual
- *  $g++ -std=c++11 encode_data.cpp -o encode_data
- *  $./encode_data lubm_raw_40 id_lubm_40
+ *  $g++ -std=c++11 generate_data.cpp -o generate_data
+ *  $./generate_data lubm_raw_40 id_lubm_40
  */
 
 using namespace std;
@@ -383,7 +383,7 @@ public:
         cout << "#index_vertex = " << index_table.size() << endl;
         cout << "#attr_vertex = " << type_table.size() << endl;
 
-        ofstream output((ddir_name + "/log.txt"));
+        ofstream output((ddir_name + "commit"));
         output << "Encoding nt_triple format file to id format completes." << endl;
         output << "#total_vertex = " << normal_table.size() + index_table.size() << endl;
         output << "#normal_vertex = " << normal_table.size() << endl;

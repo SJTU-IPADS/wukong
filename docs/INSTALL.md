@@ -249,49 +249,10 @@ PROPERTY INSTANCE #: 6896, TOTAL SO FAR: 6896
 ```
 
 
-##### Step 2: *Convert LUBM datasets to NT format*
+##### Step 2: *Convert LUBM datasets to ID-Triples format
+[Convert_Tutorials](../datagen/README.md)
 
-1) [Download](https://jena.apache.org/download/index.cgi) the riot tool provided by Apache Jena. Then uncompress it. Assume the path to Jena is `JENA_HOME`. It is not necessary to set the environment variable.
-
-The code below is an example of this step.
-
-```bash
-$cd ~;
-$wget http://mirrors.tuna.tsinghua.edu.cn/apache/jena/binaries/apache-jena-3.13.1.tar.gz
-$tar zxvf apache-jena-3.13.1.tar.gz
-```
-
-2) Generate LUBM dataset (2 Universities) with N-Triples format.
-
-```bash
-$cd ~/uba1.7
-$JENA_HOME/bin/riot -output=N-Triples University0_*.owl >> uni0.nt
-$JENA_HOME/bin/riot -output=N-Triples University1_*.owl >> uni1.nt
-```
-
-Each row in LUBM dataset with N-Triples format (e.g., `uni0.nt`) consists of subject (S), predicate (P), object (O), and '.', like`<http://www.University97.edu> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://swat.cse.lehigh.edu/onto/univ-bench.owl#University> .`.
-
-
-##### Step 3: *Convert N-Triples format datasets to ID format*
-
-```bash
-$cd ${WUKONG_ROOT}/datagen;
-$g++ -std=c++11 generate_data.cpp -o generate_data
-$mkdir nt_lubm_2
-$mv ~/uba1.7/uni*.nt nt_lubm_2/
-$./generate_data nt_lubm_2 id_lubm_2
-Process No.1 input file: uni1.nt.
-Process No.2 input file: uni0.nt.
-#total_vertex = 58455
-#normal_vertex = 58421
-#index_vertex = 34
-$ls id_lubm_2
-id_uni0.nt  id_uni1.nt  str_index  str_normal
-```
-
-Each row in LUBM dataset with ID format (e.g., `id_uni0.nt`) consists of the 3 IDs (non-negative integer), like `132323  1  16`. `str_index` and `str_normal` store the mapping from string to ID for index (e.g., predicate) and normal (e.g., subject and object) entities respectively.
-
-##### Step 4: *Load LUBM datasets by Wukong*
+##### Step 3: *Load LUBM datasets by Wukong*
 
 Move dataset (e.g., `id_lubm_2`) to a distributed FS (e.g., NFS and HDFS), which can be accessed by all machines in your cluster, and update the `global_input_folder` in `config` file.
 

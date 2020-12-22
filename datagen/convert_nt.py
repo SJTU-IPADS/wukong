@@ -4,7 +4,7 @@ import getopt
 
 def usage():
     print('usage:')
-    print(' python convert.py [Options] -i <input directory> -o <output directory>')
+    print(' python convert_nt.py [Options] -i <input directory> -o <output directory>')
     
 def main():    
 #get args
@@ -29,16 +29,18 @@ def main():
         usage()
         sys.exit()
 
-    #compile encode project
+    if os.path.exists(output_dir) == False:
+        os.system('mkdir ' + output_dir)
+
     os.system('g++ generate_data.cpp -o generate_data -std=c++11')
 
-    #keep run encode project until it completes
-    while (os.path.exists(output_dir + '/log.txt') == False):
+    #Keep run generate_data project until it succeeds.
+    while (os.path.exists(output_dir + '/commit') == False):
         os.system('./generate_data ' + input_dir + ' ' + output_dir)
    
     os.system('rm ' + output_dir + '/log')
-    os.system('rm ' + output_dir + '/log.txt')
-    print('Encode to id data completes.\n')
+    os.system('rm ' + output_dir + '/commit')
+    print('Convert from N-Triples to ID-Triples is done.\n')
 
 if __name__ == "__main__":
     main()

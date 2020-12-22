@@ -4,10 +4,9 @@ import getopt
 
 def usage():
     print('usage:')
-    print(' python convert.py [Options] -i <input directory> -s <data size>')
+    print(' python convert_rdf.py [Options] -i <input directory> -o <output directory> -s <data size>')
     print('Options:')
     print('  -r/--remove    Remove input files and directory')
-    print('  -o/--output <output directory> Output directory is under input directory by defaul')
     
 #get jena
 def get_jena():
@@ -18,15 +17,15 @@ def get_jena():
         os.system('rm apache-jena-3.13.1.tar.gz')
     return jena
  
-def main():    
+def main():
 #get args
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hi:s:ro:", ["help", "input=", "size=", "remove", "output="])
+        opts, args = getopt.getopt(sys.argv[1:], "hi:o:s:r", ["help", "input=", "output=", "size=", "remove"])
     except getopt.GetoptError:  
         usage()
         sys.exit(2)
     input_dir = None
-    nt_dir = None
+    output_dir = None
     size = 0
     remove_input = False
     for o, a in opts:
@@ -36,7 +35,7 @@ def main():
         elif o in ("-i", "--input"):
             input_dir = a
         elif o in ("-o", "--output"):
-            nt_dir = a
+            output_dir = a
         elif o in ("-s", "--size"):
             size = a
         elif o in ("-r", "--remove"):
@@ -48,24 +47,20 @@ def main():
         sys.exit()
 
     jena = get_jena()
-    
-    if nt_dir == None:
-        nt_dir = input_dir + '/nt_lubm_' + size
-    print(nt_dir)
-    #prepare to convert to NT format
-    if os.path.exists(nt_dir) == False:
-        os.system('mkdir ' + nt_dir)
+
+    if os.path.exists(output_dir) == False:
+        os.system('mkdir ' + output_dir)
     
     #transfer to NT format
     for i in range(0, int(size)):
         rdf_file = input_dir + '/University' + str(i) + '_*.owl'
-        uni_file = nt_dir + '/uni' + str(i) + '.nt'
+        uni_file = output_dir + '/uni' + str(i) + '.nt'
         os.system(jena + ' -output=N-Triples ' + rdf_file + ' >> ' + uni_file)
         if remove_input:
             os.system('rm ' + rdf_file)
         print('transfer uni' + str(i))
 
-    print('Convert to NT format data completes.\n')
+    print('Convert from RDF data to NT format data is done.\n')
 
 if __name__ == "__main__":
     main()
