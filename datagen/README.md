@@ -42,6 +42,8 @@ Assume we want to convert LUBM dataset (2 Universities) to N-Triples format. Ass
 
 ```bash
 $python convert_rdf.py -i ~/wukong/lubm_rdf -o ~/wukong/lubm_nt -s 2 -p University -w uni
+...
+Convert from RDF data to NT format data is done.
 $ls ~/wukong/lubm_nt
 uni0.nt  uni1.nt
 ```
@@ -59,7 +61,6 @@ We use a command-line tool called riot (provided by Apache Jena) to convert any 
 The code below is an example of this step.
 
 ```bash
-$cd ~;
 $wget http://mirrors.tuna.tsinghua.edu.cn/apache/jena/binaries/apache-jena-3.17.0.tar.gz
 $tar zxvf apache-jena-3.17.0.tar.gz
 ```
@@ -89,13 +90,19 @@ It will be tried automatically for times until convert of all the data completes
 
 Assume we want to convert LUBM dataset (2 Universities) from N-Triples format to ID Triples format.
 Assume input directory is `~/wukong/lubm_nt` and output directory is `~/wukong/lubm_id`.
+Since we do not add attribute data, so result files with `attr` are all empty.
 
 ```bash
-$python convert_nt.py -i ~/wukong/lubm_nt -o ~/wukong/lubm_id.
-.....
-
+$python convert_nt.py -i ~/wukong/lubm_nt -o ~/wukong/lubm_id
+Process No.0 input file: uni1.nt.
+Process No.1 input file: uni0.nt.
+#total_vertex = 58418
+#normal_vertex = 58386
+#index_vertex = 32
+#attr_vertex = 0
+Convert from N-Triples to ID-Triples is done.
 $ls ~/wukong/lubm_id
-id_uni0.nt  id_uni1.nt  str_index  str_normal
+attr_uni0.nt  attr_uni1.nt  id_uni0.nt  id_uni1.nt  str_attr_index  str_index  str_normal
 ```
 
 Or, you can do it manually.
@@ -119,9 +126,10 @@ Process No.2 input file: uni0.nt.
 #total_vertex = 58455
 #normal_vertex = 58421
 #index_vertex = 34
+#attr_vertex = 0
 $rm ~/wukong/lubm_id/log*
 $ls ~/wukong/lubm_id
-id_uni0.nt  id_uni1.nt  str_index  str_normal
+attr_uni0.nt  attr_uni1.nt  id_uni0.nt  id_uni1.nt  str_attr_index  str_index  str_normal
 ```
 <a name="attribute"></a>
 
@@ -138,9 +146,11 @@ Modify the LUBM dataset to add attribute data.
 
 Arguments of ./add_attribute are the input directory(nt format directory) and the output directory(attribute triple directory).
 
-Assume the path to the input data is `INPUT` and the output path is `OUTPUT`.
+Assume the path to the input data is `~/wukong/lubm_nt` and the output path is `~/wukong/lubm_attr_nt`.
 
 ```
-$./add_attribute INPUT OUTPUT
+$./add_attribute ~/wukong/lubm_nt ~/wukong/lubm_attr_nt
+Process No.1 input file: uni1.nt.
+Process No.2 input file: uni0.nt.
 ```
 Then transform data from NT format to ID format, like [Convert data](#convert)
