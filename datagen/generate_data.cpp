@@ -383,7 +383,7 @@ public:
         cout << "#index_vertex = " << index_table.size() << endl;
         cout << "#attr_vertex = " << type_table.size() << endl;
 
-        ofstream output((ddir_name + "commit"));
+        ofstream output((ddir_name + "log_commit"));
         output << "Encoding nt_triple format file to id format completes." << endl;
         output << "#total_vertex = " << normal_table.size() + index_table.size() << endl;
         output << "#normal_vertex = " << normal_table.size() << endl;

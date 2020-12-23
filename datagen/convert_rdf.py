@@ -55,7 +55,7 @@ def main():
     for i in range(0, int(size)):
         rdf_file = input_dir + '/University' + str(i) + '_*.owl'
         uni_file = output_dir + '/uni' + str(i) + '.nt'
-        os.system(jena + ' -output=N-Triples ' + rdf_file + ' >> ' + uni_file)
+        os.system(jena + ' --output=N-Triples ' + rdf_file + ' >> ' + uni_file)
         if remove_input:
             os.system('rm ' + rdf_file)
         print('transfer uni' + str(i))

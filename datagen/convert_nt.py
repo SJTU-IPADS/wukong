@@ -35,11 +35,11 @@ def main():
     os.system('g++ generate_data.cpp -o generate_data -std=c++11')
 
     #Keep run generate_data project until it succeeds.
-    while (os.path.exists(output_dir + '/commit') == False):
+    while (os.path.exists(output_dir + '/log_commit') == False):
         os.system('./generate_data ' + input_dir + ' ' + output_dir)
    
     os.system('rm ' + output_dir + '/log')
-    os.system('rm ' + output_dir + '/commit')
+    os.system('rm ' + output_dir + '/log_commit')
     print('Convert from N-Triples to ID-Triples is done.\n')
 
 if __name__ == "__main__":
