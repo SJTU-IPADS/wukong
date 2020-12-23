@@ -1,6 +1,6 @@
 # Data Tutorial
 
-Wukong adopts an ID-Triples format to represent RDF. This tutorial use [LUBM](http://swat.cse.lehigh.edu/projects/lubm) (SWAT Projects - the Lehigh University Benchmark) as an example to introduce how to convert other RDF formats to the ID-Triples format.
+Wukong adopts an ID-Triples format to represent RDF. This tutorial use [LUBM](http://swat.cse.lehigh.edu/projects/lubm) (SWAT Projects - the Lehigh University Benchmark) as an example to introduce how to convert other RDF formats to the ID-Triples format. Tutorial to generate LUBM dataset can refer to [INSTALLs](../docs/INSTALL.md), step 1 of preparing RDF datasets.
 
 ## Table of Contents
 * [Data pattern](#pattern)
@@ -28,11 +28,22 @@ Attribute triple pattern with the ID format(e.g.,attr_uni0.nt) consits of 4 IDs(
 
 ### Step 1: Convert RDF formats to N-Triples
 
-When there are many RDF/XML format files to convert, you can use our tool: convert.py.
-Assume the directory of RDF/XML format files is rdf_dir. The output directory is nt_dir. The number of files to convert is 40.
+Use the python tool (convert_rdf.py) to convert RDF format data to N-Triples format data.
 
 ```bash
-$python convert.py -i rdf_dir -s 40 -o nt_dir
+$python convert_rdf.py -h
+usage:
+ python convert_rdf.py [Options] -i <input directory> -o <output directory> -s <data size> -p <input prefix> -w <output prefix>
+Options:
+  -r/--remove    Remove input files in input directory
+```
+
+Assume we want to convert LUBM dataset (2 Universities) to N-Triples format. Assume the directory of RDF/XML format files is `~/wukong/lubm_rdf`. The output directory is `~/wukong/lubm_nt`. The prefix of input file is `University` and prefix of output file is `uni`.
+
+```bash
+$python convert_rdf.py -i ~/wukong/lubm_rdf -o ~/wukong/lubm_nt -s 2 -p University -w uni
+$ls ~/wukong/lubm_nt
+uni0.nt  uni1.nt
 ```
 
 Or, you can do it manually.
@@ -49,8 +60,8 @@ The code below is an example of this step.
 
 ```bash
 $cd ~;
-$wget http://mirrors.tuna.tsinghua.edu.cn/apache/jena/binaries/apache-jena-3.13.1.tar.gz
-$tar zxvf apache-jena-3.13.1.tar.gz
+$wget http://mirrors.tuna.tsinghua.edu.cn/apache/jena/binaries/apache-jena-3.17.0.tar.gz
+$tar zxvf apache-jena-3.17.0.tar.gz
 ```
 
 **Step 1.2 Convert to N-Triples**
@@ -63,21 +74,28 @@ Assume we want to convert RDF/XML format files to N-Triples, and the file name i
 $JENA_HOME/bin/riot --syntax=RDF/XML --output=N-Triples SRC.owl >> OUT.nt
 ```
 
-For example, assume we want to convert LUBM dataset (2 Universities) to N-Triples format. Assume the path to the input LUBM dataset is `INPUT` and the path to the output N-Triples data is `OUTPUT`.
+For example, assume we want to convert LUBM dataset (2 Universities) to N-Triples format. Assume the path to the input LUBM dataset is `~/wukong/lubm_rdf` and the path to the output N-Triples data is `~/wukong/lubm_nt`.
 
 
 ```bash
-$JENA_HOME/bin/riot --output=N-Triples INPUT/University0_*.owl >> OUTPUT/uni0.nt
-$JENA_HOME/bin/riot --output=N-Triples INPUT/University1_*.owl >> OUTPUT/uni1.nt
+$JENA_HOME/bin/riot --output=N-Triples ~/wukong/lubm_rdf/University0_*.owl >> ~/wukong/lubm_nt/uni0.nt
+$JENA_HOME/bin/riot --output=N-Triples ~/wukong/lubm_rdf/University1_*.owl >> ~/wukong/lubm_nt/uni1.nt
 ```
 
 ### Step 2: Convert N-Triples to ID-Triples
 
-Use python tool, the convert project will be tried for times until all encoding completes.
-It can recover from failure automatically. Suppose input directory is nt_dir and output directory is id_dir.
+Use python tool(convert_nt.py). The generate_data project can recover from failure automatically.
+It will be tried automatically for times until convert of all the data completes.
+
+Assume we want to convert LUBM dataset (2 Universities) from N-Triples format to ID Triples format.
+Assume input directory is `~/wukong/lubm_nt` and output directory is `~/wukong/lubm_id`.
 
 ```bash
-$python encode.py -i nt_dir -o id_dir.
+$python convert_nt.py -i ~/wukong/lubm_nt -o ~/wukong/lubm_id.
+.....
+
+$ls ~/wukong/lubm_id
+id_uni0.nt  id_uni1.nt  str_index  str_normal
 ```
 
 Or, you can do it manually.
@@ -90,20 +108,19 @@ $g++ -std=c++11 generate_data.cpp -o generate_data
 
 **Step 2.2: Convert**
 
-Arguments of ./generate_data are the input directory(nt format directory) and the output directory (id format directory). There exists extra log files in output directory. Remove it manually if necessary.
+Arguments of ./generate_data are the input directory(nt format directory) and the output directory (id format directory). There exists extra log files(file `log` and file `log_commit`) in output directory. File `log_commit` indicates the complishment of generate_data project. Remove it manually if necessary.
 
-For example, assume we want to convert LUBM dataset (2 Universities) from N-Triples format to ID Triples format. Assume the path to the input data is `INPUT` and the path to the output ID Triples data is `OUTPUT`.
+For example, assume we want to convert LUBM dataset (2 Universities) from N-Triples format to ID Triples format. Assume the path to the input data is `~/wukong/lubm_nt` and the path to the output ID Triples data is `~/wukong/lubm_id`.
 
 ```
-$./generate_data INPUT OUTPUT
+$./generate_data ~/wukong/lubm_nt ~/wukong/lubm_id
 Process No.1 input file: uni1.nt.
 Process No.2 input file: uni0.nt.
 #total_vertex = 58455
 #normal_vertex = 58421
 #index_vertex = 34
-$cd OUTPUT
-$rm log*
-$ls
+$rm ~/wukong/lubm_id/log*
+$ls ~/wukong/lubm_id
 id_uni0.nt  id_uni1.nt  str_index  str_normal
 ```
 <a name="attribute"></a>

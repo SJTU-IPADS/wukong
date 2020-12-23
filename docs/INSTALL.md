@@ -250,7 +250,7 @@ PROPERTY INSTANCE #: 6896, TOTAL SO FAR: 6896
 
 
 ##### Step 2: *Convert LUBM datasets to ID-Triples format
-[Convert_Tutorials](../datagen/README.md)
+Tutorials to convert data to ID-Triples format data can refer to [Convert_Tutorials](../datagen/README.md).
 
 ##### Step 3: *Load LUBM datasets by Wukong*
 

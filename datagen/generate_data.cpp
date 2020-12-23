@@ -19,21 +19,18 @@
  *      http://ipads.se.sjtu.edu.cn/projects/wukong
  *
  */
-
-#include <string>
-#include <fstream>
-#include <iostream>
-#include <stdio.h>
 #include <dirent.h>
-#include <unordered_map>
-#include <vector>
-#include <algorithm>
-#include <sstream>
-#include <assert.h>
-
+#include <stdio.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <algorithm>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 /**
  * transfer str-format RDF data into id-format RDF data (triple rows)
@@ -54,6 +51,16 @@ typedef int64_t i64;
 typedef unordered_map<string, int64_t> table64_t;
 typedef unordered_map<string, int> table_t;
 
+bool dir_exist(string pathname) {
+    struct stat info;
+
+    if (stat(pathname.c_str(), &info) != 0)
+        return false;
+    else if (info.st_mode & S_IFDIR)  // S_ISDIR() doesn't exist on Windows 
+        return true;
+    return false;
+}
+
 class Encoder{
     // Skip strings which indicate comments in RDF/XML files.
     const vector<string> skip_strs = 
@@ -64,6 +71,7 @@ class Encoder{
     string ddir_name;  // destination directory
 
     string log_name;    // log file name
+    string commit_name; // commit log file name
     string normal_name; // normal table file
     string index_name;  // index table file
     string attr_name;   // attr type table file
@@ -322,6 +330,7 @@ class Encoder{
 public:
     Encoder(string sdir_name, string ddir_name) : sdir_name(sdir_name), ddir_name(ddir_name), count(0) {
         log_name    = ddir_name + "/log";
+        commit_name    = ddir_name + "/log_commit";
         normal_name = ddir_name + "/str_normal";
         index_name  = ddir_name + "/str_index";
         attr_name   = ddir_name + "/str_attr_index";
@@ -334,10 +343,12 @@ public:
         next_index_id = 2;
         next_normal_id = 1 << NBITS_IDX; // reserve 2^NBITS_IDX ids for index vertices
         if (!recover_from_failure()) {
-            // create destination directory
-            if (mkdir(ddir_name.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) < 0) {
-                cout << "Error: Creating dst_dir (" << ddir_name << ") failed." << endl;
-                exit(-1);
+            if (!dir_exist(ddir_name)) {
+                // create destination directory
+                if (mkdir(ddir_name.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) < 0) {
+                    cout << "Error: Creating dst_dir (" << ddir_name << ") failed." << endl;
+                    exit(-1);
+                }
             }
 
             // reserve t/pid[0] to predicate-index
@@ -383,7 +394,7 @@ public:
         cout << "#index_vertex = " << index_table.size() << endl;
         cout << "#attr_vertex = " << type_table.size() << endl;
 
-        ofstream output((ddir_name + "log_commit"));
+        ofstream output(commit_name);
         output << "Encoding nt_triple format file to id format completes." << endl;
         output << "#total_vertex = " << normal_table.size() + index_table.size() << endl;
         output << "#normal_vertex = " << normal_table.size() << endl;
