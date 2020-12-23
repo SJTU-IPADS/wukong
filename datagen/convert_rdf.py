@@ -81,7 +81,7 @@ def main():
         try:
             os.system(jena + ' --output=N-Triples ' + rdf_file + ' >> ' + uni_file)
             if remove_input:
-                os.remove(rdf_file)
+                os.system('rm ' + rdf_file)
         except:
             print('Convert error occurred.')
             sys.exit()
