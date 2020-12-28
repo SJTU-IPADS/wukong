@@ -96,9 +96,9 @@ Since we do not add attribute data, so result files with `attr` are all empty.
 $python convert_nt.py -i ~/wukong/lubm_nt -o ~/wukong/lubm_id
 Process No.0 input file: uni1.nt.
 Process No.1 input file: uni0.nt.
-#total_vertex = 58418
-#normal_vertex = 58386
-#index_vertex = 32
+#total_vertex = 58455
+#normal_vertex = 58421
+#index_vertex = 34
 #attr_vertex = 0
 Convert from N-Triples to ID-Triples is done.
 $ls ~/wukong/lubm_id
@@ -121,8 +121,8 @@ For example, assume we want to convert LUBM dataset (2 Universities) from N-Trip
 
 ```
 $./generate_data ~/wukong/lubm_nt ~/wukong/lubm_id
-Process No.1 input file: uni1.nt.
-Process No.2 input file: uni0.nt.
+Process No.0 input file: uni1.nt.
+Process No.1 input file: uni0.nt.
 #total_vertex = 58455
 #normal_vertex = 58421
 #index_vertex = 34

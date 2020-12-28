@@ -257,8 +257,9 @@ class Encoder{
                 str_to_str[prekey] = object;
                 continue;
             }
-            if (skip_triple(subject, predicate, object))
-                continue;
+            // Original generate_data code does not skip these triples, so add comment here.
+            //if (skip_triple(subject, predicate, object))
+            //    continue;
 
             int type = 0;
             // the attr triple
@@ -298,9 +299,9 @@ class Encoder{
                     }
                 }
 
-                // skip triples replacing prefix
-                if (skip_triple(subject, predicate, object))
-                    continue;
+                // Original generate_data code does not skip these triples, so add comment here.
+                // if (skip_triple(subject, predicate, object))
+                //    continue;
 
                 // add a new normal vertex (i.e., vid)
                 i64 sid = insert(normal_table, local_normal_table, subject, next_normal_id);
