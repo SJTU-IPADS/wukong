@@ -19,10 +19,9 @@
  *      http://ipads.se.sjtu.edu.cn/projects/wukong
  *
  */
-#include <dirent.h>
-#include <stdio.h>
-#include <sys/stat.h>
-#include <sys/types.h>
+
+#include "log.hpp"
+#include "utils.hpp"
 
 #include <algorithm>
 #include <fstream>
