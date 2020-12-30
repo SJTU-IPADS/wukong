@@ -50,27 +50,10 @@ typedef int64_t i64;
 typedef unordered_map<string, int64_t> table64_t;
 typedef unordered_map<string, int> table_t;
 
-bool dir_exist(string pathname) {
-    struct stat info;
-
-    if (stat(pathname.c_str(), &info) != 0)
-        return false;
-    else if (info.st_mode & S_IFDIR)  // S_ISDIR() doesn't exist on Windows 
-        return true;
-    return false;
-}
-
 class Encoder{
-    // Skip strings which indicate comments in RDF/XML files.
-    const vector<string> skip_strs = 
-            {"<http://www.w3.org/2002/07/owl#Ontology>",
-             "<http://www.w3.org/2002/07/owl#imports>"};
-
     string sdir_name;  // source directory
     string ddir_name;  // destination directory
 
-    string log_name;    // log file name
-    string commit_name; // commit log file name
     string normal_name; // normal table file
     string index_name;  // index table file
     string attr_name;   // attr type table file
@@ -87,7 +70,7 @@ class Encoder{
     int64_t next_index_id;
     int64_t next_normal_id;
 
-    int count;  // the next hanlded file index after recovery 
+    int file_idx;  // the next hanlded file index after recovery 
 
     int find_type (string str) {
         if (str.find("^^xsd:int") != string::npos
@@ -186,7 +169,7 @@ class Encoder{
                 string record;
                 getline(log_file, record);
                 // a valid record is:
-                // count | normal_table table size | index_table table size | type_table table size | "commit"
+                // file_idx | normal_table table size | index_table table size | type_table table size | "commit"
                 if (record.find("commit") != string::npos) {
                     stringstream ss(record);
                     ss >> cnt >> normal_sz >> index_sz >> type_sz;
@@ -194,7 +177,7 @@ class Encoder{
                     break;
                 }
             }
-            count = cnt + 1; // start from the next invalid file index
+            file_idx = cnt + 1; // start from the next invalid file index
 
             next_normal_id = recover_table(normal_table, normal_name, normal_sz);
             next_index_id = recover_table(index_table, index_name, index_sz);
@@ -328,79 +311,53 @@ class Encoder{
     }
 
 public:
-    Encoder(string sdir_name, string ddir_name) : sdir_name(sdir_name), ddir_name(ddir_name), count(0) {
-        log_name    = ddir_name + "/log";
-        commit_name    = ddir_name + "/log_commit";
-        normal_name = ddir_name + "/str_normal";
-        index_name  = ddir_name + "/str_index";
-        attr_name   = ddir_name + "/str_attr_index";
-    }
-
-    // If failure happened before, reload log and tables and continue from failure point.
-    // Otherwise init a new encoder.
-    void init() {
+    Encoder(string sdir_name, string ddir_name) : sdir_name(sdir_name), ddir_name(ddir_name), 
+        normal_name(ddir_name + "/str_normal"),
+        index_name(ddir_name + "/str_index"),
+        attr_name(ddir_name + "/str_attr_index"),
+        file_idx(0), logger(ddir_name) {
         // reserve the first two ids for the class of index vertex (i.e, predicate and type)
         next_index_id = 2;
-        next_normal_id = 1 << NBITS_IDX; // reserve 2^NBITS_IDX ids for index vertices
-        if (!recover_from_failure()) {
-            if (!dir_exist(ddir_name)) {
-                // create destination directory
-                if (mkdir(ddir_name.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) < 0) {
-                    cout << "Error: Creating dst_dir (" << ddir_name << ") failed." << endl;
-                    exit(-1);
-                }
-            }
+        // reserve 2^NBITS_IDX ids for index vertices
+        next_normal_id = 1 << NBITS_IDX;
+        // reserve t/pid[0] to predicate-index
+        local_index_table["__PREDICATE__"] = 0;
+        // reserve t/pid[1] to type-index
+        local_index_table["<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"] = 1;
 
-            // reserve t/pid[0] to predicate-index
-            local_index_table["__PREDICATE__"] = 0;
-            // reserve t/pid[1] to type-index
-            local_index_table["<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"] = 1;
+        // If failure happened before, reload log and tables and continue from failure point.
+        // Otherwise check and create destination directory.
+        if (!recover_from_failure()) {
+            if (!FileSys::dir_exist(ddir_name)) {
+                if (!FileSys::create_dir(ddir_name))
+                    exit(-1);
+            }
         }
     }
 
     void encode_data() {
-        // open source directory
-        DIR *sdir = opendir(sdir_name.c_str());
-        if (!sdir) {
-            cout << "Error: Opening src_dir (" << sdir_name << ") failed." << endl;
-            exit(-1);
-        }
+        auto files = FileSys::get_files(sdir_name, [](const string &file) {
+            return file.find(".nt") != string::npos;
+        });
 
-        struct dirent *dent;
-        int file_idx = 0;
-        while ((dent = readdir(sdir)) != NULL) {
-            if (dent->d_name[0] == '.')
-                continue;
-            // skip some files such as log files
-            if (string(dent->d_name).find(".nt") == string::npos)
-                continue;
-
-            if (file_idx >= count) {
-                process_file(string(dent->d_name));
-                write_table(normal_table, local_normal_table, normal_name);
-                write_table(index_table, local_index_table, index_name);
-                write_attr_table();
-                write_log(file_idx);
-                cout << "Process No." << file_idx << " input file: " << dent->d_name << "." << endl;
-            }
+        while (file_idx < files.size()) {
+            process_file(files[file_idx]);
+            write_table(normal_table, local_normal_table, normal_name);
+            write_table(index_table, local_index_table, index_name);
+            write_attr_table();
+            write_log();
+            cout << "Process No." << file_idx << " input file: " << files[file_idx] << "." << endl;
             file_idx++;
         }
-        closedir(sdir);
-    }
 
-    void print() {
-        cout << "#total_vertex = " << normal_table.size() + index_table.size() << endl;
-        cout << "#normal_vertex = " << normal_table.size() << endl;
-        cout << "#index_vertex = " << index_table.size() << endl;
-        cout << "#attr_vertex = " << type_table.size() << endl;
-
-        ofstream output(commit_name);
-        output << "Encoding nt_triple format file to id format completes." << endl;
-        output << "#total_vertex = " << normal_table.size() + index_table.size() << endl;
-        output << "#normal_vertex = " << normal_table.size() << endl;
-        output << "#index_vertex = " << index_table.size() << endl;
-        output << "#attr_vertex = " << type_table.size() << endl;
-        output.close();
+        // print info
+        stringstream ss;
+        ss << "#total_vertex = " << normal_table.size() + index_table.size() << endl;
+        ss << "#normal_vertex = " << normal_table.size() << endl;
+        ss << "#index_vertex = " << index_table.size() << endl;
+        ss << "#attr_vertex = " << type_table.size() << endl;
+        logger.commit(ss.str());
+        cout << ss.str();
     }
 };
 
@@ -409,14 +366,9 @@ int main(int argc, char** argv) {
         printf("usage: ./generate_data src_dir dst_dir\n");
         return -1;
     }
-
     string sdir_name = argv[1];
     string ddir_name = argv[2];
-
     Encoder encoder(sdir_name, ddir_name);
-    encoder.init();
     encoder.encode_data();
-    encoder.print();
-
     return 0;
 }
