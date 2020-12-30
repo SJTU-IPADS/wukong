@@ -50,7 +50,38 @@ typedef int64_t i64;
 typedef unordered_map<string, int64_t> table64_t;
 typedef unordered_map<string, int> table_t;
 
-class Encoder{
+struct Record {
+    size_t file_idx;
+    size_t normal_sz;
+    size_t index_sz;
+    size_t type_sz;
+
+    Record() : file_idx(0), normal_sz(0), index_sz(0), type_sz(0) {}
+
+    Record(size_t f, size_t n, size_t i, size_t t)
+        : file_idx(f), normal_sz(n), index_sz(i), type_sz(t) {}
+
+    Record(const string &str) {
+        stringstream ss(str);
+        ss >> file_idx >> normal_sz >> index_sz >> type_sz;
+    }
+
+    Record &operator= (const Record &r) {
+        file_idx = r.file_idx;
+        normal_sz = r.normal_sz;
+        index_sz = r.index_sz;
+        type_sz = r.type_sz;
+        return *this;
+    }
+
+    string to_str() const {
+        stringstream ss;
+        ss << file_idx << " " << normal_sz << " " << index_sz << " " << type_sz;
+        return ss.str();
+    }
+};
+
+class Encoder {
     string sdir_name;  // source directory
     string ddir_name;  // destination directory
 
@@ -70,7 +101,9 @@ class Encoder{
     int64_t next_index_id;
     int64_t next_normal_id;
 
-    int file_idx;  // the next hanlded file index after recovery 
+    int file_idx;  // the next hanlded file index after recovery
+
+    Logger<Record> logger;
 
     int find_type (string str) {
         if (str.find("^^xsd:int") != string::npos
@@ -113,87 +146,71 @@ class Encoder{
     }
 
     void write_attr_table() {
-        ofstream f_attr(attr_name.c_str());
-        for (auto it : local_type_table)
+        ofstream f_attr(attr_name.c_str(), std::ofstream::out | std::ofstream::app);
+        for (auto it : local_type_table) {
             f_attr << it.first << "\t"
                    << index_table[it.first] << "\t"
                    << it.second << endl;
+            type_table[it.first] = it.second;
+        }
         f_attr.close();
+        local_type_table.clear();
     }
 
-    i64 recover_table(unordered_map<string, i64> &table, string name, i64 size) {
+    void recover_table(const string &name, size_t size, function<void(ifstream &)> func) {
         ifstream file(name.c_str());
-        i64 next_id = 0;
-        for (i64 i = 0; i < size; i++) {
+        for (size_t i = 0; i < size; i++) {
             if(file.eof()) {
                 cout << "Log error. Please clear the destination directory and retry." << endl;
                 exit(0);
             }
+            func(file);
+        }
+        file.close();
+    }
+
+    i64 recover_table(unordered_map<string, i64> &table, const string &name, size_t size, i64 next_id) {
+        recover_table(name, size, [&](ifstream &file) {
             string str;
             i64 id;
             file >> str >> id;
             table[str] = id;
             next_id = max(id + 1, next_id);
-        }
-        file.close();
+            
+        });
         return next_id;
     }
 
-    void recover_attr_table(int size) {
-        ifstream file(attr_name.c_str());
-        for (i64 i = 0; i < size; i++) {
-            if(file.eof()) {
-                cout << "Log error. Please clear the destination directory and retry." << endl;
-                exit(0);
-            }
+    void recover_attr_table(size_t size) {
+        recover_table(attr_name, size, [&, this](ifstream &file) {
             string str;
             i64 index;
             int type;
             file >> str >> index >> type;
-            type_table[str] = type;
-        }
-        file.close();
+            this->type_table[str] = type;
+        });
     }
 
     bool recover_from_failure() {
-        ifstream log_file(log_name.c_str());
-        // This is a new encoder.
-        if (!log_file.good())
-            return false;
-        // failure happened before
-        if (log_file.good()) {
-            int cnt = -1;
-            i64 normal_sz = 0, index_sz = 0, type_sz = 0;
-            // reload all tables valid size
-            while (!log_file.eof()) {
-                string record;
-                getline(log_file, record);
-                // a valid record is:
-                // file_idx | normal_table table size | index_table table size | type_table table size | "commit"
-                if (record.find("commit") != string::npos) {
-                    stringstream ss(record);
-                    ss >> cnt >> normal_sz >> index_sz >> type_sz;
-                } else {
-                    break;
-                }
-            }
-            file_idx = cnt + 1; // start from the next invalid file index
+        Record record;
+        bool has_log = logger.recover_from_failure([&](Record &new_record) {
+            record = new_record;
+        });
 
-            next_normal_id = recover_table(normal_table, normal_name, normal_sz);
-            next_index_id = recover_table(index_table, index_name, index_sz);
-            recover_attr_table(type_sz);
+        if (has_log) {
+            file_idx = record.file_idx + 1;  // start from the next unprocessed file
+            next_normal_id = 
+                recover_table(normal_table, normal_name, record.normal_sz, next_normal_id);
+            next_index_id = 
+                recover_table(index_table, index_name, record.index_sz, next_index_id);
+            recover_attr_table(record.type_sz);
         }
-        log_file.close();
-        return true;
+        return has_log;
     }
 
-    void write_log(int file_idx) {
-        ofstream log_file(log_name.c_str(), std::ofstream::out | std::ofstream::app);
-        log_file << file_idx << " " << normal_table.size()
-                             << " " << index_table.size()
-                             << " " << type_table.size()
-                             << " " << "commit" << endl;
-        log_file.close();
+    void write_log() {
+        Record r(file_idx, normal_table.size(), index_table.size(), type_table.size());
+        logger.write_log(r);
     }
 
     i64 insert(table64_t &global, table64_t &local, string &str, i64 &id) {
@@ -211,14 +228,6 @@ class Encoder{
         if (type_table.find(predicate) == type_table.end()) {
             local_type_table[predicate] = type;
         }
-    }
-
-    bool skip_triple(string &sub, string &pre, string &obj) {
-        for (auto s : skip_strs) {
-            if (sub == s || pre == s || obj == s)
-                return true;
-        }
-        return false;
     }
 
     void process_file(string fname) {
@@ -239,9 +248,6 @@ class Encoder{
                 str_to_str[prekey] = object;
                 continue;
             }
-            // Original generate_data code does not skip these triples, so add comment here.
-            //if (skip_triple(subject, predicate, object))
-            //    continue;
 
             int type = 0;
             // the attr triple
@@ -280,10 +286,6 @@ class Encoder{
                         object = prev.substr(0, prev.size()-1) + lefts + '>';
                     }
                 }
-
-                // Original generate_data code does not skip these triples, so add comment here.
-                // if (skip_triple(subject, predicate, object))
-                //    continue;
 
                 // add a new normal vertex (i.e., vid)
                 i64 sid = insert(normal_table, local_normal_table, subject, next_normal_id);
@@ -339,6 +341,8 @@ public:
         auto files = FileSys::get_files(sdir_name, [](const string &file) {
             return file.find(".nt") != string::npos;
         });
+
+        sort(files.begin(), files.end());
 
         while (file_idx < files.size()) {
             process_file(files[file_idx]);
