@@ -20,11 +20,15 @@
  *
  */
 
+#pragma once
+
 #include <dirent.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <iostream>
+#include <fstream>
 #include <functional>
 #include <string>
 #include <vector>
@@ -72,5 +76,29 @@ public:
         }
 
         return files;
+    }
+
+    static void read_in_line_and_delete_last(const string &fname,
+            function<void(const string &)> read_handler,
+            function<bool(const string &)> start_delete) {
+        std::ifstream input(fname.c_str());
+
+        std::string tmp_name = fname + ".tmp";
+        std::ofstream tmp_file(tmp_name.c_str());
+
+        while (!input.eof()) {
+            std::string line;
+            std::getline(input, line);
+            if (!start_delete(line)) {
+                read_handler(line);
+                tmp_file << line << std::endl;
+            } else {
+                break;
+            }
+        }
+        input.close();
+        tmp_file.close();
+        std::remove(fname.c_str());
+        std::rename(tmp_name.c_str(), fname.c_str());
     }
 };
