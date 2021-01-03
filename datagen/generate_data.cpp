@@ -322,6 +322,12 @@ class Encoder {
         attr_file.close();
     }
 
+    void insert_specific_index(const string &str, i64 type) {
+        if (index_table.find(str) == index_table.end()) {
+            local_index_table[str] = type;
+        }
+    }
+
 public:
     Encoder(string sdir_name, string ddir_name) : sdir_name(sdir_name), ddir_name(ddir_name), 
         normal_name(ddir_name + "/str_normal"),
@@ -332,10 +338,6 @@ public:
         next_index_id = 2;
         // reserve 2^NBITS_IDX ids for index vertices
         next_normal_id = 1 << NBITS_IDX;
-        // reserve t/pid[0] to predicate-index
-        local_index_table["__PREDICATE__"] = 0;
-        // reserve t/pid[1] to type-index
-        local_index_table["<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"] = 1;
 
         // If failure happened before, reload log and tables and continue from failure point.
         // Otherwise check and create destination directory.
@@ -345,6 +347,11 @@ public:
                     exit(-1);
             }
         }
+
+        // reserve t/pid[0] to predicate-index
+        insert_specific_index("__PREDICATE__", 0);
+        // reserve t/pid[1] to type-index
+        insert_specific_index("<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>", 1);
     }
 
     void encode_data() {
