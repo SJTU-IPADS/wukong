@@ -50,6 +50,7 @@ public:
     void commit(const std::string &commit_info) {
         std::ofstream file(commit_name);
         file << commit_info << std::endl;
+        file << "Commit." << std::endl;
         file.close();
     }
 
