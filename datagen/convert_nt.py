@@ -6,15 +6,23 @@ def usage():
     print('usage:')
     print(' python convert_nt.py -i <input directory> -o <output directory>')
 
+def is_commit(output_dir):
+    log_file = output_dir + '/log_commit'
+    if (os.path.exists(log_file) == False):
+        return False;
+    for line in open (log_file):
+        if line.find('Commit.') != -1:
+            return True;
+    return False;
+
 def convert(input_dir, output_dir):
     os.system('g++ generate_data.cpp -o generate_data -std=c++11 -I ./ -O2')
     #Keep run generate_data project until it succeeds.
-    os.system('./generate_data ' + input_dir + ' ' + output_dir)
-    while (os.path.exists(output_dir + '/log_commit') == False):
-        print('Failure occurred to generate_data project, try and recover ...')
+    if (is_commit(output_dir) == False):
         os.system('./generate_data ' + input_dir + ' ' + output_dir)
-
-    os.system('rm ' + output_dir + '/log*')
+        while (is_commit(output_dir) == False):
+            print('Failure occurred to generate_data project, try and recover ...')
+            os.system('./generate_data ' + input_dir + ' ' + output_dir)
 
 def main():    
 #get args
@@ -51,6 +59,8 @@ def main():
     convert(input_dir, output_dir)
 
     print('Convert from N-Triples to ID-Triples is done.\n')
+
+    os.system('rm ' + output_dir + '/log*')
 
 if __name__ == "__main__":
     main()

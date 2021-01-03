@@ -23,6 +23,8 @@
 #include "log.hpp"
 #include "utils.hpp"
 
+#include <stdint.h>
+
 #include <algorithm>
 #include <fstream>
 #include <iostream>
