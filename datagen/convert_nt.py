@@ -37,7 +37,7 @@ def main():
         else:
             assert False
 
-    if input_dir == None or os.path.exists(input_dir) == False:
+    if input_dir == None or os.path.exists(input_dir) == False or output_dir == None :
         usage()
         sys.exit()
 

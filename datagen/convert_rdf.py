@@ -64,6 +64,10 @@ def main():
         usage()
         sys.exit()
 
+    if input_prefix == None or output_prefix == None:
+        usage()
+        sys.exit()
+
     if input_dir == None or os.path.exists(input_dir) == False:
         usage()
         sys.exit()

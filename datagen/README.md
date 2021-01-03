@@ -41,7 +41,7 @@ Options:
 Assume we want to convert LUBM dataset (2 Universities) to N-Triples format. Assume the directory of RDF/XML format files is `~/wukong/lubm_rdf`. The output directory is `~/wukong/lubm_nt`. The prefix of input file is `University` and prefix of output file is `uni`.
 
 ```bash
-$python convert_rdf.py -i ~/wukong/lubm_rdf -o ~/wukong/lubm_nt -s 2 -p University -w uni
+$python convert_rdf.py -i ~/wukong/lubm_rdf -o ~/wukong/lubm_nt -p University -w uni -s 2
 ...
 Convert from RDF data to NT format data is done.
 $ls ~/wukong/lubm_nt
