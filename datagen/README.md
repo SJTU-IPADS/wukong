@@ -110,7 +110,7 @@ Or, you can do it manually.
 **Step 2.1: Compile the code**
 
 ```
-$g++ -std=c++11 generate_data.cpp -o generate_data
+$g++ -std=c++11 -O2 generate_data.cpp -o generate_data -I ./
 ```
 
 **Step 2.2: Convert**
