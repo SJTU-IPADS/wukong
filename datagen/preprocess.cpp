@@ -26,12 +26,12 @@
 #include <stdint.h>
 
 #include <algorithm>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 using namespace std;
@@ -39,25 +39,36 @@ using namespace std;
 typedef int64_t i64;
 typedef uint64_t sid_t;
 
+class triple_t {
+public:
+    sid_t s;
+    sid_t p;
+    sid_t o;
+
+    triple_t() : s(0), p(0), o(0) {}
+    triple_t(sid_t s, sid_t p, sid_t o) : s(s), p(p), o(o) {}
+};
+
+typedef unordered_map<int, vector<triple_t>> table_t;
+
 struct Record {
     size_t triples;          
     int in_file;  // the next hanlded file index after recovery
-    i64 in_pos;   // next position of the next handled file
     vector<i64> spo_pos;     // output file positions
     vector<i64> ops_pos;     // output file positions
 
-    Record(partitions) : triples(0), in_file(0), in_pos(0),
-        spo_pos(vector<i64>(partitions, 0))
-        pos_pos(vector<i64>(partitions, 0)) {}
+    Record(int partitions) : triples(0), in_file(0),
+        spo_pos(vector<i64>(partitions, 0)),
+        ops_pos(vector<i64>(partitions, 0)) {}
 
-    Record(size_t triples, size_t in_file, i64 in_pos,
+    Record(size_t triples, size_t in_file,
             const vector<i64> &spo_pos, const vector<i64> &ops_pos)
-        : triples(triples) in_file(in_file), in_pos(in_pos),
+        : triples(triples), in_file(in_file),
           spo_pos(spo_pos), ops_pos(ops_pos) {}
 
     Record(const string &str) {
         stringstream ss(str);
-        ss >> triples >> in_file >> in_pos;
+        ss >> triples >> in_file;
         size_t sz = 0;
         ss >> sz;
         spo_pos.resize(sz);
@@ -70,7 +81,6 @@ struct Record {
     Record &operator= (Record &r) {
         triples = r.triples;
         in_file = r.in_file;
-        in_pos = r.in_pos;
         spo_pos.swap(r.spo_pos);
         ops_pos.swap(r.ops_pos);
         return *this;
@@ -78,7 +88,7 @@ struct Record {
 
     string to_str() const {
         stringstream ss;
-        ss << triples << " " << in_file << " " << in_pos;
+        ss << triples << " " << in_file;
         ss << " " << spo_pos.size();
         for (size_t i = 0; i < spo_pos.size(); i++)
             ss << " " << spo_pos[i];
@@ -92,12 +102,14 @@ class Encoder {
     string sdir_name;  // source directory
     string ddir_name;  // destination directory
 
-    size_t partitions;
+    int partitions;
 
     Record rc;
     Logger<Record> logger;
 
-    const size_t CHUNK_SIZE = 16 * 1024;
+
+    table_t spo_table;
+    table_t ops_table;
 
     enum TYPE_T { SPO = 0, OPS = 1};
 
@@ -113,53 +125,65 @@ class Encoder {
         logger.write_log(rc);
     }
 
-    size_t dispatch(sid_t id) {
+    int dispatch(sid_t id) {
         return id % partitions;
     }
 
-    void write_triple(sid_t s, sid_t p, sid_t o, TYPE_T type) {
-        size_t pid;
-        string prefix;
-        i64 &pos = rc.spo_pos[0];
+    void flush_table(table_t &table, vector<i64> &pos, string prefix) {
+        for (auto &it : table) {
+            if (!it.second.empty()) {
+                int pid = it.first;
+                string file = ddir_name + "/" + prefix + to_string(pid) + ".nt";
+                ofstream output(file.c_str(), std::ofstream::out | std::ofstream::app);
+                // output.seekp(pos[pid]);
 
-        if (type == SPO) {
-            pid = dispatch(s);
-            pos = rc.spo_pos[pid];
-            prefix = "id_spo_";
-        } else {
-            pid = dispatch(o);
-            pos = rc.ops_pos[pid];
-            prefix = "id_ops_";
+                cout << "before " << it.second.size() << endl;
+                for (auto t : it.second) {
+                    output << t.s << " " << t.p << " " << t.o << endl;
+                }
+                pos[pid] = output.tellp();
+                output.close();
+
+                it.second.clear();
+                cout << it.second.size() << endl;
+            }
         }
+    }
 
-        string file = ddir_name + "/" + prefix + to_string(pid);
-        ofstream output(file.c_str());
-        output.seekg(pos);
-        output << s << " " << p << " " << o << endl;
-        pos = output.tellg();
-        output.close();
+    void insert(table_t &table, int pid, triple_t triple) {
+        if (table.find(pid) == table.end()) {
+            table[pid] = {triple};
+        } else {
+            table[pid].emplace_back(triple);
+        }
+    }
+
+    void write_triple(sid_t s, sid_t p, sid_t o, TYPE_T type) {
+        if (type == SPO) {
+            insert(spo_table, dispatch(s), triple_t(s, p, o));
+        } else {
+            insert(ops_table, dispatch(o), triple_t(s, p, o));
+        }
     }
 
     void process_file(const string &name) {
-        ifstream input(name.c_str());
-        input.seekg(rc.in_pos);
+        ifstream input((sdir_name + "/" + name).c_str());
 
         sid_t s, p, o;
         while (input >> s >> p >> o) {
-            for (size_t cnt = 0; cnt < CHUNK_SIZE; cnt++) {
-                write_triple(s, p, o, SPO);
-                write_triple(s, p, o, OPS);
-                rc.triples++;
-            }
-            rc.in_pos = input.tellg();
-            write_log();
+            write_triple(s, p, o, SPO);
+            write_triple(s, p, o, OPS);
+            rc.triples++;
         }
+        flush_table(spo_table, rc.spo_pos, "id_spo_");
+        flush_table(ops_table, rc.ops_pos, "id_ops_");
+        write_log();
 
         input.close();
     }
 
 public:
-    Encoder(string sdir_name, string ddir_name, size_t partitions)
+    Encoder(string sdir_name, string ddir_name, int partitions)
         : sdir_name(sdir_name), ddir_name(ddir_name),
         partitions(partitions), rc(Record(partitions)), logger(ddir_name) {
 
@@ -184,7 +208,6 @@ public:
             process_file(files[rc.in_file]);
             cout << "Process No." << rc.in_file << " input file: " << files[rc.in_file] << "." << endl;
             rc.in_file++;
-            rc.in_pos = 0;
         }
 
         // print info
@@ -197,8 +220,8 @@ public:
 };
 
 int main(int argc, char** argv) {
-    if (argc != 3 || argc != 4) {
-        printf("Usage: ./Process src_dir dst_dir [partition_num (1024 as default)].\n");
+    if (argc != 3 && argc != 4) {
+        printf("Usage: ./preprocess src_dir dst_dir [partition_num (1024 as default)].\n");
         return -1;
     }
     string sdir_name = argv[1];
@@ -208,11 +231,11 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    size_t partitions = 1024;
+    int partitions = 1024;
     if (argc == 4)
-        partitions = argv[3];
+        partitions = atoi(argv[3]);
 
-    if (partitions < 1 || partitions > 10 * 1024 * 1024) {
+    if (partitions < 1 || partitions > 1024 * 1024) {
         cout << "Number of partitions is too small or too large." << endl;
         return -1;
     }

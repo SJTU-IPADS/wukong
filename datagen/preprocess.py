@@ -11,7 +11,7 @@ def is_commit(output_dir):
     if (os.path.exists(log_file) == False):
         return False;
     for line in open (log_file):
-        if line.find('commit') != -1:
+        if line.find('Commit.') != -1:
             return True;
     return False;
 
@@ -19,10 +19,10 @@ def convert(input_dir, output_dir, partitions):
     os.system('g++ preprocess.cpp -o preprocess -std=c++11 -I ./ -O2')
     #Keep run generate_data project until it succeeds.
     if (is_commit(output_dir) == False):
-        os.system('./preprocess ' + input_dir + ' ' + output_dir + ' ' + partitions)
+        os.system('./preprocess ' + input_dir + ' ' + output_dir + ' ' + str(partitions))
         while (is_commit(output_dir) == False):
             print('Failure occurred to generate_data project, try and recover ...')
-            os.system('./preprocess ' + input_dir + ' ' + output_dir + ' ' + partitions)
+            os.system('./preprocess ' + input_dir + ' ' + output_dir + ' ' + str(partitions))
 
 def main():    
 #get args
@@ -48,7 +48,7 @@ def main():
         else:
             assert False
 
-    if partitions < 1 or partitions > 10 * 1024 * 1024 :
+    if partitions < 1 or partitions > 1024 * 1024 :
         print('Number of Partitions is too small or too large.')
         usage()
         sys.exit()
