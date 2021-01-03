@@ -7,7 +7,7 @@ def usage():
     print(' python convert_nt.py -i <input directory> -o <output directory>')
 
 def convert(input_dir, output_dir):
-    os.system('g++ generate_data.cpp -o generate_data -std=c++11')
+    os.system('g++ generate_data.cpp -o generate_data -std=c++11 -I ./ -O2')
     #Keep run generate_data project until it succeeds.
     os.system('./generate_data ' + input_dir + ' ' + output_dir)
     while (os.path.exists(output_dir + '/log_commit') == False):
@@ -37,7 +37,7 @@ def main():
         else:
             assert False
 
-    if input_dir == None or os.path.exists(input_dir) == False:
+    if input_dir == None or os.path.exists(input_dir) == False or output_dir == None :
         usage()
         sys.exit()
 

@@ -59,6 +59,14 @@ def main():
             remove_input = True
         else:
             assert False
+    if size == 0:
+        print('Size of dataset should not be 0.')
+        usage()
+        sys.exit()
+
+    if input_prefix == None or output_prefix == None:
+        usage()
+        sys.exit()
 
     if input_dir == None or os.path.exists(input_dir) == False:
         usage()

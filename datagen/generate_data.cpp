@@ -157,23 +157,32 @@ class Encoder {
         local_type_table.clear();
     }
 
-    void recover_table(const string &name, size_t size, function<void(ifstream &)> func) {
-        ifstream file(name.c_str());
-        for (size_t i = 0; i < size; i++) {
-            if(file.eof()) {
-                cout << "Log error. Please clear the destination directory and retry." << endl;
-                exit(0);
-            }
-            func(file);
+    void recover_table(const string &name, size_t size, function<void(const string &)> func) {
+        size_t lines = 0;
+
+        // Recover #size lines from files and delete the other lines in the file.
+        FileSys::read_in_line_and_delete_last(name,
+            [&](const string &line) {
+                func(line);
+                lines++;
+            },
+            [&](const string &line) {
+                return lines >= size;
+        });
+
+        // Report error if there are no more than #size lines in the file.
+        if (lines < size) {
+            cout << "Log error. Please clear the destination directory and retry." << endl;
+            exit(0);
         }
-        file.close();
     }
 
     i64 recover_table(unordered_map<string, i64> &table, const string &name, size_t size, i64 next_id) {
-        recover_table(name, size, [&](ifstream &file) {
+        recover_table(name, size, [&](const string &line) {
+            stringstream ss(line);
             string str;
             i64 id;
-            file >> str >> id;
+            ss >> str >> id;
             table[str] = id;
             next_id = max(id + 1, next_id);
             
@@ -182,11 +191,12 @@ class Encoder {
     }
 
     void recover_attr_table(size_t size) {
-        recover_table(attr_name, size, [&, this](ifstream &file) {
+        recover_table(attr_name, size, [&, this](const string &line) {
+            stringstream ss(line);
             string str;
             i64 index;
             int type;
-            file >> str >> index >> type;
+            ss >> str >> index >> type;
             this->type_table[str] = type;
         });
     }
@@ -312,6 +322,12 @@ class Encoder {
         attr_file.close();
     }
 
+    void insert_specific_index(const string &str, i64 type) {
+        if (index_table.find(str) == index_table.end()) {
+            local_index_table[str] = type;
+        }
+    }
+
 public:
     Encoder(string sdir_name, string ddir_name) : sdir_name(sdir_name), ddir_name(ddir_name), 
         normal_name(ddir_name + "/str_normal"),
@@ -322,10 +338,6 @@ public:
         next_index_id = 2;
         // reserve 2^NBITS_IDX ids for index vertices
         next_normal_id = 1 << NBITS_IDX;
-        // reserve t/pid[0] to predicate-index
-        local_index_table["__PREDICATE__"] = 0;
-        // reserve t/pid[1] to type-index
-        local_index_table["<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"] = 1;
 
         // If failure happened before, reload log and tables and continue from failure point.
         // Otherwise check and create destination directory.
@@ -335,6 +347,11 @@ public:
                     exit(-1);
             }
         }
+
+        // reserve t/pid[0] to predicate-index
+        insert_specific_index("__PREDICATE__", 0);
+        // reserve t/pid[1] to type-index
+        insert_specific_index("<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>", 1);
     }
 
     void encode_data() {
@@ -367,11 +384,15 @@ public:
 
 int main(int argc, char** argv) {
     if (argc != 3) {
-        printf("usage: ./generate_data src_dir dst_dir\n");
+        printf("Usage: ./generate_data src_dir dst_dir.\n");
         return -1;
     }
     string sdir_name = argv[1];
     string ddir_name = argv[2];
+    if (sdir_name == ddir_name) {
+        cout << "Dst_dir should be different from src_dir.\n";
+        return -1;
+    }
     Encoder encoder(sdir_name, ddir_name);
     encoder.encode_data();
     return 0;

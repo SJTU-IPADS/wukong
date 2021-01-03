@@ -19,12 +19,19 @@
  *      http://ipads.se.sjtu.edu.cn/projects/wukong
  *
  */
+
+#pragma once
+
+#include "utils.hpp"
+
 #include <stdio.h>
 
 #include <fstream>
 #include <functional>
 #include <iostream>
 #include <string>
+
+using namespace std;
 
 template <typename Record>
 class Logger {
@@ -48,14 +55,8 @@ public:
 
     bool recover_from_failure(std::function<void(Record &)> func) {
         bool has_log = false;
-        std::ifstream log_file(log_name.c_str());
 
-        std::string tmp_name = log_name + ".tmp";
-        std::ofstream tmp_file(tmp_name.c_str());
-
-        while (!log_file.eof()) {
-            std::string str_record;
-            std::getline(log_file, str_record);
+        auto read_handler = [&](const std::string &str_record) {
             // a valid record is:
             // record | "commit"
             size_t pos = str_record.find("commit");
@@ -63,16 +64,14 @@ public:
                 Record record(str_record.substr(0, pos));
                 func(record);
 
-                tmp_file << str_record << std::endl;
                 has_log = true;
-            } else {
-                break;
             }
-        }
-        log_file.close();
-        tmp_file.close();
-        std::remove(log_name.c_str());
-        std::rename(tmp_name.c_str(), log_name.c_str());
+        };
+        auto start_delete = [](const std::string &line) {
+            return line.find("commit") == std::string::npos;
+        };
+        FileSys::read_in_line_and_delete_last(log_name, read_handler, start_delete);
+
         return has_log;
     }
 };
