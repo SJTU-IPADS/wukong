@@ -101,4 +101,12 @@ public:
         std::remove(fname.c_str());
         std::rename(tmp_name.c_str(), fname.c_str());
     }
+
+    static void copy_file(const string &src, const string &dst) {
+        ifstream input(src.c_str(), std::ios::binary);
+        ofstream output(dst.c_str(), std::ios::binary);
+        output << input.rdbuf();
+        input.close();
+        output.close();
+    }
 };

@@ -23,6 +23,8 @@
 #include "log.hpp"
 #include "utils.hpp"
 
+#include <stdint.h>
+
 #include <algorithm>
 #include <fstream>
 #include <iostream>
@@ -35,30 +37,53 @@
 using namespace std;
 
 typedef int64_t i64;
+typedef uint64_t sid_t;
 
 struct Record {
-    size_t file_idx;
-    i64 pos;
+    size_t triples;          
+    int in_file;  // the next hanlded file index after recovery
+    i64 in_pos;   // next position of the next handled file
+    vector<i64> spo_pos;     // output file positions
+    vector<i64> ops_pos;     // output file positions
 
-    Record() : file_idx(0), pos(0) {}
+    Record(partitions) : triples(0), in_file(0), in_pos(0),
+        spo_pos(vector<i64>(partitions, 0))
+        pos_pos(vector<i64>(partitions, 0)) {}
 
-    Record(size_t file_idx, i64 pos)
-        : file_idx(file_idx), pos(pos) {}
+    Record(size_t triples, size_t in_file, i64 in_pos,
+            const vector<i64> &spo_pos, const vector<i64> &ops_pos)
+        : triples(triples) in_file(in_file), in_pos(in_pos),
+          spo_pos(spo_pos), ops_pos(ops_pos) {}
 
     Record(const string &str) {
         stringstream ss(str);
-        ss >> file_idx >> pos;
+        ss >> triples >> in_file >> in_pos;
+        size_t sz = 0;
+        ss >> sz;
+        spo_pos.resize(sz);
+        for (size_t i = 0; i < sz; i++)
+            ss >> spo_pos[i];
+        for (size_t i = 0; i < sz; i++)
+            ss >> ops_pos[i];
     }
 
-    Record &operator= (const Record &r) {
-        file_idx = r.file_idx;
-        pos = r.pos;
+    Record &operator= (Record &r) {
+        triples = r.triples;
+        in_file = r.in_file;
+        in_pos = r.in_pos;
+        spo_pos.swap(r.spo_pos);
+        ops_pos.swap(r.ops_pos);
         return *this;
     }
 
     string to_str() const {
         stringstream ss;
-        ss << file_idx << " " << pos;
+        ss << triples << " " << in_file << " " << in_pos;
+        ss << " " << spo_pos.size();
+        for (size_t i = 0; i < spo_pos.size(); i++)
+            ss << " " << spo_pos[i];
+        for (size_t i = 0; i < ops_pos.size(); i++)
+            ss << " " << ops_pos[i];
         return ss.str();
     }
 };
@@ -69,51 +94,74 @@ class Encoder {
 
     size_t partitions;
 
-    unordered_set<string> created;  // file created
-
-    int file_idx;  // the next hanlded file index after recovery
+    Record rc;
     Logger<Record> logger;
 
+    const size_t CHUNK_SIZE = 16 * 1024;
+
+    enum TYPE_T { SPO = 0, OPS = 1};
+
     bool recover_from_failure() {
-        Record record;
-        bool has_log = logger.recover_from_failure([&](Record &new_record) {
-            record = new_record;
+        bool has_log = logger.recover_from_failure([&, this](Record &new_rc) {
+            rc = new_rc;
         });
 
-        if (has_log) {
-            file_idx = record.file_idx + 1;  // start from the next unprocessed file
-            next_normal_id = 
-                recover_table(normal_table, normal_name, record.normal_sz, next_normal_id);
-            next_index_id = 
-                recover_table(index_table, index_name, record.index_sz, next_index_id);
-            recover_attr_table(record.type_sz);
-        }
         return has_log;
     }
 
     void write_log() {
-        Record r(file_idx, normal_table.size(), index_table.size(), type_table.size());
-        logger.write_log(r);
+        logger.write_log(rc);
     }
 
-    void process_file(const string &name, i64 pos) {
+    size_t dispatch(sid_t id) {
+        return id % partitions;
+    }
+
+    void write_triple(sid_t s, sid_t p, sid_t o, TYPE_T type) {
+        size_t pid;
+        string prefix;
+        i64 &pos = rc.spo_pos[0];
+
+        if (type == SPO) {
+            pid = dispatch(s);
+            pos = rc.spo_pos[pid];
+            prefix = "id_spo_";
+        } else {
+            pid = dispatch(o);
+            pos = rc.ops_pos[pid];
+            prefix = "id_ops_";
+        }
+
+        string file = ddir_name + "/" + prefix + to_string(pid);
+        ofstream output(file.c_str());
+        output.seekg(pos);
+        output << s << " " << p << " " << o << endl;
+        pos = output.tellg();
+        output.close();
+    }
+
+    void process_file(const string &name) {
         ifstream input(name.c_str());
+        input.seekg(rc.in_pos);
 
         sid_t s, p, o;
-        input.seekg(pos);
         while (input >> s >> p >> o) {
             for (size_t cnt = 0; cnt < CHUNK_SIZE; cnt++) {
-                write_triple(dispatch(s), s, p, o);
-                write_triple(dispatch(o), s, p, o);
+                write_triple(s, p, o, SPO);
+                write_triple(s, p, o, OPS);
+                rc.triples++;
             }
+            rc.in_pos = input.tellg();
             write_log();
         }
+
+        input.close();
     }
 
 public:
     Encoder(string sdir_name, string ddir_name, size_t partitions)
-        : sdir_name(sdir_name), ddir_name(ddir_name), partitions(partitions) 
-        file_idx(0), logger(ddir_name) {
+        : sdir_name(sdir_name), ddir_name(ddir_name),
+        partitions(partitions), rc(Record(partitions)), logger(ddir_name) {
 
         // If failure happened before, reload log and tables and continue from failure point.
         // Otherwise check and create destination directory.
@@ -132,19 +180,17 @@ public:
 
         sort(files.begin(), files.end());
 
-        while (file_idx < files.size()) {
-            process_file(files[file_idx]);
-            write_log();
-            cout << "Process No." << file_idx << " input file: " << files[file_idx] << "." << endl;
-            file_idx++;
+        while (rc.in_file < files.size()) {
+            process_file(files[rc.in_file]);
+            cout << "Process No." << rc.in_file << " input file: " << files[rc.in_file] << "." << endl;
+            rc.in_file++;
+            rc.in_pos = 0;
         }
 
         // print info
         stringstream ss;
-        ss << "#total_vertex = " << normal_table.size() + index_table.size() << endl;
-        ss << "#normal_vertex = " << normal_table.size() << endl;
-        ss << "#index_vertex = " << index_table.size() << endl;
-        ss << "#attr_vertex = " << type_table.size() << endl;
+        ss << "Prerocess is done. Repartition "
+            << rc.triples << " triples into " << partitions << " partitions." << endl;
         logger.commit(ss.str());
         cout << ss.str();
     }
@@ -165,6 +211,11 @@ int main(int argc, char** argv) {
     size_t partitions = 1024;
     if (argc == 4)
         partitions = argv[3];
+
+    if (partitions < 1 || partitions > 10 * 1024 * 1024) {
+        cout << "Number of partitions is too small or too large." << endl;
+        return -1;
+    }
 
     Encoder encoder(sdir_name, ddir_name, partitions);
     encoder.encode_data();
