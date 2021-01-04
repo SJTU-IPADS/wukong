@@ -114,4 +114,15 @@ public:
         struct stat info;
         return (stat(fname.c_str(), &info) == 0);
     }
+
+    static bool file_contain(const string &fname, string str) {
+        ifstream input(fname);
+        while (!input.eof()) {
+            string line;
+            getline(input, line);
+            if (line.find(str) != string::npos)
+                return true;
+        }
+        return false;
+    }
 };

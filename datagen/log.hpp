@@ -79,5 +79,7 @@ public:
         return has_log;
     }
 
-    bool already_commit() { return FileSys::file_exist(commit_name); }
+    bool already_commit() { 
+        return (FileSys::file_exist(commit_name) && FileSys::file_contain(commit_name, "Commit."));
+    }
 };

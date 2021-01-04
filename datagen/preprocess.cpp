@@ -156,7 +156,6 @@ class Encoder {
         }
         flush_table(SPO);
         flush_table(OPS);
-        logger.write_log(rc);
         input.close();
     }
 
@@ -187,6 +186,7 @@ public:
             while (rc.in_file < files.size()) {
                 process_file(files[rc.in_file]);
                 cout << "Process No." << rc.in_file << " input file: " << files[rc.in_file] << "." << endl;
+                logger.write_log(rc);
                 rc.in_file++;
             }
             string info = "Repartition " + to_string(rc.in_file) + " files into " + to_string(partitions) + " partitions.";
@@ -199,15 +199,15 @@ public:
 
 class Copyer {
     struct Record {
-        size_t copyed;    // copyed files
-        Record() : copyed(0) {}
-        Record(size_t copyed) : copyed(copyed) {}
-        Record(const string &str) : copyed(stoi(str)) {}
+        size_t file_idx;    // next file to copy
+        Record() : file_idx(0) {}
+        Record(size_t file_idx) : file_idx(file_idx) {}
+        Record(const string &str) : file_idx(stoi(str)) {}
         Record &operator= (Record &r) {
-            copyed = r.copyed;
+            file_idx = r.file_idx;
             return *this;
         }
-        string to_str() const { return to_string(copyed); }
+        string to_str() const { return to_string(file_idx); }
     };
 
     string sdir_name;  // source directory
@@ -230,11 +230,11 @@ public:
                 return file.find("id_") == string::npos;
             });
             sort(files.begin(), files.end());
-            while (rc.copyed < files.size()) {
-                auto &file = files[rc.copyed];
+            while (rc.file_idx < files.size()) {
+                auto &file = files[rc.file_idx];
                 FileSys::copy_file(sdir_name + "/" + file, ddir_name + "/" + file);
-                rc.copyed++;
                 logger.write_log(rc);
+                rc.file_idx++;
             }
             logger.commit("Copy other files is done.");
         }
