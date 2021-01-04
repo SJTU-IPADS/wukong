@@ -41,6 +41,9 @@ public:
     Logger(const std::string &file_path) : log_name(file_path + "/log"),
                                       commit_name(file_path + "/log_commit") { }
 
+    Logger(const std::string &file_path, string log, string commit)
+        : log_name(file_path + "/" + log), commit_name(file_path + "/" + commit) { }
+
     void write_log(const Record &record) {
         std::ofstream file(log_name.c_str(), std::ofstream::out | std::ofstream::app);
         file << record.to_str() << " " << "commit" << std::endl;
@@ -75,4 +78,6 @@ public:
 
         return has_log;
     }
+
+    bool already_commit() { return FileSys::file_exist(commit_name); }
 };

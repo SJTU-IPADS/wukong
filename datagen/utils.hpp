@@ -109,4 +109,9 @@ public:
         input.close();
         output.close();
     }
+
+    static bool file_exist(const string &fname) {
+        struct stat info;
+        return (stat(fname.c_str(), &info) == 0);
+    }
 };

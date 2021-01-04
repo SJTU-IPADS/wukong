@@ -35,187 +35,210 @@
 #include <vector>
 
 using namespace std;
-
-typedef int64_t i64;
-typedef uint64_t sid_t;
-
-class triple_t {
-public:
-    sid_t s;
-    sid_t p;
-    sid_t o;
-
-    triple_t() : s(0), p(0), o(0) {}
-    triple_t(sid_t s, sid_t p, sid_t o) : s(s), p(p), o(o) {}
-};
-
-typedef unordered_map<int, vector<triple_t>> table_t;
-
-struct Record {
-    size_t triples;          
-    int in_file;  // the next hanlded file index after recovery
-    vector<i64> spo_pos;     // output file positions
-    vector<i64> ops_pos;     // output file positions
-
-    Record(int partitions) : triples(0), in_file(0),
-        spo_pos(vector<i64>(partitions, 0)),
-        ops_pos(vector<i64>(partitions, 0)) {}
-
-    Record(size_t triples, size_t in_file,
-            const vector<i64> &spo_pos, const vector<i64> &ops_pos)
-        : triples(triples), in_file(in_file),
-          spo_pos(spo_pos), ops_pos(ops_pos) {}
-
-    Record(const string &str) {
-        stringstream ss(str);
-        ss >> triples >> in_file;
-        size_t sz = 0;
-        ss >> sz;
-        spo_pos.resize(sz);
-        for (size_t i = 0; i < sz; i++)
-            ss >> spo_pos[i];
-        for (size_t i = 0; i < sz; i++)
-            ss >> ops_pos[i];
-    }
-
-    Record &operator= (Record &r) {
-        triples = r.triples;
-        in_file = r.in_file;
-        spo_pos.swap(r.spo_pos);
-        ops_pos.swap(r.ops_pos);
-        return *this;
-    }
-
-    string to_str() const {
-        stringstream ss;
-        ss << triples << " " << in_file;
-        ss << " " << spo_pos.size();
-        for (size_t i = 0; i < spo_pos.size(); i++)
-            ss << " " << spo_pos[i];
-        for (size_t i = 0; i < ops_pos.size(); i++)
-            ss << " " << ops_pos[i];
-        return ss.str();
-    }
-};
-
 class Encoder {
+    typedef uint64_t sid_t;
+    struct triple_t {
+        sid_t s;
+        sid_t p;
+        sid_t o;
+
+        triple_t() : s(0), p(0), o(0) {}
+        triple_t(sid_t s, sid_t p, sid_t o) : s(s), p(p), o(o) {}
+    };
+    typedef unordered_map<int, vector<triple_t>> table_t;
+
+    struct Record {
+        int in_file;                // the next hanlded file index after recovery
+        vector<size_t> spo_num;      // processed spo triples
+        vector<size_t> ops_num;      // processed ops triples
+
+        Record(int partitions) : in_file(0), 
+            spo_num(vector<size_t>(partitions, 0)), ops_num(vector<size_t>(partitions, 0)) {}
+
+        Record(int in_file, const vector<size_t> &spo_num, const vector<size_t> &ops_num)
+            : in_file(in_file), spo_num(spo_num), ops_num(ops_num) {}
+
+        Record(const string &str) {
+            stringstream ss(str);
+            size_t sz = 0;
+            ss >> in_file >> sz;
+
+            spo_num.resize(sz);
+            ops_num.resize(sz);
+            for (auto &num : spo_num)
+                ss >> num;
+            for (auto &num : ops_num)
+                ss >> num;
+        }
+
+        Record &operator= (Record &r) {
+            in_file = r.in_file;
+            spo_num.swap(r.spo_num);
+            ops_num.swap(r.ops_num);
+            return *this;
+        }
+
+        string to_str() const {
+            stringstream ss;
+            ss << in_file << " " << spo_num.size();
+            for (auto num : spo_num)
+                ss << " " << num;
+            for (auto num : ops_num)
+                ss << " " << num;
+            return ss.str();
+        }
+    };
+
     string sdir_name;  // source directory
     string ddir_name;  // destination directory
-
     int partitions;
 
     Record rc;
     Logger<Record> logger;
 
-
     table_t spo_table;
     table_t ops_table;
 
-    enum TYPE_T { SPO = 0, OPS = 1};
+    const size_t MAX_SIZE = 64 * 1024;
 
-    bool recover_from_failure() {
-        bool has_log = logger.recover_from_failure([&, this](Record &new_rc) {
-            rc = new_rc;
-        });
+    enum type_t { SPO = 0, OPS = 1};
 
-        return has_log;
-    }
+    string prefix(type_t type) { return type == SPO ? "id_spo_" : "id_ops_"; }
 
-    void write_log() {
-        logger.write_log(rc);
-    }
+    vector<size_t> &triple_num(type_t type) { return type == SPO ? rc.spo_num : rc.ops_num; }
 
-    int dispatch(sid_t id) {
-        return id % partitions;
-    }
+    int pid(type_t type, triple_t t) { return type == SPO ? t.s % partitions : t.o % partitions; }
 
-    void flush_table(table_t &table, vector<i64> &pos, string prefix) {
-        for (auto &it : table) {
+    table_t &table(type_t type) { return type == SPO ? spo_table : ops_table; }
+
+    void flush_table(type_t type) {
+        auto &table_ = table(type);
+
+        for (auto it : table_) {
             if (!it.second.empty()) {
-                int pid = it.first;
-                string file = ddir_name + "/" + prefix + to_string(pid) + ".nt";
-                ofstream output(file.c_str(), std::ofstream::out | std::ofstream::app);
-                // output.seekp(pos[pid]);
-
-                cout << "before " << it.second.size() << endl;
-                for (auto t : it.second) {
-                    output << t.s << " " << t.p << " " << t.o << endl;
-                }
-                pos[pid] = output.tellp();
-                output.close();
-
-                it.second.clear();
-                cout << it.second.size() << endl;
+                flush(table_, it.first, prefix(type), triple_num(type));
             }
         }
     }
 
-    void insert(table_t &table, int pid, triple_t triple) {
-        if (table.find(pid) == table.end()) {
-            table[pid] = {triple};
-        } else {
-            table[pid].emplace_back(triple);
+    void flush(table_t &table, int pid, string prefix, vector<size_t> &nums) {
+        string file = ddir_name + "/" + prefix + to_string(pid) + ".nt";
+        ofstream output(file.c_str(), std::ofstream::out | std::ofstream::app);
+        auto &triples = table[pid];
+        for (auto t : triples) {
+            output << t.s << " " << t.p << " " << t.o << endl;
         }
+        output.close();
+        nums[pid] += triples.size();
+        triples.clear();
     }
 
-    void write_triple(sid_t s, sid_t p, sid_t o, TYPE_T type) {
-        if (type == SPO) {
-            insert(spo_table, dispatch(s), triple_t(s, p, o));
+    void write_triple(triple_t triple, type_t type) {
+        auto &table_ = table(type);
+        int pid_ = pid(type, triple);
+
+        auto it = table_.find(pid_);
+        if (it != table_.end()) {
+            it->second.emplace_back(triple);
+            if (it->second.size() > MAX_SIZE)
+                flush(table_, pid_, prefix(type), triple_num(type));
         } else {
-            insert(ops_table, dispatch(o), triple_t(s, p, o));
+            table_[pid_] = {triple};
         }
     }
 
     void process_file(const string &name) {
         ifstream input((sdir_name + "/" + name).c_str());
-
         sid_t s, p, o;
         while (input >> s >> p >> o) {
-            write_triple(s, p, o, SPO);
-            write_triple(s, p, o, OPS);
-            rc.triples++;
+            write_triple(triple_t(s, p, o), SPO);
+            write_triple(triple_t(s, p, o), OPS);
         }
-        flush_table(spo_table, rc.spo_pos, "id_spo_");
-        flush_table(ops_table, rc.ops_pos, "id_ops_");
-        write_log();
-
+        flush_table(SPO);
+        flush_table(OPS);
+        logger.write_log(rc);
         input.close();
     }
 
 public:
     Encoder(string sdir_name, string ddir_name, int partitions)
-        : sdir_name(sdir_name), ddir_name(ddir_name),
-        partitions(partitions), rc(Record(partitions)), logger(ddir_name) {
+        : sdir_name(sdir_name), ddir_name(ddir_name), partitions(partitions),
+        rc(Record(partitions)), logger(ddir_name, "encode_log", "encode_commit") {
 
-        // If failure happened before, reload log and tables and continue from failure point.
-        // Otherwise check and create destination directory.
-        if (!recover_from_failure()) {
-            if (!FileSys::dir_exist(ddir_name)) {
-                if (!FileSys::create_dir(ddir_name))
+        if (!logger.already_commit()) {
+            bool has_log = logger.recover_from_failure([&, this](Record &new_rc) {
+                rc = new_rc;
+            });
+            if (!has_log) {
+                if (!FileSys::dir_exist(ddir_name)) {
+                    if (!FileSys::create_dir(ddir_name))
                     exit(-1);
+                }
             }
         }
     }
 
     void encode_data() {
-        auto files = FileSys::get_files(sdir_name, [](const string &file) {
-            return file.find("id_") != string::npos;
-        });
-
-        sort(files.begin(), files.end());
-
-        while (rc.in_file < files.size()) {
-            process_file(files[rc.in_file]);
-            cout << "Process No." << rc.in_file << " input file: " << files[rc.in_file] << "." << endl;
-            rc.in_file++;
+        if (!logger.already_commit()) {
+            auto files = FileSys::get_files(sdir_name, [](const string &file) {
+                return file.find("id_") != string::npos;
+            });
+            sort(files.begin(), files.end());
+            while (rc.in_file < files.size()) {
+                process_file(files[rc.in_file]);
+                cout << "Process No." << rc.in_file << " input file: " << files[rc.in_file] << "." << endl;
+                rc.in_file++;
+            }
+            string info = "Repartition " + to_string(rc.in_file) + " files into " + to_string(partitions) + " partitions.";
+            logger.commit(info);
+            cout << info << endl;
         }
+        cout << "Preprocess is done. " << endl;
+    }
+};
 
-        // print info
-        stringstream ss;
-        ss << "Prerocess is done. Repartition "
-            << rc.triples << " triples into " << partitions << " partitions." << endl;
-        logger.commit(ss.str());
-        cout << ss.str();
+class Copyer {
+    struct Record {
+        size_t copyed;    // copyed files
+        Record() : copyed(0) {}
+        Record(size_t copyed) : copyed(copyed) {}
+        Record(const string &str) : copyed(stoi(str)) {}
+        Record &operator= (Record &r) {
+            copyed = r.copyed;
+            return *this;
+        }
+        string to_str() const { return to_string(copyed); }
+    };
+
+    string sdir_name;  // source directory
+    string ddir_name;  // destination directory
+    Logger<Record> logger;
+    Record rc;
+
+public:
+    Copyer(string sdir_name, string ddir_name) : sdir_name(sdir_name), ddir_name(ddir_name), logger(ddir_name) {
+        if (!logger.already_commit()) {
+            logger.recover_from_failure([&, this](Record &new_rc) {
+                rc = new_rc;
+            });
+        }
+    }
+
+    void copy_other_files() {
+        if (!logger.already_commit()) {
+            auto files = FileSys::get_files(sdir_name, [](const string &file) {
+                return file.find("id_") == string::npos;
+            });
+            sort(files.begin(), files.end());
+            while (rc.copyed < files.size()) {
+                auto &file = files[rc.copyed];
+                FileSys::copy_file(sdir_name + "/" + file, ddir_name + "/" + file);
+                rc.copyed++;
+                logger.write_log(rc);
+            }
+            logger.commit("Copy other files is done.");
+        }
+        cout << "Copy other files is done." << endl;
     }
 };
 
@@ -242,5 +265,8 @@ int main(int argc, char** argv) {
 
     Encoder encoder(sdir_name, ddir_name, partitions);
     encoder.encode_data();
+
+    Copyer copyer(sdir_name, ddir_name);
+    copyer.copy_other_files();
     return 0;
 }
