@@ -162,7 +162,7 @@ class Encoder {
 public:
     Encoder(string sdir_name, string ddir_name, int partitions)
         : sdir_name(sdir_name), ddir_name(ddir_name), partitions(partitions),
-        rc(Record(partitions)), logger(ddir_name, "encode_log", "encode_commit") {
+        rc(Record(partitions)), logger(ddir_name, "log_encode", "log_commit_encode") {
 
         if (!logger.already_commit()) {
             bool has_log = logger.recover_from_failure([&, this](Record &new_rc) {

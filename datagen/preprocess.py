@@ -21,13 +21,13 @@ def convert(input_dir, output_dir, partitions):
     if (is_commit(output_dir) == False):
         os.system('./preprocess ' + input_dir + ' ' + output_dir + ' ' + str(partitions))
         while (is_commit(output_dir) == False):
-            print('Failure occurred to generate_data project, try and recover ...')
+            print('Failure occurred to preprocess project, try and recover ...')
             os.system('./preprocess ' + input_dir + ' ' + output_dir + ' ' + str(partitions))
 
 def main():    
 #get args
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hi:o:", ["help", "input=", "output="])
+        opts, args = getopt.getopt(sys.argv[1:], "hi:o:p:", ["help", "input=", "output="])
     except getopt.GetoptError:  
         usage()
         sys.exit(2)
@@ -44,7 +44,7 @@ def main():
         elif o in ("-o", "--output"):
             output_dir = a
         elif o in ("-p", "--partitions"):
-            partitions = a
+            partitions = int(a)
         else:
             assert False
 
