@@ -256,9 +256,9 @@ class Encoder {
     }
 
     void process_file(string fname) {
-        ifstream ifile((string(sdir_name) + "/" + fname).c_str());
-        ofstream ofile((string(ddir_name) + "/id_" + fname).c_str());
-        ofstream attr_file((string(ddir_name) + "/attr_" + fname).c_str());
+        ifstream ifile((sdir_name + "/" + fname).c_str());
+        ofstream ofile((ddir_name + "/id_" + fname).c_str());
+        ofstream attr_file((ddir_name + "/attr_" + fname).c_str());
         // prefix mapping
         unordered_map<string, string> str_to_str;
 
