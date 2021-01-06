@@ -361,7 +361,92 @@ protected:
                     }
                 }
             }
+        }
+    }
 
+    // Load normal triples from all files, using read_partial_exchange or read_all_files.
+    void load_triples_from_all(vector<string> &dfiles, 
+                                   vector<vector<triple_t>> &triple_pso,
+                                   vector<vector<triple_t>> &triple_pos) {
+        // read_partial_exchange: load partial input files by each server and exchanges triples
+        //            according to graph partitioning
+        // read_all_files: load all files by each server and select triples
+        //                          according to graph partitioning
+        //
+        // Trade-off: read_all_files avoids network traffic and memory,
+        //            but it requires more I/O from distributed FS.
+        //
+        // Wukong adopts read_all_files for slow network (w/o RDMA) and
+        //        adopts read_partial_exchange for fast network (w/ RDMA).
+        uint64_t start = timer::get_usec();
+        int num_partitons = 0;
+        if (Global::use_rdma)
+            num_partitons = read_partial_exchange(dfiles);
+        else
+            num_partitons = read_all_files(dfiles);
+        uint64_t end = timer::get_usec();
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << " ms "
+                            << "for loading data files" << LOG_endl;
+
+        // all triples are partitioned and temporarily stored in the kvstore on each server.
+        // the kvstore is split into num_partitions partitions, each contains #triples and triples
+        //
+        // Wukong aggregates all triples before finally inserting them to gstore (kvstore)
+        start = timer::get_usec();
+        aggregate_data(num_partitons, triple_pso, triple_pos);
+        end = timer::get_usec();
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << " ms "
+                            << "for aggregrating triples" << LOG_endl;
+    }
+
+    // Load preprocessed data from selected files.
+    void load_triples_from_selected(const string &src, vector<string> &fnames, 
+                                   vector<vector<triple_t>> &triple_pso,
+                                   vector<vector<triple_t>> &triple_pos) {
+        uint64_t start = timer::get_usec();
+
+        size_t triple_cnt = get_triple_cnt(src);
+        for (int i = 0; i < triple_pso.size(); i++) {
+            triple_pso[i].reserve(triple_cnt / Global::num_servers / Global::num_engines);
+            triple_pos[i].reserve(triple_cnt / Global::num_servers / Global::num_engines);
+        }
+
+        auto load_one_file = [&](bool by_s, istream &file,
+                             vector<triple_t> &triple_pso, vector<triple_t> &triple_pos) {
+            sid_t s, p, o;
+            while (file >> s >> p >> o) {
+                if (by_s)    // out-edges
+                    triple_pso.push_back(triple_t(s, p, o));
+                else        // in-edges
+                    triple_pos.push_back(triple_t(s, p, o));
+            }
+        };
+
+        int num_files = fnames.size();
+        #pragma omp parallel for num_threads(Global::num_engines)
+        for (int i = 0; i < num_files; i++) {
+            int localtid = omp_get_thread_num();
+
+            size_t spos = fnames[i].find_last_of('_') + 1;
+            size_t len = fnames[i].find('.') - spos;
+            int pid = stoi(fnames[i].substr(spos, len));
+            if (wukong::math::hash_mod(pid, Global::num_servers) == sid) {
+                istream *file = init_istream(fnames[i]);
+                bool by_s = (fnames[i].find("spo") != string::npos);
+                load_one_file(by_s, *file, triple_pso[localtid], triple_pos[localtid]);
+                close_istream(file);
+            }
+        }
+        uint64_t end = timer::get_usec();
+        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << " ms "
+                            << "for loading triples" << LOG_endl;
+    }
+
+    void sort_normal_triples(vector<vector<triple_t>> &triple_pso,
+                             vector<vector<triple_t>> &triple_pos) {
+
+        #pragma omp parallel for num_threads(Global::num_engines)
+        for (int tid = 0; tid < Global::num_engines; tid++) {
 #ifdef VERSATILE
             sort(triple_pso[tid].begin(), triple_pso[tid].end(), triple_sort_by_spo());
             sort(triple_pos[tid].begin(), triple_pos[tid].end(), triple_sort_by_ops());
@@ -375,6 +460,29 @@ protected:
             triple_pos[tid].shrink_to_fit();
             triple_pso[tid].shrink_to_fit();
         }
+    }
+
+    bool is_preprocessed(const string &src) {
+        auto info_file = list_files(src, "metadata");
+        if (info_file.size() == 1) {
+            istream *file = init_istream(src + "/metadata");
+            int num = 0;
+            if ((*file) >> num) {
+                // Preprocessed data can be re-hashed into #num_servers partitions if num is times of num_servers.
+                if (num % Global::num_servers == 0)
+                    return true;
+            }
+            close_istream(file);
+        }
+        return false;
+    }
+
+    size_t get_triple_cnt(const string &src) {
+        istream *file = init_istream(src + "/metadata");
+        size_t num, triples;
+        ASSERT(*file >> num >> triples);
+        close_istream(file);
+        return triples;
     }
 
 public:
@@ -425,36 +533,21 @@ public:
         if (Global::enable_vattr)
             gstore->num_attr_preds = count_preds(src + "str_attr_index");
 
-        // read_partial_exchange: load partial input files by each server and exchanges triples
-        //            according to graph partitioning
-        // read_all_files: load all files by each server and select triples
-        //                          according to graph partitioning
+        // load_triples_from_all: load triples from all the input files
+        // load_triples_from_selected: load triples from selected input files which is preprocessed
         //
-        // Trade-off: read_all_files avoids network traffic and memory,
-        //            but it requires more I/O from distributed FS.
+        // Trade-off: load_triples_from_selected is faster than load_triples_from_all,
+        //            but it requires preprocessing and specific conditions
         //
-        // Wukong adopts read_all_files for slow network (w/o RDMA) and
-        //        adopts read_partial_exchange for fast network (w/ RDMA).
-        start = timer::get_usec();
-        int num_partitons = 0;
-        if (Global::use_rdma)
-            num_partitons = read_partial_exchange(dfiles);
+        // Wukong adopts load_normal_from_selected for well-preprocessed data which meets is_preprocessed()
+        //        and adopts load_normal_from_all for other input data.
+        if (is_preprocessed(src))
+            load_normal_from_selected(src, dfiles, triple_pso, triple_pos);
         else
-            num_partitons = read_all_files(dfiles);
-        end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << " ms "
-                            << "for loading data files" << LOG_endl;
+            load_normal_from_all(dfiles, triple_pso, triple_pso);
 
-        // all triples are partitioned and temporarily stored in the kvstore on each server.
-        // the kvstore is split into num_partitions partitions, each contains #triples and triples
-        //
-        // Wukong aggregates, sorts and dedups all triples before finally inserting
-        // them to gstore (kvstore)
-        start = timer::get_usec();
-        aggregate_data(num_partitons, triple_pso, triple_pos);
-        end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << " ms "
-                            << "for aggregrating triples" << LOG_endl;
+        // Wukong sorts and dedups all triples before finally inserting them to gstore (kvstore)
+        sort_normal_triples(triple_pso, triple_pos);
 
         // load attribute files
         start = timer::get_usec();
