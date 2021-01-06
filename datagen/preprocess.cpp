@@ -159,15 +159,39 @@ class Encoder {
         input.close();
     }
 
+    void recover_table(int pid, type_t type) {
+        size_t num = (triple_num(type))[pid];
+        size_t lines = 0;
+        string fname = ddir_name + "/" + prefix(type) + to_string(pid) + ".nt";
+        FileSys::read_in_line_and_delete_last(fname,
+                [&] (const string &line) { lines++; },
+                [&] (const string &line) { return lines >= size; }
+        );
+        // Report error if there are no more than #num lines in the file.
+        if (lines < num) {
+            cout << "Log error. Please clear the destination directory and retry." << endl;
+            exit(0);
+        }
+    }
+
+    bool recover_from_failure() {
+        bool has_log = logger.recover_from_failure([&, this](Record &new_rc) {
+            rc = new_rc;
+        });
+        for (int i = 0; i < partitions; i++) {
+            recover_table(i, SPO);
+            recover_table(i, OPS);
+        }
+        return has_log;
+    }
+
 public:
     Encoder(string sdir_name, string ddir_name, int partitions)
         : sdir_name(sdir_name), ddir_name(ddir_name), partitions(partitions),
         rc(Record(partitions)), logger(ddir_name, "log_encode", "log_commit_encode") {
 
         if (!logger.already_commit()) {
-            bool has_log = logger.recover_from_failure([&, this](Record &new_rc) {
-                rc = new_rc;
-            });
+            bool has_log = recover_from_failure();
             if (!has_log) {
                 if (!FileSys::dir_exist(ddir_name)) {
                     if (!FileSys::create_dir(ddir_name))
@@ -193,6 +217,14 @@ public:
             logger.commit(info);
             cout << info << endl;
         }
+
+        size_t triples = 0;
+        for (auto num : rc.spo_num)
+            triples += num;
+        ofstream info_file(ddir_name + "/" + "metadata");
+        info_file << partitions << " " << triples << " #partition_num | triple_num" << endl;
+        info_file.close();
+
         cout << "Preprocess is done. " << endl;
     }
 };
