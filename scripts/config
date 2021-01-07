@@ -8,6 +8,7 @@ global_enable_workstealing      0
 global_stealing_pattern         0
 global_enable_planner           1
 global_generate_statistics      1
+global_enable_budget            1
 global_enable_vattr             0
 global_silent                   1
 

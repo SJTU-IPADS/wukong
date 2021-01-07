@@ -30,6 +30,7 @@
 #include <errno.h>
 #include <sstream>
 #include <assert.h>
+#include <immintrin.h>
 
 #include "global.hpp"
 #include "rdma.hpp"
