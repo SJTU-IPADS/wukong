@@ -542,9 +542,9 @@ public:
         // Wukong adopts load_normal_from_selected for well-preprocessed data which meets is_preprocessed()
         //        and adopts load_normal_from_all for other input data.
         if (is_preprocessed(src))
-            load_normal_from_selected(src, dfiles, triple_pso, triple_pos);
+            load_triples_from_selected(src, dfiles, triple_pso, triple_pos);
         else
-            load_normal_from_all(dfiles, triple_pso, triple_pso);
+            load_triples_from_all(dfiles, triple_pso, triple_pso);
 
         // Wukong sorts and dedups all triples before finally inserting them to gstore (kvstore)
         sort_normal_triples(triple_pso, triple_pos);

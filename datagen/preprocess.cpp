@@ -165,7 +165,7 @@ class Encoder {
         string fname = ddir_name + "/" + prefix(type) + to_string(pid) + ".nt";
         FileSys::read_in_line_and_delete_last(fname,
                 [&] (const string &line) { lines++; },
-                [&] (const string &line) { return lines >= size; }
+                [&] (const string &line) { return lines >= num; }
         );
         // Report error if there are no more than #num lines in the file.
         if (lines < num) {
