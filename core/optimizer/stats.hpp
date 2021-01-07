@@ -21,169 +21,20 @@
  */
 
 #pragma once
+#define DEFAULT_TYPE 0
 
 #include <unordered_map>
 #include <unordered_set>
 #include <boost/mpi.hpp>
-#include <boost/functional/hash.hpp>
 #include <boost/algorithm/string.hpp>
-#include <boost/archive/text_oarchive.hpp>
-#include <boost/archive/text_iarchive.hpp>
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/serialization/unordered_map.hpp>
-#include <boost/serialization/unordered_set.hpp>
-#include <tbb/concurrent_hash_map.h>
 
+#include "common.hpp"
 #include "global.hpp"
-
 
 #include "store/gstore.hpp"
 #include "comm/tcp_adaptor.hpp"
 
 using namespace std;
-
-struct type_t {
-    bool data_type;   //true for type_composition, false for index_composition
-    std::unordered_set<int> composition;
-
-    void set_type_composition(std::unordered_set<int> c) {
-        data_type = true;
-        this->composition = c;
-    }
-
-    void set_index_composition(std::unordered_set<int> c) {
-        data_type = false;
-        this->composition = c;
-    };
-
-    bool operator == (const type_t &other) const {
-        if (data_type != other.data_type) return false;
-        return this->composition == other.composition;
-    }
-
-    bool equal(const type_t &other) const {
-        if (data_type != other.data_type) return false;
-        return this->composition == other.composition;
-    }
-
-    template <typename Archive>
-    void serialize(Archive &ar, const unsigned int version) {
-        ar & data_type;
-        ar & composition;
-    }
-};
-
-struct type_t_hasher {
-    size_t operator()( const type_t& type ) const {
-        return hash(type);
-    }
-
-    // for tbb hashcompare
-    size_t hash( const type_t& type ) const {
-        size_t res = 17;
-        for (auto it = type.composition.cbegin(); it != type.composition.cend(); ++it)
-            res += *it + 17;
-        return res;
-    }
-
-    // for tbb hashcompare
-    bool equal(const type_t& type1, const type_t& type2) const {
-        return type1.equal(type2);
-    }
-};
-
-struct ty_count {
-    ssid_t ty;
-    int count;
-    template <typename Archive>
-    void serialize(Archive &ar, const unsigned int version) {
-        ar & ty;
-        ar & count;
-    }
-};
-
-struct type_stat {
-    unordered_map<ssid_t, vector<ty_count>> pstype;
-    unordered_map<ssid_t, vector<ty_count>> potype;
-    unordered_map<pair<ssid_t, ssid_t>, vector<ty_count>, boost::hash<pair<int, int>>> fine_type;
-
-    // pair<subject, predicate> means subject predicate -> ?
-    // pair<predicate, object> means ? predicate -> object
-    int get_pstype_count(ssid_t predicate, ssid_t type) {
-        vector<ty_count> &types = pstype[predicate];
-        for (size_t i = 0; i < types.size(); i++)
-            if (types[i].ty == type)
-                return types[i].count;
-        return 0;
-    }
-
-    int get_potype_count(ssid_t predicate, ssid_t type) {
-        vector<ty_count> &types = potype[predicate];
-        for (size_t i = 0; i < types.size(); i++)
-            if (types[i].ty == type)
-                return types[i].count;
-        return 0;
-    }
-
-    int insert_stype(ssid_t predicate, ssid_t type, int count) {
-        vector<ty_count> &types = pstype[predicate];
-        for (size_t i = 0; i < types.size(); i++) {
-            if (types[i].ty == type) {
-                types[i].count += count;
-                return 0;
-            }
-        }
-
-        ty_count newty;
-        newty.ty = type;
-        newty.count = count;
-        types.push_back(newty);
-        return 1;
-    }
-
-    int insert_otype(ssid_t predicate, ssid_t type, int count) {
-        vector<ty_count> &types = potype[predicate];
-        for (size_t i = 0; i < types.size(); i++) {
-            if (types[i].ty == type) {
-                types[i].count += count;
-                return 0;
-            }
-        }
-
-        ty_count newty;
-        newty.ty = type;
-        newty.count = count;
-        types.push_back(newty);
-        return 1;
-    }
-
-    int insert_finetype(ssid_t first, ssid_t second, ssid_t type, int count) {
-        vector<ty_count> &types = fine_type[make_pair(first, second)];
-        for (size_t i = 0; i < types.size(); i++) {
-            if (types[i].ty == type) {
-                types[i].count += count;
-                return 0;
-            }
-        }
-
-        ty_count newty;
-        newty.ty = type;
-        newty.count = count;
-        types.push_back(newty);
-        return 1;
-    }
-
-    template <typename Archive>
-    void serialize(Archive &ar, const unsigned int version) {
-        ar & pstype;
-        ar & potype;
-        ar & fine_type;
-    }
-};
-
-typedef tbb::concurrent_unordered_set<ssid_t> tbb_set;
-typedef tbb::concurrent_hash_map<type_t, ssid_t, type_t_hasher> tbb_map;
 
 class Stats {
 private:
@@ -252,58 +103,14 @@ public:
 
     Stats() { }
 
-    // for debug usage
-    void show_stat_info() {
-        int number_of_notype = 0;
-        int number_of_multitype = 0;
-        int number_of_singletype = 0;
-        for (auto const &token : global_type2int) {
-            if (token.first.data_type)
-                number_of_multitype ++;
-            else
-                number_of_notype ++;
-        }
-        for (auto const &token : global_tyscount) {
-            if (token.first > 0)
-                number_of_singletype++;
-        }
-
-        cout << "number_of_multitype: " << number_of_multitype << endl;
-        cout << "number_of_notype: " << number_of_notype << endl;
-        cout << "number_of_singletype: " << number_of_singletype << endl;
-
-        const int NUMBER = 10;
-        int temp[NUMBER];
-        int temp2[NUMBER];
-        for (int i = 0; i < NUMBER; i ++) {
-            temp[i] = 0;
-            temp2[i] = 0;
-        }
-        for (auto const &token : global_tyscount) {
-            if (token.second <= NUMBER) {
-                temp[token.second - 1] ++;
-                if (token.first > 0) {
-                    temp2[token.second - 1] ++;
-                }
-            }
-        }
-
-        cout << "useless type number: " << endl;
-        for (int i = 0; i < NUMBER; i ++) {
-            cout << temp[i] << "\t" << temp2[i] << endl;
-        }
-    }
-
     // reduce number of types to speed up planning procedure
     // sacrifice accuracy in change for speed
     // MODIFICATIONS:
     // global_tyscount: useful_type count
     // global_type2int: all type to its type_No
     // global_single2complex: single to useful_multipletype
+    // return: number of types removed in merge operation
     void merge_type() {
-
-        //show_stat_info();
-
         uint64_t total_number = 0;
         map<int, ssid_t> tys;
         int minimum_count = 0;
@@ -312,7 +119,7 @@ public:
             if (tys.find(token.second) == tys.end())
                 tys[token.second] = 1;
             else
-                tys[token.second] ++;
+                tys[token.second]++;
         }
 
         uint64_t sum = 0;
@@ -325,13 +132,13 @@ public:
             }
         }
 
-        //cout << "minimum_count: " << minimum_count << endl;
+        // cout << "minimum_count: " << minimum_count << endl;
 
         tbb_map new_type2int;
         // type of which has too few vertices (among notype & multitype)
         unordered_set<ssid_t> global_useless_type;
         for (auto const &token : global_tyscount) {
-            //global_useless_type.insert(token.first);
+            // global_useless_type.insert(token.first);
 
             // generated type && vertices of this type less than threshold
             if (token.first < 0 && token.second < minimum_count)
@@ -340,50 +147,28 @@ public:
                 global_useful_type.insert(token.first);
         }
 
-#if 0
-        // TODO: Using similarity may have better performance for some queries. This strategy may be useful in future.
-        auto similarity = [&](type_t t1, type_t t2) -> int{
-            if (t1.data_type != t2.data_type) return 0;
-            for (auto &token : t2.composition) {
-                if (t1.composition.find(token) == t1.composition.end())
-                    return 0;
-            }
-            return t2.composition.size();
-        };
-
-        // get useful type2int
-        #pragma omp parallel
-        for (auto const &token : global_useless_type) {
-            #pragma omp single nowait
-            {
-                type_t useless_type_No = global_int2type[token];
-                // take it as the closest useful type or 0-type
-                ssid_t result = 0;
-                int max_similarity = 0;
-                for (auto const &token2 : global_useful_type) {
-                    type_t useful_type = global_int2type[token2];
-                    int sim = similarity(useless_type_No, useful_type);
-                    if (sim > 0 && sim > max_similarity) {
-                        result = token2;
-                    }
-                }
-                tbb_map::accessor a;
-                new_type2int.insert(a, useless_type_No);
-                a->second = result;
-            }
-        }
-#endif
-
         // useful type2int
         unordered_map<type_t, ssid_t, type_t_hasher> type2int_new;
-//      for(auto const &token: new_type2int){
-//          type2int_new[token.first] = token.second;
-//      }
+        /**
+         * remove type of which has too few vertices (among notype & multitype)
+         * Use 'ratio of min tyscount to max tyscount' to judge
+         * whether a type is rare.
+         * Other methods can't limit types number finely grained
+         * because of uneven tyscount's density.
+         */
 
-        // set all useless types to 0-type
-        for (auto const &token : global_useless_type) {
-            type2int_new[global_int2type[token]] = 0;
+        for (auto const &token : global_tyscount) {
+            // generated type && vertices of this type less than threshold
+            if (token.first < 0 && token.second < minimum_count)
+                global_useless_type.insert(token.first);
+            else
+                global_useful_type.insert(token.first);
         }
+
+        for (auto const &token : global_useless_type) {
+            type2int_new[global_int2type[token]] = DEFAULT_TYPE;
+        }
+
         for (auto const &token : global_useful_type) {
             type2int_new[global_int2type[token]] = token;
         }
@@ -422,7 +207,7 @@ public:
 
         // update global_type2int
         global_type2int.swap(type2int_new);
-
+        return ;
     }
 
     void gather_stat(TCP_Adaptor *tcp_ad) {
@@ -446,7 +231,7 @@ public:
                 if (global_type2int.find(complex_type) != global_type2int.end())
                     return global_type2int[complex_type];
                 else {
-                    logstream(LOG_ERROR) << "type not found" << LOG_endl;
+                    logstream(LOG_ERROR) << "type not found, size " << complex_type.composition.size() << LOG_endl;
                     return 0;
                 }
             };
@@ -520,18 +305,25 @@ public:
                     }
                 }
             }
-
             for (int i = 0; i < all_gather.size(); i++) {
 
                 for (unordered_map<ssid_t, vector<ty_count>>::iterator it = all_gather[i].local_tystat.pstype.begin();
                         it != all_gather[i].local_tystat.pstype.end(); it++ ) {
                     ssid_t key = it->first;
                     vector<ty_count>& types = it->second;
-                    for (size_t k = 0; k < types.size(); k++)
-                        global_tystat.insert_stype(key,
-                                                   //0,
-                                                   types[k].ty < 0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
-                                                   types[k].count);
+                    for (size_t k = 0; k < types.size(); k++){
+                        if(types[k].ty <= DEFAULT_TYPE){
+                            ssid_t new_type = type_transform(types[k].ty, all_gather[i]);
+                            if(new_type!=DEFAULT_TYPE)
+                                global_tystat.insert_stype(key, new_type, types[k].count);
+                            else{
+                                global_tystat.insert_stype(key, DEFAULT_TYPE, types[k].count);
+                            }
+                        }
+                        else
+                            global_tystat.insert_stype(key, types[k].ty, types[k].count);
+                    }
+                        
                 }
 
                 for (unordered_map<ssid_t, vector<ty_count>>::iterator it = all_gather[i].local_tystat.potype.begin();
@@ -539,10 +331,15 @@ public:
                     ssid_t key = it->first;
                     vector<ty_count>& types = it->second;
                     for (size_t k = 0; k < types.size(); k++)
-                        global_tystat.insert_otype(key,
-                                                   //0,
-                                                   types[k].ty < 0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
-                                                   types[k].count);
+                        if (types[k].ty <= DEFAULT_TYPE){
+                            ssid_t new_type = type_transform(types[k].ty, all_gather[i]);
+                            if(new_type!=DEFAULT_TYPE)
+                                global_tystat.insert_otype(key, new_type, types[k].count);
+                            else
+                                global_tystat.insert_otype(key, DEFAULT_TYPE, types[k].count);
+                        }
+                        else
+                            global_tystat.insert_otype(key, types[k].ty, types[k].count);
                 }
 
                 for (unordered_map<pair<ssid_t, ssid_t>, vector<ty_count>, boost::hash<pair<int, int>>>::iterator
@@ -550,15 +347,25 @@ public:
                         it != all_gather[i].local_tystat.fine_type.end(); it++ ) {
                     pair<ssid_t, ssid_t> key = it->first;
                     vector<ty_count>& types = it->second;
-                    for (size_t k = 0; k < types.size(); k++)
-                        global_tystat.insert_finetype(
-                            key.first < 0 ? type_transform(key.first, all_gather[i]) : key.first,
-                            key.second < 0 ? type_transform(key.second, all_gather[i]) : key.second,
-                            //(key.first < 0 || key.first > (1 << 17)) ? 0 : key.first ,
-                            //(key.second < 0 || key.second > (1 << 17)) ? 0 : key.second ,
-                            types[k].ty < 0 ? type_transform(types[k].ty, all_gather[i]) : types[k].ty,
-                            //0,
-                            types[k].count);
+                    for (size_t k = 0; k < types.size(); k++){
+                        double temp_count = types[k].count;
+                        ssid_t new_type1;
+                        ssid_t new_type2 = types[k].ty;
+                        if(types[k].ty < 0){
+                            new_type2 = type_transform(types[k].ty, all_gather[i]);
+                        }
+                        if(key.first < 0)  {
+                            new_type1 = type_transform(key.first, all_gather[i]);
+                            global_tystat.insert_finetype(new_type1, key.second, new_type2, types[k].count);
+                        }
+                        else if (key.second < 0) {
+                            new_type1 = type_transform(key.second, all_gather[i]);
+                            global_tystat.insert_finetype(key.first, new_type1, new_type2, types[k].count);
+                        }
+                        else {
+                            global_tystat.insert_finetype(key.first, key.second, new_type2, types[k].count);
+                        }
+                    }
                 }
             }
 
@@ -644,7 +451,7 @@ public:
 
         if (iter == local_type2int.end()) {
             ssid_t number = local_type2int.size();
-            number ++;
+            number++;
             number = -number;
             local_type2int[type] = number;
             local_int2type[number] = type;
@@ -701,7 +508,10 @@ public:
             // if(index_composition.size() == 0){
             //     cout << "empty index, may be type" << endl;
             // }
-            return get_simple_type(type);
+            ssid_t result;
+            #pragma omp critical
+            result = get_simple_type(type);
+            return result;
         };
 
         //use type_composition as type of no_type
@@ -712,7 +522,10 @@ public:
                 type_composition.insert(res[i].val);
 
             type.set_type_composition(type_composition);
-            return get_simple_type(type);
+            ssid_t result;
+            #pragma omp critical
+            result = get_simple_type(type);
+            return result;
         };
 
         // return success or not, because one id can only be recorded once
@@ -730,14 +543,12 @@ public:
             }
         };
 
-        int percent_number = 1;
-        for (uint64_t bucket_id = 0; bucket_id < gstore->num_buckets + gstore->num_buckets_ext; bucket_id++) {
-            // print progress percent info
-            if (bucket_id * 1.0 / (gstore->num_buckets + gstore->num_buckets_ext) > percent_number * 1.0 / 10) {
-                logstream(LOG_INFO) << "#" << sid << ": already generate statistics " << percent_number << "0%" << LOG_endl;
-                percent_number ++;
-            }
-
+        volatile uint64_t bucket_number = 0;
+        volatile uint32_t percent_number = 1;
+        uint64_t total_buckets = gstore->num_buckets + gstore->num_buckets_ext;
+        
+        #pragma omp parallel for num_threads(Global::num_engines)
+        for (uint64_t bucket_id = 0; bucket_id < total_buckets; bucket_id++) {
             uint64_t slot_id = bucket_id * gstore->ASSOCIATIVITY;
             for (int i = 0; i < gstore->ASSOCIATIVITY - 1; i++, slot_id++) {
                 // skip empty slot
@@ -782,15 +593,18 @@ public:
                     } else {
                         if (type_sz == 0) {
                             type = generate_no_type(vid);
+                            #pragma omp critical
                             insert_no_type_count(vid, type);
                         } else {
                             type = res[0].val;
                         }
                     }
-
+                    #pragma omp critical 
+                    {
                     ty_stat.insert_otype(pid, type, 1);
                     for (int j = 0; j < res_type.size(); j++)
                         ty_stat.insert_finetype(pid, type, res_type[j], 1);
+                    }
                 } else {
                     // no_type only need to be counted in one direction (using OUT)
                     // get types of values found by key (Objects)
@@ -826,16 +640,19 @@ public:
                     } else {
                         if (type_sz == 0) {
                             type = generate_no_type(vid);
+                            #pragma omp critical
                             insert_no_type_count(vid, type);
                         } else {
                             type = res[0].val;
                         }
                     }
-
+                    #pragma omp critical 
+                    {
                     ty_stat.insert_stype(pid, type, 1);
                     for (int j = 0; j < res_type.size(); j++)
                         ty_stat.insert_finetype(type, pid, res_type[j], 1);
-
+                    }
+                    
                     // count type predicate
                     if (pid == TYPE_ID) {
                         // multi-type
@@ -846,25 +663,174 @@ public:
                                 type_composition.insert(gstore->edges[off + i].val);
 
                             complex_type.set_type_composition(type_composition);
+                            #pragma omp critical 
+                            {
                             ssid_t type_number = get_simple_type(complex_type);
 
                             if (tyscount.find(type_number) == tyscount.end())
                                 tyscount[type_number] = 1;
                             else
                                 tyscount[type_number]++;
+                            }
                         } else if (sz == 1) { // single type
                             sid_t obid = gstore->edges[off].val;
-
+                            #pragma omp critical 
+                            {
                             if (tyscount.find(obid) == tyscount.end())
                                 tyscount[obid] = 1;
                             else
                                 tyscount[obid]++;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // print progress percent info
+            if ((bucket_number * 1.0 / total_buckets) > percent_number * 1.0 / 10) {
+                uint32_t now = wukong::atomic::add_and_fetch(&percent_number, 1);
+                logstream(LOG_INFO)
+                    << "#" << sid << ": already generate statistics "
+                    << (now-1) << "0%" << LOG_endl;
+                
+            }
+            wukong::atomic::add_and_fetch(&bucket_number, 1);
+        }
+
+        logstream(LOG_INFO) << "server#" << sid << ": generating stats is finished." << endl;
+    }
+
+    /**
+     * find popular stype, prediate, otype in finetype map
+     */
+    int get_popular_pattern(vector <ssid_t> & stype, vector <ssid_t> &p, vector <ssid_t> &otype, int size_max=10) {
+        for (unordered_map<pair<ssid_t, ssid_t>, vector<ty_count>,
+                           boost::hash<pair<int, int>>>::iterator it =
+                 global_tystat.fine_type.begin();
+             it != global_tystat.fine_type.end(); it++) {
+            pair<ssid_t, ssid_t> key = it->first;
+            if (key.first <= 0 || key.second <= 0) continue;
+            vector<ty_count> &types = it->second;
+            for (size_t k = 0; k < types.size(); k++) {
+                if (types[k].ty <= 0)
+                    continue;
+                int temp_count = types[k].count;
+                if (temp_count < 30000) {
+                    // fine type is <stype, p>
+                    if (global_tystat.get_pstype_count(key.second, key.first) > 0){
+                        stype.push_back(key.first);
+                        p.push_back(key.second);
+                        otype.push_back(types[k].ty);
+                    } else {  // fine type is <p, otype>
+                        stype.push_back(types[k].ty);
+                        p.push_back(key.first);
+                        otype.push_back(key.second);
+                    }
+                    if (stype.size() >= size_max) return size_max;
+                    break;
+                }
+            }
+        }
+        return stype.size();
+    }
+
+    /**
+     * find three-node circle in stats, use specific algorithm
+     */
+    int get_circle_pattern(vector<ssid_t> &result, int& clockwise_count, int size_max = 100) {
+        unordered_map<ssid_t, vector<ssid_t>> type_out;
+        unordered_map<ssid_t, vector<ssid_t>> type_in;
+
+        for (unordered_map<ssid_t, vector<ty_count>>::iterator it = global_tystat.potype.begin();
+             it != global_tystat.potype.end(); it++) {
+            ssid_t p = it->first;
+            vector<ty_count> &types = it->second;
+            for (size_t k = 0; k < types.size(); k++) {
+                if (types[k].ty <= 0)
+                    continue;
+                type_in[types[k].ty].push_back(p);
+            }
+        }
+        for (unordered_map<ssid_t, vector<ty_count>>::iterator it = global_tystat.pstype.begin();
+             it != global_tystat.pstype.end(); it++) {
+            ssid_t p = it->first;
+            vector<ty_count> &types = it->second;
+            for (size_t k = 0; k < types.size(); k++) {
+                if (types[k].ty <= 0)
+                    continue;
+                type_out[types[k].ty].push_back(p);
+            }
+        }
+        clockwise_count = 0;
+
+        ssid_t t1, t2, t3;
+        ssid_t p1, p2, p3;
+        for (unordered_map<ssid_t, vector<ssid_t>>::iterator it1 = type_out.begin();
+             it1 != type_out.end(); it1++) {
+            t1 = it1->first;
+            if(type_in.find(t1)==type_in.end())
+                continue;
+            vector<ssid_t> ps1 = it1->second;
+            for(int i = 0;i < ps1.size();i++){
+                p1 = ps1[i];
+                if(global_tystat.get_pstype_count(p1, t1) > 50000) continue;
+
+                // t1 -- p1 -> t2 -- p2 -> t3 -- p3 > t1
+                vector<ty_count> ts2 = global_tystat.fine_type[make_pair(t1, p1)];
+                for (int j = 0; j < ts2.size(); j++) {
+                    t2 = ts2[j].ty;
+                    if (t2==t1 || t2 <= 0||type_out.find(t2) == type_out.end()) continue;
+                    vector<ssid_t> ps2 = type_out[t2];
+                    for (int k = 0; k < ps2.size(); k++) {
+                        p2 = ps2[k];
+                        if (p2 == p1) continue;
+                        vector<ty_count> ts3 = global_tystat.fine_type[make_pair(t2, p2)];
+                        for (int x = 0; x < ts3.size(); x++){
+                            t3 = ts3[x].ty;
+                            if (t3 <= 0||type_out.find(t3) == type_out.end()) continue;
+                            vector<ssid_t> ps3 = type_out[t3];
+                            for (int y = 0; y < ps3.size(); y++) {
+                                p3 = ps3[y];
+                                if(global_tystat.fine_type.find(make_pair(p3, t1))!=global_tystat.fine_type.end()){
+                                    result.push_back(t1);result.push_back(t2);result.push_back(t3);
+                                    result.push_back(p1);result.push_back(p2);result.push_back(p3);
+                                    clockwise_count++;
+                                    // logstream(LOG_INFO) << clockwise_count << endl;
+                                    if(clockwise_count >= size_max) return result.size()/6;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // t1 -- p1 -> t2 <- p2 -- t3 -- p3 > t1
+                for (int j = 0; j < ts2.size(); j++) {
+                    t2 = ts2[j].ty;
+                    if (t2==t1 || t2 <= 0||type_in.find(t2) == type_in.end()) continue;
+
+                    vector<ssid_t> ps2 = type_in[t2];
+                    for (int k = 0; k < ps2.size(); k++) {
+                        p2 = ps2[k];
+                        if(p2==p1)  continue;
+                        vector<ty_count> ts3 = global_tystat.fine_type[make_pair(p2, t2)];
+                        for (int x = 0; x < ts3.size(); x++){
+                            t3 = ts3[x].ty;
+                            if (t3 <= 0||type_out.find(t3) == type_out.end()) continue;
+                            vector<ssid_t> ps3 = type_out[t3];
+                            for (int y = 0; y < ps3.size(); y++) {
+                                p3 = ps3[y];
+                                if(global_tystat.fine_type.find(make_pair(p3, t1))!=global_tystat.fine_type.end()){
+                                    result.push_back(t1);result.push_back(t2);result.push_back(t3);
+                                    result.push_back(p1);result.push_back(p2);result.push_back(p3);
+                                    // logstream(LOG_INFO) << result.size()/6 << endl;
+                                    if (result.size()/6 >= size_max) return result.size()/6;
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-
-        logstream(LOG_INFO) << "server#" << sid << ": generating stats is finished." << endl;
+        return result.size() / 6;
     }
 };
