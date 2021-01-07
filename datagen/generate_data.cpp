@@ -107,6 +107,19 @@ class Encoder {
 
     Logger<Record> logger;
 
+    // Skip strings which indicate comments in RDF/XML files.
+    const vector<string> skip_strs = 
+            {"<http://www.w3.org/2002/07/owl#Ontology>",
+             "<http://www.w3.org/2002/07/owl#imports>" };
+
+    bool skip_triple(string &sub, string &pre, string &obj) {
+        for (auto s : skip_strs) {
+            if (sub == s || pre == s || obj == s)
+                return true;
+        }
+        return false;
+    }
+
     int find_type (string str) {
         if (str.find("^^xsd:int") != string::npos
                 || str.find("^^<http://www.w3.org/2001/XMLSchema#int>") != string::npos)
@@ -243,9 +256,9 @@ class Encoder {
     }
 
     void process_file(string fname) {
-        ifstream ifile((string(sdir_name) + "/" + fname).c_str());
-        ofstream ofile((string(ddir_name) + "/id_" + fname).c_str());
-        ofstream attr_file((string(ddir_name) + "/attr_" + fname).c_str());
+        ifstream ifile((sdir_name + "/" + fname).c_str());
+        ofstream ofile((ddir_name + "/id_" + fname).c_str(), ofstream::trunc);
+        ofstream attr_file((ddir_name + "/attr_" + fname).c_str(), ofstream::trunc);
         // prefix mapping
         unordered_map<string, string> str_to_str;
 
@@ -260,6 +273,8 @@ class Encoder {
                 str_to_str[prekey] = object;
                 continue;
             }
+            if (skip_triple(subject, predicate, object))
+                continue;
 
             int type = 0;
             // the attr triple
@@ -298,6 +313,8 @@ class Encoder {
                         object = prev.substr(0, prev.size()-1) + lefts + '>';
                     }
                 }
+                if (skip_triple(subject, predicate, object))
+                    continue;
 
                 // add a new normal vertex (i.e., vid)
                 i64 sid = insert(normal_table, local_normal_table, subject, next_normal_id);
