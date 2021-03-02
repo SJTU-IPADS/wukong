@@ -1,11 +1,13 @@
 # Data Tutorial
 
 Wukong adopts an ID-Triples format to represent RDF. This tutorial use [LUBM](http://swat.cse.lehigh.edu/projects/lubm) (SWAT Projects - the Lehigh University Benchmark) as an example to introduce how to convert other RDF formats to the ID-Triples format. Tutorial to generate LUBM dataset can refer to [INSTALLs](../docs/INSTALL.md), step 1 of preparing RDF datasets.
+This tutorial also introduce a preprocessing tool to accelerate data loading step in Wukong.
 
 ## Table of Contents
 * [Data pattern](#pattern)
 * [Convert data](#convert)
 * [Add attribute data](#attribute)
+* [Preprocess data](#preprocess)
 
 <a name="pattern"></a>
 
@@ -154,3 +156,33 @@ Process No.1 input file: uni1.nt.
 Process No.2 input file: uni0.nt.
 ```
 Then transform data from NT format to ID format, like [Convert data](#convert)
+
+<a name="preprocess"></a>
+
+## Preprocess data
+
+### Motivation
+Data is randomly partitioned into machines in Wukong using hashing. Currently, Wukong use simple mod hashing.
+For example, there are 4 machines and data 15 will be partitioned into machine 1 (15 % 4 = 1).
+
+
+Currently, Wukong uses two approaches to load data into memory store: read_all_files or read_partial_exchange.
+For read_all_files, each machine reads all the files of dataset and selectively load its own data 
+(which is partitioned into this machine).
+For read_partial_exchange, each machine reads some part of the files and exchanges data among machines.
+Read_all_files is time consuming while read_partial_exchange requires more memory.
+Code refers to file core/loader/base_loader.hpp.
+
+### Preprocessing tool
+This part will introduce a preprocessing tool to pre-partition the data into certain partitions.
+Then loader in Wukong can selectively load preprocessed data from selected files if possible.
+For example, data is pre-partitioned into 1024 partitions. When there are 4 machines, 
+machine 0 can selectively load partitions 0, 4, 8... When there are 5 machines, 
+loading will fall back to read_all_files or read_partial_exchange.
+
+
+Usage of this tool is simple. Assume we want to preprocess LUBM dataset id_lubm_40 into 32 partitions. 
+Assume input directory is `/wukongdata/id_lubm_40` and output directory is `/wukongdata/id_lubm_40_32`.
+```
+python preprocess.py -i /wukongdata/id_lubm_40 -o /wukongdata/id_lubm_40_32 -p 32
+```
