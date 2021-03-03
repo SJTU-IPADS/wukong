@@ -469,8 +469,11 @@ protected:
             int num = 0;
             if ((*file) >> num) {
                 // Preprocessed data can be re-hashed into #num_servers partitions if num is times of num_servers.
-                if (num % Global::num_servers == 0)
+                if (num >= Global::num_servers && num % Global::num_servers == 0)
                     return true;
+                // Partitions is not times of num_servers(e.g. partitions = 16, num_servers = 3), report error.
+                logstream(LOG_ERROR) << "Partitions of preprocessed data should be times of num_servers. Please re-preprocess data or use raw data instead." << LOG_endl;
+                exit(-1);
             }
             close_istream(file);
         }
