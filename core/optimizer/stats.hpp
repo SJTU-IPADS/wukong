@@ -397,7 +397,7 @@ public:
             ifstream file(fname.c_str());
             if (!file.good()) {
                 logstream(LOG_WARNING) << "statistics file "  << fname
-                                       << " does not exsit, please check the fname"
+                                       << " does not exsit, pleanse check the fname"
                                        << " and use load-stat to mannually set it"  << LOG_endl;
 
                 /// FIXME: HANG bug if master return here
