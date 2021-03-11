@@ -246,6 +246,11 @@ public:
 
         bool has_job;
         while (true) {
+            if(!Global::use_rdma){
+                logstream(LOG_ERROR) << "Currently, GPUAgent cannot run without RDMA, sleeping." << LOG_endl;
+                while(!Global::use_rdma){}
+            }
+
             has_job = false;
 
             // check and send pending messages first

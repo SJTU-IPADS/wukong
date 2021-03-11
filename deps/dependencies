@@ -1,6 +1,6 @@
 openmpi-1.6.5-install
 tbb44_20151115oss
 zeromq-4.0.5-install
-jemalloc-5.1.0-install
+jemalloc-5.2.1-install
 hwloc-1.11.7-install
 hadoop
