@@ -466,12 +466,17 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
 
         // option: -p <fname>, -N <num>
         if (!(sparql_vm.count("-p") ^ Global::enable_planner)) {
-            if (Global::enable_planner) {
+            if (Global::enable_planner && Global::use_rdma) {
                 logstream(LOG_WARNING) << "Optimizer is enabled, "
                                        << "your plan file (-p) will be ignored." << LOG_endl;
-            } else {
+            } else if(!Global::enable_planner){
                 logstream(LOG_ERROR) << "Optimizer is disabled, "
                                      << "you must provide a user-defined plan file (-p)." << LOG_endl;
+                fail_to_parse(proxy, argc, argv); // invalid cmd
+                return;
+            } else {
+                logstream(LOG_ERROR) << "Currently, Optimizer cannot be used without RDMA support. "
+                                     << "Please turn on global_use_rdma in the config file" << LOG_endl;
                 fail_to_parse(proxy, argc, argv); // invalid cmd
                 return;
             }

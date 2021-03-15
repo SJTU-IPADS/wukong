@@ -470,12 +470,22 @@ public:
 
 #ifndef VERSATILE
         logstream(LOG_ERROR) << "please turn off global_generate_statistics in config file"
-                             << "and use stat file cache instead"
+                             << " and use stat file cache instead"
                              << " OR "
                              << "turn on VERSATILE option in CMakefiles to generate statistics."
                              << LOG_endl;
         exit(-1);
 #endif
+
+        if(!Global::use_rdma){
+            logstream(LOG_ERROR) << "Currently, wukong doesn't support to generate statistics without RDMA." << LOG_endl;
+            logstream(LOG_ERROR) << "Please turn off global_generate_statistics in config file"
+                             << " and use stat file cache instead"
+                             << " OR "
+                             << "turn on global_use_rdma in config file to generate statistics."
+                             << LOG_endl;
+            return;
+        }
 
         unordered_map<ssid_t, int> &tyscount = local_tyscount;
         type_stat &ty_stat = local_tystat;
@@ -483,19 +493,19 @@ public:
         unordered_set<ssid_t> record_set;
 
         //use index_composition as type of no_type
-        auto generate_no_type = [&](ssid_t id) -> ssid_t {
+        auto generate_no_type = [&](int tid, ssid_t id) -> ssid_t {
             type_t type;
             uint64_t psize1 = 0;
             unordered_set<int> index_composition;
 
-            edge_t *res1 = gstore->get_edges(0, id, PREDICATE_ID, OUT, psize1);
+            edge_t *res1 = gstore->get_edges(tid, id, PREDICATE_ID, OUT, psize1);
             for (uint64_t k = 0; k < psize1; k++) {
                 ssid_t pre = res1[k].val;
                 index_composition.insert(pre);
             }
 
             uint64_t psize2 = 0;
-            edge_t *res2 = gstore->get_edges(0, id, PREDICATE_ID, IN, psize2);
+            edge_t *res2 = gstore->get_edges(tid, id, PREDICATE_ID, IN, psize2);
             for (uint64_t k = 0; k < psize2; k++) {
                 ssid_t pre = res2[k].val;
                 index_composition.insert(-pre);
@@ -509,7 +519,7 @@ public:
             //     cout << "empty index, may be type" << endl;
             // }
             ssid_t result;
-            #pragma omp critical
+            #pragma omp critical (int_type_mapping)
             result = get_simple_type(type);
             return result;
         };
@@ -523,7 +533,7 @@ public:
 
             type.set_type_composition(type_composition);
             ssid_t result;
-            #pragma omp critical
+            #pragma omp critical (int_type_mapping)
             result = get_simple_type(type);
             return result;
         };
@@ -549,6 +559,7 @@ public:
         
         #pragma omp parallel for num_threads(Global::num_engines)
         for (uint64_t bucket_id = 0; bucket_id < total_buckets; bucket_id++) {
+            int tid = omp_get_thread_num();
             uint64_t slot_id = bucket_id * gstore->ASSOCIATIVITY;
             for (int i = 0; i < gstore->ASSOCIATIVITY - 1; i++, slot_id++) {
                 // skip empty slot
@@ -569,12 +580,12 @@ public:
                     for (uint64_t k = 0; k < sz; k++) {
                         ssid_t sbid = gstore->edges[off + k].val;
                         uint64_t type_sz = 0;
-                        edge_t *res = gstore->get_edges(0, sbid, TYPE_ID, OUT, type_sz);
+                        edge_t *res = gstore->get_edges(tid, sbid, TYPE_ID, OUT, type_sz);
                         if (type_sz > 1) {
                             ssid_t type = generate_multi_type(res, type_sz);
                             res_type.push_back(type);
                         } else if (type_sz == 0) {
-                            ssid_t type = generate_no_type(sbid);
+                            ssid_t type = generate_no_type(tid, sbid);
                             res_type.push_back(type);
                         } else if (type_sz == 1) {
                             res_type.push_back(res[0].val);
@@ -586,20 +597,20 @@ public:
                     // type for objects
                     // get type of vid (Object)
                     uint64_t type_sz = 0;
-                    edge_t *res = gstore->get_edges_local(0, vid, TYPE_ID, OUT, type_sz);
+                    edge_t *res = gstore->get_edges_local(tid, vid, TYPE_ID, OUT, type_sz);
                     ssid_t type;
                     if (type_sz > 1) {
                         type = generate_multi_type(res, type_sz);
                     } else {
                         if (type_sz == 0) {
-                            type = generate_no_type(vid);
-                            #pragma omp critical
+                            type = generate_no_type(tid, vid);
+                            #pragma omp critical (local_tyscount)
                             insert_no_type_count(vid, type);
                         } else {
                             type = res[0].val;
                         }
                     }
-                    #pragma omp critical 
+                    #pragma omp critical (local_tystat)
                     {
                     ty_stat.insert_otype(pid, type, 1);
                     for (int j = 0; j < res_type.size(); j++)
@@ -612,7 +623,7 @@ public:
                     for (uint64_t k = 0; k < sz; k++) {
                         ssid_t obid = gstore->edges[off + k].val;
                         uint64_t type_sz = 0;
-                        edge_t *res = gstore->get_edges(0, obid, TYPE_ID, OUT, type_sz);
+                        edge_t *res = gstore->get_edges(tid, obid, TYPE_ID, OUT, type_sz);
 
                         if (type_sz > 1) {
                             ssid_t type = generate_multi_type(res, type_sz);
@@ -620,7 +631,7 @@ public:
                         } else if (type_sz == 0) {
                             // in this situation, obid may be some TYPE
                             if (pid != 1) {
-                                ssid_t type = generate_no_type(obid);
+                                ssid_t type = generate_no_type(tid, obid);
                                 res_type.push_back(type);
                             }
                         } else if (type_sz == 1) {
@@ -633,20 +644,20 @@ public:
                     // type for subjects
                     // get type of vid (Subject)
                     uint64_t type_sz = 0;
-                    edge_t *res = gstore->get_edges_local(0, vid, TYPE_ID, OUT, type_sz);
+                    edge_t *res = gstore->get_edges_local(tid, vid, TYPE_ID, OUT, type_sz);
                     ssid_t type;
                     if (type_sz > 1) {
                         type = generate_multi_type(res, type_sz);
                     } else {
                         if (type_sz == 0) {
-                            type = generate_no_type(vid);
-                            #pragma omp critical
+                            type = generate_no_type(tid, vid);
+                            #pragma omp critical (local_tyscount)
                             insert_no_type_count(vid, type);
                         } else {
                             type = res[0].val;
                         }
                     }
-                    #pragma omp critical 
+                    #pragma omp critical (local_tystat)
                     {
                     ty_stat.insert_stype(pid, type, 1);
                     for (int j = 0; j < res_type.size(); j++)
@@ -663,7 +674,7 @@ public:
                                 type_composition.insert(gstore->edges[off + i].val);
 
                             complex_type.set_type_composition(type_composition);
-                            #pragma omp critical 
+                            #pragma omp critical (local_tyscount)
                             {
                             ssid_t type_number = get_simple_type(complex_type);
 
@@ -674,7 +685,7 @@ public:
                             }
                         } else if (sz == 1) { // single type
                             sid_t obid = gstore->edges[off].val;
-                            #pragma omp critical 
+                            #pragma omp critical (local_tyscount)
                             {
                             if (tyscount.find(obid) == tyscount.end())
                                 tyscount[obid] = 1;
