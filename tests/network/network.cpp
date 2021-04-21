@@ -19,11 +19,11 @@
  *      http://ipads.se.sjtu.edu.cn/projects/wukong
  *
  */
-#include "comm/tcp_adaptor.hpp"
+#include "core/network/tcp_adaptor.hpp"
 #include <boost/mpi.hpp>
 #include <iostream>
 #include <map>
-#include "timer.hpp"
+#include "utils/timer.hpp"
 #include <boost/program_options.hpp>
 //#include <nng/nng.h>
 //#include <nng/protocol/pipeline0/push.h>
