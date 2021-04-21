@@ -2,11 +2,11 @@
 #include <sstream>
 #include <gtest/gtest.h>
 
-#include "bitrie.hpp"
+#include "utils/bitrie.hpp"
 
 namespace test {
     
-string string_dataset = "abc1 1 abc2 2 abc3 3 abc4 4 abc5 5 abc6 6 abc7 7 abc8 8 abc9 9 abc10 10 abc11 11 abc22 22 abc23 23 abc34 34 abc101 101 abc102 102 abc103 103 a 888 abc 999 ak777 777";
+std::string string_dataset = "abc1 1 abc2 2 abc3 3 abc4 4 abc5 5 abc6 6 abc7 7 abc8 8 abc9 9 abc10 10 abc11 11 abc22 22 abc23 23 abc34 34 abc101 101 abc102 102 abc103 103 a 888 abc 999 ak777 777";
 
 /*
             root

@@ -22,14 +22,14 @@
 
 #include <boost/mpi.hpp>
 #include <vector>
-#include "global.hpp"
-#include "config.hpp"
-#include "mem.hpp"
+#include "core/common/global.hpp"
+#include "core/common/config.hpp"
+#include "core/common/mem.hpp"
 #include "gpu/gpu_mem.hpp"
-#include "rdma.hpp"
-#include "adaptor.hpp"
-#include "logger2.hpp"
-#include "unit.hpp"
+#include "core/common/rdma.hpp"
+#include "network/adaptor.hpp"
+#include "utils/logger2.hpp"
+#include "utils/unit.hpp"
 
 int main(int argc, char *argv[]) {
     boost::mpi::environment env(argc, argv);

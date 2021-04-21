@@ -42,7 +42,7 @@
 
 #ifdef USE_GPU
 // utils
-#include "gpu.hpp"
+#include "gpu/gpu_utils.hpp"
 #endif
 
 // #define PER_QP_PD

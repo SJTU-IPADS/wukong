@@ -25,21 +25,20 @@
 #include <boost/mpi.hpp>
 #include <iostream>
 
-#include "global.hpp"
-#include "config.hpp"
-#include "bind.hpp"
-#include "mem.hpp"
+#include "core/common/global.hpp"
+#include "core/common/config.hpp"
+#include "core/common/bind.hpp"
+#include "core/common/mem.hpp"
 #include "gpu/gpu_mem.hpp"
 #include "gpu/gpu_cache.hpp"
-#include "string_server.hpp"
-#include "dgraph.hpp"
-#include "console.hpp"
-#include "rdma.hpp"
-#include "comm/adaptor.hpp"
-#include "stats.hpp"
-#include "logger2.hpp"
-
-#include "unit.hpp"
+#include "core/common/string_server.hpp"
+#include "core/store/dgraph.hpp"
+#include "client/console.hpp"
+#include "core/common/rdma.hpp"
+#include "core/network/adaptor.hpp"
+#include "optimizer/stats.hpp"
+#include "utils/logger2.hpp"
+#include "utils/unit.hpp"
 
 
 int main(int argc, char *argv[]) {

@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "store/cache.hpp"
+#include "core/store/cache.hpp"
 
 namespace test {
 
