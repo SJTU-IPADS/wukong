@@ -31,6 +31,8 @@
 // utils
 #include "utils/logger2.hpp"
 
+namespace wukong {
+
 class Messenger {
 private:
     class Message {
@@ -79,3 +81,5 @@ public:
     bool tryrecv_msg(Bundle &bundle) { return adaptor->tryrecv(bundle); }
 
 };
+
+} // namespace wukong

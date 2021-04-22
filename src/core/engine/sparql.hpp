@@ -51,6 +51,8 @@
 #include "utils/math.hpp"
 #include "utils/timer.hpp"
 
+namespace wukong {
+
 #define QUERY_FROM_PROXY(r) (coder->tid_of((r).pqid) < Global::num_proxies)
 
 typedef std::pair<int64_t, int64_t> int64_pair;
@@ -1675,3 +1677,4 @@ public:
 
 };
 
+} // namespace wukong

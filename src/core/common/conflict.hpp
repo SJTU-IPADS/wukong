@@ -25,6 +25,8 @@
 // utils
 #include "utils/logger2.hpp"
 
+namespace wukong {
+
 static void conflict_detector(void)
 {
 
@@ -36,3 +38,5 @@ static void conflict_detector(void)
 #endif
 
 }
+
+} // namespace wukong

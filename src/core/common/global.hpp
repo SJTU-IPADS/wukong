@@ -24,6 +24,8 @@
 
 #include <string>
 
+namespace wukong {
+
 class Global {
 public:
     // another choice
@@ -122,3 +124,5 @@ int Global::gpu_rdma_buf_size_mb = 64;   // RDMA buffer
 int Global::gpu_key_blk_size_mb = 16;
 int Global::gpu_value_blk_size_mb = 4;
 bool Global::gpu_enable_pipeline = true;
+
+} // namespace wukong

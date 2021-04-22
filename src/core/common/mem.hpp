@@ -28,6 +28,8 @@
 // utils
 #include "utils/unit.hpp"
 
+namespace wukong {
+
 #define ADDR_PER_SRV(_addr, _sz, _tid) ((_addr) + ((_sz) * (_tid)));
 #define OFFSET_PER_SRV(_off, _sz, _tid) ((_off) + ((_sz) * (_tid)));
 
@@ -277,3 +279,5 @@ public:
     inline uint64_t remote_ring_head_size() { return rrbf_hd_sz; }
 
 }; // end of class Mem
+
+} // namespace wukong

@@ -38,6 +38,8 @@
 
 #include <tbb/concurrent_unordered_map.h>
 
+namespace wukong {
+
 #define SUCCESS (0)
 
 #define RECVBUF_NUM (10)    // number of message received
@@ -193,3 +195,5 @@ public:
         return true;
     }
 };
+
+} // namespace wukong

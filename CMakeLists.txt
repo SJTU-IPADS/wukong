@@ -12,7 +12,7 @@ add_definitions(-std=c++11)
 
 
 ## Set dependencies
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -fopenmp")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -fopenmp -Wno-literal-suffix")
 set(BOOST_LIB "${ROOT}/deps/boost_1_67_0-install/lib")
 
 ## Set include paths

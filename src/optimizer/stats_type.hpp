@@ -35,6 +35,8 @@
 
 #include "utils/logger2.hpp"
 
+namespace wukong {
+
 #define MINIMUM_COUNT_THRESHOLD 0.01 //count below that this value will be abandoned
 #define COST_THRESHOLD 1000
 
@@ -372,3 +374,4 @@ class CostResult
     }
 };
 
+} // namespace wukong

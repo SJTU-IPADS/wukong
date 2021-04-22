@@ -41,6 +41,7 @@
 using namespace boost;
 using namespace boost::program_options;
 
+namespace wukong {
 
 // communicate between proxy threads
 TCP_Adaptor *con_adaptor;
@@ -994,3 +995,5 @@ void run_console(Proxy *proxy)
         }
     }
 }
+
+} // namespace wukong

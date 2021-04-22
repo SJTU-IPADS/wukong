@@ -25,6 +25,8 @@
 #include <iomanip>
 #include "core/store/mm/malloc_interface.hpp"
 
+namespace wukong {
+
 class BuddyMalloc : public MAInterface {
 private:
 
@@ -527,7 +529,7 @@ public:
         uint64_t size_count = 0;
 
         for (int i = level_low_bound; i <= level_up_bound; i++) {
-            logstream(LOG_INFO) << "level" << setw(2) << i << ": " << setw(10) << usage_counter[i] << "|\t";
+            logstream(LOG_INFO) << "level" << std::setw(2) << i << ": " << std::setw(10) << usage_counter[i] << "|\t";
             if ((i - level_low_bound + 1) % 4 == 0) logstream(LOG_INFO) << LOG_endl;
             size_count += (1LL << i) * usage_counter[i];
         }
@@ -535,3 +537,5 @@ public:
         logstream(LOG_INFO) << "Size count: " << size_count << LOG_endl << LOG_endl;
     }
 };
+
+} // namespace wukong

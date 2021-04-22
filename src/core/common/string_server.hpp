@@ -46,6 +46,8 @@
 #include "utils/bitrie.hpp"
 #endif
 
+namespace wukong {
+
 class StringServer {
 private:
 #ifdef USE_BITRIE
@@ -224,3 +226,5 @@ private:
         shrink();  // save memory
     }
 };
+
+} // namespace wukong

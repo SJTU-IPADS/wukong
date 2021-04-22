@@ -22,7 +22,7 @@
 
 #pragma once
 
-#pragma GCC diagnostic warning "-fpermissive"
+//#pragma GCC diagnostic warning ignored "-fpermissive"
 
 #include <iostream>     // std::cout
 #include <fstream>      // std::ifstream
@@ -40,6 +40,8 @@
 #include "rdmaio.hpp"
 
 using namespace rdmaio;
+
+namespace wukong {
 
 class RDMA {
 
@@ -211,7 +213,11 @@ void RDMA_init(int nnodes, int nthds, int nid, std::vector<RDMA::MemoryRegion> &
     logstream(LOG_INFO) << "initializing RMDA done (" << t / 1000  << " ms)" << LOG_endl;
 }
 
+} // namespace wukong
+
 #else
+
+namespace wukong {
 
 class RDMA {
 
@@ -278,5 +284,7 @@ public:
 void RDMA_init(int nnodes, int nthds, int nid, std::vector<RDMA::MemoryRegion> &mrs, std::string ipfn) {
     logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
 }
+
+} // namespace wukong
 
 #endif // end of HAS_RDMA

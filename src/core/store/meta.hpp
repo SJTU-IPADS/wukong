@@ -34,6 +34,8 @@
 
 #include "core/store/vertex.hpp"
 
+namespace wukong {
+
 using namespace boost::archive;
 
 #ifdef USE_GPU
@@ -229,3 +231,5 @@ public:
         ar & data;
     }
 };
+
+} // namespace wukong

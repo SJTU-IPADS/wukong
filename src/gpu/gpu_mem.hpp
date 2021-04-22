@@ -32,6 +32,9 @@
 
 // utils
 #include "utils/unit.hpp"
+
+namespace wukong {
+
 class GPUMem {
 private:
     int devid;
@@ -134,5 +137,7 @@ public:
     inline uint64_t rdma_buf_body_size() { return buf_sz - 2 * sizeof(uint64_t); }
 
 };
+
+} // namespace wukong
 
 #endif

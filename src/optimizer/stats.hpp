@@ -38,6 +38,8 @@
 
 #include "core/store/gstore.hpp"
 
+namespace wukong {
+
 class Stats {
 private:
     // after the master server get whole statistics,
@@ -847,3 +849,5 @@ public:
         return result.size() / 6;
     }
 };
+
+} // namespace wukong

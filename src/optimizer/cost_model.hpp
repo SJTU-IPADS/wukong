@@ -26,6 +26,8 @@
 
 #include "utils/logger2.hpp"
 
+namespace wukong {
+
 #define L2U_FACTOR_NUM 2
 #define K2U_FACTOR_NUM 4
 #define K2L_FACTOR_NUM 5
@@ -235,3 +237,5 @@ class CostModel{
          }
      }
 };
+
+} // namespace wukong

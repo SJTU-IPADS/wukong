@@ -26,6 +26,8 @@
 
 #include <boost/variant.hpp>
 
+namespace wukong {
+
 #ifdef DTYPE_64BIT
 
 using sid_t = uint64_t;  // data type for string-id
@@ -148,3 +150,5 @@ static inline size_t get_sizeof(int type) {
     default: return 0;
     }
 }
+
+} // namespace wukong

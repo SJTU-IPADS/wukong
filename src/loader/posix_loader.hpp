@@ -25,6 +25,8 @@
 // loader
 #include "base_loader.hpp"
 
+namespace wukong {
+
 class PosixLoader : public BaseLoader {
 protected:
     std::istream *init_istream(const std::string &src) {
@@ -64,3 +66,5 @@ public:
 
     ~PosixLoader() { }
 };
+
+} // namespace wukong

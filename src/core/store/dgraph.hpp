@@ -35,6 +35,8 @@
 #include "core/store/static_gstore.hpp"
 #endif
 
+namespace wukong {
+
 /**
  * Map the RDF model (e.g., triples, predicate) to Graph model (e.g., vertex, edge, index)
  */
@@ -161,3 +163,5 @@ public:
 #endif // end of VERSATILE
     }
 };
+
+} // namespace wukong

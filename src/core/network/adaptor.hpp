@@ -30,6 +30,8 @@
 #include "tcp_adaptor.hpp"
 #include "rdma_adaptor.hpp"
 
+namespace wukong {
+
 /// TODO: define adaptor as a C++ interface and make tcp and rdma implement it
 class Adaptor {
 public:
@@ -119,3 +121,5 @@ public:
         return true;
     }
 };
+
+} // namespace wukong

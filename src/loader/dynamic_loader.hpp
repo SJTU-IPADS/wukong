@@ -50,13 +50,16 @@
 #include "utils/timer.hpp"
 #include "utils/assertion.hpp"
 #include "utils/math.hpp"
+
+namespace wukong {
+
 class DynamicLoader {
 private:
     int sid;
     StringServer *str_server;
     DynamicGStore *gstore;
 
-    inline vector<std::string> list_files(std::string dname, std::string prefix) {
+    inline std::vector<std::string> list_files(std::string dname, std::string prefix) {
         if (boost::starts_with(dname, "hdfs:")) {
             if (!wukong::hdfs::has_hadoop()) {
                 logstream(LOG_ERROR) << "attempting to load data files from HDFS "
@@ -159,7 +162,7 @@ public:
     DynamicLoader(int sid, StringServer *str_server, DynamicGStore *gstore)
         : sid(sid), str_server(str_server), gstore(gstore) { }
 
-    int64_t dynamic_load_data(string dname, bool check_dup) {
+    int64_t dynamic_load_data(std::string dname, bool check_dup) {
         uint64_t start, end;
         // step 1: load ID-mapping files and construct id2id mapping
         dynamic_load_mappings(dname);
@@ -271,3 +274,5 @@ public:
         return 0;
     }
 };
+
+} // namespace wukong

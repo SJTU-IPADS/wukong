@@ -81,6 +81,8 @@
 
 #include "utils/logger2.hpp"
 
+namespace wukong {
+
 // failure handling option
 /*
  * if set WUKONG_LOGGER_THROW_ON_FAILURE
@@ -176,3 +178,5 @@
             WUKONG_LOGGER_FAIL_METHOD(error_code);                    \
         }                                                              \
     } while (0)
+
+} // namespace wukong

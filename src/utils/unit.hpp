@@ -22,6 +22,8 @@
 
 #pragma once
 
+namespace wukong {
+
 #define KiB2B(_x)   ((_x) * 1024ul)
 #define MiB2B(_x)   (KiB2B((_x)) * 1024ul)
 #define GiB2B(_x)   (MiB2B((_x)) * 1024ul)
@@ -33,3 +35,5 @@
 #define USEC(_x)    ((_x) * 1ul)
 #define MSEC(_x)    (USEC((_x)) * 1000ul)
 #define SEC(_x)     (MSEC((_x)) * 1000ul)
+
+} // namespace wukong

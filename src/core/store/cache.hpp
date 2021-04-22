@@ -32,6 +32,8 @@
 #include "utils/logger2.hpp"
 #include "utils/timer.hpp"
 
+namespace wukong {
+
 /**
  * An RDMA-frienldy cache for distributed key-value store,
  * which caches the key (location) to skip one RDMA READ for retrieving one remote key-value pair.
@@ -203,3 +205,5 @@ public:
         }
     }
 };
+
+} // namespace wukong

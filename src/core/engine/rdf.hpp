@@ -42,6 +42,8 @@
 #include "utils/math.hpp"
 #include "utils/timer.hpp"
 
+namespace wukong {
+
 class RDFEngine {
 private:
     int sid;    // server id
@@ -85,3 +87,5 @@ public:
 #endif
 
 };
+
+} // namespace wukong

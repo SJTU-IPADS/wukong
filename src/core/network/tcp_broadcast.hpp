@@ -26,6 +26,8 @@
 
 #include "core/sparql/query.hpp"
 
+namespace wukong {
+
 // zeromq version one-to-many communication
 class TCP_Broadcast_Master {
 private:
@@ -161,3 +163,5 @@ public:
         return success;
     }
 };
+
+} // namespace wukong

@@ -26,6 +26,8 @@
 
 #include "core/sparql/query.hpp"
 
+namespace wukong {
+
 // The map is used to collect replies from sub_queries in fork-join execution mode
 class RMap {
 private:
@@ -107,3 +109,5 @@ public:
         return r;
     }
 };
+
+} // namespace wukong

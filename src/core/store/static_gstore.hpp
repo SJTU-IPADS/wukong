@@ -24,6 +24,8 @@
 
 #include "core/store/gstore.hpp"
 
+namespace wukong {
+
 class StaticGStore : public GStore {
 private:
     // used to alloc edges
@@ -320,3 +322,5 @@ public:
     }
 
 };
+
+} // namespace wukong

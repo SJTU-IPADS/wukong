@@ -43,6 +43,8 @@
 // utils
 #include "utils/assertion.hpp"
 
+namespace wukong {
+
 /**
  * An agent thread will assist query processing on GPUs
  */
@@ -295,5 +297,7 @@ public:
     }
 
 };
+
+} // namespace wukong
 
 #endif  // USE_GPU

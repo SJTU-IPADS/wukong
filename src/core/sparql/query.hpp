@@ -43,6 +43,8 @@
 // utils
 #include "utils/logger2.hpp"
 
+namespace wukong {
+
 using namespace boost::archive;
 
 // defined as constexpr due to switch-case
@@ -266,15 +268,15 @@ public:
                 return result_buf_dp;
             }
 
-            uint64_t rbuf_num_elems() {
+            uint64_t rbuf_num_elems() const {
                 return result_buf_nelems;
             }
 
-            bool is_rbuf_valid() {
+            bool is_rbuf_valid() const {
                 return result_buf_dp != nullptr;
             }
 
-            bool is_rbuf_empty() {
+            bool is_rbuf_empty() const {
                 return (result_buf_dp == nullptr || result_buf_nelems == 0);
             }
 
@@ -289,7 +291,7 @@ public:
                 result_buf_nelems = n;
             }
 
-            int get_row_num() {
+            int get_row_num() const {
                 ASSERT(true == is_rbuf_valid());
                 if (col_num == 0)
                     return 0;
@@ -421,9 +423,9 @@ public:
 #endif
         }
 
-        int get_col_num() { return col_num; }
+        int get_col_num() const { return col_num; }
 
-        int get_row_num() {
+        int get_row_num() const {
             return (col_num == 0) ?
                    0 : (result_table.size() / col_num);
         }
@@ -658,7 +660,7 @@ public:
         }
     }
 
-    bool start_from_index() {
+    bool start_from_index() const {
         /*
          * Wukong assumes that its planner will generate a dummy pattern to hint
          * the query should start from a certain index (i.e., predicate or type).
@@ -915,13 +917,15 @@ public:
     RDFLoad(std::string s, bool b) : load_dname(s), check_dup(b) { }
 };
 
+} // namespace wukong
+
 namespace boost {
 namespace serialization {
 char occupied = 0;
 char empty = 1;
 
 template<class Archive>
-void save(Archive &ar, const SPARQLQuery::Pattern &t, unsigned int version) {
+void save(Archive &ar, const wukong::SPARQLQuery::Pattern &t, unsigned int version) {
     ar << t.subject;
     ar << t.predicate;
     ar << t.object;
@@ -930,7 +934,7 @@ void save(Archive &ar, const SPARQLQuery::Pattern &t, unsigned int version) {
 }
 
 template<class Archive>
-void load(Archive &ar, SPARQLQuery::Pattern &t, unsigned int version) {
+void load(Archive &ar, wukong::SPARQLQuery::Pattern &t, unsigned int version) {
     ar >> t.subject;
     ar >> t.predicate;
     ar >> t.object;
@@ -939,7 +943,7 @@ void load(Archive &ar, SPARQLQuery::Pattern &t, unsigned int version) {
 }
 
 template<class Archive>
-void save(Archive &ar, const SPARQLQuery::PatternGroup &t, unsigned int version) {
+void save(Archive &ar, const wukong::SPARQLQuery::PatternGroup &t, unsigned int version) {
     ar << t.patterns;
     ar << t.optional_new_vars;  // it should not be put into the "if (t.optional.size() > 0)" block. The PG itself is from optional
     if (t.filters.size() > 0) {
@@ -959,7 +963,7 @@ void save(Archive &ar, const SPARQLQuery::PatternGroup &t, unsigned int version)
 }
 
 template<class Archive>
-void load(Archive &ar, SPARQLQuery::PatternGroup &t, unsigned int version) {
+void load(Archive &ar, wukong::SPARQLQuery::PatternGroup &t, unsigned int version) {
     char temp = 2;
     ar >> t.patterns;
     ar >> t.optional_new_vars;
@@ -981,7 +985,7 @@ void load(Archive &ar, SPARQLQuery::PatternGroup &t, unsigned int version) {
 }
 
 template<class Archive>
-void save(Archive &ar, const SPARQLQuery::Result &t, unsigned int version) {
+void save(Archive &ar, const wukong::SPARQLQuery::Result &t, unsigned int version) {
     ar << t.col_num;
     ar << t.row_num;
     ar << t.attr_col_num;
@@ -1004,7 +1008,7 @@ void save(Archive &ar, const SPARQLQuery::Result &t, unsigned int version) {
 }
 
 template<class Archive>
-void load(Archive & ar, SPARQLQuery::Result &t, unsigned int version) {
+void load(Archive & ar, wukong::SPARQLQuery::Result &t, unsigned int version) {
     char temp = 2;
     ar >> t.col_num;
     ar >> t.row_num;
@@ -1026,7 +1030,7 @@ void load(Archive & ar, SPARQLQuery::Result &t, unsigned int version) {
 }
 
 template<class Archive>
-void save(Archive & ar, const SPARQLQuery &t, unsigned int version) {
+void save(Archive & ar, const wukong::SPARQLQuery &t, unsigned int version) {
     ar << t.qid;
     ar << t.pqid;
     ar << t.pg_type;
@@ -1057,7 +1061,7 @@ void save(Archive & ar, const SPARQLQuery &t, unsigned int version) {
 }
 
 template<class Archive>
-void load(Archive & ar, SPARQLQuery &t, unsigned int version) {
+void load(Archive & ar, wukong::SPARQLQuery &t, unsigned int version) {
     char temp = 2;
     ar >> t.qid;
     ar >> t.pqid;
@@ -1087,38 +1091,39 @@ void load(Archive & ar, SPARQLQuery &t, unsigned int version) {
 }
 }
 
-BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::Pattern);
-BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::PatternGroup);
-BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery::Result);
-BOOST_SERIALIZATION_SPLIT_FREE(SPARQLQuery);
+BOOST_SERIALIZATION_SPLIT_FREE(wukong::SPARQLQuery::Pattern);
+BOOST_SERIALIZATION_SPLIT_FREE(wukong::SPARQLQuery::PatternGroup);
+BOOST_SERIALIZATION_SPLIT_FREE(wukong::SPARQLQuery::Result);
+BOOST_SERIALIZATION_SPLIT_FREE(wukong::SPARQLQuery);
 
 // remove class information at the cost of losing auto versioning,
 // which is useless currently because wukong use boost serialization to transmit data
 // between endpoints running the same code.
-BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Pattern, boost::serialization::object_serializable);
-BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::PatternGroup, boost::serialization::object_serializable);
-BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Filter, boost::serialization::object_serializable);
-BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Order, boost::serialization::object_serializable);
-BOOST_CLASS_IMPLEMENTATION(SPARQLQuery::Result, boost::serialization::object_serializable);
-BOOST_CLASS_IMPLEMENTATION(SPARQLQuery, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(wukong::SPARQLQuery::Pattern, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(wukong::SPARQLQuery::PatternGroup, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(wukong::SPARQLQuery::Filter, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(wukong::SPARQLQuery::Order, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(wukong::SPARQLQuery::Result, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(wukong::SPARQLQuery, boost::serialization::object_serializable);
 
-BOOST_CLASS_IMPLEMENTATION(GStoreCheck, boost::serialization::object_serializable);
-BOOST_CLASS_IMPLEMENTATION(RDFLoad, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(wukong::GStoreCheck, boost::serialization::object_serializable);
+BOOST_CLASS_IMPLEMENTATION(wukong::RDFLoad, boost::serialization::object_serializable);
 
 // remove object tracking information at the cost of that multiple identical objects
 // may be created when an archive is loaded.
 // current query data structure does not contain two identical object reference
 // with the same pointer
-BOOST_CLASS_TRACKING(SPARQLQuery::Pattern, boost::serialization::track_never);
-BOOST_CLASS_TRACKING(SPARQLQuery::Filter, boost::serialization::track_never);
-BOOST_CLASS_TRACKING(SPARQLQuery::PatternGroup, boost::serialization::track_never);
-BOOST_CLASS_TRACKING(SPARQLQuery::Order, boost::serialization::track_never);
-BOOST_CLASS_TRACKING(SPARQLQuery::Result, boost::serialization::track_never);
-BOOST_CLASS_TRACKING(SPARQLQuery, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(wukong::SPARQLQuery::Pattern, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(wukong::SPARQLQuery::Filter, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(wukong::SPARQLQuery::PatternGroup, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(wukong::SPARQLQuery::Order, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(wukong::SPARQLQuery::Result, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(wukong::SPARQLQuery, boost::serialization::track_never);
 
-BOOST_CLASS_TRACKING(GStoreCheck, boost::serialization::track_never);
-BOOST_CLASS_TRACKING(RDFLoad, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(wukong::GStoreCheck, boost::serialization::track_never);
+BOOST_CLASS_TRACKING(wukong::RDFLoad, boost::serialization::track_never);
 
+namespace wukong {
 
 enum req_type { SPARQL_QUERY = 0, DYNAMIC_LOAD = 1, GSTORE_CHECK = 2, SPARQL_HISTORY = 3 };
 
@@ -1231,3 +1236,5 @@ public:
     }
 
 };
+
+} // namespace wukong
