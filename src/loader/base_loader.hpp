@@ -366,9 +366,9 @@ protected:
     }
 
     // Load normal triples from all files, using read_partial_exchange or read_all_files.
-    void load_triples_from_all(vector<string> &dfiles, 
-                                   vector<vector<triple_t>> &triple_pso,
-                                   vector<vector<triple_t>> &triple_pos) {
+    void load_triples_from_all(std::vector<std::string> &dfiles, 
+                                   std::vector<std::vector<triple_t>> &triple_pso,
+                                   std::vector<std::vector<triple_t>> &triple_pos) {
         // read_partial_exchange: load partial input files by each server and exchanges triples
         //            according to graph partitioning
         // read_all_files: load all files by each server and select triples
@@ -401,9 +401,9 @@ protected:
     }
 
     // Load preprocessed data from selected files.
-    void load_triples_from_selected(const string &src, vector<string> &fnames, 
-                                   vector<vector<triple_t>> &triple_pso,
-                                   vector<vector<triple_t>> &triple_pos) {
+    void load_triples_from_selected(const std::string &src, std::vector<std::string> &fnames, 
+                                   std::vector<std::vector<triple_t>> &triple_pso,
+                                   std::vector<std::vector<triple_t>> &triple_pos) {
         uint64_t start = timer::get_usec();
 
         size_t triple_cnt = get_triple_cnt(src);
@@ -412,8 +412,8 @@ protected:
             triple_pos[i].reserve(triple_cnt / Global::num_servers / Global::num_engines);
         }
 
-        auto load_one_file = [&](bool by_s, istream &file,
-                             vector<triple_t> &triple_pso, vector<triple_t> &triple_pos) {
+        auto load_one_file = [&](bool by_s, std::istream &file,
+                             std::vector<triple_t> &triple_pso, std::vector<triple_t> &triple_pos) {
             sid_t s, p, o;
             while (file >> s >> p >> o) {
                 if (by_s)    // out-edges
@@ -432,8 +432,8 @@ protected:
             size_t len = fnames[i].find('.') - spos;
             int pid = stoi(fnames[i].substr(spos, len));
             if (wukong::math::hash_mod(pid, Global::num_servers) == sid) {
-                istream *file = init_istream(fnames[i]);
-                bool by_s = (fnames[i].find("spo") != string::npos);
+                std::istream *file = init_istream(fnames[i]);
+                bool by_s = (fnames[i].find("spo") != std::string::npos);
                 load_one_file(by_s, *file, triple_pso[localtid], triple_pos[localtid]);
                 close_istream(file);
             }
@@ -443,8 +443,8 @@ protected:
                             << "for loading triples" << LOG_endl;
     }
 
-    void sort_normal_triples(vector<vector<triple_t>> &triple_pso,
-                             vector<vector<triple_t>> &triple_pos) {
+    void sort_normal_triples(std::vector<std::vector<triple_t>> &triple_pso,
+                             std::vector<std::vector<triple_t>> &triple_pos) {
 
         #pragma omp parallel for num_threads(Global::num_engines)
         for (int tid = 0; tid < Global::num_engines; tid++) {
@@ -463,10 +463,10 @@ protected:
         }
     }
 
-    bool is_preprocessed(const string &src) {
+    bool is_preprocessed(const std::string &src) {
         auto info_file = list_files(src, "metadata");
         if (info_file.size() == 1) {
-            istream *file = init_istream(src + "/metadata");
+            std::istream *file = init_istream(src + "/metadata");
             int num = 0;
             if ((*file) >> num) {
                 // Preprocessed data can be re-hashed into #num_servers partitions if num is times of num_servers.
@@ -481,8 +481,8 @@ protected:
         return false;
     }
 
-    size_t get_triple_cnt(const string &src) {
-        istream *file = init_istream(src + "/metadata");
+    size_t get_triple_cnt(const std::string &src) {
+        std::istream *file = init_istream(src + "/metadata");
         size_t num, triples;
         ASSERT(*file >> num >> triples);
         close_istream(file);
