@@ -45,6 +45,7 @@
 #include "utils/math.hpp"
 #include "utils/timer.hpp"
 
+namespace wukong {
 
 class GPUEngine {
 private:
@@ -256,7 +257,7 @@ public:
         req.result.gpu.set_rbuf(rbuf, req.result.result_table.size());
     }
 
-    void load_result_buf(SPARQLQuery &req, const string &rbuf_str) {
+    void load_result_buf(SPARQLQuery &req, const std::string &rbuf_str) {
         char *rbuf = backend.load_result_buf(rbuf_str.c_str(), rbuf_str.size());
         req.result.gpu.set_rbuf(rbuf, rbuf_str.size() / WUKONG_GPU_ELEM_SIZE);
     }
@@ -392,5 +393,7 @@ public:
     }
 
 };
+
+} // namespace wukong
 
 #endif  // USE_GPU

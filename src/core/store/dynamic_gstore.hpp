@@ -29,6 +29,8 @@
 #include "core/store/mm/jemalloc.hpp"
 #include "core/store/mm/buddy_malloc.hpp"
 
+namespace wukong {
+
 class DynamicGStore : public GStore {
 private:
     // block deferred to be freed
@@ -58,7 +60,7 @@ private:
      */
     int global_dyn_res_factor = 50;
 
-    queue<free_blk> free_queue;
+    std::queue<free_blk> free_queue;
     pthread_spinlock_t free_queue_lock;
 
     // Convert given byte units to edge units.
@@ -597,3 +599,5 @@ public:
         sync_metadata();
     }
 };
+
+} // namespace wukong

@@ -26,6 +26,8 @@
 #include "tcp_broadcast.hpp"
 #include "rdma_broadcast.hpp"
 
+namespace wukong {
+
 class Broadcast_Master {
 public:
     TCP_Broadcast_Master *tcp;   // communicaiton by TCP/IP
@@ -117,3 +119,5 @@ public:
         return true;
     }
 };
+
+} // namespace wukong

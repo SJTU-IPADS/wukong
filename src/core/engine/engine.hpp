@@ -46,6 +46,7 @@
 #include "utils/assertion.hpp"
 #include "utils/timer.hpp"
 
+namespace wukong {
 
 #define BUSY_POLLING_THRESHOLD 10000000 // busy polling task queue 10s
 #define MIN_SNOOZE_TIME 10 // MIX snooze time
@@ -219,3 +220,5 @@ public:
         }
     }
 };
+
+} // namespace wukong

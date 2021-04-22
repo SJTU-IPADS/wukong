@@ -23,6 +23,8 @@
 #include "gpu_hash.hpp"
 #include <thrust/execution_policy.h>
 
+namespace wukong {
+
 #define ASSOCIATIVITY 8
 
 /*********************************************
@@ -708,8 +710,8 @@ void gpu_split_result_buf(GPUEngineParam &param, int num_servers, cudaStream_t s
             param.query.row_num);
 }
 
-void gpu_shuffle_result_buf(GPUEngineParam& param, int num_jobs, vector<int>& buf_sizes,
-        vector<int>& buf_heads, cudaStream_t stream)
+void gpu_shuffle_result_buf(GPUEngineParam& param, int num_jobs, std::vector<int>& buf_sizes,
+        std::vector<int>& buf_heads, cudaStream_t stream)
 {
     // bowrrow other buffers for temporary use
     int *d_position_list = (int*) param.gpu.d_slot_id_list;
@@ -832,3 +834,5 @@ int gpu_update_result_buf_k2u(GPUEngineParam& param, cudaStream_t stream)
     CUDA_STREAM_SYNC(stream);
     return table_size*(param.query.col_num + 1);
 }
+
+} // namespace wukong

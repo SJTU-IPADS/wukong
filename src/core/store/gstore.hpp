@@ -52,6 +52,8 @@
 #include "utils/timer.hpp"
 #include "utils/unit.hpp"
 
+namespace wukong {
+
 /**
  * Map the Graph model (e.g., vertex, edge, index) to KVS model (e.g., key, value)
  * Graph store adopts clustring chaining key/value store (see paper: DrTM SOSP'15)
@@ -1203,3 +1205,5 @@ public:
                             << " MB (" << used_edges << " edges)" << LOG_endl;
     }
 };
+
+} // namespace wukong

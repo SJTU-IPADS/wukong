@@ -41,6 +41,8 @@
 #include "utils/logger2.hpp"
 #include "utils/assertion.hpp"
 
+namespace wukong {
+
 class TCP_Adaptor {
 private:
 
@@ -196,3 +198,5 @@ public:
     }
 
 };
+
+} // namespace wukong

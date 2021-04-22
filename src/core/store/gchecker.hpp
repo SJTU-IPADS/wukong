@@ -25,6 +25,8 @@
 // store
 #include "core/store/gstore.hpp"
 
+namespace wukong {
+
 class GChecker {
     GStore *gstore;
 
@@ -390,3 +392,5 @@ public:
         return 0;
     }
 };
+
+} // namespace wukong

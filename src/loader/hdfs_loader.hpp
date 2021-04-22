@@ -28,6 +28,8 @@
 // utils
 #include "utils/hdfs.hpp"
 
+namespace wukong {
+
 class HDFSLoader : public BaseLoader {
 protected:
     std::istream *init_istream(const std::string &src) {
@@ -57,3 +59,5 @@ public:
 
     ~HDFSLoader() { }
 };
+
+} // namespace wukong

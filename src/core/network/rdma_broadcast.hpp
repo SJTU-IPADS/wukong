@@ -32,6 +32,8 @@
 
 #include "core/common/rdma.hpp"
 
+namespace wukong {
+
 // rdma version one-to-many communication
 class RDMA_Broadcast {
 public:
@@ -332,3 +334,5 @@ public:
         return data;
     }
 };
+
+} // namespace wukong

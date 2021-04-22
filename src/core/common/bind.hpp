@@ -31,6 +31,8 @@
 // utils
 #include "utils/logger2.hpp"
 
+namespace wukong {
+
 /*
  * The processor architecture of machines in our cluster (Cube0-5)
  *
@@ -229,3 +231,5 @@ cpu_set_t unbind_to_core()
     bind_to_all();
     return mask;
 }
+
+} // namespace wukong

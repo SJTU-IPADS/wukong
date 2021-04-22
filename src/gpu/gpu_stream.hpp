@@ -26,10 +26,12 @@
 
 #include <cuda_runtime.h>
 
+namespace wukong {
+
 class GPUStreamPool {
 
 private:
-    vector<cudaStream_t> streams;
+    std::vector<cudaStream_t> streams;
     uint64_t rr_cnt;
     int num_streams;
     cudaStream_t split_stream;
@@ -64,5 +66,7 @@ public:
     cudaStream_t get_split_query_stream() { return split_stream; }
 
 };
+
+} // namespace wukong
 
 #endif

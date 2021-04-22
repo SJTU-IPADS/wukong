@@ -40,7 +40,7 @@ inline void check_cuda_result(cudaError_t code, const char *file, int line, bool
 #define CUDA_STREAM_SYNC(stream) (CUDA_ASSERT(cudaStreamSynchronize(stream)))
 #define CUDA_DEVICE_SYNC (CUDA_ASSERT(cudaDeviceSynchronize()))
 
-#define WUKONG_GPU_AGENT_TID (Global::num_proxies + Global::num_engines)
+#define WUKONG_GPU_AGENT_TID (wukong::Global::num_proxies + wukong::Global::num_engines)
 
 #define WUKONG_CUDA_NUM_THREADS 512
 #define WUKONG_GPU_ELEM_SIZE sizeof(sid_t)

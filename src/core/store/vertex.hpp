@@ -31,6 +31,8 @@
 // utils
 #include "utils/math.hpp"
 
+namespace wukong {
+
 enum { NBITS_DIR = 1 };
 enum { NBITS_IDX = 17 }; // equal to the size of t/pid
 enum { NBITS_VID = (64 - NBITS_IDX - NBITS_DIR) }; // 0: index vertex, ID: normal vertex
@@ -168,3 +170,5 @@ struct edge_t {
         return *this;
     }
 };
+
+} // namespace wukong

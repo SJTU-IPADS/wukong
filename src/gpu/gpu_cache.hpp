@@ -41,6 +41,8 @@
 // utils
 #include "utils/unit.hpp"
 
+namespace wukong {
+
 /*
  * Manage GPU kvstore (cache)
  */
@@ -558,4 +560,7 @@ public:
 
 
 };
+
+} // namespace wukong
+
 #endif

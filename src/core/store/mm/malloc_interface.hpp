@@ -24,6 +24,8 @@
 
 #include <iostream>
 
+namespace wukong {
+
 // NOTE: any implentation of this interface should be *thread-safe*
 class MAInterface {
 public:
@@ -67,3 +69,5 @@ public:
      */
     virtual void print_memory_usage() = 0;
 };
+
+} // namespace wukong

@@ -28,6 +28,8 @@
 
 #include "utils/logger2.hpp"
 
+namespace wukong {
+
 class timer {
 public:
     static uint64_t get_usec() {
@@ -60,3 +62,4 @@ public:
     }
 };
 
+} // namespace wukong

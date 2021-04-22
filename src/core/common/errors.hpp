@@ -23,6 +23,8 @@
 
 #include <exception>
 
+namespace wukong {
+
 #define ERR_MSG(n) (err_msgs[n])
 
 // error begin with 1, no error can be 0
@@ -78,3 +80,5 @@ struct WukongException : public std::exception {
     /// Destructor
     ~WukongException() {}
 };
+
+} // namespace wukong

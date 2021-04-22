@@ -41,6 +41,8 @@
 #include "utils/logger2.hpp"
 #include "utils/assertion.hpp"
 
+namespace wukong {
+
 class GPUEngineCuda final {
 private:
     int sid;
@@ -187,7 +189,7 @@ public:
         // copy the result on GPU to CPU if we come to the last pattern
         if (!has_next_pattern(req)) {
             new_table.resize(num_elems);
-            thrust::device_ptr<int> dptr(param.gpu.d_out_rbuf);
+            thrust::device_ptr<sid_t> dptr(param.gpu.d_out_rbuf);
             thrust::copy(dptr, dptr + num_elems, new_table.begin());
         } else {
             reverse_result_buf();
@@ -271,7 +273,7 @@ public:
         // copy the result on GPU to CPU if we come to the last pattern
         if (!has_next_pattern(req)) {
             new_table.resize(num_elems);
-            thrust::device_ptr<int> dptr(param.gpu.d_out_rbuf);
+            thrust::device_ptr<sid_t> dptr(param.gpu.d_out_rbuf);
             thrust::copy(dptr, dptr + num_elems, new_table.begin());
         } else {
             reverse_result_buf();
@@ -352,7 +354,7 @@ public:
         // copy the result on GPU to CPU if we come to the last pattern
         if (!has_next_pattern(req)) {
             new_table.resize(num_elems);
-            thrust::device_ptr<int> dptr(param.gpu.d_out_rbuf);
+            thrust::device_ptr<sid_t> dptr(param.gpu.d_out_rbuf);
             thrust::copy(dptr, dptr + num_elems, new_table.begin());
         } else {
             reverse_result_buf();
@@ -360,7 +362,7 @@ public:
 
     }
 
-    void generate_sub_query(const SPARQLQuery &req, sid_t start, int num_jobs,
+    void generate_sub_query(SPARQLQuery &req, sid_t start, int num_jobs,
                             std::vector<sid_t*>& buf_ptrs, std::vector<int>& buf_sizes) {
         cudaStream_t stream = stream_pool->get_split_query_stream();
 
@@ -406,5 +408,7 @@ public:
     }
 
 };
+
+} // namespace wukong
 
 #endif  // USE_GPU

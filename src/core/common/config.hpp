@@ -38,6 +38,7 @@
 // utils
 #include "utils/assertion.hpp"
 
+namespace wukong {
 
 static bool set_immutable_config(std::string cfg_name, std::string value)
 {
@@ -280,3 +281,5 @@ void print_config(void)
     std::cout << "the number of threads: "        << Global::num_threads           << LOG_endl;
 
 }
+
+} // namespace wukong

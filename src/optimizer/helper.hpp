@@ -27,6 +27,8 @@
 #include "optimizer/stats_type.hpp"
 #include "optimizer/stats.hpp"
 
+namespace wukong {
+
 class Dgraph_helper {
 
     int tid;
@@ -88,3 +90,5 @@ class Dgraph_helper {
     }
 
 };
+
+} // namespace wukong

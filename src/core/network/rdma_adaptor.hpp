@@ -45,6 +45,8 @@
 #include "utils/assertion.hpp"
 #include "utils/atomic.hpp"
 
+namespace wukong {
+
 #define WK_CLINE 64
 
 // The communication over RDMA-based ring buffer
@@ -469,3 +471,5 @@ public:
         return false;
     }
 };
+
+} // namespace wukong

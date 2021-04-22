@@ -45,6 +45,7 @@
 #include "utils/math.hpp"
 #include "utils/timer.hpp"
 
+namespace wukong {
 
 // a vector of pointers of all local proxies
 class Proxy;
@@ -596,3 +597,5 @@ public:
 
     }
 };
+
+} // namespace wukong

@@ -52,6 +52,8 @@
 #include "utils/assertion.hpp"
 #include "utils/math.hpp"
 
+namespace wukong {
+
 class BaseLoader : public LoaderInterface {
 protected:
     int sid;
@@ -563,3 +565,5 @@ public:
         gstore->refresh();
     }
 };
+
+} // namespace wukong

@@ -54,6 +54,8 @@
 // utils
 #include "utils/assertion.hpp"
 
+namespace wukong {
+
 // Read a stream into a string
 static std::string read_input(std::istream &in) {
     std::string result;
@@ -100,7 +102,7 @@ public:
         /// The literal value
         std::string value;
         /// The id for variables
-        unsigned id;
+        ssid_t id;
     };
 
     /// A graph pattern
@@ -221,7 +223,7 @@ private:
     /// The registered prefixes
     std::map<std::string, std::string> prefixes;
     /// The named variables
-    std::map<std::string, int> namedVariables;
+    std::map<std::string, ssid_t> namedVariables;
     /// The total variable count
     unsigned variableCount;
     /// The named variable count
@@ -246,7 +248,7 @@ private:
     int fetch_step;
 
     /// Lookup or create a named variable
-    int nameVariable(const std::string &name) {
+    ssid_t nameVariable(const std::string &name) {
         if (namedVariables.count(name))
             return namedVariables[name];
 
@@ -1159,7 +1161,7 @@ public:
 
         // Fixup empty projections (i.e. *)
         if (!projection.size()) {
-            for (std::map<std::string, int>::const_iterator iter = namedVariables.begin(), limit = namedVariables.end();
+            for (std::map<std::string, ssid_t>::const_iterator iter = namedVariables.begin(), limit = namedVariables.end();
                     iter != limit; ++iter)
                 projection.push_back((*iter).second);
         }
@@ -1169,7 +1171,7 @@ public:
     const PatternGroup &getPatterns() const { return patterns; }
     /// Get the name of a variable
     std::string getVariableName(int id) const {
-        for (std::map<std::string, int>::const_iterator iter = namedVariables.begin(), limit = namedVariables.end();
+        for (std::map<std::string, ssid_t>::const_iterator iter = namedVariables.begin(), limit = namedVariables.end();
                 iter != limit; ++iter)
             if ((*iter).second == id)
                 return (*iter).first;
@@ -1479,3 +1481,4 @@ public:
     }
 };
 
+} // namespace wukong

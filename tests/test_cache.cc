@@ -4,6 +4,8 @@
 
 namespace test {
 
+using namespace wukong;
+
 TEST(Store, Cache) {
   RDMA_Cache cache;
   cache.set_lease(SEC(2));

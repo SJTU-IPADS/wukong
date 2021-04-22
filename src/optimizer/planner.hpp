@@ -15,6 +15,8 @@
 
 #include "utils/timer.hpp"
 
+namespace wukong {
+
 std::vector<int> empty_ptypes_pos;
 
 class Planner {
@@ -695,3 +697,5 @@ class Planner {
         return true;
     }
 };
+
+} // namespace wukong

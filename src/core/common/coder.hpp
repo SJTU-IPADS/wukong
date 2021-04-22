@@ -26,6 +26,8 @@
 
 #include "core/common/global.hpp"
 
+namespace wukong {
+
 class Coder {
 
 private:
@@ -64,3 +66,5 @@ public:
         return qid % Global::num_threads;
     }
 };
+
+} // namespace wukong

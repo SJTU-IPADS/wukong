@@ -26,6 +26,8 @@
 
 #include "core/common/type.hpp"
 
+namespace wukong {
+
 class LoaderInterface {
 public:
     virtual void load(const std::string &src,
@@ -35,3 +37,5 @@ public:
 
     virtual ~LoaderInterface() {}
 };
+
+} // namespace wukong

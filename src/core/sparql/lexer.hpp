@@ -36,6 +36,8 @@
 #include <cstring> //include header for strncmp
 #include <string>
 
+namespace wukong {
+
 /// A lexer for SPARQL input
 class SPARQLLexer {
 public:
@@ -373,3 +375,5 @@ public:
         return (putBack != None) ? tokenStart : pos;
     }
 };
+
+} // namespace wukong

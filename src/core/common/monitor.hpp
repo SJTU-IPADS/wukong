@@ -33,6 +33,8 @@
 #include "utils/timer.hpp"
 #include "utils/unit.hpp"
 
+namespace wukong {
+
 class Monitor {
 private:
     struct req_stats {
@@ -231,3 +233,5 @@ public:
         ar & thpt;
     }
 };
+
+} // namespace wukong

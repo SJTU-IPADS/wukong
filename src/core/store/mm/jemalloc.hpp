@@ -32,10 +32,12 @@
 
 #include "core/store/mm/malloc_interface.hpp"
 
+namespace wukong {
+
 class JeMalloc : public MAInterface {
 private:
-    vector<unsigned> arena_inds;
-    vector<unsigned> tcache_inds;
+    std::vector<unsigned> arena_inds;
+    std::vector<unsigned> tcache_inds;
     uint64_t memsize;
     int pfactor;
 
@@ -197,4 +199,5 @@ char *JeMalloc::end_ptr = NULL;
 char *JeMalloc::top_of_heap = NULL;
 pthread_spinlock_t JeMalloc::jelock;
 
+} // namespace wukong
 #endif

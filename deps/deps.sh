@@ -201,7 +201,7 @@ install_jemalloc(){
     if [ ! -d "${jemalloc}-install" ]; then
         mkdir "${jemalloc}-install"
         if [ ! -d "${jemalloc}" ]; then
-            if [ ! -f "${jemalloc}.tar.gz" ]; then
+            if [ ! -f "${jemalloc}.tar.bz2" ]; then
                 wget "https://github.com/jemalloc/jemalloc/releases/download/5.2.1/${jemalloc}.tar.bz2"
             fi
             tar jxf "${jemalloc}.tar.bz2"
