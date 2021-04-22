@@ -101,7 +101,7 @@ usage(char *fn)
 
 void print_badge(){
     std::cout << "====================================" << std::endl;
-    std::cout << " _      __     __" << std::endl;              
+    std::cout << " _      __     __" << std::endl;
     std::cout << "| | /| / /_ __/ /_____  ___  ___ _" << std::endl;
     std::cout << "| |/ |/ / // /  '_/ _ \\/ _ \\/ _ `/" << std::endl;
     std::cout << "|__/|__/\\_,_/_/\\_\\\\___/_//_/\\_, / " << std::endl;
@@ -123,7 +123,8 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    print_badge();
+    if (sid == 0)
+        print_badge();
 
     // load global configs
     wukong::load_config(std::string(argv[1]), world.size());
