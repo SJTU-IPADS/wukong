@@ -17,7 +17,7 @@ def get_jena():
     source = 'apache-jena-3.17.0.tar.gz'
     try_cnt = 0
     while os.path.exists(source) == False and try_cnt < 5:
-        os.system('wget http://mirrors.tuna.tsinghua.edu.cn/apache/jena/binaries/' + source)
+        os.system('wget http://archive.apache.org/dist/jena/binaries/' + source)
         try_cnt += 1
 
     if os.path.exists(source) == False:
@@ -25,7 +25,7 @@ def get_jena():
         sys.exit()
 
     os.system('mkdir ./apache-jena & tar zxvf ' + source + ' -C ./apache-jena --strip-components 1')
-    os.remove(source)
+    #os.remove(source)
     return jena
  
 def main():

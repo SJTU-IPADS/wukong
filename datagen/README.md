@@ -30,6 +30,8 @@ Attribute triple pattern with the ID format(e.g.,attr_uni0.nt) consits of 4 IDs(
 
 ### Step 1: Convert RDF formats to N-Triples
 
+#### Automatic convert (python script)
+
 Use the python tool (convert_rdf.py) to convert RDF format data to N-Triples format data.
 
 ```bash
@@ -50,7 +52,9 @@ $ls /wukongdata/nt_lubm
 uni0.nt  uni1.nt
 ```
 
-Or, you can do it manually.
+
+
+#### Manual convert 
 
 **Step1.1 Download Apache Jena**
 
@@ -63,7 +67,8 @@ We use a command-line tool called riot (provided by Apache Jena) to convert any 
 The code below is an example of this step.
 
 ```bash
-$wget http://mirrors.tuna.tsinghua.edu.cn/apache/jena/binaries/apache-jena-3.17.0.tar.gz
+#$wget http://mirrors.tuna.tsinghua.edu.cn/apache/jena/binaries/apache-jena-4.0.0.tar.gz
+$wget http://archive.apache.org/dist/jena/binaries/apache-jena-3.17.0.tar.gz
 $tar zxvf apache-jena-3.17.0.tar.gz
 ```
 
@@ -180,9 +185,9 @@ For example, data is pre-partitioned into 1024 partitions. When there are 4 mach
 machine 0 can selectively load partitions 0, 4, 8... When there are 5 machines, 
 loading will fall back to read_all_files or read_partial_exchange.
 
-
 Usage of this tool is simple. Assume we want to preprocess LUBM dataset id_lubm_40 into 32 partitions. 
 Assume input directory is `/wukongdata/id_lubm_40` and output directory is `/wukongdata/id_lubm_40_32`.
+
 ```
 python preprocess.py -i /wukongdata/id_lubm_40 -o /wukongdata/id_lubm_40_32 -p 32
 ```
