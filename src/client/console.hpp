@@ -214,24 +214,44 @@ static void fail_to_parse(Proxy *proxy, int argc, char** argv)
 /**
  * split the string into char** by the space
  * the argc is the name of char*
- * the return value argv is the type of char**
+ * the return value argv of get_args is the type of char**
  */
-static char **cmd2args(std::string str, int &argc)
-{
-    std::vector<std::string> fields;
+class CMD2Args {
+private:
+    char** cmd_argv; /// the cmd argument variables
+    int cmd_argc; /// the number of cmd arguments
 
-    split(fields, str, is_any_of(" "));
+public:
+    CMD2Args(std::string str)
+    {
+        std::vector<std::string> fields;
 
-    argc = fields.size(); // set the argc as number of arguments
-    char** argv = new char*[argc + 1];
-    for (int i = 0; i < argc; i++) {
-        argv[i] = new char[fields[i].length() + 1];
-        strcpy(argv[i], fields[i].c_str());
+        split(fields, str, is_any_of(" "));
+
+        cmd_argc = fields.size(); // set the argc as number of arguments
+        cmd_argv = new char*[cmd_argc + 1];
+        for (int i = 0; i < cmd_argc; i++) {
+            cmd_argv[i] = new char[fields[i].length() + 1];
+            strcpy(cmd_argv[i], fields[i].c_str());
+        }
+        cmd_argv[cmd_argc] = NULL;
     }
-    argv[argc] = NULL;
 
-    return argv;
-}
+    char** get_args(int &argc)
+    {
+        argc = cmd_argc;
+        return cmd_argv;
+    }
+
+    ~CMD2Args()
+    {
+        for (int i = 0; i < cmd_argc; ++i)
+        {
+            delete cmd_argv[i];
+        }
+        delete []cmd_argv;
+    }
+};
 
 static void file2str(std::string fname, std::string &str)
 {
@@ -554,8 +574,9 @@ static void run_sparql(Proxy * proxy, int argc, char **argv)
 
         std::string sg_cmd; // a single command line
         while (getline(ifs, sg_cmd)) {
+            CMD2Args cmd2args(sg_cmd);
             int sg_argc = 0;
-            char** sg_argv = cmd2args(sg_cmd, sg_argc);
+            char** sg_argv = cmd2args.get_args(sg_argc);
 
             // only support single sparql query now (e.g., sparql -f ...)
             if (sg_argc > 2 && (std::string(sg_argv[0]) == "sparql" && std::string(sg_argv[1]) == "-f")) {
@@ -955,8 +976,9 @@ void run_console(Proxy *proxy)
         }
 
         // transform the comnmand to (argc, argv)
+        CMD2Args cmd2args(cmd);
         int argc = 0;
-        char **argv = cmd2args(cmd, argc);
+        char **argv = cmd2args.get_args(argc);
 
 
         // run commmand on all proxies according to the keyword
