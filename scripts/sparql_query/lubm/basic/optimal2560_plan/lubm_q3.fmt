@@ -3,7 +3,7 @@
 #
 # SELECT ?X ?Y ?Z WHERE {
 #	?X  ub:undergraduateDegreeFrom ?Y .
-#	X  rdf:type ub:UndergraduateStudent .
+#	?X  rdf:type ub:UndergraduateStudent .
 #	?X  ub:memberOf ?Z .
 #	?Z  rdf:type ub:Department .
 #	?Z  ub:subOrganizationOf ?Y .
