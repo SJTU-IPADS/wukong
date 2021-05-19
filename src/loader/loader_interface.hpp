@@ -22,7 +22,8 @@
 
 #pragma once
 
-#include<vector>
+#include <string>
+#include <vector>
 
 #include "core/common/type.hpp"
 
@@ -30,12 +31,12 @@ namespace wukong {
 
 class LoaderInterface {
 public:
-    virtual void load(const std::string &src,
-                      std::vector<std::vector<triple_t>> &triple_pso,
-                      std::vector<std::vector<triple_t>> &triple_pos,
-                      std::vector<std::vector<triple_attr_t>> &triple_sav) = 0;
+    virtual void load(const std::string& src,
+                      std::vector<std::vector<triple_t>>& triple_pso,
+                      std::vector<std::vector<triple_t>>& triple_pos,
+                      std::vector<std::vector<triple_attr_t>>& triple_sav) = 0;
 
     virtual ~LoaderInterface() {}
 };
 
-} // namespace wukong
+}  // namespace wukong

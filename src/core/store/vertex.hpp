@@ -22,6 +22,7 @@
 
 #pragma once
 #include <sstream>
+#include <string>
 
 // definitions of "__host__" and "__device__"
 #ifdef USE_GPU
@@ -33,16 +34,22 @@
 
 namespace wukong {
 
+// IN/OUT
 enum { NBITS_DIR = 1 };
-enum { NBITS_IDX = 17 }; // equal to the size of t/pid
-enum { NBITS_VID = (64 - NBITS_IDX - NBITS_DIR) }; // 0: index vertex, ID: normal vertex
+// equal to the size of t/pid
+enum { NBITS_IDX = 17 };
+// 0: index vertex, ID: normal vertex
+enum { NBITS_VID = (64 - NBITS_IDX - NBITS_DIR) };
 
 // reserve two special index IDs (predicate and type)
-enum { PREDICATE_ID = 0, TYPE_ID = 1 };
+enum { PREDICATE_ID = 0,
+       TYPE_ID = 1 };
 
 static inline bool is_tpid(ssid_t id) { return (id > 1) && (id < (1 << NBITS_IDX)); }
 
 static inline bool is_vid(ssid_t id) { return id >= (1 << NBITS_IDX); }
+
+#define PARTITION(vid) wukong::math::hash_mod(vid, Global::num_servers)
 
 /**
  * predicate-base key/value store
@@ -50,32 +57,34 @@ static inline bool is_vid(ssid_t id) { return id >= (1 << NBITS_IDX); }
  * value: v/t/pid list
  */
 struct ikey_t {
-uint64_t dir : NBITS_DIR; // direction
-uint64_t pid : NBITS_IDX; // predicate
-uint64_t vid : NBITS_VID; // vertex
+    uint64_t dir : NBITS_DIR;  // direction
+    uint64_t pid : NBITS_IDX;  // predicate
+    uint64_t vid : NBITS_VID;  // vertex
+
+    // clang-format off
+#ifdef USE_GPU
+    __host__ __device__
+#endif
+    ikey_t() : vid(0), pid(0), dir(0) {}
 
 #ifdef USE_GPU
     __host__ __device__
 #endif
-    ikey_t(): vid(0), pid(0), dir(0) { }
-
-#ifdef USE_GPU
-    __host__ __device__
-#endif
-    ikey_t(uint64_t v, uint64_t p, uint64_t d): vid(v), pid(p), dir(d) {
-        assert((vid == v) && (dir == d) && (pid == p)); // no key truncate
+    ikey_t(uint64_t v, uint64_t p, uint64_t d) : vid(v), pid(p), dir(d) {
+        assert((vid == v) && (dir == d) && (pid == p));  // no key truncate
     }
 
 #ifdef USE_GPU
     __host__ __device__
 #endif
-    bool operator == (const ikey_t &key) const {
+    bool operator==(const ikey_t& key) const {
         if ((vid == key.vid) && (pid == key.pid) && (dir == key.dir))
             return true;
         return false;
     }
+    // clang-format on
 
-    bool operator != (const ikey_t &key) const { return !(operator == (key)); }
+    bool operator!=(const ikey_t& key) const { return !(operator==(key)); }
 
     bool is_empty() { return ((vid == 0) && (pid == 0) && (dir == 0)); }
 
@@ -94,17 +103,19 @@ uint64_t vid : NBITS_VID; // vertex
         r += pid;
         r <<= NBITS_DIR;
         r += dir;
-        return wukong::math::hash_u64(r); // the standard hash is too slow (i.e., std::hash<uint64_t>()(r))
+        // the standard hash is too slow
+        // (i.e., std::hash<uint64_t>()(r))
+        return wukong::math::hash_u64(r);
     }
 };
 
 struct ikey_Hasher {
-    static size_t hash(const ikey_t &k) {
+    static size_t hash(const ikey_t& k) {
         return k.hash();
     }
 
-    static bool equal(const ikey_t &x, const ikey_t &y) {
-        return x.operator == (y);
+    static bool equal(const ikey_t& x, const ikey_t& y) {
+        return x.operator==(y);
     }
 };
 
@@ -113,24 +124,25 @@ struct ikey_Hasher {
 //   NBITS_PTR: the max number of edges (edge_t) for the entire gstore (16GB)
 //   NBITS_TYPE: the type of edge, used for attribute triple, sid(0), int(1), float(2), double(4)
 enum { NBITS_SIZE = 28 };
-enum { NBITS_PTR  = 34 };
-enum { NBITS_TYPE =  2 };
+enum { NBITS_PTR = 34 };
+enum { NBITS_TYPE = 2 };
 
 struct iptr_t {
-uint64_t size: NBITS_SIZE;
-uint64_t off: NBITS_PTR;
-uint64_t type: NBITS_TYPE;
+    uint64_t size : NBITS_SIZE;
+    uint64_t off : NBITS_PTR;
+    uint64_t type : NBITS_TYPE;
 
+    // clang-format off
 #ifdef USE_GPU
     __host__ __device__
 #endif
-    iptr_t(): size(0), off(0), type(0) { }
+    iptr_t() : size(0), off(0), type(0) {}
 
     // the default type is sid(type = 0)
 #ifdef USE_GPU
     __host__ __device__
 #endif
-    iptr_t(uint64_t s, uint64_t o, uint64_t t = 0): size(s), off(o), type(t) {
+    iptr_t(uint64_t s, uint64_t o, uint64_t t = 0) : size(s), off(o), type(t) {
         // no truncated
         assert((size == s) && (off == o) && (type == t));
     }
@@ -138,7 +150,7 @@ uint64_t type: NBITS_TYPE;
 #ifdef USE_GPU
     __host__ __device__
 #endif
-    bool operator == (const iptr_t &ptr) {
+    bool operator==(const iptr_t& ptr) {
         if ((size == ptr.size) && (off == ptr.off) && (type == ptr.type))
             return true;
         return false;
@@ -147,28 +159,54 @@ uint64_t type: NBITS_TYPE;
 #ifdef USE_GPU
     __host__ __device__
 #endif
-    bool operator != (const iptr_t &ptr) {
-        return !(operator == (ptr));
+    bool operator!=(const iptr_t& ptr) {
+        return !(operator==(ptr));
     }
+    // clang-format on
 };
 
 // 128-bit vertex (key)
 struct vertex_t {
-    ikey_t key; // 64-bit: vertex | predicate | direction
-    iptr_t ptr; // 64-bit: size | offset
+    ikey_t key;  // 64-bit: vertex | predicate | direction
+    iptr_t ptr;  // 64-bit: size | offset
 };
 
 // 32-bit edge (value)
 struct edge_t {
-    sid_t val;  // vertex ID
+    int val;  // vertex ID
 
+    // clang-format off
 #ifdef USE_GPU
     __host__ __device__
 #endif
-    edge_t &operator = (const edge_t &e) {
+    explicit edge_t(sid_t id) : val(id) {}
+    // clang-format on
+
+    edge_t(const edge_t& edge) : val(edge.val) {}
+
+    edge_t(edge_t&& edge) : val(edge.val) {}
+
+    edge_t& operator=(sid_t id) {
+        this->val = id;
+        return *this;
+    }
+
+    edge_t& operator=(edge_t& e) {
         if (this != &e) val = e.val;
         return *this;
     }
-};
 
-} // namespace wukong
+    edge_t& operator=(edge_t&& e) {
+        if (this != &e) val = e.val;
+        return *this;
+    }
+
+    bool operator==(const edge_t& e) {
+        return this->val == e.val;
+    }
+
+    bool operator==(const sid_t& id) {
+        return this->val == id;
+    }
+};
+}  // namespace wukong

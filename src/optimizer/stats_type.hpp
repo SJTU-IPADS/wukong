@@ -189,8 +189,8 @@ struct type_stat {
     }
 };
 
-typedef tbb::concurrent_unordered_set<ssid_t> tbb_set;
-typedef tbb::concurrent_hash_map<type_t, ssid_t, type_t_hasher> tbb_map;
+using tbb_set = tbb::concurrent_unordered_set<ssid_t>;
+using tbb_map = tbb::concurrent_hash_map<type_t, ssid_t, type_t_hasher>;
 
 class TypeTable
 {

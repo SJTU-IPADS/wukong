@@ -204,7 +204,7 @@ public:
         ASSERT(r.pqid != -1);
 
         // submit the request to a certain server
-        int start_sid = wukong::math::hash_mod(r.pattern_group.get_start(), Global::num_servers);
+        int start_sid = PARTITION(r.pattern_group.get_start());
         Bundle bundle(r);
 
         if (r.dev_type == SPARQLQuery::DeviceType::CPU) {

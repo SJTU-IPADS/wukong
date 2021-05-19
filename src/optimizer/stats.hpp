@@ -30,13 +30,13 @@
 #include <boost/mpi.hpp>
 #include <boost/algorithm/string.hpp>
 
+#include <tbb/concurrent_unordered_set.h>
+
 #include "core/common/global.hpp"
 
 #include "core/network/tcp_adaptor.hpp"
 
 #include "optimizer/stats_type.hpp"
-
-#include "core/store/gstore.hpp"
 
 namespace wukong {
 
@@ -380,16 +380,16 @@ public:
             }
             global_type2int.swap(type2int);
 
-            logstream(LOG_INFO) << "global_tyscount size: " << global_tyscount.size() << LOG_endl;
-            logstream(LOG_INFO) << "global_tystat.pstype.size: " << global_tystat.pstype.size() << LOG_endl;
-            logstream(LOG_INFO) << "global_tystat.potype.size: " << global_tystat.potype.size() << LOG_endl;
-            logstream(LOG_INFO) << "global_tystat.fine_type.size: " << global_tystat.fine_type.size() << LOG_endl;
-            logstream(LOG_INFO) << "global_tyscount[0]: " << global_tyscount[0] << LOG_endl;
+            logstream(LOG_INFO) << "[Stat] global_tyscount size: " << global_tyscount.size() << LOG_endl;
+            logstream(LOG_INFO) << "[Stat] global_tystat.pstype.size: " << global_tystat.pstype.size() << LOG_endl;
+            logstream(LOG_INFO) << "[Stat] global_tystat.potype.size: " << global_tystat.potype.size() << LOG_endl;
+            logstream(LOG_INFO) << "[Stat] global_tystat.fine_type.size: " << global_tystat.fine_type.size() << LOG_endl;
+            logstream(LOG_INFO) << "[Stat] global_tyscount[0]: " << global_tyscount[0] << LOG_endl;
         }
 
         send_stat_to_all_machines(tcp_ad);
 
-        logstream(LOG_INFO) << "#" << sid << ": load stats of DGraph is finished." << LOG_endl;
+        logstream(LOG_INFO) << "[Stats] #" << sid << ": load stats of DGraph is finished." << LOG_endl;
 
     }
 
@@ -466,8 +466,8 @@ public:
     }
 
     // prepare data for planner
-    void generate_statistics(GStore *gstore) {
-
+    void generate_statistics(DGraph *graph) {
+        logstream(LOG_INFO) << "[Stats] #" << sid << ": begin to generate statistics..." << LOG_endl;
         // find if the same raw type have similar predicates
         // unordered_map<ssid_t, unordered_set<type_t,type_t_hasher>> rawType_to_predicates;
         // unordered_map<type_t, int, type_t_hasher> each_predicate_number;
@@ -502,14 +502,14 @@ public:
             uint64_t psize1 = 0;
             std::unordered_set<int> index_composition;
 
-            edge_t *res1 = gstore->get_edges(tid, id, PREDICATE_ID, OUT, psize1);
+            edge_t * res1 = graph->get_triples(tid, id, PREDICATE_ID, OUT, psize1);
             for (uint64_t k = 0; k < psize1; k++) {
                 ssid_t pre = res1[k].val;
                 index_composition.insert(pre);
             }
 
             uint64_t psize2 = 0;
-            edge_t *res2 = gstore->get_edges(tid, id, PREDICATE_ID, IN, psize2);
+            edge_t * res2 = graph->get_triples(tid, id, PREDICATE_ID, IN, psize2);
             for (uint64_t k = 0; k < psize2; k++) {
                 ssid_t pre = res2[k].val;
                 index_composition.insert(-pre);
@@ -555,100 +555,41 @@ public:
                     tyscount[type]++;
                 return true;
             }
-        };
+        };     
 
-        volatile uint64_t bucket_number = 0;
-        volatile uint32_t percent_number = 1;
-        uint64_t total_buckets = gstore->num_buckets + gstore->num_buckets_ext;
-        
-        #pragma omp parallel for num_threads(Global::num_engines)
-        for (uint64_t bucket_id = 0; bucket_id < total_buckets; bucket_id++) {
-            int tid = omp_get_thread_num();
-            uint64_t slot_id = bucket_id * gstore->ASSOCIATIVITY;
-            for (int i = 0; i < gstore->ASSOCIATIVITY - 1; i++, slot_id++) {
-                // skip empty slot
-                if (gstore->vertices[slot_id].key.is_empty()) continue;
-
-                sid_t vid = gstore->vertices[slot_id].key.vid;
-                sid_t pid = gstore->vertices[slot_id].key.pid;
-
-                uint64_t sz = gstore->vertices[slot_id].ptr.size;
-                uint64_t off = gstore->vertices[slot_id].ptr.off;
-                if (vid == PREDICATE_ID || pid == PREDICATE_ID)
-                    continue; // skip for index vertex
-
-                if (gstore->vertices[slot_id].key.dir == IN) {
-                    // for type derivation
-                    // get types of values found by key (Subjects)
-                    std::vector<ssid_t> res_type;
-                    for (uint64_t k = 0; k < sz; k++) {
-                        ssid_t sbid = gstore->edges[off + k].val;
-                        uint64_t type_sz = 0;
-                        edge_t *res = gstore->get_edges(tid, sbid, TYPE_ID, OUT, type_sz);
-                        if (type_sz > 1) {
-                            ssid_t type = generate_multi_type(res, type_sz);
-                            res_type.push_back(type);
-                        } else if (type_sz == 0) {
-                            ssid_t type = generate_no_type(tid, sbid);
-                            res_type.push_back(type);
-                        } else if (type_sz == 1) {
-                            res_type.push_back(res[0].val);
-                        } else {
-                            assert(false);
-                        }
-                    }
-
-                    // type for objects
-                    // get type of vid (Object)
-                    uint64_t type_sz = 0;
-                    edge_t *res = gstore->get_edges_local(tid, vid, TYPE_ID, OUT, type_sz);
-                    ssid_t type;
-                    if (type_sz > 1) {
-                        type = generate_multi_type(res, type_sz);
-                    } else {
-                        if (type_sz == 0) {
-                            type = generate_no_type(tid, vid);
-                            #pragma omp critical (local_tyscount)
-                            insert_no_type_count(vid, type);
-                        } else {
-                            type = res[0].val;
-                        }
-                    }
-                    #pragma omp critical (local_tystat)
-                    {
-                    ty_stat.insert_otype(pid, type, 1);
-                    for (int j = 0; j < res_type.size(); j++)
-                        ty_stat.insert_finetype(pid, type, res_type[j], 1);
-                    }
-                } else {
+        for(sid_t pid : graph->get_edge_predicates()){
+            if(pid == TYPE_ID) continue;
+            for(int dir = 0; dir < 2; dir++){
+                uint64_t vertex_sz = 0;
+                edge_t *vertices = graph->get_index(0, pid, dir==0?IN:OUT, vertex_sz);
+                #pragma omp parallel for num_threads(Global::num_engines)
+                for(int i = 0; i < vertex_sz; i++){
+                    int tid = omp_get_thread_num();
+                    int vid = vertices[i].val;
+                    uint64_t sz;
+                    edge_t *neighbors = graph->get_triples(tid, vid, pid, dir==0?OUT:IN, sz);
                     // no_type only need to be counted in one direction (using OUT)
-                    // get types of values found by key (Objects)
+                    // get types of values found by key
                     std::vector<ssid_t> res_type;
                     for (uint64_t k = 0; k < sz; k++) {
-                        ssid_t obid = gstore->edges[off + k].val;
+                        ssid_t neighbor_id = neighbors[k].val;
                         uint64_t type_sz = 0;
-                        edge_t *res = gstore->get_edges(tid, obid, TYPE_ID, OUT, type_sz);
-
+                        edge_t *res = graph->get_triples(tid, neighbor_id, TYPE_ID, OUT, type_sz);
                         if (type_sz > 1) {
                             ssid_t type = generate_multi_type(res, type_sz);
                             res_type.push_back(type);
                         } else if (type_sz == 0) {
-                            // in this situation, obid may be some TYPE
-                            if (pid != 1) {
-                                ssid_t type = generate_no_type(tid, obid);
-                                res_type.push_back(type);
-                            }
+                            ssid_t type = generate_no_type(tid, neighbor_id);
+                            res_type.push_back(type);
                         } else if (type_sz == 1) {
                             res_type.push_back(res[0].val);
-                        } else {
-                            assert(false);
                         }
                     }
 
-                    // type for subjects
-                    // get type of vid (Subject)
+                    // type for subjects/objects
+                    // get type of vid
                     uint64_t type_sz = 0;
-                    edge_t *res = gstore->get_edges_local(tid, vid, TYPE_ID, OUT, type_sz);
+                    edge_t *res = graph->get_triples(tid, vid, TYPE_ID, OUT, type_sz);
                     ssid_t type;
                     if (type_sz > 1) {
                         type = generate_multi_type(res, type_sz);
@@ -663,56 +604,63 @@ public:
                     }
                     #pragma omp critical (local_tystat)
                     {
-                    ty_stat.insert_stype(pid, type, 1);
-                    for (int j = 0; j < res_type.size(); j++)
-                        ty_stat.insert_finetype(type, pid, res_type[j], 1);
+                    if(dir == 0){
+                        ty_stat.insert_stype(pid, type, 1);
+                        for (int j = 0; j < res_type.size(); j++)
+                            ty_stat.insert_finetype(type, pid, res_type[j], 1);
                     }
-                    
-                    // count type predicate
-                    if (pid == TYPE_ID) {
-                        // multi-type
-                        if (sz > 1) {
-                            type_t complex_type;
-                            std::unordered_set<int> type_composition;
-                            for (int i = 0; i < sz; i ++)
-                                type_composition.insert(gstore->edges[off + i].val);
-
-                            complex_type.set_type_composition(type_composition);
-                            #pragma omp critical (local_tyscount)
-                            {
-                            ssid_t type_number = get_simple_type(complex_type);
-
-                            if (tyscount.find(type_number) == tyscount.end())
-                                tyscount[type_number] = 1;
-                            else
-                                tyscount[type_number]++;
-                            }
-                        } else if (sz == 1) { // single type
-                            sid_t obid = gstore->edges[off].val;
-                            #pragma omp critical (local_tyscount)
-                            {
-                            if (tyscount.find(obid) == tyscount.end())
-                                tyscount[obid] = 1;
-                            else
-                                tyscount[obid]++;
-                            }
-                        }
+                    else {
+                        ty_stat.insert_otype(pid, type, 1);
+                        for (int j = 0; j < res_type.size(); j++)
+                            ty_stat.insert_finetype(pid, type, res_type[j], 1);
+                    }
                     }
                 }
             }
-
-            // print progress percent info
-            if ((bucket_number * 1.0 / total_buckets) > percent_number * 1.0 / 10) {
-                uint32_t now = wukong::atomic::add_and_fetch(&percent_number, 1);
-                logstream(LOG_INFO)
-                    << "#" << sid << ": already generate statistics "
-                    << (now-1) << "0%" << LOG_endl;
-                
-            }
-            wukong::atomic::add_and_fetch(&bucket_number, 1);
         }
 
-        logstream(LOG_INFO) << "server#" << sid << ": generating stats is finished." << LOG_endl;
+        tbb::concurrent_unordered_set<sid_t> vids;
+        for(sid_t tid : graph->get_type_predicates()){
+            uint64_t vertex_sz = 0;
+            edge_t *vertices = graph->get_index(0, tid, IN, vertex_sz);
+            #pragma omp parallel for num_threads(Global::num_engines)
+            for(int i = 0; i < vertex_sz; i++){
+                sid_t vid = vertices[i].val;
+                if(vids.count(vid)){
+                    continue;
+                }else{
+                    vids.insert(vid);
+                }
+                // type for subjects
+                // get type of vid (Subject)
+                uint64_t type_sz = 0;
+                edge_t *res = graph->get_triples(tid, vid, TYPE_ID, OUT, type_sz);
+                ssid_t type;
+                // multi-type
+                if (type_sz > 1) {
+                    type = generate_multi_type(res, type_sz);
+                } else { // single type
+                    assert(type_sz != 0);
+                    type = res[0].val;
+                }
+                // count type predicate
+                #pragma omp critical (local_tyscount)
+                {
+                if (tyscount.find(type) == tyscount.end())
+                    tyscount[type] = 1;
+                else
+                    tyscount[type]++;
+                }
+                #pragma omp critical (local_tystat)
+                {
+                ty_stat.insert_stype(TYPE_ID, type, 1);
+                // for (int j = 0; j < res_type.size(); j++)
+                //     ty_stat.insert_finetype(type, TYPE_ID, res_type[j], 1);
+                }
+            }
+        }
+
+        logstream(LOG_INFO) << "[Stats] #" << sid << ": generating stats is finished." << LOG_endl;
     }
 
     /**

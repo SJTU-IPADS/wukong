@@ -1,0 +1,16 @@
+BasedOnStyle: Google
+AccessModifierOffset: -4
+AlignAfterOpenBracket: Align
+AllowShortBlocksOnASingleLine: true
+DerivePointerAlignment: false
+PointerAlignment: Left
+ColumnLimit: 0
+Cpp11BracedListStyle: true
+IndentCaseLabels: false
+IndentWidth: 4
+Standard: 'Cpp11'
+SpaceAfterCStyleCast: true
+SortIncludes: true
+IncludeBlocks: Preserve
+ForEachMacros:
+  - BOOST_FOREACH

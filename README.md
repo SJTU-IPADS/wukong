@@ -16,11 +16,11 @@ For more details see [Wukong Project](http://ipads.se.sjtu.edu.cn/projects/wukon
 
 ## Getting Started
 
-* [Installation](docs/INSTALL.md)
-* [Tutorials](docs/TUTORIALS.md)
-* [Manual](docs/COMMANDS.md)
-* [GPU extension](docs/gpu/TUTORIALS.md)
-* [Q&A](docs/QA.md)
+* [Installation](docs/notes/INSTALL.md)
+* [Tutorials](docs/notes/TUTORIALS.md)
+* [Manual](docs/notes/COMMANDS.md)
+* [GPU extension](docs/notes/GPU.md)
+* [Q&A](docs/notes/QA.md)
 
 
 ## License

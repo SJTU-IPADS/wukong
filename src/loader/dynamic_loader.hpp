@@ -22,42 +22,41 @@
 
 #pragma once
 
-#include <string>
+#include <dirent.h>
+#include <omp.h>
+#include <stdio.h>
+#include <algorithm>
 #include <atomic>
 #include <fstream>
 #include <iostream>
-#include <stdio.h>
-#include <dirent.h>
+#include <string>
 #include <unordered_set>
 #include <vector>
-#include <algorithm>
 
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/mpi.hpp>
 #include <boost/unordered_map.hpp>
-#include <boost/algorithm/string/predicate.hpp>
 
-#include <tbb/concurrent_vector.h>
-
-#include "omp.h"
+#include <tbb/concurrent_vector.h> // NOLINT
 
 #include "core/common/global.hpp"
-#include "core/common/type.hpp"
 #include "core/common/rdma.hpp"
+#include "core/common/type.hpp"
 
 #include "core/store/dynamic_gstore.hpp"
 
 // utils
-#include "utils/timer.hpp"
 #include "utils/assertion.hpp"
 #include "utils/math.hpp"
+#include "utils/timer.hpp"
 
 namespace wukong {
 
 class DynamicLoader {
 private:
     int sid;
-    StringServer *str_server;
-    DynamicGStore *gstore;
+    StringServer* str_server;
+    DynamicGStore* gstore;
 
     inline std::vector<std::string> list_files(std::string dname, std::string prefix) {
         if (boost::starts_with(dname, "hdfs:")) {
@@ -68,11 +67,11 @@ private:
                 exit(-1);
             }
 
-            wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
+            wukong::hdfs& hdfs = wukong::hdfs::get_hdfs();
             return std::vector<std::string>(hdfs.list_files(dname, prefix));
         } else {
             // files located on a shared filesystem (e.g., NFS)
-            DIR *dir = opendir(dname.c_str());
+            DIR* dir = opendir(dname.c_str());
             if (dir == NULL) {
                 logstream(LOG_ERROR) << "failed to open directory (" << dname
                                      << ") at server " << sid << LOG_endl;
@@ -80,7 +79,7 @@ private:
             }
 
             std::vector<std::string> files;
-            struct dirent *ent;
+            struct dirent* ent;
             while ((ent = readdir(dir)) != NULL) {
                 if (ent->d_name[0] == '.')
                     continue;
@@ -99,7 +98,7 @@ private:
 
     void flush_convertmap() { id2id.clear(); }
 
-    void convert_sid(sid_t &sid) {
+    void convert_sid(sid_t& sid) {
         if (id2id.find(sid) != id2id.end())
             sid = id2id[sid];
     }
@@ -115,7 +114,7 @@ private:
     void dynamic_load_mappings(std::string dname) {
         std::unordered_set<sid_t> dynamic_loaded_preds;
 
-        DIR *dir = opendir(dname.c_str());
+        DIR* dir = opendir(dname.c_str());
 
         if (dir == NULL) {
             logstream(LOG_ERROR) << "failed to open the directory of ID-mapping files ("
@@ -123,13 +122,12 @@ private:
             exit(-1);
         }
 
-        struct dirent *ent;
+        struct dirent* ent;
         while ((ent = readdir(dir)) != NULL) {
             if (ent->d_name[0] == '.')
                 continue;
             std::string fname(dname + ent->d_name);
-            if (boost::ends_with(fname, "/str_index")
-                    || boost::ends_with(fname, "/str_normal")) {
+            if (boost::ends_with(fname, "/str_index") || boost::ends_with(fname, "/str_normal")) {
                 logstream(LOG_INFO) << "loading ID-mapping file: " << fname << LOG_endl;
                 std::ifstream file(fname.c_str());
                 std::string str;
@@ -139,12 +137,12 @@ private:
                         id2id[id] = str_server->str2id(str);
                     } else {
                         if (boost::ends_with(fname, "/str_index")) {
-                            id2id[id] = str_server->next_index_id ++;
+                            id2id[id] = str_server->next_index_id++;
                             // if this is a new pred, we should create a new segment for it
                             dynamic_loaded_preds.insert(id2id[id]);
+                        } else {
+                            id2id[id] = str_server->next_normal_id++;
                         }
-                        else
-                            id2id[id] = str_server->next_normal_id ++;
 
                         // add a new string-ID (bi-direction) pair to string server
                         str_server->add(str, id2id[id]);
@@ -159,8 +157,8 @@ private:
     }
 
 public:
-    DynamicLoader(int sid, StringServer *str_server, DynamicGStore *gstore)
-        : sid(sid), str_server(str_server), gstore(gstore) { }
+    DynamicLoader(int sid, StringServer* str_server, DynamicGStore* gstore)
+        : sid(sid), str_server(str_server), gstore(gstore) {}
 
     int64_t dynamic_load_data(std::string dname, bool check_dup) {
         uint64_t start, end;
@@ -168,8 +166,11 @@ public:
         dynamic_load_mappings(dname);
 
         // step 2: list files to load
-        std::vector<std::string> dfiles(list_files(dname, "id_"));   // ID-format data files
-        std::vector<std::string> afiles(list_files(dname, "attr_")); // ID-format attribute files
+
+        // ID-format data files
+        std::vector<std::string> dfiles(list_files(dname, "id_"));
+        // ID-format attribute files
+        std::vector<std::string> afiles(list_files(dname, "attr_"));
 
         if (dfiles.size() == 0 && afiles.size() == 0) {
             logstream(LOG_WARNING) << "no files found in directory (" << dname
@@ -196,18 +197,23 @@ public:
             std::ifstream file(dfiles[i]);
             sid_t s, p, o;
             while (file >> s >> p >> o) {
-                convert_sid(s); convert_sid(p); convert_sid(o); //convert origin ids to new ids
+                // convert origin ids to new ids
+                convert_sid(s);
+                convert_sid(p);
+                convert_sid(o);
                 /// FIXME: just check and print warning
-                check_sid(s); check_sid(p); check_sid(o);
+                check_sid(s);
+                check_sid(p);
+                check_sid(o);
 
-                if (sid == wukong::math::hash_mod(s, Global::num_servers)) {
+                if (sid == PARTITION(s)) {
                     gstore->insert_triple_out(triple_t(s, p, o), check_dup, tid);
-                    cnt ++;
+                    cnt++;
                 }
 
-                if (sid == wukong::math::hash_mod(o, Global::num_servers)) {
+                if (sid == PARTITION(o)) {
                     gstore->insert_triple_in(triple_t(s, p, o), check_dup, tid);
-                    cnt ++;
+                    cnt++;
                 }
             }
             file.close();
@@ -219,7 +225,8 @@ public:
         logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << "ms "
                             << "for inserting into gstore" << LOG_endl;
 
-        flush_convertmap(); //clean the id2id mapping
+        // clean the id2id mapping
+        flush_convertmap();
 
         std::sort(afiles.begin(), afiles.end());
         int num_afiles = afiles.size();
@@ -234,7 +241,8 @@ public:
             int type;
             while (file >> s >> a >> type) {
                 /// FIXME: just check and print warning
-                check_sid(s); check_sid(a);
+                check_sid(s);
+                check_sid(a);
 
                 switch (type) {
                 case 1:
@@ -257,10 +265,10 @@ public:
                     break;
                 }
 
-                if (sid == wukong::math::hash_mod(s, Global::num_servers)) {
+                if (sid == PARTITION(s)) {
                     /// Support attribute files
                     // gstore->insert_triple_attribute(triple_sav_t(s, a, v));
-                    cnt ++;
+                    cnt++;
                 }
             }
             file.close();
@@ -275,4 +283,4 @@ public:
     }
 };
 
-} // namespace wukong
+}  // namespace wukong

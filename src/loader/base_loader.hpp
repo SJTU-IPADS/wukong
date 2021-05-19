@@ -22,50 +22,41 @@
 
 #pragma once
 
-#include <string>
+#include <dirent.h>
+#include <omp.h>
+#include <stdio.h>
+#include <algorithm>
 #include <fstream>
 #include <iostream>
-#include <stdio.h>
-#include <dirent.h>
+#include <string>
 #include <unordered_set>
 #include <vector>
-#include <algorithm>
 
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/mpi.hpp>
 #include <boost/unordered_map.hpp>
-#include <boost/algorithm/string/predicate.hpp>
-
-#include "omp.h"
 
 #include "core/common/global.hpp"
-#include "core/common/type.hpp"
 #include "core/common/rdma.hpp"
+#include "core/common/type.hpp"
 
 // loader
 #include "loader_interface.hpp"
 
-// store
-#include "core/store/gstore.hpp"
-
 // utils
-#include "utils/timer.hpp"
 #include "utils/assertion.hpp"
 #include "utils/math.hpp"
+#include "utils/timer.hpp"
 
 namespace wukong {
 
 class BaseLoader : public LoaderInterface {
 protected:
     int sid;
-    Mem *mem;
-    StringServer *str_server;
-    GStore *gstore;
+    Mem* mem;
+    StringServer* str_server;
 
     std::vector<uint64_t> num_triples;  // record #triples loaded from input data for each server
-
-    virtual std::istream *init_istream(const std::string &src) = 0;
-    virtual void close_istream(std::istream *stream) = 0;
-    virtual std::vector<std::string> list_files(const std::string &src, std::string prefix) = 0;
 
     uint64_t inline floor(uint64_t original, uint64_t n) {
         ASSERT(n != 0);
@@ -79,15 +70,13 @@ protected:
         return original - original % n + n;
     }
 
-    void dedup_triples(std::vector<triple_t> &triples) {
+    void dedup_triples(std::vector<triple_t>& triples) {
         if (triples.size() <= 1)
             return;
 
         uint64_t n = 1;
         for (uint64_t i = 1; i < triples.size(); i++) {
-            if (triples[i].s == triples[i - 1].s
-                    && triples[i].p == triples[i - 1].p
-                    && triples[i].o == triples[i - 1].o)
+            if (triples[i].s == triples[i - 1].s && triples[i].p == triples[i - 1].p && triples[i].o == triples[i - 1].o)
                 continue;
 
             triples[n++] = triples[i];
@@ -98,8 +87,8 @@ protected:
     void flush_triples(int tid, int dst_sid) {
         uint64_t buf_sz = floor(mem->buffer_size() / Global::num_servers - sizeof(uint64_t),
                                 sizeof(sid_t));
-        uint64_t *pn = (uint64_t *)(mem->buffer(tid) + (buf_sz + sizeof(uint64_t)) * dst_sid);
-        sid_t *buf = (sid_t *)(pn + 1);
+        uint64_t* pn = reinterpret_cast<uint64_t*>(mem->buffer(tid) + (buf_sz + sizeof(uint64_t)) * dst_sid);
+        sid_t* buf = reinterpret_cast<sid_t*>(pn + 1);
 
         // the 1st uint64_t of buffer records #new-triples
         uint64_t n = *pn;
@@ -121,15 +110,15 @@ protected:
         }
 
         // send triples and clear the buffer
-        uint64_t off = (kvs_sz + sizeof(uint64_t)) * sid
-                       + sizeof(uint64_t)           // reserve the 1st uint64_t as #triples
-                       + exist * 3 * sizeof(sid_t); // skip #exist-triples
-        uint64_t sz = n * 3 * sizeof(sid_t);        // send #new-triples
+        uint64_t off = (kvs_sz + sizeof(uint64_t)) * sid + sizeof(uint64_t)  // reserve the 1st uint64_t as #triples
+                       + exist * 3 * sizeof(sid_t);                          // skip #exist-triples
+        uint64_t sz = n * 3 * sizeof(sid_t);
+        // send #new-triples
         if (dst_sid != sid) {
-            RDMA &rdma = RDMA::get_rdma();
-            rdma.dev->RdmaWrite(tid, dst_sid, (char *)buf, sz, off);
+            RDMA& rdma = RDMA::get_rdma();
+            rdma.dev->RdmaWrite(tid, dst_sid, reinterpret_cast<char*>(buf), sz, off);
         } else {
-            memcpy(mem->kvstore() + off, (char *)buf, sz);
+            memcpy(mem->kvstore() + off, reinterpret_cast<char*>(buf), sz);
         }
 
         // clear the buffer
@@ -143,8 +132,8 @@ protected:
         // each partition is further split into #servers pieces
         // each piece: #triples, tirple, triple, . . .
         uint64_t buf_sz = floor(mem->buffer_size() / Global::num_servers - sizeof(uint64_t), sizeof(sid_t));
-        uint64_t *pn = (uint64_t *)(mem->buffer(tid) + (buf_sz + sizeof(uint64_t)) * dst_sid);
-        sid_t *buf = (sid_t *)(pn + 1);
+        uint64_t* pn = reinterpret_cast<uint64_t*>(mem->buffer(tid) + (buf_sz + sizeof(uint64_t)) * dst_sid);
+        sid_t* buf = reinterpret_cast<sid_t*>(pn + 1);
 
         // the 1st entry of buffer records #triples (suppose the )
         uint64_t n = *pn;
@@ -152,7 +141,7 @@ protected:
         // flush buffer if there is no enough space to buffer a new triple
         if ((n * 3 + 3) * sizeof(sid_t) > buf_sz) {
             flush_triples(tid, dst_sid);
-            n = *pn; // reset, it should be 0
+            n = *pn;  // reset, it should be 0
             ASSERT(n == 0);
         }
 
@@ -163,15 +152,15 @@ protected:
         *pn = (n + 1);
     }
 
-    int read_partial_exchange(std::vector<std::string> &fnames) {
+    int read_partial_exchange(std::vector<std::string>& fnames) {
         // ensure the file name list has the same order on all servers
         std::sort(fnames.begin(), fnames.end());
 
-        auto lambda = [&](std::istream & file, int localtid) {
+        auto lambda = [&](std::istream& file, int localtid) {
             sid_t s, p, o;
             while (file >> s >> p >> o) {
-                int s_sid = wukong::math::hash_mod(s, Global::num_servers);
-                int o_sid = wukong::math::hash_mod(o, Global::num_servers);
+                int s_sid = PARTITION(s);
+                int o_sid = PARTITION(o);
                 if (s_sid == o_sid) {
                     send_triple(localtid, s_sid, s, p, o);
                 } else {
@@ -190,7 +179,7 @@ protected:
             // each server only load a part of files
             if (i % Global::num_servers != sid) continue;
 
-            std::istream *file = init_istream(fnames[i]);
+            std::istream* file = init_istream(fnames[i]);
             lambda(*file, localtid);
             close_istream(file);
         }
@@ -202,16 +191,16 @@ protected:
 
         // exchange #triples among all servers
         for (int s = 0; s < Global::num_servers; s++) {
-            uint64_t *buf = (uint64_t *)mem->buffer(0);
+            uint64_t* buf = reinterpret_cast<uint64_t*>(mem->buffer(0));
             buf[0] = num_triples[s];
 
             uint64_t kvs_sz = floor(mem->kvstore_size() / Global::num_servers, sizeof(sid_t));
             uint64_t offset = kvs_sz * sid;
             if (s != sid) {
-                RDMA &rdma = RDMA::get_rdma();
-                rdma.dev->RdmaWrite(0, s, (char*)buf, sizeof(uint64_t), offset);
+                RDMA& rdma = RDMA::get_rdma();
+                rdma.dev->RdmaWrite(0, s, reinterpret_cast<char*>(buf), sizeof(uint64_t), offset);
             } else {
-                memcpy(mem->kvstore() + offset, (char*)buf, sizeof(uint64_t));
+                memcpy(mem->kvstore() + offset, reinterpret_cast<char*>(buf), sizeof(uint64_t));
             }
         }
         MPI_Barrier(MPI_COMM_WORLD);
@@ -220,14 +209,14 @@ protected:
     }
 
     // selectively load own partitioned data from all files
-    int read_all_files(std::vector<std::string> &fnames) {
+    int read_all_files(std::vector<std::string>& fnames) {
         std::sort(fnames.begin(), fnames.end());
 
-        auto lambda = [&](std::istream & file, uint64_t &n, uint64_t kvs_sz, sid_t * kvs) {
+        auto lambda = [&](std::istream& file, uint64_t& n, uint64_t kvs_sz, sid_t* kvs) {
             sid_t s, p, o;
             while (file >> s >> p >> o) {
-                int s_sid = wukong::math::hash_mod(s, Global::num_servers);
-                int o_sid = wukong::math::hash_mod(o, Global::num_servers);
+                int s_sid = PARTITION(s);
+                int o_sid = PARTITION(o);
                 if ((s_sid == sid) || (o_sid == sid)) {
                     ASSERT((n * 3 + 3) * sizeof(sid_t) <= kvs_sz);
                     // buffer the triple and update the counter
@@ -245,13 +234,13 @@ protected:
             int localtid = omp_get_thread_num();
             uint64_t kvs_sz = floor(mem->kvstore_size() / Global::num_engines - sizeof(uint64_t),
                                     sizeof(sid_t));
-            uint64_t *pn = (uint64_t *)(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * localtid);
-            sid_t *kvs = (sid_t *)(pn + 1);
+            uint64_t* pn = reinterpret_cast<uint64_t*>(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * localtid);
+            sid_t* kvs = reinterpret_cast<sid_t*>(pn + 1);
 
             // the 1st uint64_t of kvs records #triples
             uint64_t n = *pn;
 
-            std::istream *file = init_istream(fnames[i]);
+            std::istream* file = init_istream(fnames[i]);
             lambda(*file, n, kvs_sz, kvs);
             close_istream(file);
 
@@ -262,59 +251,74 @@ protected:
     }
 
     // selectively load own partitioned data (attributes) from all files
-    void load_attr_from_allfiles(std::vector<std::string> &fnames, std::vector<std::vector<triple_attr_t>> &triple_sav) {
+    void load_attr_from_allfiles(std::vector<std::string>& fnames, std::vector<std::vector<triple_attr_t>>& triple_sav) {
         if (fnames.size() == 0)
-            return; // no attributed files
+            return;  // no attributed files
 
         std::sort(fnames.begin(), fnames.end());
 
-        auto load_attr = [&](std::istream & file, int localtid) {
+        auto load_attr = [&](std::istream& file, int localtid) {
             sid_t s, a;
             attr_t v;
             int type;
             while (file >> s >> a >> type) {
                 switch (type) {
-                case INT_t: { int i; file >> i; v = i; break; }
-                case FLOAT_t: { float f; file >> f; v = f; break; }
-                case DOUBLE_t: { double d; file >> d; v = d; break; }
+                case INT_t: {
+                    int i;
+                    file >> i;
+                    v = i;
+                    break;
+                }
+                case FLOAT_t: {
+                    float f;
+                    file >> f;
+                    v = f;
+                    break;
+                }
+                case DOUBLE_t: {
+                    double d;
+                    file >> d;
+                    v = d;
+                    break;
+                }
                 default:
                     logstream(LOG_ERROR) << "Unsupported value type" << LOG_endl;
                     break;
                 }
 
-                if (sid == wukong::math::hash_mod(s, Global::num_servers))
+                if (sid == PARTITION(s))
                     triple_sav[localtid].push_back(triple_attr_t(s, a, v));
             }
         };
 
-        //parallel load from all files
+        // parallel load from all files
         int num_files = fnames.size();
         #pragma omp parallel for num_threads(Global::num_engines)
         for (int i = 0; i < num_files; i++) {
             int localtid = omp_get_thread_num();
 
-            //load from hdfs or posix file
-            std::istream *file = init_istream(fnames[i]);
+            // load from hdfs or posix file
+            std::istream* file = init_istream(fnames[i]);
             load_attr(*file, localtid);
             close_istream(file);
         }
     }
 
-    void sort_attr(std::vector<std::vector<triple_attr_t>> &triple_sav) {
+    void sort_attr(std::vector<std::vector<triple_attr_t>>& triple_sav) {
         #pragma omp parallel for num_threads(Global::num_engines)
         for (int tid = 0; tid < Global::num_engines; tid++)
             std::sort(triple_sav[tid].begin(), triple_sav[tid].end(), triple_sort_by_asv());
     }
 
     void aggregate_data(int num_partitions,
-                        std::vector<std::vector<triple_t>> &triple_pso,
-                        std::vector<std::vector<triple_t>> &triple_pos) {
+                        std::vector<std::vector<triple_t>>& triple_pso,
+                        std::vector<std::vector<triple_t>>& triple_pos) {
         // calculate #triples on the kvstore from all servers
         uint64_t total = 0;
         uint64_t kvs_sz = floor(mem->kvstore_size() / num_partitions - sizeof(uint64_t), sizeof(sid_t));
         for (int i = 0; i < num_partitions; i++) {
-            uint64_t *pn = (uint64_t *)(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * i);
-            total += *pn; // the 1st uint64_t of kvs records #triples
+            uint64_t* pn = reinterpret_cast<uint64_t*>(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * i);
+            total += *pn;  // the 1st uint64_t of kvs records #triples
         }
 
         // pre-expand to avoid frequent reallocation (maybe imbalance)
@@ -329,10 +333,10 @@ protected:
         volatile uint64_t progress = 0;
         #pragma omp parallel for num_threads(Global::num_engines)
         for (int tid = 0; tid < Global::num_engines; tid++) {
-            int cnt = 0; // per thread count for print progress
+            int cnt = 0;  // per thread count for print progress
             for (int id = 0; id < num_partitions; id++) {
-                uint64_t *pn = (uint64_t *)(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * id);
-                sid_t *kvs = (sid_t *)(pn + 1);
+                uint64_t* pn = reinterpret_cast<uint64_t*>(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * id);
+                sid_t* kvs = reinterpret_cast<sid_t*>(pn + 1);
 
                 // the 1st uint64_t of kvs records #triples
                 uint64_t n = *pn;
@@ -342,12 +346,12 @@ protected:
                     sid_t o = kvs[i * 3 + 2];
 
                     // out-edges
-                    if (wukong::math::hash_mod(s, Global::num_servers) == sid)
+                    if (PARTITION(s) == sid)
                         if ((s % Global::num_engines) == tid)
                             triple_pso[tid].push_back(triple_t(s, p, o));
 
                     // in-edges
-                    if (wukong::math::hash_mod(o, Global::num_servers) == sid)
+                    if (PARTITION(o) == sid)
                         if ((o % Global::num_engines) == tid)
                             triple_pos[tid].push_back(triple_t(s, p, o));
 
@@ -355,7 +359,7 @@ protected:
                     if (++cnt >= total * 0.05) {
                         uint64_t now = wukong::atomic::add_and_fetch(&progress, 1);
                         if (now % Global::num_engines == 0)
-                            logstream(LOG_INFO) << "already aggregrate "
+                            logstream(LOG_INFO) << "[Loader] triples already aggregrate "
                                                 << (now / Global::num_engines) * 5
                                                 << "%" << LOG_endl;
                         cnt = 0;
@@ -366,9 +370,9 @@ protected:
     }
 
     // Load normal triples from all files, using read_partial_exchange or read_all_files.
-    void load_triples_from_all(std::vector<std::string> &dfiles, 
-                                   std::vector<std::vector<triple_t>> &triple_pso,
-                                   std::vector<std::vector<triple_t>> &triple_pos) {
+    void load_triples_from_all(std::vector<std::string>& dfiles,
+                               std::vector<std::vector<triple_t>>& triple_pso,
+                               std::vector<std::vector<triple_t>>& triple_pos) {
         // read_partial_exchange: load partial input files by each server and exchanges triples
         //            according to graph partitioning
         // read_all_files: load all files by each server and select triples
@@ -386,7 +390,7 @@ protected:
         else
             num_partitons = read_all_files(dfiles);
         uint64_t end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << " ms "
+        logstream(LOG_INFO) << "[Loader] #" << sid << ": " << (end - start) / 1000 << " ms "
                             << "for loading data files" << LOG_endl;
 
         // all triples are partitioned and temporarily stored in the kvstore on each server.
@@ -396,14 +400,14 @@ protected:
         start = timer::get_usec();
         aggregate_data(num_partitons, triple_pso, triple_pos);
         end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << " ms "
+        logstream(LOG_INFO) << "[Loader] #" << sid << ": " << (end - start) / 1000 << " ms "
                             << "for aggregrating triples" << LOG_endl;
     }
 
     // Load preprocessed data from selected files.
-    void load_triples_from_selected(const std::string &src, std::vector<std::string> &fnames, 
-                                   std::vector<std::vector<triple_t>> &triple_pso,
-                                   std::vector<std::vector<triple_t>> &triple_pos) {
+    void load_triples_from_selected(const std::string& src, std::vector<std::string>& fnames,
+                                    std::vector<std::vector<triple_t>>& triple_pso,
+                                    std::vector<std::vector<triple_t>>& triple_pos) {
         uint64_t start = timer::get_usec();
 
         size_t triple_cnt = get_triple_cnt(src);
@@ -412,13 +416,13 @@ protected:
             triple_pos[i].reserve(triple_cnt / Global::num_servers / Global::num_engines);
         }
 
-        auto load_one_file = [&](bool by_s, std::istream &file,
-                             std::vector<triple_t> &triple_pso, std::vector<triple_t> &triple_pos) {
+        auto load_one_file = [&](bool by_s, std::istream& file,
+                                 std::vector<triple_t>& triple_pso, std::vector<triple_t>& triple_pos) {
             sid_t s, p, o;
             while (file >> s >> p >> o) {
-                if (by_s)    // out-edges
+                if (by_s)  // out-edges
                     triple_pso.push_back(triple_t(s, p, o));
-                else        // in-edges
+                else  // in-edges
                     triple_pos.push_back(triple_t(s, p, o));
             }
         };
@@ -431,21 +435,20 @@ protected:
             size_t spos = fnames[i].find_last_of('_') + 1;
             size_t len = fnames[i].find('.') - spos;
             int pid = stoi(fnames[i].substr(spos, len));
-            if (wukong::math::hash_mod(pid, Global::num_servers) == sid) {
-                std::istream *file = init_istream(fnames[i]);
+            if (PARTITION(pid) == sid) {
+                std::istream* file = init_istream(fnames[i]);
                 bool by_s = (fnames[i].find("spo") != std::string::npos);
                 load_one_file(by_s, *file, triple_pso[localtid], triple_pos[localtid]);
                 close_istream(file);
             }
         }
         uint64_t end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << " ms "
+        logstream(LOG_INFO) << "[Loader] #" << sid << ": " << (end - start) / 1000 << " ms "
                             << "for loading triples" << LOG_endl;
     }
 
-    void sort_normal_triples(std::vector<std::vector<triple_t>> &triple_pso,
-                             std::vector<std::vector<triple_t>> &triple_pos) {
-
+    void sort_normal_triples(std::vector<std::vector<triple_t>>& triple_pso,
+                             std::vector<std::vector<triple_t>>& triple_pos) {
         #pragma omp parallel for num_threads(Global::num_engines)
         for (int tid = 0; tid < Global::num_engines; tid++) {
 #ifdef VERSATILE
@@ -463,10 +466,10 @@ protected:
         }
     }
 
-    bool is_preprocessed(const std::string &src) {
+    bool is_preprocessed(const std::string& src) {
         auto info_file = list_files(src, "metadata");
         if (info_file.size() == 1) {
-            std::istream *file = init_istream(src + "/metadata");
+            std::istream* file = init_istream(src + "/metadata");
             int num = 0;
             if ((*file) >> num) {
                 // Preprocessed data can be re-hashed into #num_servers partitions if num is times of num_servers.
@@ -481,8 +484,8 @@ protected:
         return false;
     }
 
-    size_t get_triple_cnt(const std::string &src) {
-        std::istream *file = init_istream(src + "/metadata");
+    size_t get_triple_cnt(const std::string& src) {
+        std::istream* file = init_istream(src + "/metadata");
         size_t num, triples;
         ASSERT(*file >> num >> triples);
         close_istream(file);
@@ -490,15 +493,19 @@ protected:
     }
 
 public:
-    BaseLoader(int sid, Mem *mem, StringServer *str_server, GStore *gstore)
-        : sid(sid), mem(mem), str_server(str_server), gstore(gstore) { }
+    BaseLoader(int sid, Mem* mem, StringServer* str_server)
+        : sid(sid), mem(mem), str_server(str_server) {}
 
-    virtual ~BaseLoader() { }
+    virtual ~BaseLoader() {}
 
-    void load(const std::string &src,
-              std::vector<std::vector<triple_t>> &triple_pso,
-              std::vector<std::vector<triple_t>> &triple_pos,
-              std::vector<std::vector<triple_attr_t>> &triple_sav) {
+    virtual std::istream* init_istream(const std::string& src) = 0;
+    virtual void close_istream(std::istream* stream) = 0;
+    virtual std::vector<std::string> list_files(const std::string& src, std::string prefix) = 0;
+
+    void load(const std::string& src,
+              std::vector<std::vector<triple_t>>& triple_pso,
+              std::vector<std::vector<triple_t>>& triple_pos,
+              std::vector<std::vector<triple_attr_t>>& triple_sav) {
         uint64_t start, end;
 
         num_triples.resize(Global::num_servers);
@@ -506,36 +513,19 @@ public:
         triple_pos.resize(Global::num_engines);
         triple_sav.resize(Global::num_engines);
 
-        std::vector<std::string> dfiles(list_files(src, "id_"));   // ID-format data files
-        std::vector<std::string> afiles(list_files(src, "attr_")); // ID-format attribute files
+        // ID-format data files
+        std::vector<std::string> dfiles(list_files(src, "id_"));
+        // ID-format attribute files
+        std::vector<std::string> afiles(list_files(src, "attr_"));
 
         if (dfiles.size() == 0) {
-            logstream(LOG_WARNING) << "no data files found in directory (" << src
+            logstream(LOG_WARNING) << "[Loader] no data files found in directory (" << src
                                    << ") at server " << sid << LOG_endl;
         } else {
-            logstream(LOG_INFO) << dfiles.size() << " files and " << afiles.size()
+            logstream(LOG_INFO) << "[Loader] " << dfiles.size() << " files and " << afiles.size()
                                 << " attributed files found in directory (" << src
                                 << ") at server " << sid << LOG_endl;
         }
-
-        auto count_preds = [](const std::string str_idx_file) {
-            std::string pred;
-            int pid, count = 0;
-            std::ifstream ifs(str_idx_file.c_str());
-            while (ifs >> pred >> pid) {
-                count++;
-            }
-            ifs.close();
-            return count;
-        };
-
-        int num_normal_preds = count_preds(src + "str_index");
-        if (num_normal_preds == 0)
-            logstream(LOG_ERROR) << "Encoding file of predicates should be named as \"str_index\". Graph loading failed. Please quit and try again." << LOG_endl;
-        else
-            gstore->num_normal_preds = num_normal_preds - 1; // skip PREDICATE_ID
-        if (Global::enable_vattr)
-            gstore->num_attr_preds = count_preds(src + "str_attr_index");
 
         // load_triples_from_all: load triples from all the input files
         // load_triples_from_selected: load triples from selected input files which is preprocessed
@@ -558,12 +548,9 @@ public:
         load_attr_from_allfiles(afiles, triple_sav);
         sort_attr(triple_sav);
         end = timer::get_usec();
-        logstream(LOG_INFO) << "#" << sid << ": " << (end - start) / 1000 << " ms "
+        logstream(LOG_INFO) << "[Loader] #" << sid << ": " << (end - start) / 1000 << " ms "
                             << "for loading attribute files" << LOG_endl;
-
-        // initiate gstore (kvstore) after loading and exchanging triples (memory reused)
-        gstore->refresh();
     }
 };
 
-} // namespace wukong
+}  // namespace wukong
