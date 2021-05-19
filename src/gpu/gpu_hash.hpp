@@ -33,7 +33,7 @@
 #include "core/common/global.hpp"
 
 // store
-#include "core/store/meta.hpp"
+#include "core/store/segment_meta.hpp"
 #include "core/store/vertex.hpp"
 
 #include "gpu_utils.hpp"

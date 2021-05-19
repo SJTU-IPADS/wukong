@@ -35,8 +35,8 @@
 #include "gpu_utils.hpp"
 
 // store
-#include "core/store/gstore.hpp"
-#include "core/store/meta.hpp"
+#include "core/store/kvstore.hpp"
+#include "core/store/segment_meta.hpp"
 
 // utils
 #include "utils/unit.hpp"
@@ -271,10 +271,10 @@ private:
         // step 3: load direct
         if (main_size != 0) {
             CUDA_ASSERT(cudaMemcpyAsync(
-                            vertex_gaddr + block_id * nbuckets_kblk * GStore::ASSOCIATIVITY,
+                            vertex_gaddr + block_id * nbuckets_kblk * RDFStore::ASSOCIATIVITY,
                             vertex_addr + (rdf_metas[seg].bucket_start
-                                           + seg_block_idx * nbuckets_kblk) * GStore::ASSOCIATIVITY,
-                            sizeof(vertex_t) * main_size * GStore::ASSOCIATIVITY,
+                                           + seg_block_idx * nbuckets_kblk) * RDFStore::ASSOCIATIVITY,
+                            sizeof(vertex_t) * main_size * RDFStore::ASSOCIATIVITY,
                             cudaMemcpyHostToDevice,
                             stream));
         }
@@ -302,10 +302,10 @@ private:
                     uint64_t inside_load = ext.num_ext_buckets - inside_off;
                     if (inside_load > remain) inside_load = remain;
                     uint64_t dst_off = (block_id * nbuckets_kblk + indirect_start + indirect_size - remain)
-                                       * GStore::ASSOCIATIVITY;
-                    uint64_t src_off = (ext.start + inside_off) * GStore::ASSOCIATIVITY;
+                                       * RDFStore::ASSOCIATIVITY;
+                    uint64_t src_off = (ext.start + inside_off) * RDFStore::ASSOCIATIVITY;
                     CUDA_ASSERT(cudaMemcpyAsync(vertex_gaddr + dst_off, vertex_addr + src_off,
-                                                sizeof(vertex_t) * inside_load * GStore::ASSOCIATIVITY,
+                                                sizeof(vertex_t) * inside_load * RDFStore::ASSOCIATIVITY,
                                                 cudaMemcpyHostToDevice, stream));
                     remain -= inside_load;
                     start_bucket_idx += inside_load;
@@ -429,11 +429,11 @@ public:
         gmem(gmem), vertex_addr(v_a), edge_addr(e_a), rdf_metas(rdf_metas) {
 
         // step 1: calculate #slots, #buckets, #entries
-        uint64_t num_slots = (GiB2B(Global::gpu_kvcache_size_gb) * GStore::HD_RATIO) / (100 * sizeof(vertex_t));
-        uint64_t num_buckets = num_slots / GStore::ASSOCIATIVITY;
+        uint64_t num_slots = (GiB2B(Global::gpu_kvcache_size_gb) * RDFStore::HD_RATIO) / (100 * sizeof(vertex_t));
+        uint64_t num_buckets = num_slots / RDFStore::ASSOCIATIVITY;
         uint64_t num_entries = (GiB2B(Global::gpu_kvcache_size_gb) - num_slots * sizeof(vertex_t)) / sizeof(edge_t);
 
-        nbuckets_kblk = MiB2B(Global::gpu_key_blk_size_mb) / (sizeof(vertex_t) * GStore::ASSOCIATIVITY);
+        nbuckets_kblk = MiB2B(Global::gpu_key_blk_size_mb) / (sizeof(vertex_t) * RDFStore::ASSOCIATIVITY);
         nentries_vblk = MiB2B(Global::gpu_value_blk_size_mb) / sizeof(edge_t);
 
         num_key_blks = num_buckets / nbuckets_kblk;

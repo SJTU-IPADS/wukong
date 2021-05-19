@@ -24,11 +24,13 @@
 
 #include <map>
 #include <sstream>
+#include <string>
+#include <vector>
 
-#include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
-#include <boost/serialization/string.hpp>
+#include <boost/archive/binary_oarchive.hpp>
 #include <boost/serialization/map.hpp>
+#include <boost/serialization/string.hpp>
 
 #include "core/common/type.hpp"
 
@@ -36,7 +38,7 @@
 
 namespace wukong {
 
-using namespace boost::archive;
+using namespace boost::archive;  // NOLINT
 
 #ifdef USE_GPU
 #define EXT_BUCKET_LIST_CAPACITY 1
@@ -44,29 +46,33 @@ using namespace boost::archive;
 #else
 #define EXT_BUCKET_EXTENT_LEN 256
 #endif
+
 #define PREDICATE_NSEGS 2
+
 #ifdef VERSATILE
-#define INDEX_NSEGS 4   // index(2) + vid's all preds(2)
-#else // VERSATILE
-#define INDEX_NSEGS 2   // index(2)
-#endif // VERSATILE
+#define INDEX_NSEGS 4  // index(2) + vid's all preds(2)
+#else
+#define INDEX_NSEGS 2  // index(2)
+#endif
 /**
  * A contiguous space in the indirect-header region
  */
 struct ext_bucket_extent_t {
-    uint64_t num_ext_buckets;   // capacity
-    uint64_t off;       // current offset
-    uint64_t start;     // start offset in the indirect header region
+    uint64_t num_ext_buckets;  // capacity
+    uint64_t off;              // current offset
+    uint64_t start;            // start offset in the indirect header region
 
     ext_bucket_extent_t() : num_ext_buckets(0), off(0), start(0) {}
     ext_bucket_extent_t(uint64_t nbuckets, uint64_t start_off)
-        : num_ext_buckets(nbuckets), off(0), start(start_off) { }
+        : num_ext_buckets(nbuckets), off(0), start(start_off) {}
 
     template <typename Archive>
-    void serialize(Archive &ar, const unsigned int version) {
+    void serialize(Archive& ar, const unsigned int version) {
+        // clang-format off
         ar & num_ext_buckets;
         ar & off;
         ar & start;
+        // clang-format on
     }
 };
 
@@ -86,8 +92,8 @@ struct rdf_seg_meta_t {
     uint64_t edge_start = 0;    // start offset in the entry region of gstore
     uint64_t edge_off = 0;      // current available offset in the entry region, only used by static gstore
 
-    int num_key_blks = 0;       // #key-blocks needed in gcache
-    int num_value_blks = 0;     // #value-blocks needed in gcache
+    int num_key_blks = 0;    // #key-blocks needed in gcache
+    int num_value_blks = 0;  // #value-blocks needed in gcache
 
 #ifdef USE_GPU
     ext_bucket_extent_t ext_bucket_list[EXT_BUCKET_LIST_CAPACITY];
@@ -99,7 +105,7 @@ struct rdf_seg_meta_t {
 
     size_t get_ext_bucket_list_size() const { return ext_bucket_list_sz; }
 
-    void add_ext_buckets(const ext_bucket_extent_t &ext) {
+    void add_ext_buckets(const ext_bucket_extent_t& ext) {
         assert(ext_bucket_list_sz < EXT_BUCKET_LIST_CAPACITY);
         ext_bucket_list[ext_bucket_list_sz++] = ext;
     }
@@ -108,7 +114,7 @@ struct rdf_seg_meta_t {
 
     size_t get_ext_bucket_list_size() const { return ext_bucket_list.size(); }
 
-    void add_ext_buckets(const ext_bucket_extent_t &ext) {
+    void add_ext_buckets(const ext_bucket_extent_t& ext) {
         ext_bucket_list.push_back(ext);
     }
 
@@ -116,7 +122,7 @@ struct rdf_seg_meta_t {
 
     uint64_t get_ext_bucket() {
         for (int i = 0; i < get_ext_bucket_list_size(); ++i) {
-            ext_bucket_extent_t &ext = ext_bucket_list[i];
+            ext_bucket_extent_t& ext = ext_bucket_list[i];
             if (ext.off < ext.num_ext_buckets) {
                 return ext.start + ext.off++;
             }
@@ -133,7 +139,8 @@ struct rdf_seg_meta_t {
     }
 
     template <typename Archive>
-    void serialize(Archive &ar, const unsigned int version) {
+    void serialize(Archive& ar, const unsigned int version) {
+        // clang-format off
         ar & num_buckets;
         ar & bucket_start;
         ar & ext_bucket_list;
@@ -142,6 +149,7 @@ struct rdf_seg_meta_t {
 #endif
         ar & num_edges;
         ar & edge_start;
+        // clang-format on
     }
 };
 
@@ -152,10 +160,13 @@ struct segid_t {
     int index;  // normal or index segment
     dir_t dir;  // direction of triples in the segment
     sid_t pid;  // predicate id
-    segid_t(): index(0), pid(0), dir(IN) { }
-    segid_t(int idx, sid_t p, dir_t d) : index(idx), pid(p), dir(d) { }
-    segid_t(const ikey_t &key) {
-        dir = (dir_t)key.dir;
+
+    segid_t() : index(0), pid(0), dir(IN) {}
+
+    segid_t(int idx, sid_t p, dir_t d) : index(idx), pid(p), dir(d) {}
+
+    explicit segid_t(const ikey_t& key) {
+        dir = (dir_t) key.dir;
         // index
         if (key.vid == 0) {
             index = 1;
@@ -173,18 +184,19 @@ struct segid_t {
         } else {
             r = ((pid + 1) << 1) + dir;
         }
-        return wukong::math::hash_u64(r); // the standard hash is too slow (i.e., std::hash<uint64_t>()(r))
+        // the standard hash is too slow
+        // (i.e., std::hash<uint64_t>()(r))
+        return wukong::math::hash_u64(r);
     }
 
-
-    bool operator == (const segid_t &s) const {
+    bool operator==(const segid_t& s) const {
         return (index == s.index && dir == s.dir && pid == s.pid);
     }
 
-    bool operator < (const segid_t& segid) const {
-        if (pid < segid.pid)
+    bool operator<(const segid_t& segid) const {
+        if (pid < segid.pid) {
             return true;
-        else if (pid == segid.pid) {
+        } else if (pid == segid.pid) {
             if (index < segid.index)
                 return true;
             else if (index == segid.index && dir < segid.dir)
@@ -200,10 +212,12 @@ struct segid_t {
     }
 
     template <typename Archive>
-    void serialize(Archive &ar, const unsigned int version) {
+    void serialize(Archive& ar, const unsigned int version) {
+        // clang-format off
         ar & index;
         ar & dir;
         ar & pid;
+        // clang-format on
     }
 };
 
@@ -219,17 +233,19 @@ public:
     int sender_sid;
     std::map<segid_t, rdf_seg_meta_t> data;
 
-    SyncSegmentMetaMsg() { }
+    SyncSegmentMetaMsg() {}
 
-    SyncSegmentMetaMsg(std::map<segid_t, rdf_seg_meta_t> data) {
+    explicit SyncSegmentMetaMsg(std::map<segid_t, rdf_seg_meta_t> data) {
         this->data = data;
     }
 
     template <typename Archive>
-    void serialize(Archive &ar, const unsigned int version) {
+    void serialize(Archive& ar, const unsigned int version) {
+        // clang-format off
         ar & sender_sid;
         ar & data;
+        // clang-format on
     }
 };
 
-} // namespace wukong
+}  // namespace wukong

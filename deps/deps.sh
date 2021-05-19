@@ -33,7 +33,7 @@ install_mpi(){
         fi
         cd "$WUKONG_ROOT/deps/${openmpi}"
         trap - ERR
-        ./configure --prefix="$WUKONG_ROOT/deps/${openmpi}-install/" 2>>install_deps.log
+        ./configure --disable-vt --prefix="$WUKONG_ROOT/deps/${openmpi}-install/" 2>>install_deps.log
         make all 2>>install_deps.log
         make install 2>>install_deps.log
     else

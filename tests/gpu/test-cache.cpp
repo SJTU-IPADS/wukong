@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
 
     if (sid == 0) {
         vertex_t *d_va = (vertex_t *)gpu_mem->kvcache();
-        edge_t *d_ea = (edge_t *)(gpu_mem->kvcache() + (gpu_mem->kvcache_size() * GStore::HD_RATIO / 100));
+        edge_t *d_ea = (edge_t *)(gpu_mem->kvcache() + (gpu_mem->kvcache_size() * RDFStore::HD_RATIO / 100));
         cudaStream_t stream;
         cudaStreamCreate(&stream);
         auto &rsmm = dgraph.gstore.get_rdf_seg_meta_map();

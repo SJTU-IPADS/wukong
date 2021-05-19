@@ -187,8 +187,8 @@ public:
     void print_memory_usage() {
         uint64_t size = ((uintptr_t)top_of_heap - (uintptr_t)start_ptr) / (1024 * 1024);
 
-        logstream(LOG_INFO) << "graph_storage edge memory status:" << LOG_endl;
-        logstream(LOG_INFO) << "allocated " << size << " MB" << LOG_endl;
+        logstream(LOG_INFO) << "[JEMALLOC] graph_storage edge memory status:" << LOG_endl;
+        logstream(LOG_INFO) << "[JEMALLOC] allocated " << size << " MB" << LOG_endl;
         return;
     }
 };

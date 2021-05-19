@@ -22,24 +22,32 @@
 
 #pragma once
 
+#include <string>
+#include <vector>
+
 // loader
 #include "base_loader.hpp"
 
 namespace wukong {
 
 class PosixLoader : public BaseLoader {
-protected:
-    std::istream *init_istream(const std::string &src) {
+public:
+    PosixLoader(int sid, Mem* mem, StringServer* str_server)
+        : BaseLoader(sid, mem, str_server) {}
+
+    ~PosixLoader() {}
+
+    std::istream* init_istream(const std::string& src) {
         return new std::ifstream(src.c_str());
     }
 
-    void close_istream(std::istream *stream) {
-        static_cast<std::ifstream *>(stream)->close();
+    void close_istream(std::istream* stream) {
+        static_cast<std::ifstream*>(stream)->close();
         delete stream;
     }
 
-    std::vector<std::string> list_files(const std::string &src, std::string prefix) {
-        DIR *dir = opendir(src.c_str());
+    std::vector<std::string> list_files(const std::string& src, std::string prefix) {
+        DIR* dir = opendir(src.c_str());
         if (dir == NULL) {
             logstream(LOG_ERROR) << "failed to open directory (" << src
                                  << ") at server " << sid << LOG_endl;
@@ -47,7 +55,7 @@ protected:
         }
 
         std::vector<std::string> files;
-        struct dirent *ent;
+        struct dirent* ent;
         while ((ent = readdir(dir)) != NULL) {
             if (ent->d_name[0] == '.')
                 continue;
@@ -59,12 +67,6 @@ protected:
         }
         return files;
     }
-
-public:
-    PosixLoader(int sid, Mem *mem, StringServer *str_server, GStore *gstore)
-        : BaseLoader(sid, mem, str_server, gstore) { }
-
-    ~PosixLoader() { }
 };
 
-} // namespace wukong
+}  // namespace wukong

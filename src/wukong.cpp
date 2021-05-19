@@ -37,7 +37,12 @@
 
 #include "core/engine/engine.hpp"
 
-#include "core/store/dgraph.hpp"
+#ifdef DYNAMIC_GSTORE
+#include "core/store/dynamic_dgraph.hpp"
+#else
+#include "core/store/static_dgraph.hpp"
+#include "core/store/segment_dgraph.hpp"
+#endif
 
 #include "core/network/adaptor.hpp"
 
@@ -161,7 +166,7 @@ main(int argc, char *argv[])
     bcast_mems.push_back(ss_bcast_mem);
     // CPU (host) memory
     wukong::Mem *mem = new wukong::Mem(wukong::Global::num_servers, wukong::Global::num_threads, bcast_mems);
-    logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(mem->size())
+    logstream(LOG_INFO) << "[Mem] #" << sid << ": allocate " << B2GiB(mem->size())
                         << "GB memory" << LOG_endl;
     wukong::RDMA::MemoryRegion mr_cpu = { wukong::RDMA::MemType::CPU, mem->address(), mem->size(), mem };
     mrs.push_back(mr_cpu);
@@ -170,7 +175,7 @@ main(int argc, char *argv[])
     // GPU (device) memory
     int devid = 0; // FIXME: it means one GPU device?
     wukong::GPUMem *gpu_mem = new wukong::GPUMem(devid, wukong::Global::num_servers, wukong::Global::num_gpus);
-    logstream(LOG_INFO) << "#" << sid << ": allocate " << B2GiB(gpu_mem->size())
+    logstream(LOG_INFO) << "[GPUMem] #" << sid << ": allocate " << B2GiB(gpu_mem->size())
                         << "GB GPU memory" << LOG_endl;
     wukong::RDMA::MemoryRegion mr_gpu = { wukong::RDMA::MemType::GPU, gpu_mem->address(), gpu_mem->size(), gpu_mem };
     mrs.push_back(mr_gpu);
@@ -198,23 +203,28 @@ main(int argc, char *argv[])
     wukong::StringServer str_server(wukong::Global::input_folder);
 
     // load RDF graph (shared by all engines and proxies)
-    wukong::DGraph dgraph(sid, mem, &str_server, wukong::Global::input_folder);
+#ifdef DYNAMIC_GSTORE
+    wukong::DGraph * dgraph = new wukong::DynamicRDFGraph(sid, mem, &str_server);
+#else 
+    wukong::DGraph * dgraph = new wukong::SegmentRDFGraph(sid, mem, &str_server);
+#endif
+    dgraph->load(wukong::Global::input_folder);
 
     // prepare statistics for SPARQL optimizer
     wukong::Stats stats(sid);
     uint64_t t0, t1;
     if (wukong::Global::generate_statistics) {
         t0 = wukong::timer::get_usec();
-        stats.generate_statistics(dgraph.gstore);
+        stats.generate_statistics(dgraph);
         t1 = wukong::timer::get_usec();
-        logstream(LOG_EMPH)  << "generate statistics using time: " << t1 - t0 << "usec" << LOG_endl;
+        logstream(LOG_EMPH)  << "[Stats] generate statistics using time: " << t1 - t0 << "usec" << LOG_endl;
         stats.gather_stat(wukong::con_adaptor);
     } else {
         t0 = wukong::timer::get_usec();
         std::string fname = wukong::Global::input_folder + "/statfile";  // using default name
         stats.load_stat_from_file(fname, wukong::con_adaptor);
         t1 = wukong::timer::get_usec();
-        logstream(LOG_EMPH)  << "load statistics using time: " << t1 - t0 << "usec" << LOG_endl;
+        logstream(LOG_EMPH)  << "[Stats] load statistics using time: " << t1 - t0 << "usec" << LOG_endl;
     }
     // create proxies and engines
     for (int tid = 0; tid < wukong::Global::num_proxies + wukong::Global::num_engines; tid++) {
@@ -222,10 +232,10 @@ main(int argc, char *argv[])
 
         // TID: proxy = [0, #proxies), engine = [#proxies, #proxies + #engines)
         if (tid < wukong::Global::num_proxies) {
-            wukong::Proxy *proxy = new wukong::Proxy(sid, tid, &str_server, &dgraph, adaptor, &stats);
+            wukong::Proxy *proxy = new wukong::Proxy(sid, tid, &str_server, dgraph, adaptor, &stats);
             wukong::proxies.push_back(proxy);
         } else {
-            wukong::Engine *engine = new wukong::Engine(sid, tid, &str_server, &dgraph, adaptor);
+            wukong::Engine *engine = new wukong::Engine(sid, tid, &str_server, dgraph, adaptor);
             wukong::engines.push_back(engine);
         }
     }
@@ -251,9 +261,9 @@ main(int argc, char *argv[])
 
     // create GPU agent
     wukong::GPUStreamPool stream_pool(32);
-    wukong::GPUCache gpu_cache(gpu_mem, dgraph.gstore->vertices, dgraph.gstore->edges,
-                       static_cast<wukong::StaticGStore *>(dgraph.gstore)->get_rdf_seg_metas());
-    wukong::GPUEngine gpu_engine(sid, WUKONG_GPU_AGENT_TID, gpu_mem, &gpu_cache, &stream_pool, &dgraph);
+    wukong::GPUCache gpu_cache(gpu_mem, (wukong::vertex_t *)dgraph->gstore->get_slot_addr(), (wukong::edge_t *)dgraph->gstore->get_value_addr(),
+                       dynamic_cast<wukong::SegmentRDFGraph *>(dgraph)->get_rdf_seg_metas());
+    wukong::GPUEngine gpu_engine(sid, WUKONG_GPU_AGENT_TID, gpu_mem, &gpu_cache, &stream_pool, dgraph);
     wukong::GPUAgent agent(sid, WUKONG_GPU_AGENT_TID, new wukong::Adaptor(WUKONG_GPU_AGENT_TID,
                    tcp_adaptor, rdma_adaptor), &gpu_engine);
     pthread_create(&(threads[WUKONG_GPU_AGENT_TID]), NULL, agent_thread, (void *)&agent);

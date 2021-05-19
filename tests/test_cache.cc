@@ -1,21 +1,25 @@
 #include <gtest/gtest.h>
 
-#include "core/store/cache.hpp"
+#include "core/store/rdma_cache.hpp"
 
 namespace test {
 
 using namespace wukong;
+struct slot_t {
+  ikey_t key;
+  iptr_t ptr;
+};
 
 TEST(Store, Cache) {
-  RDMA_Cache cache;
+  RDMA_Cache<ikey_t, slot_t> cache;
   cache.set_lease(SEC(2));
 
   ikey_t key(1, 1, 1);
   iptr_t ptr(10, 123, 0);
-  vertex_t v = {key, ptr};
+  slot_t v = {key, ptr};
 
   // test lookup, not found case
-  vertex_t lv;
+  slot_t lv;
   bool success = cache.lookup(key, lv);
   EXPECT_EQ(success, false);
 

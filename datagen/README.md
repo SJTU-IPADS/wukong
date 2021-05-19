@@ -1,6 +1,6 @@
 # Data Tutorial
 
-Wukong adopts an ID-Triples format to represent RDF. This tutorial use [LUBM](http://swat.cse.lehigh.edu/projects/lubm) (SWAT Projects - the Lehigh University Benchmark) as an example to introduce how to convert other RDF formats to the ID-Triples format. Tutorial to generate LUBM dataset can refer to [INSTALLs](../docs/INSTALL.md), step 1 of preparing RDF datasets.
+Wukong adopts an ID-Triples format to represent RDF. This tutorial use [LUBM](http://swat.cse.lehigh.edu/projects/lubm) (SWAT Projects - the Lehigh University Benchmark) as an example to introduce how to convert other RDF formats to the ID-Triples format. Tutorial to generate LUBM dataset can refer to [INSTALLs](../docs/notes/INSTALL.md), step 1 of preparing RDF datasets.
 This tutorial also introduce a preprocessing tool to accelerate data loading step in Wukong.
 
 ## Table of Contents

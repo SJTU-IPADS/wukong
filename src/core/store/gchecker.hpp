@@ -22,13 +22,17 @@
 
 #pragma once
 
+#include <memory>
+
 // store
-#include "core/store/gstore.hpp"
+#include "core/store/kvstore.hpp"
 
 namespace wukong {
 
+using RDFStore = KVStore<ikey_t, iptr_t, edge_t>;
+
 class GChecker {
-    GStore *gstore;
+    std::shared_ptr<RDFStore> gstore;
 
     volatile uint64_t ivertex_num = 0;
     volatile uint64_t nvertex_num = 0;
@@ -36,13 +40,13 @@ class GChecker {
     void check2_idx_in(ikey_t key) {
         uint64_t vsz = 0;
         // get all local types
-        edge_t *vres = gstore->get_edges_local(0, 0, TYPE_ID, OUT, vsz);
+        edge_t* vres = gstore->get_values_local(0, ikey_t(0, TYPE_ID, OUT), vsz);
         bool found = false;
         // check whether the pid exists or duplicate
         for (int i = 0; i < vsz; i++) {
-            if (vres[i].val == key.pid && !found) {
+            if (vres[i] == key.pid && !found) {
                 found = true;
-            } else if (vres[i].val == key.pid && found) {
+            } else if (vres[i] == key.pid && found) {
                 logstream(LOG_ERROR) << "In the value part of all local types [ 0 | TYPE_ID | OUT ]"
                                      << " there is duplicate value " << key.pid << LOG_endl;
             }
@@ -52,13 +56,13 @@ class GChecker {
         if (!found) {
             uint64_t psz = 0;
             // get all local predicates
-            edge_t *pres = gstore->get_edges_local(0, 0, PREDICATE_ID, OUT, psz);
+            edge_t* pres = gstore->get_values_local(0, ikey_t(0, PREDICATE_ID, OUT), psz);
             bool found = false;
             // check whether the pid exists or duplicate
             for (int i = 0; i < psz; i++) {
-                if (pres[i].val == key.pid && !found) {
+                if (pres[i] == key.pid && !found) {
                     found = true;
-                } else if (pres[i].val == key.pid && found) {
+                } else if (pres[i] == key.pid && found) {
                     logstream(LOG_ERROR) << "In the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
                                          << " there is duplicate value " << key.pid << LOG_endl;
                     break;
@@ -76,7 +80,7 @@ class GChecker {
 
             uint64_t vsz = 0;
             // get the vid refered which refered by the type/predicate
-            edge_t *vres = gstore->get_edges_local(0, 0, key.pid, IN, vsz);
+            edge_t* vres = gstore->get_values_local(0, ikey_t(0, key.pid, IN), vsz);
             if (vsz == 0) {
                 logstream(LOG_ERROR) << "if " << key.pid << " is type, "
                                      << "in the value part of all local types [ 0 | TYPE_ID | OUT ]"
@@ -88,11 +92,11 @@ class GChecker {
                 found = false;
                 uint64_t sosz = 0;
                 // get all local objects/subjects
-                edge_t *sores = gstore->get_edges_local(0, 0, TYPE_ID, IN, sosz);
+                edge_t* sores = gstore->get_values_local(0, ikey_t(0, TYPE_ID, IN), sosz);
                 for (int j = 0; j < sosz; j++) {
-                    if (sores[j].val == vres[i].val && !found) {
+                    if (sores[j] == vres[i] && !found) {
                         found = true;
-                    } else if (sores[j].val == vres[i].val && found) {
+                    } else if (sores[j] == vres[i] && found) {
                         logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
                                              << " there is duplicate value " << vres[i].val << LOG_endl;
                         break;
@@ -106,11 +110,11 @@ class GChecker {
                 found = false;
                 uint64_t p2sz = 0;
                 // get vid's all predicate
-                edge_t *p2res = gstore->get_edges_local(0, vres[i].val, PREDICATE_ID, OUT, p2sz);
+                edge_t* p2res = gstore->get_values_local(0, ikey_t(vres[i].val, PREDICATE_ID, OUT), p2sz);
                 for (int j = 0; j < p2sz; j++) {
-                    if (p2res[j].val == key.pid && !found) {
+                    if (p2res[j] == key.pid && !found) {
                         found = true;
-                    } else if (p2res[j].val == key.pid && found) {
+                    } else if (p2res[j] == key.pid && found) {
                         logstream(LOG_ERROR) << "In the value part of " << vres[i].val << "'s all predicates [ "
                                              << vres[i].val << " | PREDICATE_ID | OUT ], there is duplicate value "
                                              << key.pid << LOG_endl;
@@ -130,16 +134,16 @@ class GChecker {
     void check_idx_in(ikey_t key) {
         uint64_t vsz = 0;
         // get the vids which refered by index
-        edge_t *vres = gstore->get_edges_local(0, key.vid, key.pid, (dir_t)key.dir, vsz);
+        edge_t* vres = gstore->get_values_local(0, key, vsz);
         for (int i = 0; i < vsz; i++) {
             uint64_t tsz = 0;
             // get the vids's type
-            edge_t *tres = gstore->get_edges_local(0, vres[i].val, TYPE_ID, OUT, tsz);
+            edge_t* tres = gstore->get_values_local(0, ikey_t(vres[i].val, TYPE_ID, OUT), tsz);
             bool found = false;
             for (int j = 0; j < tsz; j++) {
-                if (tres[j].val == key.pid && !found)
+                if (tres[j] == key.pid && !found)
                     found = true;
-                else if (tres[j].val == key.pid && found)  // duplicate type
+                else if (tres[j] == key.pid && found)  // duplicate type
                     logstream(LOG_ERROR) << "In the value part of normal key/value pair "
                                          << "[ " << key.vid << " | TYPE_ID | OUT], "
                                          << "there is DUPLICATE type " << key.pid << LOG_endl;
@@ -148,13 +152,14 @@ class GChecker {
             // may be it is a predicate_index
             if (tsz != 0 && !found) {
                 // check if the key generated by vid and pid exists
-                if (gstore->get_vertex_local(0, ikey_t(vres[i].val, key.pid, OUT)).key.is_empty()) {
+                if (gstore->get_slot_local(0, ikey_t(vres[i].val, key.pid, OUT)).key.is_empty()) {
                     logstream(LOG_ERROR) << "if " << key.pid << " is type id, then there is NO type "
                                          << key.pid << " in normal key/value pair ["
                                          << key.vid << " | TYPE_ID | OUT]'s value part" << LOG_endl;
                     logstream(LOG_ERROR) << "And if " << key.pid << " is predicate id, "
                                          << " then there is NO key called "
-                                         << "[ " << vres[i].val << " | " << key.pid << " | " << "] exist."
+                                         << "[ " << vres[i].val << " | " << key.pid << " | "
+                                         << "] exist."
                                          << LOG_endl;
                 }
             }
@@ -169,13 +174,13 @@ class GChecker {
     void check2_idx_out(ikey_t key) {
         uint64_t psz = 0;
         // get all local predicates
-        edge_t *pres = gstore->get_edges_local(0, 0, PREDICATE_ID, OUT, psz);
+        edge_t* pres = gstore->get_values_local(0, ikey_t(0, PREDICATE_ID, OUT), psz);
         bool found = false;
         // check whether the pid exists or duplicate
         for (int i = 0; i < psz; i++) {
-            if (pres[i].val == key.pid && !found) {
+            if (pres[i] == key.pid && !found) {
                 found = true;
-            } else if (pres[i].val == key.pid && found) {
+            } else if (pres[i] == key.pid && found) {
                 logstream(LOG_ERROR) << "In the value part of all local predicates [ 0 | PREDICATE_ID | OUT ]"
                                      << " there is duplicate value " << key.pid << LOG_endl;
                 break;
@@ -188,16 +193,16 @@ class GChecker {
 
         uint64_t vsz = 0;
         // get the vid refered which refered by the predicate
-        edge_t *vres = gstore->get_edges_local(0, 0, key.pid, OUT, vsz);
+        edge_t* vres = gstore->get_values_local(0, ikey_t(0, key.pid, OUT), vsz);
         for (int i = 0; i < vsz; i++) {
             found = false;
             uint64_t sosz = 0;
             // get all local objects/subjects
-            edge_t *sores = gstore->get_edges_local(0, 0, TYPE_ID, IN, sosz);
+            edge_t* sores = gstore->get_values_local(0, ikey_t(0, TYPE_ID, IN), sosz);
             for (int j = 0; j < sosz; j++) {
-                if (sores[j].val == vres[i].val && !found) {
+                if (sores[j] == vres[i] && !found) {
                     found = true;
-                } else if (sores[j].val == vres[i].val && found) {
+                } else if (sores[j] == vres[i] && found) {
                     logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
                                          << " there is duplicate value " << vres[i].val << LOG_endl;
                     break;
@@ -211,11 +216,11 @@ class GChecker {
             found = false;
             uint64_t psz = 0;
             // get vid's all predicate
-            edge_t *pres = gstore->get_edges_local(0, vres[i].val, PREDICATE_ID, IN, psz);
+            edge_t* pres = gstore->get_values_local(0, ikey_t(vres[i].val, PREDICATE_ID, IN), psz);
             for (int j = 0; j < psz; j++) {
-                if (pres[j].val == key.pid && !found) {
+                if (pres[j] == key.pid && !found) {
                     found = true;
-                } else if (pres[j].val == key.pid && found) {
+                } else if (pres[j] == key.pid && found) {
                     logstream(LOG_ERROR) << "In the value part of " << vres[i].val << "'s all predicates [ "
                                          << vres[i].val << "PREDICATE_ID | IN ], there is duplicate value "
                                          << key.pid << LOG_endl;
@@ -234,12 +239,14 @@ class GChecker {
     void check_idx_out(ikey_t key) {
         uint64_t vsz = 0;
         // get the vids which refered by predicate index
-        edge_t *vres = gstore->get_edges_local(0, key.vid, key.pid, (dir_t)key.dir, vsz);
+        edge_t* vres = gstore->get_values_local(0, key, vsz);
         for (int i = 0; i < vsz; i++)
             // check if the key generated by vid and pid exists
-            if (gstore->get_vertex_local(0, ikey_t(vres[i].val, key.pid, IN)).key.is_empty())
-                logstream(LOG_ERROR) << "The key " << " [ " << vres[i].val << " | "
-                                     << key.pid << " | " << " IN ] does not exist." << LOG_endl;
+            if (gstore->get_slot_local(0, ikey_t(vres[i].val, key.pid, IN)).key.is_empty())
+                logstream(LOG_ERROR) << "The key ["
+                                     << vres[i].val << " | "
+                                     << key.pid << " | "
+                                     << " IN ] does not exist." << LOG_endl;
         wukong::atomic::add_and_fetch(&ivertex_num, 1);
 
 #ifdef VERSATILE
@@ -251,12 +258,12 @@ class GChecker {
         bool found = false;
         uint64_t psz = 0;
         // get vid' all predicates
-        edge_t *pres = gstore->get_edges_local(0, key.vid, PREDICATE_ID, OUT, psz);
+        edge_t* pres = gstore->get_values_local(0, ikey_t(key.vid, PREDICATE_ID, OUT), psz);
         // check if there is TYPE_ID in vid's predicates
         for (int i = 0; i < psz; i++) {
-            if (pres[i].val == key.pid && !found)
+            if (pres[i] == key.pid && !found) {
                 found = true;
-            else if (pres[i].val == key.pid && found) {
+            } else if (pres[i] == key.pid && found) {
                 logstream(LOG_ERROR) << "In the value part of "
                                      << key.vid << "'s all predicates [ "
                                      << key.vid << "PREDICATE_ID | OUT ], there is DUPLICATE value "
@@ -274,11 +281,11 @@ class GChecker {
         found = false;
         uint64_t ossz = 0;
         // get all local subjects/objects
-        edge_t *osres = gstore->get_edges_local(0, 0, key.pid, IN, ossz);
+        edge_t* osres = gstore->get_values_local(0, ikey_t(0, key.pid, IN), ossz);
         for (int i = 0; i < ossz; i++) {
-            if (osres[i].val == key.vid && !found)
+            if (osres[i] == key.vid && !found) {
                 found = true;
-            else if (osres[i].val == key.vid && found) {
+            } else if (osres[i] == key.vid && found) {
                 logstream(LOG_ERROR) << "In the value part of all local subjects/objects [ 0 | TYPE_ID | IN ]"
                                      << " there is DUPLICATE value " << key.vid << LOG_endl;
                 break;
@@ -294,23 +301,23 @@ class GChecker {
     void check_type(ikey_t key) {
         uint64_t tsz = 0;
         // get the vid's all type
-        edge_t *tres = gstore->get_edges_local(0, key.vid, key.pid, (dir_t)key.dir, tsz);
+        edge_t* tres = gstore->get_values_local(0, key, tsz);
         for (int i = 0; i < tsz; i++) {
             uint64_t vsz = 0;
             // get the vids which refered by the type
-            edge_t *vres = gstore->get_edges_local(0, 0, tres[i].val, IN, vsz);
+            edge_t* vres = gstore->get_values_local(0, ikey_t(0, tres[i].val, IN), vsz);
             bool found = false;
             for (int j = 0; j < vsz; j++) {
-                if (vres[j].val == key.vid && !found) {
+                if (vres[j] == key.vid && !found) {
                     found = true;
-                } else if (vres[j].val == key.vid && found) { // duplicate vid
+                } else if (vres[j] == key.vid && found) {  // duplicate vid
                     logstream(LOG_ERROR) << "In the value part of type index "
                                          << "[ 0 | " << tres[i].val << " | IN ], "
                                          << "there is duplicate value " << key.vid << LOG_endl;
                 }
             }
 
-            if (!found) // vid miss
+            if (!found)  // vid miss
                 logstream(LOG_ERROR) << "In the value part of type index "
                                      << "[ 0 | " << tres[i].val << " | IN ], "
                                      << "there is no value " << key.vid << LOG_endl;
@@ -326,12 +333,12 @@ class GChecker {
     void check_normal(ikey_t key, dir_t dir) {
         uint64_t vsz = 0;
         // get the vids which refered by the predicated
-        edge_t *vres = gstore->get_edges_local(0, 0, key.pid, dir, vsz);
+        edge_t* vres = gstore->get_values_local(0, ikey_t(0, key.pid, dir), vsz);
         bool found = false;
         for (int i = 0; i < vsz; i++) {
-            if (vres[i].val == key.vid && !found) {
+            if (vres[i] == key.vid && !found) {
                 found = true;
-            } else if (vres[i].val == key.vid && found) { //duplicate vid
+            } else if (vres[i] == key.vid && found) {  // duplicate vid
                 logstream(LOG_ERROR) << "In the value part of predicate index "
                                      << "[ 0 | " << key.pid << " | " << dir << " ], "
                                      << "there is duplicate value " << key.vid << LOG_endl;
@@ -339,7 +346,7 @@ class GChecker {
             }
         }
 
-        if (!found) // vid miss
+        if (!found)  // vid miss
             logstream(LOG_ERROR) << "In the value part of predicate index "
                                  << "[ 0 | " << key.pid << " | " << dir << " ], "
                                  << "there is no value " << key.vid << LOG_endl;
@@ -347,21 +354,21 @@ class GChecker {
     }
 
     void check(ikey_t key, bool index, bool normal) {
-        if (key.vid == 0 && is_tpid(key.pid) && key.dir == IN) {               // (2) and (1)
+        if (key.vid == 0 && is_tpid(key.pid) && key.dir == IN) {  // (2) and (1)
             if (index) check_idx_in(key);
-        } else if (key.vid == 0 && is_tpid(key.pid) && key.dir == OUT) {       // (1)
+        } else if (key.vid == 0 && is_tpid(key.pid) && key.dir == OUT) {  // (1)
             if (index) check_idx_out(key);
         } else if (is_vid(key.vid) && key.pid == TYPE_ID && key.dir == OUT) {  // (7)
             if (normal) check_type(key);
-        } else if (is_vid(key.vid) && is_tpid(key.pid) && key.dir == OUT) {    // (6)
+        } else if (is_vid(key.vid) && is_tpid(key.pid) && key.dir == OUT) {  // (6)
             if (normal) check_normal(key, IN);
-        } else if (is_vid(key.vid) && is_tpid(key.pid) && key.dir == IN) {     // (6)
+        } else if (is_vid(key.vid) && is_tpid(key.pid) && key.dir == IN) {  // (6)
             if (normal) check_normal(key, OUT);
         }
     }
 
 public:
-    GChecker(GStore *gstore): gstore(gstore) {}
+    explicit GChecker(std::shared_ptr<RDFStore> gstore) : gstore(gstore) {}
 
     int gstore_check(bool index, bool normal) {
         logstream(LOG_INFO) << "Graph storage intergity check has started on server "
@@ -374,10 +381,10 @@ public:
 
         #pragma omp parallel for num_threads(Global::num_engines)
         for (uint64_t bucket_id = 0; bucket_id < total_buckets; bucket_id++) {
-            uint64_t slot_id = bucket_id * GStore::ASSOCIATIVITY;
-            for (int i = 0; i < GStore::ASSOCIATIVITY - 1; i++, slot_id++)
-                if (!gstore->vertices[slot_id].key.is_empty())
-                    check(gstore->vertices[slot_id].key, index, normal);
+            uint64_t slot_id = bucket_id * RDFStore::ASSOCIATIVITY;
+            for (int i = 0; i < RDFStore::ASSOCIATIVITY - 1; i++, slot_id++)
+                if (!gstore->slots[slot_id].key.is_empty())
+                    check(gstore->slots[slot_id].key, index, normal);
 
             uint64_t current_count = wukong::atomic::add_and_fetch(&buckets_count, 1);
             if (current_count % cnt_flag == 0) {
@@ -393,4 +400,4 @@ public:
     }
 };
 
-} // namespace wukong
+}  // namespace wukong

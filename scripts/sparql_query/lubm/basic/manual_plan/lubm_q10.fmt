@@ -1,10 +1,14 @@
 # PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 # PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
 #
+# SPARQL
+#
 # SELECT ?X ?Y WHERE {
 # 	?X  rdf:type  ub:UndergraduateStudent
 # 	?X  ?Y  <http://www.Department3.University0.edu/FullProfessor1>  .
 # }
+# 
+# command: sparql -f sparql_query/lubm/basic/lubm_q10 -p sparql_query/lubm/basic/manual_plan/lubm_q10.fmt
 
 1 <
 2 >

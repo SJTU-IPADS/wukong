@@ -27,23 +27,24 @@
 #include "core/store/vertex.hpp"
 
 // utils
-#include "utils/unit.hpp"
 #include "utils/atomic.hpp"
 #include "utils/logger2.hpp"
 #include "utils/timer.hpp"
+#include "utils/unit.hpp"
 
 namespace wukong {
 
 /**
- * An RDMA-frienldy cache for distributed key-value store,
+ * An RDMA-friendly cache for distributed key-value store,
  * which caches the key (location) to skip one RDMA READ for retrieving one remote key-value pair.
  */
+template <class KeyType, class SlotType>
 class RDMA_Cache {
     static const int NUM_BUCKETS = 1 << 20;
     static const int ASSOCIATIVITY = 8;  /// associativity of items in a bucket
 
     struct item_t {
-        vertex_t v;  /// the key (location) of the key-value pair
+        SlotType slot;  /// the slot (key+location) of the key-value pair
 
         uint64_t expire_time;  /// expire time (DYNAMIC_GSTORE=ON)
         uint32_t cnt;          /// access count
@@ -54,16 +55,18 @@ class RDMA_Cache {
         /// version always increases after an insertion.
         uint32_t version;
 
-        item_t() : expire_time(0), cnt(0), version(1) { }
+        item_t() : expire_time(0), cnt(0), version(1) {}
     };
 
     struct bucket_t {
-        item_t items[ASSOCIATIVITY]; /// associativity
+        item_t items[ASSOCIATIVITY];
     };
 
-    bucket_t *hashtable; /// a hash-based 1-to-1 mapping cache
+    // a hash-based 1-to-1 mapping cache
+    bucket_t* hashtable;
 
-    uint64_t lease;  /// the period of cache invalidation (DYNAMIC_GSTORE=ON)
+    // the period of cache invalidation (DYNAMIC_GSTORE=ON)
+    uint64_t lease;
 
 public:
     RDMA_Cache() {
@@ -71,70 +74,74 @@ public:
         lease = SEC(120);
 
         size_t mem_size = sizeof(bucket_t) * NUM_BUCKETS;
-        logstream(LOG_INFO) << "allocate " << B2MiB(mem_size) << "MB RDMA cache" << LOG_endl;
+        logstream(LOG_INFO) << "[KV] allocate " << B2MiB(mem_size) << "MB RDMA cache" << LOG_endl;
     }
 
     /**
      * Lookup a vertex in cache according to the given key.
      * @param key the key to be looked up.
-     * @param ret a reference vertex_t, store found vertex.
+     * @param ret a reference SlotType, store found vertex.
      * @return Found or not
      */
-    bool lookup(ikey_t key, vertex_t &ret) {
+    bool lookup(KeyType key, SlotType& ret) {
         if (!Global::enable_caching)
             return false;
 
         int idx = key.hash() % NUM_BUCKETS;
-        item_t *items = hashtable[idx].items;
+        item_t* items = hashtable[idx].items;
         bool found = false;
         uint32_t ver;
 
         /// Lookup vertex in item list.
         for (int i = 0; i < ASSOCIATIVITY; i++) {
-            if (items[i].v.key == key) {
+            if (items[i].slot.key == key) {
                 while (true) {
                     ver = items[i].version;
                     /// Re-check key since key may be replaced.
-                    if (items[i].v.key == key) {
+                    if (items[i].slot.key == key) {
 #ifdef DYNAMIC_GSTORE
-                        if (timer::get_usec() < items[i].expire_time)
+                        if (timer::get_usec() < items[i].expire_time)  // NOLINT
 #endif
                         {
-                            ret = items[i].v;
+                            ret = items[i].slot;
                             items[i].cnt++;
                             found = true;
                         }
 
-                        asm volatile("" ::: "memory"); // barrier
+                        // clang-format off
+                        // barrier
+                        asm volatile("" ::: "memory");
+                        // clang-format on
 
                         // invalidation check
                         if (ver != 0 && items[i].version == ver)
                             return found;
-                    } else
+                    } else {
                         return false;
+                    }
                 }
             }
         }
         return false;
-    } // end of lookup
+    }  // end of lookup
 
     /**
      * Insert a vertex into cache.
      * @param v the item to be inserted.
      */
-    void insert(vertex_t &v) {
+    void insert(SlotType& v) {
         if (!Global::enable_caching)
             return;
 
         int idx = v.key.hash() % NUM_BUCKETS;
-        item_t *items = hashtable[idx].items;
+        item_t* items = hashtable[idx].items;
 
         uint64_t min_cnt;
         int pos = -1;  // position to insert v
 
         while (true) {
             for (int i = 0; i < ASSOCIATIVITY; i++) {
-                if (items[i].v.key == v.key || items[i].v.key.is_empty()) {
+                if (items[i].slot.key == v.key || items[i].slot.key.is_empty()) {
                     pos = i;
                     break;
                 }
@@ -159,21 +166,24 @@ public:
                 if (ret_ver == old_ver) {
 #ifdef DYNAMIC_GSTORE
                     // Do not reset visit cnt for the same vertex
-                    items[pos].cnt = (items[pos].v.key == v.key) ? items[pos].cnt : 0;
-                    items[pos].v = v;
+                    items[pos].cnt = (items[pos].slot.key == v.key) ? items[pos].cnt : 0;
+                    items[pos].slot = v;
                     items[pos].expire_time = timer::get_usec() + lease;
 #else
                     items[pos].cnt = 0;
-                    items[pos].v = v;
+                    items[pos].slot = v;
 #endif
+                    // clang-format off
+                    // barrier
                     asm volatile("" ::: "memory");
+                    // clang-format on
                     ret_ver = wukong::atomic::compare_and_swap(&items[pos].version, 0, old_ver + 1);
                     assert(ret_ver == 0);
                     return;
                 }
             }
         }
-    } // end of insert
+    }  // end of insert
 
     /**
      * Set lease term.
@@ -184,17 +194,16 @@ public:
     /**
      * Invalidate cache item of the given key.
      * Only work when the corresponding vertex exists.
-     * @param key an ikey_t argument.
+     * @param key an KeyType argument.
      */
-    void invalidate(ikey_t key) {
+    void invalidate(KeyType key) {
         if (!Global::enable_caching)
             return;
 
         int idx = key.hash() % NUM_BUCKETS;
-        item_t *items = hashtable[idx].items;
+        item_t* items = hashtable[idx].items;
         for (int i = 0; i < ASSOCIATIVITY; i++) {
-            if (items[i].v.key == key) {
-
+            if (items[i].slot.key == key) {
                 /// Version is not checked and set here
                 /// since inconsistent expire time does not cause staleness.
                 /// The only possible overhead is
@@ -206,4 +215,4 @@ public:
     }
 };
 
-} // namespace wukong
+}  // namespace wukong

@@ -785,8 +785,7 @@ private:
         // result table need to be separated to ditterent sub-queries
         else {
             for (int i = 0; i < nrows; i++) {
-                int dst_sid = wukong::math::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
-                                                    Global::num_servers);
+                int dst_sid = PARTITION(req.result.get_row_col(i, req.result.var2col(start)));
                 req.result.append_row_to(i, sub_reqs[dst_sid].result.result_table);
                 req.result.append_attr_row_to(i, sub_reqs[dst_sid].result.attr_res_table);
 
@@ -1603,9 +1602,7 @@ public:
                 for (int i = 0; i < size; i++) {
                     SPARQLQuery union_req;
                     union_req.inherit_union(r, i);
-                    int dst_sid = wukong::math::hash_mod(
-                                      union_req.pattern_group.get_start(),
-                                      Global::num_servers);
+                    int dst_sid = PARTITION(union_req.pattern_group.get_start());
                     if (dst_sid != sid) {
                         Bundle bundle(union_req);
                         msgr->send_msg(bundle, dst_sid, tid);
@@ -1638,9 +1635,7 @@ public:
                     }
                 } else {
                     rmap.put_parent_request(r, 1);
-                    int dst_sid = wukong::math::hash_mod(
-                                      optional_req.pattern_group.get_start(),
-                                      Global::num_servers);
+                    int dst_sid = PARTITION(optional_req.pattern_group.get_start());
                     if (dst_sid != sid) {
                         Bundle bundle(optional_req);
                         msgr->send_msg(bundle, dst_sid, tid);

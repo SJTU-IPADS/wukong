@@ -7,7 +7,7 @@
 #	?Z  ub:advisor  ?X  .
 # }
 #
-# command: sparql -f sparql_query/lubm/basic/lubm_q7 -p sparql_query/lubm/basic/manual_plan/lubm_q7.fmt -m 16 -n 10
+# command: sparql -f sparql_query/lubm/basic/lubm_q12 -p sparql_query/lubm/basic/manual_plan/lubm_q12.fmt -m 16 -n 10
 #
 
 #

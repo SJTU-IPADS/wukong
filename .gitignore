@@ -3,6 +3,10 @@
 *.exe
 *.swp
 build/
+script/config
+script/core.bind
+script/mpd.hosts
+docs/_build/
 .vs/
 .vscode/
 .git/

@@ -99,7 +99,7 @@ public:
         buf_off = orbuf_off + rbuf_sz;
         buf = mem_gpu + buf_off;
 
-        logstream(LOG_INFO) << "GPUMem: devid: " << devid
+        logstream(LOG_INFO) << "[GPUMem] devid: " << devid
                             << ", num_servers: " << num_servers
                             << ", num_agents: " << num_agents
                             << LOG_endl;

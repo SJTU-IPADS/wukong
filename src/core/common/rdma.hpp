@@ -210,7 +210,7 @@ void RDMA_init(int nnodes, int nthds, int nid, std::vector<RDMA::MemoryRegion> &
     rdma.init_dev(nnodes, nthds, nid, mrs, ipfn);
 
     t = timer::get_usec() - t;
-    logstream(LOG_INFO) << "initializing RMDA done (" << t / 1000  << " ms)" << LOG_endl;
+    logstream(LOG_INFO) << "[RDMA] initializing RDMA done (" << t / 1000  << " ms)" << LOG_endl;
 }
 
 } // namespace wukong

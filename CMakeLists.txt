@@ -111,4 +111,40 @@ enable_testing()
 add_test(NAME test COMMAND coretest)
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --verbose DEPENDS coretest)
 
+## code format
+file(GLOB_RECURSE FILES_NEED_FORMAT "src/*.cpp" "src/*.cc" "src/*.hpp" "src/*.h"
+                                    "test/*.cc"
+)
+file(GLOB_RECURSE FILES_NEED_LINT "src/*.cpp" "src/*.cc" "src/*.hpp" "src/*.h"
+                                  "test/*.cc"
+)
 
+add_custom_target(clformat
+        COMMAND clang-format --style=file -i ${FILES_NEED_FORMAT}
+        COMMENT "Running clang-format."
+        VERBATIM)
+
+add_custom_target(vineyard_cpplint
+        COMMAND ${PROJECT_SOURCE_DIR}/scripts/cpplint.py ${FILES_NEED_LINT}
+        COMMENT "Running cpplint check."
+        VERBATIM)
+
+## build docs
+find_program(doxygen_EXECUTABLE doxygen NO_CMAKE_SYSTEM_PATH)
+find_program(sphinx_build_EXECUTABLE sphinx-build NO_CMAKE_SYSTEM_PATH)
+if(doxygen_EXECUTABLE AND sphinx_build_EXECUTABLE)
+    add_custom_target(wukong_docs
+        COMMAND ${CMAKE_COMMAND} -E make_directory _build
+        COMMAND ${doxygen_EXECUTABLE}
+        COMMAND ${sphinx_build_EXECUTABLE} . _build/html
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/docs
+        VERBATIM
+    )
+else()
+    if(NOT doxygen_EXECUTABLE)
+        message(STATUS "Cannot find the doxygen executable.")
+    endif()
+    if(NOT sphinx_build_EXECUTABLE)
+        message(STATUS "Cannot find the sphinx-build executable.")
+    endif()
+endif()

@@ -22,6 +22,9 @@
 
 #pragma once
 
+#include <string>
+#include <vector>
+
 // loader
 #include "base_loader.hpp"
 
@@ -31,33 +34,32 @@
 namespace wukong {
 
 class HDFSLoader : public BaseLoader {
-protected:
-    std::istream *init_istream(const std::string &src) {
-        wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
+public:
+    HDFSLoader(int sid, Mem* mem, StringServer* str_server)
+        : BaseLoader(sid, mem, str_server) {}
+
+    ~HDFSLoader() {}
+
+    std::istream* init_istream(const std::string& src) {
+        wukong::hdfs& hdfs = wukong::hdfs::get_hdfs();
         return new wukong::hdfs::fstream(hdfs, src);
     }
 
-    void close_istream(std::istream *stream) {
-        static_cast<wukong::hdfs::fstream *>(stream)->close();
+    void close_istream(std::istream* stream) {
+        static_cast<wukong::hdfs::fstream*>(stream)->close();
         delete stream;
     }
 
-    std::vector<std::string> list_files(const std::string &src, std::string prefix) {
+    std::vector<std::string> list_files(const std::string& src, std::string prefix) {
         if (!wukong::hdfs::has_hadoop()) {
             logstream(LOG_ERROR) << "attempting to load data files from HDFS "
                                  << "but Wukong was built without HDFS." << LOG_endl;
             exit(-1);
         }
-        
-        wukong::hdfs &hdfs = wukong::hdfs::get_hdfs();
+
+        wukong::hdfs& hdfs = wukong::hdfs::get_hdfs();
         return std::vector<std::string>(hdfs.list_files(src, prefix));
     }
-
-public:
-    HDFSLoader(int sid, Mem *mem, StringServer *str_server, GStore *gstore)
-        : BaseLoader(sid, mem, str_server, gstore) { }
-
-    ~HDFSLoader() { }
 };
 
-} // namespace wukong
+}  // namespace wukong

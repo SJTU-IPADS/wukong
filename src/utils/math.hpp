@@ -46,6 +46,7 @@ public:
             r -= distribution[i];
         }
         assert(false);
+        return 0;
     }
 
     inline int static hash_mod(uint64_t n, int m) {
@@ -188,7 +189,7 @@ class tuple {
 public:
     bool static binary_search_tuple(int N, std::vector<sid_t> &vec,
                                     std::vector<sid_t> &target) {
-        binary_search_tuple_recursive(N, vec, target, 0, vec.size() / N);
+        return binary_search_tuple_recursive(N, vec, target, 0, vec.size() / N);
     }
 
     void static qsort_tuple(int N, std::vector<sid_t>& vec) {
