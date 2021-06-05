@@ -90,7 +90,7 @@ using RDFStore = KVStore<ikey_t, iptr_t, edge_t>;
 class DGraph {
 protected:
     using tbb_unordered_set = tbb::concurrent_unordered_set<sid_t>;
-    using tbb_hash_map = tbb::concurrent_hash_map<sid_t, std::vector<sid_t>>;
+    using tbb_edge_hash_map = tbb::concurrent_hash_map<sid_t, std::vector<edge_t>>;
     using tbb_triple_hash_map = tbb::concurrent_hash_map<ikey_t, std::vector<triple_t>, ikey_Hasher>;
     using tbb_triple_attr_hash_map = tbb::concurrent_hash_map<ikey_t, std::vector<triple_attr_t>, ikey_Hasher>;
 
@@ -110,9 +110,9 @@ protected:
     // key: id of vertex/edge attribute, value: type(INT_t, FLOAT_t, DOUBLE_t) + size(>=1)
     std::map<sid_t, std::pair<data_type, int>> attr_type_dim_map;
 
-    tbb_hash_map pidx_in_map;   // predicate-index (IN)
-    tbb_hash_map pidx_out_map;  // predicate-index (OUT)
-    tbb_hash_map tidx_map;      // type-index
+    tbb_edge_hash_map pidx_in_map;   // predicate-index (IN)
+    tbb_edge_hash_map pidx_out_map;  // predicate-index (OUT)
+    tbb_edge_hash_map tidx_map;      // type-index
 
 #ifdef VERSATILE
     /**
@@ -142,9 +142,13 @@ protected:
                 // (IN) type triples should be skipped
                 ASSERT(false);
             } else {  // predicate-index (OUT) vid
-                tbb_hash_map::accessor a;
+                tbb_edge_hash_map::accessor a;
                 pidx_out_map.insert(a, pid);
-                a->second.push_back(vid);
+            #if TRDF_MODE
+                a->second.push_back(edge_t(vid, TIMESTAMP_MIN, TIMESTAMP_MAX));
+            #else
+                a->second.push_back(edge_t(vid));
+            #endif
             }
         } else {
             if (pid == PREDICATE_ID) {
@@ -155,17 +159,25 @@ protected:
 #endif
                 // type-index (IN) vid
                 for (uint64_t e = 0; e < sz; e++) {
-                    tbb_hash_map::accessor a;
+                    tbb_edge_hash_map::accessor a;
                     tidx_map.insert(a, this->gstore->values[off + e].val);
-                    a->second.push_back(vid);
+                #if TRDF_MODE
+                    a->second.push_back(edge_t(vid, this->gstore->values[off + e].ts, this->gstore->values[off + e].te));
+                #else
+                    a->second.push_back(edge_t(vid));
+                #endif
 #ifdef VERSATILE
                     t_set.insert(this->gstore->values[off + e].val);  // collect all local types
 #endif
                 }
             } else {  // predicate-index (IN) vid
-                tbb_hash_map::accessor a;
+                tbb_edge_hash_map::accessor a;
                 pidx_in_map.insert(a, pid);
-                a->second.push_back(vid);
+            #if TRDF_MODE
+                a->second.push_back(edge_t(vid, TIMESTAMP_MIN, TIMESTAMP_MAX));
+            #else
+                a->second.push_back(edge_t(vid));
+            #endif
             }
         }
     }
@@ -207,8 +219,13 @@ protected:
                 ikey_t(pso[s].s, pso[s].p, OUT), iptr_t(e - s, off));
 
             // insert objects
-            for (uint64_t i = s; i < e; i++)
+            for (uint64_t i = s; i < e; i++) {
+            #if TRDF_MODE
+                this->gstore->values[off++] = edge_t(pso[i].o, pso[i].ts, pso[i].te);
+            #else
                 this->gstore->values[off++] = edge_t(pso[i].o);
+            #endif
+            }
 
             collect_idx_info(this->gstore->slots[slot_id]);
 
@@ -233,7 +250,11 @@ protected:
 
                 // insert predicates
                 for (auto const& p : predicates) {
+                #if TRDF_MODE
+                    this->gstore->values[off++] = edge_t(p, TIMESTAMP_MIN, TIMESTAMP_MAX);
+                #else
                     this->gstore->values[off++] = edge_t(p);
+                #endif
                     p_set.insert(p);  // collect all local predicates
                 }
 
@@ -261,8 +282,13 @@ protected:
                 iptr_t(e - s, off));
 
             // insert values
-            for (uint64_t i = s; i < e; i++)
+            for (uint64_t i = s; i < e; i++) {
+            #if TRDF_MODE
+                this->gstore->values[off++] = edge_t(pos[i].s, pos[i].ts, pos[i].te);
+            #else
                 this->gstore->values[off++] = edge_t(pos[i].s);
+            #endif
+            }
 
             collect_idx_info(this->gstore->slots[slot_id]);
 
@@ -286,7 +312,11 @@ protected:
 
                 // insert predicate
                 for (auto const& p : predicates) {
+                #if TRDF_MODE
+                    this->gstore->values[off++] = edge_t(p, TIMESTAMP_MIN, TIMESTAMP_MAX);
+                #else
                     this->gstore->values[off++] = edge_t(p);
+                #endif
                     p_set.insert(p);  // collect all local predicates
                 }
 
@@ -348,9 +378,9 @@ protected:
         this->type_predicates.assign(type_pred_set.begin(), type_pred_set.end());
         this->edge_predicates.assign(edge_pred_set.begin(), edge_pred_set.end());
 
-        tbb_hash_map().swap(pidx_in_map);
-        tbb_hash_map().swap(pidx_out_map);
-        tbb_hash_map().swap(tidx_map);
+        tbb_edge_hash_map().swap(pidx_in_map);
+        tbb_edge_hash_map().swap(pidx_out_map);
+        tbb_edge_hash_map().swap(tidx_map);
 
 #ifdef VERSATILE
         insert_idx_set(v_set, TYPE_ID, IN);
@@ -366,7 +396,7 @@ protected:
         logstream(LOG_DEBUG) << (t2 - t1) / 1000 << " ms for inserting index data into gstore" << LOG_endl;
     }
 
-    void insert_index_map(tbb_hash_map& map, dir_t d) {
+    void insert_index_map(tbb_edge_hash_map& map, dir_t d) {
         for (auto const& e : map) {
             // alloc entries
             sid_t pid = e.first;
@@ -379,8 +409,8 @@ protected:
                 iptr_t(sz, off));
 
             // insert subjects/objects
-            for (auto const& vid : e.second)
-                this->gstore->values[off++] = edge_t(vid);
+            for (auto const& edge : e.second)
+                this->gstore->values[off++] = edge;
         }
     }
 
@@ -397,8 +427,14 @@ protected:
             iptr_t(sz, off));
 
         // insert index value
-        for (auto const& e : set)
-            this->gstore->values[off++] = edge_t(e);
+        for (auto const& e : set) {
+        #if TRDF_MODE
+            edge_t edge(e, TIMESTAMP_MIN, TIMESTAMP_MAX);
+        #else
+            edge_t edge(e);
+        #endif
+            this->gstore->values[off++] = edge;
+        }
     }
 #endif  // VERSATILE
 

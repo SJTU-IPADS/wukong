@@ -27,6 +27,9 @@ class Planner {
     Stats *stats;
 
     std::vector<ssid_t> triples;
+#ifdef TRDF_MODE
+    std::vector<SPARQLQuery::TimeIntervalPattern> time_intervals;
+#endif
     double min_cost;
     bool no_result = false;
 
@@ -40,6 +43,11 @@ class Planner {
 
     // for dfs
     std::vector<ssid_t> min_path;
+#ifdef TRDF_MODE
+    int num = 5;
+#else
+    int num = 4;
+#endif
     int _chains_size_div_4 ;
 
     std::vector<SPARQLQuery> all_path;
@@ -54,6 +62,10 @@ class Planner {
             triples.push_back(pattern.predicate);
             triples.push_back((ssid_t)pattern.direction);
             triples.push_back(pattern.object);
+        #ifdef TRDF_MODE
+            triples.push_back(i);  // push pattern index
+            time_intervals.push_back(pattern.time_interval);
+        #endif
             if (pattern.pred_type != PREDICATE_ID) {
                 attr_pred_chains.push_back(pattern.pred_type);
             }
@@ -65,7 +77,8 @@ class Planner {
             }
         }
 
-        _chains_size_div_4 = triples.size() / 4;
+        
+        _chains_size_div_4 = triples.size() / num;
     }
 
     // test whether the variable is an end point of the graph
@@ -73,7 +86,7 @@ class Planner {
         for (int i = 0;i < _chains_size_div_4;i++) {
             if(pt_bits & (1 << i))
                 continue;
-            if (triples[i*4]==var || triples[i*4+3]==var) {
+            if (triples[i*num]==var || triples[i*num+3]==var) {
                 return false;
             }
         }
@@ -82,6 +95,9 @@ class Planner {
     }
 
     CostResult cal_first_pt(ssid_t v1, ssid_t v2, ssid_t d, ssid_t v3, 
+                        #ifdef TRDF_MODE
+                            ssid_t index,
+                        #endif
                             int mt_factor, int pick, bool from_o2=false) {
         // use index vertex, find subject first
         CostResult cost_result;
@@ -90,7 +106,11 @@ class Planner {
         }else{
             cost_result = CostResult(pick);
         }
-        cost_result.push_path(v1, v2, d, v3);
+        cost_result.push_path(v1, v2, d, v3
+            #ifdef TRDF_MODE
+                , index
+            #endif
+        );
         std::vector<double> updated_result_table;
         cost_result.current_model = model_t::L2U;
 
@@ -164,11 +184,18 @@ class Planner {
         return cost_result;
     }
 
-    CostResult cal_rest_pt(ssid_t o1, ssid_t p, ssid_t d, ssid_t o2, int pick,  
-                            CostResult &old_result, bool from_o2=false){
+    CostResult cal_rest_pt(ssid_t o1, ssid_t p, ssid_t d, ssid_t o2,
+                        #ifdef TRDF_MODE
+                            ssid_t index,
+                        #endif
+                            int pick, CostResult &old_result, bool from_o2=false){
         CostResult cost_result(pick);
         cost_result.init(old_result);
-        cost_result.push_path(o1, p, d, o2);
+        cost_result.push_path(o1, p, d, o2
+            #ifdef TRDF_MODE
+                , index
+            #endif
+        );
         TypeTable& type_table = cost_result.typetable;
         std::unordered_map<ssid_t, int> &var2col = cost_result.var2col;
         std::vector<double> updated_result_table;
@@ -369,19 +396,30 @@ class Planner {
         std::vector<CostResult> median_results;
         median_results.reserve(100);
         for (int pt_pick = 0; pt_pick < _chains_size_div_4; pt_pick++) {
-            int i = 4 * pt_pick;
+            int i = num * pt_pick;
             ssid_t o1 = triples[i];
             ssid_t p = triples[i + 1];
             ssid_t d = triples[i + 2];
             ssid_t o2 = triples[i + 3];
+        #ifdef TRDF_MODE
+            ssid_t index = triples[i + 4];
+        #endif
 
             if (o1 < 0 && o2 < 0 && p!=TYPE_ID) {
                 double result_bind = 0;
                 if(!is_end_point(o1, 0)){
-                    CostResult pto_o1 = cal_first_pt(p, PREDICATE_ID, IN, o1, r.mt_factor, pt_pick);
+                    CostResult pto_o1 = cal_first_pt(p, PREDICATE_ID, IN, o1, 
+                #ifdef TRDF_MODE
+                    index,
+                #endif
+                    r.mt_factor, pt_pick);
                     if (no_result) return;
                     if (contain_k2l.find(o1) == contain_k2l.end()) {
-                        CostResult p_result = cal_rest_pt(o1, p, d, o2, pt_pick, pto_o1);
+                        CostResult p_result = cal_rest_pt(o1, p, d, o2, 
+                    #ifdef TRDF_MODE
+                        index,
+                    #endif
+                        pt_pick, pto_o1);
                         pto_o1.add_cost = pto_o1.explore_bind + p_result.result_bind;
                         result_bind = p_result.result_bind;
                     }
@@ -390,11 +428,19 @@ class Planner {
            
                 // different direction, find object first
                 if (!is_end_point(o2, 0)) {
-                    CostResult pto_o2 = cal_first_pt(p, PREDICATE_ID, OUT, o2, r.mt_factor, pt_pick);
+                    CostResult pto_o2 = cal_first_pt(p, PREDICATE_ID, OUT, o2, 
+                #ifdef TRDF_MODE
+                    index,
+                #endif
+                    r.mt_factor, pt_pick);
                     if (no_result) return;
                     if (contain_k2l.find(o2) == contain_k2l.end()) {
                         if(result_bind == 0){
-                            CostResult p_result = cal_rest_pt(o2, p, 1-d, o1, pt_pick, pto_o2, true);
+                            CostResult p_result = cal_rest_pt(o2, p, 1-d, o1, 
+                        #ifdef TRDF_MODE
+                            index,
+                        #endif
+                            pt_pick, pto_o2, true);
                             result_bind = p_result.result_bind;
                         }
                         pto_o2.add_cost = pto_o2.explore_bind + result_bind;
@@ -403,10 +449,18 @@ class Planner {
                 }
             }
             if (o1 > 0) {
-                median_results.push_back(cal_first_pt(o1, p, d, o2, r.mt_factor, pt_pick));
+                median_results.push_back(cal_first_pt(o1, p, d, o2, 
+            #ifdef TRDF_MODE
+                index,
+            #endif
+                r.mt_factor, pt_pick));
                 if (no_result) return;
             } else if (o2 > 0 && p!=TYPE_ID) {
-                median_results.push_back(cal_first_pt(o2, p, IN, o1, r.mt_factor, pt_pick, true));
+                median_results.push_back(cal_first_pt(o2, p, IN, o1, 
+            #ifdef TRDF_MODE
+                index,
+            #endif
+                r.mt_factor, pt_pick, true));
                 if (no_result) return;
             }
         }
@@ -436,22 +490,33 @@ class Planner {
 
             for (int pt_pick = 0; pt_pick < _chains_size_div_4; pt_pick++) {
                 if (old_result.pt_bits & (1 << pt_pick)) continue;
-                int i = 4 * pt_pick;
+                int i = num * pt_pick;
                 ssid_t o1 = triples[i];
                 ssid_t p = triples[i + 1];
                 ssid_t d = triples[i + 2];
                 ssid_t o2 = triples[i + 3];
+            #ifdef TRDF_MODE
+                ssid_t index = triples[i + 4];
+            #endif
                 CostResult cost_result = CostResult(pt_pick);
                 cost_result.init(old_result);
 
                 if(old_result.is_known(o1)){
-                    CostResult new_result = cal_rest_pt(o1, p, d, o2, pt_pick, old_result);
+                    CostResult new_result = cal_rest_pt(o1, p, d, o2, 
+                #ifdef TRDF_MODE
+                    index,
+                #endif
+                    pt_pick, old_result);
                     if (no_result) return;
                     if(min_cost > new_result.all_cost)
                         level_results.push_back(new_result);
                 }
                 if(old_result.is_known(o2)){
-                    CostResult new_result = cal_rest_pt(o2, p, IN, o1, pt_pick, old_result, true);
+                    CostResult new_result = cal_rest_pt(o2, p, IN, o1, 
+                #ifdef TRDF_MODE
+                    index,
+                #endif
+                    pt_pick, old_result, true);
                     if (no_result) return;
                     if(min_cost > new_result.all_cost)
                         level_results.push_back(new_result);
@@ -497,13 +562,16 @@ class Planner {
         // output: min_path
         // transform min_path to patterns
         patterns.clear();
-        for (int i = 0; i < min_path.size() / 4; i ++) {
+        for (int i = 0; i < min_path.size() / num; i ++) {
             SPARQLQuery::Pattern pattern(
-                min_path[4 * i],
-                min_path[4 * i + 1],
-                min_path[4 * i + 2],
-                min_path[4 * i + 3]
+                min_path[num * i],
+                min_path[num * i + 1],
+                min_path[num * i + 2],
+                min_path[num * i + 3]
             );
+        #ifdef TRDF_MODE
+            pattern.time_interval = time_intervals[min_path[num * i + 4]];
+        #endif
             pattern.pred_type = 0;
             patterns.push_back(pattern);
         }
@@ -511,10 +579,10 @@ class Planner {
         //add_attr_pattern to the end of patterns
         for (int i = 0 ; i < attr_pred_chains.size(); i ++) {
             SPARQLQuery::Pattern pattern(
-                attr_pattern[4 * i],
-                attr_pattern[4 * i + 1],
-                attr_pattern[4 * i + 2],
-                attr_pattern[4 * i + 3]
+                attr_pattern[num * i],
+                attr_pattern[num * i + 1],
+                attr_pattern[num * i + 2],
+                attr_pattern[num * i + 3]
             );
             pattern.pred_type = attr_pred_chains[i];
             patterns.push_back(pattern);
@@ -531,7 +599,7 @@ class Planner {
             success = do_patterns(r, group.patterns, test);
 
         for (auto &g : group.unions)
-            success = do_group(r, group, test);
+            success = do_group(r, g, test);
 
         // FIXME: support optional, filter, etc.
         if(!test){

@@ -35,6 +35,9 @@
 #include "core/engine/sparql.hpp"
 #include "core/engine/rdf.hpp"
 #include "core/engine/msgr.hpp"
+#ifdef TRDF_MODE
+#include "core/engine/tsparql.hpp"
+#endif
 
 #include "core/store/dgraph.hpp"
 
@@ -100,7 +103,11 @@ public:
 
     Coder *coder;
     Messenger *msgr;
+#ifdef TRDF_MODE
+    TSPARQLEngine *sparql;
+#else
     SPARQLEngine *sparql;
+#endif
     RDFEngine *rdf;
 
     bool at_work; // whether engine is at work or not
@@ -114,7 +121,11 @@ public:
 
         coder = new Coder(sid, tid);
         msgr = new Messenger(sid, tid, adaptor);
+    #ifdef TRDF_MODE
+        sparql = new TSPARQLEngine(sid, tid, str_server, graph, coder, msgr);
+    #else
         sparql = new SPARQLEngine(sid, tid, str_server, graph, coder, msgr);
+    #endif
         rdf = new RDFEngine(sid, tid, graph, coder, msgr);
     }
 

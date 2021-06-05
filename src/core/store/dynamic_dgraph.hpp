@@ -169,19 +169,31 @@ public:
             // for LUBM benchmark, maybe for others,too.
             dedup_or_isdup = true;
             ikey_t key = ikey_t(triple.s, triple.p, OUT);
+        #ifdef TRDF_MODE
+            edge_t value = edge_t(triple.o, triple.ts, triple.te);
+        #else
             edge_t value = edge_t(triple.o);
+        #endif
             // <1> vid's type (7) [need dedup]
             if (this->gstore->insert_key_value(key, value, dedup_or_isdup, tid)) {
 #ifdef VERSATILE
                 key = ikey_t(triple.s, PREDICATE_ID, OUT);
+            #if TRDF_MODE
+                value = edge_t(triple.p, triple.ts, triple.te);
+            #else
                 value = edge_t(triple.p);
+            #endif
                 // key and its buddy_key should be used to
                 // identify the exist of corresponding index
                 ikey_t buddy_key = ikey_t(triple.s, PREDICATE_ID, IN);
                 // <2> vid's predicate, value is TYPE_ID (*8) [dedup from <1>]
                 if (this->gstore->insert_key_value(key, value, nodup, tid) && !this->gstore->check_key_exist(buddy_key)) {
                     key = ikey_t(0, TYPE_ID, IN);
+                #if TRDF_MODE
+                    value = edge_t(triple.s, triple.ts, triple.te);
+                #else
                     value = edge_t(triple.s);
+                #endif
                     // <3> the index to vid (*3) [dedup from <2>]
                     this->gstore->insert_key_value(key, value, nodup, tid);
                 }
@@ -189,12 +201,20 @@ public:
             }
             if (!dedup_or_isdup) {
                 key = ikey_t(0, triple.o, IN);
+            #ifdef TRDF_MODE
+                value = edge_t(triple.s, triple.ts, triple.te);
+            #else
                 value = edge_t(triple.s);
+            #endif
                 // <4> type-index (2) [if <1>'s result is not dup, this is not dup, too]
                 if (this->gstore->insert_key_value(key, value, nodup, tid)) {
 #ifdef VERSATILE
                     key = ikey_t(0, TYPE_ID, OUT);
+                #if TRDF_MODE
+                    value = edge_t(triple.o, triple.ts, triple.te);
+                #else
                     value = edge_t(triple.o);
+                #endif
                     // <5> index to this type (*4) [dedup from <4>]
                     this->gstore->insert_key_value(key, value, nodup, tid);
 #endif  // end of VERSATILE
@@ -202,11 +222,19 @@ public:
             }
         } else {
             ikey_t key = ikey_t(triple.s, triple.p, OUT);
+        #ifdef TRDF_MODE
+            edge_t value = edge_t(triple.o, triple.ts, triple.te);
+        #else
             edge_t value = edge_t(triple.o);
+        #endif
             // <6> vid's ngbrs w/ predicate (6) [need dedup]
             if (this->gstore->insert_key_value(key, value, dedup_or_isdup, tid)) {
                 key = ikey_t(0, triple.p, IN);
+            #ifdef TRDF_MODE
+                value = edge_t(triple.s, triple.ts, triple.te);
+            #else
                 value = edge_t(triple.s);
+            #endif
                 // key and its buddy_key should be used to
                 // identify the exist of corresponding index
                 ikey_t buddy_key = ikey_t(0, triple.p, OUT);
@@ -214,21 +242,33 @@ public:
                 if (this->gstore->insert_key_value(key, value, nodup, tid) && !this->gstore->check_key_exist(buddy_key)) {
 #ifdef VERSATILE
                     key = ikey_t(0, PREDICATE_ID, OUT);
+                #if TRDF_MODE
+                    value = edge_t(triple.p, triple.ts, triple.te);
+                #else
                     value = edge_t(triple.p);
+                #endif
                     // <8> the index to predicate (*5) [dedup from <7>]
                     this->gstore->insert_key_value(key, value, nodup, tid);
 #endif  // end of VERSATILE
                 }
 #ifdef VERSATILE
                 key = ikey_t(triple.s, PREDICATE_ID, OUT);
+            #if TRDF_MODE
+                value = edge_t(triple.p, triple.ts, triple.te);
+            #else
                 value = edge_t(triple.p);
+            #endif
                 // key and its buddy_key should be used to
                 // identify the exist of corresponding index
                 buddy_key = ikey_t(triple.s, PREDICATE_ID, IN);
                 // <9> vid's predicate (*8) [dedup from <6>]
                 if (this->gstore->insert_key_value(key, value, nodup, tid) && !this->gstore->check_key_exist(buddy_key)) {
                     key = ikey_t(0, TYPE_ID, IN);
+                #if TRDF_MODE
+                    value = edge_t(triple.s, triple.ts, triple.te);
+                #else
                     value = edge_t(triple.s);
+                #endif
                     // <10> the index to vid (*3) [dedup from <9>]
                     this->gstore->insert_key_value(key, value, nodup, tid);
                 }
@@ -243,12 +283,20 @@ public:
         // skip type triples
         if (triple.p == TYPE_ID) return;
         ikey_t key = ikey_t(triple.o, triple.p, IN);
+    #ifdef TRDF_MODE
+        edge_t value = edge_t(triple.s, triple.ts, triple.te);
+    #else
         edge_t value = edge_t(triple.s);
+    #endif
         // <1> vid's ngbrs w/ predicate (6) [need dedup]
         if (this->gstore->insert_key_value(key, value, dedup_or_isdup, tid)) {
             // key doesn't exist before
             key = ikey_t(0, triple.p, OUT);
+        #ifdef TRDF_MODE
+            value = edge_t(triple.o, triple.ts, triple.te);
+        #else
             value = edge_t(triple.o);
+        #endif
             // key and its buddy_key should be used
             // to identify the exist of corresponding index
             ikey_t buddy_key = ikey_t(0, triple.p, IN);
@@ -256,21 +304,33 @@ public:
             if (this->gstore->insert_key_value(key, value, nodup, tid) && !this->gstore->check_key_exist(buddy_key)) {
 #ifdef VERSATILE
                 key = ikey_t(0, PREDICATE_ID, OUT);
+            #if TRDF_MODE
+                value = edge_t(triple.p, triple.ts, triple.te);
+            #else
                 value = edge_t(triple.p);
+            #endif
                 // <3> the index to predicate (*5) [dedup from <2>]
                 this->gstore->insert_key_value(key, value, nodup, tid);
 #endif  // end of VERSATILE
             }
 #ifdef VERSATILE
             key = ikey_t(triple.o, PREDICATE_ID, IN);
+        #if TRDF_MODE
+            value = edge_t(triple.p, triple.ts, triple.te);
+        #else
             value = edge_t(triple.p);
+        #endif
             // key and its buddy_key should be used to
             // identify the exist of corresponding index
             buddy_key = ikey_t(triple.o, PREDICATE_ID, OUT);
             // <4> vid's predicate (*8) [dedup from <1>]
             if (this->gstore->insert_key_value(key, value, nodup, tid) && !this->gstore->check_key_exist(buddy_key)) {
                 key = ikey_t(0, TYPE_ID, IN);
+            #ifdef TRDF_MODE
+                value = edge_t(triple.o, triple.ts, triple.te);
+            #else
                 value = edge_t(triple.o);
+            #endif
                 // <5> the index to vid (*3) [dedup from <4>]
                 this->gstore->insert_key_value(key, value, nodup, tid);
             }

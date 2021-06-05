@@ -1,0 +1,7 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX xs: <http://www.w3.org/2001/XMLSchema#>
+PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
+
+SELECT ?X ?Y ?s ?e FROM SNAPSHOT <2007-08-12T22:22:22> WHERE {
+        [?s, ?e] ?X  ub:memberOf  ?Y  .
+}

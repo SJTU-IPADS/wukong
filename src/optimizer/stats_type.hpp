@@ -323,11 +323,18 @@ class CostResult
         small_prune = false;
     }
 
-    void push_path(ssid_t a1, ssid_t a2, ssid_t a3, ssid_t a4){
+    void push_path(ssid_t a1, ssid_t a2, ssid_t a3, ssid_t a4
+            #ifdef TRDF_MODE
+                ,ssid_t a5
+            #endif
+    ){
         path.push_back(a1);
         path.push_back(a2);
         path.push_back(a3);
         path.push_back(a4);
+    #ifdef TRDF_MODE
+        path.push_back(a5);
+    #endif
     }
 
     void init(CostResult &result) {

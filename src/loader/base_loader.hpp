@@ -76,8 +76,9 @@ protected:
 
         uint64_t n = 1;
         for (uint64_t i = 1; i < triples.size(); i++) {
-            if (triples[i].s == triples[i - 1].s && triples[i].p == triples[i - 1].p && triples[i].o == triples[i - 1].o)
+            if (triples[i] == triples[i - 1]) {
                 continue;
+            }
 
             triples[n++] = triples[i];
         }
@@ -85,22 +86,22 @@ protected:
     }
 
     void flush_triples(int tid, int dst_sid) {
-        uint64_t buf_sz = floor(mem->buffer_size() / Global::num_servers - sizeof(uint64_t),
-                                sizeof(sid_t));
+        uint64_t buf_sz = floor(mem->buffer_size() / Global::num_servers - sizeof(uint64_t), sizeof(triple_t));
         uint64_t* pn = reinterpret_cast<uint64_t*>(mem->buffer(tid) + (buf_sz + sizeof(uint64_t)) * dst_sid);
-        sid_t* buf = reinterpret_cast<sid_t*>(pn + 1);
+        triple_t* buf = reinterpret_cast<triple_t*>(pn + 1);
 
         // the 1st uint64_t of buffer records #new-triples
         uint64_t n = *pn;
 
         // the kvstore is temporally split into #servers pieces.
         // hence, the kvstore can be directly RDMA write in parallel by all servers
-        uint64_t kvs_sz = floor(mem->kvstore_size() / Global::num_servers - sizeof(uint64_t),
-                                sizeof(sid_t));
+        uint64_t kvs_sz = floor(mem->kvstore_size() / Global::num_servers - sizeof(uint64_t), sizeof(triple_t));
 
         // serialize the RDMA WRITEs by multiple threads
         uint64_t exist = __sync_fetch_and_add(&num_triples[dst_sid], n);
-        if ((exist * 3 + n * 3) * sizeof(sid_t) > kvs_sz) {
+
+        uint64_t cur_sz = (exist + n) * sizeof(triple_t);
+        if (cur_sz > kvs_sz) {
             logstream(LOG_ERROR) << "no enough space to store input data!" << LOG_endl;
             logstream(LOG_ERROR) << " kvstore size = " << kvs_sz
                                  << " #exist-triples = " << exist
@@ -110,10 +111,12 @@ protected:
         }
 
         // send triples and clear the buffer
-        uint64_t off = (kvs_sz + sizeof(uint64_t)) * sid + sizeof(uint64_t)  // reserve the 1st uint64_t as #triples
-                       + exist * 3 * sizeof(sid_t);                          // skip #exist-triples
-        uint64_t sz = n * 3 * sizeof(sid_t);
-        // send #new-triples
+        uint64_t off = (kvs_sz + sizeof(uint64_t)) * sid
+                        + sizeof(uint64_t)           // reserve the 1st uint64_t as #triples
+                        + exist * sizeof(triple_t); // skip #exist-triples
+        
+        uint64_t sz = n * sizeof(triple_t);        // send #new-triples
+
         if (dst_sid != sid) {
             RDMA& rdma = RDMA::get_rdma();
             rdma.dev->RdmaWrite(tid, dst_sid, reinterpret_cast<char*>(buf), sz, off);
@@ -127,28 +130,27 @@ protected:
 
     // send_triple can be safely called by multiple threads,
     // since the buffer is exclusively used by one thread.
-    void send_triple(int tid, int dst_sid, sid_t s, sid_t p, sid_t o) {
+    void send_triple(int tid, int dst_sid, triple_t triple) {
         // the RDMA buffer is first split into #threads partitions
         // each partition is further split into #servers pieces
         // each piece: #triples, tirple, triple, . . .
-        uint64_t buf_sz = floor(mem->buffer_size() / Global::num_servers - sizeof(uint64_t), sizeof(sid_t));
+        uint64_t buf_sz = floor(mem->buffer_size() / Global::num_servers - sizeof(uint64_t), sizeof(triple_t));
         uint64_t* pn = reinterpret_cast<uint64_t*>(mem->buffer(tid) + (buf_sz + sizeof(uint64_t)) * dst_sid);
-        sid_t* buf = reinterpret_cast<sid_t*>(pn + 1);
+        triple_t* buf = reinterpret_cast<triple_t*>(pn + 1);
 
         // the 1st entry of buffer records #triples (suppose the )
         uint64_t n = *pn;
 
         // flush buffer if there is no enough space to buffer a new triple
-        if ((n * 3 + 3) * sizeof(sid_t) > buf_sz) {
+        uint64_t cur_sz = (n + 1) * sizeof(triple_t);
+        if (cur_sz > buf_sz) {
             flush_triples(tid, dst_sid);
             n = *pn;  // reset, it should be 0
             ASSERT(n == 0);
         }
 
         // buffer the triple and update the counter
-        buf[n * 3 + 0] = s;
-        buf[n * 3 + 1] = p;
-        buf[n * 3 + 2] = o;
+        buf[n] = triple;
         *pn = (n + 1);
     }
 
@@ -157,15 +159,19 @@ protected:
         std::sort(fnames.begin(), fnames.end());
 
         auto lambda = [&](std::istream& file, int localtid) {
-            sid_t s, p, o;
-            while (file >> s >> p >> o) {
-                int s_sid = PARTITION(s);
-                int o_sid = PARTITION(o);
+            triple_t triple;
+        #ifdef TRDF_MODE
+            while (file >> triple.s >> triple.p >> triple.o >> triple.ts >> triple.te) {
+        #else
+            while (file >> triple.s >> triple.p >> triple.o) {
+        #endif
+                int s_sid = PARTITION(triple.s);
+                int o_sid = PARTITION(triple.o);
                 if (s_sid == o_sid) {
-                    send_triple(localtid, s_sid, s, p, o);
+                    send_triple(localtid, s_sid, triple);
                 } else {
-                    send_triple(localtid, s_sid, s, p, o);
-                    send_triple(localtid, o_sid, s, p, o);
+                    send_triple(localtid, s_sid, triple);
+                    send_triple(localtid, o_sid, triple);
                 }
             }
         };
@@ -194,8 +200,8 @@ protected:
             uint64_t* buf = reinterpret_cast<uint64_t*>(mem->buffer(0));
             buf[0] = num_triples[s];
 
-            uint64_t kvs_sz = floor(mem->kvstore_size() / Global::num_servers, sizeof(sid_t));
-            uint64_t offset = kvs_sz * sid;
+            uint64_t kvs_sz = floor(mem->kvstore_size() / Global::num_servers - sizeof(uint64_t), sizeof(triple_t));
+            uint64_t offset = (kvs_sz + sizeof(uint64_t)) * sid;
             if (s != sid) {
                 RDMA& rdma = RDMA::get_rdma();
                 rdma.dev->RdmaWrite(0, s, reinterpret_cast<char*>(buf), sizeof(uint64_t), offset);
@@ -212,30 +218,33 @@ protected:
     int read_all_files(std::vector<std::string>& fnames) {
         std::sort(fnames.begin(), fnames.end());
 
-        auto lambda = [&](std::istream& file, uint64_t& n, uint64_t kvs_sz, sid_t* kvs) {
-            sid_t s, p, o;
-            while (file >> s >> p >> o) {
-                int s_sid = PARTITION(s);
-                int o_sid = PARTITION(o);
+        auto lambda = [&](std::istream& file, uint64_t& n, uint64_t kvs_sz, triple_t* kvs) {
+            triple_t triple;
+        #ifdef TRDF_MODE
+            while (file >> triple.s >> triple.p >> triple.o >> triple.ts >> triple.te) {
+        #else
+            while (file >> triple.s >> triple.p >> triple.o) {
+        #endif
+                int s_sid = PARTITION(triple.s);
+                int o_sid = PARTITION(triple.o);
                 if ((s_sid == sid) || (o_sid == sid)) {
-                    ASSERT((n * 3 + 3) * sizeof(sid_t) <= kvs_sz);
+                    ASSERT((n + 1) * sizeof(triple_t) <= kvs_sz);
                     // buffer the triple and update the counter
-                    kvs[n * 3 + 0] = s;
-                    kvs[n * 3 + 1] = p;
-                    kvs[n * 3 + 2] = o;
+                    kvs[n] = triple;
                     n++;
                 }
             }
         };
+
 
         int num_files = fnames.size();
         #pragma omp parallel for num_threads(Global::num_engines)
         for (int i = 0; i < num_files; i++) {
             int localtid = omp_get_thread_num();
             uint64_t kvs_sz = floor(mem->kvstore_size() / Global::num_engines - sizeof(uint64_t),
-                                    sizeof(sid_t));
+                                    sizeof(triple_t));
             uint64_t* pn = reinterpret_cast<uint64_t*>(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * localtid);
-            sid_t* kvs = reinterpret_cast<sid_t*>(pn + 1);
+            triple_t* kvs = reinterpret_cast<triple_t*>(pn + 1);
 
             // the 1st uint64_t of kvs records #triples
             uint64_t n = *pn;
@@ -315,7 +324,7 @@ protected:
                         std::vector<std::vector<triple_t>>& triple_pos) {
         // calculate #triples on the kvstore from all servers
         uint64_t total = 0;
-        uint64_t kvs_sz = floor(mem->kvstore_size() / num_partitions - sizeof(uint64_t), sizeof(sid_t));
+        uint64_t kvs_sz = floor(mem->kvstore_size() / num_partitions - sizeof(uint64_t), sizeof(triple_t));
         for (int i = 0; i < num_partitions; i++) {
             uint64_t* pn = reinterpret_cast<uint64_t*>(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * i);
             total += *pn;  // the 1st uint64_t of kvs records #triples
@@ -336,24 +345,22 @@ protected:
             int cnt = 0;  // per thread count for print progress
             for (int id = 0; id < num_partitions; id++) {
                 uint64_t* pn = reinterpret_cast<uint64_t*>(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * id);
-                sid_t* kvs = reinterpret_cast<sid_t*>(pn + 1);
+                triple_t* kvs = reinterpret_cast<triple_t*>(pn + 1);
 
                 // the 1st uint64_t of kvs records #triples
                 uint64_t n = *pn;
                 for (uint64_t i = 0; i < n; i++) {
-                    sid_t s = kvs[i * 3 + 0];
-                    sid_t p = kvs[i * 3 + 1];
-                    sid_t o = kvs[i * 3 + 2];
+                    triple_t triple = kvs[i];
 
                     // out-edges
-                    if (PARTITION(s) == sid)
-                        if ((s % Global::num_engines) == tid)
-                            triple_pso[tid].push_back(triple_t(s, p, o));
+                    if (PARTITION(triple.s) == sid)
+                        if ((triple.s % Global::num_engines) == tid)
+                            triple_pso[tid].push_back(triple);
 
                     // in-edges
-                    if (PARTITION(o) == sid)
-                        if ((o % Global::num_engines) == tid)
-                            triple_pos[tid].push_back(triple_t(s, p, o));
+                    if (PARTITION(triple.o) == sid)
+                        if ((triple.o % Global::num_engines) == tid)
+                            triple_pos[tid].push_back(triple);
 
                     // print the progress (step = 5%) of aggregation
                     if (++cnt >= total * 0.05) {
@@ -418,12 +425,16 @@ protected:
 
         auto load_one_file = [&](bool by_s, std::istream& file,
                                  std::vector<triple_t>& triple_pso, std::vector<triple_t>& triple_pos) {
-            sid_t s, p, o;
-            while (file >> s >> p >> o) {
-                if (by_s)  // out-edges
-                    triple_pso.push_back(triple_t(s, p, o));
-                else  // in-edges
-                    triple_pos.push_back(triple_t(s, p, o));
+            triple_t triple;
+        #ifdef TRDF_MODE
+            while (file >> triple.s >> triple.p >> triple.o >> triple.ts >> triple.te) {
+        #else
+            while (file >> triple.s >> triple.p >> triple.o) {
+        #endif
+                if (by_s)    // out-edges
+                    triple_pso.push_back(triple);
+                else        // in-edges
+                    triple_pos.push_back(triple);
             }
         };
 

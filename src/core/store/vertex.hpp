@@ -175,6 +175,25 @@ struct vertex_t {
 struct edge_t {
     int val;  // vertex ID
 
+#ifdef TRDF_MODE
+    int64_t ts;  // start timestamp
+    int64_t te;  // end timestamp
+
+    bool valid(int64_t _ts, int64_t _te) const {
+        bool rev = ((_ts <= _te) && (ts <= te) && (_ts <= te && _te >= ts)) || (_ts == 0L && _te == 0L);
+        return rev;
+    }
+
+    // clang-format off
+#if USE_GPU
+    __host__ __device__
+#endif
+    edge_t(sid_t id, int64_t ts, int64_t te): val(id), ts(ts), te(te) {}
+    // clang-format on
+#endif
+
+    edge_t() {}
+
     // clang-format off
 #ifdef USE_GPU
     __host__ __device__
@@ -182,31 +201,104 @@ struct edge_t {
     explicit edge_t(sid_t id) : val(id) {}
     // clang-format on
 
-    edge_t(const edge_t& edge) : val(edge.val) {}
+    edge_t(const edge_t& edge) : val(edge.val) {
+    #ifdef TRDF_MODE
+        ts = edge.ts;
+        te = edge.te;
+    #endif
+    }
 
-    edge_t(edge_t&& edge) : val(edge.val) {}
+    edge_t(edge_t&& edge) : val(edge.val) {
+    #ifdef TRDF_MODE
+        ts = edge.ts;
+        te = edge.te;
+    #endif
+    }
 
     edge_t& operator=(sid_t id) {
         this->val = id;
         return *this;
     }
 
-    edge_t& operator=(edge_t& e) {
-        if (this != &e) val = e.val;
+    edge_t& operator=(const edge_t& e) {
+        if (this != &e) {
+            val = e.val;
+        #ifdef TRDF_MODE
+            ts = e.ts;
+            te = e.te;
+        #endif
+        }
         return *this;
     }
 
-    edge_t& operator=(edge_t&& e) {
-        if (this != &e) val = e.val;
+    edge_t& operator=(const edge_t&& e) {
+        if (this != &e) {
+            val = e.val;
+        #ifdef TRDF_MODE
+            ts = e.ts;
+            te = e.te;
+        #endif
+        }
         return *this;
     }
 
     bool operator==(const edge_t& e) {
+    #ifdef TRDF_MODE
+        return this->val == e.val && this->ts == e.ts && this->te == e.te;
+    #else
         return this->val == e.val;
+    #endif
     }
 
     bool operator==(const sid_t& id) {
         return this->val == id;
     }
 };
+
+#ifdef TRDF_MODE
+struct time_edge_t {
+    int val;  // vertex ID
+    int64_t ts;  // start timestamp
+    int64_t te;  // end timestamp
+
+    // clang-format off
+#ifdef USE_GPU
+    __host__ __device__
+#endif
+    time_edge_t(sid_t id, int64_t ts, int64_t te): val(id), ts(ts), te(te) {}
+    // clang-format on
+
+    bool valid(int64_t _ts, int64_t _te) const {
+        bool rev = ((_ts <= _te) && (ts <= te) && (_ts <= te && _te >= ts)) || (_ts == 0L && _te == 0L);
+        return rev;
+    }
+
+    time_edge_t(const time_edge_t& edge) : val(edge.val), ts(edge.ts), te(edge.te) {}
+
+    time_edge_t(time_edge_t&& edge) : val(edge.val), ts(edge.ts), te(edge.te) {}
+
+    time_edge_t& operator=(time_edge_t& e) {
+        if (this != &e) {
+            val = e.val;
+            ts = e.ts;
+            te = e.te;
+        }
+        return *this;
+    }
+
+    time_edge_t& operator=(time_edge_t&& e) {
+        if (this != &e) {
+            val = e.val;
+            ts = e.ts;
+            te = e.te;
+        }
+        return *this;
+    }
+
+    bool operator==(const time_edge_t& e) {
+        return this->val == e.val && this->ts == e.ts && this->te == e.te;
+    }
+};
+#endif
+
 }  // namespace wukong

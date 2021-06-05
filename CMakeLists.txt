@@ -89,6 +89,12 @@ if(USE_VERSATILE)
   add_definitions(-DVERSATILE)
 endif(USE_VERSATILE)
 
+#### Support t-sparql
+option (TRDF_MODE "support t-sparql queries" OFF)
+if(TRDF_MODE)
+  add_definitions(-DTRDF_MODE)
+endif(TRDF_MODE)
+
 #### 64-bit ID (32-bit ID by default)
 option (USE_DTYPE_64BIT "use 64-bit ID" OFF)
 if(USE_DTYPE_64BIT)

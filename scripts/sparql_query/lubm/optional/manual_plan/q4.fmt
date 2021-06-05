@@ -1,6 +1,8 @@
 # PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 # PREFIX ub: <http://swat.cse.lehigh.edu/onto/univ-bench.owl#>
-#
+# 
+# command: sparql -f sparql_query/lubm/optional/q4 -p sparql_query/lubm/optional/manual_plan/q4.fmt -v 10
+# 
 # SELECT ?S ?UG ?MAS ?DOC WHERE {
 # 	?S  ub:undergraduateDegreeFrom  ?UG  .
 # 	OPTIONAL { ?S  ub:mastersDegreeFrom  ?MAS } .

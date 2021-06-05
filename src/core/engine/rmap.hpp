@@ -96,12 +96,18 @@ public:
         // copy metadata of result
         r.result.col_num = reply.result.col_num;
         r.result.row_num = reply.result.row_num;
+    #ifdef TRDF_MODE
+        r.result.time_col_num = reply.result.time_col_num;
+    #endif
         r.result.attr_col_num = reply.result.attr_col_num;
         r.result.v2c_map = reply.result.v2c_map;
         // NOTE: no need to set nvars, required_vars, and blind
 
         // copy data of result
         r.result.result_table.swap(reply.result.result_table);
+    #ifdef TRDF_MODE
+        r.result.time_res_table.swap(reply.result.time_res_table);
+    #endif
         r.result.attr_res_table.swap(reply.result.attr_res_table);
 
         internal_map.erase(qid);
