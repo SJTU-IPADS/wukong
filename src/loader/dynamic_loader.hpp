@@ -196,6 +196,24 @@ public:
             /// FIXME: support HDFS
             std::ifstream file(dfiles[i]);
             sid_t s, p, o;
+        #ifdef TRDF_MODE
+            time_t ts, te;
+            while (file >> s >> p >> o >> ts >> te) {
+                convert_sid(s); convert_sid(p); convert_sid(o); //convert origin ids to new ids
+                /// FIXME: just check and print warning
+                check_sid(s); check_sid(p); check_sid(o);
+
+                if (sid == PARTITION(s)) {
+                    gstore->insert_triple_out(triple_t(s, p, o, ts, te), check_dup, tid);
+                    cnt ++;
+                }
+
+                if (sid == PARTITION(o)) {
+                    gstore->insert_triple_in(triple_t(s, p, o, ts, te), check_dup, tid);
+                    cnt ++;
+                }
+            }
+        #else
             while (file >> s >> p >> o) {
                 // convert origin ids to new ids
                 convert_sid(s);
@@ -216,6 +234,7 @@ public:
                     cnt++;
                 }
             }
+        #endif
             file.close();
 
             logstream(LOG_INFO) << "load " << cnt << " triples from file " << dfiles[i]

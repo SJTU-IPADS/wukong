@@ -87,7 +87,7 @@ protected:
     inline uint64_t e2b(uint64_t sz) { return sz * sizeof(edge_t); }
     // Return exact block size of given size in edge unit.
     inline uint64_t blksz(uint64_t sz) { return b2e(value_allocator->sz_to_blksz(e2b(sz))); }
-    /* Insert size flag size flag in values.
+    /* Insert size flag in values.
      * @flag: size flag to insert
      * @sz: actual size of values
      * @off: offset of values
@@ -197,10 +197,13 @@ public:
                 insert_sz(INVALID_EDGES, old_ptr.size, old_ptr.off);
                 slot->ptr = PtrType(need_size, off);
 
-                if (Global::enable_caching)
+                if (Global::enable_caching) {
                     add_pending_free(old_ptr);
-                else
-                    value_allocator->free(e2b(old_ptr.off));
+                } else {
+                    add_pending_free(old_ptr);
+                    ///FIXME: there is a bug about free here, but I can't fix it, so I replace free with add_pending_free
+                    //edge_allocator->free(e2b(old_ptr.off)); 
+                }
             } else {
                 // update size flag
                 insert_sz(need_size, need_size, slot->ptr.off);

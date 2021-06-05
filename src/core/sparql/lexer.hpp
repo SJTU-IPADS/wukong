@@ -47,7 +47,7 @@ public:
                  RParen, LBracket, RBracket, LArrow, RArrow, Anon, Equal,
                  NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual, At,
                  Type, Not, Or, And, Plus, Minus, Mul, Div, Integer, Decimal,
-                 Double, Percent, PREDICATE
+                 Double, Percent, PREDICATE, TIME_INTERVAL
                };
 
 private:
@@ -139,6 +139,17 @@ public:
                 return NotEqual;
             // Brackets
             case '[':
+            #ifdef TRDF_MODE
+                while(pos != input.end()) {
+                    if((*pos) != ']')
+                        ++pos;
+                    else {
+                        ++pos;
+                        tokenEnd = pos; hasTokenEnd = true;
+                        return TIME_INTERVAL;
+                    }
+                }
+            #else
                 // Skip whitespaces
                 while (pos != input.end()) {
                     switch (*pos) {
@@ -153,6 +164,7 @@ public:
                     ++pos;
                     return Anon;
                 }
+            #endif
                 return LBracket;
             case ']': return RBracket;
             // Greater

@@ -39,6 +39,8 @@ using ssid_t = int64_t;  // signed string id
 using sid_t = uint32_t;  // data type for string-id
 using ssid_t = int32_t;  // signed string id
 #define BLANK_ID UINT32_MAX
+#define TIMESTAMP_MAX INT64_MAX
+#define TIMESTAMP_MIN INT64_MIN
 
 #endif
 
@@ -46,16 +48,68 @@ using ssid_t = int32_t;  // signed string id
 using attr_t = boost::variant<int, double, float>;
 
 enum dir_t { IN = 0, OUT, CORUN }; // direction: IN=0, OUT=1, and optimization hints
-enum data_type { SID_t = 0, INT_t, FLOAT_t, DOUBLE_t };
+enum data_type { SID_t = 0, INT_t, FLOAT_t, DOUBLE_t, TIME_t };
 
 struct triple_t {
     sid_t s; // subject
     sid_t p; // predicate
     sid_t o; // object
 
+#ifdef TRDF_MODE
+    int64_t ts; // start timestamp
+    int64_t te; // end timestamp
+
+    triple_t(sid_t _s, sid_t _p, sid_t _o, int64_t _ts, int64_t _te): s(_s), p(_p), o(_o), ts(_ts), te(_te) { }
+#endif
+
     triple_t(): s(0), p(0), o(0) { }
 
     triple_t(sid_t _s, sid_t _p, sid_t _o): s(_s), p(_p), o(_o) { }
+
+    triple_t(const triple_t& triple) {
+        s = triple.s;
+        p = triple.p;
+        o = triple.o;
+    #ifdef TRDF_MODE
+        ts = triple.ts;
+        te = triple.te;
+    #endif
+    }
+
+    triple_t(const triple_t&& triple) {
+        s = triple.s;
+        p = triple.p;
+        o = triple.o;
+    #ifdef TRDF_MODE
+        ts = triple.ts;
+        te = triple.te;
+    #endif
+    }
+
+    triple_t& operator=(const triple_t& triple) {
+        s = triple.s;
+        p = triple.p;
+        o = triple.o;
+    #ifdef TRDF_MODE
+        ts = triple.ts;
+        te = triple.te;
+    #endif
+        return *this;
+    }
+
+    bool operator==(const triple_t& triple) const {
+        if ((s == triple.s) 
+            && (p == triple.p) 
+            && (o == triple.o)
+        #ifdef TRDF_MODE
+            && (ts == triple.ts) 
+            && (te == triple.te)
+        #endif
+            ) {
+            return true;
+        }
+        return false;
+    }
 };
 
 struct triple_attr_t {
@@ -75,8 +129,20 @@ struct triple_sort_by_spo {
         else if (t1.s == t2.s)
             if (t1.p < t2.p)
                 return true;
+
+        #ifdef TRDF_MODE
+            else if (t1.p == t2.p)
+                if(t1.o < t2.o)
+                    return true;
+                else if(t1.o == t2.o)
+                    if(t1.ts < t2.ts)
+                        return true;
+                    else if(t1.ts == t2.ts && t1.te < t2.te)
+                        return true;
+        #else
             else if (t1.p == t2.p && t1.o < t2.o)
                 return true;
+        #endif
         return false;
     }
 };
@@ -88,8 +154,19 @@ struct triple_sort_by_ops {
         else if (t1.o == t2.o)
             if (t1.p < t2.p)
                 return true;
+        #ifdef TRDF_MODE
+            else if (t1.p == t2.p)
+                if(t1.s < t2.s)
+                    return true;
+                else if(t1.s == t2.s)
+                    if(t1.ts < t2.ts)
+                        return true;
+                    else if(t1.ts == t2.ts && t1.te < t2.te)
+                        return true;
+        #else
             else if ((t1.p == t2.p) && (t1.s < t2.s))
                 return true;
+        #endif
         return false;
     }
 };
@@ -101,8 +178,19 @@ struct triple_sort_by_pso {
         else if (t1.p == t2.p)
             if (t1.s < t2.s)
                 return true;
+        #ifdef TRDF_MODE
+            else if (t1.s == t2.s)
+                if(t1.o < t2.o)
+                    return true;
+                else if(t1.o == t2.o)
+                    if(t1.ts < t2.ts)
+                        return true;
+                    else if(t1.ts == t2.ts && t1.te < t2.te)
+                        return true;
+        #else
             else if (t1.s == t2.s && t1.o < t2.o)
                 return true;
+        #endif
         return false;
     }
 };
@@ -114,8 +202,19 @@ struct triple_sort_by_pos {
         else if (t1.p == t2.p)
             if (t1.o < t2.o)
                 return true;
+        #ifdef TRDF_MODE
+            else if (t1.o == t2.o)
+                if(t1.s < t2.s)
+                    return true;
+                else if(t1.s == t2.s)
+                    if(t1.ts < t2.ts)
+                        return true;
+                    else if(t1.ts == t2.ts && t1.te < t2.te)
+                        return true;
+        #else
             else if (t1.o == t2.o && t1.s < t2.s)
                 return true;
+        #endif
         return false;
     }
 };

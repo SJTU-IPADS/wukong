@@ -13,6 +13,7 @@ Welcome to Wukong's documentation!
    notes/INSTALL.md
    notes/COMMANDS.md
    notes/TUTORIALS.md
+   notes/tRDF.md
    notes/GPU.md
    notes/QA.md
 

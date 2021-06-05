@@ -45,6 +45,7 @@
 #include <boost/unordered_map.hpp>
 #include <boost/algorithm/string.hpp>
 
+#include "utils/time_tool.hpp"
 #include "core/common/type.hpp"
 #include "core/common/string_server.hpp"
 
@@ -90,7 +91,7 @@ public:
     /// An element in a graph pattern
     struct Element {
         /// Possible types
-        enum Type { Variable, Literal, IRI, Template, Predicate };
+        enum Type { Variable, Literal, IRI, Template, Predicate, TimeStamp };
         /// Possible sub-types for literals
         enum SubType { None, CustomLanguage, CustomType };
         /// The type
@@ -103,12 +104,19 @@ public:
         std::string value;
         /// The id for variables
         ssid_t id;
+        /// The value of the timestamp
+        int64_t timestamp;
     };
 
     /// A graph pattern
     struct Pattern {
         /// The entires
         Element subject, predicate, object;
+    #ifdef TRDF_MODE
+        Element ts, te;
+        Pattern(Element subject, Element predicate, Element object, Element ts, Element te)
+            : subject(subject), predicate(predicate), object(object), ts(ts), te(te) { }
+    #endif
         /// Direction
         dir_t direction = OUT;
         /// Constructor
@@ -822,11 +830,59 @@ private:
     void parseGraphPattern(PatternGroup &group) {
         std::map<std::string, unsigned> localVars;
 
+    #ifdef TRDF_MODE
+        Element tsElement;
+        Element teElement;
+        SPARQLLexer::Token token = lexer.getNext();
+        if (token == SPARQLLexer::TIME_INTERVAL) {
+            std::string val = lexer.getTokenValue();
+            val = val.substr(1, val.size() - 2);
+
+            auto it = std::remove_if(val.begin(), val.end(), ::isspace);
+            val.erase(it, val.end());
+
+            size_t found = val.find(",");
+            if (found == std::string::npos)
+                throw ParserException("time interval format must be [start_time, end_time]");
+
+            std::string startStr = val.substr(0, found);
+            std::string endStr = val.substr(found + 1);
+
+            if(wukong::time_tool::is_time(startStr)) {
+                tsElement.type = Element::TimeStamp;
+                tsElement.timestamp = wukong::time_tool::str2int(startStr);
+            } else if (startStr.size() > 1 && (startStr.at(0) == '?'  || startStr.at(0) == '$')) {
+                tsElement.type = Element::Variable;
+                tsElement.id = nameVariable(startStr.substr(1));
+            } else {
+                throw ParserException("start time must be a datetime like 'yyyy-MM-ddThh:mm:ss' or a variable");
+            }
+
+            if(wukong::time_tool::is_time(endStr)) {
+                teElement.type = Element::TimeStamp;
+                teElement.timestamp = wukong::time_tool::str2int(endStr);
+            } else if (endStr.size() > 1 && (endStr.at(0) == '?'  || endStr.at(0) == '$')) {
+                teElement.type = Element::Variable;
+                teElement.id = nameVariable(endStr.substr(1));
+            } else {
+                throw ParserException("end time must be a datetime like 'yyyy-MM-ddThh:mm:ss' or a variable");
+            }
+        } else {
+            tsElement.id = 0;
+            teElement.id = 0;
+            lexer.unget(token);
+        }
+    #endif
+
         // Parse the first pattern
         Element subject = parsePatternElement(group, localVars);
         Element predicate = parsePatternElement(group, localVars);
         Element object = parsePatternElement(group, localVars);
-        group.patterns.push_back(Pattern(subject, predicate, object));
+        group.patterns.push_back(Pattern(subject, predicate, object
+    #ifdef TRDF_MODE
+        , tsElement, teElement
+    #endif
+        ));
         // Check for the tail
         while (true) {
             SPARQLLexer::Token token = lexer.getNext();
@@ -907,7 +963,7 @@ private:
                        || (token == SPARQLLexer::Identifier) || (token == SPARQLLexer::String)
                        || (token == SPARQLLexer::Underscore) || (token == SPARQLLexer::Colon)
                        || (token == SPARQLLexer::LBracket) || (token == SPARQLLexer::Anon)
-                       || (token == SPARQLLexer::Percent)) {
+                       || (token == SPARQLLexer::Percent) || (token == SPARQLLexer::TIME_INTERVAL)) {
                 // Distinguish filter conditions
                 if ((token == SPARQLLexer::Identifier) && (lexer.isKeyword("filter"))) {
                     std::map<std::string, unsigned> localVars;
@@ -1023,7 +1079,48 @@ private:
             SPARQLLexer::Token token = lexer.getNext();
 
             if ((token == SPARQLLexer::Identifier) && (lexer.isKeyword("from"))) {
+            #ifdef TRDF_MODE
+                token = lexer.getNext();
+                if((token == SPARQLLexer::Identifier) && (lexer.isKeyword("snapshot"))) {
+                    token = lexer.getNext();
+                    if(token == SPARQLLexer::IRI) {
+                        std::string val = lexer.getTokenValue();
+                        if(wukong::time_tool::is_date(val)) {
+                            ts = wukong::time_tool::str2int(val);
+                            te = ts + 24 * 60 * 60;
+                        } else if(wukong::time_tool::is_time(val)) {
+                            ts = wukong::time_tool::str2int(val);
+                            te = ts;
+                        } else {
+                            throw ParserException("snapshot format must be <yyyy-MM-dd> or <yyyy-MM-ddTHH:mm:ss>");
+                        }
+                    }
+                } else if(token == SPARQLLexer::TIME_INTERVAL) {
+                    std::string val = lexer.getTokenValue();
+                    val = val.substr(1, val.size() - 2);
+
+                    auto it = std::remove_if(val.begin(), val.end(), ::isspace);
+                    val.erase(it, val.end());
+
+                    size_t found = val.find(",");
+                    if (found == std::string::npos)
+                        throw ParserException("time interval format must be [yyyy-MM-ddTHH:mm:ss, yyyy-MM-ddTHH:mm:ss]");
+
+                    std::string startStr = val.substr(0, found);
+                    std::string endStr = val.substr(found + 1);
+
+                    if(wukong::time_tool::is_time(startStr) && wukong::time_tool::is_time(endStr)) {
+                        ts = wukong::time_tool::str2int(startStr);
+                        te = wukong::time_tool::str2int(endStr);
+                    } else {
+                        throw ParserException("time interval format must be [yyyy-MM-ddTHH:mm:ss, yyyy-MM-ddTHH:mm:ss]");
+                    }
+                } else {
+                    throw ParserException("from clause except for snapshot currently not implemented");
+                }
+            #else
                 throw ParserException("from clause currently not implemented");
+            #endif
             } else {
                 lexer.unget(token);
                 return;
@@ -1117,6 +1214,8 @@ private:
     }
 
 public:
+    int64_t ts = TIMESTAMP_MIN; // start timestamp after keyword FROM
+    int64_t te = TIMESTAMP_MAX; // end timestamp after keyword FROM
     /// Constructor
     explicit SPARQLParser(SPARQLLexer &lexer)
         : lexer(lexer), variableCount(0), namedVariableCount(0),
@@ -1305,7 +1404,24 @@ private:
             ssid_t predicate = transfer_element(p.predicate);
             dir_t direction = (dir_t)p.direction;
             ssid_t object = transfer_element(p.object);
+
             SPARQLQuery::Pattern pattern(subject, predicate, direction, object);
+
+        #ifdef TRDF_MODE
+            int64_t ts_value = 0, te_value = 0;
+            ssid_t ts_var = 0, te_var = 0;
+            if(p.ts.type == SPARQLParser::Element::TimeStamp) {
+                ts_value = p.ts.timestamp;
+            } else {
+                ts_var = transfer_element(p.ts);
+            }
+            if(p.te.type == SPARQLParser::Element::TimeStamp) {
+                te_value = p.te.timestamp;
+            } else {
+                te_var = transfer_element(p.te);
+            }
+            pattern.time_interval = SPARQLQuery::TimeIntervalPattern(ts_value, te_value, ts_var, te_var);
+        #endif
 
             pattern.pred_type = str_server->pid2type[predicate];
             if ((pattern.pred_type != (char)SID_t) && !Global::enable_vattr) {
@@ -1339,6 +1455,10 @@ private:
     }
 
     void transfer(const SPARQLParser &sp, SPARQLQuery &sq) {
+    #ifdef TRDF_MODE
+        sq.ts = sp.ts;
+        sq.te = sp.te;
+    #endif
         // required varaibles of SELECT clause
         for (SPARQLParser::projection_iterator iter = sp.projectionBegin();
                 iter != sp.projectionEnd();
@@ -1395,7 +1515,24 @@ private:
             ssid_t predicate = transfer_element(p.predicate);
             dir_t direction = (dir_t)p.direction;
             ssid_t object = transfer_element(p.object);
+
             SPARQLQuery::Pattern pattern(subject, predicate, direction, object);
+
+        #ifdef TRDF_MODE
+            int64_t ts_value = 0, te_value = 0;
+            ssid_t ts_var = 0, te_var = 0;
+            if(p.ts.type == SPARQLParser::Element::TimeStamp) {
+                ts_value = p.ts.timestamp;
+            } else {
+                ts_var = transfer_element(p.ts);
+            }
+            if(p.te.type == SPARQLParser::Element::TimeStamp) {
+                te_value = p.te.timestamp;
+            } else {
+                te_var = transfer_element(p.te);
+            }
+            pattern.time_interval = SPARQLQuery::TimeIntervalPattern(ts_value, te_value, ts_var, te_var);
+        #endif
 
             // template pattern
             if (subject == PTYPE_PH) {

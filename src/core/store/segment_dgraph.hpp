@@ -53,7 +53,7 @@ namespace wukong {
  *    t_set*                [0|TYPEID|OUT]              [1|PREDICATE_ID|OUT]    1
  * 4. predicate index IN    [0|pid|IN]
  *    type index            [0|typeid|IN]
- *    v_set*                [0|TYPE_ID|IN]              [0|PREDICATE_ID|IN]     1
+ *    v_set*                [0|TYPE_ID|IN]              [1|PREDICATE_ID|IN]     1
  * 5*. vid's all predicates [vid|PREDICATE_ID|IN/OUT]   [0|PREDICATE_ID|IN/OUT] 2
  * 6^. attr segments        [vid|pid|OUT]               [0|pid|OUT]             #attr pred
  */
@@ -281,9 +281,10 @@ protected:
      * @param d 
      * @param tid 
      */
-    void insert_idx(const tbb_hash_map& pidx_map, const tbb_hash_map& tidx_map,
+    void insert_idx(const tbb_edge_hash_map &pidx_map, 
+                    const tbb_edge_hash_map &tidx_map, 
                     dir_t d, int tid = 0) {
-        tbb_hash_map::const_accessor ca;
+        tbb_edge_hash_map::const_accessor ca;
         rdf_seg_meta_t& segment = rdf_seg_meta_map[segid_t(1, PREDICATE_ID, d)];
         // it is possible that num_edges = 0 if loading an empty dataset
         // ASSERT(segment.num_edges > 0);
@@ -306,8 +307,8 @@ protected:
                 ikey_t(0, pid, d),
                 iptr_t(sz, off));
 
-            for (auto const& vid : ca->second)
-                this->gstore->values[off++] = edge_t(vid);
+            for (auto const& edge : ca->second)
+                this->gstore->values[off++] = edge;
 
             ASSERT(off <= segment.edge_start + segment.num_edges);
         }
@@ -323,8 +324,8 @@ protected:
                     ikey_t(0, pid, IN),
                     iptr_t(sz, off));
 
-                for (auto const& vid : e.second)
-                    this->gstore->values[off++] = edge_t(vid);
+                for (auto const& edge : e.second)
+                    this->gstore->values[off++] = edge;
 
                 ASSERT(off <= segment.edge_start + segment.num_edges);
             }
@@ -395,8 +396,13 @@ protected:
                     iptr_t(sz, off));
 
                 // insert predicates
-                for (auto const& p : preds)
+                for (auto const& p : preds) {
+                #if TRDF_MODE
+                    this->gstore->values[off++] = edge_t(p, TIMESTAMP_MIN, TIMESTAMP_MAX);
+                #else
                     this->gstore->values[off++] = edge_t(p);
+                #endif
+                }
 
                 preds.clear();
             }
@@ -433,8 +439,13 @@ protected:
                     iptr_t(sz, off));
 
                 // insert predicates
-                for (auto const& p : preds)
+                for (auto const& p : preds) {
+                #if TRDF_MODE
+                    this->gstore->values[off++] = edge_t(p, TIMESTAMP_MIN, TIMESTAMP_MAX);
+                #else
                     this->gstore->values[off++] = edge_t(p);
+                #endif
+                }
 
                 preds.clear();
             }
@@ -521,9 +532,15 @@ protected:
             iptr_t(e - s, off));
 
         // insert values
-        for (uint32_t i = s; i < e; i++)
+        for (uint32_t i = s; i < e; i++) {
+        #if TRDF_MODE
+            this->gstore->values[off++] = (dir == OUT) ? edge_t(triples[i].o, triples[i].ts, triples[i].te)
+                                                       : edge_t(triples[i].s, triples[i].ts, triples[i].te);
+        #else
             this->gstore->values[off++] = (dir == OUT) ? edge_t(triples[i].o)
                                                        : edge_t(triples[i].s);
+        #endif
+        }
 
         collect_idx_info(this->gstore->slots[slot_id]);
         return e;
@@ -779,6 +796,7 @@ protected:
         logger(LOG_DEBUG, "pid: %d: normal: #IN: %lu, #OUT: %lu", PREDICATE_ID,
                normal_cnt_map[PREDICATE_ID].in.load(), normal_cnt_map[PREDICATE_ID].out.load());
         total_num_keys += vp_meta[OUT].size() + vp_meta[IN].size();
+        total_num_keys += 3; // vset, tset, pset
 #endif
         for (sid_t pred : this->predicates) {
             if (pred == PREDICATE_ID) continue;
@@ -835,13 +853,13 @@ protected:
             alloc_vp_edges((dir_t) tid);
         }
 
-        // all local entities
+        // all local entities ([0|TYPE_ID|IN])
         idx_in_seg.num_edges += v_set.size();
         idx_in_seg.num_keys += 1;
-        // all local types
+        // all local types ([0|TYPEID|OUT])
         idx_out_seg.num_edges += t_set.size();
         idx_out_seg.num_keys += 1;
-        // all local predicates
+        // all local predicates ([0|PREDICATE_ID|OUT])
         idx_out_seg.num_edges += p_set.size();
         idx_out_seg.num_keys += 1;
 
@@ -942,23 +960,35 @@ protected:
                 // (IN) type triples should be skipped
                 ASSERT(false);
             } else {  // predicate-index (OUT) vid
-                tbb_hash_map::accessor a;
+                tbb_edge_hash_map::accessor a;
                 pidx_out_map.insert(a, pid);
-                a->second.push_back(vid);
+            #if TRDF_MODE
+                a->second.push_back(edge_t(vid, TIMESTAMP_MIN, TIMESTAMP_MAX));
+            #else
+                a->second.push_back(edge_t(vid));
+            #endif
             }
         } else {
             if (pid == PREDICATE_ID) {
             } else if (pid == TYPE_ID) {
                 // type-index (IN) -> vid_list
                 for (uint64_t e = 0; e < sz; e++) {
-                    tbb_hash_map::accessor a;
+                    tbb_edge_hash_map::accessor a;
                     tidx_map.insert(a, this->gstore->values[off + e].val);
-                    a->second.push_back(vid);
+                #if TRDF_MODE
+                    a->second.push_back(edge_t(vid, this->gstore->values[off + e].ts, this->gstore->values[off + e].te));
+                #else
+                    a->second.push_back(edge_t(vid));
+                #endif
                 }
             } else {  // predicate-index (IN) vid
-                tbb_hash_map::accessor a;
+                tbb_edge_hash_map::accessor a;
                 pidx_in_map.insert(a, pid);
-                a->second.push_back(vid);
+            #if TRDF_MODE
+                a->second.push_back(edge_t(vid, TIMESTAMP_MIN, TIMESTAMP_MAX));
+            #else
+                a->second.push_back(edge_t(vid));
+            #endif
             }
         }
     }
@@ -979,8 +1009,14 @@ protected:
             ikey_t(0, pid, d),
             iptr_t(sz, off));
 
-        for (auto const& value : set)
-            this->gstore->values[off++] = edge_t(value);
+        for (auto const& value : set) {
+        #if TRDF_MODE
+            edge_t edge(value, TIMESTAMP_MIN, TIMESTAMP_MAX);
+        #else
+            edge_t edge(value);
+        #endif
+            this->gstore->values[off++] = edge;
+        }
     }
 #endif  // VERSATILE
 
@@ -1053,9 +1089,10 @@ protected:
      * @brief release memory after gstore init
      */
     void finalize_init() {
-        tbb_hash_map().swap(pidx_in_map);
-        tbb_hash_map().swap(pidx_out_map);
-        tbb_hash_map().swap(tidx_map);
+        tbb_edge_hash_map().swap(pidx_in_map);
+        tbb_edge_hash_map().swap(pidx_out_map);
+        tbb_edge_hash_map().swap(tidx_map);
+
 #ifdef VERSATILE
         for (int i = 0; i < 2; i++) {
             tbb::concurrent_hash_map<sid_t, uint64_t>().swap(vp_meta[i]);

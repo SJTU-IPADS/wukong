@@ -44,6 +44,7 @@
 // utils
 #include "utils/math.hpp"
 #include "utils/timer.hpp"
+#include "utils/time_tool.hpp"
 
 namespace wukong {
 
@@ -251,7 +252,7 @@ public:
             stream << i + 1 << ": ";
 
             // entity
-            for (int j = 0; j < q.result.col_num; j++) {
+            for (int j = 0; j < q.result.get_col_num(); j++) {
                 int id = q.result.get_row_col(i, j);
                 if (str_server->exist(id))
                     stream << str_server->id2str(id) << "\t";
@@ -264,6 +265,14 @@ public:
                 attr_t tmp = q.result.get_attr_row_col(i, c);
                 stream << tmp << "\t";
             }
+
+        #ifdef TRDF_MODE
+            // timestamp
+            for (int j = 0; j < q.result.get_time_col_num(); j++) {
+                int64_t time = q.result.get_time_row_col(i, j);
+                stream << time_tool::int2str(time) << "\t";
+            }
+        #endif
 
             stream << std::endl;
         }
@@ -367,7 +376,8 @@ public:
 
         // Check result status
         if (reply.result.status_code == SUCCESS) {
-            logstream(LOG_INFO) << "(last) result size: " << reply.result.row_num << LOG_endl;
+            logstream(LOG_INFO) << "(last) result row num: " << reply.result.row_num
+                                << " , col num:" << reply.result.get_col_num() << LOG_endl;
 
             // print or dump results
             if (!Global::silent) {
