@@ -537,6 +537,10 @@ class Planner {
         std::vector<int> attr_pred_chains;
         contain_k2l.clear();
         triples.clear();
+    #ifdef TRDF_MODE
+        time_intervals.clear();
+    #endif
+    
         transfer_to_chains(patterns, attr_pattern, attr_pred_chains);
 
         if (_chains_size_div_4 == 0) {

@@ -868,6 +868,8 @@ private:
                 throw ParserException("end time must be a datetime like 'yyyy-MM-ddThh:mm:ss' or a variable");
             }
         } else {
+            tsElement.type = Element::Variable;
+            teElement.type = Element::Variable;
             tsElement.id = 0;
             teElement.id = 0;
             lexer.unget(token);
