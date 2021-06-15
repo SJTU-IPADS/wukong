@@ -797,11 +797,6 @@ private:
                             res.append_attr_row_to(i, updated_attr_table);
                     }
                     break;
-                } else if (vids[k].val == end){
-                    std::cout << "_ts:" << ts 
-                      << ", _te:" << te 
-                      << ", ts:" << vids[k].ts 
-                      << ", te:" << vids[k].te << std::endl; 
                 }
             }
             if (req.pg_type == SPARQLQuery::PGType::OPTIONAL) {
@@ -1671,7 +1666,7 @@ private:
         for (int row = 0; row < nrows; row++) {
             if (is_satisfy[row]) {
                 r.result.append_row_to(row, new_table);
-                r.time_res_table.append_row_to(row, new_time_table);
+                r.result.append_time_row_to(row, new_time_table);
             }
         }
 

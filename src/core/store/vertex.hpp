@@ -180,7 +180,7 @@ struct edge_t {
     int64_t te;  // end timestamp
 
     bool valid(int64_t _ts, int64_t _te) const {
-        bool rev = ((_ts <= _te) && (ts <= te) && (_ts <= te && _te >= ts)) || (_ts == 0L && _te == 0L);
+        bool rev = ((_ts <= _te) && (ts <= te) && (_ts <= te && _te >= ts)) || (_ts == TIMESTAMP_MIN && _te == TIMESTAMP_MAX);
         return rev;
     }
 
@@ -269,7 +269,7 @@ struct time_edge_t {
     // clang-format on
 
     bool valid(int64_t _ts, int64_t _te) const {
-        bool rev = ((_ts <= _te) && (ts <= te) && (_ts <= te && _te >= ts)) || (_ts == 0L && _te == 0L);
+        bool rev = ((_ts <= _te) && (ts <= te) && (_ts <= te && _te >= ts)) || (_ts == TIMESTAMP_MIN && _te == TIMESTAMP_MAX);
         return rev;
     }
 
