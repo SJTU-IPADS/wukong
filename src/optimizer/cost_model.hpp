@@ -40,7 +40,7 @@ class CostModel{
      MatrixXd matrix_l2u;
      VectorXd vector_l2u;
      double b_l2u = 0.046;  // explore, const
-     double d_l2u;
+     double d_l2u = 0;
 
      MatrixXd matrix_k2u;
      VectorXd vector_k2u;
