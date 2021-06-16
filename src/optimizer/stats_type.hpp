@@ -307,12 +307,22 @@ class CostResult
 
     bool small_prune;
 
-    CostResult () {}
-    CostResult(int i) {
-        add_cost = 0; match_bind = 0;
+    CostResult () {
+        add_cost = 0; all_cost = 0;
         init_bind = 0; prune_bind = 0;
+        match_bind = 0;
         explore_bind = 0; result_bind = 0;
-        all_cost = 0;
+        prune_ratio = 1;
+        current_model = model_t::L2U;
+        pt_bits = 0;
+        small_prune = false;
+    }
+
+    CostResult(int i) {
+        add_cost = 0; all_cost = 0;
+        init_bind = 0; prune_bind = 0;
+        match_bind = 0;
+        explore_bind = 0; result_bind = 0;
         prune_ratio = 1;
         current_model = model_t::L2U;
         if(i >= 0){
