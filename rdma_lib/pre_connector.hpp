@@ -42,6 +42,10 @@ public:
         auto sockfd = socket(AF_INET, SOCK_STREAM, 0);
         CE(sockfd < 0, "ERROR opening socket");
 
+        int opt = 1;
+        CE(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int)) != 0,
+           "[RDMA pre connector] set reused socket error!");
+
         /* setup the host_addr structure for use in bind call */
         serv_addr.sin_family = AF_INET;  // server byte order
         serv_addr.sin_addr.s_addr = INADDR_ANY;
