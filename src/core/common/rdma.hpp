@@ -128,6 +128,8 @@ public:
             }
         }
 
+        ~RDMA_Device() { if (ctrl != NULL) delete ctrl; }
+
 #ifdef USE_GPU
         // (sync) GPUDirect RDMA Write (w/ completion)
         int GPURdmaWrite(int tid, int nid, char *local_gpu,
