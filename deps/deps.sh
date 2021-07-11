@@ -8,7 +8,6 @@ zeromq="zeromq-4.0.5"
 nanomsg="nanomsg-1.1.4"
 hwloc="hwloc-1.11.7"
 jemalloc="jemalloc-5.2.1"
-eigen="eigen-3.3.7"
 
 write_log(){
     divider='-----------------------------'
@@ -229,38 +228,6 @@ install_jemalloc(){
     fi
 }
 
-install_eigen(){
-    trap "return" ERR
-    echo "Installing ${eigen}..."
-    write_log "${eigen}"
-    cd "$WUKONG_ROOT/deps"
-    if [ ! -d "${eigen}-install" ]; then
-        mkdir "${eigen}-install"
-        if [ ! -d "${eigen}" ]; then
-            if [ ! -f "${eigen}.tar.gz" ]; then
-                wget "https://gitlab.com/libeigen/eigen/-/archive/3.3.7/${eigen}.tar.gz"
-            fi
-            tar zxf "${eigen}.tar.gz"
-        fi
-        cd "$WUKONG_ROOT/deps/${eigen}"
-        trap - ERR
-        ./configure --prefix="$WUKONG_ROOT/deps/${eigen}-install/" 2>>install_deps.log
-        make 2>>install_deps.log
-        make install 2>>install_deps.log
-    else
-        trap - ERR
-        echo "found ${eigen}."
-    fi
-    if [ $( echo "${PATH}" | grep "${eigen}-install" | wc -l ) -eq 0 ]; then
-        echo '# eigen configuration' >> ~/.bashrc
-        echo "export PATH=\$WUKONG_ROOT/deps/${eigen}-install/bin:\$PATH" >> ~/.bashrc
-        echo "export CPATH=\$WUKONG_ROOT/deps/${eigen}-install/include:\$CPATH" >> ~/.bashrc
-        echo "export LIBRARY_PATH=\$WUKONG_ROOT/deps/${eigen}-install/lib:\$LIBRARY_PATH" >> ~/.bashrc
-        echo "export LD_LIBRARY_PATH=\$WUKONG_ROOT/deps/${eigen}-install/lib:\$LD_LIBRARY_PATH" >> ~/.bashrc
-        source ~/.bashrc
-    fi
-}
-
 
 del_mpi(){
     echo 'removing mpi...'
@@ -339,23 +306,6 @@ del_jemalloc(){
     export LD_LIBRARY_PATH=$NEW_LD_LIBRARY_PATH
 }
 
-del_eigen(){
-    echo 'removing eigen...'
-    rm -rf "$WUKONG_ROOT/deps/${eigen}-install" "$WUKONG_ROOT/deps/${eigen}"
-    sed -i '/\(eigen configuration\)\|\(PATH.*eigen\)\|\(CPATH.*eigen\)\|\(LIBRARY_PATH.*eigen\)\|\(LD_LIBRARY_PATH.*eigen\)/d' ~/.bashrc
-
-    pattern=":$WUKONG_ROOT/deps/eigen[^:]*"
-    NEW_PATH=`echo $PATH | sed 's%'"$pattern"'%%g'`
-    NEW_CPATH=`echo $CPATH | sed 's%'"$pattern"'%%g'`
-    NEW_LIBRARY_PATH=`echo $LIBRARY_PATH | sed 's%'"$pattern"'%%g'`
-    NEW_LD_LIBRARY_PATH=`echo $LD_LIBRARY_PATH | sed 's%'"$pattern"'%%g'`
-    export PATH=$NEW_PATH
-    export CPATH=$NEW_CPATH
-    export LIBRARY_PATH=$NEW_LIBRARY_PATH
-    export LD_LIBRARY_PATH=$NEW_LD_LIBRARY_PATH
-}
-
-
 clean_deps(){
     echo 'compressed packages will not be removed.'
     if [[ "$#" == "1" || "$2" == "all" ]]; then
@@ -367,7 +317,6 @@ clean_deps(){
         #del_nanomsg
         del_hwloc
         del_jemalloc
-        del_eigen
     else
         for ((i=2;i<=$#;i++)); do
             item=${!i}
@@ -379,7 +328,6 @@ clean_deps(){
                 "nanomsg") del_nanomsg ;;
                 "hwloc") del_hwloc ;;
                 "jemalloc") del_jemalloc ;;
-                "eigen") del_eigen ;;
                 *) echo "cannot clean $item" ;;
             esac
         done
@@ -400,7 +348,6 @@ install_deps(){
                 "nanomsg") install_nanomsg ;;
                 "hwloc") install_hwloc ;;
                 "jemalloc") install_jemalloc ;;
-                "eigen") install_eigen ;;
                 *) echo "cannot install $item" ;;
             esac
         done
@@ -415,7 +362,6 @@ install_all_deps(){
     #install_nanomsg
     install_hwloc
     install_jemalloc
-    install_eigen
 }
 
 # handle options

@@ -38,6 +38,9 @@
 
 #include "optimizer/stats_type.hpp"
 
+// display progress
+#include "progresscpp/ProgressBar.hpp"
+
 namespace wukong {
 
 class Stats {
@@ -557,6 +560,8 @@ public:
             }
         };     
 
+        int progress_total = graph->get_num_normal_preds_without_TYPEID();
+        progresscpp::ProgressBar progressBar(progress_total, 50, '=', ' ');
         for(sid_t pid : graph->get_edge_predicates()){
             if(pid == TYPE_ID) continue;
             for(int dir = 0; dir < 2; dir++){
@@ -617,6 +622,8 @@ public:
                     }
                 }
             }
+            ++progressBar;
+            if (sid == 0) progressBar.display();
         }
 
         tbb::concurrent_unordered_set<sid_t> vids;
@@ -658,6 +665,8 @@ public:
                 //     ty_stat.insert_finetype(type, TYPE_ID, res_type[j], 1);
                 }
             }
+            ++progressBar;
+            if (sid == 0) progressBar.display();
         }
 
         logstream(LOG_INFO) << "[Stats] #" << sid << ": generating stats is finished." << LOG_endl;

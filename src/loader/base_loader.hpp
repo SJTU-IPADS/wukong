@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <mutex>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -47,6 +48,9 @@
 #include "utils/assertion.hpp"
 #include "utils/math.hpp"
 #include "utils/timer.hpp"
+
+// display progress
+#include "progresscpp/ProgressBar.hpp"
 
 namespace wukong {
 
@@ -339,7 +343,8 @@ protected:
         // each thread will scan all triples (from all servers) and pickup certain triples.
         // It ensures that the triples belong to the same vertex will be stored in the same
         // triple_pso/ops. This will simplify the deduplication and insertion to gstore.
-        volatile uint64_t progress = 0;
+        progresscpp::ProgressBar progressBar(10 * Global::num_engines, 50, '=', ' ');
+        std::mutex progress_lock;
         #pragma omp parallel for num_threads(Global::num_engines)
         for (int tid = 0; tid < Global::num_engines; tid++) {
             int cnt = 0;  // per thread count for print progress
@@ -363,12 +368,11 @@ protected:
                             triple_pos[tid].push_back(triple);
 
                     // print the progress (step = 5%) of aggregation
-                    if (++cnt >= total * 0.05) {
-                        uint64_t now = wukong::atomic::add_and_fetch(&progress, 1);
-                        if (now % Global::num_engines == 0)
-                            logstream(LOG_INFO) << "[Loader] triples already aggregrate "
-                                                << (now / Global::num_engines) * 5
-                                                << "%" << LOG_endl;
+                    if (++cnt >= total * 0.1) {
+                        progress_lock.lock();
+                        ++progressBar; // record the tick
+                        if (sid == 0) progressBar.display();
+                        progress_lock.unlock();
                         cnt = 0;
                     }
                 }
