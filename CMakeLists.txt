@@ -8,7 +8,7 @@ project (wukong)
 cmake_minimum_required(VERSION 2.8)
 
 ## Use C++11 features
-add_definitions(-std=c++11)
+add_definitions(-std=c++17)
 
 
 ## Set dependencies
@@ -18,8 +18,9 @@ set(BOOST_LIB "${ROOT}/deps/boost_1_67_0-install/lib")
 ## Set include paths
 include_directories(deps/boost_1_67_0-install/include)
 include_directories(src)
-include_directories(rdma_lib)
-include_directories(deps/eigen-3.3.7)
+include_directories(deps)
+include_directories(deps/eigen)
+include_directories(deps/progress-cpp/include)
 include_directories(deps/googletest/googletest/include)
 
 ## Add sub-directories
@@ -27,7 +28,7 @@ add_subdirectory(${ROOT}/deps/googletest)
 
 
 ## Source code
-file(GLOB SOURCES "src/*.hpp" "rdma_lib/*.hpp")
+file(GLOB SOURCES "src/*.hpp")
 
 
 ## Set options (cached)

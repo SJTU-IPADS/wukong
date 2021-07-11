@@ -19,10 +19,9 @@ include_directories(${ROOT}/deps/boost_1_67_0-install/include)
 include_directories(${ROOT}/core)
 include_directories(${ROOT}/utils)
 include_directories(${ROOT}/test/gpu)
-include_directories(${ROOT}/rdma_lib)
 
 ## Source code
-file(GLOB SOURCES "core/*.hpp" "utils/*.hpp" "rdma_lib/*.hpp" "test/gpu/*.hpp")
+file(GLOB SOURCES "core/*.hpp" "utils/*.hpp" "test/gpu/*.hpp")
 add_executable(gputest ${SOURCES} "test-adaptor.cpp")
 
 ## Set options (cached)

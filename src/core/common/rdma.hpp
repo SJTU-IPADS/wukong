@@ -37,9 +37,16 @@
 #ifdef HAS_RDMA
 
 // rdma_lib
-#include "rdmaio.hpp"
+#include "rib/core/lib.hh"
 
 using namespace rdmaio;
+using namespace rdmaio::rmem;
+using namespace rdmaio::qp;
+
+// #define FLAGS_use_nic_idx 0
+// #define FLAGS_reg_nic_name 73
+// #define FLAGS_reg_cpu_mem_name 73
+// #define FLAGS_reg_gpu_mem_name 74
 
 namespace wukong {
 
@@ -55,133 +62,192 @@ public:
         void *mem;
     };
 
-    class RDMA_Device {
-        static const uint64_t RDMA_CTRL_PORT = 19344;
-    public:
-        RdmaCtrl* ctrl = NULL;
+    struct Connection {
+        ConnectManager *cm;
+        Arc<RC> qp;
+        uint64_t key;
+        rmem::RegAttr remoteMr;
+    };
 
-        // currently we only support one cpu and one gpu mr in mrs!
+    class RDMA_Device {
+    public:
+        static const uint64_t RDMA_CTRL_PORT = 19344;
+        static const int FLAGS_use_nic_idx = 0;
+        static const int FLAGS_reg_nic_name = 73;
+        static const int FLAGS_reg_cpu_mem_name = 73;
+        static const int FLAGS_reg_gpu_mem_name = 74;
+
+        int sid;
+        RCtrl *rctrl;
+        Arc<RNic> rnic;
+        std::vector<std::vector<Connection>> connections;
+
+        Arc<RegHandler> local_cpu_mem;
+    #ifdef USE_GPU
+        Arc<RegHandler> local_gpu_mem;
+    #endif
+
+         // currently we only support one cpu and one gpu mr in mrs!
         RDMA_Device(int nnodes, int nthds, int nid, std::vector<RDMA::MemoryRegion> &mrs, std::string ipfn) {
-            // record IPs of ndoes
+            // record IPs of nnodes
+            this->sid = nid;
+
             std::vector<std::string> ipset;
             std::ifstream ipfile(ipfn);
             std::string ip;
 
-            // get first nnodes IPs
+            // get nnodes IPs
             for (int i = 0; i < nnodes; i++) {
                 ipfile >> ip;
                 ipset.push_back(ip);
             }
 
-            // init device and create QPs
-            ctrl = new RdmaCtrl(nid, ipset, RDMA_CTRL_PORT, true); // enable single context
-            ctrl->query_devinfo();
-            ctrl->open_device();
+            rctrl = new RCtrl(RDMA_CTRL_PORT);
+
+            // open the NIC
+            rnic = RNic::create(RNicInfo::query_dev_names().at(FLAGS_use_nic_idx)).value();
+
+            // register the nic with name 0 to the rctrl
+            RDMA_ASSERT(rctrl->opened_nics.reg(FLAGS_reg_nic_name, rnic));
+
             for (auto mr : mrs) {
                 switch (mr.type) {
-                case RDMA::MemType::CPU:
-                    ctrl->set_connect_mr(mr.addr, mr.sz);
-                    ctrl->register_connect_mr();
+                case RDMA::MemType::CPU: {
+                    this->local_cpu_mem = RegisterMem(FLAGS_reg_cpu_mem_name, mr.addr, mr.sz);
                     break;
-                case RDMA::MemType::GPU:
-#ifdef USE_GPU
-                    ctrl->set_connect_mr_gpu(mr.addr, mr.sz);
-                    ctrl->register_connect_mr_gpu();
+                }
+                case RDMA::MemType::GPU: {
+                #ifdef USE_GPU
+                    this->local_gpu_mem = RegisterMem(FLAGS_reg_gpu_mem_name, mr.addr, mr.sz);
                     break;
-#else
+                #else
                     logstream(LOG_ERROR) << "Build wukong w/o GPU support." << LOG_endl;
                     ASSERT(false);
-#endif
+                #endif
+                }
                 default:
                     logstream(LOG_ERROR) << "Unkown memory region." << LOG_endl;
                 }
             }
 
-            ctrl->start_server();
+            rctrl->start_daemon();
+
+            connections.resize(nthds);
+            for(auto& vec : connections) {
+                vec.resize(nnodes);
+            }
+
             for (uint j = 0; j < nthds; ++j) {
                 for (uint i = 0; i < nnodes; ++i) {
-                    // FIXME: statically use 1 device and 1 port
-                    //
-                    // devID: [0, #devs), portID: (0, #ports]
-                    // 0: always choose the 1st (RDMA) device
-                    // 1: always choose the 1st (RDMA) port
-                    Qp *qp = ctrl->create_rc_qp(j, i, 0, 1);
-                    ASSERT(qp != NULL);
+                    CreateConnection(ipset[i], j, i);
                 }
-            }
-
-            // connect all QPs
-            while (1) {
-                int connected = 0;
-                for (uint j = 0; j < nthds; ++j) {
-                    for (uint i = 0; i < nnodes; ++i) {
-                        Qp *qp = ctrl->get_rc_qp(j, i);
-
-                        if (qp->inited_) // has connected
-                            connected ++;
-                        else if (qp->connect_rc())
-                            connected ++;
-                    }
-                }
-
-                if (connected == nthds * nnodes) break; // done
             }
         }
 
-        ~RDMA_Device() { if (ctrl != NULL) delete ctrl; }
+        void CreateConnection(std::string ip, int tid, int nid) {
+            std::string addr = ip + ":" + std::to_string(RDMA_CTRL_PORT);
+            auto qp = RC::create(rnic, QPConfig()).value();
+            ConnectManager *cm = new ConnectManager(addr);
+            if (cm->wait_ready(1000000, 2) == IOCode::Timeout)
+                RDMA_ASSERT(false) << "cm connect to server timeout";
 
-#ifdef USE_GPU
-        // (sync) GPUDirect RDMA Write (w/ completion)
-        int GPURdmaWrite(int tid, int nid, char *local_gpu,
-                         uint64_t sz, uint64_t off, bool to_gpu = false) {
-            Qp* qp = ctrl->get_rc_qp(tid, nid);
+            // global-unique qp name
+            std::string qp_name = "client-qp"+ std::to_string(this->sid) + ":" 
+                                    + std::to_string(tid) + ":" +std::to_string(nid);
+            auto qp_res = cm->cc_rc(qp_name, qp, FLAGS_reg_nic_name, QPConfig());
+            RDMA_ASSERT(qp_res == IOCode::Ok) << std::get<0>(qp_res.desc);
+            auto key = std::get<1>(qp_res.desc);
 
-            int flags = IBV_SEND_SIGNALED;
-            qp->rc_post_send_gpu(IBV_WR_RDMA_WRITE, local_gpu, sz, off, flags, to_gpu);
-            qp->poll_completion();
-            return 0;
+            auto fetch_res = cm->fetch_remote_mr(FLAGS_reg_cpu_mem_name);
+            RDMA_ASSERT(fetch_res == IOCode::Ok) << std::get<0>(fetch_res.desc);
+            rmem::RegAttr remote_attr = std::get<1>(fetch_res.desc);
+
+            connections[tid][nid].cm = cm;
+            connections[tid][nid].qp = qp;
+            connections[tid][nid].key = key;
+            connections[tid][nid].remoteMr = remote_attr;
         }
-#endif
+
+        Arc<RegHandler> RegisterMem(int reg_mem_name, char* addr, uint64_t size) {
+            auto result = rctrl->registered_mrs.create_then_reg(
+                        reg_mem_name, Arc<RMem>(new RMem(size, 
+                        [&](u64 sz) { return addr; }, [](RMem::raw_ptr_t p) {})),
+                        rctrl->opened_nics.query(FLAGS_reg_nic_name).value());
+            RDMA_ASSERT(result);
+            return result.value().first;
+        }
 
         // (sync) RDMA Read (w/ completion)
-        int RdmaRead(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
-            Qp* qp = ctrl->get_rc_qp(tid, nid);
+        void RdmaRead(int tid, int nid, char *local, uint32_t sz, uint64_t off) {
+            auto& connection = connections[tid][nid];
 
-            // sweep remaining completion events (due to selective RDMA writes)
-            if (!qp->first_send())
-                qp->poll_completion();
-
-            qp->rc_post_send(IBV_WR_RDMA_READ, local, sz, off, IBV_SEND_SIGNALED);
-            qp->poll_completion();
-            return 0;
+            auto res_s = connection.qp->send_normal(
+                   {.op = IBV_WR_RDMA_READ,
+                    .flags = IBV_SEND_SIGNALED,
+                    .len = sz,
+                    .wr_id = 0},
+                   {.local_addr = reinterpret_cast<RMem::raw_ptr_t>(local),
+                    .remote_addr = off,
+                    .imm_data = 0},
+                    local_cpu_mem->get_reg_attr().value(),
+                    connection.remoteMr);
+            RDMA_ASSERT(res_s == IOCode::Ok);
+            auto res_p = connection.qp->wait_one_comp();
+            RDMA_ASSERT(res_p == IOCode::Ok);
         }
 
         // (sync) RDMA Write (w/ completion)
-        int RdmaWrite(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
-            Qp* qp = ctrl->get_rc_qp(tid, nid);
+        void RdmaWrite(int tid, int nid, char *local, uint32_t sz, uint64_t off) {
+            auto& connection = connections[tid][nid];
 
-            int flags = IBV_SEND_SIGNALED;
-            qp->rc_post_send(IBV_WR_RDMA_WRITE, local, sz, off, flags);
-            qp->poll_completion();
-            return 0;
+            auto res_s = connection.qp->send_normal(
+                   {.op = IBV_WR_RDMA_WRITE,
+                    .flags = IBV_SEND_SIGNALED,
+                    .len = sz,
+                    .wr_id = 0},
+                   {.local_addr = reinterpret_cast<RMem::raw_ptr_t>(local),
+                    .remote_addr = off,
+                    .imm_data = 0},
+                    local_cpu_mem->get_reg_attr().value(),
+                    connection.remoteMr);
+            RDMA_ASSERT(res_s == IOCode::Ok);
+            auto res_p = connection.qp->wait_one_comp();
+            RDMA_ASSERT(res_p == IOCode::Ok);
         }
+
+        ~RDMA_Device() { if (rctrl != NULL) delete rctrl; }
+
+#ifdef USE_GPU
+        // (sync) GPUDirect RDMA Write (w/ completion)
+        void GPURdmaWrite(int tid, int nid, char *local_gpu,
+                         uint32_t sz, uint64_t off, bool to_gpu = false) {
+            auto& connection = connections[tid][nid];
+
+            auto res_s = connection.qp->send_normal(
+                   {.op = IBV_WR_RDMA_WRITE,
+                    .flags = IBV_SEND_SIGNALED,
+                    .len = sz,
+                    .wr_id = 0},
+                   {.local_addr = reinterpret_cast<RMem::raw_ptr_t>(local_gpu),
+                    .remote_addr = off,
+                    .imm_data = 0},
+                    local_gpu_mem->get_reg_attr().value(),
+                    connection.remoteMr);
+            RDMA_ASSERT(res_s == IOCode::Ok);
+            auto res_p = connection.qp->wait_one_comp();
+            RDMA_ASSERT(res_p == IOCode::Ok);
+        }
+#endif
 
         // (blind) RDMA Write (w/o completion)
         int RdmaWriteNonSignal(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
-            Qp* qp = ctrl->get_rc_qp(tid, nid);
-            int flags = 0;
-            qp->rc_post_send(IBV_WR_RDMA_WRITE, local, sz, off, flags);
+            // TODO
             return 0;
         }
 
         // (adaptive) RDMA Write (w/o completion)
         int RdmaWriteSelective(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
-            Qp* qp = ctrl->get_rc_qp(tid, nid);
-
-            int flags = (qp->first_send() ? IBV_SEND_SIGNALED : 0);
-            qp->rc_post_send(IBV_WR_RDMA_WRITE, local, sz, off, flags);
-            if (qp->need_poll())  // sweep all completion (batch)
-                qp->poll_completion();
+            // TODO
             return 0;
         }
     };

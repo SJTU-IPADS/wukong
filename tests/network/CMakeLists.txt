@@ -22,11 +22,9 @@ include_directories(${ROOT}/deps/boost_1_67_0-install/include)
 include_directories(${ROOT}/core)
 include_directories(${ROOT}/utils)
 include_directories(tests/network)
-include_directories(${ROOT}/rdma_lib)
-
 
 ## Source code
-file(GLOB SOURCES "core/*.hpp" "utils/*.hpp" "rdma_lib/*.hpp" "tests/network/*.hpp")
+file(GLOB SOURCES "core/*.hpp" "utils/*.hpp" "tests/network/*.hpp")
 add_executable(network ${SOURCES} "network.cpp")
 
 # Build Wukong 
