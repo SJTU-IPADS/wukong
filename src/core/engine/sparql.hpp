@@ -66,6 +66,7 @@ static int64_t hash_pair(const int64_pair &x) {
 
 
 class SPARQLEngine {
+    friend class GPUAgent;
 private:
     int sid;    // server id
     int tid;    // thread id

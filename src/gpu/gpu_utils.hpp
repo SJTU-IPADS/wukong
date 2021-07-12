@@ -24,6 +24,7 @@
 
 #ifdef USE_GPU
 #include <cuda_runtime.h>
+namespace wukong {
 
 #define CUDA_ASSERT(ans) { check_cuda_result((ans), __FILE__, __LINE__); }
 
@@ -50,5 +51,20 @@ inline int WUKONG_GET_BLOCKS(const int n) {
 }
 
 #define WUKONG_GPU_RBUF_SIZE(num_elems) (WUKONG_GPU_ELEM_SIZE * num_elems)
+
+#define WUKONG_VID_SIZE sizeof(sid_t)
+#define WUKONG_MAX_COMBINED_WINDOW_SIZE 10
+#define WUKONG_QUIT_COMBINED_WINDOW_SIZE 4
+
+class SPARQLQuery;
+using subquery_list_t = std::vector<SPARQLQuery*>;
+
+enum class GPUErrorCode{
+ NORMAL,
+ GIANT_TOTAL_RESULT_TABLE,
+ GIANT_VERTEX_RESULT_TABLE,
+};
+
+}  // namespace wukong
 
 #endif

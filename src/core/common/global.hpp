@@ -73,6 +73,13 @@ public:
     static int gpu_key_blk_size_mb __attribute__((weak));
     static int gpu_value_blk_size_mb __attribute__((weak));
     static bool gpu_enable_pipeline __attribute__((weak));
+
+    static int num_cuda_streams __attribute__((weak));
+    static bool gpu_enable_pattern_combine __attribute__((weak));
+    static int pattern_combine_rows __attribute__((weak));
+    static int pattern_combine_window __attribute__((weak));
+    static int num_gpu_channels __attribute__((weak));
+    static int gpu_threshold __attribute__((weak));
 };
 
 
@@ -126,5 +133,17 @@ int Global::gpu_rdma_buf_size_mb = 64;   // RDMA buffer
 int Global::gpu_key_blk_size_mb = 16;
 int Global::gpu_value_blk_size_mb = 4;
 bool Global::gpu_enable_pipeline = true;
+
+int Global::num_cuda_streams = 16;
+// Pattern-Combining
+bool Global::gpu_enable_pattern_combine = false;
+int Global::pattern_combine_rows = 20000;
+int Global::pattern_combine_window = 10;
+
+// Non-blocking gpu engine
+int Global::num_gpu_channels = 2;
+
+// pattern-level scheduling
+int Global::gpu_threshold = 500;
 
 } // namespace wukong

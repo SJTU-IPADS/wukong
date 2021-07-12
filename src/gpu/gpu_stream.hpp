@@ -52,6 +52,11 @@ public:
         cudaStreamDestroy(split_stream);
     }
 
+    static GPUStreamPool &get_pool() {
+        static GPUStreamPool pool(Global::num_cuda_streams);
+        return pool;
+    }
+
     cudaStream_t get_stream() {
         // select Stream in a round-robin way
         int idx = (rr_cnt++) % num_streams;
@@ -64,9 +69,8 @@ public:
     }
 
     cudaStream_t get_split_query_stream() { return split_stream; }
-
 };
 
-} // namespace wukong
+}  // namespace wukong
 
 #endif

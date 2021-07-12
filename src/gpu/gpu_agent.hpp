@@ -26,22 +26,23 @@
 
 #include <tbb/concurrent_queue.h>
 #include <vector>
+#include <memory>
+#include <unordered_map>
 
 #include "core/common/global.hpp"
+#include "core/sparql/query.hpp"
 #include "core/common/coder.hpp"
 
 // gpu
-#include "gpu_utils.hpp"
 #include "gpu_engine.hpp"
+#include "cuda_profiler_api.h"
 
 #include "core/engine/rmap.hpp"
-
 #include "core/network/adaptor.hpp"
-
-#include "core/sparql/query.hpp"
 
 // utils
 #include "utils/assertion.hpp"
+#include "gpu_utils.hpp"
 
 namespace wukong {
 
@@ -61,25 +62,46 @@ private:
     };
 
 
-    GPUEngine *gpu_engine;
-    Adaptor *adaptor;
+    GPUEngine *gpu_engine = nullptr;
+    GPUCache *gpu_cache = nullptr;
+    Adaptor *adaptor = nullptr;
+    SPARQLEngine *sparql = nullptr; // for small pattern
 
     Coder coder;
     RMap rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
 
-    tbb::concurrent_queue<SPARQLQuery> runqueue;
-    std::vector<Message> pending_msgs;
+    std::queue<SPARQLQuery*> fast_path_q; // requests put into this queue will be handle first
+    std::deque<SPARQLQuery*> runqueue;
 
+    // pattern combining
+    // | item:CombinedSPARQLQuery | type:enum(K2U,K2C,K2K) |
+    std::deque<SPARQLQuery*> task_queue;
+    // | key:query id             | value:GPUChannel       |
+    std::unordered_map<int, GPUChannel*> channel_map;
+
+    GPUChannel *channels;
+    uint32_t channel_rr_cnt = 0;
 
 public:
     int sid;    // server id
     int tid;    // thread id
 
-    GPUAgent(int sid, int tid, Adaptor* adaptor, GPUEngine* gpu_engine)
-        : sid(sid), tid(tid), adaptor(adaptor), gpu_engine(gpu_engine), coder(sid, tid) {
+    GPUAgent(int sid, int tid, Adaptor* adaptor, StringServer* str_server, DGraph* graph, GPUEngine* gpu_engine, GPUCache *gpu_cache)
+        : sid(sid), tid(tid), adaptor(adaptor), gpu_engine(gpu_engine), gpu_cache(gpu_cache), coder(sid, tid) {
 
         pthread_spin_init(&rmap_lock, 0);
+
+        channels = new GPUChannel[Global::num_gpu_channels];
+        sparql = new SPARQLEngine(sid, tid, str_server, graph, (Coder*) nullptr, (Messenger*) nullptr);
+        ASSERT(channels != nullptr);
+
+        for (int i = 0; i < Global::num_gpu_channels; ++i) {
+            channels[i].init(i, gpu_cache->get_vertex_gaddr(), gpu_cache->get_edge_gaddr(),
+                gpu_cache->get_num_key_blks(), gpu_cache->get_num_value_blks(),
+                gpu_cache->get_nbuckets_kblk(), gpu_cache->get_nentries_vblk());
+        }
+
     }
 
     ~GPUAgent() { }
@@ -88,42 +110,36 @@ public:
         if (adaptor->send(dst_sid, dst_tid, bundle))
             return true;
 
-        // failed to send, then stash the msg to avoid deadlock
-        pending_msgs.push_back(Message(dst_sid, dst_tid, bundle));
         return false;
     }
 
     bool send_sub_query(SPARQLQuery &req, int dst_sid, int dst_tid) {
-        // #1 send query
-        Bundle b(req);
-        if (adaptor->send(dst_sid, dst_tid, b)) {
+        // #1 send query (temporal solution: send full query)
+        unload_rbuf(&req);
+        Bundle bundle(req);
+        if (adaptor->send(dst_sid, dst_tid, bundle)) {
             // #2 send result buffer
-            if (req.result.gpu.rbuf_num_elems() > 0) {
-                adaptor->send_dev2host(dst_sid, dst_tid, req.result.gpu.rbuf(),
-                                       WUKONG_GPU_ELEM_SIZE * req.result.gpu.rbuf_num_elems());
-            }
+            // assert(req.result.gpu.table_size()!=0);
+            // adaptor->send_dev2host(dst_sid, dst_tid, ((char*)req.result.gpu.rbuf()),
+            //                        WUKONG_VID_SIZE * req.result.gpu.table_size());
             return true;
         }
-
         ASSERT(false);
-
-        // TODO if send fail, copy history to CPU and save to a staging area
         return false;
     }
 
     void send_reply(SPARQLQuery &req, int dst_sid, int dst_tid) {
+        // TODO: check whether need to send back result table
+        // only send back row_num in blind mode
         if (req.result.blind) {
             req.shrink();
         }
-
         req.state = SPARQLQuery::SQState::SQ_REPLY;
         req.job_type = SPARQLQuery::SubJobType::FULL_JOB;
         Bundle bundle(req);
         bool ret = send_request(bundle, dst_sid, dst_tid);
         ASSERT(ret == true);
     }
-
-    void sweep_msgs() { }
 
     bool need_parallel(const SPARQLQuery& r) {
         return (coder.tid_of((r).pqid) < Global::num_proxies
@@ -141,20 +157,20 @@ public:
             sub_query.qid = -1;
             sub_query.pqid = req.qid;
             // start from the next engine thread
-            int dst_tid = (tid + 1 - WUKONG_GPU_AGENT_TID) % Global::num_gpus
-                          + WUKONG_GPU_AGENT_TID;
+            int dst_tid = (tid + 1 - WUKONG_GPU_AGENT_TID) % Global::num_gpus + WUKONG_GPU_AGENT_TID;
             sub_query.mt_tid = 0;
             sub_query.mt_factor = 1;
 
             ASSERT(sub_query.job_type != SPARQLQuery::SubJobType::SPLIT_JOB);
             Bundle bundle(sub_query);
-            send_request(bundle, i, dst_tid);
+            bool ret = send_request(bundle, i, dst_tid);
+            ASSERT(ret);
         }
     }
 
-
     // fork-join or in-place execution
     bool need_fork_join(SPARQLQuery &req) {
+        ASSERT(!req.combined);
         // always need NOT fork-join when executing on single machine
         if (Global::num_servers == 1) return false;
 
@@ -165,139 +181,707 @@ public:
         ASSERT(req.result.var_stat(pattern.subject) == KNOWN_VAR);
         ssid_t start = req.get_pattern().subject;
 
-        return ((req.local_var != start)
-                && (req.result.gpu.get_row_num() > 0));
+        return ((req.local_var != start) && (req.result.get_row_num() >= Global::gpu_threshold));
     }
 
-    void execute_sparql_query(SPARQLQuery &req) {
+    bool is_light_query(SPARQLQuery &req){
+        return req.result.get_row_num() < Global::gpu_threshold;
+    }
+
+    std::vector<SPARQLQuery*> generate_sub_query_cpu(SPARQLQuery &req) {
+        SPARQLQuery::Pattern &pattern = req.get_pattern();
+        ssid_t start = pattern.subject;
+
+        // generate sub requests for all servers
+        std::vector<SPARQLQuery*> sub_reqs(Global::num_servers);
+        for (int i = 0; i < Global::num_servers; i++) {
+            SPARQLQuery *req_ptr = new SPARQLQuery;
+            req_ptr->pqid = req.qid;
+            req_ptr->qid = -1;
+            req_ptr->pg_type = (req.pg_type == SPARQLQuery::PGType::UNION) ?
+                                  SPARQLQuery::PGType::BASIC : req.pg_type;
+            req_ptr->pattern_group = req.pattern_group;
+            req_ptr->pattern_step = req.pattern_step;
+            req_ptr->corun_step = req.corun_step;
+            req_ptr->fetch_step = req.fetch_step;
+            req_ptr->local_var = start;
+            req_ptr->priority = req.priority + 1;
+            req_ptr->dev_type = SPARQLQuery::DeviceType::GPU;
+            
+            // metadata
+            req_ptr->result.col_num = req.result.col_num;
+            req_ptr->result.attr_col_num = req.result.attr_col_num;
+            req_ptr->result.blind = req.result.blind;
+            req_ptr->result.v2c_map  = req.result.v2c_map;
+            req_ptr->result.nvars  = req.result.nvars;
+            sub_reqs[i] = req_ptr;
+        }
+
+        // group intermediate results to servers
+        int nrows = req.result.get_row_num();
+        for (int i = 0; i < nrows; i++) {
+            int dst_sid = wukong::math::hash_mod(req.result.get_row_col(i, req.result.var2col(start)),
+                                                 Global::num_servers);
+            req.result.append_row_to(i, sub_reqs[dst_sid]->result.result_table);
+            req.result.append_attr_row_to(i, sub_reqs[dst_sid]->result.attr_res_table);
+
+            if (req.pg_type == SPARQLQuery::PGType::OPTIONAL)
+                sub_reqs[dst_sid]->result.optional_matched_rows.push_back(req.result.optional_matched_rows[i]);
+        }
+
+        for (int i = 0; i < Global::num_servers; i++)
+            sub_reqs[i]->result.update_nrows();
+
+        return sub_reqs;
+    }
+
+    //unload result buffer from GPU to CPU
+    void unload_rbuf(SPARQLQuery *req_ptr){
+        uint64_t start = timer::get_usec();
+        ASSERT(req_ptr->result.gpu.valid());
+        SPARQLQuery::Result &res = req_ptr->result;
+        sid_t *rbuf_d = res.gpu.rbuf();
+        uint32_t size = res.gpu.table_size();
+        std::vector<sid_t> &table = res.result_table;
+
+        table.clear();
+        table.resize(size);
+        thrust::device_ptr<sid_t> dptr(rbuf_d);
+        thrust::copy(dptr, dptr + size, table.begin());
+
+        res.set_device(SPARQLQuery::DeviceType::CPU);
+        res.gpu.clear();
+        res.check_and_sync();
+        req_ptr->job_type = SPARQLQuery::SubJobType::FULL_JOB;
+        logstream(LOG_INFO) << "Unload time:" << timer::get_usec() - start << LOG_endl;
+    }
+
+    void push_into_waiting_queue(SPARQLQuery *req) {
         // encode the lineage of the query (server & thread)
-        if (req.qid == -1) req.qid = coder.get_and_inc_qid();
-
-        logstream(LOG_DEBUG) << "#" << sid << " GPUAgent: "
-                             << "[" << sid << "-" << tid << "]"
-                             << " got a req: r.qid=" << req.qid
-                             << ", pqid=" << req.pqid << ", r.state="
-                             << (req.state == SPARQLQuery::SQState::SQ_REPLY ? "REPLY" : "REQUEST")
-                             << LOG_endl;
-
-        if (need_parallel(req)) {
-            send_to_workers(req);
+        if (req->qid == -1) req->qid = coder.get_and_inc_qid();
+        ASSERT(req->combined == false);
+        //#1 large individual query: directly pushed into queue
+        if(!req->result.is_medium()){
+            task_queue.push_back(req);
             return;
         }
-
-        // if req is a reply
-        if (req.state == SPARQLQuery::SQState::SQ_REPLY) {
-            pthread_spin_lock(&rmap_lock);
-            rmap.put_reply(req);
-
-            if (!rmap.is_ready(req.pqid)) {
-                pthread_spin_unlock(&rmap_lock);
-                return; // not ready (waiting for the rest)
-            }
-
-            // all sub-queries have done, continue to execute
-            req = rmap.get_reply(req.pqid);
-            pthread_spin_unlock(&rmap_lock);
-
-            send_reply(req, coder.sid_of(req.pqid), coder.tid_of(req.pqid));
+        //#2 small individual query: directly pushed into queue
+        if(is_light_query(*req)){
+            task_queue.push_back(req);
             return;
         }
+        //#3 medium query: merged into a combined query
+        SPARQLQuery::PatternType type = req->get_pattern_type();
+        for(SPARQLQuery* req_ptr : task_queue){
+            // individual query
+            if(!req_ptr->combined) continue;
+            CombinedSPARQLQuery* combined_req_ptr = (CombinedSPARQLQuery*)req_ptr;
+            if(combined_req_ptr->type == type && combined_req_ptr->add_job(req)){
+                return;
+            }
+        }
+        //#4 no suitable combined query: create a new combined query
+        CombinedSPARQLQuery* combined_query = new CombinedSPARQLQuery(type);
+        combined_query->add_job(req);
+        task_queue.push_back(combined_query);
+        return;
+    }
 
-        // execute patterns of SPARQL query
-        while (true) {
-            ASSERT(req.dev_type == SPARQLQuery::DeviceType::GPU);
-            ASSERT(req.has_pattern());
+    // Always return true when counter a combined query
+    bool job_not_done(const SPARQLQuery &req) {
+        return ((!req.combined && !req.done(SPARQLQuery::SQState::SQ_PATTERN)) || req.combined);
+    }
 
-            if (!req.done(SPARQLQuery::SQState::SQ_PATTERN)) {
-                if (!gpu_engine->result_buf_ready(req))
-                    gpu_engine->load_result_buf(req);
+    /*
+    * After a pattern has been executed,
+    * update query(on host) meta-data&state 
+    */
+    void update_query_states(GPUChannel &chnl) {
+            ASSERT(chnl.occupier.valid);
+            SPARQLQuery *req_ptr = chnl.occupier.job;
+            ASSERT(req_ptr != nullptr);
+            // check pattern has finished
+            // ASSERT(req_ptr->pattern_step > chnl.occupier.pattern_step);
 
-                gpu_engine->execute_one_pattern(req);
+            size_t table_size = 0;
+            SPARQLQuery::Result &res = req_ptr->result;
+
+            // copy new row num to host
+            if (req_ptr->combined) {
+                logstream(LOG_INFO) << "update_query_states in combined query" << LOG_endl;
+                table_size = req_ptr->result.gpu.table_size();
+                chnl.para.reset();
+            } else {
+                int row_num = 0;
+                CUDA_ASSERT( cudaMemcpy(&row_num,
+                           chnl.para.gpu.d_prefix_sum_list + chnl.para.query.row_num - 1,
+                           sizeof(int), cudaMemcpyDeviceToHost) );
+                if (req_ptr->get_pattern_type() == SPARQLQuery::PatternType::K2U) {
+                    table_size = row_num * (chnl.para.query.col_num + 1);
+                } else {
+                    table_size = row_num * chnl.para.query.col_num;
+                }
+                res.gpu.set_rbuf(chnl.para.gpu.d_out_rbuf, table_size);
             }
 
-            // if req has been finished
-            if (req.done(SPARQLQuery::SQState::SQ_PATTERN)) {
-                // only send back row_num in blind mode
-                req.result.row_num = req.result.get_row_num();
-                send_reply(req, coder.sid_of(req.pqid), coder.tid_of(req.pqid));
+            ASSERT(WUKONG_GPU_RBUF_SIZE(table_size) < MiB2B(Global::gpu_rbuf_size_mb));
+
+            // update query states according to pattern type
+            // combined.update_nrows() will update the pointer to gpu rbuf for each medium jobs.
+            SPARQLQuery::PatternType patternType = req_ptr->get_pattern_type();
+            switch(patternType) {
+                case SPARQLQuery::PatternType::K2U:
+                    if (req_ptr->combined)
+                        req_ptr->update_var2col(0, 0);
+                    else
+                        req_ptr->update_var2col(req_ptr->get_pattern().object, res.get_col_num());
+
+                    req_ptr->update_ncols(res.get_col_num() + 1);
+                    req_ptr->update_nrows();
+                    req_ptr->update_pattern_step();
+#ifdef WUKONG_GPU_DEBUG
+    logstream(LOG_INFO) << "#" << sid << " [end]  " << ((req_ptr->combined) ? ("COMBINED") : "")
+                        << " GPU known_to_unknown: table_size=" << res.gpu.table_size()
+                        << ", row_num=" << res.get_row_num() << ", step=" << req_ptr->pattern_step
+                        << LOG_endl;
+#endif
+                    break;
+                case SPARQLQuery::PatternType::K2C:
+                case SPARQLQuery::PatternType::K2K:
+                    req_ptr->update_nrows();
+                    req_ptr->update_pattern_step();
+
+#ifdef WUKONG_GPU_DEBUG
+    logstream(LOG_INFO) << "#" << sid << " [end]  " << ((req_ptr->combined) ? ("COMBINED") : "")
+                        << " GPU " << (patternType == SPARQLQuery::PatternType::K2C ? "known_to_const" : "known_to_known" )
+                        << " table_size=" << res.gpu.table_size() << ", row_num=" << res.get_row_num()
+                        << ", step=" << req_ptr->pattern_step
+                        << LOG_endl;
+#endif
                 break;
+                default:
+                    ASSERT(false);
             }
+    }
 
-            if (need_fork_join(req)) {
-                logstream(LOG_DEBUG) << "#" << sid << " GPUAgent: fork query r.qid="
-                                     << req.qid << ", r.pqid="
-                                     << req.pqid << LOG_endl;
-                std::vector<SPARQLQuery> sub_reqs = gpu_engine->generate_sub_query(req);
+    void free_channel(GPUChannel &channel) {
+        int qid = channel.occupier.job->qid;
+        channel_map.erase(qid);
+        channel.reset();
+    }
+
+    // These two check functions has side effect: after check, the job is unloaded from GPU.
+    bool need_suspend(SPARQLQuery &req, GPUChannel &channel) {
+        if (req.combined)
+            return check_and_unload_combined(req, channel);
+        else
+            return check_and_unload_single(req, channel);
+    }
+
+    //check if the combined job need suspend 
+    bool check_and_unload_combined(SPARQLQuery &req, GPUChannel &channel) {
+        // TODO: flush channel before unload rbuf
+        CombinedSPARQLQuery &combined = static_cast<CombinedSPARQLQuery&>(req);
+
+        int k2c_rows = 0, k2k_rows = 0, k2u_rows = 0;
+        auto &medium_jobs = combined.get_jobs();
+
+        // first round, remove queries(done, need_fork_join), calculate rows of three patterns
+        for (auto it = medium_jobs.begin(); it != medium_jobs.end();) {
+            SPARQLQuery *req_ptr = it->req_ptr;
+            if (req_ptr->done(SPARQLQuery::SQState::SQ_PATTERN)) {
+                unload_rbuf(req_ptr);
+                send_reply(*req_ptr, coder.sid_of(req_ptr->pqid), coder.tid_of(req_ptr->pqid));
+                // remove from combined query
+                delete req_ptr;
+                it = medium_jobs.erase(it);
+            }else if(req_ptr->result.get_row_num()==0){
+                req_ptr->result.set_device(SPARQLQuery::DeviceType::CPU);
+                req_ptr->result.clear();
+                req_ptr->pattern_step = req_ptr->pattern_group.patterns.size();
+                req_ptr->result.check_and_sync();
+                send_reply(*req_ptr, coder.sid_of(req_ptr->pqid), coder.tid_of(req_ptr->pqid));
+                // remove from combined query
+                delete req_ptr;
+                it = medium_jobs.erase(it);
+            }else if(need_fork_join(*req_ptr)) {
+                logstream(LOG_INFO) << "#" << sid << " GPUAgent: fork query r.qid=" << req_ptr->qid << ", r.pqid=" << req_ptr->pqid << LOG_endl;
+                //[TODO] Can we use generate_sub_query directly for medium jobs in a combined query?
+                std::vector<SPARQLQuery*> sub_reqs = gpu_engine->generate_sub_query(*req_ptr, channel, combined.qid);
                 ASSERT(sub_reqs.size() == Global::num_servers);
 
                 // clear parent's result buf after generating sub-jobs
-                req.result.gpu.clear_rbuf();
-                rmap.put_parent_request(req, sub_reqs.size());
+                req_ptr->result.gpu.clear();
+                req_ptr->result.set_device(SPARQLQuery::DeviceType::CPU);
+
+                int sub_req_num = sub_reqs.size()-std::count(sub_reqs.begin(), sub_reqs.end(), nullptr);
+                rmap.put_parent_request(*req_ptr, sub_req_num);
                 for (int i = 0; i < sub_reqs.size(); i++) {
-                    if (i != sid)
-                        send_sub_query(sub_reqs[i], i, tid);
-                    else
-                        runqueue.push(sub_reqs[i]);
+                    if(sub_reqs[i] == nullptr) continue;
+                    if (i != sid) {
+                        send_sub_query(*sub_reqs[i], i, tid);
+                        delete sub_reqs[i];
+                    } else{
+                        unload_rbuf(sub_reqs[i]);
+                        push_into_waiting_queue(sub_reqs[i]);
+                    }
                 }
-                break;
+                it = medium_jobs.erase(it);
+            }else if(is_light_query(*req_ptr) && Global::num_servers != 1 
+                        && req_ptr->local_var != req_ptr->get_pattern().subject){
+                unload_rbuf(req_ptr);
+                push_into_waiting_queue(req_ptr);
+                it = medium_jobs.erase(it);
+            }else {
+                if(req_ptr->get_pattern_type() == SPARQLQuery::PatternType::K2C){
+                    k2c_rows += req_ptr->result.get_row_num();
+                }else if(req_ptr->get_pattern_type() == SPARQLQuery::PatternType::K2K){
+                    k2k_rows += req_ptr->result.get_row_num();
+                }else if(req_ptr->get_pattern_type() == SPARQLQuery::PatternType::K2U){
+                    k2u_rows += req_ptr->result.get_row_num();
+                }else{ ASSERT(false); }
+                it++;
             }
         }
+
+        logstream(LOG_INFO) << "k2c_rows:" << k2c_rows 
+                            << ", k2k_rows:" << k2k_rows 
+                            << ", k2u_rows:" << k2u_rows << LOG_endl;
+
+        // determine how to do next
+        SPARQLQuery::PatternType select_type = SPARQLQuery::PatternType::I2U;
+        if(k2c_rows >= k2k_rows && k2c_rows >= k2u_rows 
+            && (k2c_rows > Global::pattern_combine_rows/2 || medium_jobs.size() == Global::pattern_combine_window)){
+            select_type = SPARQLQuery::PatternType::K2C;
+        }else if(k2u_rows >= k2k_rows && k2u_rows >= k2c_rows 
+            && (k2u_rows > Global::pattern_combine_rows/2 || medium_jobs.size() == Global::pattern_combine_window)){
+            select_type = SPARQLQuery::PatternType::K2U;
+        }else if(k2k_rows >= k2c_rows && k2k_rows >= k2u_rows 
+            && (k2k_rows > Global::pattern_combine_rows/2 || medium_jobs.size() == Global::pattern_combine_window)){
+            select_type = SPARQLQuery::PatternType::K2K;
+        }
+
+        // second round, remove queries of other pattern type, remain queries of the same type in the job list
+        for (auto it = medium_jobs.begin(); it != medium_jobs.end();) {
+            SPARQLQuery *req_ptr = it->req_ptr;
+            if (req_ptr->get_pattern_type() == select_type) {
+                it++;
+            } else {
+                unload_rbuf(req_ptr);
+                push_into_waiting_queue(req_ptr);
+                it = medium_jobs.erase(it);
+            }
+        }
+
+        if (medium_jobs.empty()) {
+            return true;
+        } else {
+            logstream(LOG_INFO) << "#" << sid << " GPUAgent: Select in check_combined, type=" << select_type << LOG_endl;
+            combined.type = select_type;
+            return false;
+        }
+    }
+    uint64_t start_time, end_time;
+
+    //check if the normal job 1.need suspend and wait to be combined or 2.is finished
+    bool check_and_unload_single(SPARQLQuery &req, GPUChannel &channel) {
+        uint64_t start = timer::get_usec();
+
+        // if the query is done
+        if (req.done(SPARQLQuery::SQState::SQ_PATTERN)) {
+            if(req.result.get_row_num()!=0){
+                unload_rbuf(&req);
+            }else{
+                req.result.set_device(SPARQLQuery::DeviceType::CPU);
+                req.result.clear();
+            }
+            logstream(LOG_INFO) << "#" << sid << " GPUAgent: return reply r.qid=" << req.qid << ", r.pqid=" << req.pqid << LOG_endl;
+            send_reply(req, coder.sid_of(req.pqid), coder.tid_of(req.pqid));
+            delete &req;
+            return true;
+        }
+
+        // fast reply
+        if(req.result.get_row_num()==0){
+            req.result.set_device(SPARQLQuery::DeviceType::CPU);
+            req.result.clear();
+            req.result.check_and_sync();
+            req.pattern_step = req.pattern_group.patterns.size();
+            send_reply(req, coder.sid_of(req.pqid), coder.tid_of(req.pqid));
+            delete &req;
+            return true;
+        }
+
+        // check whether the single query need fork and join
+        if (need_fork_join(req)) {
+            logstream(LOG_INFO) << "#" << sid << " GPUAgent: fork query r.qid=" << req.qid << ", r.pqid=" << req.pqid << LOG_endl;
+            std::vector<SPARQLQuery*> sub_reqs = gpu_engine->generate_sub_query(req, channel, req.qid);
+            ASSERT(sub_reqs.size() == Global::num_servers);
+
+            // clear parent's result buf after generating sub-jobs
+            req.result.gpu.clear();
+            req.result.set_device(SPARQLQuery::DeviceType::CPU);
+
+            int sub_req_num = sub_reqs.size()-std::count(sub_reqs.begin(), sub_reqs.end(), nullptr);
+            rmap.put_parent_request(req, sub_req_num);
+            for (int i = 0; i < sub_reqs.size(); i++) {
+                if(sub_reqs[i] == nullptr) continue;
+                if (i != sid) {
+                    send_sub_query(*sub_reqs[i], i, tid);
+                    delete sub_reqs[i];
+                } else{
+                    unload_rbuf(sub_reqs[i]);
+                    push_into_waiting_queue(sub_reqs[i]);
+                }
+            }
+            return true;
+        }
+
+        // check whether next pattern is medium or large
+        // If the query become a medium/2 query, push into waiting queue
+        if (req.result.get_row_num() < Global::gpu_threshold 
+            || req.result.is_medium_for_single()) {
+            logstream(LOG_INFO) << "#" << sid << "Push into waiting queue in check_and_unload_single" << LOG_endl;
+            start_time = timer::get_usec();
+            logstream(LOG_INFO) << "Hybrid GPU/CPU switch start:" << start_time << LOG_endl;
+            unload_rbuf(&req);
+            push_into_waiting_queue(&req);
+            return true;
+        }
+
+        // otherwise we continue executing this query
+        return false;
+    }
+
+    /* Get a new query to execute in a Channel */
+    SPARQLQuery *get_next_query() {
+        SPARQLQuery *query = nullptr;
+        // when there is no task in queue, keep fetching new query
+        if(task_queue.empty()){
+            fetch_jobs();
+            if(task_queue.empty()) return nullptr;
+        }
+        query = task_queue.front();
+        // encounter a not-full combined query, fetch some jobs
+        if(query->combined 
+            && ((CombinedSPARQLQuery*)query)->combined_row_num() < Global::pattern_combine_rows 
+            && !((CombinedSPARQLQuery*)query)->full()){
+            fetch_jobs();
+        }
+        query = task_queue.front();
+        task_queue.pop_front();
+        // if the combined query only contains a single query, execute it as a single query
+        if(query->combined && ((CombinedSPARQLQuery*)query)->combined_job_size() == 1){
+            logstream(LOG_INFO) << "get a single query from a combined query!" << LOG_endl;
+            CombinedSPARQLQuery* combined_query = ((CombinedSPARQLQuery*)query);
+            query = combined_query->get_jobs().front().req_ptr;
+            combined_query->get_jobs().pop_front();
+            delete combined_query;
+        }
+        return query;
+    }
+
+    /* Begin a new round of fetching new jobs */
+    void fetch_jobs(){
+        Bundle bundle;
+        int sender = 0;
+        int fetched_jobs_cnt = 0;
+
+        while (adaptor->tryrecv(bundle, sender)) {
+            ASSERT(bundle.type == SPARQL_QUERY);
+            SPARQLQuery *req = new SPARQLQuery;
+            *req = bundle.get_sparql_query();
+            // check this query is a GPU query
+            ASSERT(req->dev_type == SPARQLQuery::DeviceType::GPU);
+
+            logstream(LOG_DEBUG) << "#" << sid << " GPUAgent: "
+                        << "[" << sid << "-" << tid << "]"
+                        << " fetch a req: r.qid=" << req->qid
+                        << ", pqid=" << req->pqid << ", r.state="
+                        << (req->state == SPARQLQuery::SQState::SQ_REPLY ? "REPLY" : "REQUEST")
+                        << ", step: " << req->pattern_step 
+                        << ", col num: " << req->result.get_col_num()
+                        << ", row num: " << req->result.row_num 
+                        << LOG_endl;
+
+            /* If the query is a reply, handle reply immediately */
+            if (req->state == SPARQLQuery::SQState::SQ_REPLY) {
+                // handle reply from other servers
+                pthread_spin_lock(&rmap_lock);
+                rmap.put_reply(*req);
+
+                // not ready (waiting for the rest)
+                if (!rmap.is_ready(req->pqid)) {
+                    pthread_spin_unlock(&rmap_lock);
+                }else{ // all sub-queries have done, send back the merged reply
+                    *req = rmap.get_reply(req->pqid);
+                    pthread_spin_unlock(&rmap_lock);
+                    ASSERT(req->done(SPARQLQuery::SQState::SQ_PATTERN));
+                    send_reply(*req, coder.sid_of(req->pqid), coder.tid_of(req->pqid));
+                }
+                delete req;
+                continue;
+            }
+
+            fetched_jobs_cnt++;
+
+            // encode the lineage of the query (server & thread)
+            if (req->qid == -1) req->qid = coder.get_and_inc_qid();
+            // if recv a SPLIT_JOB, recv its result which is sent by GPUDirect
+            if (req->job_type == SPARQLQuery::SubJobType::SPLIT_JOB) {
+                // If the result table is empty, it should not be sent
+                ASSERT(req->result.gpu.table_size() > 0);
+                // We need to wait for the result buffer if it is sent by GPUDirect RDMA.
+                std::string rbuf_str;
+                rbuf_str = adaptor->recv(sender);
+                ASSERT(!rbuf_str.empty());
+
+                // store rbuf_str to result_table
+                sid_t *rbuf = (sid_t*)rbuf_str.data();
+                req->result.result_table = std::vector<sid_t>(rbuf, rbuf + req->result.gpu.table_size());
+                req->result.set_device(SPARQLQuery::DeviceType::CPU);
+                req->result.gpu.clear();
+                req->job_type = SPARQLQuery::SubJobType::FULL_JOB;   // set to FULL_JOB
+            }
+            // push the task into waiting queue
+            push_into_waiting_queue(req);
+
+            if (fetched_jobs_cnt >= Global::pattern_combine_window * Global::num_gpu_channels)
+                break;
+        }   // end of recv loop
     }
 
     void run() {
-
-        bool has_job;
+        logstream(LOG_EMPH) << "Pattern-Combining non-blocking version." << LOG_endl;
+        uint32_t idx = 0;
         while (true) {
             if(!Global::use_rdma){
-                logstream(LOG_ERROR) << "Currently, GPUAgent cannot run without RDMA, sleeping." << LOG_endl;
-                while(!Global::use_rdma){}
+                logstream(LOG_ERROR) << "For now, GPUAgent cannot run without RDMA, exited." << LOG_endl;
+                break;
             }
+            idx = (channel_rr_cnt++ % Global::num_gpu_channels);
+            auto &channel = channels[idx];
 
-            has_job = false;
+            SPARQLQuery *req_ptr = nullptr;
 
-            // check and send pending messages first
-            sweep_msgs();
+            if (!channel.taken) {
+                req_ptr = get_next_query();
+                if(req_ptr == nullptr) continue;
+                // encode the lineage of the query (server & thread)
+                if (req_ptr->qid == -1) req_ptr->qid = coder.get_and_inc_qid();
 
-            SPARQLQuery req;
-            if (runqueue.try_pop(req)) {
-                execute_sparql_query(req);
-                continue; // exhaust all queries
-            }
+                if (need_parallel(*req_ptr)) {
+                    logstream(LOG_DEBUG) << "#" << sid << " GPUAgent: parallel query r.qid=" << req_ptr->qid 
+                                         << ", r.pqid=" << req_ptr->pqid << LOG_endl;
+                    send_to_workers(*req_ptr);
+                    continue;
+                }
 
-            Bundle bundle;
-            int sender = 0;
-            while (adaptor->tryrecv(bundle, sender)) {
-                if (bundle.type == SPARQL_QUERY) {
-                    // To be fair, agent will handle sub-queries first, instead of a new job.
-                    SPARQLQuery req = bundle.get_sparql_query();
-                    ASSERT(req.dev_type == SPARQLQuery::DeviceType::GPU);
+                if (req_ptr->pattern_step == 0 && req_ptr->start_from_index()) {
+                    logstream(LOG_INFO) << "Execute index_to_unknown" << LOG_endl;
+                    // execute the first step
+                    gpu_engine->index_to_unknown(*req_ptr);
+                    ASSERT(!req_ptr->done(SPARQLQuery::SQState::SQ_PATTERN));
+                    ASSERT(!need_fork_join(*req_ptr));
+                    push_into_waiting_queue(req_ptr);
+                    continue;
+                } else if (req_ptr->pattern_step == 0 && req_ptr->start_from_const()) {
+                    logstream(LOG_INFO) << "Execute const_to_unknown" << LOG_endl;
+                    // execute the first step
+                    gpu_engine->const_to_unknown(*req_ptr);
+                    ASSERT(!req_ptr->done(SPARQLQuery::SQState::SQ_PATTERN));
+                    if(need_fork_join(*req_ptr)){
+                        std::vector<SPARQLQuery*> sub_reqs = generate_sub_query_cpu(*req_ptr);
+                        ASSERT(sub_reqs.size() == Global::num_servers);
+                        rmap.put_parent_request(*req_ptr, sub_reqs.size());
+                        for (int i = 0; i < sub_reqs.size(); i++) {
+                            if (i != sid) {
+                                Bundle bundle(*sub_reqs[i]);
+                                send_request(bundle, i, tid);
+                                delete sub_reqs[i];
+                            } else{
+                                push_into_waiting_queue(sub_reqs[i]);
+                            }
+                        }
+                    }else{
+                        push_into_waiting_queue(req_ptr);
+                    }
+                    continue;
+                } else if(!req_ptr->combined && is_light_query(*req_ptr)){
+                    end_time = timer::get_usec();
+                    logstream(LOG_INFO) << "Hybrid GPU/CPU switching time:" << end_time - start_time << " us" << LOG_endl; 
+                    logstream(LOG_EMPH) << "#" << sid << " Begin to execute query on CPU #" << req_ptr->qid << ", parent: " << req_ptr->pqid
+                             << ", step: " << req_ptr->pattern_step << ", col num: " << req_ptr->result.get_col_num()
+                             << ", row num: " << req_ptr->result.get_row_num() << LOG_endl;
+                    uint64_t start_cpu_exec = timer::get_usec();
+                    sparql->execute_one_pattern(*req_ptr);
+                    uint64_t end_cpu_exec = timer::get_usec();
+                    logstream(LOG_INFO) << "#" << sid << "CPU execution time:" << end_cpu_exec-start_cpu_exec << " usec" << LOG_endl;
+                    if (req_ptr->done(SPARQLQuery::SQState::SQ_PATTERN)) {
+                        logstream(LOG_INFO) << "#" << sid << " GPUAgent: return reply r.qid=" << req_ptr->qid << ", r.pqid=" << req_ptr->pqid << LOG_endl;
+                        send_reply(*req_ptr, coder.sid_of(req_ptr->pqid), coder.tid_of(req_ptr->pqid));
+                        delete req_ptr;
+                    }else if(need_fork_join(*req_ptr)){
+                        std::vector<SPARQLQuery*> sub_reqs = generate_sub_query_cpu(*req_ptr);
+                        ASSERT(sub_reqs.size() == Global::num_servers);
+                        rmap.put_parent_request(*req_ptr, sub_reqs.size());
+                        for (int i = 0; i < sub_reqs.size(); i++) {
+                            if (i != sid) {
+                                Bundle bundle(*sub_reqs[i]);
+                                send_request(bundle, i, tid);
+                                delete sub_reqs[i];
+                            } else{
+                                push_into_waiting_queue(sub_reqs[i]);
+                            }
+                        }
+                    }else{
+                        push_into_waiting_queue(req_ptr);
+                    }
+                    continue;
+                }else {
+                    logstream(LOG_INFO) << "Query:"<< req_ptr->qid << " occupy channel:" << idx << LOG_endl;
+                    channel_map[req_ptr->qid] = &channel;
+                    channel.set_occupier(req_ptr);
+                }
+            } else {
+                auto poll_result = channel.poll_finish_event();
+                if (poll_result == cudaSuccess) {
+                    req_ptr = channel.occupier.job;
+                    // check for possible error code!
+                    if(channel.error_code == GPUErrorCode::GIANT_TOTAL_RESULT_TABLE){
+                        ASSERT(!req_ptr->combined);
+                        subquery_list_t split_queries = gpu_engine->split_giant_query(*req_ptr, channel);
+                        // clear parent's result buf after generating sub-jobs
+                        req_ptr->result.gpu.clear();
+                        req_ptr->result.set_device(SPARQLQuery::DeviceType::CPU);
 
-                    // We need to wait for the result buffer if it is sent by GPUDirect RDMA.
-                    if (req.job_type == SPARQLQuery::SubJobType::SPLIT_JOB
-                            && req.result.gpu.rbuf_num_elems() > 0) {
-                        // recv result buffer
-                        std::string rbuf_str;
-                        rbuf_str = adaptor->recv(sender);
-                        ASSERT(rbuf_str.size() > 0);
-                        ASSERT(rbuf_str.empty() == false);
-                        gpu_engine->load_result_buf(req, rbuf_str);
+                        int split_query_num = split_queries.size()-std::count(split_queries.begin(), split_queries.end(), nullptr);
+                        rmap.put_parent_request(*req_ptr, split_query_num);
+                        for (int i = 0; i < split_queries.size(); i++) {
+                            if(split_queries[i] == nullptr) continue;
+                            unload_rbuf(split_queries[i]);
+                            push_into_waiting_queue(split_queries[i]);
+                        }
+                        channel.error_code = GPUErrorCode::NORMAL;
+                        delete channel.error_info;
+                        channel.error_info = nullptr;
+                        // make this channel available
+                        free_channel(channel);
+                        gpu_engine->free_result_buf(req_ptr->qid);
+                        continue;
                     }
 
-                    if (req.priority != 0) {
-                        execute_sparql_query(req);
-                        break;
-                    }
+                    // update states of the query, which acts as a callback
+                    uint64_t start_update_query_states = timer::get_usec();
+                    update_query_states(channel);
+                    uint64_t end_update_query_states = timer::get_usec();
+                    logstream(LOG_INFO) << "update query state time:" << end_update_query_states-start_update_query_states << LOG_endl;
 
-                    runqueue.push(req);
+                    logstream(LOG_DEBUG) << "#" << sid << " a pattern of query #" << req_ptr->qid 
+                                << " is done, parent: " << req_ptr->pqid
+                                << ", step: " << req_ptr->pattern_step 
+                                << ", col num: " << req_ptr->result.get_col_num()
+                                << ", row num: " << req_ptr->result.get_row_num() << LOG_endl;
+
+                    // check whether the job is finished or should be suspended
+                    if (need_suspend(*req_ptr, channel)) {
+                        // release the channel
+                        free_channel(channel);
+                        gpu_engine->free_result_buf(req_ptr->qid);
+                        // cudaProfilerStop();
+                        // cudaProfilerStart();
+                        continue;
+                    }
                 } else {
-                    ASSERT(false);
+                    ASSERT(poll_result == cudaErrorNotReady);
+                    logstream(LOG_DEBUG) << "Channel not ready!!!" << LOG_endl;
+                    continue;
                 }
             }
+
+            logstream(LOG_INFO) << "#" << sid << " Begin to execute query #" << req_ptr->qid << ", parent: " << req_ptr->pqid
+                             << ", step: " << req_ptr->pattern_step << ", col num: " << req_ptr->result.get_col_num()
+                             << ", row num: " << req_ptr->result.get_row_num() << LOG_endl;
+
+            /* If control flow reach here, two case:
+            *    1.Finsih one pattern in a channel, don't need to suspend, so we continue to execute
+            *    2.A new query is put into a channel and begin to execute
+            */
+            /* Begin to process one pattern */
+            SPARQLQuery &req = *req_ptr;
+            ASSERT(job_not_done(req));
+
+            int table_size = req.result.get_col_num()* req.result.get_row_num();
+            ASSERT(WUKONG_GPU_RBUF_SIZE(table_size) < MiB2B(Global::gpu_rbuf_size_mb));
+            uint64_t start = timer::get_usec();
+
+            /* gpu engine will allocate a gpu rbuf for the query if needed */
+            if (!gpu_engine->result_buf_ready(req)) {
+                gpu_engine->load_result_buf(req, channel);
+            }
+
+            uint64_t end_load_buffer = timer::get_usec();
+            logstream(LOG_INFO) << "#" << sid << "Load buffer time:" << end_load_buffer-start << " usec" << LOG_endl;
+
+            /* begin to execute this query */
+            ASSERT(req.result.gpu.valid());
+            gpu_engine->execute_one_pattern(req, channel);
+
+            uint64_t end_execute = timer::get_usec();
+            logstream(LOG_INFO) << "#" << sid << "Execute a pattern time:" << end_execute-end_load_buffer << " usec" << LOG_endl;
+
+            /* push a finish event to channel */
+            channel.add_finish_event();
         }
     }
 
+    //[TODO] The code below will be used in non-blocking channel!! 
+    /*GPUChannel &get_free_channel(SPARQLQuery &req) {
+        auto it = channel_map.find(req.qid);
+        if (it != channel_map.end()) {
+            auto chnl_ptr = it->second;
+            ASSERT(chnl_ptr->taken);
+            ASSERT(chnl_ptr->occupier.job == &req);
+
+            cudaEventSynchronize(chnl_ptr->finish_event());
+            update_query_states(*(chnl_ptr));
+            return *chnl_ptr;
+        }
+
+        for (int i = 0; i < Global::num_gpu_channels; ++i) {
+            if (!channels[i].taken) {
+                channel_map[req.qid] = &channels[i];
+                channels[i].taken = true;
+                channels[i].set_occupier(&req);
+                return channels[i];
+            }
+        }
+
+        // all channels are busy, we need to flush one of them
+        uint32_t rr_cnt = 0;
+        while (true) {
+            uint32_t idx = (rr_cnt++ % Global::num_gpu_channels);
+            auto &chnl = channels[idx];
+            ASSERT(chnl.taken);
+
+            auto poll_result = cudaEventQuery(chnl.finish_event());
+            if (poll_result == cudaSuccess) {
+                // update states of the query, which acts as a callback
+                update_query_states(chnl);
+
+                // make this channel available
+                chnl.reset();
+
+                // got a free channel now
+                return chnl;
+            } else if (poll_result != cudaErrorNotReady) {
+                logstream(LOG_ERROR) << "Unexpected cudaEvent poll result: " << poll_result << LOG_endl;
+                ASSERT(false);
+            }
+        }
+    }*/
 };
 
-} // namespace wukong
+}  // namespace wukong
 
 #endif  // USE_GPU

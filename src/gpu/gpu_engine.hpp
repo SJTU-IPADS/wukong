@@ -24,26 +24,24 @@
 
 #ifdef USE_GPU
 
-#include <boost/unordered_set.hpp>
-#include <boost/unordered_map.hpp>
 #include <vector>
 
 #include "core/common/type.hpp"
-
-#include "core/engine/rmap.hpp"
-
 #include "core/store/dgraph.hpp"
+#include "core/sparql/query.hpp"
 
 // gpu
 #include "gpu_engine_cuda.hpp"
+#include "gpu_channel.hpp"
+#include "gpu_mem.hpp"
 
-#include "core/network/adaptor.hpp"
-
-#include "core/sparql/query.hpp"
+#include "core/engine/rmap.hpp"
 
 #include "utils/assertion.hpp"
 #include "utils/math.hpp"
 #include "utils/timer.hpp"
+
+#include <tbb/concurrent_queue.h>
 
 namespace wukong {
 
@@ -52,9 +50,9 @@ private:
     int sid;    // server id
     int tid;    // thread id
 
-    DGraph *graph;
-    Adaptor *adaptor;
-    Messenger *msgr;
+    DGraph *graph = nullptr;
+    GPUMem *gmem = nullptr;
+
     RMap rmap; // a map of replies for pending (fork-join) queries
     pthread_spinlock_t rmap_lock;
 
@@ -62,6 +60,7 @@ private:
 
     tbb::concurrent_queue<SPARQLQuery> sub_queries;
 
+public:
     void index_to_unknown(SPARQLQuery &req) {
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t tpid = pattern.subject;
@@ -70,6 +69,7 @@ private:
         ssid_t var  = pattern.object;
         SPARQLQuery::Result &res = req.result;
 
+        ASSERT_MSG((res.var2col(var) == NO_RESULT), "GPUEngine doesn't support index_to_known");
         ASSERT(id01 == PREDICATE_ID || id01 == TYPE_ID); // predicate or type index
         ASSERT(res.get_col_num() == 0);
 
@@ -100,6 +100,7 @@ private:
     }
 
     void const_to_unknown(SPARQLQuery &req) {
+        logstream(LOG_INFO) << "#" << sid << " [CONST_TO_UNKNOWN] " << LOG_endl;
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start = pattern.subject;
         ssid_t pid   = pattern.predicate;
@@ -124,34 +125,29 @@ private:
         req.pattern_step++;
     }
 
-    void known_to_unknown(SPARQLQuery &req) {
-        SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ssid_t start = pattern.subject;
-        ssid_t pid   = pattern.predicate;
-        dir_t d      = pattern.direction;
-        ssid_t end   = pattern.object;
-        SPARQLQuery::Result &res = req.result;
+    void known_to_unknown(SPARQLQuery &req, GPUChannel &channel) {
 
         std::vector<sid_t> updated_result_table;
+        SPARQLQuery::Result &res = req.result;
 
-        logstream(LOG_DEBUG) << "#" << sid
-                             << " [begin] known_to_unknown: row_num=" << res.gpu.get_row_num()
-                             << ", step=" << req.pattern_step << LOG_endl;
-        if (!res.gpu.is_rbuf_empty()) {
-            backend.known_to_unknown(req, start, pid, d, updated_result_table);
+#ifdef WUKONG_GPU_DEBUG
+        logstream(LOG_INFO) << "#" << sid << " [begin] " << ((req.combined) ? ("COMBINED") : "")
+                            << " GPU known_to_unknown: table_size=" << res.gpu.table_size()
+                            << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
+#endif
+
+        if (!res.gpu.empty()) {
+            if (req.combined) {
+                backend.known_to_unknown_combined(req, updated_result_table, channel);
+            } else {
+                SPARQLQuery::Pattern &pattern = req.get_pattern();
+                ssid_t start = pattern.subject;
+                ssid_t pid   = pattern.predicate;
+                dir_t d      = pattern.direction;
+                backend.known_to_unknown(req, start, pid, d, updated_result_table, channel);
+            }
         }
 
-        // update result and metadata
-        res.result_table.swap(updated_result_table);
-        res.add_var2col(end, res.get_col_num());
-        res.set_col_num(res.get_col_num() + 1);
-        res.update_nrows();
-
-        req.pattern_step++;
-        logstream(LOG_DEBUG) << "#" << sid
-                             << "[end] GPU known_to_unknown: table_size=" << res.gpu.rbuf_num_elems()
-                             << ", row_num=" << res.gpu.get_row_num() << ", step=" << req.pattern_step
-                             << LOG_endl;
     }
 
     /// ?Y P ?X . (?Y and ?X are KNOWN)
@@ -159,32 +155,28 @@ private:
     ///
     /// 1) Use [?Y]+P1 to retrieve all of neighbors
     /// 2) Match [?Y]'s X within above neighbors
-    void known_to_known(SPARQLQuery &req) {
-        SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ssid_t start = pattern.subject;
-        ssid_t pid   = pattern.predicate;
-        dir_t d      = pattern.direction;
-        ssid_t end   = pattern.object;
+    void known_to_known(SPARQLQuery &req, GPUChannel &channel) {
+        std::vector<sid_t> updated_result_table;
         SPARQLQuery::Result &res = req.result;
 
-        std::vector<sid_t> updated_result_table;
+#ifdef WUKONG_GPU_DEBUG
+        logstream(LOG_INFO) << "#" << sid << " [begin] " << ((req.combined) ? ("COMBINED") : "")
+                            << " GPU known_to_known: table_size=" << res.gpu.table_size()
+                            << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
+#endif
 
-        logstream(LOG_DEBUG) << "#" << sid
-                             << " [begin] known_to_known: row_num=" << res.gpu.get_row_num()
-                             << ", step=" << req.pattern_step
-                             << LOG_endl;
-        if (!res.gpu.is_rbuf_empty()) {
-            backend.known_to_known(req, start, pid, end, d, updated_result_table);
+        if (!res.gpu.empty()) {
+            if (req.combined) {
+                backend.known_to_known_combined(req, updated_result_table, channel);
+            } else {
+                SPARQLQuery::Pattern &pattern = req.get_pattern();
+                ssid_t start = pattern.subject;
+                ssid_t pid   = pattern.predicate;
+                dir_t d      = pattern.direction;
+                ssid_t end   = pattern.object;
+                backend.known_to_known(req, start, pid, end, d, updated_result_table, channel);
+            }
         }
-
-        // update result and metadata
-        res.result_table.swap(updated_result_table);
-        res.update_nrows();
-
-        req.pattern_step++;
-        logstream(LOG_DEBUG) << "#" << sid << "[end] GPU known_to_known: table_size=" << res.gpu.rbuf_num_elems()
-                             << ", row_num=" << res.gpu.get_row_num() << ", step=" << req.pattern_step
-                             << LOG_endl;
     }
 
     /// ?X P C . (?X is KNOWN)
@@ -192,93 +184,183 @@ private:
     ///
     /// 1) Use [?X]+P1 to retrieve all of neighbors
     /// 2) Match E1 within above neighbors
-    void known_to_const(SPARQLQuery &req) {
-
-        SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ssid_t start = pattern.subject;
-        ssid_t pid   = pattern.predicate;
-        dir_t d      = pattern.direction;
-        ssid_t end   = pattern.object;
-        SPARQLQuery::Result &res = req.result;
+    void known_to_const(SPARQLQuery &req, GPUChannel &channel) {
 
         std::vector<sid_t> updated_result_table;
+        SPARQLQuery::Result &res = req.result;
 
-        logstream(LOG_DEBUG) << "#" << sid << " [begin] known_to_const: row_num=" << res.gpu.get_row_num()
-                             << ", step=" << req.pattern_step << LOG_endl;
-        if (!res.gpu.is_rbuf_empty()) {
-            backend.known_to_const(req, start, pid, end, d, updated_result_table);
+#ifdef WUKONG_GPU_DEBUG
+        logstream(LOG_INFO) << "#" << sid << " [begin] " << ((req.combined) ? ("COMBINED") : "")
+                            << " GPU known_to_const: table_size=" << res.gpu.table_size()
+                            << ", row_num=" << res.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
+#endif
+
+        if (!res.gpu.empty()) {
+            if (req.combined) {
+                backend.known_to_const_combined(req, updated_result_table, channel);
+            } else {
+                SPARQLQuery::Pattern &pattern = req.get_pattern();
+                ssid_t start = pattern.subject;
+                ssid_t pid   = pattern.predicate;
+                dir_t d      = pattern.direction;
+                ssid_t end   = pattern.object;
+                backend.known_to_const(req, start, pid, end, d, updated_result_table, channel);
+            }
         }
 
-        // update result and metadata
-        res.result_table.swap(updated_result_table);
-        res.update_nrows();
-
-        req.pattern_step++;
-        logstream(LOG_DEBUG) << "#" << sid << "[end] GPU known_to_const: table_size=" << res.gpu.rbuf_num_elems()
-                             << ", row_num=" << res.gpu.get_row_num() << ", step=" << req.pattern_step << LOG_endl;
     }
 
-    // when need to access neighbors of a remote vertex, we need to fork the query
-    bool need_fork_join(SPARQLQuery &req) {
-        // always need NOT fork-join when executing on single machine
-        if (Global::num_servers == 1) return false;
+    // GPUEngine(int sid, int tid, GPUMem *gmem, GPUCache *gcache, GPUStreamPool *stream_pool, DGraph *graph)
+    //     : sid(sid), tid(tid), gmem(gmem), backend(sid, gcache, gmem, stream_pool), graph(graph) {
 
-        // always need fork-join mode w/o RDMA
-        if (!Global::use_rdma) return true;
-
-        SPARQLQuery::Pattern &pattern = req.get_pattern();
-        ASSERT(req.result.var_stat(pattern.subject) == KNOWN_VAR);
-        sid_t start = req.get_pattern().subject;
-
-        // GPUEngine only supports fork-join mode now
-        return ((req.local_var != start)
-                && (req.result.gpu.get_row_num() >= 0));
-    }
-
-
-public:
-    GPUEngine(int sid, int tid, GPUMem *gmem, GPUCache *gcache, GPUStreamPool *stream_pool, DGraph *graph)
-        : sid(sid), tid(tid), backend(sid, gcache, gmem, stream_pool), graph(graph) {
+    // }
+    GPUEngine(int sid, int tid, GPUMem *gmem, GPUCache *gcache, DGraph *graph)
+        : sid(sid), tid(tid), gmem(gmem), backend(sid, gcache, gmem), graph(graph) {
 
     }
 
     ~GPUEngine() { }
 
     // check whether intermediate result (rbuf) is loaded into GPU
-    bool result_buf_ready(const SPARQLQuery &req) {
-        if (req.pattern_step == 0)
+    // TODO: think about carefully how to check whether
+    // the result buffer is ready (for combined and single)
+    bool result_buf_ready(SPARQLQuery &req) {
+        if (req.combined) {
+            CombinedSPARQLQuery &combined = static_cast<CombinedSPARQLQuery&>(req);
+            for (auto const& job : combined.get_jobs()) {
+                if (!job.rbuf_info.loaded)
+                    return false;
+            }
             return true;
-        else
-            return req.result.gpu.is_rbuf_valid();
+        }
+
+        if (req.result.gpu.valid() && req.result.gpu.table_size() > 0)
+            return true;
+        // if (req.pattern_step > 0 && req.result.result_table.empty())
+            // return true;
+        if (req.result.gpu.valid() && req.result.result_table.empty())
+            return true;
+
+        return false;
     }
 
-    void load_result_buf(SPARQLQuery &req) {
-        char *rbuf = backend.load_result_buf(req.result);
-        req.result.gpu.set_rbuf(rbuf, req.result.result_table.size());
+    void free_result_buf(int qid) {
+        gmem->free_rbuf(qid);
     }
 
+    void load_result_buf(SPARQLQuery &req, GPUChannel &channel) {
+        size_t off = 0, table_size = 0;
+
+        // allocate a result buffer
+        ASSERT(gmem != nullptr);
+        GPUMem::rbuf_t *rbuf_ptr = gmem->alloc_rbuf(req.qid);
+
+        if (req.combined) {
+            CombinedSPARQLQuery &combined = static_cast<CombinedSPARQLQuery&>(req);
+
+            auto it = combined.get_jobs().begin();
+
+            if (combined.staged) {
+                off += backend.load_result_buf(0, combined.staged_table, rbuf_ptr->get_inbuf(), channel.get_stream());
+                size_t total = 0;
+                for (; it != combined.get_jobs().end(); ++it) {
+                    rbuf_info_t& rbuf_info = it->rbuf_info;
+                    ASSERT(rbuf_info.loaded == false);
+                    rbuf_info.start_off = total;
+                    rbuf_info.loaded = true;
+                    //[QUESTION] why comment this line?
+                    // it->req_ptr->result.gpu.set_rbuf(rbuf_ptr.get_inbuf() + rbuf_info.start_off, rbuf_info.size);
+                    total += it->rbuf_info.size;
+                    //[TODO] If we use non-blocking channel, the following assertion may be triggered!!
+                    if (total >= off){
+                        assert(false);
+                        break;
+                    }
+                }
+
+                table_size += total;
+                combined.staged = false;
+
+                // clear staged table
+                std::vector<sid_t> empty_vec;
+                combined.staged_table.swap(empty_vec);
+
+            } else {
+                off = combined.rbuf_offset();
+            }
+
+            // only copy result_table of patterns which are not loaded
+            for (; it != combined.get_jobs().end(); ++it) {
+                if (it->rbuf_info.loaded)
+                    continue;
+
+                SPARQLQuery::Result &res = it->req_ptr->result;
+                size_t nvids = backend.load_result_buf(off, res.result_table, rbuf_ptr->get_inbuf(), channel.get_stream());
+                res.gpu.set_rbuf(rbuf_ptr->get_inbuf() + off, nvids);
+                res.set_device(SPARQLQuery::DeviceType::GPU);
+
+                rbuf_info_t& rbuf_info = it->rbuf_info;
+                rbuf_info.start_off = off;
+                rbuf_info.size = nvids;
+                rbuf_info.row_num = it->req_ptr->result.get_row_num();
+                ASSERT(rbuf_info.row_num > 0);
+                rbuf_info.loaded = true;
+
+                off += nvids;
+                table_size += nvids;
+            }
+
+        } else {
+            table_size = req.result.result_table.size();
+            backend.load_result_buf(off, req.result.result_table, rbuf_ptr->get_inbuf(), channel.get_stream());
+        }
+
+        req.result.gpu.set_rbuf(rbuf_ptr->get_inbuf(), table_size);
+        req.result.set_device(SPARQLQuery::DeviceType::GPU);
+    }
+
+    /* Deprecated */
     void load_result_buf(SPARQLQuery &req, const std::string &rbuf_str) {
-        char *rbuf = backend.load_result_buf(rbuf_str.c_str(), rbuf_str.size());
-        req.result.gpu.set_rbuf(rbuf, rbuf_str.size() / WUKONG_GPU_ELEM_SIZE);
+        auto nbytes = backend.load_result_buf(rbuf_str.data(), rbuf_str.size());
+        req.result.gpu.set_rbuf(backend.get_res_inbuf(), nbytes / WUKONG_VID_SIZE);
     }
 
-    bool execute_one_pattern(SPARQLQuery &req) {
+    bool execute_one_pattern(SPARQLQuery &req, GPUChannel &channel) {
         ASSERT(result_buf_ready(req));
-        ASSERT(!req.done(SPARQLQuery::SQState::SQ_PATTERN));
+        ASSERT(req.combined || !req.done(SPARQLQuery::SQState::SQ_PATTERN));
+
+        // TODO: implement remaining handlers for combined job
+        if (req.combined) {
+            CombinedSPARQLQuery &combined = static_cast<CombinedSPARQLQuery &>(req);
+            logstream(LOG_INFO) << "Execute a combined query, job size:" << 
+            combined.combined_job_size() << LOG_endl;
+
+            switch(combined.type) {
+                case SPARQLQuery::PatternType::K2U:
+                known_to_unknown(req, channel);
+                break;
+
+                case SPARQLQuery::PatternType::K2C:
+                known_to_const(req, channel);
+                break;
+
+                case SPARQLQuery::PatternType::K2K:
+                known_to_known(req, channel);
+                break;
+
+                default:
+                ASSERT(false);
+                break;
+            }
+
+            return true;
+        }
 
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         ssid_t start     = pattern.subject;
         ssid_t predicate = pattern.predicate;
         dir_t direction  = pattern.direction;
         ssid_t end       = pattern.object;
-
-        if (req.pattern_step == 0 && req.start_from_index()) {
-            if (req.result.var2col(end) != NO_RESULT)
-                ASSERT("GPUEngine doesn't support index_to_known");
-            else
-                index_to_unknown(req);
-            return true;
-        }
 
         // triple pattern with UNKNOWN predicate/attribute
         if (req.result.var_stat(predicate) != CONST_VAR) {
@@ -305,18 +387,19 @@ public:
             ASSERT(false);
             break;
         case const_pair(CONST_VAR, UNKNOWN_VAR):
-            const_to_unknown(req);
+            logstream(LOG_ERROR) << "Unsupported triple pattern [CONST|KNOWN|KNOWN]" << LOG_endl;
+            ASSERT(false);
             break;
 
         // start from KNOWN
         case const_pair(KNOWN_VAR, CONST_VAR):
-            known_to_const(req);
+            known_to_const(req, channel);
             break;
         case const_pair(KNOWN_VAR, KNOWN_VAR):
-            known_to_known(req);
+            known_to_known(req, channel);
             break;
         case const_pair(KNOWN_VAR, UNKNOWN_VAR):
-            known_to_unknown(req);
+            known_to_unknown(req, channel);
             break;
 
         // start from UNKNOWN (incorrect query plan)
@@ -337,33 +420,36 @@ public:
         return true;
     }
 
-    std::vector<SPARQLQuery> generate_sub_query(SPARQLQuery &req) {
+    std::vector<SPARQLQuery*> generate_sub_query(SPARQLQuery &req, GPUChannel &channel, int rbuf_key) {
         ASSERT(Global::num_servers > 1);
-
         SPARQLQuery::Pattern &pattern = req.get_pattern();
         sid_t start = pattern.subject;
 
         // generate sub requests for all servers
-        std::vector<SPARQLQuery> sub_reqs(Global::num_servers);
+        std::vector<SPARQLQuery*> sub_reqs(Global::num_servers);
         for (int i = 0; i < Global::num_servers; i++) {
-            sub_reqs[i].pqid = req.qid;
-            sub_reqs[i].pg_type = req.pg_type == SPARQLQuery::PGType::UNION ?
+            SPARQLQuery *req_ptr = new SPARQLQuery;
+            req_ptr->pqid = req.qid;
+            req_ptr->pg_type = req.pg_type == SPARQLQuery::PGType::UNION ?
                                   SPARQLQuery::PGType::BASIC : req.pg_type;
-            sub_reqs[i].pattern_group = req.pattern_group;
-            sub_reqs[i].pattern_step = req.pattern_step;
-            sub_reqs[i].corun_step = req.corun_step;
-            sub_reqs[i].fetch_step = req.fetch_step;
-            sub_reqs[i].local_var = start;
-            sub_reqs[i].priority = req.priority + 1;
+            req_ptr->pattern_group = req.pattern_group;
+            req_ptr->pattern_step = req.pattern_step;
+            req_ptr->corun_step = req.corun_step;
+            req_ptr->fetch_step = req.fetch_step;
+            req_ptr->local_var = start;
+            req_ptr->priority = req.priority + 1;
 
-            sub_reqs[i].job_type = SPARQLQuery::SubJobType::SPLIT_JOB;
-            sub_reqs[i].dev_type = SPARQLQuery::DeviceType::GPU;
+            req_ptr->job_type = SPARQLQuery::SubJobType::SPLIT_JOB;
+            req_ptr->dev_type = SPARQLQuery::DeviceType::GPU;
 
-            sub_reqs[i].result.set_col_num(req.result.col_num);
-            sub_reqs[i].result.attr_col_num = req.result.attr_col_num;
-            sub_reqs[i].result.blind = req.result.blind;
-            sub_reqs[i].result.v2c_map  = req.result.v2c_map;
-            sub_reqs[i].result.nvars  = req.result.nvars;
+            req_ptr->result.set_col_num(req.result.col_num);
+            req_ptr->result.attr_col_num = req.result.attr_col_num;
+            req_ptr->result.blind = req.result.blind;
+            req_ptr->result.v2c_map  = req.result.v2c_map;
+            req_ptr->result.nvars  = req.result.nvars;
+
+            req_ptr->result.set_device(SPARQLQuery::DeviceType::GPU);
+            sub_reqs[i] = req_ptr;
         }
 
         ASSERT(req.pg_type != SPARQLQuery::PGType::OPTIONAL);
@@ -371,29 +457,38 @@ public:
         std::vector<sid_t*> buf_ptrs(Global::num_servers);
         std::vector<int> buf_sizes(Global::num_servers);
 
-        backend.generate_sub_query(req, start, Global::num_servers, buf_ptrs, buf_sizes);
+        backend.generate_sub_query(req, start, Global::num_servers, buf_ptrs, buf_sizes, channel, rbuf_key);
 
-        logstream(LOG_DEBUG) << "#" << sid << " generate_sub_query for req#" << req.qid
-                             << ", parent: " << req.pqid
-                             << ", step: " << req.pattern_step << LOG_endl;
+        logstream(LOG_DEBUG) << "#" << sid << " generate_sub_query for req#" << req.qid << ", parent: " << req.pqid
+                             << ", step: " << req.pattern_step << ", col num: " << req.result.get_col_num()
+                             << ", row num: " << req.result.get_row_num() << LOG_endl;
 
         for (int i = 0; i < Global::num_servers; ++i) {
-            SPARQLQuery &r = sub_reqs[i];
-            r.result.gpu.set_rbuf((char*)buf_ptrs[i], buf_sizes[i]);
+            SPARQLQuery *req_ptr = sub_reqs[i];
+            req_ptr->result.gpu.set_rbuf(buf_ptrs[i], buf_sizes[i]);
 
-            // if gpu history table is empty, set it to FULL_QUERY, which
-            // will be sent by native RDMA
-            if (r.result.gpu.is_rbuf_empty()) {
-                r.job_type = SPARQLQuery::SubJobType::FULL_JOB;
-                r.result.gpu.clear_rbuf();
+            logstream(LOG_DEBUG) << "#" << sid << " a sub_query #" << req_ptr->qid << " is generated, parent: " << req_ptr->pqid
+                             << ", step: " << req_ptr->pattern_step << ", col num: " << req_ptr->result.get_col_num()
+                             << ", row num: " << req_ptr->result.get_row_num() << LOG_endl;
+
+            // if gpu history table is empty, return reply in advance
+            if (req_ptr->result.gpu.empty()) {
+                // req_ptr->job_type = SPARQLQuery::SubJobType::FULL_JOB;
+                // req_ptr->result.gpu.clear();
+                delete req_ptr;
+                sub_reqs[i] = nullptr;
             }
         }
 
         return sub_reqs;
     }
 
+    subquery_list_t split_giant_query(SPARQLQuery &req, GPUChannel &channel){
+        return backend.split_giant_query(req, channel);
+    }
+
 };
 
-} // namespace wukong
+}  // namespace wukong
 
 #endif  // USE_GPU

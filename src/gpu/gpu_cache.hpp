@@ -30,16 +30,13 @@
 #include <algorithm>
 #include <cuda_runtime.h>
 
-#include "core/common/global.hpp"
-
-#include "gpu_utils.hpp"
-
-// store
 #include "core/store/kvstore.hpp"
 #include "core/store/segment_meta.hpp"
 
 // utils
 #include "utils/unit.hpp"
+#include "gpu_utils.hpp"
+#include "core/common/global.hpp"
 
 namespace wukong {
 
@@ -87,7 +84,7 @@ private:
     // number of value blocks per segement using now
     std::map<segid_t, int> num_value_blocks_seg_using;
 
-    // segments that are in key/value cache
+    // segments that are in key/value cache(at least one block in cache)
     std::list<segid_t> segs_in_key_cache;
     std::list<segid_t> segs_in_value_cache;
 
@@ -350,7 +347,9 @@ private:
 #endif
 
         if (free_key_blocks.size() < num_need_key_blocks) {
-            logstream(LOG_WARNING) << "load_segment: evict_key_blocks" << LOG_endl;
+            logstream(LOG_WARNING) << "free_key_blocks:" << free_key_blocks.size()
+                                   << ", num_need_key_blocks:" << num_need_key_blocks
+                                   << ", load_segment: evict_key_blocks" << LOG_endl;
             evict_key_blocks(conflicts, seg_to_load, seg_in_use, num_need_key_blocks);
         }
         // step 1.2: load key blocks
@@ -389,6 +388,7 @@ private:
         int num_need_value_blocks = num_value_blocks_seg_need[seg_to_load]
                                     - num_value_blocks_seg_using[seg_to_load];
         if (free_value_blocks.size() < num_need_value_blocks) {
+            logstream(LOG_WARNING) << "load_segment: evict_value_blocks" << LOG_endl;
             evict_value_blocks(conflicts, seg_to_load, seg_in_use, num_need_value_blocks);
         }
         // step 2.2: load value blocks
@@ -486,7 +486,7 @@ public:
     }
 
     // return the bucket offset of each key block in a segment
-    std::vector<uint64_t> get_vertex_mapping(segid_t seg) {
+    std::vector<uint64_t> create_key_mapping(segid_t seg) {
         ASSERT(num_key_blocks_seg_using[seg] == num_key_blocks_seg_need[seg]);
         ASSERT(vertex_allocation[seg].size() == num_key_blocks_seg_need[seg]);
 
@@ -498,7 +498,7 @@ public:
     }
 
     // return the entry offset of each value block in a segment
-    std::vector<uint64_t> get_edge_mapping(segid_t seg) {
+    std::vector<uint64_t> create_value_mapping(segid_t seg) {
         ASSERT(num_value_blocks_seg_using[seg] == num_value_blocks_seg_need[seg]);
         ASSERT(edge_allocation[seg].size() == num_value_blocks_seg_need[seg]);
         std::vector<uint64_t> headers;
@@ -511,6 +511,8 @@ public:
     uint64_t get_num_key_blks() { return num_key_blks; }
 
     uint64_t get_num_value_blks() { return num_value_blks; }
+
+    uint64_t get_num_free_blks() { return free_key_blocks.size() + free_value_blocks.size(); }
 
     uint64_t get_nbuckets_kblk() { return nbuckets_kblk; }
 
@@ -557,10 +559,7 @@ public:
                           const std::vector<segid_t> &conflicts, cudaStream_t stream_id) {
         _load_segment(seg_to_load, seg_in_use, conflicts, stream_id, true);
     }
-
-
 };
 
-} // namespace wukong
-
+}  // namespace wukong
 #endif

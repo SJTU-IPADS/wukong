@@ -262,12 +262,11 @@ main(int argc, char *argv[])
                         << ", #agent:" << wukong::Global::num_gpus << LOG_endl;
 
     // create GPU agent
-    wukong::GPUStreamPool stream_pool(32);
     wukong::GPUCache gpu_cache(gpu_mem, (wukong::vertex_t *)dgraph->gstore->get_slot_addr(), (wukong::edge_t *)dgraph->gstore->get_value_addr(),
                        dynamic_cast<wukong::SegmentRDFGraph *>(dgraph)->get_rdf_seg_metas());
-    wukong::GPUEngine gpu_engine(sid, WUKONG_GPU_AGENT_TID, gpu_mem, &gpu_cache, &stream_pool, dgraph);
+    wukong::GPUEngine gpu_engine(sid, WUKONG_GPU_AGENT_TID, gpu_mem, &gpu_cache, dgraph);
     wukong::GPUAgent agent(sid, WUKONG_GPU_AGENT_TID, new wukong::Adaptor(WUKONG_GPU_AGENT_TID,
-                   tcp_adaptor, rdma_adaptor), &gpu_engine);
+                   tcp_adaptor, rdma_adaptor), &str_server, dgraph, &gpu_engine, &gpu_cache);
     pthread_create(&(threads[WUKONG_GPU_AGENT_TID]), NULL, agent_thread, (void *)&agent);
 #endif
 
