@@ -530,13 +530,29 @@ public:
         int get_col_num() const { return col_num; }
 
         int get_row_num() const {
+#ifndef USE_GPU
             return (col_num == 0) ?
                    0 : (result_table.size() / col_num);
+#else
+            if (col_num == 0) return 0;
+            else return ( (dev == DeviceType::GPU) ?
+                    gpu.table_size() / col_num : result_table.size() / col_num );
+#endif
         }
 
         void update_nrows() {
+#ifndef USE_GPU
             row_num = (col_num == 0) ?
                       0 : (result_table.size() / col_num);
+
+#else
+            if (col_num == 0) {
+                row_num = 0;
+            } else  {
+                row_num = (dev == DeviceType::GPU) ?
+                    gpu.table_size() / col_num : result_table.size() / col_num;
+            }
+#endif
         }
 
         sid_t get_row_col(int r, int c) {

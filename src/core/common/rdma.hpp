@@ -317,6 +317,16 @@ public:
             return 0;
         }
 
+    #ifdef USE_GPU
+        // (sync) GPUDirect RDMA Write (w/ completion)
+        int GPURdmaWrite(int tid, int nid, char *local_gpu,
+                            uint64_t sz, uint64_t off, bool to_gpu = false) {
+            logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
+            ASSERT(false);
+            return 0;
+        }
+    #endif
+
         int RdmaWriteNonSignal(int tid, int nid, char *local, uint64_t sz, uint64_t off) {
             logstream(LOG_INFO) << "This system is compiled without RDMA support." << LOG_endl;
             ASSERT(false);
