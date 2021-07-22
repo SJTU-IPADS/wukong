@@ -63,6 +63,81 @@ $source deps.sh clean option
 
 BTW, if you want to do it manually, [deps/INSTALL.md](deps/INSTALL.md) provides step-by-step instruction.
 
+------
+
+#### Alternative method: Docker
+
+If you don’t want to install Wukong step by step on your machine, you can also use Docker to install Wukong. Here are the installation steps:
+
+First of all, you must ensure that Docker is installed on your machine.
+
+Next, enter the `wukong` directory and execute the following command:
+
+```bash
+sudo docker build -t wukong:latest .
+```
+
+At this time, there will be an image with wukong installed. Then run the ubuntu image:
+
+```bash
+sudo docker run -it --network="host" --privileged wukong:latest /bin/bash
+```
+
+You will enter the bash of the container. First of all, change the password of root:
+
+```bash
+root@hostname:/# passwd
+Enter new UNIX password: 
+Retype new UNIX password: 
+passwd: password updated successfully
+```
+
+Then use the `exit` command to exit the container.  Use the following command to view the ID of the container: 
+
+```bash
+$ sudo docker ps -a
+CONTAINER ID        IMAGE               COMMAND      ...             
+7d965c086551        wukong:latest        "/bin/bash"  ...
+```
+
+Use the ID obtained above to export this container as a .tar file:
+
+```bash
+$ sudo docker export 7d965c086551 > wukong_docker.tar
+```
+
+Send `wukong_docker.tar` to other machines. Run the following command to generate an image of ubuntu on each machine:
+
+```bash
+$ sudo docker import wukong_docker.tar wukong:latest 
+```
+
+You need to use the following command to run the image on each machine:
+
+```bash
+$ sudo docker run -it --network="host" --privileged wukong:latest /bin/bash
+```
+
+Now you can run Wukong in the docker container of each machine.
+
+###### Some Hints:
+
+<u>(1) Every time you start the container, you need to run `/etc/init.d/ssh start` to start the ssh server.</u>
+
+<u>(2) The value of `MOFED_VERSION` in `Dockerfile`  must be the same as the RDMA driver version of the host. You can use `ofed_info -s` command to view the RDMA driver version of the host.</u>
+
+(3) If the port 50001 of the host is occupied by some other process, you need to replace 50001 in  `Dockerfile` with an unoccupied port number.
+
+(4) Sometimes, due to your network or some other reasons, you may not be able to successfully install certain dependencies of Wukong. You can You can solve it by the following steps:
+
+<ul>
+    <li>run the ubuntu image</li>
+    <li>enter wukong/deps directory</li>
+    <li>use <b>source deps.sh clean dep_name</b> to clean the installation file</li>
+    <li>use <b>source deps.sh install dep_name</b> to reinstall the dependency separately</li>
+</ul>
+
+------
 
 #### Copy Wukong dependencies to all machines
 
@@ -93,9 +168,9 @@ $cd ${WUKONG_ROOT}/scripts
 $./syncdeps.sh ../deps/dependencies mpd.hosts
 ```
 
-
 <br>
 <a name="run"></a>
+
 ## Building and Running
 
 #### Compile Wukong

@@ -50,7 +50,7 @@ install_boost(){
         mkdir "${boost}-install"
         if [ ! -d "${boost}" ]; then
             if [ ! -f "${boost}.tar.gz" ]; then
-                wget "https://dl.bintray.com/boostorg/release/1.67.0/source/boost_1_67_0.tar.gz"
+                wget "https://boostorg.jfrog.io/artifactory/main/release/1.67.0/source/boost_1_67_0.tar.gz"
             fi
             tar zxf "${boost}.tar.gz"
         fi
@@ -71,8 +71,8 @@ install_tbb(){
     write_log "${tbb}"
     cd "$WUKONG_ROOT/deps"
     if [ ! -d "${tbb}" ]; then
-        if [ ! -f "${tbb}_src.tgz" ]; then
-            wget "https://www.threadingbuildingblocks.org/sites/default/files/software_releases/source/${tbb}_src.tgz"
+	if [ ! -f "${tbb}_src.tgz" ]; then
+            wget "https://src.fedoraproject.org/repo/pkgs/tbb/tbb44_20151115oss_src.tgz/7fae6a6bbca68bbdc18e844d6721d5e4/${tbb}_src.tgz"
         fi
         tar zxf "${tbb}_src.tgz"
         cd "$WUKONG_ROOT/deps/${tbb}"
