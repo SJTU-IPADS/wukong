@@ -51,6 +51,14 @@
 
 namespace wukong {
 
+/* Memory region used by KV */
+struct KVMem {
+    char *kvs;              // kv region in Mem
+    uint64_t kvs_sz;        // kv region size
+    char *rrbuf;            // RDMA-read region in Mem
+    uint64_t rrbuf_sz;      // RDMA-read region size per thread
+};
+
 /**
  * @brief A general RDMA-based KV store
  * 
@@ -65,7 +73,7 @@ namespace wukong {
 template <class KeyType, class PtrType, class ValueType>
 class KVStore {
     friend class GChecker;
-    friend class DGraph;
+    friend class RDFGraph;
     friend class SegmentRDFGraph;
 
 public:
@@ -100,7 +108,7 @@ protected:
 
     int sid;
 
-    Mem* mem;
+    KVMem kv_mem;
 
     slot_t* slots;
     ValueType* values;
@@ -218,7 +226,7 @@ protected:
                     goto done;
                 }
 
-                // insert to an empty slot
+                // end of search in this bucket
                 if (this->slots[slot_id].key.is_empty()) {
                     goto done;
                 }
@@ -329,8 +337,8 @@ protected:
             return slot;
 
         // get remote bucket by RDMA-read
-        char* buf = mem->buffer(tid);
-        uint64_t buf_sz = mem->buffer_size();
+        char* buf = kv_mem.rrbuf + kv_mem.rrbuf_sz * tid;
+        uint64_t buf_sz = kv_mem.rrbuf_sz;
         while (true) {
             uint64_t off = bucket_id * ASSOCIATIVITY * sizeof(slot_t);
             uint64_t sz = ASSOCIATIVITY * sizeof(slot_t);
@@ -362,11 +370,11 @@ protected:
     ValueType* rdma_get_values(int tid, int dst_sid, slot_t& slot) {
         ASSERT(Global::use_rdma);
 
-        char* buf = mem->buffer(tid);
+        char* buf = kv_mem.rrbuf + kv_mem.rrbuf_sz * tid;
         uint64_t r_off = num_slots * sizeof(slot_t) + slot.ptr.off * sizeof(ValueType);
         // the size of values
         uint64_t r_sz = get_value_sz(slot);
-        uint64_t buf_sz = mem->buffer_size();
+        uint64_t buf_sz = kv_mem.rrbuf_sz;
         ASSERT(r_sz < buf_sz);  // enough space to host the values
 
         RDMA& rdma = RDMA::get_rdma();
@@ -456,9 +464,11 @@ public:
      * @param sid server id
      * @param mem main memory
      */
-    KVStore(int sid, Mem* mem) : sid(sid), mem(mem) {
-        uint64_t header_region = mem->kvstore_size() * HD_RATIO / 100;
-        uint64_t entry_region = mem->kvstore_size() - header_region;
+    // KVStore(int sid, Mem* mem) : sid(sid), mem(mem) {
+    KVStore(int sid, KVMem kv_mem) : 
+            sid(sid), kv_mem(kv_mem) {
+        uint64_t header_region = kv_mem.kvs_sz * HD_RATIO / 100;
+        uint64_t entry_region = kv_mem.kvs_sz - header_region;
 
         // header region
         this->num_slots = header_region / sizeof(slot_t);
@@ -467,17 +477,20 @@ public:
         // entry region
         this->num_entries = entry_region / sizeof(ValueType);
 
-        this->slots = reinterpret_cast<slot_t*>(mem->kvstore());
-        this->values = reinterpret_cast<ValueType*>(mem->kvstore() + this->num_slots * sizeof(slot_t));
+        this->slots = reinterpret_cast<slot_t*>(kv_mem.kvs);
+        this->values = reinterpret_cast<ValueType*>(kv_mem.kvs + this->num_slots * sizeof(slot_t));
 
         pthread_spin_init(&this->bucket_ext_lock, 0);
         for (int i = 0; i < NUM_LOCKS; i++) {
             pthread_spin_init(&this->bucket_locks[i], 0);
         }
 
+        // clean kv store
+        this->refresh();
+
         // print kvstore usage
         logstream(LOG_INFO) << "[KV] kvstore = ";
-        logstream(LOG_INFO) << mem->kvstore_size() << " bytes " << LOG_endl;
+        logstream(LOG_INFO) << kv_mem.kvs_sz << " bytes " << LOG_endl;
         logstream(LOG_INFO) << "  header region: " << this->num_slots << " slots"
                             << " (main = " << this->num_buckets
                             << ", indirect = " << this->num_buckets_ext << ")" << LOG_endl;
@@ -497,6 +510,7 @@ public:
         }
         this->last_ext = 0;
     }
+
 
     inline void* get_slot_addr() { return reinterpret_cast<void*>(this->slots); }
     inline void* get_value_addr() { return reinterpret_cast<void*>(this->values); }

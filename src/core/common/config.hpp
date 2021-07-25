@@ -67,6 +67,9 @@ static bool set_immutable_config(std::string cfg_name, std::string value)
     } else if (cfg_name == "global_ctrl_port_base") {
         Global::ctrl_port_base = atoi(value.c_str());
         ASSERT(Global::ctrl_port_base > 0);
+    } else if (cfg_name == "global_rdma_ctrl_port_base") {
+        Global::rdma_ctrl_port_base = atoi(value.c_str());
+        ASSERT(Global::rdma_ctrl_port_base > 0);
     } else if (cfg_name == "global_memstore_size_gb") {
         Global::memstore_size_gb = atoi(value.c_str());
         ASSERT(Global::memstore_size_gb > 0);

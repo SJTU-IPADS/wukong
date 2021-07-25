@@ -32,8 +32,8 @@ namespace wukong {
 
 class PosixLoader : public BaseLoader {
 public:
-    PosixLoader(int sid, Mem* mem, StringServer* str_server)
-        : BaseLoader(sid, mem, str_server) {}
+    PosixLoader(int sid, LoaderMem loader_mem)
+        : BaseLoader(sid, loader_mem) {}
 
     ~PosixLoader() {}
 

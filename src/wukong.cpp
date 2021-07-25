@@ -37,12 +37,8 @@
 
 #include "core/engine/engine.hpp"
 
-#ifdef DYNAMIC_GSTORE
-#include "core/store/dynamic_dgraph.hpp"
-#else
-#include "core/store/static_dgraph.hpp"
-#include "core/store/segment_dgraph.hpp"
-#endif
+#include "core/store/segment_rdf_dgraph.hpp"
+#include "core/store/rdf_dgraph.hpp"
 
 #include "core/network/adaptor.hpp"
 
@@ -203,10 +199,16 @@ main(int argc, char *argv[])
     wukong::StringServer str_server(wukong::Global::input_folder);
 
     // load RDF graph (shared by all engines and proxies)
+    wukong::KVMem kv_mem = {
+        .kvs = mem->kvstore(), 
+        .kvs_sz = mem->kvstore_size(), 
+        .rrbuf = mem->buffer(0), 
+        .rrbuf_sz = mem->buffer_size()
+    };
 #ifdef DYNAMIC_GSTORE
-    wukong::DGraph * dgraph = new wukong::DynamicRDFGraph(sid, mem, &str_server);
+    wukong::DGraph * dgraph = new wukong::RDFGraph(sid, kv_mem, true);
 #else 
-    wukong::DGraph * dgraph = new wukong::SegmentRDFGraph(sid, mem, &str_server);
+    wukong::DGraph * dgraph = new wukong::SegmentRDFGraph(sid, kv_mem);
 #endif
     dgraph->load(wukong::Global::input_folder);
 

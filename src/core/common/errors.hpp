@@ -46,7 +46,7 @@ enum {
 };
 
 // error_messages
-const char *err_msgs[ERROR_LAST] = {
+static const char *err_msgs[ERROR_LAST] = {
     "Everythong is ok",
     "Something wrong happened",
     "Something wrong in the query syntax, fail to parse!",

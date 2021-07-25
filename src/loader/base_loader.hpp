@@ -40,6 +40,7 @@
 #include "core/common/global.hpp"
 #include "core/common/rdma.hpp"
 #include "core/common/type.hpp"
+#include "core/store/vertex.hpp"
 
 // loader
 #include "loader_interface.hpp"
@@ -48,6 +49,7 @@
 #include "utils/assertion.hpp"
 #include "utils/math.hpp"
 #include "utils/timer.hpp"
+#include "utils/atomic.hpp"
 
 // display progress
 #include "progresscpp/ProgressBar.hpp"
@@ -55,10 +57,21 @@
 namespace wukong {
 
 class BaseLoader : public LoaderInterface {
+public:
+    /* Memory region used during loading*/
+    struct LoaderMem {
+        // NOTICE: we assume global_buf is the start of global RDMA memory region
+        // aggregate triples from all servers (global_buffer_sz*1)
+        char* global_buf;
+        uint64_t global_buf_sz;
+        // aggregate triples read by each thread (local_buffer_sz*thread_num)
+        char* local_buf;
+        uint64_t local_buf_sz;
+    };
+
 protected:
     int sid;
-    Mem* mem;
-    StringServer* str_server;
+    LoaderMem loader_mem;
 
     std::vector<uint64_t> num_triples;  // record #triples loaded from input data for each server
 
@@ -90,24 +103,24 @@ protected:
     }
 
     void flush_triples(int tid, int dst_sid) {
-        uint64_t buf_sz = floor(mem->buffer_size() / Global::num_servers - sizeof(uint64_t), sizeof(triple_t));
-        uint64_t* pn = reinterpret_cast<uint64_t*>(mem->buffer(tid) + (buf_sz + sizeof(uint64_t)) * dst_sid);
-        triple_t* buf = reinterpret_cast<triple_t*>(pn + 1);
+        uint64_t lbuf_partition_sz = floor(loader_mem.local_buf_sz / Global::num_servers - sizeof(uint64_t), sizeof(triple_t));
+        uint64_t* pn = reinterpret_cast<uint64_t*>((loader_mem.local_buf + loader_mem.local_buf_sz * tid) + (lbuf_partition_sz + sizeof(uint64_t)) * dst_sid);
+        triple_t* lbuf_partition = reinterpret_cast<triple_t*>(pn + 1);
 
-        // the 1st uint64_t of buffer records #new-triples
+        // the uint64_t before lbuf_partition records #new-triples
         uint64_t n = *pn;
 
-        // the kvstore is temporally split into #servers pieces.
-        // hence, the kvstore can be directly RDMA write in parallel by all servers
-        uint64_t kvs_sz = floor(mem->kvstore_size() / Global::num_servers - sizeof(uint64_t), sizeof(triple_t));
+        // the global buffer is temporally split into #servers pieces.
+        // hence, the global buffer can be directly RDMA write in parallel by all servers
+        uint64_t gbuf_partition_sz = floor(loader_mem.global_buf_sz / Global::num_servers - sizeof(uint64_t), sizeof(triple_t));
 
         // serialize the RDMA WRITEs by multiple threads
         uint64_t exist = __sync_fetch_and_add(&num_triples[dst_sid], n);
 
         uint64_t cur_sz = (exist + n) * sizeof(triple_t);
-        if (cur_sz > kvs_sz) {
+        if (cur_sz > gbuf_partition_sz) {
             logstream(LOG_ERROR) << "no enough space to store input data!" << LOG_endl;
-            logstream(LOG_ERROR) << " kvstore size = " << kvs_sz
+            logstream(LOG_ERROR) << " global buffer partition size = " << gbuf_partition_sz
                                  << " #exist-triples = " << exist
                                  << " #new-triples = " << n
                                  << LOG_endl;
@@ -115,17 +128,17 @@ protected:
         }
 
         // send triples and clear the buffer
-        uint64_t off = (kvs_sz + sizeof(uint64_t)) * sid
-                        + sizeof(uint64_t)           // reserve the 1st uint64_t as #triples
+        uint64_t off = (gbuf_partition_sz + sizeof(uint64_t)) * sid
+                        + sizeof(uint64_t)          // reserve the 1st uint64_t as #triples
                         + exist * sizeof(triple_t); // skip #exist-triples
         
         uint64_t sz = n * sizeof(triple_t);        // send #new-triples
 
         if (dst_sid != sid) {
             RDMA& rdma = RDMA::get_rdma();
-            rdma.dev->RdmaWrite(tid, dst_sid, reinterpret_cast<char*>(buf), sz, off);
+            rdma.dev->RdmaWrite(tid, dst_sid, reinterpret_cast<char*>(lbuf_partition), sz, off);
         } else {
-            memcpy(mem->kvstore() + off, reinterpret_cast<char*>(buf), sz);
+            memcpy(loader_mem.global_buf + off, reinterpret_cast<char*>(lbuf_partition), sz);
         }
 
         // clear the buffer
@@ -138,23 +151,24 @@ protected:
         // the RDMA buffer is first split into #threads partitions
         // each partition is further split into #servers pieces
         // each piece: #triples, tirple, triple, . . .
-        uint64_t buf_sz = floor(mem->buffer_size() / Global::num_servers - sizeof(uint64_t), sizeof(triple_t));
-        uint64_t* pn = reinterpret_cast<uint64_t*>(mem->buffer(tid) + (buf_sz + sizeof(uint64_t)) * dst_sid);
-        triple_t* buf = reinterpret_cast<triple_t*>(pn + 1);
+        uint64_t lbuf_partition_sz = floor(loader_mem.local_buf_sz / Global::num_servers - sizeof(uint64_t), sizeof(triple_t));
+        uint64_t* pn = reinterpret_cast<uint64_t*>((loader_mem.local_buf + loader_mem.local_buf_sz * tid) 
+                        + (lbuf_partition_sz + sizeof(uint64_t)) * dst_sid);
+        triple_t* lbuf_partition = reinterpret_cast<triple_t*>(pn + 1);
 
-        // the 1st entry of buffer records #triples (suppose the )
+        // the uint64 before lbuf_partition records #triples
         uint64_t n = *pn;
 
         // flush buffer if there is no enough space to buffer a new triple
         uint64_t cur_sz = (n + 1) * sizeof(triple_t);
-        if (cur_sz > buf_sz) {
+        if (cur_sz > lbuf_partition_sz) {
             flush_triples(tid, dst_sid);
             n = *pn;  // reset, it should be 0
             ASSERT(n == 0);
         }
 
         // buffer the triple and update the counter
-        buf[n] = triple;
+        lbuf_partition[n] = triple;
         *pn = (n + 1);
     }
 
@@ -201,16 +215,16 @@ protected:
 
         // exchange #triples among all servers
         for (int s = 0; s < Global::num_servers; s++) {
-            uint64_t* buf = reinterpret_cast<uint64_t*>(mem->buffer(0));
-            buf[0] = num_triples[s];
+            uint64_t* lbuf = reinterpret_cast<uint64_t*>(loader_mem.local_buf);
+            lbuf[0] = num_triples[s];
 
-            uint64_t kvs_sz = floor(mem->kvstore_size() / Global::num_servers - sizeof(uint64_t), sizeof(triple_t));
-            uint64_t offset = (kvs_sz + sizeof(uint64_t)) * sid;
+            uint64_t gbuf_partition_sz = floor(loader_mem.global_buf_sz / Global::num_servers - sizeof(uint64_t), sizeof(triple_t));
+            uint64_t offset = (gbuf_partition_sz + sizeof(uint64_t)) * sid;
             if (s != sid) {
                 RDMA& rdma = RDMA::get_rdma();
-                rdma.dev->RdmaWrite(0, s, reinterpret_cast<char*>(buf), sizeof(uint64_t), offset);
+                rdma.dev->RdmaWrite(0, s, reinterpret_cast<char*>(lbuf), sizeof(uint64_t), offset);
             } else {
-                memcpy(mem->kvstore() + offset, reinterpret_cast<char*>(buf), sizeof(uint64_t));
+                memcpy(loader_mem.global_buf + offset, reinterpret_cast<char*>(lbuf), sizeof(uint64_t));
             }
         }
         MPI_Barrier(MPI_COMM_WORLD);
@@ -222,7 +236,8 @@ protected:
     int read_all_files(std::vector<std::string>& fnames) {
         std::sort(fnames.begin(), fnames.end());
 
-        auto lambda = [&](std::istream& file, uint64_t& n, uint64_t kvs_sz, triple_t* kvs) {
+        auto lambda = [&](std::istream& file, uint64_t& n, 
+                          uint64_t gbuf_partition_sz, triple_t* gbuf_partition) {
             triple_t triple;
         #ifdef TRDF_MODE
             while (file >> triple.s >> triple.p >> triple.o >> triple.ts >> triple.te) {
@@ -232,9 +247,9 @@ protected:
                 int s_sid = PARTITION(triple.s);
                 int o_sid = PARTITION(triple.o);
                 if ((s_sid == sid) || (o_sid == sid)) {
-                    ASSERT((n + 1) * sizeof(triple_t) <= kvs_sz);
+                    ASSERT((n + 1) * sizeof(triple_t) <= gbuf_partition_sz);
                     // buffer the triple and update the counter
-                    kvs[n] = triple;
+                    gbuf_partition[n] = triple;
                     n++;
                 }
             }
@@ -245,16 +260,17 @@ protected:
         #pragma omp parallel for num_threads(Global::num_engines)
         for (int i = 0; i < num_files; i++) {
             int localtid = omp_get_thread_num();
-            uint64_t kvs_sz = floor(mem->kvstore_size() / Global::num_engines - sizeof(uint64_t),
+            uint64_t gbuf_partition_sz = floor(loader_mem.global_buf_sz / Global::num_engines - sizeof(uint64_t),
                                     sizeof(triple_t));
-            uint64_t* pn = reinterpret_cast<uint64_t*>(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * localtid);
-            triple_t* kvs = reinterpret_cast<triple_t*>(pn + 1);
+            uint64_t* pn = reinterpret_cast<uint64_t*>(loader_mem.global_buf + 
+                                (gbuf_partition_sz + sizeof(uint64_t)) * localtid);
+            triple_t* gbuf_partition = reinterpret_cast<triple_t*>(pn + 1);
 
-            // the 1st uint64_t of kvs records #triples
+            // the uint64_t before gbuf_partition records #triples
             uint64_t n = *pn;
 
             std::istream* file = init_istream(fnames[i]);
-            lambda(*file, n, kvs_sz, kvs);
+            lambda(*file, n, gbuf_partition_sz, gbuf_partition);
             close_istream(file);
 
             *pn = n;
@@ -326,12 +342,12 @@ protected:
     void aggregate_data(int num_partitions,
                         std::vector<std::vector<triple_t>>& triple_pso,
                         std::vector<std::vector<triple_t>>& triple_pos) {
-        // calculate #triples on the kvstore from all servers
+        // calculate #triples in the global buffer from all servers
         uint64_t total = 0;
-        uint64_t kvs_sz = floor(mem->kvstore_size() / num_partitions - sizeof(uint64_t), sizeof(triple_t));
+        uint64_t gbuf_partition_sz = floor(loader_mem.global_buf_sz / num_partitions - sizeof(uint64_t), sizeof(triple_t));
         for (int i = 0; i < num_partitions; i++) {
-            uint64_t* pn = reinterpret_cast<uint64_t*>(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * i);
-            total += *pn;  // the 1st uint64_t of kvs records #triples
+            uint64_t* pn = reinterpret_cast<uint64_t*>(loader_mem.global_buf + (gbuf_partition_sz + sizeof(uint64_t)) * i);
+            total += *pn;  // the uint64_t before gbuf_partition records #triples
         }
 
         // pre-expand to avoid frequent reallocation (maybe imbalance)
@@ -349,13 +365,13 @@ protected:
         for (int tid = 0; tid < Global::num_engines; tid++) {
             int cnt = 0;  // per thread count for print progress
             for (int id = 0; id < num_partitions; id++) {
-                uint64_t* pn = reinterpret_cast<uint64_t*>(mem->kvstore() + (kvs_sz + sizeof(uint64_t)) * id);
-                triple_t* kvs = reinterpret_cast<triple_t*>(pn + 1);
+                uint64_t* pn = reinterpret_cast<uint64_t*>(loader_mem.global_buf + (gbuf_partition_sz + sizeof(uint64_t)) * id);
+                triple_t* gbuf_partition = reinterpret_cast<triple_t*>(pn + 1);
 
-                // the 1st uint64_t of kvs records #triples
+                // the uint64_t before gbuf_partition records #triples
                 uint64_t n = *pn;
                 for (uint64_t i = 0; i < n; i++) {
-                    triple_t triple = kvs[i];
+                    triple_t triple = gbuf_partition[i];
 
                     // out-edges
                     if (PARTITION(triple.s) == sid)
@@ -404,8 +420,8 @@ protected:
         logstream(LOG_INFO) << "[Loader] #" << sid << ": " << (end - start) / 1000 << " ms "
                             << "for loading data files" << LOG_endl;
 
-        // all triples are partitioned and temporarily stored in the kvstore on each server.
-        // the kvstore is split into num_partitions partitions, each contains #triples and triples
+        // all triples are partitioned and temporarily stored in the global_buffer on each server.
+        // the global buffer is split into num_partitions partitions, each contains #triples and triples
         //
         // Wukong aggregates all triples before finally inserting them to gstore (kvstore)
         start = timer::get_usec();
@@ -508,8 +524,8 @@ protected:
     }
 
 public:
-    BaseLoader(int sid, Mem* mem, StringServer* str_server)
-        : sid(sid), mem(mem), str_server(str_server) {}
+    BaseLoader(int sid, LoaderMem loader_mem)
+        : sid(sid), loader_mem(loader_mem) {}
 
     virtual ~BaseLoader() {}
 
