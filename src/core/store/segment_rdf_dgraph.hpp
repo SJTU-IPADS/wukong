@@ -266,7 +266,7 @@ protected:
         }
     done:
         pthread_spin_unlock(&this->gstore->bucket_locks[lock_id]);
-        ASSERT(slot_id < this->gstore->num_slots);
+        ASSERT_LT(slot_id, this->gstore->num_slots);
         return slot_id;
     }
     
@@ -1101,9 +1101,9 @@ protected:
     }
 
 public:
-    SegmentRDFGraph(int sid, Mem* mem, StringServer* str_server)
-        : DGraph(sid, mem, str_server) {
-        this->gstore = std::make_shared<StaticKVStore<ikey_t, iptr_t, edge_t>>(sid, mem);
+    SegmentRDFGraph(int sid, KVMem kv_mem)
+        : DGraph(sid, kv_mem) {
+        this->gstore = std::make_shared<StaticKVStore<ikey_t, iptr_t, edge_t>>(sid, kv_mem);
         for (int i = 0; i < RDFStore::NUM_LOCKS; i++) {
             pthread_spin_init(&seg_ext_locks[i], 0);
         }

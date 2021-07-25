@@ -8,7 +8,7 @@
 * [ZeroMQ v4.0.5](#0MQ)
 * [nanomsg v1.1.4](#nanomsg)
 * [HWLOC v1.11.7](#hwloc)
-* [Jemalloc v5.1.0](#jemalloc)
+* [Jemalloc v5.2.1](#jemalloc)
 * [HDFS support](#hdfs)
 
 <a name="openmpi"></a>
@@ -144,7 +144,7 @@ $cd $WUKONG_ROOT/deps/
 $wget "https://github.com/jemalloc/jemalloc/releases/download/5.2.1/jemalloc-5.2.1.tar.bz2"
 $mkdir jemalloc-5.2.1-install
 $tar jxvf jemalloc-5.2.1.tar.bz2
-$cd jemalloc-5.1.0/
+$cd jemalloc-5.2.1/
 $./configure --with-jemalloc-prefix=je --prefix=$WUKONG_ROOT/deps/jemalloc-5.2.1-install/
 $make
 $make install
@@ -153,11 +153,11 @@ $make install
 Add below settings to bash script (i.e., `~/.bashrc`).
 
 ```bash
-# hwloc configuration
-export PATH=$WUKONG_ROOT/deps/jemalloc-5.1.0-install/bin:$PATH
-export CPATH=$WUKONG_ROOT/deps/jemalloc-5.1.0-install/include:$CPATH
-export LIBRARY_PATH=$WUKONG_ROOT/deps/jemalloc-5.1.0-install/lib:$LIBRARY_PATH
-export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/jemalloc-5.1.0-install/lib:$LD_LIBRARY_PATH
+# jemalloc configuration
+export PATH=$WUKONG_ROOT/deps/jemalloc-5.2.1-install/bin:$PATH
+export CPATH=$WUKONG_ROOT/deps/jemalloc-5.2.1-install/include:$CPATH
+export LIBRARY_PATH=$WUKONG_ROOT/deps/jemalloc-5.2.1-install/lib:$LIBRARY_PATH
+export LD_LIBRARY_PATH=$WUKONG_ROOT/deps/jemalloc-5.2.1-install/lib:$LD_LIBRARY_PATH
 ```
 
 <a name="hdfs"></a>

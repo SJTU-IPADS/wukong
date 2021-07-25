@@ -95,7 +95,7 @@ namespace wukong {
 
 #ifdef WUKONG_LOGGER_THROW_ON_FAILURE
   #define WUKONG_LOGGER_FAIL_METHOD(status_code) \
-      throw(WukongException(status_code))
+      throw(wukong::WukongException(status_code))
 #else
   #define WUKONG_LOGGER_FAIL_METHOD(status_code) abort()
 #endif
@@ -111,16 +111,16 @@ namespace wukong {
       logstream(LOG_ERROR) << "Assertion: " << __FILE__ << "(" << __func__     \
                            << ":" << __LINE__ << ")"                           \
                            << ": \'" << #condition << "\' failed" << LOG_endl; \
-      WUKONG_LOGGER_FAIL_METHOD(UNKNOWN_ERROR);                                \
+      WUKONG_LOGGER_FAIL_METHOD(wukong::UNKNOWN_ERROR);                                \
     }                                                                          \
   } while (0)
 
 // check the val1 op val2
-#define CHECK_OP(op, val1, val2)                                            \
+#define WUKONG_CHECK_OP(op, val1, val2)                                            \
   do {                                                                      \
-    const typeof(val1) _CHECK_OP_v1_ = (typeof(val1))val1;                  \
-    const typeof(val2) _CHECK_OP_v2_ = (typeof(val2))val2;                  \
-    if (__builtin_expect(!((_CHECK_OP_v1_)op(typeof(val1))(_CHECK_OP_v2_)), \
+    const decltype(val1) _CHECK_OP_v1_ = (decltype(val1))val1;                  \
+    const decltype(val2) _CHECK_OP_v2_ = (decltype(val2))val2;                  \
+    if (__builtin_expect(!((_CHECK_OP_v1_)op(decltype(val1))(_CHECK_OP_v2_)), \
                          0)) {                                              \
       logstream(LOG_ERROR) << "Assertion: " << __FILE__ << "(" << __func__  \
                            << ":" << __LINE__ << ")"                        \
@@ -128,16 +128,16 @@ namespace wukong {
                            << " [ " << val1 << " " << #op << " " << val2    \
                            << " ]\'"                                        \
                            << " failed" << LOG_endl;                        \
-      WUKONG_LOGGER_FAIL_METHOD(UNKNOWN_ERROR);                             \
+      WUKONG_LOGGER_FAIL_METHOD(wukong::UNKNOWN_ERROR);                             \
     }                                                                       \
   } while (0)
 
-#define CHECK_EQ(val1, val2) CHECK_OP(==, val1, val2)
-#define CHECK_NE(val1, val2) CHECK_OP(!=, val1, val2)
-#define CHECK_LE(val1, val2) CHECK_OP(<=, val1, val2)
-#define CHECK_LT(val1, val2) CHECK_OP(<, val1, val2)
-#define CHECK_GE(val1, val2) CHECK_OP(>=, val1, val2)
-#define CHECK_GT(val1, val2) CHECK_OP(>, val1, val2)
+#define CHECK_EQ(val1, val2) WUKONG_CHECK_OP(==, val1, val2)
+#define CHECK_NE(val1, val2) WUKONG_CHECK_OP(!=, val1, val2)
+#define CHECK_LE(val1, val2) WUKONG_CHECK_OP(<=, val1, val2)
+#define CHECK_LT(val1, val2) WUKONG_CHECK_OP(<, val1, val2)
+#define CHECK_GE(val1, val2) WUKONG_CHECK_OP(>=, val1, val2)
+#define CHECK_GT(val1, val2) WUKONG_CHECK_OP(>, val1, val2)
 
 // condition assert
 #define ASSERT_TRUE(cond) CHECK(cond)

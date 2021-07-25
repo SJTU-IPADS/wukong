@@ -35,8 +35,8 @@ namespace wukong {
 
 class HDFSLoader : public BaseLoader {
 public:
-    HDFSLoader(int sid, Mem* mem, StringServer* str_server)
-        : BaseLoader(sid, mem, str_server) {}
+    HDFSLoader(int sid, LoaderMem loader_mem)
+        : BaseLoader(sid, loader_mem) {}
 
     ~HDFSLoader() {}
 

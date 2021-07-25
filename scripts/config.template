@@ -3,6 +3,7 @@ global_num_proxies              4
 global_num_engines              16
 global_data_port_base           5500
 global_ctrl_port_base           9576
+global_rdma_ctrl_port_base      19344
 global_mt_threshold             8
 global_enable_workstealing      0
 global_stealing_pattern         0

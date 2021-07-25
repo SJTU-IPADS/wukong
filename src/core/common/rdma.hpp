@@ -71,7 +71,6 @@ public:
 
     class RDMA_Device {
     public:
-        static const uint64_t RDMA_CTRL_PORT = 19344;
         static const int FLAGS_use_nic_idx = 0;
         static const int FLAGS_reg_nic_name = 73;
         static const int FLAGS_reg_cpu_mem_name = 73;
@@ -102,7 +101,7 @@ public:
                 ipset.push_back(ip);
             }
 
-            rctrl = new RCtrl(RDMA_CTRL_PORT);
+            rctrl = new RCtrl(Global::rdma_ctrl_port_base);
 
             // open the NIC
             rnic = RNic::create(RNicInfo::query_dev_names().at(FLAGS_use_nic_idx)).value();
@@ -145,7 +144,7 @@ public:
         }
 
         void CreateConnection(std::string ip, int tid, int nid) {
-            std::string addr = ip + ":" + std::to_string(RDMA_CTRL_PORT);
+            std::string addr = ip + ":" + std::to_string(Global::rdma_ctrl_port_base);
             auto qp = RC::create(rnic, QPConfig()).value();
             ConnectManager *cm = new ConnectManager(addr);
             if (cm->wait_ready(1000000, 2) == IOCode::Timeout)

@@ -34,6 +34,13 @@
 
 namespace wukong {
 
+/**
+ * @brief ID Scope division
+ * PREDICATE_ID = 0, TYPE_ID = 1
+ * htid:    2        <= tid  < (1 << 17)
+ * vid:     (1 << 17)<= vid
+ */
+
 // IN/OUT
 enum { NBITS_DIR = 1 };
 // equal to the size of t/pid

@@ -78,14 +78,14 @@
 #define CYAN 6
 #define WHITE 7
 
-void textcolor(FILE *handle, int attr, int fg) {
+static void textcolor(FILE *handle, int attr, int fg) {
     char command[13];
     /* Command is the control command to the terminal */
     sprintf(command, "%c[%d;%dm", 0x1B, attr, fg + 30);
     fprintf(handle, "%s", command);
 }
 
-void reset_color(FILE *handle) {
+static void reset_color(FILE *handle) {
     char command[20];
     /* Command is the control command to the terminal */
     sprintf(command, "%c[0m", 0x1B);
@@ -118,12 +118,12 @@ void reset_color(FILE *handle) {
 #define LOG_DEBUG 1
 #define LOG_EVERYTHING 0
 
-const char *levelname[] = {
+static const char *levelname[] = {
     "EVERYTHING", "DEBUG", "INFO", "EMPH",
     "WARNING", "ERROR", "FATAL", "NONE"
 };
 
-const char *prefixes[] = {
+static const char *prefixes[] = {
     "DEBUG:    ", "DEBUG:    ", "INFO:     ", "INFO:     ",
     "WARNING:  ", "ERROR:    ", "FATAL:    ", ""
 };
@@ -140,7 +140,7 @@ struct streambuf_entry {
 };
 }  // namespace logger_impl
 
-void streambuffdestructor(void *v) {
+static void streambuffdestructor(void *v) {
     logger_impl::streambuf_entry *t =
         reinterpret_cast<logger_impl::streambuf_entry *>(v);
     delete t;
@@ -455,7 +455,7 @@ public:
     }
 };
 
-file_logger &global_logger() {
+static file_logger &global_logger() {
     static file_logger l;
     return l;
 }

@@ -41,6 +41,7 @@ public:
 
     static int data_port_base __attribute__((weak));
     static int ctrl_port_base __attribute__((weak));
+    static int rdma_ctrl_port_base __attribute__((weak));
 
     static int rdma_buf_size_mb __attribute__((weak));
     static int rdma_rbf_size_mb __attribute__((weak));
@@ -85,6 +86,7 @@ std::string Global::input_folder;
 
 int Global::data_port_base = 5500;
 int Global::ctrl_port_base = 9576;
+int Global::rdma_ctrl_port_base = 19344;
 
 int Global::rdma_buf_size_mb = 64;
 int Global::rdma_rbf_size_mb = 16;
