@@ -416,15 +416,12 @@ public:
         }
 
         bool is_medium() const {
-            if (!Global::gpu_enable_pattern_combine)
-                return false;
-            logstream(LOG_DEBUG) << "Row num:" << get_row_num() << LOG_endl;
+            if (!Global::gpu_enable_pattern_combine) return false;
             return get_row_num() > 0 && get_row_num() < Global::pattern_combine_rows;
         }
 
         bool is_medium_for_single() const {
-            if (!Global::gpu_enable_pattern_combine)
-                return false;
+            if (!Global::gpu_enable_pattern_combine) return false;
             return get_row_num() > 0 && get_row_num() < Global::pattern_combine_rows/2;
         }
 
@@ -773,7 +770,9 @@ public:
     DeviceType dev_type = CPU;
     SubJobType job_type = FULL_JOB;
 
+#ifdef USE_GPU
     bool combined = false;  // whether this is a combined job
+#endif
 
 #ifdef TRDF_MODE
     int64_t ts = TIMESTAMP_MIN; // start timestamp after keyword FROM
@@ -830,7 +829,7 @@ public:
     }
 
     virtual PatternType get_pattern_type() {
-        auto &pattern = get_pattern();
+        auto& pattern = get_pattern();
         PatternType type;
         switch (const_pair(result.var_stat(pattern.subject),
                     result.var_stat(pattern.object))) {
@@ -852,10 +851,6 @@ public:
 
     virtual void update_pattern_step() {
         ++pattern_step;
-    }
-
-    virtual void update_result_table(std::vector<sid_t>& new_table) {
-        result.result_table.swap(new_table);
     }
 
     virtual void update_nrows() {
@@ -1084,15 +1079,13 @@ public:
 
 struct rbuf_info_t {
     uint32_t start_off; // offset to the start of (sid_t*)rbuf for a pattern
-    // uint32_t size_bytes;      // size of the buf in bytes
     uint32_t size;      // number of vertex in the rbuf
     uint32_t row_num;   // #rows of the result table for a pattern
-    bool loaded;  // whether the result_table is loaded on gpu
+    bool loaded;        // whether the result_table is loaded on gpu
 
     rbuf_info_t(): start_off(0), row_num(0), size(0), loaded(false) { }
     rbuf_info_t(uint32_t off, uint32_t row)
-        : start_off(off), row_num(row), size(0), loaded(false) {
-    }
+        : start_off(off), row_num(row), size(0), loaded(false) { }
 };
 
 struct medium_job_t {
@@ -1100,45 +1093,33 @@ struct medium_job_t {
     rbuf_info_t rbuf_info; // offset to output buffer
 
     medium_job_t(): req_ptr(nullptr) { }
-    medium_job_t(SPARQLQuery *r) : req_ptr(r) {
-
-    }
+    medium_job_t(SPARQLQuery *r) : req_ptr(r) {}
 };
 
-/**
- * 需要一些metadata来存储combined之后的history
- * 在vector<sid_t> result_table中的offset。
- */
-// enum CombinedType {K2U, K2K, K2C};
-
 class CombinedSPARQLQuery : public SPARQLQuery {
-
+private:
     std::list<medium_job_t> jobs;
 
 public:
     bool staged;
-    bool flush_all;
-    std::vector<sid_t> staged_table;
-
-    SPARQLQuery::PatternType type;
+    std::vector<sid_t> staged_table; // result table
+    SPARQLQuery::PatternType type;   // current pattern type of the combined job
 
     CombinedSPARQLQuery(SPARQLQuery::PatternType type)
-        : type(type), staged(false), flush_all(false) {
-
+        : type(type), staged(false) {
         this->result.set_device(DeviceType::CPU);
         this->combined = true;
     }
 
     ~CombinedSPARQLQuery() {
         for (auto it = jobs.begin(); it != jobs.end(); ++it) {
-            if (it->req_ptr)
-                delete (it->req_ptr);
+            if (it->req_ptr) delete (it->req_ptr);
         }
     }
 
     // TODO: should be refined if we need to remove finished medium job from waiting list
     size_t rbuf_offset() const {
-        ASSERT(jobs.empty() == false);
+        ASSERT(!jobs.empty());
         // find the last loaded job
         for (auto it = jobs.rbegin(); it != jobs.rend(); it++) {
             if (it->rbuf_info.loaded)
@@ -1148,22 +1129,12 @@ public:
     }
 
     // staging the gpu rbuf to cpu
-    // [TODO:] if we should change device type?
     void unload_rbuf() {
-        if (jobs.empty()) {
-            assert(false);
-            // reset();
-            // return;
-        }
-
-        ASSERT(staged == false);
+        ASSERT(!jobs.empty());
+        ASSERT(!staged);
         ASSERT(result.gpu.valid());
-        ASSERT(jobs.empty() == false);
 
         size_t table_size = this->combined_table_size();
-#ifdef PATTERN_COMBINE_DEBUG
-        logstream(LOG_EMPH) << "unload_rbuf: saved gpu result buf. size: " << table_size << LOG_endl;
-#endif
         staged_table.resize(table_size);
         thrust::device_ptr<sid_t> dptr(result.gpu.rbuf());
 
@@ -1198,21 +1169,14 @@ public:
         }
     }
 
-    // TODO implement these interfaces
-    virtual void update_result_table(std::vector<sid_t>& new_table) {
-        // result.result_table.swap(new_table);
-    }
-
     virtual void update_nrows() {
         // set the gpu rbuf of medium job according to its rbuf offset
         for (auto &job : jobs) {
-            ASSERT(job.req_ptr->dev_type == SPARQLQuery::DeviceType::GPU);
-            if (!job.rbuf_info.loaded)
-                continue;
+            ASSERT_EQ(job.req_ptr->dev_type, SPARQLQuery::DeviceType::GPU);
+            if (!job.rbuf_info.loaded) continue;
             job.req_ptr->result.gpu.set_rbuf(result.gpu.rbuf() + job.rbuf_info.start_off, job.rbuf_info.size);
-            ASSERT(job.rbuf_info.row_num == job.req_ptr->result.get_row_num());
+            ASSERT_EQ(job.rbuf_info.row_num, job.req_ptr->result.get_row_num());
         }
-
     }
 
     virtual void update_ncols(int col_num) {
@@ -1221,18 +1185,15 @@ public:
             if (!job.rbuf_info.loaded)
                 continue;
             switch (type) {
-                case PatternType::K2U:
-                {
-                    SPARQLQuery::Result &res = job.req_ptr->result;
-                    res.col_num += 1;
-                }
+            case PatternType::K2U: {
+                SPARQLQuery::Result &res = job.req_ptr->result;
+                res.col_num += 1;
                 break;
-
-                case PatternType::K2K:
-                case PatternType::K2C:
+            }
+            case PatternType::K2K:
+            case PatternType::K2C:
                 break;
-
-                default:
+            default:
                 ASSERT(false);
             }
         }
@@ -1240,24 +1201,20 @@ public:
     }
 
     virtual void update_var2col(sid_t vid, int col, int t = SID_t) {
-        // result.add_var2col(vid, col);
         for (auto &job : jobs) {
             if (!job.rbuf_info.loaded)
                 continue;
 
             switch (type) {
-                case PatternType::K2U:
-                {
-                    SPARQLQuery::Result &res = job.req_ptr->result;
-                    res.add_var2col(job.req_ptr->get_pattern().object, res.col_num);
-                }
+            case PatternType::K2U: {
+                SPARQLQuery::Result &res = job.req_ptr->result;
+                res.add_var2col(job.req_ptr->get_pattern().object, res.col_num);
                 break;
-
-                case PatternType::K2K:
-                case PatternType::K2C:
+            }
+            case PatternType::K2K:
+            case PatternType::K2C:
                 break;
-
-                default:
+            default:
                 ASSERT(false);
             }
         }
@@ -1288,22 +1245,17 @@ public:
     }
 
     bool add_job(SPARQLQuery* req) {
-        if (jobs.size() == Global::pattern_combine_window)
+        if (jobs.size() >= Global::pattern_combine_window)
             return false;
         if (combined_row_num() >= Global::pattern_combine_rows)
             return false;
-        // check whether gpu rbuf can accommodate result table of new job
-        // ASSERT((this->result.gpu.table_size() + req->result.result_table.size())
-                // * WUKONG_VID_SIZE <= MiB2B(Global::gpu_rbuf_size_mb));
 
         medium_job_t job;
-
         job.req_ptr = req;
         job.rbuf_info.row_num = req->result.get_row_num();
         job.rbuf_info.size = req->result.result_table.size();
         jobs.push_back(job);
         ASSERT(jobs.size() <= Global::pattern_combine_window);
-
         return true;
     }
 
@@ -1333,7 +1285,6 @@ public:
             job.req_ptr->result.gpu.clear();
         }
     }
-
 };
 
 #endif

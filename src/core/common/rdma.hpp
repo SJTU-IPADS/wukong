@@ -24,6 +24,8 @@
 
 //#pragma GCC diagnostic warning ignored "-fpermissive"
 
+#include <boost/mpi.hpp>
+
 #include <iostream>     // std::cout
 #include <fstream>      // std::ifstream
 #include <vector>
@@ -130,6 +132,8 @@ public:
             }
 
             rctrl->start_daemon();
+
+            MPI_Barrier(MPI_COMM_WORLD);
 
             connections.resize(nthds);
             for(auto& vec : connections) {

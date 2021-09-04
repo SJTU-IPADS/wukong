@@ -25,6 +25,7 @@
 #ifdef USE_GPU
 
 #include "core/sparql/query.hpp"
+#include "gpu_hash.hpp"
 #include "gpu_utils.hpp"
 
 namespace wukong {
@@ -46,29 +47,22 @@ private:
     cudaStream_t stream;
     cudaEvent_t pipe_finish_ev;
 
-    // Siyuan: result buffer不与Channel绑定，result buffer由GPUMem提供，Channel
-    // 只在执行一条pattern的时候使用，而不是贯穿一个query所有的pattern执行。
 public:
-
     uint32_t id;
-    bool taken; // whether this channel is taken
+    bool taken;  // whether this channel is taken
     GPUErrorCode error_code = GPUErrorCode::NORMAL;
     void* error_info = nullptr;
     Occupier occupier;
-    // GPU resources
-    GPUEngineParam para;
+    GPUEngineParam para;  // GPU resources
 
     GPUChannel() { }
 
     void init(uint32_t id, vertex_t *vertices_d, edge_t *edges_d, uint64_t nkey_blks,
                    uint64_t nvalue_blks, uint64_t nbuckets_kblk, uint64_t nentries_vblk) {
-
         this->id = id;
         para.init(vertices_d, edges_d, nkey_blks, nvalue_blks, nbuckets_kblk, nentries_vblk);
-
         CUDA_ASSERT(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
         CUDA_ASSERT(cudaEventCreateWithFlags(&pipe_finish_ev, cudaEventDisableTiming));
-
         reset();
     }
 

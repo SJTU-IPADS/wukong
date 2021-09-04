@@ -74,10 +74,10 @@ public:
     static int gpu_value_blk_size_mb __attribute__((weak));
     static bool gpu_enable_pipeline __attribute__((weak));
 
-    static int num_cuda_streams __attribute__((weak));
     static bool gpu_enable_pattern_combine __attribute__((weak));
     static int pattern_combine_rows __attribute__((weak));
     static int pattern_combine_window __attribute__((weak));
+    static int num_cuda_streams __attribute__((weak));
     static int num_gpu_channels __attribute__((weak));
     static int gpu_threshold __attribute__((weak));
 };
@@ -130,20 +130,16 @@ int Global::num_gpus = 0;
 int Global::gpu_kvcache_size_gb = 10;    // key-value cache
 int Global::gpu_rbuf_size_mb =  32;      // result (dual) buffer
 int Global::gpu_rdma_buf_size_mb = 64;   // RDMA buffer
-int Global::gpu_key_blk_size_mb = 16;
-int Global::gpu_value_blk_size_mb = 4;
-bool Global::gpu_enable_pipeline = true;
+int Global::gpu_key_blk_size_mb = 16;    // GPU Cache key block size
+int Global::gpu_value_blk_size_mb = 4;   // GPU Cache value block size
+bool Global::gpu_enable_pipeline = true; // pattern-aware pipelining
 
-int Global::num_cuda_streams = 16;
-// Pattern-Combining
 bool Global::gpu_enable_pattern_combine = false;
-int Global::pattern_combine_rows = 20000;
-int Global::pattern_combine_window = 10;
+int Global::pattern_combine_rows = 20000;  // multi-query combining path threshold
+int Global::pattern_combine_window = 10;   // multi-query combining query number threshold
 
-// Non-blocking gpu engine
-int Global::num_gpu_channels = 2;
-
-// pattern-level scheduling
-int Global::gpu_threshold = 500;
+int Global::num_cuda_streams = 16;         // allocated CUDA stream number
+int Global::num_gpu_channels = 2;          // mutli-stream query execution
+int Global::gpu_threshold = 500;           // hybrid CPU/GPU scheduling
 
 } // namespace wukong

@@ -25,17 +25,20 @@
 #ifdef USE_GPU
 
 #include <thrust/device_ptr.h>
-#include <thrust/sort.h>
 #include <thrust/reduce.h>
+#include <thrust/sort.h>
 #include <thrust/system/cuda/execution_policy.h>
 #include <cmath>
+#include <map>
+#include <vector>
 
+#include "core/common/global.hpp"
 #include "core/store/segment_meta.hpp"
 #include "core/store/vertex.hpp"
 
 // utils
-#include "core/common/global.hpp"
 #include "gpu_utils.hpp"
+#include "utils/assertion.hpp"
 #include "utils/unit.hpp"
 
 namespace wukong {
@@ -56,27 +59,26 @@ struct pattern_info_t {
     int col_num = 0;
     int row_num = 0;
 
-    int rbuf_start = 0; // start offset in (sid_t*)rbuf for the pattern
+    int rbuf_start = 0;  // start offset in (sid_t*)rbuf for the pattern
     int rbuf_start_row = 0;
-    int rbuf_max_row = 0;   // max number of rows for the pattern
+    int rbuf_max_row = 0;  // max number of rows for the pattern
 
     // pointer to corresponding segment on gpu
-    rdf_seg_meta_t *segment_meta_dptr = nullptr;
+    rdf_seg_meta_t* segment_meta_dptr = nullptr;
 
     // pointer to mapping table buffer on gpu
-    uint64_t *key_mapping_dptr = nullptr;
-    uint64_t *value_mapping_dptr = nullptr;
-} __attribute__ ((aligned (WK_CLINE)));
+    uint64_t* key_mapping_dptr = nullptr;
+    uint64_t* value_mapping_dptr = nullptr;
+} __attribute__((aligned(WK_CLINE)));
 
 struct updated_pattern_info_t {
     size_t rbuf_start = 0;
     size_t rbuf_start_row = 0;
     size_t rbuf_max_row = 0;
     int col_num = 0;
-} __attribute__ ((aligned (WK_CLINE)));
+} __attribute__((aligned(WK_CLINE)));
 
 struct GPUEngineParam {
-
     uint64_t cache_nkey_blks = 0;
     uint64_t cache_nvalue_blks = 0;
 
@@ -96,56 +98,54 @@ struct GPUEngineParam {
 
     // data structures used on GPU
     struct {
-        ikey_t *d_key_list = nullptr;
-        vertex_t *vertex_gaddr = nullptr;
-        edge_t *edge_gaddr = nullptr;
+        ikey_t* d_key_list = nullptr;
+        vertex_t* vertex_gaddr = nullptr;
+        edge_t* edge_gaddr = nullptr;
 
-        uint64_t *d_slot_id_list = nullptr;
-        uint64_t *d_vertex_mapping = nullptr;
-        uint64_t *d_edge_mapping = nullptr;
+        uint64_t* d_slot_id_list = nullptr;
+        uint64_t* d_vertex_mapping = nullptr;
+        uint64_t* d_edge_mapping = nullptr;
 
         uint64_t vertex_blk_sz;
         uint64_t edge_blk_sz;
 
-        int *d_prefix_sum_list = nullptr;
-        int *d_edge_size_list = nullptr;
+        int* d_prefix_sum_list = nullptr;
+        int* d_edge_size_list = nullptr;
 
-        uint64_t *d_offset_list = nullptr;
-        uint64_t *d_edge_off_list = nullptr;
+        uint64_t* d_offset_list = nullptr;
+        uint64_t* d_edge_off_list = nullptr;
 
-        sid_t *d_in_rbuf;
-        sid_t *d_out_rbuf;
+        sid_t* d_in_rbuf;
+        sid_t* d_out_rbuf;
 
         // mapping table buffer on gpu
         // can only contain #key_blocks and #value_blocks mapping entries
         uint64_t* d_kblk_mapping_table = nullptr;
         size_t total_key_blks = 0;
-        std::map<segid_t, uint64_t *> kblk_mapping_cache;
+        std::map<segid_t, uint64_t*> kblk_mapping_cache;
 
         uint64_t* d_vblk_mapping_table = nullptr;
         size_t total_value_blks = 0;
-        std::map<segid_t, uint64_t *> vblk_mapping_cache;
+        std::map<segid_t, uint64_t*> vblk_mapping_cache;
 
         // array of segment metadata
-        rdf_seg_meta_t *segment_metas_d;
+        rdf_seg_meta_t* segment_metas_d;
 
         // array of all patterns in the combined query
-        pattern_info_t *pattern_infos_d;
-        updated_pattern_info_t *updated_patt_infos_d;
+        pattern_info_t* pattern_infos_d;
+        updated_pattern_info_t* updated_patt_infos_d;
         int num_patterns = 0;
-
     } gpu;
 
-    GPUEngineParam() { }
+    GPUEngineParam() {}
 
-    GPUEngineParam(vertex_t *d_vertices, edge_t *d_edges, uint64_t nkey_blks,
+    GPUEngineParam(vertex_t* d_vertices, edge_t* d_edges, uint64_t nkey_blks,
                    uint64_t nvalue_blks, uint64_t nbuckets, uint64_t nentries) {
-
         init(d_vertices, d_edges, nkey_blks, nvalue_blks, nbuckets, nentries);
     }
 
-    void init(vertex_t *d_vertices, edge_t *d_edges, uint64_t nkey_blks,
-                   uint64_t nvalue_blks, uint64_t nbuckets, uint64_t nentries) {
+    void init(vertex_t* d_vertices, edge_t* d_edges, uint64_t nkey_blks,
+              uint64_t nvalue_blks, uint64_t nbuckets, uint64_t nentries) {
         cache_nkey_blks = nkey_blks;
         cache_nvalue_blks = nvalue_blks;
 
@@ -155,21 +155,21 @@ struct GPUEngineParam {
         gpu.edge_blk_sz = nentries;
 
         // NOTE: these temporary buffers can be allocated before execute one pattern dynamically
-        CUDA_ASSERT(cudaMalloc( (void **)&gpu.d_key_list, MiB2B(Global::gpu_rbuf_size_mb) ));
+        CUDA_ASSERT(cudaMalloc(reinterpret_cast<void**>(&gpu.d_key_list), MiB2B(Global::gpu_rbuf_size_mb)));
 
-        CUDA_ASSERT(cudaMalloc( (void **)&gpu.d_slot_id_list, MiB2B(Global::gpu_rbuf_size_mb) ));
-        CUDA_ASSERT(cudaMalloc( (void **)&gpu.d_prefix_sum_list, MiB2B(Global::gpu_rbuf_size_mb) ));
-        CUDA_ASSERT(cudaMalloc( (void **)&gpu.d_edge_size_list, MiB2B(Global::gpu_rbuf_size_mb) ));
-        CUDA_ASSERT(cudaMalloc( (void **)&gpu.d_offset_list, MiB2B(Global::gpu_rbuf_size_mb) ));
-        CUDA_ASSERT(cudaMalloc( (void **)&gpu.d_edge_off_list, MiB2B(Global::gpu_rbuf_size_mb) ));
+        CUDA_ASSERT(cudaMalloc(reinterpret_cast<void**>(&gpu.d_slot_id_list), MiB2B(Global::gpu_rbuf_size_mb)));
+        CUDA_ASSERT(cudaMalloc(reinterpret_cast<void**>(&gpu.d_prefix_sum_list), MiB2B(Global::gpu_rbuf_size_mb)));
+        CUDA_ASSERT(cudaMalloc(reinterpret_cast<void**>(&gpu.d_edge_size_list), MiB2B(Global::gpu_rbuf_size_mb)));
+        CUDA_ASSERT(cudaMalloc(reinterpret_cast<void**>(&gpu.d_offset_list), MiB2B(Global::gpu_rbuf_size_mb)));
+        CUDA_ASSERT(cudaMalloc(reinterpret_cast<void**>(&gpu.d_edge_off_list), MiB2B(Global::gpu_rbuf_size_mb)));
 
         // NOTE: these buffers has long life cycle, thus should be allocated statically
-        CUDA_ASSERT(cudaMalloc( (void**)(&gpu.d_kblk_mapping_table), sizeof(uint64_t) * nkey_blks));
-        CUDA_ASSERT(cudaMalloc( (void**)(&gpu.d_vblk_mapping_table), sizeof(uint64_t) * nvalue_blks));
+        CUDA_ASSERT(cudaMalloc(reinterpret_cast<void**>(&gpu.d_kblk_mapping_table), sizeof(uint64_t) * nkey_blks));
+        CUDA_ASSERT(cudaMalloc(reinterpret_cast<void**>(&gpu.d_vblk_mapping_table), sizeof(uint64_t) * nvalue_blks));
 
-        CUDA_ASSERT(cudaMalloc( (void**)(&gpu.segment_metas_d), sizeof(rdf_seg_meta_t) * Global::pattern_combine_window ));
-        CUDA_ASSERT(cudaMalloc( (void**)(&gpu.pattern_infos_d), sizeof(pattern_info_t) * Global::pattern_combine_window ));
-        CUDA_ASSERT(cudaMalloc( (void**)(&gpu.updated_patt_infos_d), sizeof(updated_pattern_info_t) * Global::pattern_combine_window ));
+        CUDA_ASSERT(cudaMalloc(reinterpret_cast<void**>(&gpu.segment_metas_d), sizeof(rdf_seg_meta_t) * Global::pattern_combine_window));
+        CUDA_ASSERT(cudaMalloc(reinterpret_cast<void**>(&gpu.pattern_infos_d), sizeof(pattern_info_t) * Global::pattern_combine_window));
+        CUDA_ASSERT(cudaMalloc(reinterpret_cast<void**>(&gpu.updated_patt_infos_d), sizeof(updated_pattern_info_t) * Global::pattern_combine_window));
     }
 
     void reset() {
@@ -178,18 +178,16 @@ struct GPUEngineParam {
         gpu.num_patterns = 0;
         gpu.kblk_mapping_cache.clear();
         gpu.vblk_mapping_cache.clear();
-    } 
+    }
 
-    void load_segment_mappings(const std::vector<uint64_t> &vertex_mapping,
-                               const std::vector<uint64_t> &edge_mapping,
-                               const rdf_seg_meta_t &seg, cudaStream_t stream = 0) {
-
+    void load_segment_mappings(const std::vector<uint64_t>& vertex_mapping,
+                               const std::vector<uint64_t>& edge_mapping,
+                               const rdf_seg_meta_t& seg, cudaStream_t stream = 0) {
         CUDA_ASSERT(cudaMemcpyAsync(gpu.d_kblk_mapping_table,
                                     &(vertex_mapping[0]),
                                     sizeof(uint64_t) * seg.num_key_blks,
                                     cudaMemcpyHostToDevice,
                                     stream));
-
 
         CUDA_ASSERT(cudaMemcpyAsync(gpu.d_vblk_mapping_table,
                                     &(edge_mapping[0]),
@@ -198,13 +196,14 @@ struct GPUEngineParam {
                                     stream));
     }
 
-    uint64_t *
-    load_key_mappings(const std::vector<uint64_t>& key_mapping, const segid_t segid,
-                      const rdf_seg_meta_t &seg, cudaStream_t stream = 0) {
-        if(gpu.kblk_mapping_cache.find(segid) != gpu.kblk_mapping_cache.end()){
+    uint64_t* load_key_mappings(const std::vector<uint64_t>& key_mapping,
+                                const segid_t segid,
+                                const rdf_seg_meta_t& seg,
+                                cudaStream_t stream = 0) {
+        if (gpu.kblk_mapping_cache.find(segid) != gpu.kblk_mapping_cache.end()) {
             return gpu.kblk_mapping_cache[segid];
-        }else{
-            uint64_t *dptr = gpu.d_kblk_mapping_table + gpu.total_key_blks;
+        } else {
+            uint64_t* dptr = gpu.d_kblk_mapping_table + gpu.total_key_blks;
             CUDA_ASSERT(cudaMemcpyAsync(dptr,
                                         &(key_mapping[0]),
                                         sizeof(uint64_t) * seg.num_key_blks,
@@ -212,20 +211,20 @@ struct GPUEngineParam {
                                         stream));
 
             gpu.total_key_blks += seg.num_key_blks;
-            assert(gpu.total_key_blks <= cache_nkey_blks);
+            ASSERT(gpu.total_key_blks <= cache_nkey_blks);
             gpu.kblk_mapping_cache[segid] = dptr;
             return dptr;
         }
     }
 
-
-    uint64_t *
-    load_value_mappings(const std::vector<uint64_t>& value_mapping, const segid_t segid,
-                        const rdf_seg_meta_t &seg, cudaStream_t stream = 0) {
-        if(gpu.vblk_mapping_cache.find(segid) != gpu.vblk_mapping_cache.end()){
+    uint64_t* load_value_mappings(const std::vector<uint64_t>& value_mapping,
+                                  const segid_t segid,
+                                  const rdf_seg_meta_t& seg,
+                                  cudaStream_t stream = 0) {
+        if (gpu.vblk_mapping_cache.find(segid) != gpu.vblk_mapping_cache.end()) {
             return gpu.vblk_mapping_cache[segid];
-        }else{
-            uint64_t *dptr = gpu.d_vblk_mapping_table + gpu.total_value_blks;
+        } else {
+            uint64_t* dptr = gpu.d_vblk_mapping_table + gpu.total_value_blks;
             CUDA_ASSERT(cudaMemcpyAsync(dptr,
                                         &(value_mapping[0]),
                                         sizeof(uint64_t) * seg.num_value_blks,
@@ -233,16 +232,14 @@ struct GPUEngineParam {
                                         stream));
 
             gpu.total_value_blks += seg.num_value_blks;
-            assert(gpu.total_value_blks <= cache_nvalue_blks);
+            ASSERT(gpu.total_value_blks <= cache_nvalue_blks);
             gpu.vblk_mapping_cache[segid] = dptr;
             return dptr;
         }
     }
 
-
-    void
-    load_segment_meta(const rdf_seg_meta_t &seg_meta, cudaStream_t stream = 0) {
-
+    void load_segment_meta(const rdf_seg_meta_t& seg_meta,
+                           cudaStream_t stream = 0) {
         CUDA_ASSERT(cudaMemcpyAsync(gpu.segment_metas_d,
                                     &seg_meta,
                                     sizeof(rdf_seg_meta_t),
@@ -250,9 +247,10 @@ struct GPUEngineParam {
                                     stream));
     }
 
-    void
-    load_pattern_meta(rdf_seg_meta_t &seg_meta, pattern_info_t& pattern, cudaStream_t stream = 0) {
-        rdf_seg_meta_t *segmeta_dpr = gpu.segment_metas_d + gpu.num_patterns;
+    void load_pattern_meta(rdf_seg_meta_t& seg_meta,
+                           pattern_info_t& pattern,
+                           cudaStream_t stream = 0) {
+        rdf_seg_meta_t* segmeta_dpr = gpu.segment_metas_d + gpu.num_patterns;
         CUDA_ASSERT(cudaMemcpyAsync(segmeta_dpr,
                                     &seg_meta,
                                     sizeof(rdf_seg_meta_t),
@@ -263,72 +261,71 @@ struct GPUEngineParam {
 
         // finally copy pattern_into to gpu
         CUDA_ASSERT(cudaMemcpyAsync(gpu.pattern_infos_d + gpu.num_patterns,
-                        &pattern,
-                        sizeof(pattern_info_t),
-                        cudaMemcpyHostToDevice,
-                        stream));
+                                    &pattern,
+                                    sizeof(pattern_info_t),
+                                    cudaMemcpyHostToDevice,
+                                    stream));
 
         // increase counter for pattern_info
         ++gpu.num_patterns;
-        assert(gpu.num_patterns <= Global::pattern_combine_window);
+        ASSERT(gpu.num_patterns <= Global::pattern_combine_window);
     }
 
-    void
-    load_pattern_metas(std::vector<rdf_seg_meta_t> &seg_metas, std::vector<pattern_info_t>& patterns, cudaStream_t stream = 0) {
-        assert(seg_metas.size() == patterns.size());
+    void load_pattern_metas(std::vector<rdf_seg_meta_t>& seg_metas,
+                            std::vector<pattern_info_t>& patterns,
+                            cudaStream_t stream = 0) {
+        ASSERT_EQ(seg_metas.size(), patterns.size());
         CUDA_ASSERT(cudaMemcpyAsync(gpu.segment_metas_d,
                                     seg_metas.data(),
                                     sizeof(rdf_seg_meta_t) * seg_metas.size(),
                                     cudaMemcpyHostToDevice,
                                     stream));
 
-        for(int i = 0; i < patterns.size(); i++){
+        for (int i = 0; i < patterns.size(); i++) {
             patterns[i].segment_meta_dptr = gpu.segment_metas_d + i;
         }
 
         // finally copy pattern_into to gpu
         CUDA_ASSERT(cudaMemcpyAsync(gpu.pattern_infos_d,
-                        patterns.data(),
-                        sizeof(pattern_info_t) * patterns.size(),
-                        cudaMemcpyHostToDevice,
-                        stream));
+                                    patterns.data(),
+                                    sizeof(pattern_info_t) * patterns.size(),
+                                    cudaMemcpyHostToDevice,
+                                    stream));
 
         // increase counter for pattern_info
         gpu.num_patterns += patterns.size();
-        assert(gpu.num_patterns <= Global::pattern_combine_window);
+        ASSERT(gpu.num_patterns <= Global::pattern_combine_window);
     }
 
-    void set_result_bufs(sid_t *d_in_rbuf, sid_t *d_out_rbuf) {
+    void set_result_bufs(sid_t* d_in_rbuf, sid_t* d_out_rbuf) {
         gpu.d_in_rbuf = d_in_rbuf;
         gpu.d_out_rbuf = d_out_rbuf;
     }
+} __attribute__((aligned(WK_CLINE)));
 
-} __attribute__ ((aligned (WK_CLINE)));
-
-void gpu_split_giant_query(GPUEngineParam& param, int row_num, int col_num, int num_jobs, int query_size, 
-                            std::vector<int>& buf_offs, cudaStream_t stream = 0);
+void gpu_split_giant_query(GPUEngineParam& param, int row_num, int col_num, int num_jobs, int query_size,
+                           std::vector<int>& buf_offs, cudaStream_t stream = 0);
 void gpu_shuffle_result_buf(GPUEngineParam& param, int num_servers, std::vector<int>& buf_sizes,
                             std::vector<int>& buf_heads, cudaStream_t stream = 0);
-void gpu_split_result_buf(GPUEngineParam &param, int num_servers, cudaStream_t stream = 0);
-void gpu_calc_prefix_sum(GPUEngineParam &param, cudaStream_t stream = 0);
+void gpu_split_result_buf(GPUEngineParam& param, int num_servers, cudaStream_t stream = 0);
+void gpu_calc_prefix_sum(GPUEngineParam& param, cudaStream_t stream = 0);
 
-void gpu_generate_key_list(GPUEngineParam &param, cudaStream_t stream = 0);
-void gpu_get_slot_id_list(GPUEngineParam &param, cudaStream_t stream = 0);
+void gpu_generate_key_list(GPUEngineParam& param, cudaStream_t stream = 0);
+void gpu_get_slot_id_list(GPUEngineParam& param, cudaStream_t stream = 0);
 
-void gpu_get_edge_list(GPUEngineParam &param, cudaStream_t stream = 0);
-void gpu_get_edge_list_k2k(GPUEngineParam &param, cudaStream_t stream = 0);
-void gpu_get_edge_list_k2c(GPUEngineParam &param, cudaStream_t stream = 0);
+void gpu_get_edge_list(GPUEngineParam& param, cudaStream_t stream = 0);
+void gpu_get_edge_list_k2k(GPUEngineParam& param, cudaStream_t stream = 0);
+void gpu_get_edge_list_k2c(GPUEngineParam& param, cudaStream_t stream = 0);
 
 int gpu_update_result_buf_i2u(GPUEngineParam& param, cudaStream_t stream = 0);
 void gpu_update_result_buf_k2k(GPUEngineParam& param, cudaStream_t stream = 0);
 void gpu_update_result_buf_k2u(GPUEngineParam& param, cudaStream_t stream = 0);
 void gpu_update_result_buf_k2c(GPUEngineParam& param, cudaStream_t stream = 0);
 
-/* combined patterns */
-
-void gpu_generate_key_list_combined(GPUEngineParam &param, cudaStream_t stream = 0);
-void gpu_get_slot_id_list_combined(GPUEngineParam &param, cudaStream_t stream = 0);
-void gpu_get_edge_list_combined(GPUEngineParam &param, cudaStream_t stream = 0);
+/* multi-query combining */
+void gpu_generate_key_list_combined(GPUEngineParam& param, cudaStream_t stream = 0);
+void gpu_get_slot_id_list_combined(GPUEngineParam& param, cudaStream_t stream = 0);
+void gpu_get_edge_list_combined(GPUEngineParam& param, cudaStream_t stream = 0);
 void gpu_get_edge_list_k2c_combined(GPUEngineParam& param, cudaStream_t stream = 0);
 void gpu_get_edge_list_k2k_combined(GPUEngineParam& param, cudaStream_t stream = 0);
 
@@ -337,4 +334,4 @@ void gpu_update_result_buf_k2c_combined(GPUEngineParam& param, cudaStream_t stre
 
 }  // namespace wukong
 
-#endif // end of USE_GPU
+#endif  // end of USE_GPU

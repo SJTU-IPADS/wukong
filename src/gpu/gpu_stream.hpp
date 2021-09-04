@@ -25,20 +25,19 @@
 #ifdef USE_GPU
 
 #include <cuda_runtime.h>
+#include <vector>
 
 namespace wukong {
 
 class GPUStreamPool {
-
 private:
     std::vector<cudaStream_t> streams;
     uint64_t rr_cnt;
     int num_streams;
     cudaStream_t split_stream;
 
-
 public:
-    GPUStreamPool(int num_streams) : num_streams(num_streams) {
+    explicit GPUStreamPool(int num_streams) : num_streams(num_streams) {
         rr_cnt = 0;
         streams.reserve(num_streams);
         for (int i = 0; i < num_streams; ++i)
@@ -52,7 +51,7 @@ public:
         cudaStreamDestroy(split_stream);
     }
 
-    static GPUStreamPool &get_pool() {
+    static GPUStreamPool& get_pool() {
         static GPUStreamPool pool(Global::num_cuda_streams);
         return pool;
     }

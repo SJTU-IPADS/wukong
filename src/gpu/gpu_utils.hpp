@@ -23,20 +23,21 @@
 #pragma once
 
 #ifdef USE_GPU
+
 #include <cuda_runtime.h>
+#include <vector>
 namespace wukong {
 
-#define CUDA_ASSERT(ans) { check_cuda_result((ans), __FILE__, __LINE__); }
+#define CUDA_ASSERT(ans) \
+    { check_cuda_result((ans), __FILE__, __LINE__); }
 
-inline void check_cuda_result(cudaError_t code, const char *file, int line, bool abort = true)
-{
-	if (code != cudaSuccess) {
-		fprintf(stderr, "CUDA_ASSERT: code:%d, %s %s:%d\n",
-		        code, cudaGetErrorString(code), file, line);
-		if (abort) assert(false);
-	}
+inline void check_cuda_result(cudaError_t code, const char* file, int line, bool abort = true) {
+    if (code != cudaSuccess) {
+        fprintf(stderr, "CUDA_ASSERT: code:%d, %s %s:%d\n",
+                code, cudaGetErrorString(code), file, line);
+        if (abort) assert(false);
+    }
 }
-
 
 #define CUDA_STREAM_SYNC(stream) (CUDA_ASSERT(cudaStreamSynchronize(stream)))
 #define CUDA_DEVICE_SYNC (CUDA_ASSERT(cudaDeviceSynchronize()))
@@ -44,25 +45,21 @@ inline void check_cuda_result(cudaError_t code, const char *file, int line, bool
 #define WUKONG_GPU_AGENT_TID (wukong::Global::num_proxies + wukong::Global::num_engines)
 
 #define WUKONG_CUDA_NUM_THREADS 512
+#define WUKONG_GPU_RBUF_SIZE(num_elems) (WUKONG_GPU_ELEM_SIZE * num_elems)
 #define WUKONG_GPU_ELEM_SIZE sizeof(sid_t)
+#define WUKONG_VID_SIZE sizeof(sid_t)
 
 inline int WUKONG_GET_BLOCKS(const int n) {
-	return (n + WUKONG_CUDA_NUM_THREADS - 1) / WUKONG_CUDA_NUM_THREADS;
+    return (n + WUKONG_CUDA_NUM_THREADS - 1) / WUKONG_CUDA_NUM_THREADS;
 }
-
-#define WUKONG_GPU_RBUF_SIZE(num_elems) (WUKONG_GPU_ELEM_SIZE * num_elems)
-
-#define WUKONG_VID_SIZE sizeof(sid_t)
-#define WUKONG_MAX_COMBINED_WINDOW_SIZE 10
-#define WUKONG_QUIT_COMBINED_WINDOW_SIZE 4
 
 class SPARQLQuery;
 using subquery_list_t = std::vector<SPARQLQuery*>;
 
-enum class GPUErrorCode{
- NORMAL,
- GIANT_TOTAL_RESULT_TABLE,
- GIANT_VERTEX_RESULT_TABLE,
+enum class GPUErrorCode {
+    NORMAL,
+    GIANT_TOTAL_RESULT_TABLE,
+    GIANT_VERTEX_RESULT_TABLE,
 };
 
 }  // namespace wukong

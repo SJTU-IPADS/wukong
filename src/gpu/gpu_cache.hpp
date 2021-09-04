@@ -24,19 +24,20 @@
 
 #ifdef USE_GPU
 
-#include <list>
-#include <vector>
-#include <map>
-#include <algorithm>
 #include <cuda_runtime.h>
+#include <algorithm>
+#include <list>
+#include <map>
+#include <utility>
+#include <vector>
 
+#include "core/common/global.hpp"
 #include "core/store/kvstore.hpp"
 #include "core/store/segment_meta.hpp"
 
 // utils
-#include "utils/unit.hpp"
 #include "gpu_utils.hpp"
-#include "core/common/global.hpp"
+#include "utils/unit.hpp"
 
 namespace wukong {
 
@@ -84,27 +85,27 @@ private:
     // number of value blocks per segement using now
     std::map<segid_t, int> num_value_blocks_seg_using;
 
-    // segments that are in key/value cache(at least one block in cache)
+    // segments that are in key/value cache (at least one block in cache)
     std::list<segid_t> segs_in_key_cache;
     std::list<segid_t> segs_in_value_cache;
 
     // gpu mem
-    GPUMem *gmem;
+    GPUMem* gmem;
     // pointing to key area of gpu mem kvstore
-    vertex_t *vertex_gaddr;
+    vertex_t* vertex_gaddr;
     // pointing to value area of gpu mem kvstore
-    edge_t *edge_gaddr;
+    edge_t* edge_gaddr;
     // pointing to key area of cpu kvstore
-    vertex_t *vertex_addr;
+    vertex_t* vertex_addr;
     // pointing to value area of cpu kvstore
-    edge_t *edge_addr;
+    edge_t* edge_addr;
 
     const int BLOCK_ID_ERR = -1;
 
-    void evict_key_blocks(const std::vector<segid_t> &conflicts, segid_t seg_to_load,
+    void evict_key_blocks(const std::vector<segid_t>& conflicts, segid_t seg_to_load,
                           segid_t seg_in_pattern, int num_need_blocks) {
         // step 1: traverse segments in key cache, evict segments that are not in conflicts or not to load/using
-        for (auto it = segs_in_key_cache.begin(); it != segs_in_key_cache.end(); ) {
+        for (auto it = segs_in_key_cache.begin(); it != segs_in_key_cache.end();) {
             segid_t seg = *it;
             if (seg == seg_to_load || seg == seg_in_pattern) {
                 it++;
@@ -130,7 +131,7 @@ private:
                     }
                 }
             }
-        } // end of traverse segs_in_key_cache
+        }  // end of traverse segs_in_key_cache
 
         // step 2: worst case. we have to evict segments that in conflicts
         for (auto rit = conflicts.rbegin(); rit != conflicts.rend(); rit++) {
@@ -160,17 +161,17 @@ private:
                     }
                 }
             }
-        } // end of worst case
+        }  // end of worst case
 
         logstream(LOG_WARNING) << "GPU Cache: evict_key_blocks() cannot provide enough free key blocks."
                                << LOG_endl;
-    } // end of evict_key_blocks
+    }  // end of evict_key_blocks
 
-    void evict_value_blocks(const std::vector<segid_t> &conflicts,
+    void evict_value_blocks(const std::vector<segid_t>& conflicts,
                             segid_t seg_to_load, segid_t seg_in_pattern,
                             int num_need_blocks) {
         // step 1: traverse segments in value cache, evict segments that are not in conflicts or not to load/using
-        for (auto it = segs_in_value_cache.begin(); it != segs_in_value_cache.end(); ) {
+        for (auto it = segs_in_value_cache.begin(); it != segs_in_value_cache.end();) {
             segid_t seg = *it;
             if (seg == seg_to_load || seg == seg_in_pattern) {
                 it++;
@@ -196,7 +197,7 @@ private:
                     }
                 }
             }
-        } // end of traverse segs_in_value_cache
+        }  // end of traverse segs_in_value_cache
 
         // step 2: worst case. we have to evict segments that in conflicts
         for (auto rit = conflicts.rbegin(); rit != conflicts.rend(); rit++) {
@@ -226,10 +227,10 @@ private:
                     }
                 }
             }
-        } // end of worst case
+        }  // end of worst case
 
         logstream(LOG_WARNING) << "GPU Cache: evict_value_blocks() could not provide enough free value blocks." << LOG_endl;
-    } // end of evict_value_blocks
+    }  // end of evict_value_blocks
 
     /* load one key block of a segment to a free block
      * seg: the segment
@@ -239,8 +240,8 @@ private:
      */
     void load_vertex_block(segid_t seg, int seg_block_idx, int block_id, cudaStream_t stream) {
         // step 1: calculate direct size
-        int end_main_block_idx = ceil((double)(rdf_metas[seg].num_buckets) / nbuckets_kblk) - 1;
-        int end_indirect_block_idx = ceil((double)(rdf_metas[seg].get_total_num_buckets()) / nbuckets_kblk) - 1;
+        int end_main_block_idx = ceil(static_cast<double>(rdf_metas[seg].num_buckets) / nbuckets_kblk) - 1;
+        int end_indirect_block_idx = ceil(static_cast<double>(rdf_metas[seg].get_total_num_buckets()) / nbuckets_kblk) - 1;
 
         uint64_t main_size = 0;
         uint64_t indirect_size = 0;
@@ -257,6 +258,7 @@ private:
             // the loading block contains indirect headers
             main_size = 0;
         }
+
         // step 2: calculate indirect size
         if (seg_block_idx < end_main_block_idx) {
             indirect_size = 0;
@@ -265,16 +267,17 @@ private:
         } else if (seg_block_idx < end_indirect_block_idx) {
             indirect_size = nbuckets_kblk - indirect_start;
         }
+
         // step 3: load direct
         if (main_size != 0) {
             CUDA_ASSERT(cudaMemcpyAsync(
-                            vertex_gaddr + block_id * nbuckets_kblk * RDFStore::ASSOCIATIVITY,
-                            vertex_addr + (rdf_metas[seg].bucket_start
-                                           + seg_block_idx * nbuckets_kblk) * RDFStore::ASSOCIATIVITY,
-                            sizeof(vertex_t) * main_size * RDFStore::ASSOCIATIVITY,
-                            cudaMemcpyHostToDevice,
-                            stream));
+                vertex_gaddr + block_id * nbuckets_kblk * RDFStore::ASSOCIATIVITY,
+                vertex_addr + (rdf_metas[seg].bucket_start + seg_block_idx * nbuckets_kblk) * RDFStore::ASSOCIATIVITY,
+                sizeof(vertex_t) * main_size * RDFStore::ASSOCIATIVITY,
+                cudaMemcpyHostToDevice,
+                stream));
         }
+
         // step 4: load indirect
         if (indirect_size != 0) {
             // remain number of buckets to load
@@ -285,6 +288,7 @@ private:
             if (seg_block_idx != end_main_block_idx) {
                 start_bucket_idx = seg_block_idx * nbuckets_kblk - rdf_metas[seg].num_buckets;
             }
+
             // step 4.2 traverse the ext_bucket_list and load
             uint64_t passed_buckets = 0;
 
@@ -298,8 +302,7 @@ private:
                     uint64_t inside_off = start_bucket_idx - passed_buckets;
                     uint64_t inside_load = ext.num_ext_buckets - inside_off;
                     if (inside_load > remain) inside_load = remain;
-                    uint64_t dst_off = (block_id * nbuckets_kblk + indirect_start + indirect_size - remain)
-                                       * RDFStore::ASSOCIATIVITY;
+                    uint64_t dst_off = (block_id * nbuckets_kblk + indirect_start + indirect_size - remain) * RDFStore::ASSOCIATIVITY;
                     uint64_t src_off = (ext.start + inside_off) * RDFStore::ASSOCIATIVITY;
                     CUDA_ASSERT(cudaMemcpyAsync(vertex_gaddr + dst_off, vertex_addr + src_off,
                                                 sizeof(vertex_t) * inside_load * RDFStore::ASSOCIATIVITY,
@@ -314,7 +317,7 @@ private:
                 passed_buckets += ext.num_ext_buckets;
             }
         }
-    } // end of load_vertex_block
+    }  // end of load_vertex_block
 
     /* load one value block of a segment to a free block
      * seg: the segment
@@ -333,13 +336,12 @@ private:
                                     sizeof(edge_t) * data_size,
                                     cudaMemcpyHostToDevice,
                                     stream));
-    } // end of load_edge_block
+    }  // end of load_edge_block
 
     void _load_segment(segid_t seg_to_load, segid_t seg_in_use,
-                       const std::vector<segid_t> &conflicts, cudaStream_t stream_id, bool preload) {
+                       const std::vector<segid_t>& conflicts, cudaStream_t stream_id, bool preload) {
         // step 1.1: evict key blocks
-        int num_need_key_blocks = num_key_blocks_seg_need[seg_to_load]
-                                  - num_key_blocks_seg_using[seg_to_load];
+        int num_need_key_blocks = num_key_blocks_seg_need[seg_to_load] - num_key_blocks_seg_using[seg_to_load];
 
 #ifdef GPU_DEBUG
         logstream(LOG_EMPH) << "load_segment: segment: " << seg_to_load.to_string()
@@ -352,6 +354,7 @@ private:
                                    << ", load_segment: evict_key_blocks" << LOG_endl;
             evict_key_blocks(conflicts, seg_to_load, seg_in_use, num_need_key_blocks);
         }
+
         // step 1.2: load key blocks
         for (int i = 0; i < num_key_blocks_seg_need[seg_to_load]; i++) {
             // skip the blocks that are already loaded
@@ -384,13 +387,12 @@ private:
             num_key_blocks_seg_using[seg_to_load]++;
         }
 
-        //step 2.1: evict value blocks
-        int num_need_value_blocks = num_value_blocks_seg_need[seg_to_load]
-                                    - num_value_blocks_seg_using[seg_to_load];
+        // step 2.1: evict value blocks
+        int num_need_value_blocks = num_value_blocks_seg_need[seg_to_load] - num_value_blocks_seg_using[seg_to_load];
         if (free_value_blocks.size() < num_need_value_blocks) {
-            logstream(LOG_WARNING) << "load_segment: evict_value_blocks" << LOG_endl;
             evict_value_blocks(conflicts, seg_to_load, seg_in_use, num_need_value_blocks);
         }
+
         // step 2.2: load value blocks
         for (int i = 0; i < num_value_blocks_seg_need[seg_to_load]; i++) {
             // skip the blocks that are already loaded
@@ -422,12 +424,10 @@ private:
 
             num_value_blocks_seg_using[seg_to_load]++;
         }
-    } // end of _load_segment
+    }  // end of _load_segment
 
 public:
-    GPUCache(GPUMem * gmem, vertex_t *v_a, edge_t *e_a, const std::map<segid_t, rdf_seg_meta_t> &rdf_metas):
-        gmem(gmem), vertex_addr(v_a), edge_addr(e_a), rdf_metas(rdf_metas) {
-
+    GPUCache(GPUMem* gmem, vertex_t* v_a, edge_t* e_a, const std::map<segid_t, rdf_seg_meta_t>& rdf_metas) : gmem(gmem), vertex_addr(v_a), edge_addr(e_a), rdf_metas(rdf_metas) {
         // step 1: calculate #slots, #buckets, #entries
         uint64_t num_slots = (GiB2B(Global::gpu_kvcache_size_gb) * RDFStore::HD_RATIO) / (100 * sizeof(vertex_t));
         uint64_t num_buckets = num_slots / RDFStore::ASSOCIATIVITY;
@@ -439,8 +439,8 @@ public:
         num_key_blks = num_buckets / nbuckets_kblk;
         num_value_blks = num_entries / nentries_vblk;
 
-        vertex_gaddr = (vertex_t *)gmem->kvcache();
-        edge_gaddr = (edge_t *)(gmem->kvcache() + num_slots * sizeof(vertex_t));
+        vertex_gaddr = reinterpret_cast<vertex_t*>(gmem->kvcache());
+        edge_gaddr = reinterpret_cast<edge_t*>(gmem->kvcache() + num_slots * sizeof(vertex_t));
 
         logstream(LOG_INFO) << "GPU_Cache: #key_blocks: " << num_key_blks
                             << ", #value_blocks: " << num_value_blks
@@ -467,12 +467,11 @@ public:
             num_value_blocks_seg_need.insert(std::make_pair(it->first, value_blocks_need));
             num_value_blocks_seg_using.insert(std::make_pair(it->first, 0));
         }
-    } // end of constructor
+    }  // end of constructor
 
     // check whether a segment is in cache
     bool seg_in_cache(segid_t seg) {
-        if (num_key_blocks_seg_using[seg] == num_key_blocks_seg_need[seg]
-                && num_value_blocks_seg_using[seg] == num_value_blocks_seg_need[seg])
+        if (num_key_blocks_seg_using[seg] == num_key_blocks_seg_need[seg] && num_value_blocks_seg_using[seg] == num_value_blocks_seg_need[seg])
             return true;
         return false;
     }
@@ -487,8 +486,8 @@ public:
 
     // return the bucket offset of each key block in a segment
     std::vector<uint64_t> create_key_mapping(segid_t seg) {
-        ASSERT(num_key_blocks_seg_using[seg] == num_key_blocks_seg_need[seg]);
-        ASSERT(vertex_allocation[seg].size() == num_key_blocks_seg_need[seg]);
+        ASSERT_EQ(num_key_blocks_seg_using[seg], num_key_blocks_seg_need[seg]);
+        ASSERT_EQ(vertex_allocation[seg].size(), num_key_blocks_seg_need[seg]);
 
         std::vector<uint64_t> headers;
         for (auto block_id : vertex_allocation[seg])
@@ -499,8 +498,8 @@ public:
 
     // return the entry offset of each value block in a segment
     std::vector<uint64_t> create_value_mapping(segid_t seg) {
-        ASSERT(num_value_blocks_seg_using[seg] == num_value_blocks_seg_need[seg]);
-        ASSERT(edge_allocation[seg].size() == num_value_blocks_seg_need[seg]);
+        ASSERT_EQ(num_value_blocks_seg_using[seg], num_value_blocks_seg_need[seg]);
+        ASSERT_EQ(edge_allocation[seg].size(), num_value_blocks_seg_need[seg]);
         std::vector<uint64_t> headers;
         for (auto block_id : edge_allocation[seg]) {
             headers.push_back(block_id * nentries_vblk);
@@ -518,9 +517,9 @@ public:
 
     uint64_t get_nentries_vblk() { return nentries_vblk; }
 
-    vertex_t *get_vertex_gaddr() { return vertex_gaddr; }
+    vertex_t* get_vertex_gaddr() { return vertex_gaddr; }
 
-    edge_t *get_edge_gaddr() { return edge_gaddr; }
+    edge_t* get_edge_gaddr() { return edge_gaddr; }
 
     void reset() {
         for (auto it = rdf_metas.begin(); it != rdf_metas.end(); it++) {
@@ -546,17 +545,20 @@ public:
         segs_in_key_cache.clear();
         segs_in_value_cache.clear();
 
-        ASSERT(free_key_blocks.size() == num_key_blks);
-        ASSERT(free_value_blocks.size() == num_value_blks);
-    } // end of reset
+        ASSERT_EQ(free_key_blocks.size(), num_key_blks);
+        ASSERT_EQ(free_value_blocks.size(), num_value_blks);
+    }  // end of reset
 
     void load_segment(segid_t seg_to_load,
-                      const std::vector<segid_t> &conflicts, cudaStream_t stream_id) {
+                      const std::vector<segid_t>& conflicts,
+                      cudaStream_t stream_id) {
         _load_segment(seg_to_load, seg_to_load, conflicts, stream_id, false);
     }
 
-    void prefetch_segment(segid_t seg_to_load, segid_t seg_in_use,
-                          const std::vector<segid_t> &conflicts, cudaStream_t stream_id) {
+    void prefetch_segment(segid_t seg_to_load,
+                          segid_t seg_in_use,
+                          const std::vector<segid_t>& conflicts,
+                          cudaStream_t stream_id) {
         _load_segment(seg_to_load, seg_in_use, conflicts, stream_id, true);
     }
 };

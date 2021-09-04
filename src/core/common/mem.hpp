@@ -28,6 +28,10 @@
 // utils
 #include "utils/unit.hpp"
 
+#ifdef USE_GPU
+#include "gpu/gpu_utils.hpp"
+#endif
+
 namespace wukong {
 
 #define ADDR_PER_SRV(_addr, _sz, _tid) ((_addr) + ((_sz) * (_tid)));
@@ -218,7 +222,11 @@ public:
         for (int i = 0; i < bc_mems.size(); i++)
             mem_sz += bc_mems[i]->mem_size();
         // allocate mem_sz bytes.
-        mem = new char[mem_sz / sizeof(char)];
+    #ifdef USE_GPU
+        CUDA_ASSERT(cudaMallocHost(&mem, mem_sz));
+    #else
+        mem = new char[mem_sz];
+    #endif
         memset(mem, 0, mem_sz);
 
         // kvstore
