@@ -54,5 +54,4 @@ If you use Wukong in your research, please cite our paper:
 
 [**USENIX ATC**] [Pragh: Locality-preserving Graph Traversal with Split Live Migration](docs/papers/wukong+m-atc19.pdf). Xiating Xie, Xingda Wei, Rong Chen, and Haibo Chen. Proceedings of 2019 USENIX Annual Technical Conference, Renton, WA, US, July 2019.
 
-
-
+[**SoCC**] [Fast and Accurate Optimizer for Query Processing over Knowledge Graphs](https://dl.acm.org/doi/pdf/10.1145/3472883.3486991?cid=81323488576). Jingqi Wu, Rong Chen, and Yubin Xia. Proceedings of the 12th ACM Symposium on Cloud Computing, Seattle, WA, US, November 2021.
